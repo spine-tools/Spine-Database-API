@@ -24,27 +24,58 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-from sqlalchemy import false
+from sqlalchemy import create_engine, false
 from sqlalchemy.ext.automap import automap_base, generate_relationship
 from sqlalchemy.orm import interfaces, Session, aliased
-from sqlalchemy.exc import NoSuchTableError, DBAPIError
+from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
 from datetime import datetime, timezone
 
+
 # TODO: SELECT queries should also be checked for errors
+
+class SpineDBAPIError(Exception):
+    """Basic exception for errors raised by the API."""
+    def __init__(self, msg=None):
+        super().__init__(msg)
+        self.msg = msg
+
+
+class TableNotFoundError(SpineDBAPIError):
+    """Can't find one of the tables."""
+    def __init__(self, table):
+        super().__init__(msg="Table '{}' is missing from the database.".format(table))
+        self.table = table
+
+
+class RecordNotFoundError(SpineDBAPIError):
+    """Can't find one record in one of the tables."""
+    def __init__(self, table, name=None, id=None):
+        super().__init__(msg="Unable to find item in table '{}'.".format(fields, table))
+        self.table = table
+        self.name = name
+        self.id = id
+
+
+class ParameterValueError(SpineDBAPIError):
+    """Can't find one record in one of the tables."""
+    def __init__(self, value):
+        super().__init__(msg="The value {} does not fit the datatype '{}'.".format(value))
+        self.value = value
+
+
 class DatabaseMapping(object):
     """A class to manipulate the Spine database object relational mapping.
 
     Attributes:
-        parent (ToolboxUI): QMainWindow instance
-        engine (Engine): The sql alchemy engine to get the mapping from
+        db_url (str): The database url formatted according to sqlalchemy rules
         username (str): The user name
     """
-    def __init__(self, parent, engine, username):
+    def __init__(self, db_url, username):
         """Initialize class."""
-        self._parent = parent
-        self.engine = engine
+        self.db_url = db_url
         self.username = username
-        self.session = Session(engine)
+        self.engine = None
+        self.session = None
         self.commit = None
         self.transactions = list()
         self.Base = None
@@ -55,9 +86,27 @@ class DatabaseMapping(object):
         self.Parameter = None
         self.ParameterValue = None
         self.Commit = None
+        self.create_engine_and_session()
+        self.init_base()
 
-    def set_parent(self, parent):
-        self._parent = parent
+    def create_engine_and_session(self):
+        self.engine = create_engine(self.db_url)
+        try:
+            self.engine.connect()
+        except DatabaseError as e:
+            raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
+        if self.db_url.startswith('sqlite'):
+            try:
+                self.engine.execute('pragma quick_check;')
+            except DatabaseError as e:
+                msg = "Could not open '{}' as SQLite database: {}".format(self.db_url, e.orig.args)
+                raise SpineDBAPIError(msg)
+            try:
+                self.engine.execute('BEGIN IMMEDIATE')
+            except DatabaseError as e:
+                msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
+                raise SpineDBAPIError(msg)
+        self.session = Session(self.engine)
 
     def init_base(self):
         """Create base and reflect tables."""
@@ -77,11 +126,8 @@ class DatabaseMapping(object):
             self.Parameter = self.Base.classes.parameter
             self.ParameterValue = self.Base.classes.parameter_value
             self.Commit = self.Base.classes.commit
-            return True
-        except NoSuchTableError as e:
-            self._parent.msg_error.emit("Unable to parse database in the Spine format. "
-                                        " Table <b>{}</b> is missing.".format(e))
-            return False
+        except NoSuchTableError as table:
+            raise TableNotFoundError(table)
 
     def new_commit(self):
         """Add row to commit table"""
@@ -92,21 +138,17 @@ class DatabaseMapping(object):
         try:
             self.session.add(self.commit)
             self.session.flush()
-            return True
         except DBAPIError as e:
-            msg = "Could not insert new commit item: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while inserting new commit: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def commit_session(self, comment):
         """Commit changes to source database."""
         if not self.session:
-            self._parent.msg_error.emit("No session!")
-            return
+            raise SpineDBAPIError("No session!")
         if not self.commit.id:
-            self._parent.msg_error.emit("No commit id!")
-            return
+            raise SpineDBAPIError("No commit id!")
         try:
             self.commit.comment = comment
             self.commit.date = datetime.now(timezone.utc)
@@ -115,30 +157,23 @@ class DatabaseMapping(object):
                 del self.transactions[i]
             self.session.commit()  # also commit main transaction
         except DBAPIError as e:
-            msg = "Error while trying to commit changes: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.commit.comment = None
             self.commit.date = None
-            return
-        msg = "All changes commited successfully."
-        self._parent.msg.emit(msg)
+            msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
         self.new_commit()
 
     def rollback_session(self):
         if not self.session:
-            self._parent.msg_error.emit("No session!")
-            return
+            raise SpineDBAPIError("No session!")
         try:
             for i in reversed(range(len(self.transactions))):
                 self.session.rollback()
                 del self.transactions[i]
             self.session.rollback()  # also rollback main transaction
         except DBAPIError:
-            msg = "Error while trying to rollback changes."
-            self._parent.msg_error.emit(msg, 3000)
-            return
-        msg = "All changes since last commit rolled back successfully."
-        self._parent.msg.emit(msg)
+            msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
         self.new_commit()
 
     def single_object_class(self, id):
@@ -459,14 +494,11 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             self.session.add(object_class)
             self.session.flush()
-            msg = "Successfully added new object class '{}'.".format(object_class.name)
-            self._parent.msg.emit(msg)
             return object_class
         except DBAPIError as e:
-            msg = "Could not insert new object class '{}': {}".format(object_class.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while inserting object class '{}': {}".format(object_class.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def add_object(self, **kwargs):
         """Add object to database.
@@ -479,14 +511,11 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             self.session.add(object_)
             self.session.flush()
-            msg = "Successfully added new object '{}'.".format(object_.name)
-            self._parent.msg.emit(msg)
             return object_
         except DBAPIError as e:
-            msg = "Could not insert new object '{}': {}".format(object_.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while inserting object '{}': {}".format(object_.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def add_relationship_class(self, **kwargs):
         """Add relationship class to database.
@@ -499,14 +528,11 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             self.session.add(relationship_class)
             self.session.flush()
-            msg = "Successfully added new relationship class '{}'.".format(relationship_class.name)
-            self._parent.msg.emit(msg)
             return relationship_class
         except DBAPIError as e:
-            msg = "Could not insert new relationship class '{}': {}".format(relationship_class.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while inserting relationship class '{}': {}".format(relationship_class.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def add_relationship(self, **kwargs):
         """Add relationship to database.
@@ -519,14 +545,11 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             self.session.add(relationship)
             self.session.flush()
-            msg = "Successfully added new relationship '{}'.".format(relationship.name)
-            self._parent.msg.emit(msg)
             return relationship
         except DBAPIError as e:
-            msg = "Could not insert new relationship '{}': {}".format(relationship.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while inserting relationship '{}': {}".format(relationship.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def add_parameter(self, **kwargs):
         """Add parameter to database.
@@ -539,14 +562,11 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             self.session.add(parameter)
             self.session.flush()
-            msg = "Successfully added new parameter '{}'.".format(parameter.name)
-            self._parent.msg.emit(msg)
             return parameter
         except DBAPIError as e:
-            msg = "Could not insert new parameter: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while inserting parameter '{}': {}".format(parameter.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def add_parameter_value(self, **kwargs):
         """Add parameter value to database.
@@ -559,186 +579,138 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             self.session.add(parameter_value)
             self.session.flush()
-            msg = "Successfully added new parameter value."
-            self._parent.msg.emit(msg)
             return parameter_value
         except DBAPIError as e:
-            msg = "Could not insert new parameter value: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while inserting parameter value: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def rename_object_class(self, id, new_name):
         """Rename object class."""
         object_class = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
         if not object_class:
-            msg = "Could not find object class."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise RecordNotFoundError('object_class', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
             object_class.name = new_name
             object_class.commit_id = self.commit.id
             self.session.flush()
-            msg = "Successfully renamed object class to '{}'.".format(object_class.name)
-            self._parent.msg.emit(msg)
             return object_class
         except DBAPIError as e:
-            msg = "Could not rename object class '{}': {}".format(object_class.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while renaming object class '{}': {}".format(object_class.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def rename_object(self, id, new_name):
         """Rename object."""
         object_ = self.session.query(self.Object).filter_by(id=id).one_or_none()
         if not object_:
-            msg = "Could not find object."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise RecordNotFoundError('object', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
             object_.name = new_name
             object_.commit_id = self.commit.id
             self.session.flush()
-            msg = "Successfully renamed object to '{}'.".format(object_.name)
-            self._parent.msg.emit(msg)
             return object_
         except DBAPIError as e:
-            msg = "Could not rename object '{}': {}".format(object_.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while renaming object '{}': {}".format(object_.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def rename_relationship_class(self, id, new_name):
         """Rename relationship class."""
         relationship_class = self.session.query(self.RelationshipClass).filter_by(id=id).one_or_none()
         if not relationship_class:
-            msg = "Could not find relationship class."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise RecordNotFoundError('relationship_class', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
             relationship_class.name = new_name
             relationship_class.commit_id = self.commit.id
             self.session.flush()
-            msg = "Successfully renamed relationship class to '{}'.".format(relationship_class.name)
-            self._parent.msg.emit(msg)
             return relationship_class
         except DBAPIError as e:
-            msg = "Could not rename relationship class '{}': {}".format(relationship_class.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while renaming relationship class '{}': {}".format(relationship_class.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def rename_relationship(self, id, new_name):
         """Rename relationship."""
         relationship = self.session.query(self.Relationship).filter_by(id=id).one_or_none()
         if not relationship:
-            msg = "Could not find relationship."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise RecordNotFoundError('relationship', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
             relationship.name = new_name
             relationship.commit_id = self.commit.id
             self.session.flush()
-            msg = "Successfully renamed relationship to '{}'.".format(relationship.name)
-            self._parent.msg.emit(msg)
             return relationship
         except DBAPIError as e:
-            msg = "Could not rename relationship '{}': {}".format(relationship.name, e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while renaming relationship '{}': {}".format(relationship.name, e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_object_class(self, id):
         """Remove object class."""
         object_class = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
         if not object_class:
-            msg = "Could not find object class."
-            self._parent.msg_error.emit(msg)
-            return False
+            raise RecordNotFoundError('object_class', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.delete(object_class)
             self.session.flush()
-            msg = "Successfully removed object class."
-            self._parent.msg.emit(msg)
-            return True
         except DBAPIError as e:
-            msg = "Could not remove object class: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while removing object class: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_object(self, id):
         """Remove object."""
         object_ = self.session.query(self.Object).filter_by(id=id).one_or_none()
         if not object_:
-            msg = "Could not find object."
-            self._parent.msg_error.emit(msg)
-            return False
+            raise RecordNotFoundError('object', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.delete(object_)
             self.session.flush()
-            msg = "Successfully removed object."
-            self._parent.msg.emit(msg)
-            return True
         except DBAPIError as e:
-            msg = "Could not remove object: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while removing object: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_relationship_class(self, id):
         """Remove relationship class."""
         relationship_class = self.session.query(self.RelationshipClass).filter_by(id=id).one_or_none()
         if not relationship_class:
-            msg = "Could not find relationship class."
-            self._parent.msg_error.emit(msg)
-            return False
+            raise RecordNotFoundError('relationship_class', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.delete(relationship_class)
             self.session.flush()
-            msg = "Successfully removed relationship class."
-            self._parent.msg.emit(msg)
-            return True
         except DBAPIError as e:
-            msg = "Could not remove relationship class: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while removing relationship class: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_relationship(self, id):
         """Remove relationship."""
         relationship = self.session.query(self.Relationship).filter_by(id=id).one_or_none()
         if not relationship:
-            msg = "Could not find relationship."
-            self._parent.msg_error.emit(msg)
-            return False
+            raise RecordNotFoundError('relationship', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.delete(relationship)
             self.session.flush()
-            msg = "Successfully removed relationship."
-            self._parent.msg.emit(msg)
-            return True
         except DBAPIError as e:
-            msg = "Could not remove relationship: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while removing relationship: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def update_parameter(self, id, field_name, new_value):
         """Update parameter."""
         parameter = self.session.query(self.Parameter).\
             filter_by(id=id).one_or_none()
         if not parameter:
-            msg = "Could not find parameter."
-            return None
+            raise RecordNotFoundError('parameter', id=id)
         value = getattr(parameter, field_name)
         data_type = type(value)
         try:
@@ -746,35 +718,27 @@ class DatabaseMapping(object):
         except TypeError:
             new_casted_value = new_value
         except ValueError:
-            msg = "The new value does not fit the datatype."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise ParameterValueError(new_value)
         if value == new_casted_value:
             msg = "Parameter not changed."
-            self._parent.msg.emit(msg)
-            return None
+            raise SpineDBAPIError(msg)
         try:
             self.transactions.append(self.session.begin_nested())
             setattr(parameter, field_name, new_value)
             parameter.commit_id = self.commit.id
             self.session.flush()
-            msg = "Parameter succesfully updated."
-            self._parent.msg.emit(msg)
             return parameter
         except DBAPIError as e:
-            msg = "Could not update parameter value: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while updating parameter: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def update_parameter_value(self, id, field_name, new_value):
         """Update parameter value."""
         parameter_value = self.session.query(self.ParameterValue).\
             filter_by(id=id).one_or_none()
         if not parameter_value:
-            msg = "Could not find parameter value."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise RecordNotFoundError('parameter_value', id=id)
         value = getattr(parameter_value, field_name)
         data_type = type(value)
         try:
@@ -782,68 +746,50 @@ class DatabaseMapping(object):
         except TypeError:
             new_casted_value = new_value
         except ValueError:
-            msg = "The new value does not fit the datatype."
-            self._parent.msg_error.emit(msg)
-            return None
+            raise ParameterValueError(new_value)
         if value == new_casted_value:
             msg = "Parameter value not changed."
-            self._parent.msg.emit(msg)
-            return None
+            raise SpineDBAPIError(msg)
         try:
             self.transactions.append(self.session.begin_nested())
             setattr(parameter_value, field_name, new_casted_value)
             parameter_value.commit_id = self.commit.id
             self.session.flush()
-            msg = "Parameter value succesfully updated."
-            self._parent.msg.emit(msg)
             return parameter_value
         except DBAPIError as e:
-            msg = "Could not update parameter value: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return None
+            msg = "DBAPIError while updating parameter value: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_parameter(self, id):
         """Remove parameter."""
         parameter = self.session.query(self.Parameter).\
             filter_by(id=id).one_or_none()
         if not parameter:
-            msg = "Could not find parameter."
-            self._parent.msg_error.emit(msg)
-            return False
+            raise RecordNotFoundError('parameter', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.delete(parameter)
             self.session.flush()
-            msg = "Parameter succesfully removed."
-            self._parent.msg.emit(msg)
-            return True
         except DBAPIError as e:
-            msg = "Could not remove parameter: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while removing parameter: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_parameter_value(self, id):
         """Remove parameter value."""
         parameter_value = self.session.query(self.ParameterValue).\
             filter_by(id=id).one_or_none()
         if not parameter_value:
-            msg = "Could not find parameter value."
-            self._parent.msg_error.emit(msg)
-            return False
+            raise RecordNotFoundError('parameter_value', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.delete(parameter_value)
             self.session.flush()
-            msg = "Parameter value succesfully removed."
-            self._parent.msg.emit(msg)
-            return True
         except DBAPIError as e:
-            msg = "Could not remove parameter value: {}".format(e.orig.args)
-            self._parent.msg_error.emit(msg)
             self.session.rollback()
-            return False
+            msg = "DBAPIError while removing parameter value: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def empty_list(self):
         return self.session.query(false()).filter(false())

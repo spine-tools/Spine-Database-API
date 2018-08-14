@@ -4,7 +4,7 @@ setup(
     name='spinedatabase_api',
     version='0.0.1',
     description='An API to access Spine databases',
-    url='http://github.com/storborg/funniest',
+    url='https://gitlab.vtt.fi/spine/data',
     author='Manuel Marin',
     author_email='manuelma@kth.se',
     license='LGPL',
