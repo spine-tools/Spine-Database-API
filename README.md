@@ -15,6 +15,6 @@ To install the package run:
 
     $ pip install git+https://gitlab.vtt.fi/spine/data.git@database_api
 
-Alternatively, if you have setup your ssh credentials: 
+Alternatively, if you have setup your ssh credentials:
 
-    $ pip install git+ssh://git@gitlab.vtt.fi:spine/data.git
+    $ pip install git+ssh://git@gitlab.vtt.fi:spine/data.git@database_api
