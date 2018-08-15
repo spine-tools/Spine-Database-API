@@ -1,9 +1,9 @@
 #############################################################################
 # Copyright (C) 2017 - 2018 VTT Technical Research Centre of Finland
 #
-# This file is part of Spine Toolbox.
+# This file is part of Spine Database API.
 #
-# Spine Toolbox is free software: you can redistribute it and/or modify
+# Spine Spine Database API is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -28,39 +28,14 @@ from sqlalchemy import create_engine, false
 from sqlalchemy.ext.automap import automap_base, generate_relationship
 from sqlalchemy.orm import interfaces, Session, aliased
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
+from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError, ParameterValueError 
 from datetime import datetime, timezone
 
-
+# TODO: Consider return lists of dict (with _asdict()) rather than queries,
+# to better support platforms that cannot handle queries efficiently (such as Julia)
+# TODO: At some point DatabaseMapping attributes such as session, engine, and all the tables should be made 'private'
+# so as to prevent hacking into the database.
 # TODO: SELECT queries should also be checked for errors
-
-class SpineDBAPIError(Exception):
-    """Basic exception for errors raised by the API."""
-    def __init__(self, msg=None):
-        super().__init__(msg)
-        self.msg = msg
-
-
-class TableNotFoundError(SpineDBAPIError):
-    """Can't find one of the tables."""
-    def __init__(self, table):
-        super().__init__(msg="Table '{}' is missing from the database.".format(table))
-        self.table = table
-
-
-class RecordNotFoundError(SpineDBAPIError):
-    """Can't find one record in one of the tables."""
-    def __init__(self, table, name=None, id=None):
-        super().__init__(msg="Unable to find item in table '{}'.".format(fields, table))
-        self.table = table
-        self.name = name
-        self.id = id
-
-
-class ParameterValueError(SpineDBAPIError):
-    """The value given for a parameter does not fit the datatype."""
-    def __init__(self, value):
-        super().__init__(msg="The value {} does not fit the datatype '{}'.".format(value))
-        self.value = value
 
 
 class DatabaseMapping(object):
@@ -70,7 +45,7 @@ class DatabaseMapping(object):
         db_url (str): The database url formatted according to sqlalchemy rules
         username (str): The user name
     """
-    def __init__(self, db_url, username):
+    def __init__(self, db_url, username=None):
         """Initialize class."""
         self.db_url = db_url
         self.username = username
@@ -229,7 +204,7 @@ class DatabaseMapping(object):
             self.Object.name
         )
         if class_id:
-            return qry.filter_by(class_id=class_id)
+            qry = qry.filter_by(class_id=class_id)
         return qry
 
     def proto_relationship_class_list(
