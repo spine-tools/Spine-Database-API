@@ -57,7 +57,7 @@ class RecordNotFoundError(SpineDBAPIError):
 
 
 class ParameterValueError(SpineDBAPIError):
-    """Can't find one record in one of the tables."""
+    """The value given for a parameter does not fit the datatype."""
     def __init__(self, value):
         super().__init__(msg="The value {} does not fit the datatype '{}'.".format(value))
         self.value = value
