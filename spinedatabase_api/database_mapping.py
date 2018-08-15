@@ -28,7 +28,7 @@ from sqlalchemy import create_engine, false
 from sqlalchemy.ext.automap import automap_base, generate_relationship
 from sqlalchemy.orm import interfaces, Session, aliased
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
-from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError, ParameterValueError 
+from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError, ParameterValueError
 from datetime import datetime, timezone
 
 # TODO: Consider return lists of dict (with _asdict()) rather than queries,
@@ -65,8 +65,8 @@ class DatabaseMapping(object):
         self.init_base()
 
     def create_engine_and_session(self):
-        self.engine = create_engine(self.db_url)
         try:
+            self.engine = create_engine(self.db_url)
             self.engine.connect()
         except DatabaseError as e:
             raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
