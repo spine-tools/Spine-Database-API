@@ -24,9 +24,10 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-from sqlalchemy import create_engine, false
+from sqlalchemy import create_engine, false, distinct, func, MetaData
 from sqlalchemy.ext.automap import automap_base, generate_relationship
 from sqlalchemy.orm import interfaces, Session, aliased
+from sqlalchemy.util import KeyedTuple
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
 from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError, ParameterValueError
 from datetime import datetime, timezone
@@ -103,6 +104,8 @@ class DatabaseMapping(object):
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
             raise TableNotFoundError(table)
+        except AttributeError as table:
+            raise TableNotFoundError(table)
 
     def new_commit(self):
         """Add row to commit table"""
@@ -151,42 +154,66 @@ class DatabaseMapping(object):
             raise SpineDBAPIError(msg)
         self.new_commit()
 
-    def single_object_class(self, id):
-        """Return a single object class given the id or None if not found."""
-        return self.session.query(
+    def single_object_class(self, id=None, name=None):
+        """Return a single object class given the id or name."""
+        if not id and not name:
+            return self.empty_list()
+        qry = self.session.query(
             self.ObjectClass.id,
             self.ObjectClass.name,
             self.ObjectClass.display_order,
-        ).filter_by(id=id).one_or_none()
+        )
+        if id:
+            return qry.filter_by(id=id)
+        if name:
+            return qry.filter_by(name=name)
 
-    def single_object(self, id):
-        """Return a single object given the id or None if not found."""
-        return self.session.query(
+    def single_object(self, id=None, name=None):
+        """Return a single object given the id or name."""
+        if not id and not name:
+            return self.empty_list()
+        qry = self.session.query(
             self.Object.id,
             self.Object.class_id,
             self.Object.name
-        ).filter_by(id=id).one_or_none()
+        )
+        if id:
+            return qry.filter_by(id=id)
+        if name:
+            return qry.filter_by(name=name)
 
-    def single_relationship_class(self, id):
-        """Return a single relationship class given the id or None if not found."""
-        return self.session.query(
+    def single_wide_relationship_class(self, id=None, name=None):
+        """Return a single relationship class in wide format given the id or name."""
+        if not id and not name:
+            return self.empty_list()
+        qry = self.session.query(
             self.RelationshipClass.id,
-            self.RelationshipClass.name,
-            self.RelationshipClass.parent_relationship_class_id,
-            self.RelationshipClass.parent_object_class_id,
-            self.RelationshipClass.child_object_class_id
-        ).filter_by(id=id).one_or_none()
+            func.group_concat(self.RelationshipClass.object_class_id).label('object_class_id_list'),
+            func.group_concat(self.ObjectClass.name).label('object_class_name_list'),
+            self.RelationshipClass.name
+        ).filter(self.RelationshipClass.object_class_id == self.ObjectClass.id).\
+        group_by(self.RelationshipClass.id)
+        if id:
+            return qry.filter_by(id=id)
+        if name:
+            return qry.filter_by(name=name)
 
-    def single_relationship(self, id):
-        """Return a single relationship given the id or None if not found."""
-        return self.session.query(
+    def single_wide_relationship(self, id=None, name=None):
+        """Return a single relationship in wide format given the id or name."""
+        if not id and not name:
+            return self.empty_list()
+        qry = self.session.query(
             self.Relationship.id,
+            func.group_concat(self.Relationship.object_id).label('object_id_list'),
+            func.group_concat(self.Object.name).label('object_name_list'),
             self.Relationship.name,
-            self.Relationship.class_id,
-            self.Relationship.parent_relationship_id,
-            self.Relationship.parent_object_id,
-            self.Relationship.child_object_id
-        ).filter_by(id=id).one_or_none()
+            self.Relationship.class_id
+        ).filter(self.Relationship.object_id == self.Object.id).\
+        group_by(self.Relationship.id)
+        if id:
+            return qry.filter_by(id=id)
+        if name:
+            return qry.filter_by(name=name)
 
     def object_class_list(self):
         """Return object classes ordered by display order."""
@@ -207,114 +234,75 @@ class DatabaseMapping(object):
             qry = qry.filter_by(class_id=class_id)
         return qry
 
-    def proto_relationship_class_list(
-            self,
-            parent_object_class_id=None,
-            child_object_class_id=None
-        ):
-        """Return proto-relationship classes, i.e., those that do not involve other relationship classes."""
-        # NOTE: in our current convention, relationship classes are never the 'child'
-        # in other relationship classes --I hope this doesn't change
-        qry = self.session.query(
-            self.RelationshipClass.id,
-            self.RelationshipClass.name,
-            self.RelationshipClass.parent_object_class_id,
-            self.RelationshipClass.child_object_class_id
-        ).filter_by(parent_relationship_class_id=None)
-        if parent_object_class_id:
-            return qry.filter_by(parent_object_class_id=parent_object_class_id)
-        if child_object_class_id:
-            return qry.filter_by(child_object_class_id=child_object_class_id)
+    def distinct_relationship_class_id_list(self, object_class_id=None):
+        """Return distinct relationship class ids optionally filtered by object class id."""
+        qry = self.session.query(self.RelationshipClass.id).distinct()
+        if object_class_id:
+            qry = qry.filter_by(object_class_id=object_class_id)
         return qry
 
-    def meta_relationship_class_list(
-            self,
-            parent_relationship_class_id=None
-        ):
-        """Return meta-relationship classes, i.e., those having another relationship class as parent."""
-        # NOTE: in our current convention, relationship classes are never the 'child'
-        # in other relationship classes --but this may change
+    def relationship_class_list(self, id=None):
+        """Return all relationship classes optionally filtered by id."""
         qry = self.session.query(
             self.RelationshipClass.id,
-            self.RelationshipClass.name,
-            self.RelationshipClass.parent_relationship_class_id,
-            self.RelationshipClass.child_object_class_id
-        ).filter_by(parent_object_class_id=None)
-        if parent_relationship_class_id:
-            return qry.filter_by(parent_relationship_class_id=parent_relationship_class_id)
+            self.RelationshipClass.dimension,
+            self.RelationshipClass.object_class_id,
+            self.RelationshipClass.name
+        ).order_by(self.RelationshipClass.id, self.RelationshipClass.dimension)
+        if id:
+            qry = qry.filter_by(id=id)
         return qry
 
-    def relationship_class_list(
-            self,
-            parent_relationship_class_id=None,
-            parent_object_class_id=None,
-            child_object_class_id=None
-        ):
-        """Return all relationship classes regardless of whether or not they involve other relationship classes."""
-        qry = self.session.query(
+    def wide_relationship_class_list(self, object_class_id=None):
+        """Return list of relationship classes in wide format involving a given object class."""
+        distinct_relationship_class_id_list = self.distinct_relationship_class_id_list(
+            object_class_id=object_class_id)
+        return self.session.query(
             self.RelationshipClass.id,
-            self.RelationshipClass.name,
-            self.RelationshipClass.parent_relationship_class_id,
-            self.RelationshipClass.parent_object_class_id,
-            self.RelationshipClass.child_object_class_id
-        )
-        if parent_relationship_class_id:
-            return qry.filter_by(parent_relationship_class_id=parent_relationship_class_id)
-        if parent_object_class_id:
-            return qry.filter_by(parent_object_class_id=parent_object_class_id)
-        if child_object_class_id:
-            return qry.filter_by(child_object_class_id=child_object_class_id)
+            func.group_concat(self.RelationshipClass.object_class_id).label('object_class_id_list'),
+            func.group_concat(self.ObjectClass.name).label('object_class_name_list'),
+            self.RelationshipClass.name
+        ).filter(self.RelationshipClass.object_class_id == self.ObjectClass.id).\
+        filter(self.RelationshipClass.id.in_(distinct_relationship_class_id_list)).\
+        group_by(self.RelationshipClass.id)
+
+    def distinct_relationship_id_list(self, class_id=None, object_id=None):
+        """Return distinct relationship ids optionally filtered by class id and object id."""
+        qry = self.session.query(self.Relationship.id).distinct()
+        if class_id:
+            qry = qry.filter_by(class_id=class_id)
+        if object_id:
+            qry = qry.filter_by(object_id=object_id)
         return qry
 
-    def relationship_list(self, class_id=None):
-        """Return relationships, optionally filtered by class id."""
+    def relationship_list(self, id=None):
+        """Return relationships, optionally filtered by id."""
         qry = self.session.query(
             self.Relationship.id,
+            self.Relationship.dimension,
+            self.Relationship.object_id,
             self.Relationship.class_id,
-            self.Relationship.parent_relationship_id,
-            self.Relationship.parent_object_id,
-            self.Relationship.child_object_id,
             self.Relationship.name
-        )
-        if class_id:
-            return qry.filter_by(class_id=class_id)
+        ).order_by(self.Relationship.id, self.Relationship.dimension)
+        if id:
+            qry = qry.filter_by(id=id)
         return qry
 
-    def parent_related_object_list(self, relationship_class_id, child_object_id):
-        """Return objects related to a given child object through a relationship class."""
-        qry = self.session.query(
-            self.Object.id,
-            self.Object.class_id,
-            self.Object.name,
-            self.Relationship.id.label('relationship_id'),
-            self.Relationship.name.label('relationship_name')
-        ).filter(self.Relationship.class_id == relationship_class_id)
-        return qry.filter(self.Object.id == self.Relationship.parent_object_id).\
-            filter(self.Relationship.child_object_id == child_object_id)
-
-    def child_related_object_list(self, relationship_class_id, parent_object_id):
-        """Return objects related to a given parent object through a relationship class."""
-        qry = self.session.query(
-            self.Object.id,
-            self.Object.class_id,
-            self.Object.name,
-            self.Relationship.id.label('relationship_id'),
-            self.Relationship.name.label('relationship_name')
-        ).filter(self.Relationship.class_id == relationship_class_id)
-        return qry.filter(self.Object.id == self.Relationship.child_object_id).\
-            filter(self.Relationship.parent_object_id == parent_object_id)
-
-    def meta_related_object_list(self, relationship_class_id, parent_relationship_id):
-        """Return objects related to a given parent relationship through a meta-relationship class."""
-        qry = self.session.query(
-            self.Object.id,
-            self.Object.class_id,
-            self.Object.name,
-            self.Relationship.id.label('relationship_id'),
-            self.Relationship.name.label('relationship_name')
-        ).filter(self.Relationship.class_id == relationship_class_id)
-        return qry.filter(self.Object.id == self.Relationship.child_object_id).\
-            filter(self.Relationship.parent_relationship_id == parent_relationship_id)
+    def wide_relationship_list(self, class_id=None, object_id=None):
+        """Return list of relationships in wide format involving a given relationship class and object."""
+        wide_relationship_list = list()
+        distinct_relationship_id_list = self.distinct_relationship_id_list(
+            class_id=class_id,
+            object_id=object_id)
+        return self.session.query(
+            self.Relationship.id,
+            func.group_concat(self.Relationship.object_id).label('object_id_list'),
+            func.group_concat(self.Object.name).label('object_name_list'),
+            self.Relationship.name,
+            self.Relationship.class_id
+        ).filter(self.Relationship.object_id == self.Object.id).\
+        filter(self.Relationship.id.in_(distinct_relationship_id_list)).\
+        group_by(self.Relationship.id)
 
     def parameter_list(self):
         """Return parameters."""
@@ -334,7 +322,7 @@ class DatabaseMapping(object):
 
     def unvalued_object_parameter_list(self, object_id):
         """Return parameters that do not have a value for given object."""
-        object_ = self.single_object(object_id)
+        object_ = self.single_object(object_id).one_or_none()
         if not object_:
             return self.empty_list()
         valued_parameter_ids = self.session.query(self.ParameterValue.parameter_id).\
@@ -344,7 +332,7 @@ class DatabaseMapping(object):
 
     def unvalued_relationship_parameter_list(self, relationship_id):
         """Return parameters that do not have a value for given relationship."""
-        relationship = self.single_relationship(relationship_id)
+        relationship = self.single_wide_relationship(relationship_id).one_or_none()
         if not relationship:
             return self.empty_list()
         valued_parameter_ids = self.session.query(self.ParameterValue.parameter_id).\
@@ -352,26 +340,36 @@ class DatabaseMapping(object):
         return self.parameter_list().filter_by(relationship_class_id=relationship.class_id).\
             filter(~self.Parameter.id.in_(valued_parameter_ids))
 
+    def single_parameter(self, id=None, name=None):
+        """Return parameter corresponding to id."""
+        if not id and not name:
+            return self.empty_list()
+        qry = self.parameter_list()
+        if id:
+            return qry.filter_by(id=id)
+        if name:
+            return qry.filter_by(name=name)
+
     def single_object_parameter(self, id):
         """Return object class and the parameter corresponding to id."""
-        return self.object_parameter_list().filter(self.Parameter.id == id).one_or_none()
+        return self.object_parameter_list().filter(self.Parameter.id == id)
 
     def single_relationship_parameter(self, id):
         """Return relationship class and the parameter corresponding to id."""
-        return self.relationship_parameter_list().filter(self.Parameter.id == id).one_or_none()
+        return self.relationship_parameter_list().filter(self.Parameter.id == id)
 
     def single_object_parameter_value(self, id):
         """Return object and the parameter value corresponding to id."""
-        return self.object_parameter_value_list().filter(self.ParameterValue.id == id).one_or_none()
+        return self.object_parameter_value_list().filter(self.ParameterValue.id == id)
 
     def single_relationship_parameter_value(self, id):
         """Return relationship and the parameter value corresponding to id."""
-        return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id).one_or_none()
+        return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id)
 
     def object_parameter_list(self):
         """Return object classes and their parameters."""
         return self.session.query(
-            self.ObjectClass.id.label('object_class_id'),
+            #self.Parameter.object_class_id,
             self.ObjectClass.name.label('object_class_name'),
             self.Parameter.id.label('parameter_id'),
             self.Parameter.name.label('parameter_name'),
@@ -388,9 +386,12 @@ class DatabaseMapping(object):
 
     def relationship_parameter_list(self):
         """Return relationship classes and their parameters."""
+        wide_relationship_class_subqry = self.wide_relationship_class_list().subquery()
         return self.session.query(
-            self.RelationshipClass.id.label('relationship_class_id'),
-            self.RelationshipClass.name.label('relationship_class_name'),
+            #self.Parameter.relationship_class_id,
+            wide_relationship_class_subqry.c.name.label('relationship_class_name'),
+            #wide_relationship_class_subqry.c.object_class_id_list,
+            wide_relationship_class_subqry.c.object_class_name_list,
             self.Parameter.id.label('parameter_id'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
@@ -401,15 +402,15 @@ class DatabaseMapping(object):
             self.Parameter.precision,
             self.Parameter.minimum_value,
             self.Parameter.maximum_value
-        ).filter(self.RelationshipClass.id == self.Parameter.relationship_class_id).\
+        ).filter(self.Parameter.relationship_class_id == wide_relationship_class_subqry.c.id).\
         order_by(self.Parameter.id)
 
     def object_parameter_value_list(self):
         """Return objects and their parameter values."""
         return self.session.query(
-            self.Object.class_id.label('object_class_id'),
+            #self.Parameter.object_class_id,
             self.ObjectClass.name.label('object_class_name'),
-            self.ParameterValue.object_id,
+            #self.ParameterValue.object_id,
             self.Object.name.label('object_name'),
             self.ParameterValue.id.label('parameter_value_id'),
             self.Parameter.name.label('parameter_name'),
@@ -421,27 +422,21 @@ class DatabaseMapping(object):
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
         ).filter(self.Parameter.id == self.ParameterValue.parameter_id).\
-        filter(self.Object.id == self.ParameterValue.object_id).\
-        filter(self.Object.class_id == self.ObjectClass.id)
+        filter(self.ParameterValue.object_id == self.Object.id).\
+        filter(self.Parameter.object_class_id == self.ObjectClass.id)
 
     def relationship_parameter_value_list(self):
         """Return relationships and their parameter values."""
-        parent_relationship = aliased(self.Relationship)
-        parent_object = aliased(self.Object)
-        child_object = aliased(self.Object)
+        wide_relationship_class_subqry = self.wide_relationship_class_list().subquery()
+        wide_relationship_subqry = self.wide_relationship_list().subquery()
         return self.session.query(
-            self.Relationship.class_id.label('relationship_class_id'),
-            self.RelationshipClass.name.label('relationship_class_name'),
-            # self.RelationshipClass.parent_relationship_class_id,
-            # self.RelationshipClass.parent_object_class_id,
-            # self.RelationshipClass.child_object_class_id,
-            self.ParameterValue.relationship_id,
-            self.Relationship.parent_relationship_id,
-            self.Relationship.parent_object_id,
-            self.Relationship.child_object_id,
-            parent_relationship.name.label('parent_relationship_name'),
-            parent_object.name.label('parent_object_name'),
-            child_object.name.label('child_object_name'),
+            #self.Parameter.relationship_class_id,
+            wide_relationship_class_subqry.c.name.label('relationship_class_name'),
+            #self.ParameterValue.relationship_id,
+            wide_relationship_class_subqry.c.object_class_name_list,
+            wide_relationship_subqry.c.name.label('relationship_name'),
+            #wide_relationship_subqry.c.object_id_list,
+            wide_relationship_subqry.c.object_name_list,
             self.ParameterValue.id.label('parameter_value_id'),
             self.Parameter.name.label('parameter_name'),
             self.ParameterValue.index,
@@ -452,11 +447,8 @@ class DatabaseMapping(object):
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
         ).filter(self.Parameter.id == self.ParameterValue.parameter_id).\
-        filter(self.Relationship.id == self.ParameterValue.relationship_id).\
-        filter(self.Relationship.class_id == self.RelationshipClass.id).\
-        outerjoin(parent_relationship, parent_relationship.id == self.Relationship.parent_relationship_id).\
-        outerjoin(parent_object, parent_object.id == self.Relationship.parent_object_id).\
-        filter(child_object.id == self.Relationship.child_object_id)
+        filter(self.ParameterValue.relationship_id == wide_relationship_subqry.c.id).\
+        filter(self.Parameter.relationship_class_id == wide_relationship_class_subqry.c.id)
 
     def add_object_class(self, **kwargs):
         """Add object class to database.
@@ -492,38 +484,76 @@ class DatabaseMapping(object):
             msg = "DBAPIError while inserting object '{}': {}".format(object_.name, e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_relationship_class(self, **kwargs):
+    def add_wide_relationship_class(self, **wide_relationship_class_args):
         """Add relationship class to database.
 
+        Args:
+            wide_relationship_class_args (dict): the relationship class in wide format
+
         Returns:
-            An instance of self.RelationshipClass if successful, None otherwise
+            wide_relationship_class (KeyedTuple): the relationship class now with the id
         """
-        relationship_class = self.RelationshipClass(commit_id=self.commit.id, **kwargs)
+        id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
+        if not id:
+            id = 0
+        id += 1
+        relationship_class_list = list()
+        for dimension, object_class_id in enumerate(wide_relationship_class_args['object_class_id_list']):
+            kwargs = {
+                'id': id,
+                'dimension': dimension,
+                'object_class_id': object_class_id,
+                'name': wide_relationship_class_args['name'],
+                'commit_id': self.commit.id
+            }
+            relationship_class = self.RelationshipClass(**kwargs)
+            relationship_class_list.append(relationship_class)
         try:
             self.transactions.append(self.session.begin_nested())
-            self.session.add(relationship_class)
+            self.session.add_all(relationship_class_list)
             self.session.flush()
-            return relationship_class
+            wide_relationship_class = self.single_wide_relationship_class(id=id).one_or_none()
+            return wide_relationship_class
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship class '{}': {}".format(relationship_class.name, e.orig.args)
+            msg = "DBAPIError while inserting relationship class '{}': {}".\
+                format(wide_relationship_class_args['name'], e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_relationship(self, **kwargs):
+    def add_wide_relationship(self, **wide_relationship_args):
         """Add relationship to database.
 
+        Args:
+            wide_relationship_args (dict): the relationship in wide format
+
         Returns:
-            An instance of self.Relationship if successful, None otherwise
+            wide_relationship (KeyedTuple): the relationship now with the id
         """
-        relationship = self.Relationship(commit_id=self.commit.id, **kwargs)
+        id = self.session.query(func.max(self.Relationship.id)).scalar()
+        if not id:
+            id = 0
+        id += 1
+        relationship_list = list()
+        for dimension, object_id in enumerate(wide_relationship_args['object_id_list']):
+            kwargs = {
+                'id': id,
+                'dimension': dimension,
+                'object_id': object_id,
+                'name': wide_relationship_args['name'],
+                'class_id': wide_relationship_args['class_id'],
+                'commit_id': self.commit.id
+            }
+            relationship = self.Relationship(**kwargs)
+            relationship_list.append(relationship)
         try:
             self.transactions.append(self.session.begin_nested())
-            self.session.add(relationship)
+            self.session.add_all(relationship_list)
             self.session.flush()
-            return relationship
+            wide_relationship = self.single_wide_relationship(id=id).one_or_none()
+            return wide_relationship
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship '{}': {}".format(relationship.name, e.orig.args)
+            msg = "DBAPIError while inserting relationship '{}': {}".format(wide_relationship_args['name'], e.orig.args)
             raise SpineDBAPIError(msg)
 
     def add_parameter(self, **kwargs):
@@ -594,15 +624,16 @@ class DatabaseMapping(object):
 
     def rename_relationship_class(self, id, new_name):
         """Rename relationship class."""
-        relationship_class = self.session.query(self.RelationshipClass).filter_by(id=id).one_or_none()
-        if not relationship_class:
+        relationship_class_list = self.session.query(self.RelationshipClass).filter_by(id=id)
+        if not relationship_class_list.count():
             raise RecordNotFoundError('relationship_class', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
-            relationship_class.name = new_name
-            relationship_class.commit_id = self.commit.id
+            for relationship_class in relationship_class_list:
+                relationship_class.name = new_name
+                relationship_class.commit_id = self.commit.id
             self.session.flush()
-            return relationship_class
+            return relationship_class_list.first()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while renaming relationship class '{}': {}".format(relationship_class.name, e.orig.args)
@@ -610,15 +641,16 @@ class DatabaseMapping(object):
 
     def rename_relationship(self, id, new_name):
         """Rename relationship."""
-        relationship = self.session.query(self.Relationship).filter_by(id=id).one_or_none()
-        if not relationship:
+        relationship_list = self.session.query(self.Relationship).filter_by(id=id)
+        if not relationship_list.count():
             raise RecordNotFoundError('relationship', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
-            relationship.name = new_name
-            relationship.commit_id = self.commit.id
+            for relationship in relationship_list:
+                relationship.name = new_name
+                relationship.commit_id = self.commit.id
             self.session.flush()
-            return relationship
+            return relationship_list.first()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while renaming relationship '{}': {}".format(relationship.name, e.orig.args)
@@ -654,12 +686,13 @@ class DatabaseMapping(object):
 
     def remove_relationship_class(self, id):
         """Remove relationship class."""
-        relationship_class = self.session.query(self.RelationshipClass).filter_by(id=id).one_or_none()
-        if not relationship_class:
+        relationship_class_list = self.session.query(self.RelationshipClass).filter_by(id=id)
+        if not relationship_class_list.count():
             raise RecordNotFoundError('relationship_class', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
-            self.session.delete(relationship_class)
+            for relationship_class in relationship_class_list:
+                self.session.delete(relationship_class)
             self.session.flush()
         except DBAPIError as e:
             self.session.rollback()
@@ -668,12 +701,13 @@ class DatabaseMapping(object):
 
     def remove_relationship(self, id):
         """Remove relationship."""
-        relationship = self.session.query(self.Relationship).filter_by(id=id).one_or_none()
-        if not relationship:
+        relationship_list = self.session.query(self.Relationship).filter_by(id=id)
+        if not relationship_list.count():
             raise RecordNotFoundError('relationship', id=id)
         try:
             self.transactions.append(self.session.begin_nested())
-            self.session.delete(relationship)
+            for relationship in relationship_list:
+                self.session.delete(relationship)
             self.session.flush()
         except DBAPIError as e:
             self.session.rollback()
@@ -695,8 +729,7 @@ class DatabaseMapping(object):
         except ValueError:
             raise ParameterValueError(new_value)
         if value == new_casted_value:
-            msg = "Parameter not changed."
-            raise SpineDBAPIError(msg)
+            return None
         try:
             self.transactions.append(self.session.begin_nested())
             setattr(parameter, field_name, new_value)
@@ -705,7 +738,7 @@ class DatabaseMapping(object):
             return parameter
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while updating parameter: {}".format(e.orig.args)
+            msg = "DBAPIError while updating parameter '{}': {}".format(parameter.name, e.orig.args)
             raise SpineDBAPIError(msg)
 
     def update_parameter_value(self, id, field_name, new_value):
@@ -723,8 +756,7 @@ class DatabaseMapping(object):
         except ValueError:
             raise ParameterValueError(new_value)
         if value == new_casted_value:
-            msg = "Parameter value not changed."
-            raise SpineDBAPIError(msg)
+            return None
         try:
             self.transactions.append(self.session.begin_nested())
             setattr(parameter_value, field_name, new_casted_value)
@@ -768,6 +800,16 @@ class DatabaseMapping(object):
 
     def empty_list(self):
         return self.session.query(false()).filter(false())
+
+    def reset(self):
+        """Delete all records from all tables (but don't drop the tables)."""
+        self.session.query(self.Object).delete(synchronize_session=False)
+        self.session.query(self.RelationshipClass).delete(synchronize_session=False)
+        self.session.query(self.Relationship).delete(synchronize_session=False)
+        self.session.query(self.Parameter).delete(synchronize_session=False)
+        self.session.query(self.ParameterValue).delete(synchronize_session=False)
+        self.session.query(self.Commit).delete(synchronize_session=False)
+        self.session.commit()
 
     def close(self):
         if self.session:
