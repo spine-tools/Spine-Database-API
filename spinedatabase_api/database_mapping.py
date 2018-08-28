@@ -77,11 +77,11 @@ class DatabaseMapping(object):
             except DatabaseError as e:
                 msg = "Could not open '{}' as SQLite database: {}".format(self.db_url, e.orig.args)
                 raise SpineDBAPIError(msg)
-            try:
-                self.engine.execute('BEGIN IMMEDIATE')
-            except DatabaseError as e:
-                msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
-                raise SpineDBAPIError(msg)
+            # try:
+            #     self.engine.execute('BEGIN IMMEDIATE')
+            # except DatabaseError as e:
+            #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
+            #     raise SpineDBAPIError(msg)
         self.session = Session(self.engine)
 
     def init_base(self):
