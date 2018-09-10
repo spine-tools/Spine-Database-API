@@ -24,8 +24,7 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
-import tempfile
-import os
+import inspect
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.ext.compiler import compiles
@@ -66,9 +65,11 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
 
-# FIXME: this bothers other dialects, need to revise
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
+    module_name = dbapi_connection.__class__.__module__
+    if not module_name.lower().startswith('sqlite'):
+        return
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
@@ -83,14 +84,12 @@ def copy_database(dest_url, source_url):
     meta = MetaData()
     meta.reflect(source_engine)
     meta.create_all(dest_engine)
+    # Copy tables
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
-    # Copy data from source to destination
     for t in meta.sorted_tables:
         source_table = Table(t, source_meta, autoload=True)
         dest_table = Table(t, dest_meta, autoload=True)
-        # Drop contents of table in destination
-        dest_engine.execute(dest_table.delete())
         sel = select([source_table])
         result = source_engine.execute(sel)
         values = [row for row in result]
@@ -98,21 +97,13 @@ def copy_database(dest_url, source_url):
             ins = dest_table.insert()
             dest_engine.execute(ins, values)
 
+
 def create_new_spine_database(db_url):
-    """Create a new Spine database in the given database url.
-    Note that for instance a MySQL url needs to supply the database.
-    """
-    temp_filename = os.path.join(tempfile.gettempdir(), 'Spine.sqlite')
-    if temp_filename:
-        try:
-            os.remove(temp_filename)
-        except FileNotFoundError:
-            pass  # File not found, that's ok
-    temp_url = "sqlite:///" + temp_filename
+    """Create a new Spine database in the given database url."""
     try:
-        engine = create_engine(temp_url)
+        engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(temp_url, e.orig.args))
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
     sql_list = list()
     sql = """
         CREATE TABLE IF NOT EXISTS "commit" (
@@ -194,8 +185,7 @@ def create_new_spine_database(db_url):
             commit_id INTEGER,
             PRIMARY KEY (id, dimension),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON UPDATE CASCADE,
-            CONSTRAINT relationship_class_unique_dimension_name UNIQUE (dimension, name)
+            FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON UPDATE CASCADE
         );
     """
     sql_list.append(sql)
@@ -210,8 +200,7 @@ def create_new_spine_database(db_url):
             PRIMARY KEY (id, dimension),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(class_id, dimension) REFERENCES relationship_class (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(object_id) REFERENCES object (id) ON UPDATE CASCADE,
-            CONSTRAINT relationship_unique_dimension_name UNIQUE (dimension, name)
+            FOREIGN KEY(object_id) REFERENCES object (id) ON UPDATE CASCADE
         );
     """
     sql_list.append(sql)
@@ -323,6 +312,6 @@ def create_new_spine_database(db_url):
     try:
         for sql in sql_list:
             engine.execute(text(sql))
+        return engine
     except DatabaseError as e:
         raise SpineDBAPIError("Engine failed to execute creation script {}".format(e.orig.args))
-    copy_database(db_url, temp_url)
