@@ -59,7 +59,6 @@ def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql TINYINT datatype as INTEGER in sqlite """
     return compiler.visit_INTEGER(element, **kw)
 
-
 @compiles(DOUBLE, 'sqlite')
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
