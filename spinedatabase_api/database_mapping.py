@@ -425,7 +425,7 @@ class DatabaseMapping(object):
         """Return relationship and the parameter value corresponding to id."""
         return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id)
 
-    def object_parameter_list(self, object_class_id=None):
+    def object_parameter_list(self, object_class_id=None, parameter_id=None):
         """Return object classes and their parameters."""
         qry = self.session.query(
             #self.Parameter.object_class_id,
@@ -444,9 +444,11 @@ class DatabaseMapping(object):
         order_by(self.Parameter.id)
         if object_class_id:
             qry = qry.filter(self.Parameter.object_class_id == object_class_id)
+        if parameter_id:
+            qry = qry.filter(self.Parameter.id == parameter_id)
         return qry
 
-    def relationship_parameter_list(self, relationship_class_id=None):
+    def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
         """Return relationship classes and their parameters."""
         wide_relationship_class_subqry = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
@@ -468,6 +470,8 @@ class DatabaseMapping(object):
         order_by(self.Parameter.id)
         if relationship_class_id:
             qry = qry.filter(self.Parameter.relationship_class_id == relationship_class_id)
+        if parameter_id:
+            qry = qry.filter(self.Parameter.id == parameter_id)
         return qry
 
     def object_parameter_value_list(self, parameter_name=None):
@@ -806,7 +810,7 @@ class DatabaseMapping(object):
         except TypeError:
             new_casted_value = new_value
         except ValueError:
-            raise ParameterValueError(new_value)
+            raise ParameterValueError(new_value, data_type)
         if value == new_casted_value:
             return None
         try:
