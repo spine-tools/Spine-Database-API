@@ -52,7 +52,7 @@ class DatabaseMapping(object):
         self.username = username
         self.engine = None
         self.session = None
-        self.commit = None
+        self._commit = None
         self.transactions = list()
         self.Base = None
         self.ObjectClass = None
@@ -107,14 +107,16 @@ class DatabaseMapping(object):
         except AttributeError as table:
             raise TableNotFoundError(table)
 
-    def new_commit(self):
-        """Add row to commit table"""
+    def add_working_commit(self):
+        """Add working commit item."""
+        if self._commit:
+            return
         comment = 'In progress...'
         user = self.username
         date = datetime.now(timezone.utc)
-        self.commit = self.Commit(comment=comment, date=date, user=user)
+        self._commit = self.Commit(comment=comment, date=date, user=user)
         try:
-            self.session.add(self.commit)
+            self.session.add(self._commit)
             self.session.flush()
         except DBAPIError as e:
             self.session.rollback()
@@ -125,21 +127,21 @@ class DatabaseMapping(object):
         """Commit changes to source database."""
         if not self.session:
             raise SpineDBAPIError("No session!")
-        if not self.commit.id:
-            raise SpineDBAPIError("No commit id!")
+        if not self._commit.id:
+            raise SpineDBAPIError("No commit!")
         try:
-            self.commit.comment = comment
-            self.commit.date = datetime.now(timezone.utc)
+            self._commit.comment = comment
+            self._commit.date = datetime.now(timezone.utc)
             for i in reversed(range(len(self.transactions))):
                 self.session.commit()
                 del self.transactions[i]
             self.session.commit()  # also commit main transaction
         except DBAPIError as e:
-            self.commit.comment = None
-            self.commit.date = None
+            self._commit.comment = None
+            self._commit.date = None
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
-        self.new_commit()
+        self.add_working_commit()
 
     def rollback_session(self):
         if not self.session:
@@ -152,7 +154,7 @@ class DatabaseMapping(object):
         except DBAPIError:
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
-        self.new_commit()
+        self.add_working_commit()
 
     def single_object_class(self, id=None, name=None):
         """Return a single object class given the id or name."""
@@ -531,7 +533,8 @@ class DatabaseMapping(object):
         Returns:
             An instance of self.ObjectClass if successful, None otherwise
         """
-        object_class = self.ObjectClass(commit_id=self.commit.id, **kwargs)
+        self.add_working_commit()
+        object_class = self.ObjectClass(commit_id=self._commit.id, **kwargs)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.add(object_class)
@@ -561,7 +564,8 @@ class DatabaseMapping(object):
         Returns:
             An instance of self.Object if successful, None otherwise
         """
-        object_ = self.Object(commit_id=self.commit.id, **kwargs)
+        self.add_working_commit()
+        object_ = self.Object(commit_id=self._commit.id, **kwargs)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.add(object_)
@@ -581,6 +585,7 @@ class DatabaseMapping(object):
         Returns:
             wide_relationship_class (KeyedTuple): the relationship class now with the id
         """
+        self.add_working_commit()
         id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
         if not id:
             id = 0
@@ -592,7 +597,7 @@ class DatabaseMapping(object):
                 'dimension': dimension,
                 'object_class_id': object_class_id,
                 'name': wide_relationship_class_args['name'],
-                'commit_id': self.commit.id
+                'commit_id': self._commit.id
             }
             relationship_class = self.RelationshipClass(**kwargs)
             relationship_class_list.append(relationship_class)
@@ -634,6 +639,7 @@ class DatabaseMapping(object):
         Returns:
             wide_relationship (KeyedTuple): the relationship now with the id
         """
+        self.add_working_commit()
         # If relationship already exists (same class, same object_id_list), return it quietly
         object_id_str = ",".join([str(x) for x in wide_relationship_args['object_id_list']])
         wide_relationship = self.single_wide_relationship(class_id=wide_relationship_args['class_id'],
@@ -654,7 +660,7 @@ class DatabaseMapping(object):
                 'object_id': object_id,
                 'name': wide_relationship_args['name'],
                 'class_id': wide_relationship_args['class_id'],
-                'commit_id': self.commit.id
+                'commit_id': self._commit.id
             }
             relationship = self.Relationship(**kwargs)
             relationship_list.append(relationship)
@@ -675,7 +681,8 @@ class DatabaseMapping(object):
         Returns:
             An instance of self.Parameter if successful, None otherwise
         """
-        parameter = self.Parameter(commit_id=self.commit.id, **kwargs)
+        self.add_working_commit()
+        parameter = self.Parameter(commit_id=self._commit.id, **kwargs)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.add(parameter)
@@ -705,7 +712,8 @@ class DatabaseMapping(object):
         Returns:
             An instance of self.ParameterValue if successful, None otherwise
         """
-        parameter_value = self.ParameterValue(commit_id=self.commit.id, **kwargs)
+        self.add_working_commit()
+        parameter_value = self.ParameterValue(commit_id=self._commit.id, **kwargs)
         try:
             self.transactions.append(self.session.begin_nested())
             self.session.add(parameter_value)
@@ -718,13 +726,14 @@ class DatabaseMapping(object):
 
     def rename_object_class(self, id, new_name):
         """Rename object class."""
+        self.add_working_commit()
         object_class = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
         if not object_class:
             raise RecordNotFoundError('object_class', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
             object_class.name = new_name
-            object_class.commit_id = self.commit.id
+            object_class.commit_id = self._commit.id
             self.session.flush()
             return object_class
         except DBAPIError as e:
@@ -734,13 +743,14 @@ class DatabaseMapping(object):
 
     def rename_object(self, id, new_name):
         """Rename object."""
+        self.add_working_commit()
         object_ = self.session.query(self.Object).filter_by(id=id).one_or_none()
         if not object_:
             raise RecordNotFoundError('object', name=new_name)
         try:
             self.transactions.append(self.session.begin_nested())
             object_.name = new_name
-            object_.commit_id = self.commit.id
+            object_.commit_id = self._commit.id
             self.session.flush()
             return object_
         except DBAPIError as e:
@@ -750,6 +760,7 @@ class DatabaseMapping(object):
 
     def rename_relationship_class(self, id, new_name):
         """Rename relationship class."""
+        self.add_working_commit()
         relationship_class_list = self.session.query(self.RelationshipClass).filter_by(id=id)
         if not relationship_class_list.count():
             raise RecordNotFoundError('relationship_class', name=new_name)
@@ -757,7 +768,7 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             for relationship_class in relationship_class_list:
                 relationship_class.name = new_name
-                relationship_class.commit_id = self.commit.id
+                relationship_class.commit_id = self._commit.id
             self.session.flush()
             return relationship_class_list.first()
         except DBAPIError as e:
@@ -767,6 +778,7 @@ class DatabaseMapping(object):
 
     def rename_relationship(self, id, new_name):
         """Rename relationship."""
+        self.add_working_commit()
         relationship_list = self.session.query(self.Relationship).filter_by(id=id)
         if not relationship_list.count():
             raise RecordNotFoundError('relationship', name=new_name)
@@ -774,7 +786,7 @@ class DatabaseMapping(object):
             self.transactions.append(self.session.begin_nested())
             for relationship in relationship_list:
                 relationship.name = new_name
-                relationship.commit_id = self.commit.id
+                relationship.commit_id = self._commit.id
             self.session.flush()
             return relationship_list.first()
         except DBAPIError as e:
@@ -784,6 +796,7 @@ class DatabaseMapping(object):
 
     def remove_object_class(self, id):
         """Remove object class."""
+        self.add_working_commit()
         object_class = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
         if not object_class:
             raise RecordNotFoundError('object_class', id=id)
@@ -798,6 +811,7 @@ class DatabaseMapping(object):
 
     def remove_object(self, id):
         """Remove object."""
+        self.add_working_commit()
         object_ = self.session.query(self.Object).filter_by(id=id).one_or_none()
         if not object_:
             raise RecordNotFoundError('object', id=id)
@@ -812,6 +826,7 @@ class DatabaseMapping(object):
 
     def remove_relationship_class(self, id):
         """Remove relationship class."""
+        self.add_working_commit()
         relationship_class_list = self.session.query(self.RelationshipClass).filter_by(id=id)
         if not relationship_class_list.count():
             raise RecordNotFoundError('relationship_class', id=id)
@@ -827,6 +842,7 @@ class DatabaseMapping(object):
 
     def remove_relationship(self, id):
         """Remove relationship."""
+        self.add_working_commit()
         relationship_list = self.session.query(self.Relationship).filter_by(id=id)
         if not relationship_list.count():
             raise RecordNotFoundError('relationship', id=id)
@@ -842,6 +858,7 @@ class DatabaseMapping(object):
 
     def update_parameter(self, id, field_name, new_value):
         """Update parameter."""
+        self.add_working_commit()
         parameter = self.session.query(self.Parameter).\
             filter_by(id=id).one_or_none()
         if not parameter:
@@ -859,7 +876,7 @@ class DatabaseMapping(object):
         try:
             self.transactions.append(self.session.begin_nested())
             setattr(parameter, field_name, new_value)
-            parameter.commit_id = self.commit.id
+            parameter.commit_id = self._commit.id
             self.session.flush()
             return parameter
         except DBAPIError as e:
@@ -869,6 +886,7 @@ class DatabaseMapping(object):
 
     def update_parameter_value(self, id, field_name, new_value):
         """Update parameter value."""
+        self.add_working_commit()
         parameter_value = self.session.query(self.ParameterValue).\
             filter_by(id=id).one_or_none()
         if not parameter_value:
@@ -886,7 +904,7 @@ class DatabaseMapping(object):
         try:
             self.transactions.append(self.session.begin_nested())
             setattr(parameter_value, field_name, new_casted_value)
-            parameter_value.commit_id = self.commit.id
+            parameter_value.commit_id = self._commit.id
             self.session.flush()
             return parameter_value
         except DBAPIError as e:
@@ -896,8 +914,8 @@ class DatabaseMapping(object):
 
     def remove_parameter(self, id):
         """Remove parameter."""
-        parameter = self.session.query(self.Parameter).\
-            filter_by(id=id).one_or_none()
+        self.add_working_commit()
+        parameter = self.session.query(self.Parameter).filter_by(id=id).one_or_none()
         if not parameter:
             raise RecordNotFoundError('parameter', id=id)
         try:
@@ -911,8 +929,8 @@ class DatabaseMapping(object):
 
     def remove_parameter_value(self, id):
         """Remove parameter value."""
-        parameter_value = self.session.query(self.ParameterValue).\
-            filter_by(id=id).one_or_none()
+        self.add_working_commit()
+        parameter_value = self.session.query(self.ParameterValue).filter_by(id=id).one_or_none()
         if not parameter_value:
             raise RecordNotFoundError('parameter_value', id=id)
         try:
