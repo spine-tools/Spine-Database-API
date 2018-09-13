@@ -542,6 +542,19 @@ class DatabaseMapping(object):
             msg = "DBAPIError while inserting object class '{}': {}".format(object_class.name, e.orig.args)
             raise SpineDBAPIError(msg)
 
+    def get_or_add_object_class(self, **kwargs):
+        """Add object class to database if not exists.
+
+        Returns:
+            An instance of self.ObjectClass if succesful, None otherwise
+        """
+        if "name" not in kwargs:
+            return None
+        object_class = self.session.query(self.ObjectClass).filter_by(name=kwargs["name"]).one_or_none()
+        if object_class:
+            return object_class
+        return self.add_object_class(**kwargs)
+
     def add_object(self, **kwargs):
         """Add object to database.
 
@@ -594,6 +607,23 @@ class DatabaseMapping(object):
             msg = "DBAPIError while inserting relationship class '{}': {}".\
                 format(wide_relationship_class_args['name'], e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def get_or_add_wide_relationship_class(self, **kwargs):
+        """Add relationship class to database if not exists.
+
+        Returns:
+            A dict if succesful, None otherwise
+        """
+        if "name" not in kwargs or "object_class_id_list" not in kwargs:
+            return None
+        wide_relationship_class = self.single_wide_relationship_class(name=kwargs["name"]).one_or_none()
+        if not wide_relationship_class:
+            return self.add_wide_relationship_class(**kwargs)
+        object_class_id_list1 = [int(x) for x in kwargs["object_class_id_list"]]
+        object_class_id_list2 = [int(x) for x in wide_relationship_class.object_class_id_list.split(",")]
+        if object_class_id_list1 != object_class_id_list2:
+            return None  # TODO: should we raise an error here?
+        return wide_relationship_class
 
     def add_wide_relationship(self, **wide_relationship_args):
         """Add relationship to database.
@@ -655,6 +685,19 @@ class DatabaseMapping(object):
             self.session.rollback()
             msg = "DBAPIError while inserting parameter '{}': {}".format(parameter.name, e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def get_or_add_parameter(self, **kwargs):
+        """Add parameter to database if not exists.
+
+        Returns:
+            A KeyedTuple if succesful, None otherwise
+        """
+        if "name" not in kwargs:
+            return None
+        parameter = self.session.query(self.Parameter).filter_by(name=kwargs["name"]).one_or_none()
+        if parameter:
+            return parameter
+        return self.add_parameter(**kwargs)
 
     def add_parameter_value(self, **kwargs):
         """Add parameter value to database.

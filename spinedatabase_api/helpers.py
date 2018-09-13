@@ -33,25 +33,13 @@ from sqlalchemy.engine import Engine
 from .exception import SpineDBAPIError
 
 OBJECT_CLASS_NAMES = (
-    'unittemplate',
+    'direction',
     'unit',
     'commodity',
-    'archetype',
     'node',
     'grid',
-    'normalized',
-    'absolute',
-    'flow',
-    'influx',
     'time',
-    'arc',
-    'simulation_settings',
-    'hidden_settings',
-    'constraint',
-    'variable',
-    'objective_term',
-    'group',
-    'alternative'
+    'connection'
 )
 
 @compiles(TINYINT, 'sqlite')
@@ -73,7 +61,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
-def copy_database(dest_url, source_url):
+def copy_database(dest_url, source_url, skip_tables=list()):
     """Copy the database from source_url into dest_url,
     by reflecting all tables.
     """
@@ -87,6 +75,8 @@ def copy_database(dest_url, source_url):
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
     for t in meta.sorted_tables:
+        if t.name in skip_tables:
+            continue
         source_table = Table(t, source_meta, autoload=True)
         dest_table = Table(t, dest_meta, autoload=True)
         sel = select([source_table])
@@ -96,6 +86,33 @@ def copy_database(dest_url, source_url):
             ins = dest_table.insert()
             dest_engine.execute(ins, values)
 
+def merge_database(dest_url, source_url, skip_tables=list()):
+    """Merge the database from source_url into dest_url,
+    by reflecting all tables.
+    """
+    source_engine = create_engine(source_url)
+    dest_engine = create_engine(dest_url)  # , echo=True)
+    # Reflect meta and create tables
+    meta = MetaData()
+    meta.reflect(source_engine)
+    meta.create_all(dest_engine)
+    # Copy tables
+    source_meta = MetaData(bind=source_engine)
+    dest_meta = MetaData(bind=dest_engine)
+    for t in meta.sorted_tables:
+        if t.name in skip_tables:
+            continue
+        source_table = Table(t, source_meta, autoload=True)
+        dest_table = Table(t, dest_meta, autoload=True)
+        sel = select([source_table])
+        result = source_engine.execute(sel)
+        for row in result:
+            ins = dest_table.insert()
+            try:
+                dest_engine.execute(ins, row)
+            except DatabaseError as e:
+                print('skipping row {}, because of {}'.format(row, e.orig.args))
+                pass
 
 def create_new_spine_database(db_url):
     """Create a new Spine database in the given database url."""
@@ -261,25 +278,13 @@ def create_new_spine_database(db_url):
     sql_list.append(sql)
     sql = """
         INSERT OR IGNORE INTO `object_class` (`name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
-        ('unittemplate', 'Template for a generic unit', NULL, 1, NULL, 0, NULL),
+        ('direction', 'Direction class', NULL, 1, NULL, 0, NULL),
         ('unit', 'Unit class', NULL, 2, NULL, 0, NULL),
         ('commodity', 'Commodity class', NULL, 3, NULL, 0, NULL),
-        ('archetype', 'Archetype class', NULL, 4, NULL, 0, NULL),
-        ('node', 'Node class', NULL, 5, NULL, 0, NULL),
-        ('grid', 'Grid class', NULL, 6, NULL, 0, NULL),
-        ('normalized', 'Normalized class', NULL, 7, NULL, 0, NULL),
-        ('absolute', 'Absolute class', NULL, 8, NULL, 0, NULL),
-        ('flow', 'Flow class', NULL, 9, NULL, 0, NULL),
-        ('influx', 'Influx class', NULL, 10, NULL, 0, NULL),
-        ('time', 'Time class', NULL, 11, NULL, 0, NULL),
-        ('arc', 'Arc class', NULL, 12, NULL, 0, NULL),
-        ('simulation_settings', 'Simulation settings class', NULL, 13, NULL, 0, NULL),
-        ('hidden_settings', 'Hidden settings class', NULL, 14, NULL, 1, NULL),
-        ('constraint', 'Constraint class', NULL, 15, NULL, 0, NULL),
-        ('variable', 'Variable class', NULL, 16, NULL, 0, NULL),
-        ('objective_term', 'Objective term class', NULL, 17, NULL, 0, NULL),
-        ('group', 'Group class', NULL, 18, NULL, 0, NULL),
-        ('alternative', 'Alternative class', NULL, 19, NULL, 0, NULL);
+        ('node', 'Node class', NULL, 4, NULL, 0, NULL),
+        ('grid', 'Grid class', NULL, 5, NULL, 0, NULL),
+        ('time', 'Time class', NULL, 6, NULL, 0, NULL),
+        ('connection', 'Connection class', NULL, 7, NULL, 0, NULL);
     """
     sql_list.append(sql)
     sql = """
