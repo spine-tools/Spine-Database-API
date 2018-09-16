@@ -75,14 +75,14 @@ class DatabaseMapping(object):
             try:
                 self.engine.execute('pragma quick_check;')
             except DatabaseError as e:
-                msg = "Could not open '{}' as SQLite database: {}".format(self.db_url, e.orig.args)
+                msg = "Could not open '{}' as a SQLite database: {}".format(self.db_url, e.orig.args)
                 raise SpineDBAPIError(msg)
+        self.session = Session(self.engine)
             # try:
             #     self.engine.execute('BEGIN IMMEDIATE')
             # except DatabaseError as e:
             #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
             #     raise SpineDBAPIError(msg)
-        self.session = Session(self.engine)
 
     def init_base(self):
         """Create base and reflect tables."""
@@ -126,9 +126,9 @@ class DatabaseMapping(object):
     def commit_session(self, comment):
         """Commit changes to source database."""
         if not self.session:
-            raise SpineDBAPIError("No session!")
-        if not self._commit.id:
-            raise SpineDBAPIError("No commit!")
+            raise SpineDBAPIError("Unable to retrieve current session.")
+        if not self._commit:
+            raise SpineDBAPIError("There's nothing to commit.")
         try:
             self._commit.comment = comment
             self._commit.date = datetime.now(timezone.utc)
