@@ -24,16 +24,17 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
-
 from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
+from sqlalchemy.ext.automap import generate_relationship
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
+from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
 #from sqlalchemy.orm.session import Session
 from .exception import SpineDBAPIError
-
 
 # TODO: Find a way to keep this in synch with `create_new_spine_database`
 OBJECT_CLASS_NAMES = (
@@ -56,14 +57,14 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
 
-@event.listens_for(Engine, "connect")
-def receive_engine_connect(dbapi_connection, connection_record):
-    module_name = dbapi_connection.__class__.__module__
-    if not module_name.lower().startswith('sqlite'):
-        return
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+# @event.listens_for(Engine, "connect")
+# def receive_engine_connect(dbapi_connection, connection_record):
+#     module_name = dbapi_connection.__class__.__module__
+#     if not module_name.lower().startswith('sqlite'):
+#         return
+#     cursor = dbapi_connection.cursor()
+#     cursor.execute("PRAGMA foreign_keys=ON")
+#     cursor.close()
 
 # def receive_after_commit(session):
 #     print("after_commit")
@@ -77,7 +78,10 @@ def receive_engine_connect(dbapi_connection, connection_record):
 def copy_database(dest_url, source_url, skip_tables=list()):
     """Copy the database from source_url into dest_url."""
     source_engine = create_engine(source_url)
-    dest_engine = create_engine(dest_url)  # , echo=True)
+    dest_engine = create_engine(dest_url)
+    engine_copy_database(dest_engine, source_engine, skip_tables=skip_tables)
+
+def engine_copy_database(dest_engine, source_engine, skip_tables=list()):
     # Meta reflection
     meta = MetaData()
     meta.reflect(source_engine)
@@ -97,6 +101,18 @@ def copy_database(dest_url, source_url, skip_tables=list()):
             ins = dest_table.insert()
             dest_engine.execute(ins, values)
 
+def in_memory_copy(source_url, skip_tables=list()):
+    """An engine connected to an in-memory SQLite database which is a copy of source_url."""
+    source_engine = create_engine(source_url)
+    dest_engine = create_engine('sqlite://', connect_args={'check_same_thread':False}, poolclass=StaticPool)
+    engine_copy_database(dest_engine, source_engine, skip_tables=skip_tables)
+    return dest_engine
+
+def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
+    if direction is interfaces.ONETOMANY:
+        kw['cascade'] = 'all, delete-orphan'
+        kw['passive_deletes'] = True
+    return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 def is_unlocked(db_url, timeout=0):
     """Return True if the SQLite db_url is unlocked, after waiting at most timeout seconds.
@@ -109,7 +125,6 @@ def is_unlocked(db_url, timeout=0):
         return True
     except OperationalError:
         return False
-
 
 def merge_database(dest_url, source_url, skip_tables=list()):
     """Merge the database from source_url into dest_url."""
@@ -135,7 +150,6 @@ def merge_database(dest_url, source_url, skip_tables=list()):
                 dest_engine.execute(ins, row)
             except IntegrityError as e:
                 print('Skipping row {0}: {1}'.format(row, e.orig.args))
-
 
 def create_new_spine_database(db_url):
     """Create a new Spine database in the given database url."""
