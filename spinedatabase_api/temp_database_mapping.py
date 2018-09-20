@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 
 
 class TempDatabaseMapping(DatabaseMapping):
-    """A mapping to an in-memory copy of a db."""
+    """A mapping to a temporary copy of a db."""
     def __init__(self, db_url, username=None):
         """Initialize class."""
         super().__init__(db_url, username)
@@ -65,7 +65,9 @@ class TempDatabaseMapping(DatabaseMapping):
     def create_engine_and_session(self):
         """Create engine and session."""
         source_engine = create_engine(self.db_url)
-        # self.engine = create_engine('sqlite://', connect_args={'check_same_thread':False}, poolclass=StaticPool)
+        # TODO: Confirm that this below creates an engine connected to a *temporary* sqlite database.
+        # These are not the same as *memory* sqlite databases. Temporary lives in memory, but gets flush to disk when
+        # there's too much pressure. See https://www.sqlite.org/inmemorydb.html
         def connect():
             return sqlite3.connect('')
         self.engine = create_engine(
@@ -86,7 +88,7 @@ class TempDatabaseMapping(DatabaseMapping):
                 ins = dest_table.insert()
                 self.engine.execute(ins, values)
         toc = time.clock()
-        logging.debug("Memory database created in {} seconds".format(toc - tic))
+        logging.debug("Temporary database created in {} seconds".format(toc - tic))
         self.session = Session(self.engine)
 
     def init_base(self):
