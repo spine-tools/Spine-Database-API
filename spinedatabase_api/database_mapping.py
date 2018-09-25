@@ -82,12 +82,12 @@ class DatabaseMapping(object):
                 msg = "Could not open '{}' as a SQLite database: {}".format(self.db_url, e.orig.args)
                 raise SpineDBAPIError(msg)
             self.engine.execute("PRAGMA foreign_keys=ON")
-        self.session = Session(self.engine)
             # try:
             #     self.engine.execute('BEGIN IMMEDIATE')
             # except DatabaseError as e:
             #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
             #     raise SpineDBAPIError(msg)
+        self.session = Session(self.engine)
 
     def init_base(self):
         """Create base and reflect tables."""
