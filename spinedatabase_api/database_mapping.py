@@ -35,7 +35,7 @@ from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError,
 from .helpers import custom_generate_relationship
 from datetime import datetime, timezone
 
-# TODO: Consider return lists of dict (with _asdict()) rather than queries,
+# TODO: Consider returning lists of dict (with _asdict()) rather than queries,
 # to better support platforms that cannot handle queries efficiently (such as Julia)
 # TODO: At some point DatabaseMapping attributes such as session, engine, and all the tables should be made 'private'
 # so as to prevent hacking into the database.
@@ -211,7 +211,7 @@ class DatabaseMapping(object):
         if class_id:
             subqry = qry.filter_by(class_id=class_id).subquery()
             if object_id_list:
-                self.session.query(
+                return self.session.query(
                     subqry.c.id,
                     subqry.c.object_id_list,
                     subqry.c.object_name_list,
@@ -254,6 +254,7 @@ class DatabaseMapping(object):
     def single_object_parameter_value(self, id=None, parameter_id=None, object_id=None):
         """Return object and the parameter value, either corresponding to id,
         or to parameter_id and object_id.
+        NOTE: The parameter_id, object_id arguments are used by NetworkMap
         """
         qry = self.object_parameter_value_list()
         if id:
@@ -263,7 +264,7 @@ class DatabaseMapping(object):
                 filter(self.ParameterValue.object_id == object_id)
         return self.empty_list()
 
-    def single_relationship_parameter_value(self, id):
+    def single_relationship_parameter_value(self, id, parameter_id=None, relationship_id=None):
         """Return relationship and the parameter value corresponding to id."""
         return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id)
 
@@ -328,7 +329,8 @@ class DatabaseMapping(object):
         return qry
 
     def relationship_list(self, id=None):
-        """Return relationships, optionally filtered by id."""
+        """TODO: Is this actually used?
+        Return relationships, optionally filtered by id."""
         qry = self.session.query(
             self.Relationship.id,
             self.Relationship.dimension,
@@ -498,7 +500,8 @@ class DatabaseMapping(object):
         return qry
 
     def all_object_parameter_value_list(self, parameter_id=None):
-        """Return all object parameter values, even those that don't have a value."""
+        """TODO: Is this needed?
+        Return all object parameter values, even those that don't have a value."""
         qry = self.session.query(
             self.Parameter.id.label('parameter_id'),
             self.Object.name.label('object_name'),
@@ -721,7 +724,7 @@ class DatabaseMapping(object):
         """Add object class to database if not exists.
 
         Returns:
-            An instance of self.ObjectClass if succesful, None otherwise
+            An instance of self.ObjectClass if successful, None otherwise
         """
         if "name" not in kwargs:
             return None
@@ -734,7 +737,7 @@ class DatabaseMapping(object):
         """Add relationship class to database if not exists.
 
         Returns:
-            A dict if succesful, None otherwise
+            A dict if successful, None otherwise
         """
         if "name" not in kwargs or "object_class_id_list" not in kwargs:
             return None
@@ -751,7 +754,7 @@ class DatabaseMapping(object):
         """Add parameter to database if not exists.
 
         Returns:
-            A KeyedTuple if succesful, None otherwise
+            A KeyedTuple if successful, None otherwise
         """
         if "name" not in kwargs:
             return None
@@ -760,7 +763,6 @@ class DatabaseMapping(object):
             return parameter
         return self.add_parameter(**kwargs)
 
-    # def rename_object_class(self, id, new_name):
     def rename_object_class(self, id, new_name):
         """Rename object class."""
         self.add_working_commit()
@@ -996,36 +998,3 @@ class DatabaseMapping(object):
             self.session.close()
         if self.engine:
             self.engine.dispose()
-
-
-class DiffDatabaseMapping(DatabaseMapping):
-    """A mapping to store the differences made in a db."""
-    def __init__(self, db_url, username=None):
-        """Initialize class."""
-        super().__init__(db_url, username)
-
-    def create_engine_and_session(self):
-        """Create engine and session."""
-        source_engine = create_engine(self.db_url)
-        self.engine = create_engine('sqlite://', connect_args={'check_same_thread':False}, poolclass=StaticPool)
-        meta = MetaData()
-        meta.reflect(source_engine)
-        meta.create_all(self.engine)
-        self.session = Session(self.engine)
-
-    def init_base(self):
-        """Create base and reflect tables."""
-        try:
-            self.Base = automap_base()
-            self.Base.prepare(self.engine, reflect=True)
-            self.ObjectClass = self.Base.classes.object_class
-            self.Object = self.Base.classes.object
-            self.RelationshipClass = self.Base.classes.relationship_class
-            self.Relationship = self.Base.classes.relationship
-            self.Parameter = self.Base.classes.parameter
-            self.ParameterValue = self.Base.classes.parameter_value
-            self.Commit = self.Base.classes.commit
-        except NoSuchTableError as table:
-            raise TableNotFoundError(table)
-        except AttributeError as table:
-            raise TableNotFoundError(table)

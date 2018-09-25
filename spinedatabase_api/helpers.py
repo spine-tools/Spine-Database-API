@@ -35,6 +35,8 @@ from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
 #from sqlalchemy.orm.session import Session
 from .exception import SpineDBAPIError
+from sqlalchemy import inspect
+
 
 # TODO: Find a way to keep this in synch with `create_new_spine_database`
 OBJECT_CLASS_NAMES = (
@@ -57,32 +59,14 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
 
-# @event.listens_for(Engine, "connect")
-# def receive_engine_connect(dbapi_connection, connection_record):
-#     module_name = dbapi_connection.__class__.__module__
-#     if not module_name.lower().startswith('sqlite'):
-#         return
-#     cursor = dbapi_connection.cursor()
-#     cursor.execute("PRAGMA foreign_keys=ON")
-#     cursor.close()
-
-# def receive_after_commit(session):
-#     print("after_commit")
-#     print(session)
-#
-# @event.listens_for(Session, "after_rollback")
-# def receive_after_rollback(session, transaction):
-#     print("after_rollback")
-#     print(session)
+def attr_dict(item):
+    """A dictionary of all attributes of item."""
+    return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 def copy_database(dest_url, source_url, skip_tables=list()):
     """Copy the database from source_url into dest_url."""
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
-    engine_copy_database(dest_engine, source_engine, skip_tables=skip_tables)
-
-def engine_copy_database(dest_engine, source_engine, skip_tables=list()):
-    # Meta reflection
     meta = MetaData()
     meta.reflect(source_engine)
     meta.create_all(dest_engine)
@@ -100,13 +84,6 @@ def engine_copy_database(dest_engine, source_engine, skip_tables=list()):
         if values:
             ins = dest_table.insert()
             dest_engine.execute(ins, values)
-
-def in_memory_copy(source_url, skip_tables=list()):
-    """An engine connected to an in-memory SQLite database which is a copy of source_url."""
-    source_engine = create_engine(source_url)
-    dest_engine = create_engine('sqlite://', connect_args={'check_same_thread':False}, poolclass=StaticPool)
-    engine_copy_database(dest_engine, source_engine, skip_tables=skip_tables)
-    return dest_engine
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
     if direction is interfaces.ONETOMANY:
