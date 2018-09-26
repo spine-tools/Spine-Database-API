@@ -119,23 +119,12 @@ class TempDatabaseMapping(DatabaseMapping):
         for t in self.Base.metadata.sorted_tables:
             if t.name.startswith('diff_'):
                 continue
-            print(t.name)
-            diff_constraints = list()
-            for constraint in t.constraints:
-                constraint_copy = constraint.copy()
-                diff_constraints.append(constraint.copy())
-                print(type(constraint_copy))
-                print(constraint_copy)
-                try:
-                    print(constraint_copy.refcolumns)
-                except:
-                    pass
             diff_columns = list()
             for column in t.columns:
                 diff_columns.append(column.copy())
             diff_table = Table(
                 "diff_" + t.name, metadata,
-                *diff_columns, *diff_constraints)
+                *diff_columns)
             diff_tables.append(diff_table)
         metadata.drop_all(tables=diff_tables)
         for diff_table in diff_tables:
