@@ -20,7 +20,7 @@
 """
 General helper functions and classes.
 
-:author: Manuel Marin <manuelma@kth.se>
+:author: Manuel Marin (KTH)
 :date:   15.8.2018
 """
 
