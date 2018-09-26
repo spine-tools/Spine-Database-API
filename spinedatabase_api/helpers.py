@@ -216,6 +216,7 @@ def create_new_spine_database(db_url):
             PRIMARY KEY (id, dimension),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON UPDATE CASCADE
+            CONSTRAINT relationship_class_unique_dimension_name UNIQUE (dimension, name)
         );
     """
     sql_list.append(sql)
@@ -231,6 +232,7 @@ def create_new_spine_database(db_url):
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(class_id, dimension) REFERENCES relationship_class (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY(object_id) REFERENCES object (id) ON UPDATE CASCADE
+            CONSTRAINT relationship_unique_dimension_name UNIQUE (dimension, name)
         );
     """
     sql_list.append(sql)
@@ -256,7 +258,7 @@ def create_new_spine_database(db_url):
             PRIMARY KEY (id),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(relationship_class_id, dummy_relationship_class_dimmension)
+            FOREIGN KEY(relationship_class_id, dummy_relationship_class_dimension)
                 REFERENCES relationship_class (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
             CHECK (`relationship_class_id` IS NOT NULL OR `object_class_id` IS NOT NULL),
             UNIQUE(name)
@@ -281,7 +283,7 @@ def create_new_spine_database(db_url):
             PRIMARY KEY (id),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(object_id) REFERENCES object (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(relationship_id, dummy_relationship_dimmension)
+            FOREIGN KEY(relationship_id, dummy_relationship_dimension)
                 REFERENCES relationship (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY(parameter_id) REFERENCES parameter (id) ON DELETE CASCADE ON UPDATE CASCADE,
             CHECK (`relationship_id` IS NOT NULL OR `object_id` IS NOT NULL),

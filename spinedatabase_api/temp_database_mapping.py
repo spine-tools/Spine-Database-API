@@ -26,17 +26,11 @@ Classes to handle the Spine database object relational mapping.
 
 import time
 import logging
-import sqlite3
 from .database_mapping import DatabaseMapping
-from sqlalchemy import create_engine, MetaData, Table, Column, select, func, inspect, or_, and_
-from sqlalchemy.types import Integer
+from sqlalchemy import MetaData, Table, func, or_, and_, event
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.ext.horizontal_shard import ShardedSession
-from sqlalchemy.orm import Session, sessionmaker, Query
-from sqlalchemy.orm.session import make_transient
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError, OperationalError
-from sqlalchemy.schema import ForeignKey
+from sqlalchemy.exc import NoSuchTableError, DBAPIError
+from sqlalchemy.sql.schema import UniqueConstraint, PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
 from .exception import SpineDBAPIError, TableNotFoundError
 from .helpers import custom_generate_relationship, attr_dict
 from datetime import datetime, timezone
@@ -45,9 +39,13 @@ from datetime import datetime, timezone
 # For example, while querying tables we can get the super query, filter out touched items
 # and then union with the diff query.
 # But this needs polishing `DatabaseMapping`
+# TODO: Check unique name constraints across orig and diff tables:
 
 class TempDatabaseMapping(DatabaseMapping):
-    """A mapping to a temporary copy of a db."""
+    """A class to handle changes made to a db in a graceful way.
+    Broadly, it works by creating a new bunch of tables to hold differences
+    with respect to original tables.
+    """
     def __init__(self, db_url, username=None):
         """Initialize class."""
         tic = time.clock()
@@ -60,7 +58,29 @@ class TempDatabaseMapping(DatabaseMapping):
         self.DiffRelationship = None
         self.DiffParameter = None
         self.DiffParameterValue = None
+        # Diff dictionaries
+        self.new_item_id = {}
+        self.dirty_item_id = {}
+        self.removed_item_id = {}
+        self.touched_item_id = {}
         # Next ids
+        self.next_object_class_id = None
+        self.next_object_id = None
+        self.next_relationship_class_id = None
+        self.next_relationship_id = None
+        self.next_parameter_id = None
+        self.next_parameter_value_id = None
+        # Initialize stuff
+        self.init_next_ids()
+        self.init_diff_dicts()
+        self.create_diff_tables_and_mapping()
+        self.create_diff_triggers()
+        toc = time.clock()
+        logging.debug("Temp mapping created in {} seconds".format(toc - tic))
+
+    def init_next_ids(self):
+        """Compute ids to be first used to create new items.
+        NOTE: Since new items are inserted into diff tables, we can't use id-autoincrement."""
         id = self.session.query(func.max(self.ObjectClass.id)).scalar()
         self.next_object_class_id = id + 1 if id else 1
         id = self.session.query(func.max(self.Object.id)).scalar()
@@ -73,6 +93,9 @@ class TempDatabaseMapping(DatabaseMapping):
         self.next_parameter_id = id + 1 if id else 1
         id = self.session.query(func.max(self.ParameterValue.id)).scalar()
         self.next_parameter_value_id = id + 1 if id else 1
+
+    def init_diff_dicts(self):
+        """Initialize dictionaries holding the differences."""
         self.new_item_id = {
             "object_class": set(),
             "object": set(),
@@ -97,7 +120,7 @@ class TempDatabaseMapping(DatabaseMapping):
             "parameter": set(),
             "parameter_value": set(),
         }
-        # List of items that are either dirty, or removed
+        # Touched items are those either dirty, or removed
         self.touched_item_id = {
             "object_class": set(),
             "object": set(),
@@ -106,41 +129,40 @@ class TempDatabaseMapping(DatabaseMapping):
             "parameter": set(),
             "parameter_value": set(),
         }
-        self.create_and_reflect_diff_tables()
-        toc = time.clock()
-        logging.debug("Temp mapping created in {} seconds".format(toc - tic))
 
-    def create_and_reflect_diff_tables(self):
-        """Create difference tables in both orig and diff db.
-        """
-        # Create
-        metadata = MetaData(bind=self.engine)
+    def create_diff_tables_and_mapping(self):
+        """Create tables to hold differences and the corresponding mapping using an automap_base."""
+        # Tables...
+        metadata = MetaData()
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
             if t.name.startswith('diff_'):
                 continue
-            print(t.name)
+            # Copy columns
+            diff_columns = [c.copy() for c in t.columns]
+            # Copy constraints.
+            # TODO: check if there's a better, less hacky way.
+            # TODO: Also beware of duplicating constraint names, might not work well
             diff_constraints = list()
             for constraint in t.constraints:
-                constraint_copy = constraint.copy()
-                diff_constraints.append(constraint.copy())
-                print(type(constraint_copy))
-                print(constraint_copy)
-                try:
-                    print(constraint_copy.refcolumns)
-                except:
-                    pass
-            diff_columns = list()
-            for column in t.columns:
-                diff_columns.append(column.copy())
+                if type(constraint) in (UniqueConstraint, CheckConstraint):
+                    diff_constraints.append(constraint)
+                elif type(constraint) == ForeignKeyConstraint:
+                    foreign_key_constraint = ForeignKeyConstraint(
+                        constraint.column_keys,
+                        ["diff_" + c.target_fullname for c in constraint.elements],
+                        ondelete=constraint.ondelete,
+                        onupdate=constraint.onupdate
+                    )
+                    diff_constraints.append(foreign_key_constraint)
+            # Create table
             diff_table = Table(
                 "diff_" + t.name, metadata,
                 *diff_columns, *diff_constraints)
             diff_tables.append(diff_table)
-        metadata.drop_all(tables=diff_tables)
-        for diff_table in diff_tables:
-            diff_table.create(self.engine)
-        # Reflect
+        metadata.drop_all(self.engine)
+        metadata.create_all(self.engine)
+        # Mapping...
         self.DiffBase = automap_base(metadata=metadata)
         self.DiffBase.prepare(generate_relationship=custom_generate_relationship)
         try:
@@ -154,6 +176,29 @@ class TempDatabaseMapping(DatabaseMapping):
             raise TableNotFoundError(table)
         except AttributeError as table:
             raise TableNotFoundError(table)
+
+    def create_diff_triggers(self):
+        """Create ad-hoc triggers. TODO: is there a way to synch this with
+        our CREATE TRIGGER statements from `helpers.create_new_spine_database`?
+        """
+        @event.listens_for(self.DiffObjectClass, 'after_delete')
+        def receive_after_object_class_delete(mapper, connection, object_class):
+            @event.listens_for(self.session, "after_flush", once=True)
+            def receive_after_flush(session, context):
+                id_list = session.query(self.DiffRelationshipClass.id).\
+                    filter_by(object_class_id=object_class.id).distinct()
+                item_list = session.query(self.DiffRelationshipClass).\
+                    filter(self.DiffRelationshipClass.id.in_(id_list))
+                for item in item_list:
+                    session.delete(item)
+        @event.listens_for(self.DiffObject, 'after_delete')
+        def receive_after_object_delete(mapper, connection, object_):
+            @event.listens_for(self.session, "after_flush", once=True)
+            def receive_after_flush(session, context):
+                id_list = session.query(self.DiffRelationship.id).filter_by(object_id=object_.id).distinct()
+                item_list = session.query(self.DiffRelationship).filter(self.DiffRelationship.id.in_(id_list))
+                for item in item_list:
+                    session.delete(item)
 
     def single_object_class(self, id=None, name=None):
         """Return a single object class given the id or name."""
@@ -287,7 +332,7 @@ class TempDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter_by(class_id=class_id)
         return qry.union_all(diff_qry)
 
-    def wide_relationship_class_list(self, object_class_id=None):
+    def wide_relationship_class_list(self, id_list=set(), object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
         object_class_list = self.object_class_list().subquery()
         qry = self.session.query(
@@ -303,6 +348,9 @@ class TempDatabaseMapping(DatabaseMapping):
             object_class_list.c.name.label('object_class_name'),
             self.DiffRelationshipClass.name.label('name')
         ).filter(self.DiffRelationshipClass.object_class_id == object_class_list.c.id)
+        if id_list:
+            qry = qry.filter(self.RelationshipClass.id.in_(id_list))
+            diff_qry = diff_qry.filter(self.DiffRelationshipClass.id.in_(id_list))
         if object_class_id:
             qry = qry.filter(self.RelationshipClass.id.in_(
                 self.session.query(self.RelationshipClass.id).\
@@ -318,7 +366,7 @@ class TempDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def wide_relationship_list(self, class_id=None, object_id=None):
+    def wide_relationship_list(self, id_list=set(), class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
         object_list = self.object_list().subquery()
         qry = self.session.query(
@@ -336,6 +384,9 @@ class TempDatabaseMapping(DatabaseMapping):
             object_list.c.name.label('object_name'),
             self.DiffRelationship.name.label('name')
         ).filter(self.DiffRelationship.object_id == object_list.c.id)
+        if id_list:
+            qry = qry.filter(self.Relationship.id.in_(id_list))
+            diff_qry = diff_qry.filter(self.DiffRelationship.id.in_(id_list))
         if class_id:
             qry = qry.filter(self.Relationship.id.in_(
                 self.session.query(self.Relationship.id).filter_by(class_id=class_id).distinct()))
@@ -587,105 +638,113 @@ class TempDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
         return qry.union_all(diff_qry)
 
-    def add_object_class(self, **kwargs):
-        """Add object class to database.
+    def add_object_classes(self, kwargs_list):
+        """Add object classes to database.
 
         Returns:
-            object_class (KeyedTuple): the object class now with the id
+            object_classes (lists)
         """
         try:
+            item_list = list()
             id = self.next_object_class_id
-            item = self.DiffObjectClass(id=id, **kwargs)
-            self.session.add(item)
+            for kwargs in kwargs_list:
+                item = self.DiffObjectClass(id=id, **kwargs)
+                item_list.append(item)
+                id += 1
+            self.session.add_all(item_list)
             self.session.commit()
-            self.new_item_id["object_class"].add(id)
-            self.next_object_class_id += 1
-            return self.single_object_class(id=id).one_or_none()
+            self.new_item_id["object_class"].update({item.id for item in item_list})
+            self.next_object_class_id = id
+            return [attr_dict(item) for item in item_list]
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting object class '{}': {}".format(kwargs['name'], e.orig.args)
+            msg = "DBAPIError while inserting object class: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_object(self, **kwargs):
-        """Add object to database.
+    def add_objects(self, kwargs_list):
+        """Add objects to database.
 
         Returns:
-            object_ (KeyedTuple): the object now with the id
+            objects (list)
         """
         try:
+            item_list = list()
             id = self.next_object_id
-            item = self.DiffObject(id=id, **kwargs)
-            self.session.add(item)
+            for kwargs in kwargs_list:
+                item = self.DiffObject(id=id, **kwargs)
+                item_list.append(item)
+                id += 1
+            self.session.add_all(item_list)
             self.session.commit()
-            self.new_item_id["object"].add(id)
-            self.next_object_id += 1
-            return self.single_object(id=id).one_or_none()
+            self.new_item_id["object"].update({item.id for item in item_list})
+            self.next_object_class_id = id
+            return [attr_dict(item) for item in item_list]
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting object '{}': {}".format(kwargs['name'], e.orig.args)
+            msg = "DBAPIError while inserting object: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_class(self, **kwargs):
-        """Add relationship class to database.
-
-        Args:
-            kwargs (dict): the relationship class in wide format
+    def add_wide_relationship_classes(self, kwargs_list):
+        """Add relationship classes to database.
 
         Returns:
-            wide_relationship_class (KeyedTuple): the relationship class now with the id
+            wide_relationship_classes (list)
         """
         try:
+            item_list = list()
             id = self.next_relationship_class_id
-            item_list = list()
-            for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
-                kwargs = {
-                    'id': id,
-                    'dimension': dimension,
-                    'object_class_id': object_class_id,
-                    'name': kwargs['name']
-                }
-                item = self.DiffRelationshipClass(**kwargs)
-                item_list.append(item)
+            for kwargs in kwargs_list:
+                for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
+                    kwargs = {
+                        'id': id,
+                        'dimension': dimension,
+                        'object_class_id': object_class_id,
+                        'name': kwargs['name']
+                    }
+                    item = self.DiffRelationshipClass(**kwargs)
+                    item_list.append(item)
+                id += 1
             self.session.add_all(item_list)
             self.session.commit()
-            self.new_item_id["relationship_class"].add(id)
-            self.next_relationship_class_id += 1
-            return self.single_wide_relationship_class(id=id).one_or_none()
+            id_list = {item.id for item in item_list}
+            self.new_item_id["relationship_class"].update(id_list)
+            self.next_relationship_class_id = id
+            return [x._asdict() for x in self.wide_relationship_class_list(id_list=id_list)]
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship class '{}': {}".format(kwargs['name'], e.orig.args)
+            msg = "DBAPIError while inserting relationship class: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship(self, **kwargs):
-        """Add relationship to database.
-
-        Args:
-            kwargs (dict): the relationship in wide format
+    def add_wide_relationships(self, kwargs_list):
+        """Add relationships to database.
 
         Returns:
-            wide_relationship (KeyedTuple): the relationship now with the id
+            wide_relationships (list)
         """
         try:
-            id = self.next_relationship_id
             item_list = list()
-            for dimension, object_id in enumerate(kwargs['object_id_list']):
-                kwargs = {
-                    'id': id,
-                    'class_id': kwargs['class_id'],
-                    'dimension': dimension,
-                    'object_id': object_id,
-                    'name': kwargs['name']
-                }
-                item = self.DiffRelationship(**kwargs)
-                item_list.append(item)
+            id = self.next_relationship_id
+            for kwargs in kwargs_list:
+                for dimension, object_id in enumerate(kwargs['object_id_list']):
+                    kwargs = {
+                        'id': id,
+                        'class_id': kwargs['class_id'],
+                        'dimension': dimension,
+                        'object_id': object_id,
+                        'name': kwargs['name']
+                    }
+                    item = self.DiffRelationship(**kwargs)
+                    item_list.append(item)
+                id += 1
             self.session.add_all(item_list)
             self.session.commit()
-            self.new_item_id["relationship"].add(id)
-            self.next_relationship_id += 1
-            return self.single_wide_relationship(id=id).one_or_none()
+            id_list = {item.id for item in item_list}
+            self.new_item_id["relationship"].update(id_list)
+            self.next_relationship_id = id
+            return [x._asdict() for x in self.wide_relationship_list(id_list=id_list)]
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship '{}': {}".format(kwargs['name'], e.orig.args)
+            msg = "DBAPIError while inserting relationship: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def add_parameter(self, **kwargs):
@@ -882,6 +941,7 @@ class TempDatabaseMapping(DatabaseMapping):
                 raise SpineDBAPIError(msg)
         self.removed_item_id["object_class"].add(id)
         self.touched_item_id["object_class"].add(id)
+        # Touch items that reference this one in original tables
         for item in self.session.query(self.Object.id).filter_by(class_id=id):
             self.touched_item_id["object"].add(item.id)
         id_list = [x.id for x in self.session.query(self.RelationshipClass.id).filter_by(object_class_id=id)]
@@ -889,6 +949,7 @@ class TempDatabaseMapping(DatabaseMapping):
             self.touched_item_id["relationship_class"].add(item.id)
         for item in self.session.query(self.Parameter.id).filter_by(object_class_id=id):
             self.touched_item_id["parameter"].add(item.id)
+        # TODO: Remove items that reference this one in diff tables
         return True
 
     def remove_object(self, id):
@@ -984,8 +1045,17 @@ class TempDatabaseMapping(DatabaseMapping):
         self.removed_item_id["parameter_value"].add(id)
         self.touched_item_id["parameter_value"].add(id)
 
+    def reset_diff_mapping(self):
+        """Delete all records from diff tables (but don't drop the tables)."""
+        self.session.query(self.DiffObjectClass).delete()
+        self.session.query(self.DiffObject).delete()
+        self.session.query(self.DiffRelationshipClass).delete()
+        self.session.query(self.DiffRelationship).delete()
+        self.session.query(self.DiffParameter).delete()
+        self.session.query(self.DiffParameterValue).delete()
+
     def commit_session(self, comment):
-        """Commit changes to source database."""
+        """Make differences into original tables and commit."""
         try:
             user = self.username
             date = datetime.now(timezone.utc)
@@ -1086,7 +1156,7 @@ class TempDatabaseMapping(DatabaseMapping):
                 removed_item = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
                 removed_items.append(removed_item)
             for id in self.removed_item_id["object"]:
-                item = self.session.query(self.Object).filter_by(id=id).one_or_none()
+                removed_item = self.session.query(self.Object).filter_by(id=id).one_or_none()
                 removed_items.append(removed_item)
             for id in self.removed_item_id["relationship_class"]:
                 for removed_item in self.session.query(self.RelationshipClass).filter_by(id=id):
@@ -1102,12 +1172,21 @@ class TempDatabaseMapping(DatabaseMapping):
                 removed_items.append(removed_item)
             for removed_item in removed_items:
                 self.session.delete(removed_item)
+            self.reset_diff_mapping()
             self.session.commit()
+            self.init_diff_dicts()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def rollback_session(self):
-        # TODO: just reload the diff database, and clear all dicts
-        pass
+        """Clear all differences."""
+        try:
+            self.reset_diff_mapping()
+            self.session.commit()
+            self.init_diff_dicts()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
