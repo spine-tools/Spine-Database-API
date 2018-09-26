@@ -20,7 +20,7 @@
 """
 Classes to handle the Spine database object relational mapping.
 
-:author: Manuel Marin <manuelma@kth.se>
+:author: Manuel Marin (KTH)
 :date:   11.8.2018
 """
 
@@ -52,6 +52,27 @@ class TempDatabaseMapping(DatabaseMapping):
         """Initialize class."""
         tic = time.clock()
         super().__init__(db_url, username)
+        # Diff Base and tables
+        self.DiffBase = None
+        self.DiffObjectClass = None
+        self.DiffObject = None
+        self.DiffRelationshipClass = None
+        self.DiffRelationship = None
+        self.DiffParameter = None
+        self.DiffParameterValue = None
+        # Next ids
+        id = self.session.query(func.max(self.ObjectClass.id)).scalar()
+        self.next_object_class_id = id + 1 if id else 1
+        id = self.session.query(func.max(self.Object.id)).scalar()
+        self.next_object_id = id + 1 if id else 1
+        id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
+        self.next_relationship_class_id = id + 1 if id else 1
+        id = self.session.query(func.max(self.Relationship.id)).scalar()
+        self.next_relationship_id = id + 1 if id else 1
+        id = self.session.query(func.max(self.Parameter.id)).scalar()
+        self.next_parameter_id = id + 1 if id else 1
+        id = self.session.query(func.max(self.ParameterValue.id)).scalar()
+        self.next_parameter_value_id = id + 1 if id else 1
         self.new_item_id = {
             "object_class": set(),
             "object": set(),
@@ -85,50 +106,43 @@ class TempDatabaseMapping(DatabaseMapping):
             "parameter": set(),
             "parameter_value": set(),
         }
-        self.DiffBase = None
-        self.DiffObjectClass = None
-        self.DiffObject = None
-        self.DiffRelationshipClass = None
-        self.DiffRelationship = None
-        self.DiffParameter = None
-        self.DiffParameterValue = None
-        self.create_diff_tables()
-        id = self.session.query(func.max(self.ObjectClass.id)).first()[0]
-        self.next_object_class_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.Object.id)).first()[0]
-        self.next_object_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.RelationshipClass.id)).first()[0]
-        self.next_relationship_class_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.Relationship.id)).first()[0]
-        self.next_relationship_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.Parameter.id)).first()[0]
-        self.next_parameter_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.ParameterValue.id)).first()[0]
-        self.next_parameter_value_id = id + 1 if id else 1
+        self.create_and_reflect_diff_tables()
         toc = time.clock()
         logging.debug("Temp mapping created in {} seconds".format(toc - tic))
 
-    def create_diff_tables(self):
+    def create_and_reflect_diff_tables(self):
         """Create difference tables in both orig and diff db.
         """
-        meta = MetaData(bind=self.engine)
+        # Create
+        metadata = MetaData(bind=self.engine)
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
             if t.name.startswith('diff_'):
                 continue
+            print(t.name)
+            diff_constraints = list()
+            for constraint in t.constraints:
+                constraint_copy = constraint.copy()
+                diff_constraints.append(constraint.copy())
+                print(type(constraint_copy))
+                print(constraint_copy)
+                try:
+                    print(constraint_copy.refcolumns)
+                except:
+                    pass
             diff_columns = list()
             for column in t.columns:
                 diff_columns.append(column.copy())
             diff_table = Table(
-                "diff_" + t.name, meta,
-                *diff_columns)
+                "diff_" + t.name, metadata,
+                *diff_columns, *diff_constraints)
             diff_tables.append(diff_table)
-        meta.drop_all(tables=diff_tables)
+        metadata.drop_all(tables=diff_tables)
         for diff_table in diff_tables:
             diff_table.create(self.engine)
-        # Reflect diff tables
-        self.DiffBase = automap_base()
-        self.DiffBase.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
+        # Reflect
+        self.DiffBase = automap_base(metadata=metadata)
+        self.DiffBase.prepare(generate_relationship=custom_generate_relationship)
         try:
             self.DiffObjectClass = self.DiffBase.classes.diff_object_class
             self.DiffObject = self.DiffBase.classes.diff_object
@@ -248,10 +262,7 @@ class TempDatabaseMapping(DatabaseMapping):
             self.ObjectClass.id.label("id"),
             self.ObjectClass.name.label("name"),
             self.ObjectClass.display_order.label("display_order"),
-        )
-        if not self.touched_item_id["object_class"]:
-            return qry.order_by(self.ObjectClass.display_order)
-        qry = qry.filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
+        ).filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
         diff_qry = self.session.query(
             self.DiffObjectClass.id.label("id"),
             self.DiffObjectClass.name.label("name"),
@@ -859,49 +870,128 @@ class TempDatabaseMapping(DatabaseMapping):
 
     def remove_object_class(self, id):
         """Remove object class."""
-        # By touching the item we make sure it's not brought by any query anymore
-        self.touched_item_id["object_class"].add(id)
+        diff_item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
+        if diff_item:
+            try:
+                self.session.delete(diff_item)
+                self.session.commit()
+                return True
+            except DBAPIError as e:
+                self.session.rollback()
+                msg = "DBAPIError while removing object class '{}': {}".format(diff_item.name, e.orig.args)
+                raise SpineDBAPIError(msg)
         self.removed_item_id["object_class"].add(id)
+        self.touched_item_id["object_class"].add(id)
+        for item in self.session.query(self.Object.id).filter_by(class_id=id):
+            self.touched_item_id["object"].add(item.id)
+        id_list = [x.id for x in self.session.query(self.RelationshipClass.id).filter_by(object_class_id=id)]
+        for item in self.session.query(self.RelationshipClass.id).filter(self.RelationshipClass.id.in_(id_list)):
+            self.touched_item_id["relationship_class"].add(item.id)
+        for item in self.session.query(self.Parameter.id).filter_by(object_class_id=id):
+            self.touched_item_id["parameter"].add(item.id)
+        return True
 
     def remove_object(self, id):
         """Remove object."""
-        # By touching the item we make sure it's not brought by any query anymore
-        self.touched_item_id["object"].add(id)
+        diff_item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
+        if diff_item:
+            try:
+                self.session.delete(diff_item)
+                self.session.commit()
+                return True
+            except DBAPIError as e:
+                self.session.rollback()
+                msg = "DBAPIError while removing object '{}': {}".format(diff_item.name, e.orig.args)
+                raise SpineDBAPIError(msg)
         self.removed_item_id["object"].add(id)
+        self.touched_item_id["object"].add(id)
+        id_list = [x.id for x in self.session.query(self.Relationship.id).filter_by(object_id=id)]
+        for item in self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(id_list)):
+            self.touched_item_id["relationship"].add(item.id)
+        for item in self.session.query(self.ParameterValue.id).filter_by(object_id=id):
+            self.touched_item_id["parameter_value"].add(item.id)
+        return True
 
     def remove_relationship_class(self, id):
         """Remove relationship class."""
-        # By touching the item we make sure it's not brought by any query anymore
-        self.touched_item_id["relationship_class"].add(id)
+        diff_item = self.session.query(self.DiffRelationshipClass).filter_by(id=id).one_or_none()
+        if diff_item:
+            try:
+                self.session.delete(diff_item)
+                self.session.commit()
+                return True
+            except DBAPIError as e:
+                self.session.rollback()
+                msg = "DBAPIError while removing relationship class '{}': {}".format(diff_item.name, e.orig.args)
+                raise SpineDBAPIError(msg)
         self.removed_item_id["relationship_class"].add(id)
+        self.touched_item_id["relationship_class"].add(id)
+        id_list = [x.id for x in self.session.query(self.Relationship.id).filter_by(class_id=id)]
+        for item in self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(id_list)):
+            self.touched_item_id["relationship"].add(item.id)
+        for item in self.session.query(self.Parameter.id).filter_by(relationship_class_id=id):
+            self.touched_item_id["parameter"].add(item.id)
+        return True
 
     def remove_relationship(self, id):
         """Remove relationship."""
-        # By touching the item we make sure it's not brought by any query anymore
-        self.touched_item_id["relationship"].add(id)
+        diff_item = self.session.query(self.DiffRelationship).filter_by(id=id).one_or_none()
+        if diff_item:
+            try:
+                self.session.delete(diff_item)
+                self.session.commit()
+                return True
+            except DBAPIError as e:
+                self.session.rollback()
+                msg = "DBAPIError while removing relationship '{}': {}".format(diff_item.name, e.orig.args)
+                raise SpineDBAPIError(msg)
         self.removed_item_id["relationship"].add(id)
+        self.touched_item_id["relationship"].add(id)
+        for item in self.session.query(self.ParameterValue.id).filter_by(relationship_id=id):
+            self.touched_item_id["parameter_value"].add(item.id)
+        return True
 
     def remove_parameter(self, id):
         """Remove parameter."""
-        # By touching the item we make sure it's not brought by any query anymore
-        self.touched_item_id["parameter"].add(id)
+        diff_item = self.session.query(self.DiffParameter).filter_by(id=id).one_or_none()
+        if diff_item:
+            try:
+                self.session.delete(diff_item)
+                self.session.commit()
+                return True
+            except DBAPIError as e:
+                self.session.rollback()
+                msg = "DBAPIError while removing parameter '{}': {}".format(diff_item.name, e.orig.args)
+                raise SpineDBAPIError(msg)
         self.removed_item_id["parameter"].add(id)
+        self.touched_item_id["parameter"].add(id)
+        for item in self.session.query(self.ParameterValue.id).filter_by(parameter_id=id):
+            self.touched_item_id["parameter_value"].add(item.id)
+        return True
 
     def remove_parameter_value(self, id):
         """Remove parameter value."""
-        # By touching the item we make sure it's not brought by any query anymore
-        self.touched_item_id["parameter_value"].add(id)
+        diff_item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
+        if diff_item:
+            try:
+                self.session.delete(diff_item)
+                self.session.commit()
+                return True
+            except DBAPIError as e:
+                self.session.rollback()
+                msg = "DBAPIError while removing parameter value '{}': {}".format(diff_item.name, e.orig.args)
+                raise SpineDBAPIError(msg)
         self.removed_item_id["parameter_value"].add(id)
+        self.touched_item_id["parameter_value"].add(id)
 
     def commit_session(self, comment):
         """Commit changes to source database."""
         try:
-            session = Session(self.engine)
             user = self.username
             date = datetime.now(timezone.utc)
             commit = self.Commit(comment=comment, date=date, user=user)
-            session.add(commit)
-            session.flush()
+            self.session.add(commit)
+            self.session.flush()
             # Add new
             new_items = list()
             for id in self.new_item_id["object_class"]:
@@ -944,7 +1034,7 @@ class TempDatabaseMapping(DatabaseMapping):
                 kwargs['commit_id'] = commit.id
                 new_item = self.ParameterValue(**kwargs)
                 new_items.append(new_item)
-            session.add_all(new_items)
+            self.session.add_all(new_items)
             # Merge dirty
             dirty_items = list()
             for id in self.dirty_item_id["object_class"]:
@@ -989,32 +1079,32 @@ class TempDatabaseMapping(DatabaseMapping):
                 dirty_items.append(dirty_item)
             self.session.flush()
             for dirty_item in dirty_items:
-                session.merge(dirty_item)
+                self.session.merge(dirty_item)
             # Remove removed
             removed_items = list()
             for id in self.removed_item_id["object_class"]:
-                removed_item = session.query(self.ObjectClass).filter_by(id=id).one_or_none()
+                removed_item = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
                 removed_items.append(removed_item)
             for id in self.removed_item_id["object"]:
-                item = session.query(self.Object).filter_by(id=id).one_or_none()
+                item = self.session.query(self.Object).filter_by(id=id).one_or_none()
                 removed_items.append(removed_item)
             for id in self.removed_item_id["relationship_class"]:
-                for removed_item in session.query(self.RelationshipClass).filter_by(id=id):
+                for removed_item in self.session.query(self.RelationshipClass).filter_by(id=id):
                     removed_items.append(removed_item)
             for id in self.removed_item_id["relationship"]:
-                for removed_item in session.query(self.Relationship).filter_by(id=id):
+                for removed_item in self.session.query(self.Relationship).filter_by(id=id):
                     removed_items.append(removed_item)
             for id in self.removed_item_id["parameter"]:
-                removed_item = session.query(self.Parameter).filter_by(id=id).one_or_none()
+                removed_item = self.session.query(self.Parameter).filter_by(id=id).one_or_none()
                 removed_items.append(removed_item)
             for id in self.removed_item_id["parameter_value"]:
-                removed_item = session.query(self.ParameterValue).filter_by(id=id).one_or_none()
+                removed_item = self.session.query(self.ParameterValue).filter_by(id=id).one_or_none()
                 removed_items.append(removed_item)
             for removed_item in removed_items:
-                session.delete(removed_item)
-            session.commit()
+                self.session.delete(removed_item)
+            self.session.commit()
         except DBAPIError as e:
-            session.rollback()
+            self.session.rollback()
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 

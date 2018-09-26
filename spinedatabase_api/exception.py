@@ -20,7 +20,7 @@
 """
 Classes to handle exceptions while using the Spine database API.
 
-:author: Manuel Marin <manuelma@kth.se>
+:author: Manuel Marin (KTH)
 :date:   15.8.2018
 """
 
