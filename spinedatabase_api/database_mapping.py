@@ -26,7 +26,7 @@ Classes to handle the Spine database object relational mapping.
 
 import time
 import logging
-from sqlalchemy import create_engine, false, distinct, func, MetaData
+from sqlalchemy import create_engine, false, distinct, func, MetaData, event
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
@@ -66,7 +66,8 @@ class DatabaseMapping(object):
         self.ParameterValue = None
         self.Commit = None
         self.create_engine_and_session()
-        self.init_base()
+        self.create_mapping()
+        self.create_triggers()
 
     def create_engine_and_session(self):
         """Create engine connected to self.db_url and session."""
@@ -89,7 +90,7 @@ class DatabaseMapping(object):
             #     raise SpineDBAPIError(msg)
         self.session = Session(self.engine)
 
-    def init_base(self):
+    def create_mapping(self):
         """Create base and reflect tables."""
         try:
             self.Base = automap_base()
@@ -105,6 +106,24 @@ class DatabaseMapping(object):
             raise TableNotFoundError(table)
         except AttributeError as table:
             raise TableNotFoundError(table)
+
+    def create_triggers(self):
+        """Create ad-hoc triggers. TODO: is there a way to synch this with
+        our CREATE TRIGGER statements from `helpers.create_new_spine_database`?
+        """
+        @event.listens_for(self.ObjectClass, 'after_delete')
+        def receive_after_object_class_delete(mapper, connection, object_class):
+            id_list = self.session.query(self.RelationshipClass.id).\
+                filter_by(object_class_id=object_class.id).distinct()
+            item_list = self.session.query(self.RelationshipClass).filter(self.RelationshipClass.id.in_(id_list))
+            for item in item_list:
+                self.session.delete(item)
+        @event.listens_for(self.Object, 'after_delete')
+        def receive_after_object_delete(mapper, connection, object_):
+            id_list = self.session.query(self.Relationship.id).filter_by(object_id=object_.id).distinct()
+            item_list = self.session.query(self.Relationship).filter(self.Relationship.id.in_(id_list))
+            for item in item_list:
+                self.session.delete(item)
 
     def add_working_commit(self):
         """Add working commit item."""
@@ -982,15 +1001,15 @@ class DatabaseMapping(object):
     def empty_list(self):
         return self.session.query(false()).filter(false())
 
-    def reset(self):
+    def reset_mapping(self):
         """Delete all records from all tables (but don't drop the tables)."""
+        self.session.query(self.ObjectClass).delete(synchronize_session=False)
         self.session.query(self.Object).delete(synchronize_session=False)
         self.session.query(self.RelationshipClass).delete(synchronize_session=False)
         self.session.query(self.Relationship).delete(synchronize_session=False)
         self.session.query(self.Parameter).delete(synchronize_session=False)
         self.session.query(self.ParameterValue).delete(synchronize_session=False)
         self.session.query(self.Commit).delete(synchronize_session=False)
-        self.session.commit()
 
     def close(self):
         if self.session:

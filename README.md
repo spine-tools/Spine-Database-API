@@ -13,8 +13,8 @@ documentation and manual are released under the Creative Commons BY-SA 4.0 licen
 
 To install the package run:
 
-    $ pip install git+https://gitlab.vtt.fi/spine/data.git@database_api
+    $ pip install 'url-of-this-repository'
 
-Alternatively, if you have setup your ssh credentials:
+Alternatively, clone this repo and then run:
 
-    $ pip install git+ssh://git@gitlab.vtt.fi:spine/data.git@database_api
+    $ pip install 'path-to-spinedatabase_api'

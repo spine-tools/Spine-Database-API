@@ -41,14 +41,13 @@ from datetime import datetime, timezone
 # But this needs polishing `DatabaseMapping`
 # TODO: Check unique name constraints across orig and diff tables:
 
-class TempDatabaseMapping(DatabaseMapping):
+class DiffDatabaseMapping(DatabaseMapping):
     """A class to handle changes made to a db in a graceful way.
     Broadly, it works by creating a new bunch of tables to hold differences
     with respect to original tables.
     """
     def __init__(self, db_url, username=None):
         """Initialize class."""
-        tic = time.clock()
         super().__init__(db_url, username)
         # Diff Base and tables
         self.DiffBase = None
@@ -75,8 +74,6 @@ class TempDatabaseMapping(DatabaseMapping):
         self.init_diff_dicts()
         self.create_diff_tables_and_mapping()
         self.create_diff_triggers()
-        toc = time.clock()
-        logging.debug("Temp mapping created in {} seconds".format(toc - tic))
 
     def init_next_ids(self):
         """Compute ids to be first used to create new items.
@@ -158,7 +155,7 @@ class TempDatabaseMapping(DatabaseMapping):
             # Create table
             diff_table = Table(
                 "diff_" + t.name, metadata,
-                *diff_columns)
+                *diff_columns, *diff_constraints)
             diff_tables.append(diff_table)
         metadata.drop_all(self.engine)
         metadata.create_all(self.engine)
