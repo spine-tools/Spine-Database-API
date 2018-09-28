@@ -298,7 +298,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.relationship_parameter_value_list().\
             filter(or_(self.ParameterValue.id == id, self.DiffParameterValue.id == id))
 
-    def object_class_list(self):
+    def object_class_list(self, ordered=True):
         """Return object classes ordered by display order."""
         qry = self.session.query(
             self.ObjectClass.id.label("id"),
@@ -310,7 +310,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObjectClass.name.label("name"),
             self.DiffObjectClass.display_order.label("display_order"),
         )
-        return qry.union_all(diff_qry).order_by(self.ObjectClass.display_order)
+        qry = qry.union_all(diff_qry)
+        if ordered:
+            qry = qry.order_by(self.ObjectClass.display_order)
+        return qry
 
     def object_list(self, class_id=None):
         """Return objects, optionally filtered by class id."""
@@ -331,7 +334,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def wide_relationship_class_list(self, id_list=set(), object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
-        object_class_list = self.object_class_list().subquery()
+        object_class_list = self.object_class_list(ordered=False).subquery()
         qry = self.session.query(
             self.RelationshipClass.id.label('id'),
             self.RelationshipClass.object_class_id.label('object_class_id'),
@@ -444,7 +447,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Return object classes and their parameters."""
         object_class_list = self.object_class_list().subquery()
         qry = self.session.query(
-            self.Parameter.id.label('parameter_id'),
+            self.Parameter.id.label('id'),
             object_class_list.c.name.label('object_class_name'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
@@ -458,7 +461,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         ).filter(object_class_list.c.id == self.Parameter.object_class_id).\
         filter(~self.Parameter.id.in_(self.touched_item_id["parameter"]))
         diff_qry = self.session.query(
-            self.DiffParameter.id.label('parameter_id'),
+            self.DiffParameter.id.label('id'),
             object_class_list.c.name.label('object_class_name'),
             self.DiffParameter.name.label('parameter_name'),
             self.DiffParameter.can_have_time_series,
@@ -482,7 +485,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Return relationship classes and their parameters."""
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
-            self.Parameter.id.label('parameter_id'),
+            self.Parameter.id.label('id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_class_list.c.object_class_name_list,
             self.Parameter.name.label('parameter_name'),
@@ -497,7 +500,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         ).filter(self.Parameter.relationship_class_id == wide_relationship_class_list.c.id).\
         filter(~self.Parameter.id.in_(self.touched_item_id["parameter"]))
         diff_qry = self.session.query(
-            self.DiffParameter.id.label('parameter_id'),
+            self.DiffParameter.id.label('id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_class_list.c.object_class_name_list,
             self.DiffParameter.name.label('parameter_name'),
@@ -559,7 +562,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         object_class_list = self.object_class_list().subquery()
         object_list = self.object_list().subquery()
         qry = self.session.query(
-            self.ParameterValue.id.label('parameter_value_id'),
+            self.ParameterValue.id.label('id'),
             object_class_list.c.name.label('object_class_name'),
             object_list.c.name.label('object_name'),
             parameter_list.c.name.label('parameter_name'),
@@ -575,7 +578,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(parameter_list.c.object_class_id == object_class_list.c.id).\
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
-            self.DiffParameterValue.id.label('parameter_value_id'),
+            self.DiffParameterValue.id.label('id'),
             object_class_list.c.name.label('object_class_name'),
             object_list.c.name.label('object_name'),
             parameter_list.c.name.label('parameter_name'),
@@ -600,7 +603,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         wide_relationship_list = self.wide_relationship_list().subquery()
         qry = self.session.query(
-            self.ParameterValue.id.label('parameter_value_id'),
+            self.ParameterValue.id.label('id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_list.c.object_name_list,
             parameter_list.c.name.label('parameter_name'),
@@ -616,7 +619,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id).\
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
-            self.DiffParameterValue.id.label('parameter_value_id'),
+            self.DiffParameterValue.id.label('id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_list.c.object_name_list,
             parameter_list.c.name.label('parameter_name'),
@@ -924,123 +927,190 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while updating parameter value: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def remove_object_class(self, id):
-        """Remove object class."""
-        diff_item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
-        if diff_item:
-            try:
-                self.session.delete(diff_item)
-                self.session.commit()
-                return True
-            except DBAPIError as e:
-                self.session.rollback()
-                msg = "DBAPIError while removing object class '{}': {}".format(diff_item.name, e.orig.args)
-                raise SpineDBAPIError(msg)
-        self.removed_item_id["object_class"].add(id)
-        self.touched_item_id["object_class"].add(id)
-        # Touch items that reference this one in original tables
-        for item in self.session.query(self.Object.id).filter_by(class_id=id):
-            self.touched_item_id["object"].add(item.id)
-        id_list = [x.id for x in self.session.query(self.RelationshipClass.id).filter_by(object_class_id=id)]
-        for item in self.session.query(self.RelationshipClass.id).filter(self.RelationshipClass.id.in_(id_list)):
-            self.touched_item_id["relationship_class"].add(item.id)
-        for item in self.session.query(self.Parameter.id).filter_by(object_class_id=id):
-            self.touched_item_id["parameter"].add(item.id)
-        # TODO: Remove items that reference this one in diff tables
-        return True
+    def remove_items(
+            self,
+            object_class_ids=set(),
+            object_ids=set(),
+            relationship_class_ids=set(),
+            relationship_ids=set(),
+            parameter_ids=set(),
+            parameter_value_ids=set()
+        ):
+        """Remove items."""
+        touched_and_removed_items = self.touched_and_removed_items(
+            object_class_ids=object_class_ids,
+            object_ids=object_ids,
+            relationship_class_ids=relationship_class_ids,
+            relationship_ids=relationship_ids,
+            parameter_ids=parameter_ids,
+            parameter_value_ids=parameter_value_ids)
+        touched_item_id, removed_item_id, touched_diff_item_id = touched_and_removed_items
+        # Get diff items
+        diff_ids = touched_diff_item_id.get('object_class', set()).union(object_class_ids)
+        diff_object_class_list = self.session.query(self.DiffObjectClass).\
+            filter(self.DiffObjectClass.id.in_(diff_ids))
+        diff_ids = touched_diff_item_id.get('object', set()).union(object_ids)
+        diff_object_list = self.session.query(self.DiffObject).\
+            filter(self.DiffObject.id.in_(diff_ids))
+        diff_ids = touched_diff_item_id.get('relationship_class', set()).union(relationship_class_ids)
+        diff_relationship_class_list = self.session.query(self.DiffRelationshipClass).\
+            filter(self.DiffRelationshipClass.id.in_(diff_ids))
+        diff_ids = touched_diff_item_id.get('relationship', set()).union(relationship_ids)
+        diff_relationship_list = self.session.query(self.DiffRelationship).\
+            filter(self.DiffRelationship.id.in_(diff_ids))
+        diff_ids = touched_diff_item_id.get('parameter', set()).union(parameter_ids)
+        diff_parameter_list = self.session.query(self.DiffParameter).\
+            filter(self.DiffParameter.id.in_(diff_ids))
+        diff_ids = touched_diff_item_id.get('parameter_value', set()).union(parameter_value_ids)
+        diff_parameter_value_list = self.session.query(self.DiffParameterValue).\
+            filter(self.DiffParameterValue.id.in_(diff_ids))
+        # Concatenate all
+        diff_item_list = diff_parameter_value_list.all() \
+            + diff_parameter_list.all() \
+            + diff_relationship_list.all() \
+            + diff_relationship_class_list.all() \
+            + diff_object_list.all() \
+            + diff_object_class_list.all()
+        for diff_item in diff_item_list:
+            self.session.delete(diff_item)
+        try:
+            self.session.commit()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while removing items: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+        for key, value in removed_item_id.items():
+            self.removed_item_id[key].update(value)
+        for key, value in touched_item_id.items():
+            self.touched_item_id[key].update(value)
 
-    def remove_object(self, id):
-        """Remove object."""
-        diff_item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
-        if diff_item:
-            try:
-                self.session.delete(diff_item)
-                self.session.commit()
-                return True
-            except DBAPIError as e:
-                self.session.rollback()
-                msg = "DBAPIError while removing object '{}': {}".format(diff_item.name, e.orig.args)
-                raise SpineDBAPIError(msg)
-        self.removed_item_id["object"].add(id)
-        self.touched_item_id["object"].add(id)
-        id_list = [x.id for x in self.session.query(self.Relationship.id).filter_by(object_id=id)]
-        for item in self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(id_list)):
-            self.touched_item_id["relationship"].add(item.id)
-        for item in self.session.query(self.ParameterValue.id).filter_by(object_id=id):
-            self.touched_item_id["parameter_value"].add(item.id)
-        return True
+    def touched_and_removed_items(
+            self,
+            object_class_ids=set(),
+            object_ids=set(),
+            relationship_class_ids=set(),
+            relationship_ids=set(),
+            parameter_ids=set(),
+            parameter_value_ids=set()
+        ):
+        """Return items touched and removed due to the removal of items given as arguments.
 
-    def remove_relationship_class(self, id):
-        """Remove relationship class."""
-        diff_item = self.session.query(self.DiffRelationshipClass).filter_by(id=id).one_or_none()
-        if diff_item:
-            try:
-                self.session.delete(diff_item)
-                self.session.commit()
-                return True
-            except DBAPIError as e:
-                self.session.rollback()
-                msg = "DBAPIError while removing relationship class '{}': {}".format(diff_item.name, e.orig.args)
-                raise SpineDBAPIError(msg)
-        self.removed_item_id["relationship_class"].add(id)
-        self.touched_item_id["relationship_class"].add(id)
-        id_list = [x.id for x in self.session.query(self.Relationship.id).filter_by(class_id=id)]
-        for item in self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(id_list)):
-            self.touched_item_id["relationship"].add(item.id)
-        for item in self.session.query(self.Parameter.id).filter_by(relationship_class_id=id):
-            self.touched_item_id["parameter"].add(item.id)
-        return True
+        Returns:
+            touched_item_id (dict): touched items in the original tables
+            removed_item_id (dict): removed items in the original tables
+            touched_diff_item_id (dict): touched items in the difference tables
+        """
+        touched_item_id = {}
+        removed_item_id = {}
+        touched_diff_item_id = {}
+        # object_class
+        item_list = self.session.query(self.ObjectClass.id).filter(self.ObjectClass.id.in_(object_class_ids))
+        ids = [x.id for x in item_list]
+        removed_item_id.setdefault("object_class", set()).update(ids)
+        self.touch_object_classes(ids, touched_item_id, touched_diff_item_id)
+        # object
+        item_list = self.session.query(self.Object.id).filter(self.Object.id.in_(object_ids))
+        ids = [x.id for x in item_list]
+        removed_item_id.setdefault("object", set()).update(ids)
+        self.touch_objects(ids, touched_item_id, touched_diff_item_id)
+        # relationship_class
+        item_list = self.session.query(self.RelationshipClass.id).\
+            filter(self.RelationshipClass.id.in_(relationship_class_ids))
+        ids = [x.id for x in item_list]
+        removed_item_id.setdefault("relationship_class", set()).update(ids)
+        self.touch_relationship_classes(ids, touched_item_id, touched_diff_item_id)
+        # relationship
+        item_list = self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(relationship_ids))
+        ids = [x.id for x in item_list]
+        removed_item_id.setdefault("relationship", set()).update(ids)
+        self.touch_relationships(ids, touched_item_id, touched_diff_item_id)
+        # parameter
+        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.id.in_(parameter_ids))
+        ids = [x.id for x in item_list]
+        removed_item_id.setdefault("parameter", set()).update(ids)
+        self.touch_parameters(ids, touched_item_id, touched_diff_item_id)
+        # parameter_value
+        item_list = self.session.query(self.ParameterValue.id).\
+            filter(self.ParameterValue.id.in_(parameter_value_ids))
+        ids = [x.id for x in item_list]
+        removed_item_id.setdefault("parameter_value", set()).update(ids)
+        self.touch_parameter_values(ids, touched_item_id)
+        return touched_item_id, removed_item_id, touched_diff_item_id
 
-    def remove_relationship(self, id):
-        """Remove relationship."""
-        diff_item = self.session.query(self.DiffRelationship).filter_by(id=id).one_or_none()
-        if diff_item:
-            try:
-                self.session.delete(diff_item)
-                self.session.commit()
-                return True
-            except DBAPIError as e:
-                self.session.rollback()
-                msg = "DBAPIError while removing relationship '{}': {}".format(diff_item.name, e.orig.args)
-                raise SpineDBAPIError(msg)
-        self.removed_item_id["relationship"].add(id)
-        self.touched_item_id["relationship"].add(id)
-        for item in self.session.query(self.ParameterValue.id).filter_by(relationship_id=id):
-            self.touched_item_id["parameter_value"].add(item.id)
-        return True
+    def touch_object_classes(self, ids, touched_item_id, touched_diff_item_id):
+        """Touch object classes and all related items."""
+        touched_item_id.setdefault("object_class", set()).update(ids)
+        item_list = self.session.query(self.Object.id).filter(self.Object.class_id.in_(ids))
+        self.touch_objects([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        item_list = self.session.query(self.RelationshipClass.id).\
+            filter(self.RelationshipClass.object_class_id.in_(ids))
+        self.touch_relationship_classes([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.object_class_id.in_(ids))
+        self.touch_parameters([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        # Diff
+        diff_item_list = self.session.query(self.DiffObject.id).filter(self.DiffObject.class_id.in_(ids))
+        touched_diff_item_id.setdefault("object", set()).update([x.id for x in diff_item_list])
+        diff_item_list = self.session.query(self.DiffRelationshipClass.id).\
+            filter(self.DiffRelationshipClass.object_class_id.in_(ids))
+        touched_diff_item_id.setdefault("relationship_class", set()).update([x.id for x in diff_item_list])
+        diff_item_list = self.session.query(self.DiffParameter.id).\
+            filter(self.DiffParameter.object_class_id.in_(ids))
+        touched_diff_item_id.setdefault("parameter", set()).update([x.id for x in diff_item_list])
 
-    def remove_parameter(self, id):
-        """Remove parameter."""
-        diff_item = self.session.query(self.DiffParameter).filter_by(id=id).one_or_none()
-        if diff_item:
-            try:
-                self.session.delete(diff_item)
-                self.session.commit()
-                return True
-            except DBAPIError as e:
-                self.session.rollback()
-                msg = "DBAPIError while removing parameter '{}': {}".format(diff_item.name, e.orig.args)
-                raise SpineDBAPIError(msg)
-        self.removed_item_id["parameter"].add(id)
-        self.touched_item_id["parameter"].add(id)
-        for item in self.session.query(self.ParameterValue.id).filter_by(parameter_id=id):
-            self.touched_item_id["parameter_value"].add(item.id)
-        return True
+    def touch_objects(self, ids, touched_item_id, touched_diff_item_id):
+        """Touch objects and all related items."""
+        touched_item_id.setdefault("object", set()).update(ids)
+        item_list = self.session.query(self.Relationship.id).filter(self.Relationship.object_id.in_(ids))
+        self.touch_relationships([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        item_list = self.session.query(self.ParameterValue.id).filter(self.ParameterValue.object_id.in_(ids))
+        self.touch_parameter_values([x.id for x in item_list], touched_item_id)
+        # Diff
+        diff_item_list = self.session.query(self.DiffRelationship.id).\
+            filter(self.DiffRelationship.object_id.in_(ids))
+        touched_diff_item_id.setdefault("relationship", set()).update([x.id for x in diff_item_list])
+        diff_item_list = self.session.query(self.DiffParameterValue.id).\
+            filter(self.DiffParameterValue.object_id.in_(ids))
+        touched_diff_item_id.setdefault("parameter_value", set()).update([x.id for x in diff_item_list])
 
-    def remove_parameter_value(self, id):
-        """Remove parameter value."""
-        diff_item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
-        if diff_item:
-            try:
-                self.session.delete(diff_item)
-                self.session.commit()
-                return True
-            except DBAPIError as e:
-                self.session.rollback()
-                msg = "DBAPIError while removing parameter value '{}': {}".format(diff_item.name, e.orig.args)
-                raise SpineDBAPIError(msg)
-        self.removed_item_id["parameter_value"].add(id)
-        self.touched_item_id["parameter_value"].add(id)
+    def touch_relationship_classes(self, ids, touched_item_id, touched_diff_item_id):
+        """Touch relationship classes and all related items."""
+        touched_item_id.setdefault("relationship_class", set()).update(ids)
+        item_list = self.session.query(self.Relationship.id).filter(self.Relationship.class_id.in_(ids))
+        self.touch_relationships([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.relationship_class_id.in_(ids))
+        self.touch_parameters([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        # Diff
+        diff_item_list = self.session.query(self.DiffRelationship.id).\
+            filter(self.DiffRelationship.class_id.in_(ids))
+        touched_diff_item_id.setdefault("relationship", set()).update([x.id for x in diff_item_list])
+        diff_item_list = self.session.query(self.DiffParameter.id).\
+            filter(self.DiffParameter.relationship_class_id.in_(ids))
+        touched_diff_item_id.setdefault("parameter", set()).update([x.id for x in diff_item_list])
+
+    def touch_relationships(self, ids, touched_item_id, touched_diff_item_id):
+        """Touch relationships and all related items."""
+        touched_item_id.setdefault("relationship", set()).update(ids)
+        item_list = self.session.query(self.ParameterValue.id).\
+            filter(self.ParameterValue.relationship_id.in_(ids))
+        self.touch_parameter_values([x.id for x in item_list], touched_item_id)
+        # Diff
+        diff_item_list = self.session.query(self.DiffParameterValue.id).\
+            filter(self.DiffParameterValue.relationship_id.in_(ids))
+        touched_diff_item_id.setdefault("parameter_value", set()).update([x.id for x in diff_item_list])
+
+    def touch_parameters(self, ids, touched_item_id, touched_diff_item_id):
+        """Touch parameters and all related items."""
+        touched_item_id.setdefault("parameter", set()).update(ids)
+        item_list = self.session.query(self.ParameterValue.id).\
+            filter(self.ParameterValue.parameter_id.in_(ids))
+        self.touch_parameter_values([x.id for x in item_list], touched_item_id)
+        diff_item_list = self.session.query(self.DiffParameterValue.id).\
+            filter(self.DiffParameterValue.parameter_id.in_(ids))
+        touched_diff_item_id.setdefault("parameter_value", set()).update([x.id for x in diff_item_list])
+
+    def touch_parameter_values(self, ids, touched_item_id):
+        """Touch parameter values and all related items."""
+        touched_item_id.setdefault("parameter_value", set()).update(ids)
 
     def reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
