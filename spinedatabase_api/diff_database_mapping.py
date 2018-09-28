@@ -677,7 +677,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.add_all(item_list)
             self.session.commit()
             self.new_item_id["object"].update({item.id for item in item_list})
-            self.next_object_class_id = id
+            self.next_object_id = id
             return [attr_dict(item) for item in item_list]
         except DBAPIError as e:
             self.session.rollback()
