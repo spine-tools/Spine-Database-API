@@ -33,10 +33,21 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
-#from sqlalchemy.orm.session import Session
 from .exception import SpineDBAPIError
 from sqlalchemy import inspect
 
+
+# NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
+# For example, the diff_object table would need a `class_id` field an a `diff_class_id` field,
+# plus a CHECK constraint so that at least one of the two is NOT NULL.
+# @event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    module_name = dbapi_connection.__class__.__module__
+    if not module_name.lower().startswith('sqlite'):
+        return
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 # TODO: Find a way to keep this in synch with `create_new_spine_database`
 OBJECT_CLASS_NAMES = (

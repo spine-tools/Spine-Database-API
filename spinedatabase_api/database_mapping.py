@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
 from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError, ParameterValueError
-from .helpers import custom_generate_relationship
+from .helpers import custom_generate_relationship, attr_dict
 from datetime import datetime, timezone
 
 # TODO: Consider returning lists of dict (with _asdict()) rather than queries,
@@ -49,7 +49,7 @@ class DatabaseMapping(object):
         db_url (str): The database url formatted according to sqlalchemy rules
         username (str): The user name
     """
-    def __init__(self, db_url, username=None):
+    def __init__(self, db_url, username=None, create_all=True):
         """Initialize class."""
         self.db_url = db_url
         self.username = username
@@ -65,9 +65,10 @@ class DatabaseMapping(object):
         self.Parameter = None
         self.ParameterValue = None
         self.Commit = None
-        self.create_engine_and_session()
-        self.create_mapping()
-        self.create_triggers()
+        if create_all:
+            self.create_engine_and_session()
+            self.create_mapping()
+            # self.create_triggers()
 
     def create_engine_and_session(self):
         """Create engine connected to self.db_url and session."""
@@ -82,16 +83,15 @@ class DatabaseMapping(object):
             except DatabaseError as e:
                 msg = "Could not open '{}' as a SQLite database: {}".format(self.db_url, e.orig.args)
                 raise SpineDBAPIError(msg)
-            self.engine.execute("PRAGMA foreign_keys=ON")
             # try:
             #     self.engine.execute('BEGIN IMMEDIATE')
             # except DatabaseError as e:
             #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
             #     raise SpineDBAPIError(msg)
-        self.session = Session(self.engine)
+        self.session = Session(self.engine, autoflush=False)
 
     def create_mapping(self):
-        """Create base and reflect tables."""
+        """Create ORM."""
         try:
             self.Base = automap_base()
             self.Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
@@ -103,27 +103,35 @@ class DatabaseMapping(object):
             self.ParameterValue = self.Base.classes.parameter_value
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
+            self.close()
             raise TableNotFoundError(table)
         except AttributeError as table:
+            self.close()
             raise TableNotFoundError(table)
 
     def create_triggers(self):
-        """Create ad-hoc triggers. TODO: is there a way to synch this with
-        our CREATE TRIGGER statements from `helpers.create_new_spine_database`?
+        """Create ad-hoc triggers.
+        NOTE: Not in use at the moment
+        TODO: is there a way to synch this with our CREATE TRIGGER statements
+        from `helpers.create_new_spine_database`?
         """
         @event.listens_for(self.ObjectClass, 'after_delete')
         def receive_after_object_class_delete(mapper, connection, object_class):
-            id_list = self.session.query(self.RelationshipClass.id).\
-                filter_by(object_class_id=object_class.id).distinct()
-            item_list = self.session.query(self.RelationshipClass).filter(self.RelationshipClass.id.in_(id_list))
-            for item in item_list:
-                self.session.delete(item)
+            @event.listens_for(self.session, "after_flush", once=True)
+            def receive_after_flush(session, context):
+                id_list = session.query(self.RelationshipClass.id).\
+                    filter_by(object_class_id=object_class.id).distinct()
+                item_list = session.query(self.RelationshipClass).filter(self.RelationshipClass.id.in_(id_list))
+                for item in item_list:
+                    session.delete(item)
         @event.listens_for(self.Object, 'after_delete')
         def receive_after_object_delete(mapper, connection, object_):
-            id_list = self.session.query(self.Relationship.id).filter_by(object_id=object_.id).distinct()
-            item_list = self.session.query(self.Relationship).filter(self.Relationship.id.in_(id_list))
-            for item in item_list:
-                self.session.delete(item)
+            @event.listens_for(self.session, "after_flush", once=True)
+            def receive_after_flush(session, context):
+                id_list = session.query(self.Relationship.id).filter_by(object_id=object_.id).distinct()
+                item_list = session.query(self.Relationship).filter(self.Relationship.id.in_(id_list))
+                for item in item_list:
+                    session.delete(item)
 
     def add_working_commit(self):
         """Add working commit item."""
@@ -174,11 +182,7 @@ class DatabaseMapping(object):
 
     def single_object_class(self, id=None, name=None):
         """Return a single object class given the id or name."""
-        qry = self.session.query(
-            self.ObjectClass.id,
-            self.ObjectClass.name,
-            self.ObjectClass.display_order,
-        )
+        qry = self.object_class_list()
         if id:
             return qry.filter_by(id=id)
         if name:
@@ -187,11 +191,7 @@ class DatabaseMapping(object):
 
     def single_object(self, id=None, name=None):
         """Return a single object given the id or name."""
-        qry = self.session.query(
-            self.Object.id,
-            self.Object.class_id,
-            self.Object.name
-        )
+        qry = self.object_list()
         if id:
             return qry.filter_by(id=id)
         if name:
@@ -200,51 +200,39 @@ class DatabaseMapping(object):
 
     def single_wide_relationship_class(self, id=None, name=None):
         """Return a single relationship class in wide format given the id or name."""
+        subqry = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
-            self.RelationshipClass.id,
-            func.group_concat(self.RelationshipClass.object_class_id).label('object_class_id_list'),
-            func.group_concat(self.ObjectClass.name).label('object_class_name_list'),
-            self.RelationshipClass.name
-        ).filter(self.RelationshipClass.object_class_id == self.ObjectClass.id).\
-        group_by(self.RelationshipClass.id)
+            subqry.c.id,
+            subqry.c.object_class_id_list,
+            subqry.c.object_class_name_list,
+            subqry.c.name
+        )
         if id:
-            return qry.filter_by(id=id)
+            return qry.filter(subqry.c.id == id)
         if name:
-            return qry.filter_by(name=name)
+            return qry.filter(subqry.c.name == name)
         return self.empty_list()
 
     def single_wide_relationship(self, id=None, name=None, class_id=None, object_id_list=None, object_name_list=None):
         """Return a single relationship in wide format given the id or name."""
+        subqry = self.wide_relationship_list().subquery()
         qry = self.session.query(
-            self.Relationship.id,
-            func.group_concat(self.Relationship.object_id).label('object_id_list'),
-            func.group_concat(self.Object.name).label('object_name_list'),
-            self.Relationship.name,
-            self.Relationship.class_id
-        ).filter(self.Relationship.object_id == self.Object.id).\
-        group_by(self.Relationship.id)
+            subqry.c.id,
+            subqry.c.class_id,
+            subqry.c.object_id_list,
+            subqry.c.object_name_list,
+            subqry.c.name
+        )
         if id:
-            return qry.filter_by(id=id)
+            return qry.filter(subqry.c.id == id)
         if name:
-            return qry.filter_by(name=name)
+            return qry.filter(subqry.c.name == name)
         if class_id:
-            subqry = qry.filter_by(class_id=class_id).subquery()
+            qry = qry.filter(subqry.c.class_id == class_id)
             if object_id_list:
-                return self.session.query(
-                    subqry.c.id,
-                    subqry.c.object_id_list,
-                    subqry.c.object_name_list,
-                    subqry.c.name,
-                    subqry.c.class_id
-                ).filter(subqry.c.object_id_list == object_id_list)
+                return qry.filter(subqry.c.object_id_list == object_id_list)
             if object_name_list:
-                return self.session.query(
-                    subqry.c.id,
-                    subqry.c.object_id_list,
-                    subqry.c.object_name_list,
-                    subqry.c.name,
-                    subqry.c.class_id
-                ).filter(subqry.c.object_name_list == object_name_list)
+                return qry.filter(subqry.c.object_name_list == object_name_list)
         return self.empty_list()
 
     def single_parameter(self, id=None, name=None):
@@ -287,69 +275,70 @@ class DatabaseMapping(object):
         """Return relationship and the parameter value corresponding to id."""
         return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id)
 
-    def object_class_list(self):
+    def object_class_list(self, id_list=set(), ordered=True):
         """Return object classes ordered by display order."""
-        return self.session.query(
-            self.ObjectClass.id,
-            self.ObjectClass.name,
-            self.ObjectClass.display_order,
-        ).order_by(self.ObjectClass.display_order)
+        qry = self.session.query(
+            self.ObjectClass.id.label("id"),
+            self.ObjectClass.name.label("name"),
+            self.ObjectClass.display_order.label("display_order"))
+        if id_list:
+            qry = qry.filter(self.ObjectClass.id.in_(id_list))
+        if ordered:
+            qry = qry.order_by(self.ObjectClass.display_order)
+        return qry
 
-    def object_list(self, class_id=None):
+    def object_list(self, id_list=set(), class_id=None):
         """Return objects, optionally filtered by class id."""
         qry = self.session.query(
-            self.Object.id,
-            self.Object.class_id,
-            self.Object.name
+            self.Object.id.label('id'),
+            self.Object.class_id.label('class_id'),
+            self.Object.name.label('name'),
         )
+        if id_list:
+            qry = qry.filter(self.Object.id.in_(id_list))
         if class_id:
             qry = qry.filter_by(class_id=class_id)
         return qry
 
-    def distinct_relationship_class_id_list(self, object_class_id=None):
-        """Return distinct relationship class ids optionally filtered by object class id."""
-        qry = self.session.query(self.RelationshipClass.id).distinct()
-        if object_class_id:
-            qry = qry.filter_by(object_class_id=object_class_id)
-        return qry
-
-    def relationship_class_list(self, id=None):
+    def relationship_class_list(self, id=None, ordered=True):
         """Return all relationship classes optionally filtered by id."""
         qry = self.session.query(
-            self.RelationshipClass.id,
-            self.RelationshipClass.dimension,
-            self.RelationshipClass.object_class_id,
-            self.RelationshipClass.name
-        ).order_by(self.RelationshipClass.id, self.RelationshipClass.dimension)
+            self.RelationshipClass.id.label('id'),
+            self.RelationshipClass.dimension.label('dimension'),
+            self.RelationshipClass.object_class_id.label('object_class_id'),
+            self.RelationshipClass.name.label('name')
+        )
         if id:
             qry = qry.filter_by(id=id)
+        if ordered:
+            qry = qry.order_by(self.RelationshipClass.id, self.RelationshipClass.dimension)
         return qry
 
-    def wide_relationship_class_list(self, object_class_id=None):
+    def wide_relationship_class_list(self, id_list=set(), object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
-        distinct_relationship_class_id_list = self.distinct_relationship_class_id_list(
-            object_class_id=object_class_id)
+        object_class_list = self.object_class_list(ordered=False).subquery()
+        qry = self.session.query(
+            self.RelationshipClass.id.label('id'),
+            self.RelationshipClass.object_class_id.label('object_class_id'),
+            object_class_list.c.name.label('object_class_name'),
+            self.RelationshipClass.name.label('name')
+        ).filter(self.RelationshipClass.object_class_id == object_class_list.c.id)
+        if id_list:
+            qry = qry.filter(self.RelationshipClass.id.in_(id_list))
+        if object_class_id:
+            qry = qry.filter(self.RelationshipClass.id.in_(
+                self.session.query(self.RelationshipClass.id).\
+                    filter_by(object_class_id=object_class_id).distinct()))
+        subqry = qry.subquery()
         return self.session.query(
-            self.RelationshipClass.id,
-            func.group_concat(self.RelationshipClass.object_class_id).label('object_class_id_list'),
-            func.group_concat(self.ObjectClass.name).label('object_class_name_list'),
-            self.RelationshipClass.name
-        ).filter(self.RelationshipClass.object_class_id == self.ObjectClass.id).\
-        filter(self.RelationshipClass.id.in_(distinct_relationship_class_id_list)).\
-        group_by(self.RelationshipClass.id)
-
-    def distinct_relationship_id_list(self, class_id=None, object_id=None):
-        """Return distinct relationship ids optionally filtered by class id and object id."""
-        qry = self.session.query(self.Relationship.id).distinct()
-        if class_id:
-            qry = qry.filter_by(class_id=class_id)
-        if object_id:
-            qry = qry.filter_by(object_id=object_id)
-        return qry
+            subqry.c.id,
+            func.group_concat(subqry.c.object_class_id).label('object_class_id_list'),
+            func.group_concat(subqry.c.object_class_name).label('object_class_name_list'),
+            subqry.c.name
+        ).group_by(subqry.c.id)
 
     def relationship_list(self, id=None):
-        """TODO: Is this actually used?
-        Return relationships, optionally filtered by id."""
+        """Return relationships, optionally filtered by id."""
         qry = self.session.query(
             self.Relationship.id,
             self.Relationship.dimension,
@@ -361,49 +350,62 @@ class DatabaseMapping(object):
             qry = qry.filter_by(id=id)
         return qry
 
-    def wide_relationship_list(self, class_id=None, object_id=None):
+    def wide_relationship_list(self, id_list=set(), class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
-        wide_relationship_list = list()
-        distinct_relationship_id_list = self.distinct_relationship_id_list(
-            class_id=class_id,
-            object_id=object_id)
+        object_list = self.object_list().subquery()
+        qry = self.session.query(
+            self.Relationship.id.label('id'),
+            self.Relationship.class_id.label('class_id'),
+            self.Relationship.object_id.label('object_id'),
+            object_list.c.name.label('object_name'),
+            self.Relationship.name.label('name')
+        ).filter(self.Relationship.object_id == object_list.c.id)
+        if id_list:
+            qry = qry.filter(self.Relationship.id.in_(id_list))
+        if class_id:
+            qry = qry.filter(self.Relationship.id.in_(
+                self.session.query(self.Relationship.id).filter_by(class_id=class_id).distinct()))
+        if object_id:
+            qry = qry.filter(self.Relationship.id.in_(
+                self.session.query(self.Relationship.id).filter_by(object_id=object_id).distinct()))
+        subqry = qry.subquery()
         return self.session.query(
-            self.Relationship.id,
-            func.group_concat(self.Relationship.object_id).label('object_id_list'),
-            func.group_concat(self.Object.name).label('object_name_list'),
-            self.Relationship.name,
-            self.Relationship.class_id
-        ).filter(self.Relationship.object_id == self.Object.id).\
-        filter(self.Relationship.id.in_(distinct_relationship_id_list)).\
-        group_by(self.Relationship.id)
+            subqry.c.id,
+            subqry.c.class_id,
+            func.group_concat(subqry.c.object_id).label('object_id_list'),
+            func.group_concat(subqry.c.object_name).label('object_name_list'),
+            subqry.c.name
+        ).group_by(subqry.c.id)
 
-    def parameter_list(self, object_class_id=None, relationship_class_id=None):
+    def parameter_list(self, id_list=set(), object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = self.session.query(
-            self.Parameter.id,
-            self.Parameter.name,
-            self.Parameter.relationship_class_id,
-            self.Parameter.object_class_id,
-            self.Parameter.can_have_time_series,
-            self.Parameter.can_have_time_pattern,
-            self.Parameter.can_be_stochastic,
-            self.Parameter.default_value,
-            self.Parameter.is_mandatory,
-            self.Parameter.precision,
-            self.Parameter.minimum_value,
-            self.Parameter.maximum_value)
+            self.Parameter.id.label('id'),
+            self.Parameter.name.label('name'),
+            self.Parameter.relationship_class_id.label('relationship_class_id'),
+            self.Parameter.object_class_id.label('object_class_id'),
+            self.Parameter.can_have_time_series.label('can_have_time_series'),
+            self.Parameter.can_have_time_pattern.label('can_have_time_pattern'),
+            self.Parameter.can_be_stochastic.label('can_be_stochastic'),
+            self.Parameter.default_value.label('default_value'),
+            self.Parameter.is_mandatory.label('is_mandatory'),
+            self.Parameter.precision.label('precision'),
+            self.Parameter.minimum_value.label('minimum_value'),
+            self.Parameter.maximum_value.label('maximum_value'))
+        if id_list:
+            qry = qry.filter(self.Parameter.id.in_(id_list))
         if object_class_id:
             qry = qry.filter_by(object_class_id=object_class_id)
         if relationship_class_id:
-            qry = qry.filter_by(object_class_id=object_class_id)
+            qry = qry.filter_by(relationship_class_id=relationship_class_id)
         return qry
 
     def object_parameter_list(self, object_class_id=None, parameter_id=None):
         """Return object classes and their parameters."""
+        object_class_list = self.object_class_list().subquery()
         qry = self.session.query(
-            #self.Parameter.object_class_id,
-            self.ObjectClass.name.label('object_class_name'),
-            self.Parameter.id.label('parameter_id'),
+            self.Parameter.id.label('id'),
+            object_class_list.c.name.label('object_class_name'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
             self.Parameter.can_have_time_pattern,
@@ -413,8 +415,7 @@ class DatabaseMapping(object):
             self.Parameter.precision,
             self.Parameter.minimum_value,
             self.Parameter.maximum_value
-        ).filter(self.ObjectClass.id == self.Parameter.object_class_id).\
-        order_by(self.Parameter.id)
+        ).filter(object_class_list.c.id == self.Parameter.object_class_id)
         if object_class_id:
             qry = qry.filter(self.Parameter.object_class_id == object_class_id)
         if parameter_id:
@@ -423,13 +424,11 @@ class DatabaseMapping(object):
 
     def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
         """Return relationship classes and their parameters."""
-        wide_relationship_class_subqry = self.wide_relationship_class_list().subquery()
+        wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
-            #self.Parameter.relationship_class_id,
-            wide_relationship_class_subqry.c.name.label('relationship_class_name'),
-            #wide_relationship_class_subqry.c.object_class_id_list,
-            wide_relationship_class_subqry.c.object_class_name_list,
-            self.Parameter.id.label('parameter_id'),
+            self.Parameter.id.label('id'),
+            wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_name_list,
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
             self.Parameter.can_have_time_pattern,
@@ -439,15 +438,14 @@ class DatabaseMapping(object):
             self.Parameter.precision,
             self.Parameter.minimum_value,
             self.Parameter.maximum_value
-        ).filter(self.Parameter.relationship_class_id == wide_relationship_class_subqry.c.id).\
-        order_by(self.Parameter.id)
+        ).filter(self.Parameter.relationship_class_id == wide_relationship_class_list.c.id)
         if relationship_class_id:
             qry = qry.filter(self.Parameter.relationship_class_id == relationship_class_id)
         if parameter_id:
             qry = qry.filter(self.Parameter.id == parameter_id)
         return qry
 
-    def parameter_value_list(self, object_id=None, relationship_id=None):
+    def parameter_value_list(self, id_list=set(), object_id=None, relationship_id=None):
         """Return parameter values."""
         qry = self.session.query(
             self.ParameterValue.id,
@@ -461,6 +459,8 @@ class DatabaseMapping(object):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id)
+        if id_list:
+            qry = qry.filter(self.ParameterValue.id.in_(id_list))
         if object_id:
             qry = qry.filter_by(object_id=object_id)
         if relationship_id:
@@ -469,13 +469,14 @@ class DatabaseMapping(object):
 
     def object_parameter_value_list(self, parameter_name=None):
         """Return objects and their parameter values."""
+        parameter_list = self.parameter_list().subquery()
+        object_class_list = self.object_class_list().subquery()
+        object_list = self.object_list().subquery()
         qry = self.session.query(
-            # self.Parameter.object_class_id,
-            self.ObjectClass.name.label('object_class_name'),
-            # self.ParameterValue.object_id,
-            self.Object.name.label('object_name'),
-            self.ParameterValue.id.label('parameter_value_id'),
-            self.Parameter.name.label('parameter_name'),
+            self.ParameterValue.id.label('id'),
+            object_class_list.c.name.label('object_class_name'),
+            object_list.c.name.label('object_name'),
+            parameter_list.c.name.label('parameter_name'),
             self.ParameterValue.index,
             self.ParameterValue.value,
             self.ParameterValue.json,
@@ -483,27 +484,23 @@ class DatabaseMapping(object):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
-        ).filter(self.Parameter.id == self.ParameterValue.parameter_id).\
-        filter(self.ParameterValue.object_id == self.Object.id).\
-        filter(self.Parameter.object_class_id == self.ObjectClass.id)
+        ).filter(parameter_list.c.id == self.ParameterValue.parameter_id).\
+        filter(self.ParameterValue.object_id == object_list.c.id).\
+        filter(parameter_list.c.object_class_id == object_class_list.c.id)
         if parameter_name:
-            qry = qry.filter(self.Parameter.name == parameter_name)
+            qry = qry.filter(parameter_list.c.name == parameter_name)
         return qry
 
     def relationship_parameter_value_list(self, parameter_name=None):
         """Return relationships and their parameter values."""
-        wide_relationship_class_subqry = self.wide_relationship_class_list().subquery()
-        wide_relationship_subqry = self.wide_relationship_list().subquery()
+        parameter_list = self.parameter_list().subquery()
+        wide_relationship_class_list = self.wide_relationship_class_list().subquery()
+        wide_relationship_list = self.wide_relationship_list().subquery()
         qry = self.session.query(
-            # self.Parameter.relationship_class_id,
-            wide_relationship_class_subqry.c.name.label('relationship_class_name'),
-            # self.ParameterValue.relationship_id,
-            # wide_relationship_class_subqry.c.object_class_name_list,
-            # wide_relationship_subqry.c.name.label('relationship_name'),
-            # wide_relationship_subqry.c.object_id_list,
-            wide_relationship_subqry.c.object_name_list,
-            self.ParameterValue.id.label('parameter_value_id'),
-            self.Parameter.name.label('parameter_name'),
+            self.ParameterValue.id.label('id'),
+            wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_list.c.object_name_list,
+            parameter_list.c.name.label('parameter_name'),
             self.ParameterValue.index,
             self.ParameterValue.value,
             self.ParameterValue.json,
@@ -511,11 +508,11 @@ class DatabaseMapping(object):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
-        ).filter(self.Parameter.id == self.ParameterValue.parameter_id).\
-        filter(self.ParameterValue.relationship_id == wide_relationship_subqry.c.id).\
-        filter(self.Parameter.relationship_class_id == wide_relationship_class_subqry.c.id)
+        ).filter(parameter_list.c.id == self.ParameterValue.parameter_id).\
+        filter(self.ParameterValue.relationship_id == wide_relationship_list.c.id).\
+        filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id)
         if parameter_name:
-            qry = qry.filter(self.Parameter.name == parameter_name)
+            qry = qry.filter(parameter_list.c.name == parameter_name)
         return qry
 
     def all_object_parameter_value_list(self, parameter_id=None):
@@ -542,7 +539,7 @@ class DatabaseMapping(object):
 
     def unvalued_object_parameter_list(self, object_id):
         """Return parameters that do not have a value for given object."""
-        object_ = self.single_object(object_id).one_or_none()
+        object_ = self.single_object(id=object_id).one_or_none()
         if not object_:
             return self.empty_list()
         valued_parameter_ids = self.session.query(self.ParameterValue.parameter_id).\
@@ -571,8 +568,14 @@ class DatabaseMapping(object):
             filter(~self.Parameter.id.in_(valued_parameter_ids))
 
     def unvalued_relationship_list(self, parameter_id):
-        """TODO: Return relationships for which given parameter does not have a value."""
-        return self.empty_list()
+        """Return relationships for which given parameter does not have a value."""
+        parameter = self.single_parameter(parameter_id).one_or_none()
+        if not parameter:
+            return self.empty_list()
+        valued_relationship_ids = self.session.query(self.ParameterValue.relationship_id).\
+            filter_by(parameter_id=parameter_id)
+        return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
+            filter(~self.Relationship.id.in_(valued_relationship_ids))
 
     def object_parameter_fields(self):
         """Return object parameter fields."""
@@ -594,7 +597,7 @@ class DatabaseMapping(object):
         """Add object class to database.
 
         Returns:
-            object_class (KeyedTuple): the object class now with the id
+            object_class (dict): the object class now with the id
         """
         self.add_working_commit()
         object_class = self.ObjectClass(commit_id=self._commit.id, **kwargs)
@@ -612,7 +615,7 @@ class DatabaseMapping(object):
         """Add object to database.
 
         Returns:
-            object_ (KeyedTuple): the object now with the id
+            object_ (dict): the object now with the id
         """
         self.add_working_commit()
         object_ = self.Object(commit_id=self._commit.id, **kwargs)
@@ -633,7 +636,7 @@ class DatabaseMapping(object):
             kwargs (dict): the relationship class in wide format
 
         Returns:
-            wide_relationship_class (KeyedTuple): the relationship class now with the id
+            wide_relationship_class (dict): the relationship class now with the id
         """
         self.add_working_commit()
         id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
@@ -668,7 +671,7 @@ class DatabaseMapping(object):
             kwargs (dict): the relationship in wide format
 
         Returns:
-            wide_relationship (KeyedTuple): the relationship now with the id
+            wide_relationship (dict): the relationship now with the id
         """
         # If relationship already exists (same class, same object_id_list), raise an error
         object_id_str = ",".join([str(x) for x in kwargs['object_id_list']])
@@ -716,7 +719,7 @@ class DatabaseMapping(object):
         try:
             self.session.add(parameter)
             self.session.flush()
-            return parameter
+            return self.single_parameter(id=parameter.id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter '{}': {}".format(parameter.name, e.orig.args)
@@ -733,7 +736,7 @@ class DatabaseMapping(object):
         try:
             self.session.add(parameter_value)
             self.session.flush()
-            return parameter_value
+            return self.single_parameter_value(id=parameter_value.id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter value: {}".format(e.orig.args)
@@ -743,11 +746,11 @@ class DatabaseMapping(object):
         """Add object class to database if not exists.
 
         Returns:
-            An instance of self.ObjectClass if successful, None otherwise
+            A dict if successful, None otherwise
         """
         if "name" not in kwargs:
             return None
-        object_class = self.session.query(self.ObjectClass).filter_by(name=kwargs["name"]).one_or_none()
+        object_class = self.single_object_class(name=kwargs["name"]).one_or_none()
         if object_class:
             return object_class
         return self.add_object_class(**kwargs)
@@ -763,9 +766,9 @@ class DatabaseMapping(object):
         wide_relationship_class = self.single_wide_relationship_class(name=kwargs["name"]).one_or_none()
         if not wide_relationship_class:
             return self.add_wide_relationship_class(**kwargs)
-        object_class_id_list1 = [int(x) for x in kwargs["object_class_id_list"]]
-        object_class_id_list2 = [int(x) for x in wide_relationship_class.object_class_id_list.split(",")]
-        if object_class_id_list1 != object_class_id_list2:
+        given_object_class_id_list = [int(x) for x in kwargs["object_class_id_list"]]
+        found_object_class_id_list = [int(x) for x in wide_relationship_class.object_class_id_list.split(",")]
+        if given_object_class_id_list != found_object_class_id_list:
             return None  # TODO: should we raise an error here?
         return wide_relationship_class
 
@@ -773,11 +776,11 @@ class DatabaseMapping(object):
         """Add parameter to database if not exists.
 
         Returns:
-            A KeyedTuple if successful, None otherwise
+            A dict if successful, None otherwise
         """
         if "name" not in kwargs:
             return None
-        parameter = self.session.query(self.Parameter).filter_by(name=kwargs["name"]).one_or_none()
+        parameter = self.single_parameter(name=kwargs["name"]).one_or_none()
         if parameter:
             return parameter
         return self.add_parameter(**kwargs)
@@ -793,7 +796,7 @@ class DatabaseMapping(object):
             object_class.name = new_name
             object_class.commit_id = self._commit.id
             self.session.flush()
-            return object_class
+            return self.single_object_class(id=object_class.id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while renaming object class '{}': {}".format(object_class.name, e.orig.args)
@@ -810,7 +813,7 @@ class DatabaseMapping(object):
             object_.name = new_name
             object_.commit_id = self._commit.id
             self.session.flush()
-            return object_
+            return self.single_object(id=object_.id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while renaming object '{}': {}".format(object_.name, e.orig.args)
@@ -873,7 +876,7 @@ class DatabaseMapping(object):
             setattr(parameter, field_name, new_value)
             parameter.commit_id = self._commit.id
             self.session.flush()
-            return parameter
+            return self.single_parameter(id=parameter.id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while updating parameter '{}': {}".format(parameter.name, e.orig.args)
@@ -900,7 +903,7 @@ class DatabaseMapping(object):
             setattr(parameter_value, field_name, new_casted_value)
             parameter_value.commit_id = self._commit.id
             self.session.flush()
-            return parameter_value
+            return self.single_parameter_value(id=parameter_value.id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while updating parameter value: {}".format(e.orig.args)

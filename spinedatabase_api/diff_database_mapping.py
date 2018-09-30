@@ -27,7 +27,7 @@ Classes to handle the Spine database object relational mapping.
 import time
 import logging
 from .database_mapping import DatabaseMapping
-from sqlalchemy import MetaData, Table, func, or_, and_, event
+from sqlalchemy import MetaData, Table, Column, Integer, String, func, or_, and_, event
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import NoSuchTableError, DBAPIError
 from sqlalchemy.sql.schema import UniqueConstraint, PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
@@ -35,21 +35,20 @@ from .exception import SpineDBAPIError, TableNotFoundError
 from .helpers import custom_generate_relationship, attr_dict
 from datetime import datetime, timezone
 
-# TODO: Consider using methods from the super class `DatabaseMapping` whenever possible
-# For example, while querying tables we can get the super query, filter out touched items
-# and then union with the diff query.
-# But this needs polishing `DatabaseMapping`
+
 # TODO: Check unique name constraints across orig and diff tables:
 
 class DiffDatabaseMapping(DatabaseMapping):
     """A class to handle changes made to a db in a graceful way.
-    Broadly, it works by creating a new bunch of tables to hold differences
+    In a nutshell, it works by creating a new bunch of tables to hold differences
     with respect to original tables.
     """
-    def __init__(self, db_url, username=None):
+    def __init__(self, db_url, username=None, create_all=True):
         """Initialize class."""
-        super().__init__(db_url, username)
-        # Diff Base and tables
+        super().__init__(db_url, username, create_all=False)
+        # Diff meta, Base and tables
+        self.diff_prefix = None
+        self.diff_metadata = None
         self.DiffBase = None
         self.DiffObjectClass = None
         self.DiffObject = None
@@ -57,39 +56,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.DiffRelationship = None
         self.DiffParameter = None
         self.DiffParameterValue = None
+        self.NextId = None
         # Diff dictionaries
         self.new_item_id = {}
         self.dirty_item_id = {}
         self.removed_item_id = {}
         self.touched_item_id = {}
-        # Next ids
-        self.next_object_class_id = None
-        self.next_object_id = None
-        self.next_relationship_class_id = None
-        self.next_relationship_id = None
-        self.next_parameter_id = None
-        self.next_parameter_value_id = None
         # Initialize stuff
-        self.init_next_ids()
         self.init_diff_dicts()
-        self.create_diff_tables_and_mapping()
-        self.create_diff_triggers()
-
-    def init_next_ids(self):
-        """Compute ids to be first used to create new items.
-        NOTE: Since new items are inserted into diff tables, we can't use id-autoincrement."""
-        id = self.session.query(func.max(self.ObjectClass.id)).scalar()
-        self.next_object_class_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.Object.id)).scalar()
-        self.next_object_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
-        self.next_relationship_class_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.Relationship.id)).scalar()
-        self.next_relationship_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.Parameter.id)).scalar()
-        self.next_parameter_id = id + 1 if id else 1
-        id = self.session.query(func.max(self.ParameterValue.id)).scalar()
-        self.next_parameter_value_id = id + 1 if id else 1
+        if create_all:
+            self.create_engine_and_session()
+            self.create_mapping()
+            self.create_diff_tables_and_mapping()
+            self.init_next_id()
+            # self.create_triggers()
 
     def init_diff_dicts(self):
         """Initialize dictionaries holding the differences."""
@@ -117,7 +97,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             "parameter": set(),
             "parameter_value": set(),
         }
-        # Touched items are those either dirty, or removed
+        # Items that we don't want to read from the original tables (either dirty, or removed)
         self.touched_item_id = {
             "object_class": set(),
             "object": set(),
@@ -130,14 +110,18 @@ class DiffDatabaseMapping(DatabaseMapping):
     def create_diff_tables_and_mapping(self):
         """Create tables to hold differences and the corresponding mapping using an automap_base."""
         # Tables...
-        metadata = MetaData()
+        self.diff_prefix = "diff_" + self.username + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
+        self.diff_metadata = MetaData()
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
             if t.name.startswith('diff_'):
                 continue
+            if t.name == 'next_id':
+                continue
             # Copy columns
             diff_columns = [c.copy() for c in t.columns]
             # Copy constraints.
+            # NOTE: Is this needed, since we're going to do all checks by hand?
             # TODO: check if there's a better, less hacky way.
             # TODO: Also beware of duplicating constraint names, might not work well
             diff_constraints = list()
@@ -147,37 +131,69 @@ class DiffDatabaseMapping(DatabaseMapping):
                 elif type(constraint) == ForeignKeyConstraint:
                     foreign_key_constraint = ForeignKeyConstraint(
                         constraint.column_keys,
-                        ["diff_" + c.target_fullname for c in constraint.elements],
+                        [self.diff_prefix + c.target_fullname for c in constraint.elements],
                         ondelete=constraint.ondelete,
                         onupdate=constraint.onupdate
                     )
                     diff_constraints.append(foreign_key_constraint)
             # Create table
             diff_table = Table(
-                "diff_" + t.name, metadata,
+                self.diff_prefix + t.name, self.diff_metadata,
                 *diff_columns, *diff_constraints)
-            diff_tables.append(diff_table)
-        metadata.drop_all(self.engine)
-        metadata.create_all(self.engine)
+        self.diff_metadata.drop_all(self.engine)
+        self.diff_metadata.create_all(self.engine)
         # Mapping...
-        self.DiffBase = automap_base(metadata=metadata)
+        self.DiffBase = automap_base(metadata=self.diff_metadata)
         self.DiffBase.prepare(generate_relationship=custom_generate_relationship)
         try:
-            self.DiffObjectClass = self.DiffBase.classes.diff_object_class
-            self.DiffObject = self.DiffBase.classes.diff_object
-            self.DiffRelationshipClass = self.DiffBase.classes.diff_relationship_class
-            self.DiffRelationship = self.DiffBase.classes.diff_relationship
-            self.DiffParameter = self.DiffBase.classes.diff_parameter
-            self.DiffParameterValue = self.DiffBase.classes.diff_parameter_value
+            self.DiffObjectClass = getattr(self.DiffBase.classes, self.diff_prefix + "object_class")
+            self.DiffObject = getattr(self.DiffBase.classes, self.diff_prefix + "object")
+            self.DiffRelationshipClass = getattr(self.DiffBase.classes, self.diff_prefix + "relationship_class")
+            self.DiffRelationship = getattr(self.DiffBase.classes, self.diff_prefix + "relationship")
+            self.DiffParameter = getattr(self.DiffBase.classes, self.diff_prefix + "parameter")
+            self.DiffParameterValue = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value")
         except NoSuchTableError as table:
+            self.close()
             raise TableNotFoundError(table)
         except AttributeError as table:
+            self.close()
             raise TableNotFoundError(table)
 
-    def create_diff_triggers(self):
-        """Create ad-hoc triggers. TODO: is there a way to synch this with
-        our CREATE TRIGGER statements from `helpers.create_new_spine_database`?
+    def init_next_id(self):
+        """Create next_id table if not exists and map it."""
+        # Next id table
+        metadata = MetaData()
+        next_id_table = Table(
+            "next_id", metadata,
+            Column('user', String, primary_key=True),
+            Column('date', String, primary_key=True),
+            Column('object_class_id', Integer),
+            Column('object_id', Integer),
+            Column('relationship_class_id', Integer),
+            Column('relationship_id', Integer),
+            Column('parameter_id', Integer),
+            Column('parameter_value_id', Integer)
+        )
+        next_id_table.create(self.engine, checkfirst=True)
+        # Mapping...
+        Base = automap_base(metadata=metadata)
+        Base.prepare()
+        try:
+            self.NextId = Base.classes.next_id
+        except NoSuchTableError as table:
+            self.close()
+            raise TableNotFoundError(table)
+        except AttributeError as table:
+            self.close()
+            raise TableNotFoundError(table)
+
+    def create_triggers(self):
+        """Create ad-hoc triggers.
+        NOTE: Not in use at the moment. Cascade delete is implemented in the `remove_items` method.
+        TODO: is there a way to synch this with our CREATE TRIGGER statements
+        from `helpers.create_new_spine_database`?
         """
+        super().create_triggers()
         @event.listens_for(self.DiffObjectClass, 'after_delete')
         def receive_after_object_class_delete(mapper, connection, object_class):
             @event.listens_for(self.session, "after_flush", once=True)
@@ -217,6 +233,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def single_wide_relationship_class(self, id=None, name=None):
         """Return a single relationship class in wide format given the id or name."""
+        # TODO: If this method is identical to the one in the super class, just remove it
         subqry = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
             subqry.c.id,
@@ -232,6 +249,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def single_wide_relationship(self, id=None, name=None, class_id=None, object_id_list=None, object_name_list=None):
         """Return a single relationship in wide format given the id or name."""
+        # TODO: If this method is identical to the one in the super class, just remove it
         subqry = self.wide_relationship_list().subquery()
         qry = self.session.query(
             subqry.c.id,
@@ -298,39 +316,54 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.relationship_parameter_value_list().\
             filter(or_(self.ParameterValue.id == id, self.DiffParameterValue.id == id))
 
-    def object_class_list(self, ordered=True):
+    def object_class_list(self, id_list=set(), ordered=True):
         """Return object classes ordered by display order."""
-        qry = self.session.query(
-            self.ObjectClass.id.label("id"),
-            self.ObjectClass.name.label("name"),
-            self.ObjectClass.display_order.label("display_order"),
-        ).filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
+        qry = super().object_class_list(id_list=id_list, ordered=False).\
+            filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
         diff_qry = self.session.query(
             self.DiffObjectClass.id.label("id"),
             self.DiffObjectClass.name.label("name"),
-            self.DiffObjectClass.display_order.label("display_order"),
-        )
+            self.DiffObjectClass.display_order.label("display_order"))
+        if id_list:
+            diff_qry = diff_qry.filter(self.DiffObjectClass.id.in_(id_list))
         qry = qry.union_all(diff_qry)
         if ordered:
-            qry = qry.order_by(self.ObjectClass.display_order)
+            qry = qry.order_by(self.ObjectClass.display_order, self.DiffObjectClass.display_order)
         return qry
 
-    def object_list(self, class_id=None):
+    def object_list(self, id_list=set(), class_id=None):
         """Return objects, optionally filtered by class id."""
-        qry = self.session.query(
-            self.Object.id.label('id'),
-            self.Object.class_id.label('class_id'),
-            self.Object.name.label('name'),
-        ).filter(~self.Object.id.in_(self.touched_item_id["object"]))
+        qry = super().object_list(id_list=id_list, class_id=class_id).\
+            filter(~self.Object.id.in_(self.touched_item_id["object"]))
         diff_qry = self.session.query(
             self.DiffObject.id.label('id'),
             self.DiffObject.class_id.label('class_id'),
             self.DiffObject.name.label('name'),
         )
+        if id_list:
+            diff_qry = diff_qry.filter(self.DiffObject.id.in_(id_list))
         if class_id:
-            qry = qry.filter_by(class_id=class_id)
             diff_qry = diff_qry.filter_by(class_id=class_id)
         return qry.union_all(diff_qry)
+
+    def relationship_class_list(self, id=None, ordered=True):
+        """Return all relationship classes optionally filtered by id."""
+        qry = super().relationship_class_list(id=id, ordered=False).\
+            filter(~self.RelationshipClass.id.in_(self.touched_item_id["relationship_class"]))
+        diff_qry = self.session.query(
+            self.DiffRelationshipClass.id.label('id'),
+            self.DiffRelationshipClass.dimension.label('dimension'),
+            self.DiffRelationshipClass.object_class_id.label('object_class_id'),
+            self.DiffRelationshipClass.name.label('name')
+        )
+        if id:
+            diff_qry = diff_qry.filter_by(id=id)
+        qry = qry.union_all(diff_qry)
+        if ordered:
+            qry = qry.order_by(
+                self.RelationshipClass.id, self.RelationshipClass.dimension,
+                self.DiffRelationshipClass.id, self.DiffRelationshipClass.dimension)
+        return qry
 
     def wide_relationship_class_list(self, id_list=set(), object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
@@ -406,21 +439,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def parameter_list(self, object_class_id=None, relationship_class_id=None):
+    def parameter_list(self, id_list=set(), object_class_id=None, relationship_class_id=None):
         """Return parameters."""
-        qry = self.session.query(
-            self.Parameter.id.label('id'),
-            self.Parameter.name.label('name'),
-            self.Parameter.relationship_class_id.label('relationship_class_id'),
-            self.Parameter.object_class_id.label('object_class_id'),
-            self.Parameter.can_have_time_series.label('can_have_time_series'),
-            self.Parameter.can_have_time_pattern.label('can_have_time_pattern'),
-            self.Parameter.can_be_stochastic.label('can_be_stochastic'),
-            self.Parameter.default_value.label('default_value'),
-            self.Parameter.is_mandatory.label('is_mandatory'),
-            self.Parameter.precision.label('precision'),
-            self.Parameter.minimum_value.label('minimum_value'),
-            self.Parameter.maximum_value.label('maximum_value')
+        qry = super().parameter_list(
+            id_list=id_list,
+            object_class_id=object_class_id,
+            relationship_class_id=relationship_class_id
         ).filter(~self.Parameter.id.in_(self.touched_item_id["parameter"]))
         diff_qry = self.session.query(
             self.DiffParameter.id.label('id'),
@@ -435,12 +459,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameter.precision.label('precision'),
             self.DiffParameter.minimum_value.label('minimum_value'),
             self.DiffParameter.maximum_value.label('maximum_value'))
+        if id_list:
+            diff_qry = diff_qry.filter(self.DiffParameter.id.in_(id_list))
         if object_class_id:
-            qry = qry.filter_by(object_class_id=object_class_id)
             diff_qry = diff_qry.filter_by(object_class_id=object_class_id)
         if relationship_class_id:
-            qry = qry.filter_by(object_class_id=object_class_id)
-            diff_qry = diff_qry.filter_by(object_class_id=object_class_id)
+            diff_qry = diff_qry.filter_by(relationship_class_id=relationship_class_id)
         return qry.union_all(diff_qry)
 
     def object_parameter_list(self, object_class_id=None, parameter_id=None):
@@ -521,20 +545,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter(self.DiffParameter.id == parameter_id)
         return qry.union_all(diff_qry).order_by(self.Parameter.id, self.DiffParameter.id)
 
-    def parameter_value_list(self, object_id=None, relationship_id=None):
+    def parameter_value_list(self, id_list=set(), object_id=None, relationship_id=None):
         """Return parameter values."""
-        qry = self.session.query(
-            self.ParameterValue.id,
-            self.ParameterValue.parameter_id,
-            self.ParameterValue.object_id,
-            self.ParameterValue.relationship_id,
-            self.ParameterValue.index,
-            self.ParameterValue.value,
-            self.ParameterValue.json,
-            self.ParameterValue.expression,
-            self.ParameterValue.time_pattern,
-            self.ParameterValue.time_series_id,
-            self.ParameterValue.stochastic_model_id
+        qry = super().parameter_value_list(
+            id_list=id_list,
+            object_id=object_id,
+            relationship_id=relationship_id
         ).filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
             self.DiffParameterValue.id,
@@ -548,11 +564,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValue.time_pattern,
             self.DiffParameterValue.time_series_id,
             self.DiffParameterValue.stochastic_model_id)
+        if id_list:
+            diff_qry = diff_qry.filter(self.DiffParameterValue.id.in_(id_list))
         if object_id:
-            qry = qry.filter_by(object_id=object_id)
             diff_qry = diff_qry.filter_by(object_id=object_id)
         if relationship_id:
-            qry = qry.filter_by(relationship_id=relationship_id)
             diff_qry = diff_qry.filter_by(relationship_id=relationship_id)
         return qry.union_all(diff_qry)
 
@@ -591,7 +607,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValue.stochastic_model_id
         ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_id).\
         filter(self.DiffParameterValue.object_id == object_list.c.id).\
-        filter(self.DiffParameter.object_class_id == object_class_list.c.id)
+        filter(parameter_list.c.object_class_id == object_class_list.c.id)
         if parameter_name:
             qry = qry.filter(parameter_list.c.name == parameter_name)
             diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
@@ -638,61 +654,154 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
         return qry.union_all(diff_qry)
 
-    def add_object_classes(self, kwargs_list):
+    # TODO: Find out why we don't need to say, e.g., ~self.DiffParameter.id.in_(valued_parameter_ids)
+    def unvalued_object_parameter_list(self, object_id):
+        """Return parameters that do not have a value for given object."""
+        object_ = self.single_object(id=object_id).one_or_none()
+        if not object_:
+            return self.empty_list()
+        valued_parameters = self.parameter_value_list(object_id=object_id)
+        return self.parameter_list(object_class_id=object_.class_id).\
+            filter(~self.Parameter.id.in_([x.parameter_id for x in valued_parameters]))
+
+    def unvalued_object_list(self, parameter_id):
+        """Return objects for which given parameter does not have a value."""
+        parameter = self.single_parameter(parameter_id).one_or_none()
+        if not parameter:
+            return self.empty_list()
+        valued_object_ids = self.session.query(self.ParameterValue.object_id).\
+            filter_by(parameter_id=parameter_id)
+        return self.object_list().filter_by(class_id=parameter.object_class_id).\
+            filter(~self.Object.id.in_(valued_object_ids))
+
+    def unvalued_relationship_parameter_list(self, relationship_id):
+        """Return parameters that do not have a value for given relationship."""
+        relationship = self.single_wide_relationship(id=relationship_id).one_or_none()
+        if not relationship:
+            return self.empty_list()
+        valued_parameters = self.parameter_value_list(relationship_id=relationship_id)
+        return self.parameter_list(relationship_class_id=relationship.class_id).\
+            filter(~self.Parameter.id.in_([x.parameter_id for x in valued_parameters]))
+
+    def unvalued_relationship_list(self, parameter_id):
+        """Return relationships for which given parameter does not have a value."""
+        parameter = self.single_parameter(parameter_id).one_or_none()
+        if not parameter:
+            return self.empty_list()
+        valued_relationship_ids = self.session.query(self.ParameterValue.relationship_id).\
+            filter_by(parameter_id=parameter_id)
+        return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
+            filter(~self.Relationship.id.in_(valued_relationship_ids))
+
+    def next_id_with_lock(self):
+        """A 'next_id' item to use for adding new items."""
+        next_id = self.session.query(self.NextId).one_or_none()
+        if next_id:
+            next_id.user = self.username
+            next_id.date = datetime.now(timezone.utc)
+        else:
+            next_id = self.NextId(
+                user = self.username,
+                date = datetime.now(timezone.utc)
+            )
+            self.session.add(next_id)
+        try:
+            self.session.flush()
+            return next_id
+        except DBAPIError as e:
+            self.session.rollback()
+            raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
+
+    def add_object_class(self, **kwargs):
+        return self.add_object_classes(kwargs).one_or_none()
+
+    def add_object(self, **kwargs):
+        return self.add_objects(kwargs).one_or_none()
+
+    def add_wide_relationship_class(self, **kwargs):
+        return self.add_wide_relationship_classes(kwargs).one_or_none()
+
+    def add_wide_relationship(self, **kwargs):
+        return self.add_wide_relationships(kwargs).one_or_none()
+
+    def add_parameter(self, **kwargs):
+        return self.add_parameters(kwargs).one_or_none()
+
+    def add_parameter_value(self, **kwargs):
+        return self.add_parameter_values(kwargs).one_or_none()
+
+    def add_object_classes(self, *kwargs_list):
         """Add object classes to database.
 
         Returns:
             object_classes (lists)
-        """
+            """
+        next_id = self.next_id_with_lock()
+        if next_id.object_class_id:
+            id = next_id.object_class_id
+        else:
+            max_id = self.session.query(func.max(self.ObjectClass.id)).scalar()
+            id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id = self.next_object_class_id
             for kwargs in kwargs_list:
                 item = self.DiffObjectClass(id=id, **kwargs)
                 item_list.append(item)
                 id += 1
             self.session.add_all(item_list)
+            next_id.object_class_id = id
             self.session.commit()
-            self.new_item_id["object_class"].update({item.id for item in item_list})
-            self.next_object_class_id = id
-            return [attr_dict(item) for item in item_list]
+            id_list = {item.id for item in item_list}
+            self.new_item_id["object_class"].update(id_list)
+            return self.object_class_list(id_list=id_list)
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting object class: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_objects(self, kwargs_list):
+    def add_objects(self, *kwargs_list):
         """Add objects to database.
 
         Returns:
             objects (list)
         """
+        next_id = self.next_id_with_lock()
+        if next_id.object_id:
+            id = next_id.object_id
+        else:
+            max_id = self.session.query(func.max(self.Object.id)).scalar()
+            id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id = self.next_object_id
             for kwargs in kwargs_list:
                 item = self.DiffObject(id=id, **kwargs)
                 item_list.append(item)
                 id += 1
             self.session.add_all(item_list)
+            next_id.object_id = id
             self.session.commit()
-            self.new_item_id["object"].update({item.id for item in item_list})
-            self.next_object_id = id
-            return [attr_dict(item) for item in item_list]
+            id_list = {item.id for item in item_list}
+            self.new_item_id["object"].update(id_list)
+            return self.object_list(id_list=id_list)
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting object: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(self, kwargs_list):
+    def add_wide_relationship_classes(self, *kwargs_list):
         """Add relationship classes to database.
 
         Returns:
             wide_relationship_classes (list)
         """
+        next_id = self.next_id_with_lock()
+        if next_id.relationship_class_id:
+            id = next_id.relationship_class_id
+        else:
+            max_id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
+            id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id = self.next_relationship_class_id
             for kwargs in kwargs_list:
                 for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
                     kwargs = {
@@ -705,25 +814,30 @@ class DiffDatabaseMapping(DatabaseMapping):
                     item_list.append(item)
                 id += 1
             self.session.add_all(item_list)
+            next_id.relationship_class_id = id
             self.session.commit()
             id_list = {item.id for item in item_list}
             self.new_item_id["relationship_class"].update(id_list)
-            self.next_relationship_class_id = id
-            return [x._asdict() for x in self.wide_relationship_class_list(id_list=id_list)]
+            return self.wide_relationship_class_list(id_list=id_list)
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting relationship class: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationships(self, kwargs_list):
+    def add_wide_relationships(self, *kwargs_list):
         """Add relationships to database.
 
         Returns:
             wide_relationships (list)
         """
+        next_id = self.next_id_with_lock()
+        if next_id.relationship_id:
+            id = next_id.relationship_id
+        else:
+            max_id = self.session.query(func.max(self.Relationship.id)).scalar()
+            id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id = self.next_relationship_id
             for kwargs in kwargs_list:
                 for dimension, object_id in enumerate(kwargs['object_id_list']):
                     kwargs = {
@@ -737,53 +851,116 @@ class DiffDatabaseMapping(DatabaseMapping):
                     item_list.append(item)
                 id += 1
             self.session.add_all(item_list)
+            next_id.relationship_id = id
             self.session.commit()
             id_list = {item.id for item in item_list}
             self.new_item_id["relationship"].update(id_list)
-            self.next_relationship_id = id
-            return [x._asdict() for x in self.wide_relationship_list(id_list=id_list)]
+            return self.wide_relationship_list(id_list=id_list)
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting relationship: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter(self, **kwargs):
+    def add_parameters(self, *kwargs_list):
         """Add parameter to database.
 
         Returns:
             An instance of self.Parameter if successful, None otherwise
         """
+        next_id = self.next_id_with_lock()
+        if next_id.parameter_id:
+            id = next_id.parameter_id
+        else:
+            max_id = self.session.query(func.max(self.Parameter.id)).scalar()
+            id = max_id + 1 if max_id else 1
         try:
-            id = self.next_parameter_id
-            item = self.DiffParameter(id=id, **kwargs)
-            self.session.add(item)
+            item_list = list()
+            for kwargs in kwargs_list:
+                item = self.DiffParameter(id=id, **kwargs)
+                item_list.append(item)
+                id += 1
+            self.session.add_all(item_list)
+            next_id.parameter_id = id
             self.session.commit()
-            self.new_item_id["parameter"].add(id)
-            self.next_parameter_id += 1
-            return self.single_parameter(id=id).one_or_none()
+            id_list = {item.id for item in item_list}
+            self.new_item_id["parameter"].update(id_list)
+            return self.parameter_list(id_list=id_list)
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter '{}': {}".format(kwargs['name'], e.orig.args)
+            msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_value(self, **kwargs):
+    def add_parameter_values(self, *kwargs_list):
         """Add parameter value to database.
 
         Returns:
             An instance of self.ParameterValue if successful, None otherwise
         """
+        next_id = self.next_id_with_lock()
+        if next_id.parameter_value_id:
+            id = next_id.parameter_value_id
+        else:
+            max_id = self.session.query(func.max(self.ParameterValue.id)).scalar()
+            id = max_id + 1 if max_id else 1
         try:
-            id = self.next_parameter_value_id
-            item = self.DiffParameterValue(id=id, **kwargs)
-            self.session.add(item)
+            item_list = list()
+            for kwargs in kwargs_list:
+                item = self.DiffParameterValue(id=id, **kwargs)
+                item_list.append(item)
+                id += 1
+            self.session.add_all(item_list)
+            next_id.parameter_value_id = id
             self.session.commit()
-            self.new_item_id["parameter_value"].add(id)
-            self.next_parameter_value_id += 1
-            return self.single_parameter_value(id=id).one_or_none()
+            id_list = {item.id for item in item_list}
+            self.new_item_id["parameter_value"].update(id_list)
+            return self.parameter_value_list(id_list=id_list)
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter value: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def get_or_add_object_class(self, **kwargs):
+        """Add object class to database if not exists.
+
+        Returns:
+            A dict if successful, None otherwise
+        """
+        if "name" not in kwargs:
+            return None
+        object_class = self.single_object_class(name=kwargs["name"]).one_or_none()
+        if object_class:
+            return object_class
+        return self.add_object_classes(kwargs).one_or_none()
+
+    def get_or_add_wide_relationship_class(self, **kwargs):
+        """Add relationship class to database if not exists.
+
+        Returns:
+            A dict if successful, None otherwise
+        """
+        if "name" not in kwargs or "object_class_id_list" not in kwargs:
+            return None
+        wide_relationship_class = self.single_wide_relationship_class(name=kwargs["name"]).one_or_none()
+        if not wide_relationship_class:
+            return self.add_wide_relationship_classes(kwargs).one_or_none()
+        given_object_class_id_list = [int(x) for x in kwargs["object_class_id_list"]]
+        found_object_class_id_list = [int(x) for x in wide_relationship_class.object_class_id_list.split(",")]
+        if given_object_class_id_list != found_object_class_id_list:
+            return None  # TODO: should we raise an error here?
+        return wide_relationship_class
+
+    def get_or_add_parameter(self, **kwargs):
+        """Add parameter to database if not exists.
+
+        Returns:
+            A dict if successful, None otherwise
+        """
+        if "name" not in kwargs:
+            return None
+        parameter = self.single_parameter(name=kwargs["name"]).one_or_none()
+        if parameter:
+            return parameter
+        return self.add_parameters(kwargs).one_or_none()
 
     def rename_object_class(self, id, new_name):
         """Rename object class."""
@@ -921,7 +1098,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.touched_item_id["parameter_value"].add(id)
             self.dirty_item_id["parameter_value"].add(id)
-            return self.single_parameter(id=id).one_or_none()
+            return self.single_parameter_value(id=id).one_or_none()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while updating parameter value: {}".format(e.orig.args)
@@ -937,31 +1114,30 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_value_ids=set()
         ):
         """Remove items."""
-        touched_and_removed_items = self.touched_and_removed_items(
+        removed_item_id, removed_diff_item_id = self.removed_items(
             object_class_ids=object_class_ids,
             object_ids=object_ids,
             relationship_class_ids=relationship_class_ids,
             relationship_ids=relationship_ids,
             parameter_ids=parameter_ids,
             parameter_value_ids=parameter_value_ids)
-        touched_item_id, removed_item_id, touched_diff_item_id = touched_and_removed_items
         # Get diff items
-        diff_ids = touched_diff_item_id.get('object_class', set()).union(object_class_ids)
+        diff_ids = removed_diff_item_id.get('object_class', set())
         diff_object_class_list = self.session.query(self.DiffObjectClass).\
             filter(self.DiffObjectClass.id.in_(diff_ids))
-        diff_ids = touched_diff_item_id.get('object', set()).union(object_ids)
+        diff_ids = removed_diff_item_id.get('object', set())
         diff_object_list = self.session.query(self.DiffObject).\
             filter(self.DiffObject.id.in_(diff_ids))
-        diff_ids = touched_diff_item_id.get('relationship_class', set()).union(relationship_class_ids)
+        diff_ids = removed_diff_item_id.get('relationship_class', set())
         diff_relationship_class_list = self.session.query(self.DiffRelationshipClass).\
             filter(self.DiffRelationshipClass.id.in_(diff_ids))
-        diff_ids = touched_diff_item_id.get('relationship', set()).union(relationship_ids)
+        diff_ids = removed_diff_item_id.get('relationship', set())
         diff_relationship_list = self.session.query(self.DiffRelationship).\
             filter(self.DiffRelationship.id.in_(diff_ids))
-        diff_ids = touched_diff_item_id.get('parameter', set()).union(parameter_ids)
+        diff_ids = removed_diff_item_id.get('parameter', set())
         diff_parameter_list = self.session.query(self.DiffParameter).\
             filter(self.DiffParameter.id.in_(diff_ids))
-        diff_ids = touched_diff_item_id.get('parameter_value', set()).union(parameter_value_ids)
+        diff_ids = removed_diff_item_id.get('parameter_value', set())
         diff_parameter_value_list = self.session.query(self.DiffParameterValue).\
             filter(self.DiffParameterValue.id.in_(diff_ids))
         # Concatenate all
@@ -981,10 +1157,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             raise SpineDBAPIError(msg)
         for key, value in removed_item_id.items():
             self.removed_item_id[key].update(value)
-        for key, value in touched_item_id.items():
             self.touched_item_id[key].update(value)
 
-    def touched_and_removed_items(
+    def removed_items(
             self,
             object_class_ids=set(),
             object_ids=set(),
@@ -993,124 +1168,186 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_ids=set(),
             parameter_value_ids=set()
         ):
-        """Return items touched and removed due to the removal of items given as arguments.
+        """Return items to be removed due to the removal of items given as arguments.
 
         Returns:
-            touched_item_id (dict): touched items in the original tables
             removed_item_id (dict): removed items in the original tables
-            touched_diff_item_id (dict): touched items in the difference tables
+            removed_diff_item_id (dict): removed items in the difference tables
         """
-        touched_item_id = {}
         removed_item_id = {}
-        touched_diff_item_id = {}
+        removed_diff_item_id = {}
         # object_class
         item_list = self.session.query(self.ObjectClass.id).filter(self.ObjectClass.id.in_(object_class_ids))
-        ids = [x.id for x in item_list]
-        removed_item_id.setdefault("object_class", set()).update(ids)
-        self.touch_object_classes(ids, touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffObjectClass.id).\
+            filter(self.DiffObjectClass.id.in_(object_class_ids))
+        self.remove_cascade_object_classes(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
         # object
         item_list = self.session.query(self.Object.id).filter(self.Object.id.in_(object_ids))
-        ids = [x.id for x in item_list]
-        removed_item_id.setdefault("object", set()).update(ids)
-        self.touch_objects(ids, touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffObject.id).filter(self.DiffObject.id.in_(object_ids))
+        self.remove_cascade_objects(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
         # relationship_class
         item_list = self.session.query(self.RelationshipClass.id).\
             filter(self.RelationshipClass.id.in_(relationship_class_ids))
-        ids = [x.id for x in item_list]
-        removed_item_id.setdefault("relationship_class", set()).update(ids)
-        self.touch_relationship_classes(ids, touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffRelationshipClass.id).\
+            filter(self.DiffRelationshipClass.id.in_(relationship_class_ids))
+        self.remove_cascade_relationship_classes(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
         # relationship
         item_list = self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(relationship_ids))
-        ids = [x.id for x in item_list]
-        removed_item_id.setdefault("relationship", set()).update(ids)
-        self.touch_relationships(ids, touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffRelationship.id).\
+            filter(self.DiffRelationship.id.in_(relationship_ids))
+        self.remove_cascade_relationships(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
         # parameter
         item_list = self.session.query(self.Parameter.id).filter(self.Parameter.id.in_(parameter_ids))
-        ids = [x.id for x in item_list]
-        removed_item_id.setdefault("parameter", set()).update(ids)
-        self.touch_parameters(ids, touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffParameter.id).filter(self.DiffParameter.id.in_(parameter_ids))
+        self.remove_cascade_parameters(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
         # parameter_value
-        item_list = self.session.query(self.ParameterValue.id).\
-            filter(self.ParameterValue.id.in_(parameter_value_ids))
-        ids = [x.id for x in item_list]
-        removed_item_id.setdefault("parameter_value", set()).update(ids)
-        self.touch_parameter_values(ids, touched_item_id)
-        return touched_item_id, removed_item_id, touched_diff_item_id
+        item_list = self.session.query(self.ParameterValue.id).filter(self.ParameterValue.id.in_(parameter_value_ids))
+        diff_item_list = self.session.query(self.DiffParameterValue.id).\
+            filter(self.DiffParameterValue.id.in_(parameter_value_ids))
+        self.remove_cascade_parameter_values(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        return removed_item_id, removed_diff_item_id
 
-    def touch_object_classes(self, ids, touched_item_id, touched_diff_item_id):
-        """Touch object classes and all related items."""
-        touched_item_id.setdefault("object_class", set()).update(ids)
+    def remove_cascade_object_classes(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove object classes and all related items."""
+        # Touch
+        removed_item_id.setdefault("object_class", set()).update(ids)
+        removed_diff_item_id.setdefault("object_class", set()).update(diff_ids)
+        # object
         item_list = self.session.query(self.Object.id).filter(self.Object.class_id.in_(ids))
-        self.touch_objects([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffObject.id).filter(self.DiffObject.class_id.in_(ids + diff_ids))
+        self.remove_cascade_objects(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # relationship_class
         item_list = self.session.query(self.RelationshipClass.id).\
             filter(self.RelationshipClass.object_class_id.in_(ids))
-        self.touch_relationship_classes([x.id for x in item_list], touched_item_id, touched_diff_item_id)
-        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.object_class_id.in_(ids))
-        self.touch_parameters([x.id for x in item_list], touched_item_id, touched_diff_item_id)
-        # Diff
-        diff_item_list = self.session.query(self.DiffObject.id).filter(self.DiffObject.class_id.in_(ids))
-        touched_diff_item_id.setdefault("object", set()).update([x.id for x in diff_item_list])
         diff_item_list = self.session.query(self.DiffRelationshipClass.id).\
-            filter(self.DiffRelationshipClass.object_class_id.in_(ids))
-        touched_diff_item_id.setdefault("relationship_class", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffRelationshipClass.object_class_id.in_(ids + diff_ids))
+        self.remove_cascade_relationship_classes(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # parameter
+        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.object_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameter.id).\
-            filter(self.DiffParameter.object_class_id.in_(ids))
-        touched_diff_item_id.setdefault("parameter", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffParameter.object_class_id.in_(ids + diff_ids))
+        self.remove_cascade_parameters(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
 
-    def touch_objects(self, ids, touched_item_id, touched_diff_item_id):
-        """Touch objects and all related items."""
-        touched_item_id.setdefault("object", set()).update(ids)
+    def remove_cascade_objects(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove objects and all related items."""
+        # Touch
+        removed_item_id.setdefault("object", set()).update(ids)
+        removed_diff_item_id.setdefault("object", set()).update(diff_ids)
+        # relationship
         item_list = self.session.query(self.Relationship.id).filter(self.Relationship.object_id.in_(ids))
-        self.touch_relationships([x.id for x in item_list], touched_item_id, touched_diff_item_id)
+        diff_item_list = self.session.query(self.DiffRelationship.id).\
+            filter(self.DiffRelationship.object_id.in_(ids + diff_ids))
+        self.remove_cascade_relationships(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # parameter_value
         item_list = self.session.query(self.ParameterValue.id).filter(self.ParameterValue.object_id.in_(ids))
-        self.touch_parameter_values([x.id for x in item_list], touched_item_id)
-        # Diff
-        diff_item_list = self.session.query(self.DiffRelationship.id).\
-            filter(self.DiffRelationship.object_id.in_(ids))
-        touched_diff_item_id.setdefault("relationship", set()).update([x.id for x in diff_item_list])
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
-            filter(self.DiffParameterValue.object_id.in_(ids))
-        touched_diff_item_id.setdefault("parameter_value", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffParameterValue.object_id.in_(ids + diff_ids))
+        self.remove_cascade_parameter_values(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
 
-    def touch_relationship_classes(self, ids, touched_item_id, touched_diff_item_id):
-        """Touch relationship classes and all related items."""
-        touched_item_id.setdefault("relationship_class", set()).update(ids)
+    def remove_cascade_relationship_classes(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove relationship classes and all related items."""
+        # Touch
+        removed_item_id.setdefault("relationship_class", set()).update(ids)
+        removed_diff_item_id.setdefault("relationship_class", set()).update(diff_ids)
+        # relationship
         item_list = self.session.query(self.Relationship.id).filter(self.Relationship.class_id.in_(ids))
-        self.touch_relationships([x.id for x in item_list], touched_item_id, touched_diff_item_id)
-        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.relationship_class_id.in_(ids))
-        self.touch_parameters([x.id for x in item_list], touched_item_id, touched_diff_item_id)
-        # Diff
         diff_item_list = self.session.query(self.DiffRelationship.id).\
-            filter(self.DiffRelationship.class_id.in_(ids))
-        touched_diff_item_id.setdefault("relationship", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffRelationship.class_id.in_(ids + diff_ids))
+        self.remove_cascade_relationships(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # parameter
+        item_list = self.session.query(self.Parameter.id).filter(self.Parameter.relationship_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameter.id).\
-            filter(self.DiffParameter.relationship_class_id.in_(ids))
-        touched_diff_item_id.setdefault("parameter", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffParameter.relationship_class_id.in_(ids + diff_ids))
+        self.remove_cascade_parameters(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
 
-    def touch_relationships(self, ids, touched_item_id, touched_diff_item_id):
-        """Touch relationships and all related items."""
-        touched_item_id.setdefault("relationship", set()).update(ids)
+    def remove_cascade_relationships(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove relationships and all related items."""
+        # Touch
+        removed_item_id.setdefault("relationship", set()).update(ids)
+        removed_diff_item_id.setdefault("relationship", set()).update(diff_ids)
+        # parameter_value
         item_list = self.session.query(self.ParameterValue.id).\
             filter(self.ParameterValue.relationship_id.in_(ids))
-        self.touch_parameter_values([x.id for x in item_list], touched_item_id)
-        # Diff
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
-            filter(self.DiffParameterValue.relationship_id.in_(ids))
-        touched_diff_item_id.setdefault("parameter_value", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffParameterValue.relationship_id.in_(ids + diff_ids))
+        self.remove_cascade_parameter_values(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
 
-    def touch_parameters(self, ids, touched_item_id, touched_diff_item_id):
-        """Touch parameters and all related items."""
-        touched_item_id.setdefault("parameter", set()).update(ids)
+    def remove_cascade_parameters(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove parameters and all related items."""
+        # Touch
+        removed_item_id.setdefault("parameter", set()).update(ids)
+        removed_diff_item_id.setdefault("parameter", set()).update(diff_ids)
+        # parameter_value
         item_list = self.session.query(self.ParameterValue.id).\
             filter(self.ParameterValue.parameter_id.in_(ids))
-        self.touch_parameter_values([x.id for x in item_list], touched_item_id)
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
-            filter(self.DiffParameterValue.parameter_id.in_(ids))
-        touched_diff_item_id.setdefault("parameter_value", set()).update([x.id for x in diff_item_list])
+            filter(self.DiffParameterValue.parameter_id.in_(ids + diff_ids))
+        self.remove_cascade_parameter_values(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
 
-    def touch_parameter_values(self, ids, touched_item_id):
-        """Touch parameter values and all related items."""
-        touched_item_id.setdefault("parameter_value", set()).update(ids)
+    def remove_cascade_parameter_values(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove parameter values and all related items."""
+        removed_item_id.setdefault("parameter_value", set()).update(ids)
+        removed_diff_item_id.setdefault("parameter_value", set()).update(diff_ids)
 
     def reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
@@ -1131,42 +1368,38 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.flush()
             # Add new
             new_items = list()
-            for id in self.new_item_id["object_class"]:
-                item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
-                if not item:
-                    continue # TODO: ...or scream?
+            for item in self.session.query(self.DiffObjectClass).\
+                    filter(self.DiffObjectClass.id.in_(self.new_item_id["object_class"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 new_item = self.ObjectClass(**kwargs)
                 new_items.append(new_item)
-            for id in self.new_item_id["object"]:
-                item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
-                if not item:
-                    continue
+            for item in self.session.query(self.DiffObject).\
+                    filter(self.DiffObject.id.in_(self.new_item_id["object"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 new_item = self.Object(**kwargs)
                 new_items.append(new_item)
-            for id in self.new_item_id["relationship_class"]:
-                for item in self.session.query(self.DiffRelationshipClass).filter_by(id=id):
-                    kwargs = attr_dict(item)
-                    kwargs['commit_id'] = commit.id
-                    new_item = self.RelationshipClass(**kwargs)
-                    new_items.append(new_item)
-            for id in self.new_item_id["relationship"]:
-                for item in self.session.query(self.DiffRelationship).filter_by(id=id):
-                    kwargs = attr_dict(item)
-                    kwargs['commit_id'] = commit.id
-                    new_item = self.Relationship(**kwargs)
-                    new_items.append(new_item)
-            for id in self.new_item_id["parameter"]:
-                item = self.session.query(self.DiffParameter).filter_by(id=id).one_or_none()
+            for item in self.session.query(self.DiffRelationshipClass).\
+                    filter(self.DiffRelationshipClass.id.in_(self.new_item_id["relationship_class"])):
+                kwargs = attr_dict(item)
+                kwargs['commit_id'] = commit.id
+                new_item = self.RelationshipClass(**kwargs)
+                new_items.append(new_item)
+            for item in self.session.query(self.DiffRelationship).\
+                    filter(self.DiffRelationship.id.in_(self.new_item_id["relationship"])):
+                kwargs = attr_dict(item)
+                kwargs['commit_id'] = commit.id
+                new_item = self.Relationship(**kwargs)
+                new_items.append(new_item)
+            for item in self.session.query(self.DiffParameter).\
+                    filter(self.DiffParameter.id.in_(self.new_item_id["parameter"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 new_item = self.Parameter(**kwargs)
                 new_items.append(new_item)
-            for id in self.new_item_id["parameter_value"]:
-                item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
+            for item in self.session.query(self.DiffParameterValue).\
+                    filter(self.DiffParameterValue.id.in_(self.new_item_id["parameter_value"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 new_item = self.ParameterValue(**kwargs)
@@ -1174,42 +1407,38 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.add_all(new_items)
             # Merge dirty
             dirty_items = list()
-            for id in self.dirty_item_id["object_class"]:
-                item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
-                if not item:
-                    continue
+            for item in self.session.query(self.DiffObjectClass).\
+                    filter(self.DiffObjectClass.id.in_(self.dirty_item_id["object_class"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 dirty_item = self.ObjectClass(**kwargs)
                 dirty_items.append(dirty_item)
-            for id in self.dirty_item_id["object"]:
-                item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
-                if not item:
-                    continue
+            for item in self.session.query(self.DiffObject).\
+                    filter(self.DiffObject.id.in_(self.dirty_item_id["object"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 dirty_item = self.Object(**kwargs)
                 dirty_items.append(dirty_item)
-            for id in self.dirty_item_id["relationship_class"]:
-                for item in self.session.query(self.RelationshipClass).filter_by(id=id):
-                    kwargs = attr_dict(item)
-                    kwargs['commit_id'] = commit.id
-                    dirty_item = self.RelationshipClass(**kwargs)
-                    dirty_items.append(dirty_item)
-            for id in self.dirty_item_id["relationship"]:
-                for item in self.session.query(self.Relationship).filter_by(id=id):
-                    kwargs = attr_dict(item)
-                    kwargs['commit_id'] = commit.id
-                    dirty_item = self.Relationship(**kwargs)
-                    dirty_items.append(dirty_item)
-            for id in self.dirty_item_id["parameter"]:
-                item = self.session.query(self.DiffParameter).filter_by(id=id).one_or_none()
+            for item in self.session.query(self.DiffRelationshipClass).\
+                    filter(self.DiffRelationshipClass.id.in_(self.dirty_item_id["relationship_class"])):
+                kwargs = attr_dict(item)
+                kwargs['commit_id'] = commit.id
+                dirty_item = self.RelationshipClass(**kwargs)
+                dirty_items.append(dirty_item)
+            for item in self.session.query(self.DiffRelationship).\
+                    filter(self.DiffRelationship.id.in_(self.dirty_item_id["relationship"])):
+                kwargs = attr_dict(item)
+                kwargs['commit_id'] = commit.id
+                dirty_item = self.Relationship(**kwargs)
+                dirty_items.append(dirty_item)
+            for item in self.session.query(self.DiffParameter).\
+                    filter(self.DiffParameter.id.in_(self.dirty_item_id["parameter"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 dirty_item = self.Parameter(**kwargs)
                 dirty_items.append(dirty_item)
-            for id in self.dirty_item_id["parameter_value"]:
-                item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
+            for item in self.session.query(self.DiffParameterValue).\
+                    filter(self.DiffParameterValue.id.in_(self.dirty_item_id["parameter_value"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 dirty_item = self.ParameterValue(**kwargs)
@@ -1219,25 +1448,25 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.session.merge(dirty_item)
             # Remove removed
             removed_items = list()
-            for id in self.removed_item_id["object_class"]:
-                removed_item = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
+            for removed_item in self.session.query(self.ObjectClass).\
+                    filter(self.ObjectClass.id.in_(self.removed_item_id["object_class"])):
                 removed_items.append(removed_item)
-            for id in self.removed_item_id["object"]:
-                removed_item = self.session.query(self.Object).filter_by(id=id).one_or_none()
+            for removed_item in self.session.query(self.Object).\
+                    filter(self.Object.id.in_(self.removed_item_id["object"])):
                 removed_items.append(removed_item)
-            for id in self.removed_item_id["relationship_class"]:
-                for removed_item in self.session.query(self.RelationshipClass).filter_by(id=id):
-                    removed_items.append(removed_item)
-            for id in self.removed_item_id["relationship"]:
-                for removed_item in self.session.query(self.Relationship).filter_by(id=id):
-                    removed_items.append(removed_item)
-            for id in self.removed_item_id["parameter"]:
-                removed_item = self.session.query(self.Parameter).filter_by(id=id).one_or_none()
+            for removed_item in self.session.query(self.RelationshipClass).\
+                    filter(self.RelationshipClass.id.in_(self.removed_item_id["relationship_class"])):
                 removed_items.append(removed_item)
-            for id in self.removed_item_id["parameter_value"]:
-                removed_item = self.session.query(self.ParameterValue).filter_by(id=id).one_or_none()
+            for removed_item in self.session.query(self.Relationship).\
+                    filter(self.Relationship.id.in_(self.removed_item_id["relationship"])):
                 removed_items.append(removed_item)
-            for removed_item in removed_items:
+            for removed_item in self.session.query(self.Parameter).\
+                    filter(self.Parameter.id.in_(self.removed_item_id["parameter"])):
+                removed_items.append(removed_item)
+            for removed_item in self.session.query(self.ParameterValue).\
+                    filter(self.ParameterValue.id.in_(self.removed_item_id["parameter_value"])):
+                removed_items.append(removed_item)
+            for removed_item in reversed(removed_items):
                 self.session.delete(removed_item)
             self.reset_diff_mapping()
             self.session.commit()
@@ -1257,3 +1486,13 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.rollback()
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def close(self):
+        """Drop differences tables and close."""
+        if self.session:
+            self.session.rollback()
+            self.session.close()
+        if self.diff_metadata and self.engine:
+            self.diff_metadata.drop_all(self.engine)
+        if self.engine:
+            self.engine.dispose()
