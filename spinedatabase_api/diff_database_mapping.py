@@ -1128,34 +1128,26 @@ class DiffDatabaseMapping(DatabaseMapping):
             relationship_ids=relationship_ids,
             parameter_ids=parameter_ids,
             parameter_value_ids=parameter_value_ids)
-        # Get diff items
+        print(removed_item_id)
+        print(removed_diff_item_id)
         diff_ids = removed_diff_item_id.get('object_class', set())
-        diff_object_class_list = self.session.query(self.DiffObjectClass).\
-            filter(self.DiffObjectClass.id.in_(diff_ids))
+        self.session.query(self.DiffObjectClass).filter(self.DiffObjectClass.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         diff_ids = removed_diff_item_id.get('object', set())
-        diff_object_list = self.session.query(self.DiffObject).\
-            filter(self.DiffObject.id.in_(diff_ids))
+        self.session.query(self.DiffObject).filter(self.DiffObject.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         diff_ids = removed_diff_item_id.get('relationship_class', set())
-        diff_relationship_class_list = self.session.query(self.DiffRelationshipClass).\
-            filter(self.DiffRelationshipClass.id.in_(diff_ids))
+        self.session.query(self.DiffRelationshipClass).filter(self.DiffRelationshipClass.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         diff_ids = removed_diff_item_id.get('relationship', set())
-        diff_relationship_list = self.session.query(self.DiffRelationship).\
-            filter(self.DiffRelationship.id.in_(diff_ids))
+        self.session.query(self.DiffRelationship).filter(self.DiffRelationship.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         diff_ids = removed_diff_item_id.get('parameter', set())
-        diff_parameter_list = self.session.query(self.DiffParameter).\
-            filter(self.DiffParameter.id.in_(diff_ids))
+        self.session.query(self.DiffParameter).filter(self.DiffParameter.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         diff_ids = removed_diff_item_id.get('parameter_value', set())
-        diff_parameter_value_list = self.session.query(self.DiffParameterValue).\
-            filter(self.DiffParameterValue.id.in_(diff_ids))
-        # Concatenate all
-        diff_item_list = diff_parameter_value_list.all() \
-            + diff_parameter_list.all() \
-            + diff_relationship_list.all() \
-            + diff_relationship_class_list.all() \
-            + diff_object_list.all() \
-            + diff_object_class_list.all()
-        for diff_item in diff_item_list:
-            self.session.delete(diff_item)
+        self.session.query(self.DiffParameterValue).filter(self.DiffParameterValue.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         try:
             self.session.commit()
         except DBAPIError as e:
@@ -1374,8 +1366,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.add(commit)
             self.session.flush()
             # Add new
-            new_items = {om:[] for om in [self.ObjectClass, self.Object, 
-                                          self.RelationshipClass, self.Relationship, 
+            new_items = {om:[] for om in [self.ObjectClass, self.Object,
+                                          self.RelationshipClass, self.Relationship,
                                           self.Parameter, self.ParameterValue]}
             for item in self.session.query(self.DiffObjectClass).\
                     filter(self.DiffObjectClass.id.in_(self.new_item_id["object_class"])):
@@ -1411,7 +1403,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             for k, v in new_items.items():
                 self.session.bulk_insert_mappings(k, v)
             # Merge dirty
-            dirty_items = {om:[] for om in [self.ObjectClass, self.Object, self.RelationshipClass, self.Relationship, self.Parameter, self.ParameterValue]}
+            dirty_items = {om:[] for om in [self.ObjectClass, self.Object,
+                                            self.RelationshipClass, self.Relationship,
+                                            self.Parameter, self.ParameterValue]}
             for item in self.session.query(self.DiffObjectClass).\
                     filter(self.DiffObjectClass.id.in_(self.dirty_item_id["object_class"])):
                 kwargs = attr_dict(item)
@@ -1443,30 +1437,28 @@ class DiffDatabaseMapping(DatabaseMapping):
                 kwargs['commit_id'] = commit.id
                 dirty_items[self.ParameterValue].append(kwargs)
             self.session.flush()
+            # Bulk update
             for k, v in dirty_items.items():
                 self.session.bulk_update_mappings(k, v)
             # Remove removed
-            removed_items = list()
-            for removed_item in self.session.query(self.ObjectClass).\
-                    filter(self.ObjectClass.id.in_(self.removed_item_id["object_class"])):
-                removed_items.append(removed_item)
-            for removed_item in self.session.query(self.Object).\
-                    filter(self.Object.id.in_(self.removed_item_id["object"])):
-                removed_items.append(removed_item)
-            for removed_item in self.session.query(self.RelationshipClass).\
-                    filter(self.RelationshipClass.id.in_(self.removed_item_id["relationship_class"])):
-                removed_items.append(removed_item)
-            for removed_item in self.session.query(self.Relationship).\
-                    filter(self.Relationship.id.in_(self.removed_item_id["relationship"])):
-                removed_items.append(removed_item)
-            for removed_item in self.session.query(self.Parameter).\
-                    filter(self.Parameter.id.in_(self.removed_item_id["parameter"])):
-                removed_items.append(removed_item)
-            for removed_item in self.session.query(self.ParameterValue).\
-                    filter(self.ParameterValue.id.in_(self.removed_item_id["parameter_value"])):
-                removed_items.append(removed_item)
-            for removed_item in reversed(removed_items):
-                self.session.delete(removed_item)
+            self.session.query(self.ObjectClass).filter(
+                self.ObjectClass.id.in_(self.removed_item_id["object_class"])
+            ).delete(synchronize_session=False)
+            self.session.query(self.Object).filter(
+                self.Object.id.in_(self.removed_item_id["object"])
+            ).delete(synchronize_session=False)
+            self.session.query(self.RelationshipClass).filter(
+                self.RelationshipClass.id.in_(self.removed_item_id["relationship_class"])
+            ).delete(synchronize_session=False)
+            self.session.query(self.Relationship).filter(
+                self.Relationship.id.in_(self.removed_item_id["relationship"])
+            ).delete(synchronize_session=False)
+            self.session.query(self.Parameter).filter(
+                self.Parameter.id.in_(self.removed_item_id["parameter"])
+            ).delete(synchronize_session=False)
+            self.session.query(self.ParameterValue).filter(
+                self.ParameterValue.id.in_(self.removed_item_id["parameter_value"])
+            ).delete(synchronize_session=False)
             self.reset_diff_mapping()
             self.session.commit()
             self.init_diff_dicts()
