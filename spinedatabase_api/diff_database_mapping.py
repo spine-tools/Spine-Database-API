@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 
 
 # TODO: Check unique name constraints across orig and diff tables:
+# TODO: improve docstrings
 
 class DiffDatabaseMapping(DatabaseMapping):
     """A class to handle changes made to a db in a graceful way.
@@ -45,7 +46,7 @@ class DiffDatabaseMapping(DatabaseMapping):
     """
     def __init__(self, db_url, username=None, create_all=True):
         """Initialize class."""
-        super().__init__(db_url, username, create_all=False)
+        super().__init__(db_url, username=username, create_all=False)
         # Diff meta, Base and tables
         self.diff_prefix = None
         self.diff_metadata = None
@@ -110,6 +111,7 @@ class DiffDatabaseMapping(DatabaseMapping):
     def create_diff_tables_and_mapping(self):
         """Create tables to hold differences and the corresponding mapping using an automap_base."""
         # Tables...
+        # TODO: handle the case where username is None
         self.diff_prefix = "diff_" + self.username + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
         self.diff_metadata = MetaData()
         diff_tables = list()
@@ -121,7 +123,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             # Copy columns
             diff_columns = [c.copy() for c in t.columns]
             # Copy constraints.
-            # NOTE: Is this needed, since we're going to do all checks by hand?
+            # NOTE: Is this needed? since we're going to do all checks by hand
             # TODO: check if there's a better, less hacky way.
             # TODO: Also beware of duplicating constraint names, might not work well
             diff_constraints = list()
@@ -161,6 +163,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def init_next_id(self):
         """Create next_id table if not exists and map it."""
+        # TODO: Does this work? WHat happens if there's already a next_id table with a different definition?
         # Next id table
         metadata = MetaData()
         next_id_table = Table(
@@ -270,13 +273,16 @@ class DiffDatabaseMapping(DatabaseMapping):
                 return qry.filter(subqry.c.object_name_list == object_name_list)
         return self.empty_list()
 
+    # TODO: Try and make some sense into these single_ methods...
+    # Why are the arguments and behavior so irregular?
     def single_parameter(self, id=None, name=None):
         """Return parameter corresponding to id."""
-        qry = self.parameter_list()
         if id:
-            return qry.filter(or_(self.Parameter.id == id, self.DiffParameter.id == id))
+            return self.parameter_list().\
+                filter(or_(self.Parameter.id == id, self.DiffParameter.id == id))
         if name:
-            return qry.filter(or_(self.Parameter.name == name, self.DiffParameter.name == name))
+            return self.parameter_list().\
+                filter(or_(self.Parameter.name == name, self.DiffParameter.name == name))
         return self.empty_list()
 
     def single_object_parameter(self, id):
@@ -706,9 +712,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             )
             self.session.add(next_id)
         try:
+            # TODO: This is supposed to lock the database, so no one can steal our ids.... does it work?
             self.session.flush()
             return next_id
         except DBAPIError as e:
+            # TODO: Find a way to try this again, or wait till the database is unlocked
+            # Maybe listen for an event?
             self.session.rollback()
             raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
 
