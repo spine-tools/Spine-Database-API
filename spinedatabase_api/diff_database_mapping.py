@@ -753,7 +753,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -782,7 +782,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -811,7 +811,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
                     kwargs = {
@@ -846,7 +846,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 for dimension, object_id in enumerate(kwargs['object_id_list']):
                     kwargs = {
@@ -882,7 +882,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -911,7 +911,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
