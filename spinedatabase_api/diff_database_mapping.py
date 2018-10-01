@@ -1411,46 +1411,40 @@ class DiffDatabaseMapping(DatabaseMapping):
             for k, v in new_items.items():
                 self.session.bulk_insert_mappings(k, v)
             # Merge dirty
-            dirty_items = list()
+            dirty_items = {om:[] for om in [self.ObjectClass, self.Object, self.RelationshipClass, self.Relationship, self.Parameter, self.ParameterValue]}
             for item in self.session.query(self.DiffObjectClass).\
                     filter(self.DiffObjectClass.id.in_(self.dirty_item_id["object_class"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                dirty_item = self.ObjectClass(**kwargs)
-                dirty_items.append(dirty_item)
+                dirty_items[self.ObjectClass].append(kwargs)
             for item in self.session.query(self.DiffObject).\
                     filter(self.DiffObject.id.in_(self.dirty_item_id["object"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                dirty_item = self.Object(**kwargs)
-                dirty_items.append(dirty_item)
+                dirty_items[self.Object].append(kwargs)
             for item in self.session.query(self.DiffRelationshipClass).\
                     filter(self.DiffRelationshipClass.id.in_(self.dirty_item_id["relationship_class"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                dirty_item = self.RelationshipClass(**kwargs)
-                dirty_items.append(dirty_item)
+                dirty_items[self.RelationshipClass].append(kwargs)
             for item in self.session.query(self.DiffRelationship).\
                     filter(self.DiffRelationship.id.in_(self.dirty_item_id["relationship"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                dirty_item = self.Relationship(**kwargs)
-                dirty_items.append(dirty_item)
+                dirty_items[self.Relationship].append(kwargs)
             for item in self.session.query(self.DiffParameter).\
                     filter(self.DiffParameter.id.in_(self.dirty_item_id["parameter"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                dirty_item = self.Parameter(**kwargs)
-                dirty_items.append(dirty_item)
+                dirty_items[self.Parameter].append(kwargs)
             for item in self.session.query(self.DiffParameterValue).\
                     filter(self.DiffParameterValue.id.in_(self.dirty_item_id["parameter_value"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                dirty_item = self.ParameterValue(**kwargs)
-                dirty_items.append(dirty_item)
+                dirty_items[self.ParameterValue].append(kwargs)
             self.session.flush()
-            for dirty_item in dirty_items:
-                self.session.merge(dirty_item)
+            for k, v in dirty_items.items():
+                self.session.bulk_update_mappings(k, v)
             # Remove removed
             removed_items = list()
             for removed_item in self.session.query(self.ObjectClass).\
