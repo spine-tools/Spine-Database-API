@@ -753,14 +753,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
+            id_list = set(range(id, len(kwargs_list)))
             for kwargs in kwargs_list:
-                item = self.DiffObjectClass(id=id, **kwargs)
+                item = {"id":id, **kwargs}
                 item_list.append(item)
                 id += 1
-            self.session.add_all(item_list)
+            self.session.bulk_insert_mappings(self.DiffObjectClass, item_list)
             next_id.object_class_id = id
             self.session.commit()
-            id_list = {item.id for item in item_list}
             self.new_item_id["object_class"].update(id_list)
             return self.object_class_list(id_list=id_list)
         except DBAPIError as e:
@@ -782,14 +782,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
+            id_list = set(range(id, len(kwargs_list)))
             for kwargs in kwargs_list:
-                item = self.DiffObject(id=id, **kwargs)
+                item = {"id":id, **kwargs}
                 item_list.append(item)
                 id += 1
-            self.session.add_all(item_list)
+            self.session.bulk_insert_mappings(self.DiffObject, item_list)
             next_id.object_id = id
             self.session.commit()
-            id_list = {item.id for item in item_list}
             self.new_item_id["object"].update(id_list)
             return self.object_list(id_list=id_list)
         except DBAPIError as e:
@@ -811,6 +811,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
+            id_list = set(range(id, len(kwargs_list)))
             for kwargs in kwargs_list:
                 for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
                     kwargs = {
@@ -819,13 +820,11 @@ class DiffDatabaseMapping(DatabaseMapping):
                         'object_class_id': object_class_id,
                         'name': kwargs['name']
                     }
-                    item = self.DiffRelationshipClass(**kwargs)
-                    item_list.append(item)
+                    item_list.append(kwargs)
                 id += 1
-            self.session.add_all(item_list)
+            self.session.bulk_insert_mappings(self.DiffRelationshipClass, item_list)
             next_id.relationship_class_id = id
             self.session.commit()
-            id_list = {item.id for item in item_list}
             self.new_item_id["relationship_class"].update(id_list)
             return self.wide_relationship_class_list(id_list=id_list)
         except DBAPIError as e:
@@ -847,6 +846,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
+            id_list = set(range(id, len(kwargs_list)))
             for kwargs in kwargs_list:
                 for dimension, object_id in enumerate(kwargs['object_id_list']):
                     kwargs = {
@@ -856,13 +856,11 @@ class DiffDatabaseMapping(DatabaseMapping):
                         'object_id': object_id,
                         'name': kwargs['name']
                     }
-                    item = self.DiffRelationship(**kwargs)
-                    item_list.append(item)
+                    item_list.append(kwargs)
                 id += 1
-            self.session.add_all(item_list)
+            self.session.bulk_insert_mappings(self.DiffRelationship, item_list)
             next_id.relationship_id = id
             self.session.commit()
-            id_list = {item.id for item in item_list}
             self.new_item_id["relationship"].update(id_list)
             return self.wide_relationship_list(id_list=id_list)
         except DBAPIError as e:
@@ -884,14 +882,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
+            id_list = set(range(id, len(kwargs_list)))
             for kwargs in kwargs_list:
-                item = self.DiffParameter(id=id, **kwargs)
+                item = {"id":id, **kwargs}
                 item_list.append(item)
                 id += 1
-            self.session.add_all(item_list)
+            self.session.bulk_insert_mappings(self.DiffParameter, item_list)
             next_id.parameter_id = id
             self.session.commit()
-            id_list = {item.id for item in item_list}
             self.new_item_id["parameter"].update(id_list)
             return self.parameter_list(id_list=id_list)
         except DBAPIError as e:
@@ -913,14 +911,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
+            id_list = set(range(id, len(kwargs_list)))
             for kwargs in kwargs_list:
-                item = self.DiffParameterValue(id=id, **kwargs)
+                item = {"id":id, **kwargs}
                 item_list.append(item)
                 id += 1
-            self.session.add_all(item_list)
+            self.session.bulk_insert_mappings(self.DiffParameterValue, item_list)
             next_id.parameter_value_id = id
             self.session.commit()
-            id_list = {item.id for item in item_list}
             self.new_item_id["parameter_value"].update(id_list)
             return self.parameter_value_list(id_list=id_list)
         except DBAPIError as e:
