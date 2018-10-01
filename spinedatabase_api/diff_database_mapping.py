@@ -744,7 +744,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -773,7 +773,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -802,7 +802,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
                     kwargs = {
@@ -837,7 +837,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 for dimension, object_id in enumerate(kwargs['object_id_list']):
                     kwargs = {
@@ -873,7 +873,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -902,7 +902,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, len(kwargs_list)))
+            id_list = set(range(id, id + len(kwargs_list)))
             for kwargs in kwargs_list:
                 item = {"id":id, **kwargs}
                 item_list.append(item)
@@ -1365,44 +1365,42 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.add(commit)
             self.session.flush()
             # Add new
-            new_items = list()
+            new_items = {om:[] for om in [self.ObjectClass, self.Object, 
+                                          self.RelationshipClass, self.Relationship, 
+                                          self.Parameter, self.ParameterValue]}
             for item in self.session.query(self.DiffObjectClass).\
                     filter(self.DiffObjectClass.id.in_(self.new_item_id["object_class"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                new_item = self.ObjectClass(**kwargs)
-                new_items.append(new_item)
+                new_items[self.ObjectClass].append(kwargs)
             for item in self.session.query(self.DiffObject).\
                     filter(self.DiffObject.id.in_(self.new_item_id["object"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                new_item = self.Object(**kwargs)
-                new_items.append(new_item)
+                new_items[self.Object].append(kwargs)
             for item in self.session.query(self.DiffRelationshipClass).\
                     filter(self.DiffRelationshipClass.id.in_(self.new_item_id["relationship_class"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                new_item = self.RelationshipClass(**kwargs)
-                new_items.append(new_item)
+                new_items[self.RelationshipClass].append(kwargs)
             for item in self.session.query(self.DiffRelationship).\
                     filter(self.DiffRelationship.id.in_(self.new_item_id["relationship"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                new_item = self.Relationship(**kwargs)
-                new_items.append(new_item)
+                new_items[self.Relationship].append(kwargs)
             for item in self.session.query(self.DiffParameter).\
                     filter(self.DiffParameter.id.in_(self.new_item_id["parameter"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                new_item = self.Parameter(**kwargs)
-                new_items.append(new_item)
+                new_items[self.Parameter].append(kwargs)
             for item in self.session.query(self.DiffParameterValue).\
                     filter(self.DiffParameterValue.id.in_(self.new_item_id["parameter_value"])):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
-                new_item = self.ParameterValue(**kwargs)
-                new_items.append(new_item)
-            self.session.add_all(new_items)
+                new_items[self.ParameterValue].append(kwargs)
+            # Bulk insert
+            for k, v in new_items.items():
+                self.session.bulk_insert_mappings(k, v)
             # Merge dirty
             dirty_items = list()
             for item in self.session.query(self.DiffObjectClass).\
