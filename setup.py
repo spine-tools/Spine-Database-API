@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='spinedatabase_api',
-    version='0.0.4',
+    version='0.0.5',
     description='An API to access Spine databases',
     url='https://gitlab.vtt.fi/spine/data',
     author='Manuel Marin',

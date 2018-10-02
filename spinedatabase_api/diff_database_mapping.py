@@ -72,6 +72,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.init_next_id()
             # self.create_triggers()
 
+    def has_pending_changes(self):
+        """Return True if there are uncommitted changes. Otherwise return False."""
+        if any([v for v in self.new_item_id.values()]):
+            return True
+        if any([v for v in self.touched_item_id.values()]):
+            return True
+        return False
+
     def init_diff_dicts(self):
         """Initialize dictionaries holding the differences."""
         self.new_item_id = {
@@ -1128,8 +1136,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             relationship_ids=relationship_ids,
             parameter_ids=parameter_ids,
             parameter_value_ids=parameter_value_ids)
-        print(removed_item_id)
-        print(removed_diff_item_id)
         diff_ids = removed_diff_item_id.get('object_class', set())
         self.session.query(self.DiffObjectClass).filter(self.DiffObjectClass.id.in_(diff_ids)).\
             delete(synchronize_session=False)
