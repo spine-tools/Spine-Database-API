@@ -280,7 +280,8 @@ class DatabaseMapping(object):
         qry = self.session.query(
             self.ObjectClass.id.label("id"),
             self.ObjectClass.name.label("name"),
-            self.ObjectClass.display_order.label("display_order"))
+            self.ObjectClass.display_order.label("display_order"),
+            self.ObjectClass.description.label("description"))
         if id_list:
             qry = qry.filter(self.ObjectClass.id.in_(id_list))
         if ordered:
@@ -293,7 +294,7 @@ class DatabaseMapping(object):
             self.Object.id.label('id'),
             self.Object.class_id.label('class_id'),
             self.Object.name.label('name'),
-        )
+            self.Object.description.label("description"))
         if id_list:
             qry = qry.filter(self.Object.id.in_(id_list))
         if class_id:

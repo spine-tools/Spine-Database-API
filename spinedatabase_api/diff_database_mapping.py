@@ -337,7 +337,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         diff_qry = self.session.query(
             self.DiffObjectClass.id.label("id"),
             self.DiffObjectClass.name.label("name"),
-            self.DiffObjectClass.display_order.label("display_order"))
+            self.DiffObjectClass.display_order.label("display_order"),
+            self.DiffObjectClass.description.label("description"))
         if id_list:
             diff_qry = diff_qry.filter(self.DiffObjectClass.id.in_(id_list))
         qry = qry.union_all(diff_qry)
@@ -353,7 +354,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObject.id.label('id'),
             self.DiffObject.class_id.label('class_id'),
             self.DiffObject.name.label('name'),
-        )
+            self.DiffObject.description.label("description"))
         if id_list:
             diff_qry = diff_qry.filter(self.DiffObject.id.in_(id_list))
         if class_id:
@@ -805,7 +806,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while inserting object: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(self, *kwargs_list):
+    def add_wide_relationship_classes(self, *wide_kwargs_list):
         """Add relationship classes to database.
 
         Returns:
@@ -819,16 +820,16 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(kwargs_list)))
-            for kwargs in kwargs_list:
-                for dimension, object_class_id in enumerate(kwargs['object_class_id_list']):
-                    kwargs = {
+            id_list = set(range(id, id + len(wide_kwargs_list)))
+            for wide_kwargs in wide_kwargs_list:
+                for dimension, object_class_id in enumerate(wide_kwargs['object_class_id_list']):
+                    narrow_kwargs = {
                         'id': id,
                         'dimension': dimension,
                         'object_class_id': object_class_id,
-                        'name': kwargs['name']
+                        'name': wide_kwargs['name']
                     }
-                    item_list.append(kwargs)
+                    item_list.append(narrow_kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffRelationshipClass, item_list)
             next_id.relationship_class_id = id
@@ -840,7 +841,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while inserting relationship class: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationships(self, *kwargs_list):
+    def add_wide_relationships(self, *wide_kwargs_list):
         """Add relationships to database.
 
         Returns:
@@ -854,17 +855,17 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(kwargs_list)))
-            for kwargs in kwargs_list:
-                for dimension, object_id in enumerate(kwargs['object_id_list']):
-                    kwargs = {
+            id_list = set(range(id, id + len(wide_kwargs_list)))
+            for wide_kwargs in wide_kwargs_list:
+                for dimension, object_id in enumerate(wide_kwargs['object_id_list']):
+                    narrow_kwargs = {
                         'id': id,
-                        'class_id': kwargs['class_id'],
+                        'class_id': wide_kwargs['class_id'],
                         'dimension': dimension,
                         'object_id': object_id,
-                        'name': kwargs['name']
+                        'name': wide_kwargs['name']
                     }
-                    item_list.append(kwargs)
+                    item_list.append(narrow_kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffRelationship, item_list)
             next_id.relationship_id = id
@@ -947,18 +948,18 @@ class DiffDatabaseMapping(DatabaseMapping):
             return object_class
         return self.add_object_classes(kwargs).one_or_none()
 
-    def get_or_add_wide_relationship_class(self, **kwargs):
+    def get_or_add_wide_relationship_class(self, **wide_kwargs):
         """Add relationship class to database if not exists.
 
         Returns:
             A dict if successful, None otherwise
         """
-        if "name" not in kwargs or "object_class_id_list" not in kwargs:
+        if "name" not in wide_kwargs or "object_class_id_list" not in wide_kwargs:
             return None
-        wide_relationship_class = self.single_wide_relationship_class(name=kwargs["name"]).one_or_none()
+        wide_relationship_class = self.single_wide_relationship_class(name=wide_kwargs["name"]).one_or_none()
         if not wide_relationship_class:
-            return self.add_wide_relationship_classes(kwargs).one_or_none()
-        given_object_class_id_list = [int(x) for x in kwargs["object_class_id_list"]]
+            return self.add_wide_relationship_classes(wide_kwargs).one_or_none()
+        given_object_class_id_list = [int(x) for x in wide_kwargs["object_class_id_list"]]
         found_object_class_id_list = [int(x) for x in wide_relationship_class.object_class_id_list.split(",")]
         if given_object_class_id_list != found_object_class_id_list:
             return None  # TODO: should we raise an error here?
@@ -977,6 +978,249 @@ class DiffDatabaseMapping(DatabaseMapping):
             return parameter
         return self.add_parameters(kwargs).one_or_none()
 
+    def update_object_classes(self, *kwargs_list):
+        """Update object classes."""
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for kwargs in kwargs_list:
+                try:
+                    id = kwargs['id']
+                except KeyError:
+                    continue
+                diff_item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
+                if diff_item:
+                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
+                    if item:
+                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffObjectClass, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffObjectClass, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["object_class"].update(new_dirty_ids)
+            self.dirty_item_id["object_class"].update(new_dirty_ids)
+            return self.object_class_list(id_list=updated_ids)
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating object classes: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_objects(self, *kwargs_list):
+        """Update objects."""
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for kwargs in kwargs_list:
+                if "class_id" in kwargs:
+                    continue
+                try:
+                    id = kwargs['id']
+                except KeyError:
+                    continue
+                diff_item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
+                if diff_item:
+                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item = self.session.query(self.Object).filter_by(id=id).one_or_none()
+                    if item:
+                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffObject, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffObject, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["object"].update(new_dirty_ids)
+            self.dirty_item_id["object"].update(new_dirty_ids)
+            return self.object_list(id_list=updated_ids)
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating objects: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_wide_relationship_classes(self, *wide_kwargs_list):
+        """Update relationship classes."""
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for wide_kwargs in wide_kwargs_list:
+                # Don't update object_class_id for now (even though below we handle it)
+                if "object_class_id_list" in wide_kwargs:
+                    continue
+                try:
+                    id = wide_kwargs['id']
+                except KeyError:
+                    continue
+                object_class_id_list = wide_kwargs.pop('object_class_id_list', list())
+                diff_item_list = self.session.query(self.DiffRelationshipClass).filter_by(id=id)
+                if diff_item_list.count():
+                    for dimension, diff_item in enumerate(diff_item_list):
+                        narrow_kwargs = {**wide_kwargs}
+                        try:
+                            narrow_kwargs.update({'object_class_id': object_class_id_list[dimension]})
+                        except IndexError:
+                            pass
+                        updated_kwargs = {**attr_dict(diff_item), **narrow_kwargs}
+                        items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item_list = self.session.query(self.RelationshipClass).filter_by(id=id)
+                    if item_list.count():
+                        for dimension, item in enumerate(item_list):
+                            narrow_kwargs = {**wide_kwargs}
+                            try:
+                                narrow_kwargs.update({'object_class_id': object_class_id_list[dimension]})
+                            except IndexError:
+                                pass
+                            updated_kwargs = {**attr_dict(item), **narrow_kwargs}
+                            items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffRelationshipClass, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffRelationshipClass, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["relationship_class"].update(new_dirty_ids)
+            self.dirty_item_id["relationship_class"].update(new_dirty_ids)
+            return self.wide_relationship_class_list(id_list=updated_ids)
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating relationship classes: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_wide_relationships(self, *wide_kwargs_list):
+        """Update relationships."""
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for wide_kwargs in wide_kwargs_list:
+                try:
+                    id = wide_kwargs['id']
+                except KeyError:
+                    continue
+                object_id_list = wide_kwargs.pop('object_id_list', list())
+                diff_item_list = self.session.query(self.DiffRelationship).filter_by(id=id).\
+                    order_by(self.DiffRelationship.dimension)
+                if diff_item_list.count():
+                    for dimension, diff_item in enumerate(diff_item_list):
+                        narrow_kwargs = {**wide_kwargs}
+                        try:
+                            narrow_kwargs.update({'object_id': object_id_list[dimension]})
+                        except IndexError:
+                            pass
+                        updated_kwargs = {**attr_dict(diff_item), **narrow_kwargs}
+                        items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item_list = self.session.query(self.Relationship).filter_by(id=id)
+                    if item_list.count():
+                        for dimension, item in enumerate(item_list):
+                            narrow_kwargs = {**wide_kwargs}
+                            try:
+                                narrow_kwargs.update({'object_id': object_id_list[dimension]})
+                            except IndexError:
+                                pass
+                            updated_kwargs = {**attr_dict(item), **narrow_kwargs}
+                            items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffRelationship, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffRelationship, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["relationship"].update(new_dirty_ids)
+            self.dirty_item_id["relationship"].update(new_dirty_ids)
+            return self.wide_relationship_list(id_list=updated_ids)
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating relationships: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_parameters(self, *kwargs_list):
+        """Update parameters."""
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for kwargs in kwargs_list:
+                try:
+                    id = kwargs['id']
+                except KeyError:
+                    continue
+                diff_item = self.session.query(self.DiffParameter).filter_by(id=id).one_or_none()
+                if diff_item:
+                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item = self.session.query(self.Parameter).filter_by(id=id).one_or_none()
+                    if item:
+                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffParameter, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffParameter, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["parameter"].update(new_dirty_ids)
+            self.dirty_item_id["parameter"].update(new_dirty_ids)
+            return self.parameter_list(id_list=updated_ids)
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating parameters: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_parameter_values(self, *kwargs_list):
+        """Update parameter values."""
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for kwargs in kwargs_list:
+                try:
+                    id = kwargs['id']
+                except KeyError:
+                    continue
+                diff_item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
+                if diff_item:
+                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item = self.session.query(self.ParameterValue).filter_by(id=id).one_or_none()
+                    if item:
+                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffParameterValue, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffParameterValue, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["parameter_value"].update(new_dirty_ids)
+            self.dirty_item_id["parameter_value"].update(new_dirty_ids)
+            return self.parameter_value_list(id_list=updated_ids)
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating parameter values: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    # NOTE: OBSOLETE
     def rename_object_class(self, id, new_name):
         """Rename object class."""
         try:
@@ -988,7 +1232,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 if not item:
                     return None
                 kwargs = attr_dict(item)
-                kwargs['name'] = new_name
+                kwargs['name'] = new_name  # NOTE: we want to preserve the id here
                 diff_item = self.DiffObjectClass(**kwargs)
                 self.session.add(diff_item)
             self.session.commit()
@@ -1000,6 +1244,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while renaming object class '{}': {}".format(diff_item.name, e.orig.args)
             raise SpineDBAPIError(msg)
 
+    # NOTE: OBSOLETE
     def rename_object(self, id, new_name):
         """Rename object."""
         try:
@@ -1023,6 +1268,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while renaming object '{}': {}".format(diff_item.name, e.orig.args)
             raise SpineDBAPIError(msg)
 
+    # NOTE: OBSOLETE
     def rename_relationship_class(self, id, new_name):
         """Rename relationship class."""
         try:
@@ -1048,6 +1294,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while renaming relationship class: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    # NOTE: OBSOLETE
     def rename_relationship(self, id, new_name):
         """Rename relationship."""
         try:
@@ -1073,6 +1320,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while renaming relationship: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    # NOTE: OBSOLETE
     def update_parameter(self, id, field_name, new_value):
         """Update parameter."""
         try:
@@ -1096,6 +1344,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while updating parameter '{}': {}".format(diff_item.name, e.orig.args)
             raise SpineDBAPIError(msg)
 
+    # NOTE: OBSOLETE
     def update_parameter_value(self, id, field_name, new_value):
         """Update parameter value."""
         try:
@@ -1442,7 +1691,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 kwargs = attr_dict(item)
                 kwargs['commit_id'] = commit.id
                 dirty_items[self.ParameterValue].append(kwargs)
-            self.session.flush()
+            self.session.flush()  # TODO: Check if this is needed
             # Bulk update
             for k, v in dirty_items.items():
                 self.session.bulk_update_mappings(k, v)
