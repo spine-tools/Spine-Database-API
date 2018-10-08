@@ -24,6 +24,7 @@ Classes to handle exceptions while using the Spine database API.
 :date:   15.8.2018
 """
 
+
 class SpineDBAPIError(Exception):
     """Basic exception for errors raised by the API."""
     def __init__(self, msg=None):
@@ -31,7 +32,13 @@ class SpineDBAPIError(Exception):
         self.msg = msg
 
 
-class TableNotFoundError(SpineDBAPIError):
+class SpineIntegrityError(SpineDBAPIError):
+    """Database integrity error while inserting/updating records."""
+    def __init__(self, msg=None):
+        super().__init__(msg)
+
+
+class SpineTableNotFoundError(SpineDBAPIError):
     """Can't find one of the tables."""
     def __init__(self, table):
         super().__init__(msg="Table '{}' is missing from the database.".format(table))

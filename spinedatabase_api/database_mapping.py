@@ -31,7 +31,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
-from .exception import SpineDBAPIError, TableNotFoundError, RecordNotFoundError, ParameterValueError
+from .exception import SpineDBAPIError, SpineTableNotFoundError, RecordNotFoundError, ParameterValueError
 from .helpers import custom_generate_relationship, attr_dict
 from datetime import datetime, timezone
 
@@ -104,10 +104,10 @@ class DatabaseMapping(object):
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
             self.close()
-            raise TableNotFoundError(table)
+            raise SpineTableNotFoundError(table)
         except AttributeError as table:
             self.close()
-            raise TableNotFoundError(table)
+            raise SpineTableNotFoundError(table)
 
     def create_triggers(self):
         """Create ad-hoc triggers.
