@@ -875,7 +875,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 except KeyError:
                     raise SpineIntegrityError("Missing parameter name.")
                 if name in parameter_name_list:
-                    msg.add("There can't be more than one parameter called '{}'.".format(name))
+                    raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
                 parameter_name_list.append(kwargs["name"])
                 checked_kwargs_list.append(kwargs)
             elif relationship_class_id:
