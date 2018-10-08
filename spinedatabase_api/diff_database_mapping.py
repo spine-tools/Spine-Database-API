@@ -752,20 +752,15 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that object classes respect integrity constraints."""
         checked_kwargs_list = list()
         object_class_name_list = [x.name for x in self.object_class_list()]
-        msg = set()
         for kwargs in kwargs_list:
             try:
                 name = kwargs["name"]
             except KeyError:
-                msg.add("Missing object class name.")
-                continue
+                raise SpineIntegrityError("Missing object class name.")
             if name in object_class_name_list:
-                msg.add("There's already an object class called '{}'.".format(name))
-                continue
+                raise SpineIntegrityError("There can't be more than one object class called '{}'.".format(name))
             object_class_name_list.append(name)
             checked_kwargs_list.append(kwargs)
-        if msg:
-            raise SpineIntegrityError("Error while trying to add object classes:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
 
     def check_objects_for_insert(self, *kwargs_list):
@@ -773,28 +768,21 @@ class DiffDatabaseMapping(DatabaseMapping):
         checked_kwargs_list = list()
         object_name_list = [x.name for x in self.object_list()]
         object_class_id_list = [x.id for x in self.object_class_list()]
-        msg = set()
         for kwargs in kwargs_list:
             try:
                 class_id = kwargs["class_id"]
             except KeyError:
-                msg.add("Missing object class identifier.")
-                continue
+                raise SpineIntegrityError("Missing object class identifier.")
             if class_id not in object_class_id_list:
-                msg.add("Object class not found.")
-                continue
+                raise SpineIntegrityError("Object class not found.")
             try:
                 name = kwargs["name"]
             except KeyError:
-                msg.add("Missing object name.")
-                continue
+                raise SpineIntegrityError("Missing object name.")
             if name in object_name_list:
-                msg.add("There's already an object called '{}'.".format(name))
-                continue
+                raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name))
             checked_kwargs_list.append(kwargs)
             object_name_list.append(name)
-        if msg:
-            raise SpineIntegrityError("Error while trying to add objects:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
 
     def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list):
@@ -802,31 +790,23 @@ class DiffDatabaseMapping(DatabaseMapping):
         checked_wide_kwargs_list = list()
         relationship_class_name_list = [x.name for x in self.wide_relationship_class_list()]
         object_class_id_list = [x.id for x in self.object_class_list()]
-        msg = set()
         for wide_kwargs in wide_kwargs_list:
             try:
                 given_object_class_id_list = wide_kwargs["object_class_id_list"]
             except KeyError:
-                msg.add("Missing object class identifier.")
-                continue
+                raise SpineIntegrityError("Missing object class identifier.")
             if len(object_class_id_list) < 2:
-                msg.add("At least two object classes are needed.")
-                continue
+                raise SpineIntegrityError("At least two object classes are needed.")
             if not all([id in object_class_id_list for id in given_object_class_id_list]):
-                msg.add("Object class not found.")
-                continue
+                raise SpineIntegrityError("Object class not found.")
             try:
                 name = wide_kwargs["name"]
             except KeyError:
-                msg.add("Missing relationship class name.")
-                continue
+                raise SpineIntegrityError("Missing relationship class name.")
             if name in relationship_class_name_list:
-                msg.add("There's already a relationship class called '{}'.".format(name))
-                continue
+                raise SpineIntegrityError("There can't be more than one relationship class called '{}'.".format(name))
             checked_wide_kwargs_list.append(wide_kwargs)
             relationship_class_name_list.append(name)
-        if msg:
-            raise SpineIntegrityError("Error while trying to add relationship classes:\n{}".format("\n".join(msg)))
         return checked_wide_kwargs_list
 
     def check_wide_relationships_for_insert(self, *wide_kwargs_list, ignore_errors=True):
@@ -838,47 +818,37 @@ class DiffDatabaseMapping(DatabaseMapping):
         relationship_class_dict = {x.id: [int(y) for y in x.object_class_id_list.split(',')]
                                    for x in self.wide_relationship_class_list()}
         object_dict = {x.id: x.class_id for x in self.object_list()}
-        msg = set()
         for wide_kwargs in wide_kwargs_list:
             try:
                 class_id = wide_kwargs['class_id']
             except KeyError:
-                msg.add("Missing relationship class identifier.")
-                continue
+                raise SpineIntegrityError("Missing relationship class identifier.")
             try:
                 object_class_id_list = relationship_class_dict[class_id]
             except KeyError:
-                msg.add("Relationship class not found.")
-                continue
+                raise SpineIntegrityError("Relationship class not found.")
             try:
                 object_id_list = wide_kwargs['object_id_list']
             except KeyError:
-                msg.add("Missing object identifier.")
-                continue
+                raise SpineIntegrityError("Missing object identifier.")
             try:
                 given_object_class_id_list = [object_dict[id] for id in object_id_list]
             except KeyError:
-                msg.add("Object not found.")
-                continue
+                raise SpineIntegrityError("Object not found.")
             if given_object_class_id_list != object_class_id_list:
-                msg.add("Incorrect objects for this relationship class.")
-                continue
+                raise SpineIntegrityError("Incorrect objects for this relationship class.")
             if (class_id, object_id_list) in relationship_class_path_list:
-                msg.add("A relationship between the same objects already exists in the given class.")
-                continue
+                raise SpineIntegrityError("There can't be more than one relationship between the same objects "
+                                          "in the same class.")
             try:
                 name = wide_kwargs["name"]
             except KeyError:
-                msg.add("Missing relationship name.")
-                continue
+                raise SpineIntegrityError("Missing relationship name.")
             if wide_kwargs["name"] in relationship_name_list:
-                msg.add("There's already a relationship called '{}'.".format(wide_kwargs["name"]))
-                continue
+                raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name))
             checked_wide_kwargs_list.append(wide_kwargs)
             relationship_name_list.append(wide_kwargs["name"])
             relationship_class_path_list.append((class_id, object_id_list))
-        if msg:
-            raise SpineIntegrityError("Error while trying to add relationships:\n{}".format("\n".join(msg)))
         return checked_wide_kwargs_list
 
     def check_parameters_for_insert(self, *kwargs_list):
@@ -887,7 +857,6 @@ class DiffDatabaseMapping(DatabaseMapping):
         parameter_name_list = [x.name for x in self.parameter_list()]
         object_class_id_list = [x.id for x in self.object_class_list()]
         relationship_class_id_list = [x.id for x in self.wide_relationship_class_list()]
-        msg = set()
         for kwargs in kwargs_list:
             try:
                 object_class_id = kwargs["object_class_id"]
@@ -897,37 +866,29 @@ class DiffDatabaseMapping(DatabaseMapping):
                     relationship_class_id = kwargs["relationship_class_id"]
                     object_class_id = None
                 except KeyError:
-                    msg.add("Missing object class or relationship class identifier.")
-                    continue
+                    raise SpineIntegrityError("Missing object class or relationship class identifier.")
             if object_class_id:
                 if object_class_id not in object_class_id_list:
-                    msg.add("Object class not found.")
-                    continue
+                    raise SpineIntegrityError("Object class not found.")
                 try:
                     name = kwargs["name"]
                 except KeyError:
-                    msg.add("Missing parameter name.")
-                    continue
+                    raise SpineIntegrityError("Missing parameter name.")
                 if name in parameter_name_list:
-                    msg.add("There's already a parameter called '{}'.".format(kwargs["name"]))
+                    msg.add("There can't be more than one parameter called '{}'.".format(name))
                 parameter_name_list.append(kwargs["name"])
                 checked_kwargs_list.append(kwargs)
             elif relationship_class_id:
                 if relationship_class_id not in relationship_class_id_list:
-                    msg.add("Relationship class not found.")
-                    continue
+                    raise SpineIntegrityError("Relationship class not found.")
                 try:
                     name = kwargs["name"]
                 except KeyError:
-                    msg.add("Missing parameter name.")
-                    continue
+                    raise SpineIntegrityError("Missing parameter name.")
                 if name in parameter_name_list:
-                    msg.add("There's already a parameter called '{}'.".format(kwargs["name"]))
-                    continue
+                    raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
                 parameter_name_list.append(kwargs["name"])
                 checked_kwargs_list.append(kwargs)
-        if msg:
-            raise SpineIntegrityError("Error while trying to add parameters:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
 
     def check_parameter_values_for_insert(self, *kwargs_list):
@@ -945,13 +906,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 parameter_id = kwargs["parameter_id"]
             except KeyError:
-                msg.add("Missing parameter identifier.")
-                continue
+                raise SpineIntegrityError("Missing parameter identifier.")
             try:
                 parameter = parameter_dict[parameter_id]
             except KeyError:
-                msg.add("Parameter not found.")
-                continue
+                raise SpineIntegrityError("Parameter not found.")
             try:
                 object_id = kwargs["object_id"]
                 relationship_id = None
@@ -960,36 +919,28 @@ class DiffDatabaseMapping(DatabaseMapping):
                     relationship_id = kwargs["relationship_id"]
                     object_id = None
                 except KeyError:
-                    msg.add("Missing object or relationship identifier.")
-                    continue
+                    raise SpineIntegrityError("Missing object or relationship identifier.")
             if object_id:
                 try:
                     object_class_id = object_dict[object_id]
                 except KeyError:
-                    msg.add("Object not found")
-                    continue
+                    raise SpineIntegrityError("Object not found")
                 if object_class_id != parameter["object_class_id"]:
-                    msg.add("Incorrect object for this parameter.")
-                    continue
+                    raise SpineIntegrityError("Incorrect object for this parameter.")
                 if (object_id, parameter_id) in object_parameter_value_list:
-                    msg.add("The value of this parameter is already specified for this object.")
-                    continue
+                    raise SpineIntegrityError("The value of this parameter is already specified for this object.")
                 checked_kwargs_list.append(kwargs)
             elif relationship_id:
                 try:
                     relationship_class_id = relationship_dict[relationship_id]
                 except KeyError:
-                    msg.add("Relationship not found")
-                    continue
+                    raise SpineIntegrityError("Relationship not found")
                 if relationship_class_id != parameter["relationship_class_id"]:
-                    msg.add("Incorrect relationship for this parameter.")
-                    continue
+                    raise SpineIntegrityError("Incorrect relationship for this parameter.")
                 if (relationship_id, parameter_id) in relationship_parameter_value_list:
-                    msg.add("The value of this parameter is already specified for this relationship.")
-                    continue
+                    raise SpineIntegrityError("The value of this parameter is already specified "
+                                              "for this relationship.")
                 checked_kwargs_list.append(kwargs)
-        if msg:
-            raise SpineIntegrityError("Error while trying to add parameter values:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
 
     def add_object_classes(self, *kwargs_list):
