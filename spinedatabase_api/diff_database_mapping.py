@@ -755,14 +755,15 @@ class DiffDatabaseMapping(DatabaseMapping):
         msg = set()
         for kwargs in kwargs_list:
             try:
-                if kwargs["name"] not in object_class_name_list:
-                    object_class_name_list.append(kwargs["name"])
-                    checked_kwargs_list.append(kwargs)
-                    continue  # All good
-                else:
-                    msg.add("There's already an object class called '{}'.".format(kwargs["name"]))
+                name = kwargs["name"]
             except KeyError:
                 msg.add("Missing object class name.")
+                continue
+            if name in object_class_name_list:
+                msg.add("There's already an object class called '{}'.".format(name))
+                continue
+            object_class_name_list.append(name)
+            checked_kwargs_list.append(kwargs)
         if msg:
             raise SpineIntegrityError("Error while trying to add object classes:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
@@ -775,20 +776,23 @@ class DiffDatabaseMapping(DatabaseMapping):
         msg = set()
         for kwargs in kwargs_list:
             try:
-                if kwargs["class_id"] in object_class_id_list:
-                    try:
-                        if kwargs["name"] not in object_name_list:
-                            checked_kwargs_list.append(kwargs)
-                            object_name_list.append(kwargs["name"])
-                            continue  # all good
-                        else:
-                            msg.add("There's already an object called '{}'.".format(kwargs["name"]))
-                    except KeyError:
-                        msg.add("Missing object name.")
-                else:
-                    msg.add("Object class not found.")
+                class_id = kwargs["class_id"]
             except KeyError:
                 msg.add("Missing object class identifier.")
+                continue
+            if class_id not in object_class_id_list:
+                msg.add("Object class not found.")
+                continue
+            try:
+                name = kwargs["name"]
+            except KeyError:
+                msg.add("Missing object name.")
+                continue
+            if name in object_name_list:
+                msg.add("There's already an object called '{}'.".format(name))
+                continue
+            checked_kwargs_list.append(kwargs)
+            object_name_list.append(name)
         if msg:
             raise SpineIntegrityError("Error while trying to add objects:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
@@ -801,24 +805,26 @@ class DiffDatabaseMapping(DatabaseMapping):
         msg = set()
         for wide_kwargs in wide_kwargs_list:
             try:
-                if len(wide_kwargs["object_class_id_list"]) >= 2:
-                    if all([id in object_class_id_list for id in wide_kwargs["object_class_id_list"]]):
-                        try:
-                            if wide_kwargs["name"] not in relationship_class_name_list:
-                                checked_wide_kwargs_list.append(wide_kwargs)
-                                relationship_class_name_list.append(wide_kwargs["name"])
-                                continue  # all good
-                            else:
-                                msg.add("There's already a relationship class called '{}'.".\
-                                    format(wide_kwargs["name"]))
-                        except KeyError:
-                            msg.add("Missing relationship class name.")
-                    else:
-                        msg.add("Object class not found.")
-                else:
-                    msg.add("At least two object classes are needed.")
+                given_object_class_id_list = wide_kwargs["object_class_id_list"]
             except KeyError:
                 msg.add("Missing object class identifier.")
+                continue
+            if len(object_class_id_list) < 2:
+                msg.add("At least two object classes are needed.")
+                continue
+            if not all([id in object_class_id_list for id in given_object_class_id_list]):
+                msg.add("Object class not found.")
+                continue
+            try:
+                name = wide_kwargs["name"]
+            except KeyError:
+                msg.add("Missing relationship class name.")
+                continue
+            if name in relationship_class_name_list:
+                msg.add("There's already a relationship class called '{}'.".format(name))
+                continue
+            checked_wide_kwargs_list.append(wide_kwargs)
+            relationship_class_name_list.append(name)
         if msg:
             raise SpineIntegrityError("Error while trying to add relationship classes:\n{}".format("\n".join(msg)))
         return checked_wide_kwargs_list
@@ -836,34 +842,41 @@ class DiffDatabaseMapping(DatabaseMapping):
         for wide_kwargs in wide_kwargs_list:
             try:
                 class_id = wide_kwargs['class_id']
-                if class_id in relationship_class_dict:
-                    object_class_id_list = relationship_class_dict[class_id]
-                    try:
-                        object_id_list = wide_kwargs['object_id_list']
-                        if (class_id, object_id_list) not in relationship_class_path_list:
-                            given_object_class_id_list = [object_dict[id] for id in object_id_list]
-                            if given_object_class_id_list == object_class_id_list:
-                                try:
-                                    if wide_kwargs["name"] not in relationship_name_list:
-                                        checked_wide_kwargs_list.append(wide_kwargs)
-                                        relationship_name_list.append(wide_kwargs["name"])
-                                        relationship_class_path_list.append((class_id, object_id_list))
-                                        continue  # all good
-                                    else:
-                                        msg.add("There's already a relationship called '{}'.".\
-                                            format(wide_kwargs["name"]))
-                                except KeyError:
-                                    msg.add("Missing relationship name.")
-                            else:
-                                msg.add("Incorrect objects for this relationship class.")
-                        else:
-                            msg.add("A relationship between the same objects already exists in the given class.")
-                    except KeyError:
-                        msg.add("Object identifier is missing or cannot be found.")
-                else:
-                    msg.add("Relationship class not found.")
             except KeyError:
-                msg.add("Missing relationship class.")
+                msg.add("Missing relationship class identifier.")
+                continue
+            try:
+                object_class_id_list = relationship_class_dict[class_id]
+            except KeyError:
+                msg.add("Relationship class not found.")
+                continue
+            try:
+                object_id_list = wide_kwargs['object_id_list']
+            except KeyError:
+                msg.add("Missing object identifier.")
+                continue
+            try:
+                given_object_class_id_list = [object_dict[id] for id in object_id_list]
+            except KeyError:
+                msg.add("Object not found.")
+                continue
+            if given_object_class_id_list != object_class_id_list:
+                msg.add("Incorrect objects for this relationship class.")
+                continue
+            if (class_id, object_id_list) in relationship_class_path_list:
+                msg.add("A relationship between the same objects already exists in the given class.")
+                continue
+            try:
+                name = wide_kwargs["name"]
+            except KeyError:
+                msg.add("Missing relationship name.")
+                continue
+            if wide_kwargs["name"] in relationship_name_list:
+                msg.add("There's already a relationship called '{}'.".format(wide_kwargs["name"]))
+                continue
+            checked_wide_kwargs_list.append(wide_kwargs)
+            relationship_name_list.append(wide_kwargs["name"])
+            relationship_class_path_list.append((class_id, object_id_list))
         if msg:
             raise SpineIntegrityError("Error while trying to add relationships:\n{}".format("\n".join(msg)))
         return checked_wide_kwargs_list
@@ -877,32 +890,42 @@ class DiffDatabaseMapping(DatabaseMapping):
         msg = set()
         for kwargs in kwargs_list:
             try:
-                if kwargs["object_class_id"] in object_class_id_list:
-                    try:
-                        if kwargs["name"] not in parameter_name_list:
-                            parameter_name_list.append(kwargs["name"])
-                            checked_kwargs_list.append(kwargs)
-                            continue  # All good
-                        else:
-                            msg.add("There's already a parameter called '{}'.".format(kwargs["name"]))
-                    except KeyError:
-                        msg.add("Missing parameter name.")
-                else:
-                    msg.add("Object class not found.")
+                object_class_id = kwargs["object_class_id"]
+                relationship_class_id = None
             except KeyError:
                 try:
-                    if kwargs["relationship_class_id"] in relationship_class_id_list:
-                        try:
-                            if kwargs["name"] not in parameter_name_list:
-                                parameter_name_list.append(kwargs["name"])
-                                checked_kwargs_list.append(kwargs)
-                                continue  # All good
-                            else:
-                                msg.add("There's already a parameter called '{}'.".format(kwargs["name"]))
-                        except KeyError:
-                            msg.add("Missing parameter name.")
+                    relationship_class_id = kwargs["relationship_class_id"]
+                    object_class_id = None
                 except KeyError:
-                    msg.add("Missing object or relationship class identifier.")
+                    msg.add("Missing object class or relationship class identifier.")
+                    continue
+            if object_class_id:
+                if object_class_id not in object_class_id_list:
+                    msg.add("Object class not found.")
+                    continue
+                try:
+                    name = kwargs["name"]
+                except KeyError:
+                    msg.add("Missing parameter name.")
+                    continue
+                if name in parameter_name_list:
+                    msg.add("There's already a parameter called '{}'.".format(kwargs["name"]))
+                parameter_name_list.append(kwargs["name"])
+                checked_kwargs_list.append(kwargs)
+            elif relationship_class_id:
+                if relationship_class_id not in relationship_class_id_list:
+                    msg.add("Relationship class not found.")
+                    continue
+                try:
+                    name = kwargs["name"]
+                except KeyError:
+                    msg.add("Missing parameter name.")
+                    continue
+                if name in parameter_name_list:
+                    msg.add("There's already a parameter called '{}'.".format(kwargs["name"]))
+                    continue
+                parameter_name_list.append(kwargs["name"])
+                checked_kwargs_list.append(kwargs)
         if msg:
             raise SpineIntegrityError("Error while trying to add parameters:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
@@ -921,44 +944,50 @@ class DiffDatabaseMapping(DatabaseMapping):
         for kwargs in kwargs_list:
             try:
                 parameter_id = kwargs["parameter_id"]
-                try:
-                    parameter = parameter_dict[parameter_id]
-                    try:
-                        object_id = kwargs["object_id"]
-                        try:
-                            object_class_id = object_dict[object_id]
-                            if object_class_id == parameter["object_class_id"]:
-                                if (object_id, parameter_id) not in object_parameter_value_list:
-                                    checked_kwargs_list.append(kwargs)
-                                    continue  # All good
-                                else:
-                                    msg.add("The value of this parameter is already specified for this object.")
-                            else:
-                                msg.add("Incorrect object for this parameter.")
-                        except KeyError:
-                            msg.add("Object not found")
-                    except KeyError:
-                        try:
-                            relationship_id = kwargs["relationship_id"]
-                            try:
-                                relationship_class_id = relationship_dict[relationship_id]
-                                if relationship_class_id == parameter["relationship_class_id"]:
-                                    if (relationship_id, parameter_id) not in relationship_parameter_value_list:
-                                        checked_kwargs_list.append(kwargs)
-                                        continue  # All good
-                                    else:
-                                        msg.add("The value of this parameter is already "
-                                                "specified for this relationship.")
-                                else:
-                                    msg.add("Incorrect relationship for this parameter.")
-                            except KeyError:
-                                msg.add("Relationship not found")
-                        except KeyError:
-                            msg.add("Missing object or relationship identifier.")
-                except KeyError:
-                    msg.add("Parameter not found.")
             except KeyError:
                 msg.add("Missing parameter identifier.")
+                continue
+            try:
+                parameter = parameter_dict[parameter_id]
+            except KeyError:
+                msg.add("Parameter not found.")
+                continue
+            try:
+                object_id = kwargs["object_id"]
+                relationship_id = None
+            except KeyError:
+                try:
+                    relationship_id = kwargs["relationship_id"]
+                    object_id = None
+                except KeyError:
+                    msg.add("Missing object or relationship identifier.")
+                    continue
+            if object_id:
+                try:
+                    object_class_id = object_dict[object_id]
+                except KeyError:
+                    msg.add("Object not found")
+                    continue
+                if object_class_id != parameter["object_class_id"]:
+                    msg.add("Incorrect object for this parameter.")
+                    continue
+                if (object_id, parameter_id) in object_parameter_value_list:
+                    msg.add("The value of this parameter is already specified for this object.")
+                    continue
+                checked_kwargs_list.append(kwargs)
+            elif relationship_id:
+                try:
+                    relationship_class_id = relationship_dict[relationship_id]
+                except KeyError:
+                    msg.add("Relationship not found")
+                    continue
+                if relationship_class_id != parameter["relationship_class_id"]:
+                    msg.add("Incorrect relationship for this parameter.")
+                    continue
+                if (relationship_id, parameter_id) in relationship_parameter_value_list:
+                    msg.add("The value of this parameter is already specified for this relationship.")
+                    continue
+                checked_kwargs_list.append(kwargs)
         if msg:
             raise SpineIntegrityError("Error while trying to add parameter values:\n{}".format("\n".join(msg)))
         return checked_kwargs_list
