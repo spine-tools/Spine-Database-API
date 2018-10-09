@@ -749,199 +749,399 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.add_parameter_values(kwargs).one_or_none()
 
     def check_object_classes_for_insert(self, *kwargs_list):
-        """Check that object classes respect integrity constraints."""
+        """Check that object classes respect integrity constraints for an insert operation."""
         checked_kwargs_list = list()
-        object_class_name_list = [x.name for x in self.object_class_list()]
+        object_class_list = [{"name": x.name} for x in self.object_class_list()]
+        for kwargs in kwargs_list:
+            self.check_object_class(kwargs, object_class_list)
+            checked_kwargs_list.append(kwargs)
+            # If the check passes, append kwargs to `object_class_list` for next iteration.
+            object_class_list.append({"name": kwargs["name"]})
+        return checked_kwargs_list
+
+    def check_object_classes_for_update(self, *kwargs_list):
+        """Check that object classes respect integrity constraints for an update operation."""
+        # NOTE: To check for an update we basically 'remove' the current instance
+        # and then check for an insert of the updated instance
+        checked_kwargs_list = list()
+        object_class_dict = {x.id: {"name": x.name} for x in self.object_class_list()}
         for kwargs in kwargs_list:
             try:
-                name = kwargs["name"]
+                id = kwargs["id"]
             except KeyError:
-                raise SpineIntegrityError("Missing object class name.")
-            if name in object_class_name_list:
-                raise SpineIntegrityError("There can't be more than one object class called '{}'.".format(name))
-            object_class_name_list.append(name)
+                raise SpineIntegrityError("Missing object class identifier.")
+            try:
+                # 'Remove' current instance
+                curr_kwargs = object_class_dict.pop(id)
+            except KeyError:
+                raise SpineIntegrityError("Object class not found.")
+            # Check for an insert of the updated instance
+            updated_kwargs = {**curr_kwargs, **kwargs}
+            self.check_object_class(updated_kwargs, list(object_class_dict.values()))
             checked_kwargs_list.append(kwargs)
+            # If the check passes, reinject the updated instance to `object_class_dict` for next iteration.
+            object_class_dict[id] = updated_kwargs
         return checked_kwargs_list
+
+    def check_object_class(self, kwargs, object_class_list):
+        """Raise a SpineIntegrityError if the object class given by `kwargs` violates any
+        integrity constraints.
+        """
+        try:
+            name = kwargs["name"]
+        except KeyError:
+            raise SpineIntegrityError("Missing object class name.")
+        if name in [x["name"] for x in object_class_list]:
+            raise SpineIntegrityError("There can't be more than one object class called '{}'.".format(name))
 
     def check_objects_for_insert(self, *kwargs_list):
-        """Check that objects respect integrity constraints."""
+        """Check that objects respect integrity constraints for an insert operation."""
         checked_kwargs_list = list()
-        object_name_list = [x.name for x in self.object_list()]
+        object_list = [{"name": x.name} for x in self.object_list()]
+        object_class_id_list = [x.id for x in self.object_class_list()]
+        for kwargs in kwargs_list:
+            self.check_object(kwargs, object_list, object_class_id_list)
+            checked_kwargs_list.append(kwargs)
+            object_list.append({"name": kwargs["name"]})
+        return checked_kwargs_list
+
+    def check_objects_for_update(self, *kwargs_list):
+        """Check that objects respect integrity constraints for an update operation."""
+        checked_kwargs_list = list()
+        object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in self.object_list()}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for kwargs in kwargs_list:
             try:
-                class_id = kwargs["class_id"]
-            except KeyError:
-                raise SpineIntegrityError("Missing object class identifier.")
-            if class_id not in object_class_id_list:
-                raise SpineIntegrityError("Object class not found.")
-            try:
-                name = kwargs["name"]
-            except KeyError:
-                raise SpineIntegrityError("Missing object name.")
-            if name in object_name_list:
-                raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name))
-            checked_kwargs_list.append(kwargs)
-            object_name_list.append(name)
-        return checked_kwargs_list
-
-    def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list):
-        """Check that relationship classes respect integrity constraints."""
-        checked_wide_kwargs_list = list()
-        relationship_class_name_list = [x.name for x in self.wide_relationship_class_list()]
-        object_class_id_list = [x.id for x in self.object_class_list()]
-        for wide_kwargs in wide_kwargs_list:
-            try:
-                given_object_class_id_list = wide_kwargs["object_class_id_list"]
-            except KeyError:
-                raise SpineIntegrityError("Missing object class identifier.")
-            if len(object_class_id_list) < 2:
-                raise SpineIntegrityError("At least two object classes are needed.")
-            if not all([id in object_class_id_list for id in given_object_class_id_list]):
-                raise SpineIntegrityError("Object class not found.")
-            try:
-                name = wide_kwargs["name"]
-            except KeyError:
-                raise SpineIntegrityError("Missing relationship class name.")
-            if name in relationship_class_name_list:
-                raise SpineIntegrityError("There can't be more than one relationship class called '{}'.".format(name))
-            checked_wide_kwargs_list.append(wide_kwargs)
-            relationship_class_name_list.append(name)
-        return checked_wide_kwargs_list
-
-    def check_wide_relationships_for_insert(self, *wide_kwargs_list, ignore_errors=True):
-        """Check that relationships respect integrity constraints."""
-        checked_wide_kwargs_list = list()
-        relationship_name_list = [x.name for x in self.wide_relationship_list()]
-        relationship_class_path_list = [(x.class_id, [int(y) for y in x.object_id_list.split(',')])
-                                        for x in self.wide_relationship_list()]
-        relationship_class_dict = {x.id: [int(y) for y in x.object_class_id_list.split(',')]
-                                   for x in self.wide_relationship_class_list()}
-        object_dict = {x.id: x.class_id for x in self.object_list()}
-        for wide_kwargs in wide_kwargs_list:
-            try:
-                class_id = wide_kwargs['class_id']
-            except KeyError:
-                raise SpineIntegrityError("Missing relationship class identifier.")
-            try:
-                object_class_id_list = relationship_class_dict[class_id]
-            except KeyError:
-                raise SpineIntegrityError("Relationship class not found.")
-            try:
-                object_id_list = wide_kwargs['object_id_list']
+                id = kwargs["id"]
             except KeyError:
                 raise SpineIntegrityError("Missing object identifier.")
             try:
-                given_object_class_id_list = [object_dict[id] for id in object_id_list]
+                curr_kwargs = object_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Object not found.")
-            if given_object_class_id_list != object_class_id_list:
-                raise SpineIntegrityError("Incorrect objects for this relationship class.")
-            if (class_id, object_id_list) in relationship_class_path_list:
-                raise SpineIntegrityError("There can't be more than one relationship between the same objects "
-                                          "in the same class.")
-            try:
-                name = wide_kwargs["name"]
-            except KeyError:
-                raise SpineIntegrityError("Missing relationship name.")
-            if wide_kwargs["name"] in relationship_name_list:
-                raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name))
+            updated_kwargs = {**curr_kwargs, **kwargs}
+            self.check_object(updated_kwargs, list(object_dict.values()), object_class_id_list)
+            checked_kwargs_list.append(kwargs)
+            object_dict[id] = updated_kwargs
+        return checked_kwargs_list
+
+    def check_object(self, kwargs, object_list, object_class_id_list):
+        """Raise a SpineIntegrityError if the object given by `kwargs` violates any
+        integrity constraints."""
+        try:
+            class_id = kwargs["class_id"]
+        except KeyError:
+            raise SpineIntegrityError("Missing object class identifier.")
+        if class_id not in object_class_id_list:
+            raise SpineIntegrityError("Object class not found.")
+        try:
+            name = kwargs["name"]
+        except KeyError:
+            raise SpineIntegrityError("Missing object name.")
+        if name in [x["name"] for x in object_list]:
+            raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name))
+
+    def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list):
+        """Check that relationship classes respect integrity constraints for an insert operation."""
+        checked_wide_kwargs_list = list()
+        relationship_class_list = [{"name": x.name} for x in self.wide_relationship_class_list()]
+        object_class_id_list = [x.id for x in self.object_class_list()]
+        for wide_kwargs in wide_kwargs_list:
+            self.check_wide_relationship_class(wide_kwargs, relationship_class_list, object_class_id_list)
             checked_wide_kwargs_list.append(wide_kwargs)
-            relationship_name_list.append(wide_kwargs["name"])
-            relationship_class_path_list.append((class_id, object_id_list))
+            relationship_class_list.append({"name": wide_kwargs["name"]})
         return checked_wide_kwargs_list
 
+    def check_wide_relationship_classes_for_update(self, *wide_kwargs_list):
+        """Check that relationship classes respect integrity constraints for an update operation."""
+        checked_wide_kwargs_list = list()
+        relationship_class_dict = {
+            x.id: {
+                "name": x.name,
+                "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')]
+            } for x in self.wide_relationship_class_list()}
+        object_class_id_list = [x.id for x in self.object_class_list()]
+        for wide_kwargs in wide_kwargs_list:
+            try:
+                id = wide_kwargs["id"]
+            except KeyError:
+                raise SpineIntegrityError("Missing relationship class identifier.")
+            try:
+                curr_wide_kwargs = relationship_class_dict.pop(id)
+            except KeyError:
+                raise SpineIntegrityError("Relationship class not found.")
+            updated_wide_kwargs = {**curr_wide_kwargs, **wide_kwargs}
+            self.check_wide_relationship_class(
+                updated_wide_kwargs, list(relationship_class_dict.values()), object_class_id_list)
+            checked_wide_kwargs_list.append(wide_kwargs)
+            relationship_class_dict[id] = updated_wide_kwargs
+        return checked_wide_kwargs_list
+
+    def check_wide_relationship_class(self, wide_kwargs, relationship_class_list, object_class_id_list):
+        """Raise a SpineIntegrityError if the relationship class given by `kwargs` violates any
+        integrity constraints."""
+        try:
+            given_object_class_id_list = wide_kwargs["object_class_id_list"]
+        except KeyError:
+            raise SpineIntegrityError("Missing object class identifier.")
+        if len(given_object_class_id_list) < 2:
+            raise SpineIntegrityError("At least two object classes are needed.")
+        if not all([id in object_class_id_list for id in given_object_class_id_list]):
+            raise SpineIntegrityError("Object class not found.")
+        try:
+            name = wide_kwargs["name"]
+        except KeyError:
+            raise SpineIntegrityError("Missing relationship class name.")
+        if name in [x["name"] for x in relationship_class_list]:
+            raise SpineIntegrityError("There can't be more than one relationship class called '{}'.".format(name))
+
+    def check_wide_relationships_for_insert(self, *wide_kwargs_list):
+        """Check that relationships respect integrity constraints for an insert operation."""
+        checked_wide_kwargs_list = list()
+        relationship_list = [
+            {
+                "class_id": x.class_id,
+                "name": x.name,
+                "object_id_list": [int(y) for y in x.object_id_list.split(',')]
+            } for x in self.wide_relationship_list()
+        ]
+        relationship_class_dict = {
+            x.id: [int(y) for y in x.object_class_id_list.split(',')] for x in self.wide_relationship_class_list()}
+        object_dict = {x.id: x.class_id for x in self.object_list()}
+        for wide_kwargs in wide_kwargs_list:
+            self.check_wide_relationship(wide_kwargs, relationship_list, relationship_class_dict, object_dict)
+            checked_wide_kwargs_list.append(wide_kwargs)
+            relationship_list.append(wide_kwargs)
+        return checked_wide_kwargs_list
+
+    def check_wide_relationships_for_update(self, *wide_kwargs_list):
+        """Check that relationships respect integrity constraints for an update operation."""
+        checked_wide_kwargs_list = list()
+        relationship_dict = {
+            x.id: {
+                "class_id": x.class_id,
+                "name": x.name,
+                "object_id_list": [int(y) for y in x.object_id_list.split(',')]
+            } for x in self.wide_relationship_list()
+        }
+        relationship_class_dict = {
+            x.id: [int(y) for y in x.object_class_id_list.split(',')] for x in self.wide_relationship_class_list()}
+        object_dict = {x.id: x.class_id for x in self.object_list()}
+        for wide_kwargs in wide_kwargs_list:
+            try:
+                id = wide_kwargs["id"]
+            except KeyError:
+                raise SpineIntegrityError("Missing relationship identifier.")
+            try:
+                curr_wide_kwargs = relationship_dict.pop(id)
+            except KeyError:
+                raise SpineIntegrityError("Relationship not found.")
+            updated_wide_kwargs = {**curr_wide_kwargs, **wide_kwargs}
+            self.check_wide_relationship(
+                updated_wide_kwargs, list(relationship_dict.values()),
+                relationship_class_dict, object_dict)
+            checked_wide_kwargs_list.append(wide_kwargs)
+            relationship_dict[id] = updated_wide_kwargs
+        return checked_wide_kwargs_list
+
+    def check_wide_relationship(self, wide_kwargs, relationship_list, relationship_class_dict, object_dict):
+        """Raise a SpineIntegrityError if the relationship given by `kwargs` violates any integrity constraints."""
+        try:
+            class_id = wide_kwargs['class_id']
+        except KeyError:
+            raise SpineIntegrityError("Missing relationship class identifier.")
+        try:
+            object_class_id_list = relationship_class_dict[class_id]
+        except KeyError:
+            raise SpineIntegrityError("Relationship class not found.")
+        try:
+            object_id_list = wide_kwargs['object_id_list']
+        except KeyError:
+            raise SpineIntegrityError("Missing object identifier.")
+        try:
+            given_object_class_id_list = [object_dict[id] for id in object_id_list]
+        except KeyError:
+            raise SpineIntegrityError("Object not found.")
+        if given_object_class_id_list != object_class_id_list:
+            raise SpineIntegrityError("Incorrect objects for this relationship class.")
+        if (class_id, object_id_list) in [(x["class_id"], x["object_id_list"]) for x in relationship_list]:
+            raise SpineIntegrityError("There can't be more than one relationship between the same objects "
+                                      "in one class.")
+        try:
+            name = wide_kwargs["name"]
+        except KeyError:
+            raise SpineIntegrityError("Missing relationship name.")
+        if name in [x["name"] for x in relationship_list]:
+            raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name))
+
     def check_parameters_for_insert(self, *kwargs_list):
-        """Check that parameters respect integrity constraints."""
+        """Check that parameters respect integrity constraints for an insert operation."""
         checked_kwargs_list = list()
-        parameter_name_list = [x.name for x in self.parameter_list()]
+        parameter_list = [{"name": x.name} for x in self.parameter_list()]
+        object_class_id_list = [x.id for x in self.object_class_list()]
+        relationship_class_id_list = [x.id for x in self.wide_relationship_class_list()]
+        for kwargs in kwargs_list:
+            self.check_parameter(kwargs, parameter_list, object_class_id_list, relationship_class_id_list)
+            checked_kwargs_list.append(kwargs)
+            parameter_list.append({"name": kwargs["name"]})
+        return checked_kwargs_list
+
+    def check_parameters_for_update(self, *kwargs_list):
+        """Check that parameters respect integrity constraints for an update operation."""
+        checked_kwargs_list = list()
+        parameter_dict = {
+            x.id: {
+                "name": x.name,
+                "object_class_id": x.object_class_id,
+                "relationship_class_id": x.relationship_class_id
+            } for x in self.parameter_list()}
         object_class_id_list = [x.id for x in self.object_class_list()]
         relationship_class_id_list = [x.id for x in self.wide_relationship_class_list()]
         for kwargs in kwargs_list:
             try:
-                object_class_id = kwargs["object_class_id"]
-                relationship_class_id = None
-            except KeyError:
-                try:
-                    relationship_class_id = kwargs["relationship_class_id"]
-                    object_class_id = None
-                except KeyError:
-                    raise SpineIntegrityError("Missing object class or relationship class identifier.")
-            if object_class_id:
-                if object_class_id not in object_class_id_list:
-                    raise SpineIntegrityError("Object class not found.")
-                try:
-                    name = kwargs["name"]
-                except KeyError:
-                    raise SpineIntegrityError("Missing parameter name.")
-                if name in parameter_name_list:
-                    raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
-                parameter_name_list.append(kwargs["name"])
-                checked_kwargs_list.append(kwargs)
-            elif relationship_class_id:
-                if relationship_class_id not in relationship_class_id_list:
-                    raise SpineIntegrityError("Relationship class not found.")
-                try:
-                    name = kwargs["name"]
-                except KeyError:
-                    raise SpineIntegrityError("Missing parameter name.")
-                if name in parameter_name_list:
-                    raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
-                parameter_name_list.append(kwargs["name"])
-                checked_kwargs_list.append(kwargs)
-        return checked_kwargs_list
-
-    def check_parameter_values_for_insert(self, *kwargs_list):
-        """Check that parameter values respect integrity constraints."""
-        checked_kwargs_list = list()
-        parameter_dict = {x.id: {"object_class_id": x.object_class_id,
-                                 "relationship_class_id": x.relationship_class_id}
-                          for x in self.parameter_list()}
-        object_dict = {x.id: x.class_id for x in self.object_list()}
-        relationship_dict = {x.id: x.class_id for x in self.wide_relationship_list()}
-        object_parameter_value_list = [(x.object_id, x.parameter_id) for x in self.parameter_value_list()]
-        relationship_parameter_value_list = [(x.relationship_id, x.parameter_id) for x in self.parameter_value_list()]
-        msg = set()
-        for kwargs in kwargs_list:
-            try:
-                parameter_id = kwargs["parameter_id"]
+                id = kwargs["id"]
             except KeyError:
                 raise SpineIntegrityError("Missing parameter identifier.")
             try:
-                parameter = parameter_dict[parameter_id]
+                curr_kwargs = parameter_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Parameter not found.")
-            try:
-                object_id = kwargs["object_id"]
-                relationship_id = None
-            except KeyError:
-                try:
-                    relationship_id = kwargs["relationship_id"]
-                    object_id = None
-                except KeyError:
-                    raise SpineIntegrityError("Missing object or relationship identifier.")
-            if object_id:
-                try:
-                    object_class_id = object_dict[object_id]
-                except KeyError:
-                    raise SpineIntegrityError("Object not found")
-                if object_class_id != parameter["object_class_id"]:
-                    raise SpineIntegrityError("Incorrect object for this parameter.")
-                if (object_id, parameter_id) in object_parameter_value_list:
-                    raise SpineIntegrityError("The value of this parameter is already specified for this object.")
-                checked_kwargs_list.append(kwargs)
-            elif relationship_id:
-                try:
-                    relationship_class_id = relationship_dict[relationship_id]
-                except KeyError:
-                    raise SpineIntegrityError("Relationship not found")
-                if relationship_class_id != parameter["relationship_class_id"]:
-                    raise SpineIntegrityError("Incorrect relationship for this parameter.")
-                if (relationship_id, parameter_id) in relationship_parameter_value_list:
-                    raise SpineIntegrityError("The value of this parameter is already specified "
-                                              "for this relationship.")
-                checked_kwargs_list.append(kwargs)
+            # Allow turning an object class parameter into a relationship class parameter, and viceversa
+            if "object_class_id" in kwargs:
+                kwargs.setdefault("relationship_class_id", None)
+            if "relationship_class_id" in kwargs:
+                kwargs.setdefault("object_class_id", None)
+            updated_kwargs = {**curr_kwargs, **kwargs}
+            self.check_parameter(
+                updated_kwargs, list(parameter_dict.values()),
+                object_class_id_list, relationship_class_id_list)
+            checked_kwargs_list.append(kwargs)
+            parameter_dict[id] = updated_kwargs
         return checked_kwargs_list
+
+    def check_parameter(self, kwargs, parameter_list, object_class_id_list, relationship_class_id_list):
+        """Raise a SpineIntegrityError if the parameter given by `kwargs` violates any integrity constraints."""
+        object_class_id = kwargs.get("object_class_id", None)
+        relationship_class_id = kwargs.get("relationship_class_id", None)
+        if object_class_id and relationship_class_id:
+            raise SpineIntegrityError("Can't associate a parameter to both an object class and a relationship class.")
+        if object_class_id:
+            if object_class_id not in object_class_id_list:
+                raise SpineIntegrityError("Object class not found.")
+            try:
+                name = kwargs["name"]
+            except KeyError:
+                raise SpineIntegrityError("Missing parameter name.")
+            if name in [x["name"] for x in parameter_list]:
+                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
+        elif relationship_class_id:
+            if relationship_class_id not in relationship_class_id_list:
+                raise SpineIntegrityError("Relationship class not found.")
+            try:
+                name = kwargs["name"]
+            except KeyError:
+                raise SpineIntegrityError("Missing parameter name.")
+            if name in [x["name"] for x in parameter_list]:
+                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
+        else:
+            raise SpineIntegrityError("Missing object class or relationship class identifier.")
+
+    def check_parameter_values_for_insert(self, *kwargs_list):
+        """Check that parameter values respect integrity constraints for an insert operation."""
+        checked_kwargs_list = list()
+        parameter_value_list = [
+            {
+                "parameter_id": x.parameter_id,
+                "object_id": x.object_id,
+                "relationship_id": x.relationship_id
+            } for x in self.parameter_value_list()]
+        parameter_dict = {
+            x.id: {
+                "object_class_id": x.object_class_id,
+                "relationship_class_id": x.relationship_class_id
+            } for x in self.parameter_list()}
+        object_dict = {x.id: x.class_id for x in self.object_list()}
+        relationship_dict = {x.id: x.class_id for x in self.wide_relationship_list()}
+        for kwargs in kwargs_list:
+            self.check_parameter_value(kwargs, parameter_value_list, parameter_dict, object_dict, relationship_dict)
+            checked_kwargs_list.append(kwargs)
+            parameter_value_list.append(kwargs)
+        return checked_kwargs_list
+
+    def check_parameter_values_for_update(self, *kwargs_list):
+        """Check that parameter values respect integrity constraints for an insert operation."""
+        checked_kwargs_list = list()
+        parameter_value_dict = {
+            x.id: {
+                "parameter_id": x.parameter_id,
+                "object_id": x.object_id,
+                "relationship_id": x.relationship_id
+            } for x in self.parameter_value_list()}
+        parameter_dict = {
+            x.id: {
+                "object_class_id": x.object_class_id,
+                "relationship_class_id": x.relationship_class_id
+            } for x in self.parameter_list()}
+        object_dict = {x.id: x.class_id for x in self.object_list()}
+        relationship_dict = {x.id: x.class_id for x in self.wide_relationship_list()}
+        for kwargs in kwargs_list:
+            try:
+                id = kwargs["id"]
+            except KeyError:
+                raise SpineIntegrityError("Missing parameter value identifier.")
+            try:
+                curr_kwargs = parameter_value_dict.pop(id)
+            except KeyError:
+                raise SpineIntegrityError("Parameter value not found.")
+            # Allow turning an object parameter value into a relationship parameter value, and viceversa
+            if "object_id" in kwargs:
+                kwargs.setdefault("relationship_id", None)
+            if "relationship_id" in kwargs:
+                kwargs.setdefault("object_id", None)
+            updated_kwargs = {**curr_kwargs, **kwargs}
+            self.check_parameter_value(
+                updated_kwargs, list(parameter_value_dict.values()),
+                parameter_dict, object_dict, relationship_dict)
+            checked_kwargs_list.append(kwargs)
+            parameter_value_dict[id] = updated_kwargs
+        return checked_kwargs_list
+
+    def check_parameter_value(self, kwargs, parameter_value_list, parameter_dict, object_dict, relationship_dict):
+        """Raise a SpineIntegrityError if the parameter value given by `kwargs` violates any integrity constraints."""
+        try:
+            parameter_id = kwargs["parameter_id"]
+        except KeyError:
+            raise SpineIntegrityError("Missing parameter identifier.")
+        try:
+            parameter = parameter_dict[parameter_id]
+        except KeyError:
+            raise SpineIntegrityError("Parameter not found.")
+        object_id = kwargs.get("object_id", None)
+        relationship_id = kwargs.get("relationship_id", None)
+        if object_id and relationship_id:
+            raise SpineIntegrityError("Can't associate a parameter value to both an object and a relationship.")
+        if object_id:
+            try:
+                object_class_id = object_dict[object_id]
+            except KeyError:
+                raise SpineIntegrityError("Object not found")
+            if object_class_id != parameter["object_class_id"]:
+                raise SpineIntegrityError("Incorrect object for this parameter.")
+            if (object_id, parameter_id) in [(x["object_id"], x["parameter_id"]) for x in parameter_value_list]:
+                raise SpineIntegrityError("The value of this parameter is already specified for this object.")
+        elif relationship_id:
+            try:
+                relationship_class_id = relationship_dict[relationship_id]
+            except KeyError:
+                raise SpineIntegrityError("Relationship not found")
+            if relationship_class_id != parameter["relationship_class_id"]:
+                raise SpineIntegrityError("Incorrect relationship for this parameter.")
+            relationship_parameter_list = [(x["relationship_id"], x["parameter_id"]) for x in parameter_value_list]
+            if (relationship_id, parameter_id) in relationship_parameter_list:
+                raise SpineIntegrityError("The value of this parameter is already specified "
+                                          "for this relationship.")
+        else:
+            raise SpineIntegrityError("Missing object or relationship identifier.")
 
     def add_object_classes(self, *kwargs_list):
         """Add object classes to database.
@@ -1181,12 +1381,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_object_classes(self, *kwargs_list):
         """Update object classes."""
+        checked_kwargs_list = self.check_object_classes_for_update(*kwargs_list)
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for kwargs in kwargs_list:
+            for kwargs in checked_kwargs_list:
                 try:
                     id = kwargs['id']
                 except KeyError:
@@ -1216,12 +1417,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_objects(self, *kwargs_list):
         """Update objects."""
+        checked_kwargs_list = self.check_objects_for_update(*kwargs_list)
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for kwargs in kwargs_list:
+            for kwargs in checked_kwargs_list:
                 if "class_id" in kwargs:
                     continue
                 try:
@@ -1253,12 +1455,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_wide_relationship_classes(self, *wide_kwargs_list):
         """Update relationship classes."""
+        checked_wide_kwargs_list = self.check_wide_relationship_classes_for_update(*wide_kwargs_list)
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for wide_kwargs in wide_kwargs_list:
+            for wide_kwargs in checked_wide_kwargs_list:
                 # Don't update object_class_id for now (even though below we handle it)
                 if "object_class_id_list" in wide_kwargs:
                     continue
@@ -1304,12 +1507,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_wide_relationships(self, *wide_kwargs_list):
         """Update relationships."""
+        checked_wide_kwargs_list = self.check_wide_relationships_for_update(*wide_kwargs_list)
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for wide_kwargs in wide_kwargs_list:
+            for wide_kwargs in checked_wide_kwargs_list:
                 if "class_id" in wide_kwargs:
                     continue
                 try:
@@ -1355,12 +1559,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_parameters(self, *kwargs_list):
         """Update parameters."""
+        checked_kwargs_list = self.check_parameters_for_update(*kwargs_list)
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for kwargs in kwargs_list:
+            for kwargs in checked_kwargs_list:
                 if "object_class_id" in kwargs or "relationship_class_id" in kwargs:
                     continue
                 try:
@@ -1392,12 +1597,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_parameter_values(self, *kwargs_list):
         """Update parameter values."""
+        checked_kwargs_list = self.check_parameter_values_for_update(*kwargs_list)
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for kwargs in kwargs_list:
+            for kwargs in checked_kwargs_list:
                 if "object_id" in kwargs or "relationship_id" in kwargs or "parameter_id" in kwargs:
                     continue
                 try:
