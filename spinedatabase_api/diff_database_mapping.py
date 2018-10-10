@@ -708,46 +708,6 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
             filter(~self.Relationship.id.in_(valued_relationship_ids))
 
-    def next_id_with_lock(self):
-        """A 'next_id' item to use for adding new items."""
-        next_id = self.session.query(self.NextId).one_or_none()
-        if next_id:
-            next_id.user = self.username
-            next_id.date = datetime.now(timezone.utc)
-        else:
-            next_id = self.NextId(
-                user = self.username,
-                date = datetime.now(timezone.utc)
-            )
-            self.session.add(next_id)
-        try:
-            # TODO: This is supposed to lock the database, so no one can steal our ids.... does it work?
-            self.session.flush()
-            return next_id
-        except DBAPIError as e:
-            # TODO: Find a way to try this again, or wait till the database is unlocked
-            # Maybe listen for an event?
-            self.session.rollback()
-            raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
-
-    def add_object_class(self, **kwargs):
-        return self.add_object_classes(kwargs).one_or_none()
-
-    def add_object(self, **kwargs):
-        return self.add_objects(kwargs).one_or_none()
-
-    def add_wide_relationship_class(self, **kwargs):
-        return self.add_wide_relationship_classes(kwargs).one_or_none()
-
-    def add_wide_relationship(self, **kwargs):
-        return self.add_wide_relationships(kwargs).one_or_none()
-
-    def add_parameter(self, **kwargs):
-        return self.add_parameters(kwargs).one_or_none()
-
-    def add_parameter_value(self, **kwargs):
-        return self.add_parameter_values(kwargs).one_or_none()
-
     def check_object_classes_for_insert(self, *kwargs_list):
         """Check that object classes respect integrity constraints for an insert operation."""
         checked_kwargs_list = list()
@@ -1142,6 +1102,46 @@ class DiffDatabaseMapping(DatabaseMapping):
                                           "for this relationship.")
         else:
             raise SpineIntegrityError("Missing object or relationship identifier.")
+
+    def next_id_with_lock(self):
+        """A 'next_id' item to use for adding new items."""
+        next_id = self.session.query(self.NextId).one_or_none()
+        if next_id:
+            next_id.user = self.username
+            next_id.date = datetime.now(timezone.utc)
+        else:
+            next_id = self.NextId(
+                user = self.username,
+                date = datetime.now(timezone.utc)
+            )
+            self.session.add(next_id)
+        try:
+            # TODO: This flush is supposed to lock the database, so no one can steal our ids.... does it work?
+            self.session.flush()
+            return next_id
+        except DBAPIError as e:
+            # TODO: Find a way to try this again, or wait till the database is unlocked
+            # Maybe listen for an event?
+            self.session.rollback()
+            raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
+
+    def add_object_class(self, **kwargs):
+        return self.add_object_classes(kwargs).one_or_none()
+
+    def add_object(self, **kwargs):
+        return self.add_objects(kwargs).one_or_none()
+
+    def add_wide_relationship_class(self, **kwargs):
+        return self.add_wide_relationship_classes(kwargs).one_or_none()
+
+    def add_wide_relationship(self, **kwargs):
+        return self.add_wide_relationships(kwargs).one_or_none()
+
+    def add_parameter(self, **kwargs):
+        return self.add_parameters(kwargs).one_or_none()
+
+    def add_parameter_value(self, **kwargs):
+        return self.add_parameter_values(kwargs).one_or_none()
 
     def add_object_classes(self, *kwargs_list):
         """Add object classes to database.
