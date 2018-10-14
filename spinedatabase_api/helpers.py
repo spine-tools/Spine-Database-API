@@ -38,8 +38,8 @@ from sqlalchemy import inspect
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
-# For example, the diff_object table would need a `class_id` field an a `diff_class_id` field,
-# plus a CHECK constraint so that at least one of the two is NOT NULL.
+# For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
+# plus a CHECK constraint that at least one of the two is NOT NULL.
 # @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     module_name = dbapi_connection.__class__.__module__
@@ -48,6 +48,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+
 
 # TODO: Find a way to keep this in synch with `create_new_spine_database`
 OBJECT_CLASS_NAMES = (
@@ -60,31 +61,47 @@ OBJECT_CLASS_NAMES = (
     'connection'
 )
 
+
 @compiles(TINYINT, 'sqlite')
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql TINYINT datatype as INTEGER in sqlite """
     return compiler.visit_INTEGER(element, **kw)
+
 
 @compiles(DOUBLE, 'sqlite')
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
 
+
 def attr_dict(item):
     """A dictionary of all attributes of item."""
     return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
-def copy_database(dest_url, source_url, skip_tables=list()):
+
+def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
     """Copy the database from source_url into dest_url."""
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
     meta = MetaData()
     meta.reflect(source_engine)
-    meta.create_all(dest_engine)
+    for t in meta.sorted_tables:
+        if t.name.startswith("diff"):
+            continue
+        if only_tables and t.name not in only_tables:
+            continue
+        if t.name in skip_tables:
+            continue
+        t.create(dest_engine)
+    # meta.create_all(dest_engine)
     # Copy tables
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
     for t in meta.sorted_tables:
+        if t.name.startswith("diff"):
+            continue
+        if only_tables and t.name not in only_tables:
+            continue
         if t.name in skip_tables:
             continue
         source_table = Table(t, source_meta, autoload=True)
@@ -96,11 +113,13 @@ def copy_database(dest_url, source_url, skip_tables=list()):
             ins = dest_table.insert()
             dest_engine.execute(ins, values)
 
+
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
     if direction is interfaces.ONETOMANY:
         kw['cascade'] = 'all, delete-orphan'
         kw['passive_deletes'] = True
     return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
+
 
 def is_unlocked(db_url, timeout=0):
     """Return True if the SQLite db_url is unlocked, after waiting at most timeout seconds.
@@ -113,6 +132,7 @@ def is_unlocked(db_url, timeout=0):
         return True
     except OperationalError:
         return False
+
 
 def merge_database(dest_url, source_url, skip_tables=list()):
     """Merge the database from source_url into dest_url."""
@@ -138,6 +158,7 @@ def merge_database(dest_url, source_url, skip_tables=list()):
                 dest_engine.execute(ins, row)
             except IntegrityError as e:
                 print('Skipping row {0}: {1}'.format(row, e.orig.args))
+
 
 def create_new_spine_database(db_url):
     """Create a new Spine database in the given database url."""
