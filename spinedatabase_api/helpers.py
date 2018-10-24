@@ -85,15 +85,7 @@ def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
     dest_engine = create_engine(dest_url)
     meta = MetaData()
     meta.reflect(source_engine)
-    for t in meta.sorted_tables:
-        if t.name.startswith("diff"):
-            continue
-        if only_tables and t.name not in only_tables:
-            continue
-        if t.name in skip_tables:
-            continue
-        t.create(dest_engine)
-    # meta.create_all(dest_engine)
+    meta.create_all(dest_engine)
     # Copy tables
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
