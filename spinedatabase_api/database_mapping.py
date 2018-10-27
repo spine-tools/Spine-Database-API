@@ -406,7 +406,9 @@ class DatabaseMapping(object):
         object_class_list = self.object_class_list().subquery()
         qry = self.session.query(
             self.Parameter.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
+            self.Parameter.id.label('parameter_id'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
             self.Parameter.can_have_time_pattern,
@@ -428,8 +430,11 @@ class DatabaseMapping(object):
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
             self.Parameter.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
+            self.Parameter.id.label('parameter_id'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
             self.Parameter.can_have_time_pattern,
@@ -475,8 +480,11 @@ class DatabaseMapping(object):
         object_list = self.object_list().subquery()
         qry = self.session.query(
             self.ParameterValue.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
+            object_list.c.id.label('object_id'),
             object_list.c.name.label('object_name'),
+            parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
             self.ParameterValue.index,
             self.ParameterValue.value,
@@ -499,8 +507,11 @@ class DatabaseMapping(object):
         wide_relationship_list = self.wide_relationship_list().subquery()
         qry = self.session.query(
             self.ParameterValue.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
+            parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
             self.ParameterValue.index,
             self.ParameterValue.value,

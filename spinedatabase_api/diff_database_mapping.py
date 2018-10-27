@@ -36,7 +36,6 @@ from .helpers import custom_generate_relationship, attr_dict
 from datetime import datetime, timezone
 
 
-# TODO: Check unique name constraints across orig and diff tables:
 # TODO: improve docstrings
 
 class DiffDatabaseMapping(DatabaseMapping):
@@ -487,7 +486,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         object_class_list = self.object_class_list().subquery()
         qry = self.session.query(
             self.Parameter.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
+            self.Parameter.id.label('parameter_id'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
             self.Parameter.can_have_time_pattern,
@@ -501,7 +502,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(~self.Parameter.id.in_(self.touched_item_id["parameter"]))
         diff_qry = self.session.query(
             self.DiffParameter.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
+            self.DiffParameter.id.label('parameter_id'),
             self.DiffParameter.name.label('parameter_name'),
             self.DiffParameter.can_have_time_series,
             self.DiffParameter.can_have_time_pattern,
@@ -525,8 +528,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         qry = self.session.query(
             self.Parameter.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
+            self.Parameter.id.label('parameter_id'),
             self.Parameter.name.label('parameter_name'),
             self.Parameter.can_have_time_series,
             self.Parameter.can_have_time_pattern,
@@ -540,8 +546,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(~self.Parameter.id.in_(self.touched_item_id["parameter"]))
         diff_qry = self.session.query(
             self.DiffParameter.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
+            self.DiffParameter.id.label('parameter_id'),
             self.DiffParameter.name.label('parameter_name'),
             self.DiffParameter.can_have_time_series,
             self.DiffParameter.can_have_time_pattern,
@@ -594,8 +603,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         object_list = self.object_list().subquery()
         qry = self.session.query(
             self.ParameterValue.id.label('id'),
+            object_class_id.c.name.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
+            object_list.c.id.label('object_id'),
             object_list.c.name.label('object_name'),
+            parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
             self.ParameterValue.index,
             self.ParameterValue.value,
@@ -610,8 +622,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
             self.DiffParameterValue.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
+            object_list.c.id.label('object_id'),
             object_list.c.name.label('object_name'),
+            parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
             self.DiffParameterValue.index,
             self.DiffParameterValue.value,
@@ -635,8 +650,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         wide_relationship_list = self.wide_relationship_list().subquery()
         qry = self.session.query(
             self.ParameterValue.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
+            parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
             self.ParameterValue.index,
             self.ParameterValue.value,
@@ -651,8 +669,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
             self.DiffParameterValue.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
+            parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
             self.DiffParameterValue.index,
             self.DiffParameterValue.value,
