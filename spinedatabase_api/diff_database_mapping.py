@@ -603,7 +603,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         object_list = self.object_list().subquery()
         qry = self.session.query(
             self.ParameterValue.id.label('id'),
-            object_class_id.c.name.label('object_class_id'),
+            object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             object_list.c.id.label('object_id'),
             object_list.c.name.label('object_name'),
@@ -652,6 +652,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.ParameterValue.id.label('id'),
             wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
+            wide_relationship_class_list.c.object_class_name_list,
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
@@ -671,6 +673,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValue.id.label('id'),
             wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
+            wide_relationship_class_list.c.object_class_name_list,
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
