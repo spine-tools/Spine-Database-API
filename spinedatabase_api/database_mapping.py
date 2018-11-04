@@ -509,6 +509,8 @@ class DatabaseMapping(object):
             self.ParameterValue.id.label('id'),
             wide_relationship_class_list.c.id.label('relationship_class_id'),
             wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
+            wide_relationship_class_list.c.object_class_name_list,
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
