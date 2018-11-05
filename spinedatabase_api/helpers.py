@@ -35,6 +35,7 @@ from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
 from .exception import SpineDBAPIError
 from sqlalchemy import inspect
+import warnings
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -101,9 +102,13 @@ def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
         sel = select([source_table])
         result = source_engine.execute(sel)
         values = [row for row in result]
-        if values:
-            ins = dest_table.insert()
+        if not values:
+            continue
+        ins = dest_table.insert()
+        try:
             dest_engine.execute(ins, values)
+        except IntegrityError as e:
+            warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
@@ -149,7 +154,7 @@ def merge_database(dest_url, source_url, skip_tables=list()):
             try:
                 dest_engine.execute(ins, row)
             except IntegrityError as e:
-                print('Skipping row {0}: {1}'.format(row, e.orig.args))
+                warnings.warn('Skipping row {0}: {1}'.format(row, e.orig.args))
 
 
 def create_new_spine_database(db_url):
