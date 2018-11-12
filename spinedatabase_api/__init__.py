@@ -5,3 +5,5 @@ from .exception import SpineDBAPIError, SpineIntegrityError, SpineTableNotFoundE
 from .helpers import create_new_spine_database, copy_database, merge_database, is_unlocked, OBJECT_CLASS_NAMES
 
 name = "spinedatabase_api"
+
+__version__ = "0.0.10"
