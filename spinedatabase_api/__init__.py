@@ -6,4 +6,4 @@ from .helpers import create_new_spine_database, copy_database, merge_database, i
 
 name = "spinedatabase_api"
 
-__version__ = "0.0.10"
+__version__ = "0.0.11"

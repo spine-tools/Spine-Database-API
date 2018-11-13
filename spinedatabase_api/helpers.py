@@ -272,7 +272,7 @@ def create_new_spine_database(db_url):
             description VARCHAR(155) DEFAULT NULL,
             data_type VARCHAR(155) DEFAULT 'NUMERIC',
             relationship_class_id INTEGER DEFAULT NULL,
-            dummy_relationship_class_dimension INTEGER DEFAULT '1',
+            dummy_relationship_class_dimension INTEGER DEFAULT '0',
             object_class_id INTEGER DEFAULT NULL,
             can_have_time_series INTEGER DEFAULT '0',
             can_have_time_pattern INTEGER DEFAULT '1',
@@ -322,14 +322,62 @@ def create_new_spine_database(db_url):
     """
     sql_list.append(sql)
     sql = """
-        INSERT OR IGNORE INTO `object_class` (`name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
-        ('direction', 'Direction class', NULL, 1, NULL, 0, NULL),
-        ('unit', 'Unit class', NULL, 2, NULL, 0, NULL),
-        ('commodity', 'Commodity class', NULL, 3, NULL, 0, NULL),
-        ('node', 'Node class', NULL, 4, NULL, 0, NULL),
-        ('grid', 'Grid class', NULL, 5, NULL, 0, NULL),
-        ('time', 'Time class', NULL, 6, NULL, 0, NULL),
-        ('connection', 'Connection class', NULL, 7, NULL, 0, NULL);
+        INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
+        (1, 'direction', 'A flow direction, e.g., out of a node and into a unit', NULL, 1, NULL, 0, NULL),
+        (2, 'unit', 'An entity where an energy conversion process takes place', NULL, 2, NULL, 0, NULL),
+        (3, 'commodity', 'A commodity', NULL, 3, NULL, 0, NULL),
+        (4, 'node', 'An entity where an energy balance takes place', NULL, 4, NULL, 0, NULL),
+        (5, 'connection', 'An entity where an energy transfer takes place', NULL, 5, NULL, 0, NULL),
+        (6, 'grid', 'A grid', NULL, 6, NULL, 0, NULL),
+        (7, 'time_stage', 'A time stage', NULL, 7, NULL, 0, NULL),
+        (8, 'unit_group', 'A group of units', NULL, 7, NULL, 0, NULL),
+        (9, 'commodity_group', 'A group of commodities', NULL, 7, NULL, 0, NULL);
+    """
+    sql_list.append(sql)
+    sql = """
+        INSERT OR IGNORE INTO `object` (`class_id`, `name`, `description`, `category_id`, `commit_id`) VALUES
+        (1, 'in', 'Into a unit, out of a node', NULL, NULL),
+        (1, 'out', 'Out of a unit, into a node', NULL, NULL);
+    """
+    sql_list.append(sql)
+    sql = """
+        INSERT OR IGNORE INTO `relationship_class` (`id`, `dimension`, `object_class_id`, `name`, `hidden`, `commit_id`) VALUES
+        (1, 0, 3, 'commodity__node__unit__direction', 0, NULL),
+        (1, 1, 4, 'commodity__node__unit__direction', 0, NULL),
+        (1, 2, 2, 'commodity__node__unit__direction', 0, NULL),
+        (1, 3, 1, 'commodity__node__unit__direction', 0, NULL),
+        (2, 0, 5, 'connection__from_node__to_node', 0, NULL),
+        (2, 1, 4, 'connection__from_node__to_node', 0, NULL),
+        (2, 2, 4, 'connection__from_node__to_node', 0, NULL),
+        (3, 0, 2, 'unit__commodity', 0, NULL),
+        (3, 1, 3, 'unit__commodity', 0, NULL),
+        (4, 0, 2, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+        (4, 1, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+        (4, 2, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+        (5, 0, 8, 'unit_group__unit', 0, NULL),
+        (5, 1, 2, 'unit_group__unit', 0, NULL),
+        (6, 0, 9, 'commodity_group__commodity', 0, NULL),
+        (6, 1, 3, 'commodity_group__commodity', 0, NULL),
+        (7, 0, 8, 'unit_group__commodity_group', 0, NULL),
+        (7, 1, 9, 'unit_group__commodity_group', 0, NULL);
+    """
+    sql_list.append(sql)
+    sql = """
+        INSERT OR IGNORE INTO `parameter` (`name`, `object_class_id`, `commit_id`) VALUES
+        ('avail_factor', 2, NULL),
+        ('number_of_units', 2, NULL),
+        ('demand', 4, NULL),
+        ('trans_cap', 5, NULL),
+        ('number_of_timesteps', 7, NULL);
+    """
+    sql_list.append(sql)
+    sql = """
+        INSERT OR IGNORE INTO `parameter` (`name`, `relationship_class_id`, `commit_id`) VALUES
+        ('unit_capacity', 3, NULL),
+        ('unit_conv_cap_to_flow', 3, NULL),
+        ('conversion_cost', 3, NULL),
+        ('fix_ratio_out_in_flow', 4, NULL),
+        ('max_cum_in_flow_bound', 7, NULL);
     """
     sql_list.append(sql)
     sql = """
