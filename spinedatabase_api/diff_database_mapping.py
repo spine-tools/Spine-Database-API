@@ -123,7 +123,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.diff_metadata = MetaData()
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
-            if t.name.startswith('diff_'):
+            # Drop lost differences
+            if t.name.startswith("diff_" + self.username):
+                t.drop(self.engine)
                 continue
             if t.name == 'next_id':
                 continue
