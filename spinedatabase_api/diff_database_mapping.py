@@ -1181,8 +1181,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             item_list = list()
             id_list = set(range(id, id + len(checked_kwargs_list)))
             for kwargs in checked_kwargs_list:
-                item = {"id": id, **kwargs}
-                item_list.append(item)
+                kwargs["id"] = id
+                item_list.append(kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffObjectClass, item_list)
             next_id.object_class_id = id
@@ -1211,8 +1211,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             item_list = list()
             id_list = set(range(id, id + len(checked_kwargs_list)))
             for kwargs in checked_kwargs_list:
-                item = {"id": id, **kwargs}
-                item_list.append(item)
+                kwargs["id"] = id
+                item_list.append(kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffObject, item_list)
             next_id.object_id = id
@@ -1314,8 +1314,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             item_list = list()
             id_list = set(range(id, id + len(checked_kwargs_list)))
             for kwargs in checked_kwargs_list:
-                item = {"id": id, **kwargs}
-                item_list.append(item)
+                kwargs["id"] = id
+                item_list.append(kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffParameter, item_list)
             next_id.parameter_id = id
@@ -1344,8 +1344,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             item_list = list()
             id_list = set(range(id, id + len(checked_kwargs_list)))
             for kwargs in checked_kwargs_list:
-                item = {"id": id, **kwargs}
-                item_list.append(item)
+                kwargs["id"] = id
+                item_list.append(kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffParameterValue, item_list)
             next_id.parameter_value_id = id
