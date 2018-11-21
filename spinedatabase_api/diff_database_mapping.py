@@ -753,11 +753,11 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing object class identifier.")
             try:
                 # 'Remove' current instance
-                curr_kwargs = object_class_dict.pop(id)
+                updated_kwargs = object_class_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Object class not found.")
             # Check for an insert of the updated instance
-            updated_kwargs = {**curr_kwargs, **kwargs}
+            updated_kwargs.update(kwargs)
             self.check_object_class(updated_kwargs, list(object_class_dict.values()))
             checked_kwargs_list.append(kwargs)
             # If the check passes, reinject the updated instance to `object_class_dict` for next iteration.
@@ -797,10 +797,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing object identifier.")
             try:
-                curr_kwargs = object_dict.pop(id)
+                updated_kwargs = object_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Object not found.")
-            updated_kwargs = {**curr_kwargs, **kwargs}
+            updated_kwargs.update(kwargs)
             self.check_object(updated_kwargs, list(object_dict.values()), object_class_id_list)
             checked_kwargs_list.append(kwargs)
             object_dict[id] = updated_kwargs
@@ -848,10 +848,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing relationship class identifier.")
             try:
-                curr_wide_kwargs = relationship_class_dict.pop(id)
+                updated_wide_kwargs = relationship_class_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Relationship class not found.")
-            updated_wide_kwargs = {**curr_wide_kwargs, **wide_kwargs}
+            updated_wide_kwargs.update(wide_kwargs)
             self.check_wide_relationship_class(
                 updated_wide_kwargs, list(relationship_class_dict.values()), object_class_id_list)
             checked_wide_kwargs_list.append(wide_kwargs)
@@ -914,10 +914,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing relationship identifier.")
             try:
-                curr_wide_kwargs = relationship_dict.pop(id)
+                updated_wide_kwargs = relationship_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Relationship not found.")
-            updated_wide_kwargs = {**curr_wide_kwargs, **wide_kwargs}
+            updated_wide_kwargs.update(wide_kwargs)
             self.check_wide_relationship(
                 updated_wide_kwargs, list(relationship_dict.values()),
                 relationship_class_dict, object_dict)
@@ -984,7 +984,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing parameter identifier.")
             try:
-                curr_kwargs = parameter_dict.pop(id)
+                updated_kwargs = parameter_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Parameter not found.")
             # Allow turning an object class parameter into a relationship class parameter, and viceversa
@@ -992,7 +992,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 kwargs.setdefault("relationship_class_id", None)
             if "relationship_class_id" in kwargs:
                 kwargs.setdefault("object_class_id", None)
-            updated_kwargs = {**curr_kwargs, **kwargs}
+            updated_kwargs.update(kwargs)
             self.check_parameter(
                 updated_kwargs, list(parameter_dict.values()),
                 object_class_id_list, relationship_class_id_list)
@@ -1071,7 +1071,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing parameter value identifier.")
             try:
-                curr_kwargs = parameter_value_dict.pop(id)
+                updated_kwargs = parameter_value_dict.pop(id)
             except KeyError:
                 raise SpineIntegrityError("Parameter value not found.")
             # Allow turning an object parameter value into a relationship parameter value, and viceversa
@@ -1079,7 +1079,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 kwargs.setdefault("relationship_id", None)
             if "relationship_id" in kwargs:
                 kwargs.setdefault("object_id", None)
-            updated_kwargs = {**curr_kwargs, **kwargs}
+            updated_kwargs.update(kwargs)
             self.check_parameter_value(
                 updated_kwargs, list(parameter_value_dict.values()),
                 parameter_dict, object_dict, relationship_dict)
@@ -1415,13 +1415,15 @@ class DiffDatabaseMapping(DatabaseMapping):
                     continue
                 diff_item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
                 if diff_item:
-                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    updated_kwargs = attr_dict(diff_item)
+                    updated_kwargs.update(kwargs)
                     items_for_update.append(updated_kwargs)
                     updated_ids.add(id)
                 else:
                     item = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
                         updated_ids.add(id)
@@ -1453,13 +1455,15 @@ class DiffDatabaseMapping(DatabaseMapping):
                     continue
                 diff_item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
                 if diff_item:
-                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    updated_kwargs = attr_dict(diff_item)
+                    updated_kwargs.update(kwargs)
                     items_for_update.append(updated_kwargs)
                     updated_ids.add(id)
                 else:
                     item = self.session.query(self.Object).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
                         updated_ids.add(id)
@@ -1494,24 +1498,26 @@ class DiffDatabaseMapping(DatabaseMapping):
                 diff_item_list = self.session.query(self.DiffRelationshipClass).filter_by(id=id)
                 if diff_item_list.count():
                     for dimension, diff_item in enumerate(diff_item_list):
-                        narrow_kwargs = {**wide_kwargs}
+                        narrow_kwargs = wide_kwargs
                         try:
                             narrow_kwargs.update({'object_class_id': object_class_id_list[dimension]})
                         except IndexError:
                             pass
-                        updated_kwargs = {**attr_dict(diff_item), **narrow_kwargs}
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(narrow_kwargs)
                         items_for_update.append(updated_kwargs)
                     updated_ids.add(id)
                 else:
                     item_list = self.session.query(self.RelationshipClass).filter_by(id=id)
                     if item_list.count():
                         for dimension, item in enumerate(item_list):
-                            narrow_kwargs = {**wide_kwargs}
+                            narrow_kwargs = wide_kwargs
                             try:
                                 narrow_kwargs.update({'object_class_id': object_class_id_list[dimension]})
                             except IndexError:
                                 pass
-                            updated_kwargs = {**attr_dict(item), **narrow_kwargs}
+                            updated_kwargs = attr_dict(diff_item)
+                            updated_kwargs.update(narrow_kwargs)
                             items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
                         updated_ids.add(id)
@@ -1546,24 +1552,26 @@ class DiffDatabaseMapping(DatabaseMapping):
                     order_by(self.DiffRelationship.dimension)
                 if diff_item_list.count():
                     for dimension, diff_item in enumerate(diff_item_list):
-                        narrow_kwargs = {**wide_kwargs}
+                        narrow_kwargs = wide_kwargs
                         try:
                             narrow_kwargs.update({'object_id': object_id_list[dimension]})
                         except IndexError:
                             pass
-                        updated_kwargs = {**attr_dict(diff_item), **narrow_kwargs}
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(narrow_kwargs)
                         items_for_update.append(updated_kwargs)
                     updated_ids.add(id)
                 else:
                     item_list = self.session.query(self.Relationship).filter_by(id=id)
                     if item_list.count():
                         for dimension, item in enumerate(item_list):
-                            narrow_kwargs = {**wide_kwargs}
+                            narrow_kwargs = wide_kwargs
                             try:
                                 narrow_kwargs.update({'object_id': object_id_list[dimension]})
                             except IndexError:
                                 pass
-                            updated_kwargs = {**attr_dict(item), **narrow_kwargs}
+                            updated_kwargs = attr_dict(diff_item)
+                            updated_kwargs.update(narrow_kwargs)
                             items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
                         updated_ids.add(id)
@@ -1595,13 +1603,15 @@ class DiffDatabaseMapping(DatabaseMapping):
                     continue
                 diff_item = self.session.query(self.DiffParameter).filter_by(id=id).one_or_none()
                 if diff_item:
-                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    updated_kwargs = attr_dict(diff_item)
+                    updated_kwargs.update(kwargs)
                     items_for_update.append(updated_kwargs)
                     updated_ids.add(id)
                 else:
                     item = self.session.query(self.Parameter).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
                         updated_ids.add(id)
@@ -1633,13 +1643,15 @@ class DiffDatabaseMapping(DatabaseMapping):
                     continue
                 diff_item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
                 if diff_item:
-                    updated_kwargs = {**attr_dict(diff_item), **kwargs}
+                    updated_kwargs = attr_dict(diff_item)
+                    updated_kwargs.update(kwargs)
                     items_for_update.append(updated_kwargs)
                     updated_ids.add(id)
                 else:
                     item = self.session.query(self.ParameterValue).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = {**attr_dict(item), **kwargs}
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
                         updated_ids.add(id)
