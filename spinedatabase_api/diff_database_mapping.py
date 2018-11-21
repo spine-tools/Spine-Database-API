@@ -123,9 +123,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.diff_metadata = MetaData()
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
-            # Drop lost differences
             if t.name.startswith("diff_" + self.username):
-                t.drop(self.engine)
                 continue
             if t.name == 'next_id':
                 continue
@@ -148,9 +146,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                     )
                     diff_constraints.append(foreign_key_constraint)
             # Create table
+            args = diff_columns + diff_constraints
             diff_table = Table(
-                self.diff_prefix + t.name, self.diff_metadata,
-                *diff_columns, *diff_constraints)
+                self.diff_prefix + t.name, self.diff_metadata, *args)
         self.diff_metadata.drop_all(self.engine)
         self.diff_metadata.create_all(self.engine)
         # Mapping...

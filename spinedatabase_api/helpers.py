@@ -57,9 +57,11 @@ OBJECT_CLASS_NAMES = (
     'unit',
     'commodity',
     'node',
+    'connection',
     'grid',
-    'time',
-    'connection'
+    'time_stage',
+    'unit_group',
+    'commodity_group'
 )
 
 
