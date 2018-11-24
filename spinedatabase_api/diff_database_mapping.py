@@ -43,13 +43,14 @@ class DiffDatabaseMapping(DatabaseMapping):
     In a nutshell, it works by creating a new bunch of tables to hold differences
     with respect to original tables.
     """
-    def __init__(self, db_url, username=None, create_all=True):
+    def __init__(self, db_url, username=None, create_all=True, warm_up=False):
         """Initialize class."""
         super().__init__(db_url, username=username, create_all=False)
         # Diff meta, Base and tables
         self.diff_prefix = None
         self.diff_metadata = None
         self.DiffBase = None
+        self.DiffCommit = None
         self.DiffObjectClass = None
         self.DiffObject = None
         self.DiffRelationshipClass = None
@@ -70,6 +71,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.create_diff_tables_and_mapping()
             self.init_next_id()
             # self.create_triggers()
+        # NOTE: this was intended to remove lag when running the first operation
+        # But actually the lag was caused by orphan diff tables...
+        if warm_up:
+            user = self.username
+            date = datetime.now(timezone.utc)
+            comment = "warming up"
+            diff_commit = self.DiffCommit(comment=comment, date=date, user=user)
+            self.session.add(diff_commit)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def has_pending_changes(self):
         """Return True if there are uncommitted changes. Otherwise return False."""
@@ -155,6 +170,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.DiffBase = automap_base(metadata=self.diff_metadata)
         self.DiffBase.prepare(generate_relationship=custom_generate_relationship)
         try:
+            self.DiffCommit = getattr(self.DiffBase.classes, self.diff_prefix + "commit")
             self.DiffObjectClass = getattr(self.DiffBase.classes, self.diff_prefix + "object_class")
             self.DiffObject = getattr(self.DiffBase.classes, self.diff_prefix + "object")
             self.DiffRelationshipClass = getattr(self.DiffBase.classes, self.diff_prefix + "relationship_class")
@@ -592,7 +608,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter_by(relationship_id=relationship_id)
         return qry.union_all(diff_qry)
 
-    def object_parameter_value_list(self, parameter_name=None):
+    def object_parameter_value_list(self, object_class_id=None, parameter_name=None):
         """Return objects and their parameter values."""
         parameter_list = self.parameter_list().subquery()
         object_class_list = self.object_class_list().subquery()
@@ -634,12 +650,15 @@ class DiffDatabaseMapping(DatabaseMapping):
         ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_id).\
         filter(self.DiffParameterValue.object_id == object_list.c.id).\
         filter(parameter_list.c.object_class_id == object_class_list.c.id)
+        if object_class_id:
+            qry = qry.filter(object_class_list.c.id == object_class_id)
+            diff_qry = diff_qry.filter(object_class_list.c.id == object_class_id)
         if parameter_name:
             qry = qry.filter(parameter_list.c.name == parameter_name)
             diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
         return qry.union_all(diff_qry)
 
-    def relationship_parameter_value_list(self, parameter_name=None):
+    def relationship_parameter_value_list(self, relationship_class_id=None, parameter_name=None):
         """Return relationships and their parameter values."""
         parameter_list = self.parameter_list().subquery()
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
@@ -685,6 +704,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_id).\
         filter(self.DiffParameterValue.relationship_id == wide_relationship_list.c.id).\
         filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id)
+        if relationship_class_id:
+            qry = qry.filter(wide_relationship_class_list.c.id == relationship_class_id)
+            diff_qry = diff_qry.filter(wide_relationship_class_list.c.id == relationship_class_id)
         if parameter_name:
             qry = qry.filter(parameter_list.c.name == parameter_name)
             diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
@@ -1422,7 +1444,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 else:
                     item = self.session.query(self.ObjectClass).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs = attr_dict(item)
                         updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
@@ -1462,7 +1484,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 else:
                     item = self.session.query(self.Object).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs = attr_dict(item)
                         updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
@@ -1516,7 +1538,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                                 narrow_kwargs.update({'object_class_id': object_class_id_list[dimension]})
                             except IndexError:
                                 pass
-                            updated_kwargs = attr_dict(diff_item)
+                            updated_kwargs = attr_dict(item)
                             updated_kwargs.update(narrow_kwargs)
                             items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
@@ -1570,7 +1592,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                                 narrow_kwargs.update({'object_id': object_id_list[dimension]})
                             except IndexError:
                                 pass
-                            updated_kwargs = attr_dict(diff_item)
+                            updated_kwargs = attr_dict(item)
                             updated_kwargs.update(narrow_kwargs)
                             items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
@@ -1610,7 +1632,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 else:
                     item = self.session.query(self.Parameter).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs = attr_dict(item)
                         updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
@@ -1650,7 +1672,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 else:
                     item = self.session.query(self.ParameterValue).filter_by(id=id).one_or_none()
                     if item:
-                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs = attr_dict(item)
                         updated_kwargs.update(kwargs)
                         items_for_insert.append(updated_kwargs)
                         new_dirty_ids.add(id)
