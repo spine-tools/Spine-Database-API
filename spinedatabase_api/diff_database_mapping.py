@@ -80,12 +80,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_commit = self.DiffCommit(comment=comment, date=date, user=user)
             self.session.add(diff_commit)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
     def has_pending_changes(self):
         """Return True if there are uncommitted changes. Otherwise return False."""
         if any([v for v in self.new_item_id.values()]):
@@ -669,6 +663,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
+            wide_relationship_list.c.id.label('relationship_id'),
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
@@ -690,6 +685,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
+            wide_relationship_list.c.id.label('relationship_id'),
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
@@ -967,6 +963,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             raise SpineIntegrityError("Object not found.")
         if given_object_class_id_list != object_class_id_list:
             raise SpineIntegrityError("Incorrect objects for this relationship class.")
+        if len(object_id_list) != len(set(object_id_list)):
+            raise SpineIntegrityError("The same object can't appear twice in one relationship.")
         if (class_id, object_id_list) in [(x["class_id"], x["object_id_list"]) for x in relationship_list]:
             raise SpineIntegrityError("There can't be more than one relationship between the same objects "
                                       "in one class.")
