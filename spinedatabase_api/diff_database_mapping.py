@@ -709,6 +709,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         return qry.union_all(diff_qry)
 
     # TODO: Find out why we don't need to say, e.g., ~self.DiffParameter.id.in_(valued_parameter_ids)
+    # NOTE: maybe these unvalued... are obsolete
     def unvalued_object_parameter_list(self, object_id):
         """Return parameters that do not have a value for given object."""
         object_ = self.single_object(id=object_id).one_or_none()
@@ -2086,97 +2087,130 @@ class DiffDatabaseMapping(DatabaseMapping):
             commit = self.Commit(comment=comment, date=date, user=user)
             self.session.add(commit)
             self.session.flush()
+            n = 1000  # Maximum number of sql variables
             # Remove removed
-            self.session.query(self.ObjectClass).filter(
-                self.ObjectClass.id.in_(self.removed_item_id["object_class"])
-            ).delete(synchronize_session=False)
-            self.session.query(self.Object).filter(
-                self.Object.id.in_(self.removed_item_id["object"])
-            ).delete(synchronize_session=False)
-            self.session.query(self.RelationshipClass).filter(
-                self.RelationshipClass.id.in_(self.removed_item_id["relationship_class"])
-            ).delete(synchronize_session=False)
-            self.session.query(self.Relationship).filter(
-                self.Relationship.id.in_(self.removed_item_id["relationship"])
-            ).delete(synchronize_session=False)
-            self.session.query(self.Parameter).filter(
-                self.Parameter.id.in_(self.removed_item_id["parameter"])
-            ).delete(synchronize_session=False)
-            self.session.query(self.ParameterValue).filter(
-                self.ParameterValue.id.in_(self.removed_item_id["parameter_value"])
-            ).delete(synchronize_session=False)
+            removed_object_class_id = list(self.removed_item_id["object_class"])
+            removed_object_id = list(self.removed_item_id["object"])
+            removed_relationship_class_id = list(self.removed_item_id["relationship_class"])
+            removed_relationship_id = list(self.removed_item_id["relationship"])
+            removed_parameter_id = list(self.removed_item_id["parameter"])
+            removed_parameter_value_id = list(self.removed_item_id["parameter_value"])
+            for i in range(0, len(removed_object_class_id), n):
+                self.session.query(self.ObjectClass).filter(
+                    self.ObjectClass.id.in_(removed_object_class_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_object_id), n):
+                self.session.query(self.Object).filter(
+                    self.Object.id.in_(removed_object_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_relationship_class_id), n):
+                self.session.query(self.RelationshipClass).filter(
+                    self.RelationshipClass.id.in_(removed_relationship_class_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_relationship_id), n):
+                self.session.query(self.Relationship).filter(
+                    self.Relationship.id.in_(removed_relationship_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_parameter_id), n):
+                self.session.query(self.Parameter).filter(
+                    self.Parameter.id.in_(removed_parameter_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_parameter_value_id), n):
+                self.session.query(self.ParameterValue).filter(
+                    self.ParameterValue.id.in_(removed_parameter_value_id[i:i + n])
+                ).delete(synchronize_session=False)
             # Merge dirty
-            dirty_items = {om: [] for om in [self.ObjectClass, self.Object,
-                                             self.RelationshipClass, self.Relationship,
-                                             self.Parameter, self.ParameterValue]}
-            for item in self.session.query(self.DiffObjectClass).\
-                    filter(self.DiffObjectClass.id.in_(self.dirty_item_id["object_class"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                dirty_items[self.ObjectClass].append(kwargs)
-            for item in self.session.query(self.DiffObject).\
-                    filter(self.DiffObject.id.in_(self.dirty_item_id["object"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                dirty_items[self.Object].append(kwargs)
-            for item in self.session.query(self.DiffRelationshipClass).\
-                    filter(self.DiffRelationshipClass.id.in_(self.dirty_item_id["relationship_class"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                dirty_items[self.RelationshipClass].append(kwargs)
-            for item in self.session.query(self.DiffRelationship).\
-                    filter(self.DiffRelationship.id.in_(self.dirty_item_id["relationship"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                dirty_items[self.Relationship].append(kwargs)
-            for item in self.session.query(self.DiffParameter).\
-                    filter(self.DiffParameter.id.in_(self.dirty_item_id["parameter"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                dirty_items[self.Parameter].append(kwargs)
-            for item in self.session.query(self.DiffParameterValue).\
-                    filter(self.DiffParameterValue.id.in_(self.dirty_item_id["parameter_value"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                dirty_items[self.ParameterValue].append(kwargs)
+            dirty_object_class_id = list(self.dirty_item_id["object_class"])
+            dirty_object_id = list(self.dirty_item_id["object"])
+            dirty_relationship_class_id = list(self.dirty_item_id["relationship_class"])
+            dirty_relationship_id = list(self.dirty_item_id["relationship"])
+            dirty_parameter_id = list(self.dirty_item_id["parameter"])
+            dirty_parameter_value_id = list(self.dirty_item_id["parameter_value"])
+            dirty_items = {}
+            for i in range(0, len(dirty_object_class_id), n):
+                for item in self.session.query(self.DiffObjectClass).\
+                        filter(self.DiffObjectClass.id.in_(dirty_object_class_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.ObjectClass, []).append(kwargs)
+            for i in range(0, len(dirty_object_id), n):
+                for item in self.session.query(self.DiffObject).\
+                        filter(self.DiffObject.id.in_(dirty_object_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.Object, []).append(kwargs)
+            for i in range(0, len(dirty_relationship_class_id), n):
+                for item in self.session.query(self.DiffRelationshipClass).\
+                        filter(self.DiffRelationshipClass.id.in_(dirty_relationship_class_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.RelationshipClass, []).append(kwargs)
+            for i in range(0, len(dirty_relationship_id), n):
+                for item in self.session.query(self.DiffRelationship).\
+                        filter(self.DiffRelationship.id.in_(dirty_relationship_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.Relationship, []).append(kwargs)
+            for i in range(0, len(dirty_parameter_id), n):
+                for item in self.session.query(self.DiffParameter).\
+                        filter(self.DiffParameter.id.in_(dirty_parameter_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.Parameter, []).append(kwargs)
+            for i in range(0, len(dirty_parameter_value_id), n):
+                for item in self.session.query(self.DiffParameterValue).\
+                        filter(self.DiffParameterValue.id.in_(dirty_parameter_value_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.ParameterValue, []).append(kwargs)
             self.session.flush()  # TODO: Check if this is needed
             # Bulk update
             for k, v in dirty_items.items():
                 self.session.bulk_update_mappings(k, v)
             # Add new
-            new_items = {om: [] for om in [self.ObjectClass, self.Object,
-                                           self.RelationshipClass, self.Relationship,
-                                           self.Parameter, self.ParameterValue]}
-            for item in self.session.query(self.DiffObjectClass).\
-                    filter(self.DiffObjectClass.id.in_(self.new_item_id["object_class"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                new_items[self.ObjectClass].append(kwargs)
-            for item in self.session.query(self.DiffObject).\
-                    filter(self.DiffObject.id.in_(self.new_item_id["object"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                new_items[self.Object].append(kwargs)
-            for item in self.session.query(self.DiffRelationshipClass).\
-                    filter(self.DiffRelationshipClass.id.in_(self.new_item_id["relationship_class"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                new_items[self.RelationshipClass].append(kwargs)
-            for item in self.session.query(self.DiffRelationship).\
-                    filter(self.DiffRelationship.id.in_(self.new_item_id["relationship"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                new_items[self.Relationship].append(kwargs)
-            for item in self.session.query(self.DiffParameter).\
-                    filter(self.DiffParameter.id.in_(self.new_item_id["parameter"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                new_items[self.Parameter].append(kwargs)
-            for item in self.session.query(self.DiffParameterValue).\
-                    filter(self.DiffParameterValue.id.in_(self.new_item_id["parameter_value"])):
-                kwargs = attr_dict(item)
-                kwargs['commit_id'] = commit.id
-                new_items[self.ParameterValue].append(kwargs)
+            new_object_class_id = list(self.new_item_id["object_class"])
+            new_object_id = list(self.new_item_id["object"])
+            new_relationship_class_id = list(self.new_item_id["relationship_class"])
+            new_relationship_id = list(self.new_item_id["relationship"])
+            new_parameter_id = list(self.new_item_id["parameter"])
+            new_parameter_value_id = list(self.new_item_id["parameter_value"])
+            new_items = {}
+            for i in range(0, len(new_object_class_id), n):
+                for item in self.session.query(self.DiffObjectClass).\
+                        filter(self.DiffObjectClass.id.in_(new_object_class_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.ObjectClass, []).append(kwargs)
+            for i in range(0, len(new_object_id), n):
+                for item in self.session.query(self.DiffObject).\
+                        filter(self.DiffObject.id.in_(new_object_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.Object, []).append(kwargs)
+            for i in range(0, len(new_relationship_class_id), n):
+                for item in self.session.query(self.DiffRelationshipClass).\
+                        filter(self.DiffRelationshipClass.id.in_(new_relationship_class_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.RelationshipClass, []).append(kwargs)
+            for i in range(0, len(new_relationship_id), n):
+                for item in self.session.query(self.DiffRelationship).\
+                        filter(self.DiffRelationship.id.in_(new_relationship_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.Relationship, []).append(kwargs)
+            for i in range(0, len(new_parameter_id), n):
+                for item in self.session.query(self.DiffParameter).\
+                        filter(self.DiffParameter.id.in_(new_parameter_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.Parameter, []).append(kwargs)
+            for i in range(0, len(new_parameter_value_id), n):
+                for item in self.session.query(self.DiffParameterValue).\
+                        filter(self.DiffParameterValue.id.in_(new_parameter_value_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.ParameterValue, []).append(kwargs)
             # Bulk insert
             for k, v in new_items.items():
                 self.session.bulk_insert_mappings(k, v)
