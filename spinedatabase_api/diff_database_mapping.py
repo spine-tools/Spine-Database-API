@@ -2087,7 +2087,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             commit = self.Commit(comment=comment, date=date, user=user)
             self.session.add(commit)
             self.session.flush()
-            n = 1000  # Maximum number of sql variables
+            n = 999  # Maximum number of sql variables
             # Remove removed
             removed_object_class_id = list(self.removed_item_id["object_class"])
             removed_object_id = list(self.removed_item_id["object"])
