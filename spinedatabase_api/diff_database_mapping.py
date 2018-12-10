@@ -906,8 +906,15 @@ class DiffDatabaseMapping(DatabaseMapping):
             } for x in self.wide_relationship_list()
         ]
         relationship_class_dict = {
-            x.id: [int(y) for y in x.object_class_id_list.split(',')] for x in self.wide_relationship_class_list()}
-        object_dict = {x.id: x.class_id for x in self.object_list()}
+            x.id: {
+                "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')],
+                "name": x.name
+            } for x in self.wide_relationship_class_list()}
+        object_dict = {
+            x.id: {
+                'class_id': x.class_id,
+                'name': x.name
+            } for x in self.object_list()}
         for wide_kwargs in wide_kwargs_list:
             self.check_wide_relationship(wide_kwargs, relationship_list, relationship_class_dict, object_dict)
             checked_wide_kwargs_list.append(wide_kwargs)
@@ -925,8 +932,15 @@ class DiffDatabaseMapping(DatabaseMapping):
             } for x in self.wide_relationship_list()
         }
         relationship_class_dict = {
-            x.id: [int(y) for y in x.object_class_id_list.split(',')] for x in self.wide_relationship_class_list()}
-        object_dict = {x.id: x.class_id for x in self.object_list()}
+            x.id: {
+                "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')],
+                "name": x.name
+            } for x in self.wide_relationship_class_list()}
+        object_dict = {
+            x.id: {
+                'class_id': x.class_id,
+                'name': x.name
+            } for x in self.object_list()}
         for wide_kwargs in wide_kwargs_list:
             try:
                 id = wide_kwargs["id"]
@@ -951,7 +965,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing relationship class identifier.")
         try:
-            object_class_id_list = relationship_class_dict[class_id]
+            object_class_id_list = relationship_class_dict[class_id]['object_class_id_list']
         except KeyError:
             raise SpineIntegrityError("Relationship class not found.")
         try:
@@ -959,16 +973,24 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing object identifier.")
         try:
-            given_object_class_id_list = [object_dict[id] for id in object_id_list]
+            given_object_class_id_list = [object_dict[id]['class_id'] for id in object_id_list]
         except KeyError:
             raise SpineIntegrityError("Object not found.")
         if given_object_class_id_list != object_class_id_list:
-            raise SpineIntegrityError("Incorrect objects for this relationship class.")
+            object_name_list = [object_dict[id]['name'] for id in object_id_list]
+            relationship_class_name = relationship_class_dict[class_id]['name']
+            raise SpineIntegrityError("Incorrect objects '{}' for "
+                                      "relationship class '{}'.".format(object_name_list, relationship_class_name))
         if len(object_id_list) != len(set(object_id_list)):
-            raise SpineIntegrityError("The same object can't appear twice in one relationship.")
+            object_name_list = [object_dict[id]['name'] for id in object_id_list]
+            raise SpineIntegrityError("Incorrect object name list '{}'. "
+                                      "The same object can't appear twice "
+                                      "in one relationship.".format(object_name_list))
         if (class_id, object_id_list) in [(x["class_id"], x["object_id_list"]) for x in relationship_list]:
-            raise SpineIntegrityError("There can't be more than one relationship between the same objects "
-                                      "in one class.")
+            object_name_list = [object_dict[id]['name'] for id in object_id_list]
+            relationship_class_name = relationship_class_dict[class_id]['name']
+            raise SpineIntegrityError("There's already a relationship between objects {} "
+                                      "in class {}.".format(object_name_list, relationship_class_name))
         try:
             name = wide_kwargs["name"]
         except KeyError:
@@ -980,10 +1002,10 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that parameters respect integrity constraints for an insert operation."""
         checked_kwargs_list = list()
         parameter_list = [{"name": x.name} for x in self.parameter_list()]
-        object_class_id_list = [x.id for x in self.object_class_list()]
-        relationship_class_id_list = [x.id for x in self.wide_relationship_class_list()]
+        object_class_dict = {x.id: x.name for x in self.object_class_list()}
+        relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
-            self.check_parameter(kwargs, parameter_list, object_class_id_list, relationship_class_id_list)
+            self.check_parameter(kwargs, parameter_list, object_class_dict, relationship_class_dict)
             checked_kwargs_list.append(kwargs)
             parameter_list.append({"name": kwargs["name"]})
         return checked_kwargs_list
@@ -997,8 +1019,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id
             } for x in self.parameter_list()}
-        object_class_id_list = [x.id for x in self.object_class_list()]
-        relationship_class_id_list = [x.id for x in self.wide_relationship_class_list()]
+        object_class_dict = {x.id: x.name for x in self.object_class_list()}
+        relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
             try:
                 id = kwargs["id"]
@@ -1016,19 +1038,28 @@ class DiffDatabaseMapping(DatabaseMapping):
             updated_kwargs.update(kwargs)
             self.check_parameter(
                 updated_kwargs, list(parameter_dict.values()),
-                object_class_id_list, relationship_class_id_list)
+                object_class_dict, relationship_class_dict)
             checked_kwargs_list.append(kwargs)
             parameter_dict[id] = updated_kwargs
         return checked_kwargs_list
 
-    def check_parameter(self, kwargs, parameter_list, object_class_id_list, relationship_class_id_list):
+    def check_parameter(self, kwargs, parameter_list, object_class_dict, relationship_class_dict):
         """Raise a SpineIntegrityError if the parameter given by `kwargs` violates any integrity constraints."""
         object_class_id = kwargs.get("object_class_id", None)
         relationship_class_id = kwargs.get("relationship_class_id", None)
         if object_class_id and relationship_class_id:
-            raise SpineIntegrityError("Can't associate a parameter to both an object class and a relationship class.")
+            try:
+                object_class_name = object_class_dict[object_class_id]
+            except KeyError:
+                object_class_name = 'object class id ' + object_class_id
+            try:
+                relationship_class_name = relationship_class_dict[relationship_class_id]
+            except KeyError:
+                relationship_class_name = 'relationship class id ' + relationship_class_id
+            raise SpineIntegrityError("Can't associate a parameter to both object class '{}' and "
+                                      "relationship class '{}'.".format(object_class_name, relationship_class_name))
         if object_class_id:
-            if object_class_id not in object_class_id_list:
+            if object_class_id not in object_class_dict:
                 raise SpineIntegrityError("Object class not found.")
             try:
                 name = kwargs["name"]
@@ -1037,7 +1068,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             if name in [x["name"] for x in parameter_list]:
                 raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
         elif relationship_class_id:
-            if relationship_class_id not in relationship_class_id_list:
+            if relationship_class_id not in relationship_class_dict:
                 raise SpineIntegrityError("Relationship class not found.")
             try:
                 name = kwargs["name"]
@@ -1059,11 +1090,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             } for x in self.parameter_value_list()]
         parameter_dict = {
             x.id: {
+                "name": x.name,
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id
             } for x in self.parameter_list()}
-        object_dict = {x.id: x.class_id for x in self.object_list()}
-        relationship_dict = {x.id: x.class_id for x in self.wide_relationship_list()}
+        object_dict = {
+            x.id: {
+                'class_id': x.class_id,
+                'name': x.name
+            } for x in self.object_list()}
+        relationship_dict = {
+            x.id: {
+                'class_id': x.class_id,
+                'name': x.name
+            } for x in self.wide_relationship_list()}
         for kwargs in kwargs_list:
             self.check_parameter_value(kwargs, parameter_value_list, parameter_dict, object_dict, relationship_dict)
             checked_kwargs_list.append(kwargs)
@@ -1081,11 +1121,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             } for x in self.parameter_value_list()}
         parameter_dict = {
             x.id: {
+                "name": x.name,
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id
             } for x in self.parameter_list()}
-        object_dict = {x.id: x.class_id for x in self.object_list()}
-        relationship_dict = {x.id: x.class_id for x in self.wide_relationship_list()}
+        object_dict = {
+            x.id: {
+                'class_id': x.class_id,
+                'name': x.name
+            } for x in self.object_list()}
+        relationship_dict = {
+            x.id: {
+                'class_id': x.class_id,
+                'name': x.name
+            } for x in self.wide_relationship_list()}
         for kwargs in kwargs_list:
             try:
                 id = kwargs["id"]
@@ -1121,27 +1170,47 @@ class DiffDatabaseMapping(DatabaseMapping):
         object_id = kwargs.get("object_id", None)
         relationship_id = kwargs.get("relationship_id", None)
         if object_id and relationship_id:
-            raise SpineIntegrityError("Can't associate a parameter value to both an object and a relationship.")
+            try:
+                object_name = object_dict[object_id]['name']
+            except KeyError:
+                object_name = 'object id ' + object_id
+            try:
+                relationship_name = relationship_dict[relationship_id]['name']
+            except KeyError:
+                relationship_name = 'relationship id ' + relationship_id
+            raise SpineIntegrityError("Can't associate a parameter value to both "
+                                      "object '{}' and relationship '{}'.".format(object_name, relationship_name))
         if object_id:
             try:
-                object_class_id = object_dict[object_id]
+                object_class_id = object_dict[object_id]['class_id']
             except KeyError:
                 raise SpineIntegrityError("Object not found")
             if object_class_id != parameter["object_class_id"]:
-                raise SpineIntegrityError("Incorrect object for this parameter.")
+                object_name = object_dict[object_id]['name']
+                parameter_name = parameter['name']
+                raise SpineIntegrityError("Incorrect object '{}' for "
+                                          "parameter '{}'.".format(object_name, parameter_name))
             if (object_id, parameter_id) in [(x["object_id"], x["parameter_id"]) for x in parameter_value_list]:
-                raise SpineIntegrityError("The value of this parameter is already specified for this object.")
+                object_name = object_dict[object_id]['name']
+                parameter_name = parameter['name']
+                raise SpineIntegrityError("The value of parameter '{}' for object '{}' is "
+                                          "already specified.".format(parameter_name, object_name))
         elif relationship_id:
             try:
-                relationship_class_id = relationship_dict[relationship_id]
+                relationship_class_id = relationship_dict[relationship_id]['class_id']
             except KeyError:
                 raise SpineIntegrityError("Relationship not found")
             if relationship_class_id != parameter["relationship_class_id"]:
-                raise SpineIntegrityError("Incorrect relationship for this parameter.")
+                relationship_name = relationship_dict[relationship_id]['name']
+                parameter_name = parameter['name']
+                raise SpineIntegrityError("Incorrect relationship '{}' for "
+                                          "parameter '{}'.".format(relationship_name, parameter_name))
             relationship_parameter_list = [(x["relationship_id"], x["parameter_id"]) for x in parameter_value_list]
             if (relationship_id, parameter_id) in relationship_parameter_list:
-                raise SpineIntegrityError("The value of this parameter is already specified "
-                                          "for this relationship.")
+                relationship_name = relationship_dict[relationship_id]['name']
+                parameter_name = parameter['name']
+                raise SpineIntegrityError("The value of parameter '{}' for relationship '{}' is "
+                                          "already specified.".format(parameter_name, relationship_name))
         else:
             raise SpineIntegrityError("Missing object or relationship identifier.")
 
@@ -1845,7 +1914,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_value_ids=set()
         ):
         """Remove items."""
-        removed_item_id, removed_diff_item_id = self.removed_items(
+        removed_item_id, removed_diff_item_id = self._removed_items(
             object_class_ids=object_class_ids,
             object_ids=object_ids,
             relationship_class_ids=relationship_class_ids,
@@ -1880,7 +1949,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.removed_item_id[key].update(value)
             self.touched_item_id[key].update(value)
 
-    def removed_items(
+    def _removed_items(
             self,
             object_class_ids=set(),
             object_ids=set(),
@@ -1889,7 +1958,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_ids=set(),
             parameter_value_ids=set()
         ):
-        """Return items to be removed due to the removal of items given as arguments.
+        """Return all items that should be removed when removing items given as arguments.
 
         Returns:
             removed_item_id (dict): removed items in the original tables
@@ -1901,7 +1970,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.ObjectClass.id).filter(self.ObjectClass.id.in_(object_class_ids))
         diff_item_list = self.session.query(self.DiffObjectClass.id).\
             filter(self.DiffObjectClass.id.in_(object_class_ids))
-        self.remove_cascade_object_classes(
+        self._remove_cascade_object_classes(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1909,7 +1978,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         # object
         item_list = self.session.query(self.Object.id).filter(self.Object.id.in_(object_ids))
         diff_item_list = self.session.query(self.DiffObject.id).filter(self.DiffObject.id.in_(object_ids))
-        self.remove_cascade_objects(
+        self._remove_cascade_objects(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1919,7 +1988,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             filter(self.RelationshipClass.id.in_(relationship_class_ids))
         diff_item_list = self.session.query(self.DiffRelationshipClass.id).\
             filter(self.DiffRelationshipClass.id.in_(relationship_class_ids))
-        self.remove_cascade_relationship_classes(
+        self._remove_cascade_relationship_classes(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1928,7 +1997,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.Relationship.id).filter(self.Relationship.id.in_(relationship_ids))
         diff_item_list = self.session.query(self.DiffRelationship.id).\
             filter(self.DiffRelationship.id.in_(relationship_ids))
-        self.remove_cascade_relationships(
+        self._remove_cascade_relationships(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1936,7 +2005,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         # parameter
         item_list = self.session.query(self.Parameter.id).filter(self.Parameter.id.in_(parameter_ids))
         diff_item_list = self.session.query(self.DiffParameter.id).filter(self.DiffParameter.id.in_(parameter_ids))
-        self.remove_cascade_parameters(
+        self._remove_cascade_parameters(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1945,14 +2014,14 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.ParameterValue.id).filter(self.ParameterValue.id.in_(parameter_value_ids))
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
             filter(self.DiffParameterValue.id.in_(parameter_value_ids))
-        self.remove_cascade_parameter_values(
+        self._remove_cascade_parameter_values(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
         return removed_item_id, removed_diff_item_id
 
-    def remove_cascade_object_classes(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+    def _remove_cascade_object_classes(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove object classes and all related items."""
         # Touch
         removed_item_id.setdefault("object_class", set()).update(ids)
@@ -1960,7 +2029,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         # object
         item_list = self.session.query(self.Object.id).filter(self.Object.class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffObject.id).filter(self.DiffObject.class_id.in_(ids + diff_ids))
-        self.remove_cascade_objects(
+        self._remove_cascade_objects(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1970,7 +2039,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             filter(self.RelationshipClass.object_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffRelationshipClass.id).\
             filter(self.DiffRelationshipClass.object_class_id.in_(ids + diff_ids))
-        self.remove_cascade_relationship_classes(
+        self._remove_cascade_relationship_classes(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -1979,13 +2048,13 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.Parameter.id).filter(self.Parameter.object_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameter.id).\
             filter(self.DiffParameter.object_class_id.in_(ids + diff_ids))
-        self.remove_cascade_parameters(
+        self._remove_cascade_parameters(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
 
-    def remove_cascade_objects(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+    def _remove_cascade_objects(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove objects and all related items."""
         # Touch
         removed_item_id.setdefault("object", set()).update(ids)
@@ -1994,7 +2063,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.Relationship.id).filter(self.Relationship.object_id.in_(ids))
         diff_item_list = self.session.query(self.DiffRelationship.id).\
             filter(self.DiffRelationship.object_id.in_(ids + diff_ids))
-        self.remove_cascade_relationships(
+        self._remove_cascade_relationships(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -2003,13 +2072,13 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.ParameterValue.id).filter(self.ParameterValue.object_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
             filter(self.DiffParameterValue.object_id.in_(ids + diff_ids))
-        self.remove_cascade_parameter_values(
+        self._remove_cascade_parameter_values(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
 
-    def remove_cascade_relationship_classes(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+    def _remove_cascade_relationship_classes(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove relationship classes and all related items."""
         # Touch
         removed_item_id.setdefault("relationship_class", set()).update(ids)
@@ -2018,7 +2087,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.Relationship.id).filter(self.Relationship.class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffRelationship.id).\
             filter(self.DiffRelationship.class_id.in_(ids + diff_ids))
-        self.remove_cascade_relationships(
+        self._remove_cascade_relationships(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -2027,13 +2096,13 @@ class DiffDatabaseMapping(DatabaseMapping):
         item_list = self.session.query(self.Parameter.id).filter(self.Parameter.relationship_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameter.id).\
             filter(self.DiffParameter.relationship_class_id.in_(ids + diff_ids))
-        self.remove_cascade_parameters(
+        self._remove_cascade_parameters(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
 
-    def remove_cascade_relationships(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+    def _remove_cascade_relationships(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove relationships and all related items."""
         # Touch
         removed_item_id.setdefault("relationship", set()).update(ids)
@@ -2043,13 +2112,13 @@ class DiffDatabaseMapping(DatabaseMapping):
             filter(self.ParameterValue.relationship_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
             filter(self.DiffParameterValue.relationship_id.in_(ids + diff_ids))
-        self.remove_cascade_parameter_values(
+        self._remove_cascade_parameter_values(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
 
-    def remove_cascade_parameters(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+    def _remove_cascade_parameters(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove parameters and all related items."""
         # Touch
         removed_item_id.setdefault("parameter", set()).update(ids)
@@ -2059,13 +2128,13 @@ class DiffDatabaseMapping(DatabaseMapping):
             filter(self.ParameterValue.parameter_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
             filter(self.DiffParameterValue.parameter_id.in_(ids + diff_ids))
-        self.remove_cascade_parameter_values(
+        self._remove_cascade_parameter_values(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
 
-    def remove_cascade_parameter_values(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+    def _remove_cascade_parameter_values(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove parameter values and all related items."""
         removed_item_id.setdefault("parameter_value", set()).update(ids)
         removed_diff_item_id.setdefault("parameter_value", set()).update(diff_ids)
