@@ -35,8 +35,9 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         self.db_map = DiffDatabaseMapping("", username='IntegrationTest', create_all=False)
         self.db_map.engine = input_db
         self.db_map.engine.connect()
-        
-        #empty database from items
+
+        # empty database from items
+        # TODO: Check if we can use self.db_map.reset_mapping() here
         self.db_map.engine.execute("DELETE FROM object_class")
         self.db_map.engine.execute("DELETE FROM object")
         self.db_map.engine.execute("DELETE FROM relationship_class")
@@ -44,7 +45,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         self.db_map.engine.execute("DELETE FROM parameter")
         self.db_map.engine.execute("DELETE FROM parameter_value")
         self.db_map.engine.execute("DELETE FROM [commit]")
-        
+
         # initialize diff db
         self.db_map.session = Session(self.db_map.engine, autoflush=False)
         self.db_map.create_mapping()
@@ -58,20 +59,20 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         """
         # close database connection
         self.db_map.close()
-    
+
     def test_insert_many_objects_and_commiting(self):
         """Tests inserting many objects into db"""
         c_id = self.db_map.add_object_classes(*[{'name': 'testclass'}]).all()[0].id
         self.db_map.add_objects(*[{'name': str(i), 'class_id': c_id} for i in range(1001)])
         self.db_map.commit_session('test_commit')
         self.assertEqual(len(self.db_map.session.query(self.db_map.Object).all()), 1001)
-    
-    def test_insert_and_retrive_many_objects(self):
-        """Tests inserting many objects into db and retriving them."""
+
+    def test_insert_and_retrieve_many_objects(self):
+        """Tests inserting many objects into db and retrieving them."""
         c_id = self.db_map.add_object_classes(*[{'name': 'testclass'}]).all()[0].id
         objects = self.db_map.add_objects(*[{'name': str(i), 'class_id': c_id} for i in range(1001)])
         self.assertEqual(len(objects.all()), 1001)
-    
+
     def test_check_relationship_wide_with_multiples_of_same_object(self):
         """Tests check of valid relationship where one object repeats itself doesn't throw an error"""
         check_rel = {"name": 'unique_name', 'object_id_list': [1, 1], 'class_id': 1}
