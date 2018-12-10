@@ -71,6 +71,12 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         c_id = self.db_map.add_object_classes(*[{'name': 'testclass'}]).all()[0].id
         objects = self.db_map.add_objects(*[{'name': str(i), 'class_id': c_id} for i in range(1001)])
         self.assertEqual(len(objects.all()), 1001)
+    
+    def test_check_relationship_wide_with_multiples_of_same_object(self):
+        """Tests check of valid relationship where one object repeats itself doesn't throw an error"""
+        check_rel = {"name": 'unique_name', 'object_id_list': [1, 1], 'class_id': 1}
+        self.db_map.check_wide_relationship(check_rel, [], {1: [1, 1]}, {1:1, 1:1})
+
 
 if __name__ == '__main__':
     unittest.main()
