@@ -43,7 +43,7 @@ class DiffDatabaseMapping(DatabaseMapping):
     In a nutshell, it works by creating a new bunch of tables to hold differences
     with respect to original tables.
     """
-    def __init__(self, db_url, username=None, create_all=True, warm_up=False):
+    def __init__(self, db_url, username=None, create_all=True):
         """Initialize class."""
         super().__init__(db_url, username=username, create_all=False)
         # Diff meta, Base and tables
@@ -71,14 +71,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.create_diff_tables_and_mapping()
             self.init_next_id()
             # self.create_triggers()
-        # NOTE: this was intended to remove lag when running the first operation
-        # But actually the lag was caused by orphan diff tables...
-        if warm_up:
-            user = self.username
-            date = datetime.now(timezone.utc)
-            comment = "warming up"
-            diff_commit = self.DiffCommit(comment=comment, date=date, user=user)
-            self.session.add(diff_commit)
 
     def has_pending_changes(self):
         """Return True if there are uncommitted changes. Otherwise return False."""
@@ -1082,12 +1074,13 @@ class DiffDatabaseMapping(DatabaseMapping):
     def check_parameter_values_for_insert(self, *kwargs_list):
         """Check that parameter values respect integrity constraints for an insert operation."""
         checked_kwargs_list = list()
-        parameter_value_list = [
-            {
-                "parameter_id": x.parameter_id,
-                "object_id": x.object_id,
-                "relationship_id": x.relationship_id
-            } for x in self.parameter_value_list()]
+        # Per's suggestions
+        object_parameter_value_set = {
+            (x.object_id, x.parameter_id) for x in self.parameter_value_list() if x.object_id
+        }
+        relationship_parameter_value_set = {
+            (x.relationship_id, x.parameter_id) for x in self.parameter_value_list() if x.relationship_id
+        }
         parameter_dict = {
             x.id: {
                 "name": x.name,
@@ -1105,9 +1098,17 @@ class DiffDatabaseMapping(DatabaseMapping):
                 'name': x.name
             } for x in self.wide_relationship_list()}
         for kwargs in kwargs_list:
-            self.check_parameter_value(kwargs, parameter_value_list, parameter_dict, object_dict, relationship_dict)
+            self.check_parameter_value(
+                kwargs, object_parameter_value_set, relationship_parameter_value_set,
+                parameter_dict, object_dict, relationship_dict)
             checked_kwargs_list.append(kwargs)
-            parameter_value_list.append(kwargs)
+            # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+            object_id = kwargs.get("object_id", None)
+            relationship_id = kwargs.get("relationship_id", None)
+            if object_id:
+                object_parameter_value_set.add(object_id, kwargs['parameter_id'])
+            elif relationship_id:
+                relationship_parameter_value_set.add(relationship_id, kwargs['parameter_id'])
         return checked_kwargs_list
 
     def check_parameter_values_for_update(self, *kwargs_list):
@@ -1119,6 +1120,13 @@ class DiffDatabaseMapping(DatabaseMapping):
                 "object_id": x.object_id,
                 "relationship_id": x.relationship_id
             } for x in self.parameter_value_list()}
+        # Per's suggestions
+        object_parameter_value_set = {
+            (x.object_id, x.parameter_id) for x in self.parameter_value_list() if x.object_id
+        }
+        relationship_parameter_value_set = {
+            (x.relationship_id, x.parameter_id) for x in self.parameter_value_list() if x.relationship_id
+        }
         parameter_dict = {
             x.id: {
                 "name": x.name,
@@ -1151,13 +1159,22 @@ class DiffDatabaseMapping(DatabaseMapping):
                 kwargs.setdefault("object_id", None)
             updated_kwargs.update(kwargs)
             self.check_parameter_value(
-                updated_kwargs, list(parameter_value_dict.values()),
+                updated_kwargs, object_parameter_value_set, relationship_parameter_value_set,
                 parameter_dict, object_dict, relationship_dict)
             checked_kwargs_list.append(kwargs)
             parameter_value_dict[id] = updated_kwargs
+            # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+            object_id = kwargs.get("object_id", None)
+            relationship_id = kwargs.get("relationship_id", None)
+            if object_id:
+                object_parameter_value_set.add(object_id, kwargs['parameter_id'])
+            elif relationship_id:
+                relationship_parameter_value_set.add(relationship_id, kwargs['parameter_id'])
         return checked_kwargs_list
 
-    def check_parameter_value(self, kwargs, parameter_value_list, parameter_dict, object_dict, relationship_dict):
+    def check_parameter_value(
+            self, kwargs, object_parameter_value_set, relationship_parameter_value_set,
+            parameter_dict, object_dict, relationship_dict):
         """Raise a SpineIntegrityError if the parameter value given by `kwargs` violates any integrity constraints."""
         try:
             parameter_id = kwargs["parameter_id"]
@@ -1190,7 +1207,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("Incorrect object '{}' for "
                                           "parameter '{}'.".format(object_name, parameter_name))
-            if (object_id, parameter_id) in [(x["object_id"], x["parameter_id"]) for x in parameter_value_list]:
+            if (object_id, parameter_id) in object_parameter_value_set:
                 object_name = object_dict[object_id]['name']
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("The value of parameter '{}' for object '{}' is "
@@ -1205,8 +1222,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("Incorrect relationship '{}' for "
                                           "parameter '{}'.".format(relationship_name, parameter_name))
-            relationship_parameter_list = [(x["relationship_id"], x["parameter_id"]) for x in parameter_value_list]
-            if (relationship_id, parameter_id) in relationship_parameter_list:
+            if (relationship_id, parameter_id) in relationship_parameter_value_set:
                 relationship_name = relationship_dict[relationship_id]['name']
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("The value of parameter '{}' for relationship '{}' is "

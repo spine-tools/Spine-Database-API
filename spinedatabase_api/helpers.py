@@ -50,21 +50,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
-
-# TODO: Find a way to keep this in synch with `create_new_spine_database`
-OBJECT_CLASS_NAMES = (
-    'direction',
-    'unit',
-    'commodity',
-    'node',
-    'connection',
-    'grid',
-    'time_stage',
-    'unit_group',
-    'commodity_group'
-)
-
-
 @compiles(TINYINT, 'sqlite')
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql TINYINT datatype as INTEGER in sqlite """
