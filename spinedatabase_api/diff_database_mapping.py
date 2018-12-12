@@ -1106,9 +1106,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_id = kwargs.get("object_id", None)
             relationship_id = kwargs.get("relationship_id", None)
             if object_id:
-                object_parameter_value_set.add(object_id, kwargs['parameter_id'])
+                object_parameter_value_set.add((object_id, kwargs['parameter_id']))
             elif relationship_id:
-                relationship_parameter_value_set.add(relationship_id, kwargs['parameter_id'])
+                relationship_parameter_value_set.add((relationship_id, kwargs['parameter_id']))
         return checked_kwargs_list
 
     def check_parameter_values_for_update(self, *kwargs_list):
@@ -1167,9 +1167,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_id = kwargs.get("object_id", None)
             relationship_id = kwargs.get("relationship_id", None)
             if object_id:
-                object_parameter_value_set.add(object_id, kwargs['parameter_id'])
+                object_parameter_value_set.add((object_id, kwargs['parameter_id']))
             elif relationship_id:
-                relationship_parameter_value_set.add(relationship_id, kwargs['parameter_id'])
+                relationship_parameter_value_set.add((relationship_id, kwargs['parameter_id']))
         return checked_kwargs_list
 
     def check_parameter_value(
