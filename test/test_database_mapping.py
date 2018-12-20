@@ -206,13 +206,43 @@ class TestDatabaseAPI(unittest.TestCase):
         }) for i in range(self.number_of_parameter_value)]
 
 
-    def test_rename(self):
+    def test_rename_object_class(self):
 
         fake = Faker()
         obj_class_ids = list()
-        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for i in range(self.object_class_number)]
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.name()}).id) for i in range(self.object_class_number)]
 
-        self.db_map.get_or_add_object_class(fake.random)
+        new_elem = self.db_map.get_or_add_object_class(**{'name': fake.name()})
+
+        self.db_map.rename_object_class(new_elem.id,"TEST_PASSED")
+
+        renamed_element = self.db_map.get_or_add_object_class(**{'name': "TEST_PASSED"})
+
+        assert new_elem.id == renamed_element.id
+        assert renamed_element.name == "TEST_PASSED"
+
+    def test_rename_object(self):
+        obj_ids_list = list()
+        obj_class_ids = list()
+
+        fake = Faker()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        test_id =  random.choice(obj_ids_list)
+
+        self.db_map.rename_object(test_id, "TEST_PASSED")
+
+        renamed_element=self.db_map.single_object(name="TEST_PASSED").one_or_none()
+
+        assert renamed_element.id == test_id
+
+
+
 
     def tearDown(self):
         """Overridden method. Runs after each test.

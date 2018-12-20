@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5442243e-ff44-4bf3-90bd-0550fc45fefc" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/dataSources.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test/test_database_mapping.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/spinedatabase_api/helpers.py" beforeDir="false" afterPath="$PROJECT_DIR$/spinedatabase_api/helpers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/test_database_mapping.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/test_database_mapping.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -14,14 +11,17 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="CoverageDataManager">
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object Coverage Results" MODIFIED="1545344416241" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter Coverage Results" MODIFIED="1545205876274" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_object_class Coverage Results" MODIFIED="1545129386446" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_create_engine_and_session.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_create_engine_and_session Coverage Results" MODIFIED="1545124079783" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value Coverage Results" MODIFIED="1545230906371" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value Coverage Results" MODIFIED="1545341895390" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_create_db.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_create_db Coverage Results" MODIFIED="1545124086324" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object_class Coverage Results" MODIFIED="1545342357153" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename Coverage Results" MODIFIED="1545342310694" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_wide_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class Coverage Results" MODIFIED="1545206395652" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_single_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_single_object Coverage Results" MODIFIED="1545129843707" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI Coverage Results" MODIFIED="1545206677950" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI Coverage Results" MODIFIED="1545344425069" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_object_class_and_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_object_class_and_object Coverage Results" MODIFIED="1545129554245" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
   </component>
   <component name="DatabaseView">
@@ -95,12 +95,12 @@
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="py" value="2040" />
+          <entry key="py" value="2480" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="Python" value="2040" />
+          <entry key="Python" value="2480" />
         </counts>
       </usages-collector>
     </session>
@@ -112,15 +112,15 @@
           <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/test/test_database_mapping.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="308">
-                  <caret line="214" column="55" selection-start-line="214" selection-start-column="55" selection-end-line="214" selection-end-column="55" />
+                <state relative-caret-position="3292">
+                  <caret line="241" column="44" selection-start-line="241" selection-start-column="44" selection-end-line="241" selection-end-column="44" />
                   <folding>
                     <element signature="e#1073#1144#0" expanded="true" />
-                    <marker date="1545231138893" expanded="true" signature="1765:1766" ph="..." />
-                    <marker date="1545231138893" expanded="true" signature="1765:1926" ph="..." />
-                    <marker date="1545231138893" expanded="true" signature="6661:7308" ph="..." />
-                    <marker date="1545231138893" expanded="true" signature="9403:9681" ph="..." />
-                    <marker date="1545231138893" expanded="true" signature="9700:9709" ph="..." />
+                    <marker date="1545344416231" expanded="true" signature="1765:1766" ph="..." />
+                    <marker date="1545344416231" expanded="true" signature="1765:1926" ph="..." />
+                    <marker date="1545344416231" expanded="true" signature="6661:7308" ph="..." />
+                    <marker date="1545344416231" expanded="true" signature="9978:10689" ph="..." />
+                    <marker date="1545344416231" expanded="true" signature="10708:10717" ph="..." />
                   </folding>
                 </state>
               </provider>
@@ -147,7 +147,7 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/spinedatabase_api/database_mapping.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="170">
+                <state relative-caret-position="-3266">
                   <caret line="688" column="72" selection-start-line="688" selection-start-column="58" selection-end-line="688" selection-end-column="72" />
                 </state>
               </provider>
@@ -174,7 +174,7 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/test/test_DiffDatabaseMapping.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="850">
+                <state relative-caret-position="86">
                   <caret line="64" column="45" selection-start-line="64" selection-start-column="27" selection-end-line="64" selection-end-column="45" />
                 </state>
               </provider>
@@ -187,8 +187,8 @@
           <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/spinedatabase_api/database_mapping.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="124">
-                  <caret line="802" column="22" selection-start-line="802" selection-start-column="22" selection-end-line="802" selection-end-column="22" />
+                <state relative-caret-position="164">
+                  <caret line="764" column="24" selection-start-line="764" selection-start-column="24" selection-end-line="764" selection-end-column="82" />
                 </state>
               </provider>
             </entry>
@@ -220,9 +220,9 @@
       <find>CREATE TRIGGER</find>
       <find>create_triggers</find>
       <find>add</find>
-      <find>add_object_classes</find>
       <find>object_class_id_list</find>
       <find>test_create_engine_and_session</find>
+      <find>add_object_classes</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -298,7 +298,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value">
+  <component name="RunManager" selected="Python tests.Unittests for test_database_mapping.TestDatabaseAPI">
     <configuration name="Unittests for test_database_mapping.TestDatabaseAPI" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
       <module name="data" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -311,21 +311,6 @@
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
       <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI&quot;" />
-      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
-      <module name="data" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_add_parameter&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
@@ -344,7 +329,7 @@
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
+    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
       <module name="data" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -355,11 +340,11 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class&quot;" />
+      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_rename&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_single_object" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
+    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
       <module name="data" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -370,24 +355,39 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_single_object&quot;" />
+      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_rename_object&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object_class" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
+      <module name="data" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_rename_object_class&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
     <list>
       <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI" />
-      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_single_object" />
-      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class" />
-      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter" />
       <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" />
+      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_rename" />
+      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object_class" />
+      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" />
         <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI" />
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class" />
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter" />
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_single_object" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object_class" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_rename" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" />
       </list>
     </recent_temporary>
   </component>
@@ -405,39 +405,40 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 08h 06m 29s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 13m 31s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 08h 23m 43s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 13m 43s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 08h 24m 34s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 13m 56s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 08h 25m 06s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 14m 41s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 08h 26m 11s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 14m 52s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 14h 43m 54s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 15m 09s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 14h 45m 00s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 17m 04s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 14h 46m 14s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 19m 43s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 14h 46m 25s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object - 2018.12.20 at 22h 20m 17s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value - 2018.12.19 at 14h 48m 29s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI - 2018.12.20 at 22h 20m 33s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI" configurationId="tests" />
     </history-entry>
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1440" height="877" extended-state="0" />
+    <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" visible="true" weight="0.18884121" />
       <window_info id="Structure" side_tool="true" />
@@ -464,13 +465,6 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/setup.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="315">
-          <caret line="21" selection-start-line="21" selection-end-line="21" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$APPLICATION_CONFIG_DIR$/consoles/db/e7226195-5efc-4e7c-a051-5936ac5565c8/console.sql">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
@@ -481,24 +475,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/test/test_DiffDatabaseMapping.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="850">
-          <caret line="64" column="45" selection-start-line="64" selection-start-column="27" selection-end-line="64" selection-end-column="45" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/spinedatabase_api/helpers.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="5685">
           <caret line="390" column="13" selection-start-line="390" selection-start-column="13" selection-end-line="390" selection-end-column="13" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/spinedatabase_api/diff_database_mapping.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3515">
-          <caret line="1325" column="59" selection-start-line="1325" selection-start-column="35" selection-end-line="1325" selection-end-column="59" />
         </state>
       </provider>
     </entry>
@@ -523,13 +503,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="das://e7226195-5efc-4e7c-a051-5936ac5565c8/schema/main/table/object_class">
-      <provider selected="true" editor-type-id="com.intellij.database.editor.DatabaseTableFileEditorProvider">
-        <state>
-          <filtering enabled="true" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$USER_HOME$/conda/envs/toolbox-master/lib/python3.6/unittest/case.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-1020">
@@ -537,24 +510,52 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/test/test_DiffDatabaseMapping.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="86">
+          <caret line="64" column="45" selection-start-line="64" selection-start-column="27" selection-end-line="64" selection-end-column="45" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="das://e7226195-5efc-4e7c-a051-5936ac5565c8/schema/main/table/object_class">
+      <provider selected="true" editor-type-id="com.intellij.database.editor.DatabaseTableFileEditorProvider">
+        <state>
+          <filtering enabled="true" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/setup.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="315">
+          <caret line="21" selection-start-line="21" selection-end-line="21" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/spinedatabase_api/diff_database_mapping.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3515">
+          <caret line="1325" column="59" selection-start-line="1325" selection-start-column="35" selection-end-line="1325" selection-end-column="59" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/spinedatabase_api/database_mapping.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="170">
+        <state relative-caret-position="-3266">
           <caret line="688" column="72" selection-start-line="688" selection-start-column="58" selection-end-line="688" selection-end-column="72" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/test/test_database_mapping.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="308">
-          <caret line="214" column="55" selection-start-line="214" selection-start-column="55" selection-end-line="214" selection-end-column="55" />
+        <state relative-caret-position="3292">
+          <caret line="241" column="44" selection-start-line="241" selection-start-column="44" selection-end-line="241" selection-end-column="44" />
           <folding>
             <element signature="e#1073#1144#0" expanded="true" />
-            <marker date="1545231138893" expanded="true" signature="1765:1766" ph="..." />
-            <marker date="1545231138893" expanded="true" signature="1765:1926" ph="..." />
-            <marker date="1545231138893" expanded="true" signature="6661:7308" ph="..." />
-            <marker date="1545231138893" expanded="true" signature="9403:9681" ph="..." />
-            <marker date="1545231138893" expanded="true" signature="9700:9709" ph="..." />
+            <marker date="1545344416231" expanded="true" signature="1765:1766" ph="..." />
+            <marker date="1545344416231" expanded="true" signature="1765:1926" ph="..." />
+            <marker date="1545344416231" expanded="true" signature="6661:7308" ph="..." />
+            <marker date="1545344416231" expanded="true" signature="9978:10689" ph="..." />
+            <marker date="1545344416231" expanded="true" signature="10708:10717" ph="..." />
           </folding>
         </state>
       </provider>
