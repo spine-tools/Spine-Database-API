@@ -15,6 +15,7 @@ setup(
     packages=find_packages(),
     install_requires=[
           'sqlalchemy',
+          'faker'
       ],
     zip_safe=False
 )

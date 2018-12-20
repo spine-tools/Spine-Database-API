@@ -358,6 +358,7 @@ def create_new_spine_database(db_url):
         ('number_of_timesteps', 7, NULL);
     """
     sql_list.append(sql)
+
     sql = """
         INSERT OR IGNORE INTO `parameter` (`name`, `relationship_class_id`, `commit_id`) VALUES
         ('unit_capacity', 3, NULL),
@@ -367,6 +368,8 @@ def create_new_spine_database(db_url):
         ('max_cum_in_flow_bound', 7, NULL);
     """
     sql_list.append(sql)
+
+    # @TODO Fabiano - double creation of triggers?? to be clarified
     sql = """
         CREATE TRIGGER after_object_class_delete
             AFTER DELETE ON object_class
@@ -379,7 +382,8 @@ def create_new_spine_database(db_url):
             );
         END
     """
-    sql_list.append(sql)
+    #sql_list.append(sql)
+
     sql = """
         CREATE TRIGGER after_object_delete
             AFTER DELETE ON object
@@ -392,10 +396,14 @@ def create_new_spine_database(db_url):
             );
         END
     """
-    sql_list.append(sql)
+    #sql_list.append(sql)
+
+
+
     try:
         for sql in sql_list:
             engine.execute(text(sql))
         return engine
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+
