@@ -766,6 +766,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 # 'Remove' current instance
                 updated_kwargs = object_class_dict.pop(id)
+                object_class_names.remove(updated_kwargs["name"])
             except KeyError:
                 raise SpineIntegrityError("Object class not found.")
             # Check for an insert of the updated instance
@@ -774,7 +775,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             checked_kwargs_list.append(kwargs)
             # If the check passes, reinject the updated instance to `object_class_dict` for next iteration.
             object_class_dict[id] = updated_kwargs
-            object_class_names.add(kwargs["name"])
+            object_class_names.add(updated_kwargs["name"])
         return checked_kwargs_list
 
     def check_object_class(self, kwargs, object_class_names):
@@ -812,13 +813,14 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing object identifier.")
             try:
                 updated_kwargs = object_dict.pop(id)
+                object_names.remove(updated_kwargs["name"])
             except KeyError:
                 raise SpineIntegrityError("Object not found.")
             updated_kwargs.update(kwargs)
             self.check_object(updated_kwargs, object_names, object_class_id_list)
             checked_kwargs_list.append(kwargs)
             object_dict[id] = updated_kwargs
-            object_names.add(kwargs["name"])
+            object_names.add(updated_kwargs["name"])
         return checked_kwargs_list
 
     def check_object(self, kwargs, object_names, object_class_id_list):
@@ -865,6 +867,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing relationship class identifier.")
             try:
                 updated_wide_kwargs = relationship_class_dict.pop(id)
+                relationship_class_names.remove(updated_wide_kwargs["name"])
             except KeyError:
                 raise SpineIntegrityError("Relationship class not found.")
             updated_wide_kwargs.update(wide_kwargs)
@@ -872,7 +875,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 updated_wide_kwargs, list(relationship_class_dict.values()), object_class_id_list)
             checked_wide_kwargs_list.append(wide_kwargs)
             relationship_class_dict[id] = updated_wide_kwargs
-            relationship_class_names.add(wide_kwargs["name"])
+            relationship_class_names.add(updated_wide_kwargs["name"])
         return checked_wide_kwargs_list
 
     def check_wide_relationship_class(self, wide_kwargs, relationship_class_names, object_class_id_list):
@@ -949,6 +952,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing relationship identifier.")
             try:
                 updated_wide_kwargs = relationship_dict.pop(id)
+                relationship_names.remove(updated_wide_kwargs['name'])
+                join_object_id_list = ",".join([str(x) for x in updated_wide_kwargs['object_id_list']])
+                relationship_class_objects_tuples.remove((updated_wide_kwargs['class_id'], join_object_id_list))
             except KeyError:
                 raise SpineIntegrityError("Relationship not found.")
             updated_wide_kwargs.update(wide_kwargs)
@@ -957,9 +963,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 relationship_class_dict, object_dict)
             checked_wide_kwargs_list.append(wide_kwargs)
             relationship_dict[id] = updated_wide_kwargs
-            relationship_names.add(wide_kwargs['name'])
-            join_object_id_list = ",".join([str(x) for x in wide_kwargs['object_id_list']])
-            relationship_class_objects_tuples.add((wide_kwargs['class_id'], join_object_id_list))
+            relationship_names.add(updated_wide_kwargs['name'])
+            join_object_id_list = ",".join([str(x) for x in updated_wide_kwargs['object_id_list']])
+            relationship_class_objects_tuples.add((updated_wide_kwargs['class_id'], join_object_id_list))
         return checked_wide_kwargs_list
 
     def check_wide_relationship(
@@ -1036,6 +1042,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing parameter identifier.")
             try:
                 updated_kwargs = parameter_dict.pop(id)
+                parameter_names.remove(updated_kwargs["name"])
             except KeyError:
                 raise SpineIntegrityError("Parameter not found.")
             # Allow turning an object class parameter into a relationship class parameter, and viceversa
@@ -1049,7 +1056,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_class_dict, relationship_class_dict)
             checked_kwargs_list.append(kwargs)
             parameter_dict[id] = updated_kwargs
-            parameter_names.add(kwargs["name"])
+            parameter_names.add(updated_kwargs["name"])
         return checked_kwargs_list
 
     def check_parameter(self, kwargs, parameter_names, object_class_dict, relationship_class_dict):
@@ -1129,7 +1136,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         return checked_kwargs_list
 
     def check_parameter_values_for_update(self, *kwargs_list):
-        """Check that parameter values respect integrity constraints for an insert operation."""
+        """Check that parameter values respect integrity constraints for an update operation."""
         checked_kwargs_list = list()
         parameter_value_dict = {
             x.id: {
@@ -1167,6 +1174,13 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing parameter value identifier.")
             try:
                 updated_kwargs = parameter_value_dict.pop(id)
+                # Remove current tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                object_id = updated_kwargs.get("object_id", None)
+                relationship_id = updated_kwargs.get("relationship_id", None)
+                if object_id:
+                    object_parameter_values.remove((object_id, updated_kwargs['parameter_id']))
+                elif relationship_id:
+                    relationship_parameter_values.remove((relationship_id, updated_kwargs['parameter_id']))
             except KeyError:
                 raise SpineIntegrityError("Parameter value not found.")
             # Allow turning an object parameter value into a relationship parameter value, and viceversa
@@ -1180,13 +1194,13 @@ class DiffDatabaseMapping(DatabaseMapping):
                 parameter_dict, object_dict, relationship_dict)
             checked_kwargs_list.append(kwargs)
             parameter_value_dict[id] = updated_kwargs
-            # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
-            object_id = kwargs.get("object_id", None)
-            relationship_id = kwargs.get("relationship_id", None)
+            # Add updated tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+            object_id = updated_kwargs.get("object_id", None)
+            relationship_id = updated_kwargs.get("relationship_id", None)
             if object_id:
-                object_parameter_values.add((object_id, kwargs['parameter_id']))
+                object_parameter_values.add((object_id, updated_kwargs['parameter_id']))
             elif relationship_id:
-                relationship_parameter_values.add((relationship_id, kwargs['parameter_id']))
+                relationship_parameter_values.add((relationship_id, updated_kwargs['parameter_id']))
         return checked_kwargs_list
 
     def check_parameter_value(
