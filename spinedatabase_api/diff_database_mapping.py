@@ -172,7 +172,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def init_next_id(self):
         """Create next_id table if not exists and map it."""
-        # TODO: Does this work? WHat happens if there's already a next_id table with a different definition?
+        # TODO: Does this work? What happens if there's already a next_id table with a different definition?
         # Next id table
         metadata = MetaData()
         next_id_table = Table(
@@ -2348,6 +2348,17 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.rollback()
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def reset_mapping(self):
+        """Delete all records from all tables (but don't drop the tables)."""
+        super().reset_mapping()
+        self.session.query(self.DiffObjectClass).delete(synchronize_session=False)
+        self.session.query(self.DiffObject).delete(synchronize_session=False)
+        self.session.query(self.DiffRelationshipClass).delete(synchronize_session=False)
+        self.session.query(self.DiffRelationship).delete(synchronize_session=False)
+        self.session.query(self.DiffParameter).delete(synchronize_session=False)
+        self.session.query(self.DiffParameterValue).delete(synchronize_session=False)
+        self.session.query(self.DiffCommit).delete(synchronize_session=False)
 
     def close(self):
         """Drop differences tables and close."""
