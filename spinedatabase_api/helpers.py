@@ -382,7 +382,7 @@ def create_new_spine_database(db_url):
             );
         END
     """
-    #sql_list.append(sql)
+    sql_list.append(sql)
 
     sql = """
         CREATE TRIGGER after_object_delete

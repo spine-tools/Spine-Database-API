@@ -29,7 +29,6 @@ import os
 from sqlalchemy.orm import Session
 
 
-
 class TestDatabaseAPI(unittest.TestCase):
 
 
@@ -87,7 +86,6 @@ class TestDatabaseAPI(unittest.TestCase):
 
     def test_add_wide_relationship(self):
         fake = Faker()
-
         relationship_before_insert = self.db_map.session.query(self.db_map.Relationship).count()
 
         obj_ids_list = list()
@@ -205,6 +203,15 @@ class TestDatabaseAPI(unittest.TestCase):
             'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
         }) for i in range(self.number_of_parameter_value)]
 
+    def test_get_or_add_object_class(self):
+        pass
+
+    def test_get_or_add_wide_relationship_class(self):
+        pass
+
+    def test_get_or_add_parameter(self):
+        pass
+
 
     def test_rename_object_class(self):
 
@@ -241,8 +248,387 @@ class TestDatabaseAPI(unittest.TestCase):
 
         assert renamed_element.id == test_id
 
+    def test_rename_relationship_class(self):
+        fake = Faker()
+        obj_ids_list = list()
+        obj_class_ids = list()
+        obj_relationship_class_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [obj_relationship_class_ids.append(self.db_map.add_wide_relationship_class(**{
+            'object_class_id_list': [obj_class_ids[i]],
+            'dimension': 1,
+            'object_class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10),
+        })) for i in range(self.number_wide_relationship)]
+
+        test_id = random.choice(obj_relationship_class_ids).id
+
+        self.db_map.rename_relationship_class(test_id, "TEST_PASSED_CORRECTLY")
+
+        renamed_element = self.db_map.single_wide_relationship_class(name="TEST_PASSED_CORRECTLY").one_or_none()
+
+        assert renamed_element.id == test_id
+
+    def test_rename_relationship(self):
+        fake = Faker()
+
+        relationship_before_insert = self.db_map.session.query(self.db_map.Relationship).count()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        obj_relationship_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [obj_relationship_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [obj_ids_list[i]],
+            'dimension': 1,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10),
+        })) for i in range(self.number_wide_relationship)]
+
+        test_id = random.choice(obj_relationship_ids).id
+
+        self.db_map.rename_relationship(test_id, "TEST_PASSED_CORRECTLY")
+
+        renamed_element = self.db_map.single_wide_relationship(name="TEST_PASSED_CORRECTLY").one_or_none()
+
+        assert renamed_element.id == test_id
 
 
+    def test_update_parameter(self):
+        fake = Faker()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        relationship_list_ids = list()
+        obj_parameter_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [relationship_list_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [random.choice(obj_ids_list) for i in range(random.randint(1, len(obj_ids_list)))],
+            'dimension': 4,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10)
+        }).id) for i in range(self.number_wide_relationship)]
+
+        [obj_parameter_ids.append(self.db_map.add_parameter(**{
+            'name': fake.pystr(min_chars=None, max_chars=40),
+            'relationship_class_id': random.choice(relationship_list_ids),
+            'object_class_id': random.choice(obj_ids_list),
+            'can_have_time_series': fake.boolean(chance_of_getting_true=50),
+            'can_have_time_pattern': fake.boolean(chance_of_getting_true=50),
+            'can_be_stochastic': fake.boolean(chance_of_getting_true=50)
+        })) for i in range(self.number_of_parameter)]
+
+        test_id = random.choice(obj_parameter_ids).id
+
+        self.db_map.update_parameter(test_id, "name","PARAMETER_UPDATED_CORRECTLY")
+
+        updated_parameter = self.db_map.single_parameter(test_id).one_or_none()
+
+        assert updated_parameter.name == "PARAMETER_UPDATED_CORRECTLY"
+
+    def test_update_parameter_value(self):
+        fake = Faker()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        relationship_list_ids = list()
+        parameter_list_ids = list()
+        parameter_value_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [relationship_list_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [random.choice(obj_ids_list) for i in range(random.randint(1, len(obj_ids_list)))],
+            'dimension': 4,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10)
+        }).id) for i in range(self.number_wide_relationship)]
+
+        [parameter_list_ids.append(self.db_map.add_parameter(**{
+            'name': fake.pystr(min_chars=None, max_chars=40),
+            'relationship_class_id': random.choice(relationship_list_ids),
+            'object_class_id': random.choice(obj_ids_list),
+            'can_have_time_series': fake.boolean(chance_of_getting_true=50),
+            'can_have_time_pattern': fake.boolean(chance_of_getting_true=50),
+            'can_be_stochastic': fake.boolean(chance_of_getting_true=50)
+        }).id) for i in range(self.number_of_parameter)]
+
+        [parameter_value_ids.append(self.db_map.add_parameter_value(**{
+            'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
+            'parameter_id': parameter_list_ids[i],
+            'object_id': obj_ids_list[i],
+            'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
+            'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
+        })) for i in range(self.number_of_parameter_value)]
+
+
+        test_id = random.choice(parameter_value_ids).id
+
+        self.db_map.update_parameter_value(test_id, "expression", "PARAMETER_UPDATED_CORRECTLY")
+
+        updated_parameter = self.db_map.single_parameter_value(test_id).one_or_none()
+
+        assert updated_parameter.expression == "PARAMETER_UPDATED_CORRECTLY"
+
+    def test_remove_object_class(self):
+        fake = Faker()
+        obj_class_ids = list()
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}) for i in
+         range(self.object_number)]
+
+        objects_before_deletion = self.db_map.session.query(self.db_map.Object).count()
+        objectclasses_before_deletion = self.db_map.session.query(self.db_map.ObjectClass).count()
+
+        remove_object_class_candidate = random.choice(obj_class_ids)
+
+        self.db_map.remove_object_class(remove_object_class_candidate)
+
+        assert self.db_map.session.query(
+            self.db_map.ObjectClass).count() == objectclasses_before_deletion -1
+
+    def test_remove_object(self):
+        fake = Faker()
+        obj_class_ids = list()
+        obj_ids = list()
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)})) for i in
+            range(self.object_number)]
+
+        objects_before_deletion = self.db_map.session.query(self.db_map.Object).count()
+
+        remove_object_candidate = random.choice(obj_ids).id
+
+        self.db_map.remove_object(remove_object_candidate)
+
+        assert self.db_map.session.query(
+            self.db_map.Object).count() == objects_before_deletion - 1
+
+    def test_remove_relationship_class(self):
+        fake = Faker()
+        obj_ids_list = list()
+        obj_class_ids = list()
+        obj_relationship_class_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [obj_relationship_class_ids.append(self.db_map.add_wide_relationship_class(**{
+            'object_class_id_list': [obj_class_ids[i]],
+            'dimension': 1,
+            'object_class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10),
+        })) for i in range(self.number_wide_relationship)]
+
+        test_id = random.choice(obj_relationship_class_ids).id
+
+        number_of_relationship_classes_before_deletion = self.db_map.session.query(self.db_map.RelationshipClass).count()
+
+        self.db_map.remove_relationship_class(test_id)
+
+        assert self.db_map.session.query(self.db_map.RelationshipClass).count() == number_of_relationship_classes_before_deletion -1
+
+    def test_remove_relationship(self):
+        fake = Faker()
+
+        relationship_before_insert = self.db_map.session.query(self.db_map.Relationship).count()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        obj_relationship_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [obj_relationship_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [obj_ids_list[i]],
+            'dimension': 1,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10),
+        })) for i in range(self.number_wide_relationship)]
+
+        test_id = random.choice(obj_relationship_ids).id
+
+        number_of_relationship_before_deletion = self.db_map.session.query(
+            self.db_map.Relationship).count()
+
+        self.db_map.remove_relationship(test_id)
+
+        assert self.db_map.session.query(
+            self.db_map.Relationship).count() == number_of_relationship_before_deletion - 1
+
+    def test_remove_parameter(self):
+        fake = Faker()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        relationship_list_ids = list()
+        obj_parameter_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [relationship_list_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [random.choice(obj_ids_list) for i in range(random.randint(1, len(obj_ids_list)))],
+            'dimension': 4,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10)
+        }).id) for i in range(self.number_wide_relationship)]
+
+        [obj_parameter_ids.append(self.db_map.add_parameter(**{
+            'name': fake.pystr(min_chars=None, max_chars=40),
+            'relationship_class_id': random.choice(relationship_list_ids),
+            'object_class_id': random.choice(obj_ids_list),
+            'can_have_time_series': fake.boolean(chance_of_getting_true=50),
+            'can_have_time_pattern': fake.boolean(chance_of_getting_true=50),
+            'can_be_stochastic': fake.boolean(chance_of_getting_true=50)
+        })) for i in range(self.number_of_parameter)]
+
+        test_id = random.choice(obj_parameter_ids).id
+
+        number_of_parameter_before_deletion = self.db_map.session.query(
+            self.db_map.Parameter).count()
+
+        self.db_map.remove_parameter(test_id)
+
+        assert self.db_map.session.query(
+            self.db_map.Parameter).count() == number_of_parameter_before_deletion - 1
+
+    def test_remove_parameter_value(self):
+        fake = Faker()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        relationship_list_ids = list()
+        parameter_list_ids = list()
+        parameter_value_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [relationship_list_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [random.choice(obj_ids_list) for i in range(random.randint(1, len(obj_ids_list)))],
+            'dimension': 4,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10)
+        }).id) for i in range(self.number_wide_relationship)]
+
+        [parameter_list_ids.append(self.db_map.add_parameter(**{
+            'name': fake.pystr(min_chars=None, max_chars=40),
+            'relationship_class_id': random.choice(relationship_list_ids),
+            'object_class_id': random.choice(obj_ids_list),
+            'can_have_time_series': fake.boolean(chance_of_getting_true=50),
+            'can_have_time_pattern': fake.boolean(chance_of_getting_true=50),
+            'can_be_stochastic': fake.boolean(chance_of_getting_true=50)
+        }).id) for i in range(self.number_of_parameter)]
+
+        [parameter_value_ids.append(self.db_map.add_parameter_value(**{
+            'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
+            'parameter_id': parameter_list_ids[i],
+            'object_id': obj_ids_list[i],
+            'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
+            'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
+        })) for i in range(self.number_of_parameter_value)]
+
+        test_id = random.choice(parameter_value_ids).id
+
+        number_of_parameter_value_before_deletion = self.db_map.session.query(
+            self.db_map.ParameterValue).count()
+
+        self.db_map.remove_parameter_value(test_id)
+
+        assert self.db_map.session.query(
+            self.db_map.ParameterValue).count() == number_of_parameter_value_before_deletion - 1
+
+    def test_reset_mapping(self):
+        fake = Faker()
+
+        obj_ids_list = list()
+        obj_class_ids = list()
+        relationship_list_ids = list()
+        parameter_list_ids = list()
+        parameter_value_ids = list()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [relationship_list_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [random.choice(obj_ids_list) for i in range(random.randint(1, len(obj_ids_list)))],
+            'dimension': 4,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10)
+        }).id) for i in range(self.number_wide_relationship)]
+
+        [parameter_list_ids.append(self.db_map.add_parameter(**{
+            'name': fake.pystr(min_chars=None, max_chars=40),
+            'relationship_class_id': random.choice(relationship_list_ids),
+            'object_class_id': random.choice(obj_ids_list),
+            'can_have_time_series': fake.boolean(chance_of_getting_true=50),
+            'can_have_time_pattern': fake.boolean(chance_of_getting_true=50),
+            'can_be_stochastic': fake.boolean(chance_of_getting_true=50)
+        }).id) for i in range(self.number_of_parameter)]
+
+        [parameter_value_ids.append(self.db_map.add_parameter_value(**{
+            'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
+            'parameter_id': parameter_list_ids[i],
+            'object_id': obj_ids_list[i],
+            'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
+            'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
+        })) for i in range(self.number_of_parameter_value)]
+
+        self.db_map.reset_mapping()
+
+        assert self.db_map.session.query(
+            self.db_map.ParameterValue).count() == 0
+        assert self.db_map.session.query(
+            self.db_map.Parameter).count() == 0
+        assert self.db_map.session.query(
+            self.db_map.Object).count() == 0
+        assert self.db_map.session.query(
+            self.db_map.RelationshipClass).count() == 0
+        assert self.db_map.session.query(
+            self.db_map.Relationship).count() == 0
 
     def tearDown(self):
         """Overridden method. Runs after each test.
