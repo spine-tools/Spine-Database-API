@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5442243e-ff44-4bf3-90bd-0550fc45fefc" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/data.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/data.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/spinedatabase_api/helpers.py" beforeDir="false" afterPath="$PROJECT_DIR$/spinedatabase_api/helpers.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test/test_database_mapping.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/test_database_mapping.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -14,38 +14,41 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="CoverageDataManager">
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object Coverage Results" MODIFIED="1545344416241" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObject.coverage" NAME="Unittests for test_import_functions.TestImportObject Coverage Results" MODIFIED="1547190903614" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_relationship.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_relationship Coverage Results" MODIFIED="1547188508355" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship_class Coverage Results" MODIFIED="1547191932518" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_update_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_update_parameter_value Coverage Results" MODIFIED="1547190134644" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_wide_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class Coverage Results" MODIFIED="1545206395652" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestIntegrationImportData.coverage" NAME="Unittests for test_import_functions.TestIntegrationImportData Coverage Results" MODIFIED="1547190880829" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_single_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_single_object Coverage Results" MODIFIED="1545129843707" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_object_class Coverage Results" MODIFIED="1545129386446" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_object_class Coverage Results" MODIFIED="1547190424515" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportParameterValue.coverage" NAME="Unittests for test_import_functions.TestImportParameterValue Coverage Results" MODIFIED="1547190927710" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_create_engine_and_session.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_create_engine_and_session Coverage Results" MODIFIED="1545124079783" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value Coverage Results" MODIFIED="1545341895390" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_object Coverage Results" MODIFIED="1547190623158" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObjectClassParameter.coverage" NAME="Unittests for test_import_functions.TestImportObjectClassParameter Coverage Results" MODIFIED="1547190912778" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter Coverage Results" MODIFIED="1547193824573" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_update_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_update_parameter Coverage Results" MODIFIED="1547188974999" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportRelationshipClass.coverage" NAME="Unittests for test_import_functions.TestImportRelationshipClass Coverage Results" MODIFIED="1547190907908" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter_value Coverage Results" MODIFIED="1547194196766" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_relationship_class Coverage Results" MODIFIED="1547188381636" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter Coverage Results" MODIFIED="1545205876274" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObjectClass.coverage" NAME="Unittests for test_import_functions.TestImportObjectClass Coverage Results" MODIFIED="1547190897447" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_create_db.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_create_db Coverage Results" MODIFIED="1545124086324" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportRelationshipClassParameter.coverage" NAME="Unittests for test_import_functions.TestImportRelationshipClassParameter Coverage Results" MODIFIED="1547190918197" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportRelationship.coverage" NAME="Unittests for test_import_functions.TestImportRelationship Coverage Results" MODIFIED="1547190922529" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object_class Coverage Results" MODIFIED="1545342357153" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename Coverage Results" MODIFIED="1545342310694" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_reset_mapping.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_reset_mapping Coverage Results" MODIFIED="1547194336729" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_object_class_and_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_object_class_and_object Coverage Results" MODIFIED="1545129554245" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_relationship.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship Coverage Results" MODIFIED="1547193729932" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
     <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObjectClass_test_insert_valid_object_classes.coverage" NAME="Unittests for test_import_functions.TestImportObjectClass.test_insert_valid_object_classes Coverage Results" MODIFIED="1547190891827" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
-    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI Coverage Results" MODIFIED="1547194346169" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_wide_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_wide_relationship_class Coverage Results" MODIFIED="1545206395652" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object Coverage Results" MODIFIED="1545344416241" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_single_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_single_object Coverage Results" MODIFIED="1545129843707" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_update_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_update_parameter Coverage Results" MODIFIED="1547188974999" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObject.coverage" NAME="Unittests for test_import_functions.TestImportObject Coverage Results" MODIFIED="1547190903614" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_object Coverage Results" MODIFIED="1547190623158" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_update_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_update_parameter_value Coverage Results" MODIFIED="1547190134644" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_object_class Coverage Results" MODIFIED="1545342357153" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestIntegrationImportData.coverage" NAME="Unittests for test_import_functions.TestIntegrationImportData Coverage Results" MODIFIED="1547190880829" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_relationship_class Coverage Results" MODIFIED="1547188381636" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportRelationship.coverage" NAME="Unittests for test_import_functions.TestImportRelationship Coverage Results" MODIFIED="1547190922529" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObjectClass.coverage" NAME="Unittests for test_import_functions.TestImportObjectClass Coverage Results" MODIFIED="1547190897447" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportRelationshipClass.coverage" NAME="Unittests for test_import_functions.TestImportRelationshipClass Coverage Results" MODIFIED="1547190907908" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportParameterValue.coverage" NAME="Unittests for test_import_functions.TestImportParameterValue Coverage Results" MODIFIED="1547190927710" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter Coverage Results" MODIFIED="1545205876274" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_object_class_and_object.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_object_class_and_object Coverage Results" MODIFIED="1545129554245" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_create_db.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_create_db Coverage Results" MODIFIED="1545124086324" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_create_engine_and_session.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_create_engine_and_session Coverage Results" MODIFIED="1545124079783" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportRelationshipClassParameter.coverage" NAME="Unittests for test_import_functions.TestImportRelationshipClassParameter Coverage Results" MODIFIED="1547190918197" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_reset_mapping.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_reset_mapping Coverage Results" MODIFIED="1547194336729" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship_class Coverage Results" MODIFIED="1547191932518" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_import_functions_TestImportObjectClassParameter.coverage" NAME="Unittests for test_import_functions.TestImportObjectClassParameter Coverage Results" MODIFIED="1547190912778" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_object_class Coverage Results" MODIFIED="1547190424515" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter_value Coverage Results" MODIFIED="1547194196766" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename Coverage Results" MODIFIED="1545342310694" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_rename_relationship.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_rename_relationship Coverage Results" MODIFIED="1547188508355" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter Coverage Results" MODIFIED="1547193824573" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_parameter.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter Coverage Results" MODIFIED="1547204277291" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class Coverage Results" MODIFIED="1547203914703" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_wide_relationship_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class Coverage Results" MODIFIED="1547204175336" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_object_class.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_object_class Coverage Results" MODIFIED="1545129386446" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI Coverage Results" MODIFIED="1547204325566" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
+    <SUITE FILE_PATH="coverage/data$Unittests_for_test_database_mapping_TestDatabaseAPI_test_add_parameter_value.coverage" NAME="Unittests for test_database_mapping.TestDatabaseAPI.test_add_parameter_value Coverage Results" MODIFIED="1545341895390" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/test" />
   </component>
   <component name="DatabaseView">
     <option name="SHOW_INTERMEDIATE" value="true" />
@@ -130,6 +133,19 @@
         </counts>
       </usages-collector>
     </session>
+    <session id="777959830">
+      <usages-collector id="statistics.lifecycle.project">
+        <counts>
+          <entry key="project.open.time.2" value="1" />
+          <entry key="project.opened" value="1" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.types.edit">
+        <counts>
+          <entry key="Python" value="93" />
+        </counts>
+      </usages-collector>
+    </session>
   </component>
   <component name="FileEditorManager">
     <splitter split-orientation="horizontal" split-proportion="0.5">
@@ -138,19 +154,10 @@
           <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/test/test_database_mapping.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="8475">
-                  <caret line="565" column="41" lean-forward="true" selection-start-line="565" selection-start-column="41" selection-end-line="565" selection-end-column="41" />
+                <state relative-caret-position="-1462">
+                  <caret line="37" column="32" lean-forward="true" selection-start-line="37" selection-start-column="32" selection-end-line="37" selection-end-column="32" />
                   <folding>
                     <element signature="e#1073#1144#0" expanded="true" />
-                    <marker date="1547194401186" expanded="true" signature="1764:1765" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="9541:9561" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="10930:12079" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="12114:12123" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="13368:13377" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="15183:15184" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="15183:17509" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="20543:21843" ph="..." />
-                    <marker date="1547194401186" expanded="true" signature="26157:28663" ph="..." />
                   </folding>
                 </state>
               </provider>
@@ -159,7 +166,7 @@
           <file pinned="false" current-in-tab="false">
             <entry file="file://$PROJECT_DIR$/test/test_import_functions.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="977">
+                <state relative-caret-position="8330">
                   <caret line="504" column="62" selection-start-line="504" selection-start-column="45" selection-end-line="504" selection-end-column="62" />
                 </state>
               </provider>
@@ -168,12 +175,12 @@
         </leaf>
       </split-first>
       <split-second>
-        <leaf>
+        <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
           <file pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/spinedatabase_api/database_mapping.py">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="153">
-                  <caret line="1015" column="18" selection-start-line="1015" selection-start-column="8" selection-end-line="1015" selection-end-column="18" />
+                <state relative-caret-position="304">
+                  <caret line="782" column="46" selection-start-line="782" selection-start-column="46" selection-end-line="782" selection-end-column="46" />
                 </state>
               </provider>
             </entry>
@@ -221,10 +228,27 @@
     <detection-done>true</detection-done>
     <sorting>DEFINITION_ORDER</sorting>
   </component>
-  <component name="ProjectFrameBounds">
+  <component name="ProjectFrameBounds" extendedState="6">
     <option name="y" value="23" />
     <option name="width" value="1440" />
     <option name="height" value="877" />
+  </component>
+  <component name="ProjectInspectionProfilesVisibleTreeState">
+    <entry key="Project Default">
+      <profile-state>
+        <expanded-state>
+          <State />
+          <State>
+            <id>Python</id>
+          </State>
+        </expanded-state>
+        <selected-state>
+          <State>
+            <id>PyPackageRequirementsInspection</id>
+          </State>
+        </selected-state>
+      </profile-state>
+    </entry>
   </component>
   <component name="ProjectView">
     <navigator proportions="" version="1">
@@ -291,7 +315,7 @@
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
+    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
       <module name="data" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -302,11 +326,11 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_remove_parameter&quot;" />
+      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter_value" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
+    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
       <module name="data" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -317,11 +341,11 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_remove_parameter_value&quot;" />
+      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
+    <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class" type="tests" factoryName="Unittests" temporary="true" nameIsGenerated="true">
       <module name="data" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -332,7 +356,7 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_remove_relationship&quot;" />
+      <option name="_new_target" value="&quot;test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class&quot;" />
       <option name="_new_targetType" value="&quot;PYTHON&quot;" />
       <method v="2" />
     </configuration>
@@ -352,19 +376,19 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship" />
-      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter" />
-      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter_value" />
       <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_reset_mapping" />
       <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI" />
+      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" />
+      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class" />
+      <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class" />
+        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" />
         <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_reset_mapping" />
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter_value" />
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter" />
-        <item itemvalue="Python tests.Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship" />
       </list>
     </recent_temporary>
   </component>
@@ -382,52 +406,52 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="Unittests_for_test_import_functions_TestImportObjectClassParameter - 2019.01.11 at 07h 15m 13s.xml">
-      <configuration name="Unittests for test_import_functions.TestImportObjectClassParameter" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_object_class - 2019.01.11 at 10h 41m 21s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_import_functions_TestImportRelationshipClassParameter - 2019.01.11 at 07h 15m 18s.xml">
-      <configuration name="Unittests for test_import_functions.TestImportRelationshipClassParameter" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_object_class - 2019.01.11 at 10h 41m 47s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_import_functions_TestImportRelationship - 2019.01.11 at 07h 15m 23s.xml">
-      <configuration name="Unittests for test_import_functions.TestImportRelationship" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_object_class - 2019.01.11 at 10h 42m 27s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_import_functions_TestImportParameterValue - 2019.01.11 at 07h 15m 28s.xml">
-      <configuration name="Unittests for test_import_functions.TestImportParameterValue" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_object_class - 2019.01.11 at 10h 51m 56s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_object_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_relationship_class - 2019.01.11 at 07h 32m 14s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship_class" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_wide_relationship_class - 2019.01.11 at 10h 55m 55s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_relationship - 2019.01.11 at 08h 02m 12s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_relationship" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_wide_relationship_class - 2019.01.11 at 10h 56m 06s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_parameter - 2019.01.11 at 08h 03m 47s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_wide_relationship_class - 2019.01.11 at 10h 56m 17s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_wide_relationship_class" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_remove_parameter_value - 2019.01.11 at 08h 09m 59s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_remove_parameter_value" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_parameter - 2019.01.11 at 10h 57m 42s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_reset_mapping - 2019.01.11 at 08h 12m 19s.xml">
-      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_reset_mapping" configurationId="tests" />
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI_test_get_or_add_parameter - 2019.01.11 at 10h 58m 01s.xml">
+      <configuration name="Unittests for test_database_mapping.TestDatabaseAPI.test_get_or_add_parameter" configurationId="tests" />
     </history-entry>
-    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI - 2019.01.11 at 08h 12m 50s.xml">
+    <history-entry file="Unittests_for_test_database_mapping_TestDatabaseAPI - 2019.01.11 at 10h 59m 28s.xml">
       <configuration name="Unittests for test_database_mapping.TestDatabaseAPI" configurationId="tests" />
     </history-entry>
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="23" width="1440" height="877" extended-state="0" />
+    <frame x="-8" y="-8" width="1936" height="1056" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.19384836" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.1444563" />
       <window_info id="Structure" order="1" side_tool="true" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Database Console" order="0" weight="0.32939634" />
       <window_info anchor="bottom" id="Docker" order="1" show_stripe_button="false" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.32939634" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.32936078" />
       <window_info anchor="bottom" id="TODO" order="3" />
       <window_info anchor="bottom" id="Database Changes" order="4" />
       <window_info anchor="bottom" id="Statistic" order="5" />
       <window_info anchor="bottom" id="Debug" order="6" />
-      <window_info anchor="bottom" id="Terminal" order="7" />
+      <window_info anchor="bottom" id="Terminal" order="7" weight="0.32936078" />
       <window_info anchor="bottom" id="Event Log" order="8" side_tool="true" />
       <window_info anchor="bottom" id="Version Control" order="9" show_stripe_button="false" />
       <window_info anchor="bottom" id="Python Console" order="10" />
@@ -442,9 +466,7 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$APPLICATION_CONFIG_DIR$/consoles/db/e7226195-5efc-4e7c-a051-5936ac5565c8/console.sql">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
+    <entry file="file://$APPLICATION_CONFIG_DIR$/consoles/db/e7226195-5efc-4e7c-a051-5936ac5565c8/console.sql" />
     <entry file="file://$PROJECT_DIR$/test/test.log" />
     <entry file="das://e7226195-5efc-4e7c-a051-5936ac5565c8/schema/main/table/parameter">
       <provider selected="true" editor-type-id="com.intellij.database.editor.DatabaseTableFileEditorProvider">
@@ -467,13 +489,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/conda/envs/toolbox-master/lib/python3.6/unittest/case.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1020">
-          <caret line="444" column="10" lean-forward="true" selection-start-line="444" selection-start-column="10" selection-end-line="444" selection-end-column="10" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$USER_HOME$/conda/envs/toolbox-master/lib/python3.6/unittest/case.py" />
     <entry file="das://e7226195-5efc-4e7c-a051-5936ac5565c8/schema/main/table/object_class">
       <provider selected="true" editor-type-id="com.intellij.database.editor.DatabaseTableFileEditorProvider">
         <state>
@@ -488,13 +504,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/Library/Caches/PyCharm2018.2/python_stubs/86379913/builtins.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="161">
-          <caret line="3598" column="8" selection-start-line="3598" selection-start-column="8" selection-end-line="3598" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$USER_HOME$/Library/Caches/PyCharm2018.2/python_stubs/86379913/builtins.py" />
     <entry file="file://$PROJECT_DIR$/spinedatabase_api/helpers.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-19">
@@ -529,33 +539,24 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/test/test_import_functions.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="977">
+        <state relative-caret-position="8330">
           <caret line="504" column="62" selection-start-line="504" selection-start-column="45" selection-end-line="504" selection-end-column="62" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/spinedatabase_api/database_mapping.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="153">
-          <caret line="1015" column="18" selection-start-line="1015" selection-start-column="8" selection-end-line="1015" selection-end-column="18" />
+        <state relative-caret-position="304">
+          <caret line="782" column="46" selection-start-line="782" selection-start-column="46" selection-end-line="782" selection-end-column="46" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/test/test_database_mapping.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8475">
-          <caret line="565" column="41" lean-forward="true" selection-start-line="565" selection-start-column="41" selection-end-line="565" selection-end-column="41" />
+        <state relative-caret-position="-1462">
+          <caret line="37" column="32" lean-forward="true" selection-start-line="37" selection-start-column="32" selection-end-line="37" selection-end-column="32" />
           <folding>
             <element signature="e#1073#1144#0" expanded="true" />
-            <marker date="1547194401186" expanded="true" signature="1764:1765" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="9541:9561" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="10930:12079" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="12114:12123" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="13368:13377" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="15183:15184" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="15183:17509" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="20543:21843" ph="..." />
-            <marker date="1547194401186" expanded="true" signature="26157:28663" ph="..." />
           </folding>
         </state>
       </provider>

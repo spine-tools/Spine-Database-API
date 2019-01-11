@@ -204,14 +204,71 @@ class TestDatabaseAPI(unittest.TestCase):
         }) for i in range(self.number_of_parameter_value)]
 
     def test_get_or_add_object_class(self):
-        pass
+        obj_class_ids = list()
+        fake = Faker()
+        object_before_insert = self.db_map.session.query(self.db_map.ObjectClass).count()
+        [obj_class_ids.append(self.db_map.get_or_add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        assert self.db_map.session.query(self.db_map.ObjectClass).count() == object_before_insert+self.object_class_number
 
     def test_get_or_add_wide_relationship_class(self):
-        pass
+         fake = Faker()
+
+         relationship_class_before_insert = self.db_map.session.query(self.db_map.RelationshipClass).count()
+
+         obj_ids_list = list()
+         obj_class_ids = list()
+
+         [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id)
+          for i in range(self.object_class_number)]
+         [obj_ids_list.append(self.db_map.add_object(
+             **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i
+          in range(self.object_number)]
+
+         [self.db_map.get_or_add_wide_relationship_class(**{
+             'object_class_id_list': [obj_class_ids[i]],
+             'dimension': 1,
+             'object_class_id': random.choice(obj_class_ids),
+             'name': fake.pystr(min_chars=None, max_chars=10),
+         }) for i in range(self.number_wide_relationship)]
+
+         assert self.db_map.session.query(
+             self.db_map.RelationshipClass).count() == self.number_wide_relationship + relationship_class_before_insert
+
 
     def test_get_or_add_parameter(self):
-        pass
+        fake = Faker()
 
+        obj_ids_list = list()
+        obj_class_ids = list()
+        relationship_list_ids = list()
+
+        parameters_before_insert = self.db_map.session.query(self.db_map.Parameter).count()
+
+        [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for
+         i in range(self.object_class_number)]
+        [obj_ids_list.append(self.db_map.add_object(
+            **{'name': fake.pystr(min_chars=None, max_chars=40), 'class_id': random.choice(obj_class_ids)}).id) for i in
+         range(self.object_number)]
+
+        [relationship_list_ids.append(self.db_map.add_wide_relationship(**{
+            'object_id_list': [random.choice(obj_ids_list) for i in range(random.randint(1, len(obj_ids_list)))],
+            'dimension': 4,
+            'class_id': random.choice(obj_class_ids),
+            'name': fake.pystr(min_chars=None, max_chars=10)
+        }).id) for i in range(self.number_wide_relationship)]
+
+        [self.db_map.get_or_add_parameter(**{
+            'name': fake.pystr(min_chars=None, max_chars=40),
+            'relationship_class_id': random.choice(relationship_list_ids),
+            'object_class_id': random.choice(obj_ids_list),
+            'can_have_time_series': fake.boolean(chance_of_getting_true=50),
+            'can_have_time_pattern': fake.boolean(chance_of_getting_true=50),
+            'can_be_stochastic': fake.boolean(chance_of_getting_true=50)
+        }) for i in range(self.number_of_parameter)]
+
+        assert self.db_map.session.query(
+            self.db_map.Parameter).count() == self.number_of_parameter + parameters_before_insert
 
     def test_rename_object_class(self):
 
