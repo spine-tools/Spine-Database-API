@@ -627,7 +627,7 @@ class DatabaseMapping(object):
         """Add object to database.
 
         Returns:
-            object_ (dict): the object now with the id
+            (dict) the object now with the id.
         """
         self.add_working_commit()
         object_ = self.Object(commit_id=self._commit.id, **kwargs)
