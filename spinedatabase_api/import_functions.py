@@ -28,7 +28,7 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
                 relationship_parameters=[], objects=[], relationships=[],
                 object_parameter_values=[], relationship_parameter_values=[]):
     """Imports data without ids into spine database by identifying by name
-    
+
     Ex:
         object_c = ['example_class', 'other_class']
         obj_parameters = [['example_class', 'example_parameter']]
@@ -39,7 +39,7 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
         object_p_values = [['example_object', 'example_parameter', 'value', 3.14]]
         relationships = [['example_rel_class', ['example_object', 'other_object']]]
         rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 'value', 2.718]]
-        
+
         import_data(db_map,
                     object_classes=object_c,
                     relationship_classes=relationship_c,
@@ -49,25 +49,26 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
                     relationships=relationships,
                     object_parameter_values=object_p_values,
                     relationship_parameter_values=rel_p_values)
-    
+
     Args:
         db_map (spinetoolbox_api.DiffDatabaseMapping): database mapping
         object_classes (List[str]): List of object class names
-        relationship_classes (List[List[str, List(str)]): 
-            List of lists with relationship class names and list object class names
-        object_parameters (List[List[str, str]]): 
+        relationship_classes (List[List[str, List(str)]):
+            List of lists with relationship class names and list of object class names
+        object_parameters (List[List[str, str]]):
             list of lists with object class name and parameter name
-        relationship_parameters (List[List[str, str]]): 
+        relationship_parameters (List[List[str, str]]):
             list of lists with relationship class name and parameter name
-        objects (List[List[str, str]]): 
+        objects (List[List[str, str]]):
             list of lists with object class name and object name
-        relationships: (List[List[str,List(String)]]): 
+        relationships: (List[List[str,List(String)]]):
             list of lists with relationship class name and list of object names
         object_parameter_values (List[List[str, str, 'json'|'value', str|numeric]]):
-            list of lists with object name, parameter name, paramter type, parameter value
+            list of lists with object name, parameter name, parameter type, parameter value
         relationship_parameter_values (List[List[str, List(str), str, 'json'|'value', str|numeric]]):
-            list of lists with relationship class name, list of object names, parameter name, paramter type, parameter value
-    
+            list of lists with relationship class name, list of object names, parameter name, parameter type,
+            parameter value
+
     Returns:
         number of inserted/changed entities and list of ImportErrorLogItem with
         any import errors
@@ -106,20 +107,19 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
         new, errors = import_relationship_parameter_values(db_map, relationship_parameter_values)
         num_imports = num_imports + new
         error_log.extend(errors)
-    
     return num_imports, error_log
 
 
 def import_object_classes(db_map, object_classes):
-    """Imports list of object class names into give database mapping.
-    Skips duplicate names and exiting names.
-        ex: 
+    """Imports list of object class names into given database mapping.
+    Skips duplicate names and existing names.
+        ex:
             data = ['new_object']
             import_objects(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (Iterable): list/set/iterabel of object class names (strings) to import
+        data (Iterable): list/set/iterable of object class names (strings) to import
 
     Returns:
         (Int, List) Number of succesfull inserted object classes, list of errors
@@ -134,13 +134,13 @@ def import_object_classes(db_map, object_classes):
 
 def import_objects(db_map, object_data):
     """Imports list of object names with object classes:
-        ex: 
+        ex:
             data = [('new_object', 'object_class_name')]
             import_objects(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -148,7 +148,7 @@ def import_objects(db_map, object_data):
     """
     existing_classes = {oc.name: oc.id for oc in db_map.object_class_list().all()}
     existing_objects = {o.name: o.class_id for o in db_map.object_list().all()}
-    
+
     # save new objects in set so we don't try to insert same object twice
     error_log = []
     new_objects = []
@@ -177,13 +177,13 @@ def import_objects(db_map, object_data):
 
 def import_relationship_classes(db_map, relationship_classes):
     """Imports list of relationship class names with object classes:
-        ex: 
+        ex:
             data = [('new_rel_class', ['object_class_1, object_class_2])]
             import_relationship_classes(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -219,13 +219,13 @@ def import_relationship_classes(db_map, relationship_classes):
 
 def import_object_parameters(db_map, parameter_data):
     """Imports list of object class parameters:
-        ex: 
+        ex:
             data = [('new_parameter', 'object_class_1')]
             import_object_parameters(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -262,13 +262,13 @@ def import_object_parameters(db_map, parameter_data):
 
 def import_relationship_parameters(db_map, parameter_data):
     """Imports list of relationship class parameters:
-        ex: 
+        ex:
             data = [('new_parameter', 'relationship_class_name')]
             import_object_parameters(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -305,13 +305,13 @@ def import_relationship_parameters(db_map, parameter_data):
 
 def import_relationships(db_map, relationship_data):
     """Imports list of relationships:
-        ex: 
+        ex:
             data = [('relationship_class_name', ('object_name1','object_name2'))]
             import_object_parameters(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -321,7 +321,7 @@ def import_relationships(db_map, relationship_data):
     existing_objects = {o.name: (o.id, o.class_id) for o in db_map.object_list().all()}
     existing_relationship_classes = {oc.name: (oc.id, list(map(int,oc.object_class_id_list.split(',')))) for oc in db_map.wide_relationship_class_list().all()}
     existing_relationships = {(oc.class_id,) + tuple(map(int,oc.object_id_list.split(','))) for oc in db_map.wide_relationship_list().all()}
-    
+
     error_log = []
     new_relationships = []
     for r in relationship_data:
@@ -353,18 +353,18 @@ def import_relationships(db_map, relationship_data):
     if new_relationships:
         db_map.add_wide_relationships(*new_relationships)
     return len(new_relationships), error_log
-    
+
 
 def import_object_parameter_values(db_map, data):
     """Imports list of object parameter values:
-        ex: 
+        ex:
             data = [('object_name', 'parameter_name', 'value', 123.4),
                     ('object_name', 'parameter_name2', 'json', '{"timeseries": [1,2,3]}')]
             import_object_parameter_values(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -374,7 +374,7 @@ def import_object_parameter_values(db_map, data):
     existing_objects = {o.name: (o.id, o.class_id) for o in db_map.object_list().all()}
     existing_parameters = {oc.name: (oc.id, oc.object_class_id) for oc in db_map.parameter_list().all()}
     existing_parameter_values = {(oc.parameter_id, oc.object_id): oc.id for oc in db_map.object_parameter_value_list().all()}
-    
+
     error_log = []
     new_values = []
     update_values = []
@@ -419,7 +419,7 @@ def import_object_parameter_values(db_map, data):
         else:
             # duplicate new value
             error_log.append(ImportErrorLogItem(msg="Duplicate parameter value for: '{}: {}', only first value was inserted".format(o_name, p_name), db_type='parameter value'))
-            
+
     if new_values:
         db_map.add_parameter_values(*new_values)
     if update_values:
@@ -429,14 +429,14 @@ def import_object_parameter_values(db_map, data):
 
 def import_relationship_parameter_values(db_map, data):
     """Imports list of object parameter values:
-        ex: 
+        ex:
             data = [('object_name', 'parameter_name', 'value', 123.4),
                     ('object_name', 'parameter_name2', 'json', '{"timeseries": [1,2,3]}')]
             import_object_parameter_values(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with 
+        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
                                  object name and object class name
 
     Returns:
@@ -513,7 +513,7 @@ def import_relationship_parameter_values(db_map, data):
         else:
             # duplicate new value
             error_log.append(ImportErrorLogItem(msg="Duplicate parameter value for: '{}: {}', only first value was inserted".format(','.join(o_names), p_name), db_type='parameter value'))
-            
+
     if new_values:
         db_map.add_parameter_values(*new_values)
     if update_values:

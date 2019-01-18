@@ -740,16 +740,22 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
             filter(~self.Relationship.id.in_(valued_relationship_ids))
 
-    def check_object_classes_for_insert(self, *kwargs_list):
+    def check_object_classes_for_insert(self, *kwargs_list, raise_intgr_err=True):
         """Check that object classes respect integrity constraints for an insert operation."""
+        intgr_err_log = []
         checked_kwargs_list = list()
         object_class_names = {x.name for x in self.object_class_list()}
         for kwargs in kwargs_list:
-            self.check_object_class(kwargs, object_class_names)
-            checked_kwargs_list.append(kwargs)
-            # If the check passes, append kwargs to `object_class_names` for next iteration.
-            object_class_names.add(kwargs["name"])
-        return checked_kwargs_list
+            try:
+                self.check_object_class(kwargs, object_class_names)
+                checked_kwargs_list.append(kwargs)
+                # If the check passes, append kwargs to `object_class_names` for next iteration.
+                object_class_names.add(kwargs["name"])
+            except SpineIntegrityError as e:
+                if raise_intgr_err:
+                    raise e
+                intgr_err_log.append(e.msg)
+        return checked_kwargs_list, intgr_err_log
 
     def check_object_classes_for_update(self, *kwargs_list):
         """Check that object classes respect integrity constraints for an update operation."""
@@ -773,7 +779,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             updated_kwargs.update(kwargs)
             self.check_object_class(updated_kwargs, object_class_names)
             checked_kwargs_list.append(kwargs)
-            # If the check passes, reinject the updated instance to `object_class_dict` for next iteration.
+            # If the check passes, reinject the updated instance for next iteration.
             object_class_dict[id] = updated_kwargs
             object_class_names.add(updated_kwargs["name"])
         return checked_kwargs_list
@@ -789,16 +795,22 @@ class DiffDatabaseMapping(DatabaseMapping):
         if name in object_class_names:
             raise SpineIntegrityError("There can't be more than one object class called '{}'.".format(name))
 
-    def check_objects_for_insert(self, *kwargs_list):
+    def check_objects_for_insert(self, *kwargs_list, raise_intgr_err=True):
         """Check that objects respect integrity constraints for an insert operation."""
+        intgr_err_log = []
         checked_kwargs_list = list()
         object_names = {x.name for x in self.object_list()}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for kwargs in kwargs_list:
-            self.check_object(kwargs, object_names, object_class_id_list)
-            checked_kwargs_list.append(kwargs)
-            object_names.add(kwargs["name"])
-        return checked_kwargs_list
+            try:
+                self.check_object(kwargs, object_names, object_class_id_list)
+                checked_kwargs_list.append(kwargs)
+                object_names.add(kwargs["name"])
+            except SpineIntegrityError as e:
+                if raise_intgr_err:
+                    raise e
+                intgr_err_log.append(e.msg)
+        return checked_kwargs_list, intgr_err_log
 
     def check_objects_for_update(self, *kwargs_list):
         """Check that objects respect integrity constraints for an update operation."""
@@ -839,16 +851,22 @@ class DiffDatabaseMapping(DatabaseMapping):
         if name in object_names:
             raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name))
 
-    def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list):
+    def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list, raise_intgr_err=True):
         """Check that relationship classes respect integrity constraints for an insert operation."""
+        intgr_err_log = []
         checked_wide_kwargs_list = list()
         relationship_class_names = {x.name for x in self.wide_relationship_class_list()}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for wide_kwargs in wide_kwargs_list:
-            self.check_wide_relationship_class(wide_kwargs, relationship_class_names, object_class_id_list)
-            checked_wide_kwargs_list.append(wide_kwargs)
-            relationship_class_names.add(wide_kwargs["name"])
-        return checked_wide_kwargs_list
+            try:
+                self.check_wide_relationship_class(wide_kwargs, relationship_class_names, object_class_id_list)
+                checked_wide_kwargs_list.append(wide_kwargs)
+                relationship_class_names.add(wide_kwargs["name"])
+            except SpineIntegrityError as e:
+                if raise_intgr_err:
+                    raise e
+                intgr_err_log.append(e.msg)
+        return checked_wide_kwargs_list, intgr_err_log
 
     def check_wide_relationship_classes_for_update(self, *wide_kwargs_list):
         """Check that relationship classes respect integrity constraints for an update operation."""
@@ -896,8 +914,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         if name in relationship_class_names:
             raise SpineIntegrityError("There can't be more than one relationship class called '{}'.".format(name))
 
-    def check_wide_relationships_for_insert(self, *wide_kwargs_list):
+    def check_wide_relationships_for_insert(self, *wide_kwargs_list, raise_intgr_err=True):
         """Check that relationships respect integrity constraints for an insert operation."""
+        intgr_err_log = []
         checked_wide_kwargs_list = list()
         relationship_names = {x.name for x in self.wide_relationship_list()}
         relationship_class_objects_tuples = {
@@ -913,14 +932,19 @@ class DiffDatabaseMapping(DatabaseMapping):
                 'name': x.name
             } for x in self.object_list()}
         for wide_kwargs in wide_kwargs_list:
-            self.check_wide_relationship(
-                wide_kwargs, relationship_names, relationship_class_objects_tuples,
-                relationship_class_dict, object_dict)
-            checked_wide_kwargs_list.append(wide_kwargs)
-            relationship_names.add(wide_kwargs['name'])
-            join_object_id_list = ",".join([str(x) for x in wide_kwargs['object_id_list']])
-            relationship_class_objects_tuples.add((wide_kwargs['class_id'], join_object_id_list))
-        return checked_wide_kwargs_list
+            try:
+                self.check_wide_relationship(
+                    wide_kwargs, relationship_names, relationship_class_objects_tuples,
+                    relationship_class_dict, object_dict)
+                checked_wide_kwargs_list.append(wide_kwargs)
+                relationship_names.add(wide_kwargs['name'])
+                join_object_id_list = ",".join([str(x) for x in wide_kwargs['object_id_list']])
+                relationship_class_objects_tuples.add((wide_kwargs['class_id'], join_object_id_list))
+            except SpineIntegrityError as e:
+                if raise_intgr_err:
+                    raise e
+                intgr_err_log.append(e.msg)
+        return checked_wide_kwargs_list, intgr_err_log
 
     def check_wide_relationships_for_update(self, *wide_kwargs_list):
         """Check that relationships respect integrity constraints for an update operation."""
@@ -1011,17 +1035,23 @@ class DiffDatabaseMapping(DatabaseMapping):
         if name in relationship_names:
             raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name))
 
-    def check_parameters_for_insert(self, *kwargs_list):
+    def check_parameters_for_insert(self, *kwargs_list, raise_intgr_err=True):
         """Check that parameters respect integrity constraints for an insert operation."""
+        intgr_err_log = []
         checked_kwargs_list = list()
         parameter_names = {x.name for x in self.parameter_list()}
         object_class_dict = {x.id: x.name for x in self.object_class_list()}
         relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
-            self.check_parameter(kwargs, parameter_names, object_class_dict, relationship_class_dict)
-            checked_kwargs_list.append(kwargs)
-            parameter_names.add(kwargs["name"])
-        return checked_kwargs_list
+            try:
+                self.check_parameter(kwargs, parameter_names, object_class_dict, relationship_class_dict)
+                checked_kwargs_list.append(kwargs)
+                parameter_names.add(kwargs["name"])
+            except SpineIntegrityError as e:
+                if raise_intgr_err:
+                    raise e
+                intgr_err_log.append(e.msg)
+        return checked_kwargs_list, intgr_err_log
 
     def check_parameters_for_update(self, *kwargs_list):
         """Check that parameters respect integrity constraints for an update operation."""
@@ -1095,8 +1125,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         else:
             raise SpineIntegrityError("Missing object class or relationship class identifier.")
 
-    def check_parameter_values_for_insert(self, *kwargs_list):
+    def check_parameter_values_for_insert(self, *kwargs_list, raise_intgr_err=True):
         """Check that parameter values respect integrity constraints for an insert operation."""
+        intgr_err_log = []
         checked_kwargs_list = list()
         # Per's suggestions
         object_parameter_values = {
@@ -1122,18 +1153,23 @@ class DiffDatabaseMapping(DatabaseMapping):
                 'name': x.name
             } for x in self.wide_relationship_list()}
         for kwargs in kwargs_list:
-            self.check_parameter_value(
-                kwargs, object_parameter_values, relationship_parameter_values,
-                parameter_dict, object_dict, relationship_dict)
-            checked_kwargs_list.append(kwargs)
-            # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
-            object_id = kwargs.get("object_id", None)
-            relationship_id = kwargs.get("relationship_id", None)
-            if object_id:
-                object_parameter_values.add((object_id, kwargs['parameter_id']))
-            elif relationship_id:
-                relationship_parameter_values.add((relationship_id, kwargs['parameter_id']))
-        return checked_kwargs_list
+            try:
+                self.check_parameter_value(
+                    kwargs, object_parameter_values, relationship_parameter_values,
+                    parameter_dict, object_dict, relationship_dict)
+                checked_kwargs_list.append(kwargs)
+                # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                object_id = kwargs.get("object_id", None)
+                relationship_id = kwargs.get("relationship_id", None)
+                if object_id:
+                    object_parameter_values.add((object_id, kwargs['parameter_id']))
+                elif relationship_id:
+                    relationship_parameter_values.add((relationship_id, kwargs['parameter_id']))
+            except SpineIntegrityError as e:
+                if raise_intgr_err:
+                    raise e
+                intgr_err_log.append(e.msg)
+        return checked_kwargs_list, intgr_err_log
 
     def check_parameter_values_for_update(self, *kwargs_list):
         """Check that parameter values respect integrity constraints for an update operation."""
@@ -1301,13 +1337,20 @@ class DiffDatabaseMapping(DatabaseMapping):
     def add_parameter_value(self, **kwargs):
         return self.add_parameter_values(kwargs).one_or_none()
 
-    def add_object_classes(self, *kwargs_list):
+    def add_object_classes(self, *kwargs_list, raise_intgr_err=True):
         """Add object classes to database.
 
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_err (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
         Returns:
-            object_classes (lists)
+            object_classes (list): added instances
+            intgr_err_log (list): list of integrity error messages
         """
-        checked_kwargs_list = self.check_object_classes_for_insert(*kwargs_list)
+        checked_kwargs_list, intgr_err_log = self.check_object_classes_for_insert(
+            *kwargs_list, raise_intgr_err=raise_intgr_err)
         next_id = self.next_id_with_lock()
         if next_id.object_class_id:
             id = next_id.object_class_id
@@ -1325,19 +1368,29 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.object_class_id = id
             self.session.commit()
             self.new_item_id["object_class"].update(id_list)
-            return self.object_class_list(id_list=id_list)
+            new_item_list = self.object_class_list(id_list=id_list)
+            if not raise_intgr_err:
+                return new_item_list, intgr_err_log
+            return new_item_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting object class: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_objects(self, *kwargs_list):
+    def add_objects(self, *kwargs_list, raise_intgr_err=True):
         """Add objects to database.
 
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_err (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
         Returns:
-            objects (list)
+            objects (list): added instances
+            intgr_err_log (list): list of integrity error messages
         """
-        checked_kwargs_list = self.check_objects_for_insert(*kwargs_list)
+        checked_kwargs_list, intgr_err_log = self.check_objects_for_insert(
+            *kwargs_list, raise_intgr_err=raise_intgr_err)
         next_id = self.next_id_with_lock()
         if next_id.object_id:
             id = next_id.object_id
@@ -1355,19 +1408,29 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.object_id = id
             self.session.commit()
             self.new_item_id["object"].update(id_list)
-            return self.object_list(id_list=id_list)
+            new_item_list = self.object_list(id_list=id_list)
+            if not raise_intgr_err:
+                return new_item_list, intgr_err_log
+            return new_item_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting object: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(self, *wide_kwargs_list):
+    def add_wide_relationship_classes(self, *wide_kwargs_list, raise_intgr_err=True):
         """Add relationship classes to database.
 
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_err (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
         Returns:
-            wide_relationship_classes (list)
+            wide_relationship_classes (list): added instances
+            intgr_err_log (list): list of integrity error messages
         """
-        checked_wide_kwargs_list = self.check_wide_relationship_classes_for_insert(*wide_kwargs_list)
+        checked_wide_kwargs_list, intgr_err_log = self.check_wide_relationship_classes_for_insert(
+            *wide_kwargs_list, raise_intgr_err=raise_intgr_err)
         next_id = self.next_id_with_lock()
         if next_id.relationship_class_id:
             id = next_id.relationship_class_id
@@ -1391,19 +1454,29 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.relationship_class_id = id
             self.session.commit()
             self.new_item_id["relationship_class"].update(id_list)
-            return self.wide_relationship_class_list(id_list=id_list)
+            new_item_list = self.wide_relationship_class_list(id_list=id_list)
+            if not raise_intgr_err:
+                return new_item_list, intgr_err_log
+            return new_item_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship class: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationships(self, *wide_kwargs_list):
+    def add_wide_relationships(self, *wide_kwargs_list, raise_intgr_err=True):
         """Add relationships to database.
 
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_err (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
         Returns:
-            wide_relationships (list)
+            wide_relationships (list): added instances
+            intgr_err_log (list): list of integrity error messages
         """
-        checked_wide_kwargs_list = self.check_wide_relationships_for_insert(*wide_kwargs_list)
+        checked_wide_kwargs_list, intgr_err_log = self.check_wide_relationships_for_insert(
+            *wide_kwargs_list, raise_intgr_err=raise_intgr_err)
         next_id = self.next_id_with_lock()
         if next_id.relationship_id:
             id = next_id.relationship_id
@@ -1428,19 +1501,29 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.relationship_id = id
             self.session.commit()
             self.new_item_id["relationship"].update(id_list)
-            return self.wide_relationship_list(id_list=id_list)
+            new_item_list = self.wide_relationship_list(id_list=id_list)
+            if not raise_intgr_err:
+                return new_item_list, intgr_err_log
+            return new_item_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameters(self, *kwargs_list):
+    def add_parameters(self, *kwargs_list, raise_intgr_err=True):
         """Add parameter to database.
 
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_err (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
         Returns:
-            An instance of self.Parameter if successful, None otherwise
+            parameters (list): added instances
+            intgr_err_log (list): list of integrity error messages
         """
-        checked_kwargs_list = self.check_parameters_for_insert(*kwargs_list)
+        checked_kwargs_list, intgr_err_log = self.check_parameters_for_insert(
+            *kwargs_list, raise_intgr_err=raise_intgr_err)
         next_id = self.next_id_with_lock()
         if next_id.parameter_id:
             id = next_id.parameter_id
@@ -1458,19 +1541,24 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_id = id
             self.session.commit()
             self.new_item_id["parameter"].update(id_list)
-            return self.parameter_list(id_list=id_list)
+            new_item_list = self.parameter_list(id_list=id_list)
+            if not raise_intgr_err:
+                return new_item_list, intgr_err_log
+            return new_item_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_values(self, *kwargs_list):
+    def add_parameter_values(self, *kwargs_list, raise_intgr_err=True):
         """Add parameter value to database.
 
         Returns:
-            An instance of self.ParameterValue if successful, None otherwise
+            parameter_values (list): added instances
+            intgr_err_log (list): list of integrity error messages
         """
-        checked_kwargs_list = self.check_parameter_values_for_insert(*kwargs_list)
+        checked_kwargs_list, intgr_err_log = self.check_parameter_values_for_insert(
+            *kwargs_list, raise_intgr_err=raise_intgr_err)
         next_id = self.next_id_with_lock()
         if next_id.parameter_value_id:
             id = next_id.parameter_value_id
@@ -1488,7 +1576,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_value_id = id
             self.session.commit()
             self.new_item_id["parameter_value"].update(id_list)
-            return self.parameter_value_list(id_list=id_list)
+            new_item_list = self.parameter_value_list(id_list=id_list)
+            if not raise_intgr_err:
+                return new_item_list, intgr_err_log
+            return new_item_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
