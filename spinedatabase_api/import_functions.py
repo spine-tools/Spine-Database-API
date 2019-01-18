@@ -64,9 +64,9 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
         relationships: (List[List[str,List(String)]]):
             list of lists with relationship class name and list of object names
         object_parameter_values (List[List[str, str, 'json'|'value', str|numeric]]):
-            list of lists with object name, parameter name, parameter type, parameter value
+            list of lists with object name, parameter name, field name, parameter value
         relationship_parameter_values (List[List[str, List(str), str, 'json'|'value', str|numeric]]):
-            list of lists with relationship class name, list of object names, parameter name, parameter type,
+            list of lists with relationship class name, list of object names, parameter name, field name,
             parameter value
 
     Returns:
@@ -124,12 +124,9 @@ def import_object_classes(db_map, object_classes):
     Returns:
         (Int, List) Number of succesfull inserted object classes, list of errors
     """
-    # filter classes that don't already exist in db and duplicates
-    existing_classes = set(oc.name for oc in db_map.object_class_list().all())
-    new_classes = [{"name": o} for o in set(object_classes) if o not in existing_classes]
-    if new_classes:
-        db_map.add_object_classes(*new_classes)
-    return len(new_classes), []
+    new_classes = [{"name": o} for o in set(object_classes)]
+    added, error_log = db_map.add_object_classes(*new_classes, raise_intgr_error=False)
+    return added.count(), [ImportErrorLogItem(msg=msg, db_type="object class") for msg in error_log]
 
 
 def import_objects(db_map, object_data):
@@ -140,39 +137,30 @@ def import_objects(db_map, object_data):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  object name and object class name
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list().all()}
-    existing_objects = {o.name: o.class_id for o in db_map.object_list().all()}
-
-    # save new objects in set so we don't try to insert same object twice
+    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
+    # Check that class exists for each object we want to insert
     error_log = []
     new_objects = []
     for o in object_data:
         name = o[0]
         oc_name = o[1]
-        if oc_name in existing_classes:
+        try:
             oc_id = existing_classes[oc_name]
-        else:
-            # class doesn't exists
-            error_log.append(ImportErrorLogItem(msg="Object with name '{}' can't be inserted because class with name: '{}' doesn't exist in database".format(name, oc_name), db_type="object"))
+        except KeyError:
+            # Class doesn't exists
+            error_log.append("Object '{}' can't be inserted "
+                             "because class '{}' doesn't exist in database".format(name, oc_name))
             continue
-        if name in existing_objects:
-            #object already exists
-            if oc_id != existing_objects[name]:
-                # existing object has different class
-                error_log.append(ImportErrorLogItem(msg="Object with name '{}' can't be inserted because an object with that name and other object class exists".format(name, oc_name), db_type="object"))
-        else:
-            new_objects.append({'name': name, 'class_id': oc_id})
-            # add to existing objects so we can catch duplicates with different class.
-            existing_objects[name] = oc_id
-    if new_objects:
-        db_map.add_objects(*new_objects)
-    return len(new_objects), error_log
+        new_objects.append({'name': name, 'class_id': oc_id})
+    added, intgr_error_log = db_map.add_objects(*new_objects, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    return added.count(), [ImportErrorLogItem(msg=msg, db_type="object") for msg in error_log]
 
 
 def import_relationship_classes(db_map, relationship_classes):
@@ -183,15 +171,13 @@ def import_relationship_classes(db_map, relationship_classes):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
-                                 object name and object class name
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 relationship class names and list of object class names
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    # get existing classes
-    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list().all()}
-    existing_relationship_classes = {oc.name: list(map(int,oc.object_class_id_list.split(','))) for oc in db_map.wide_relationship_class_list().all()}
+    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
     error_log = []
     new_rc = []
     for rc in relationship_classes:
@@ -200,21 +186,14 @@ def import_relationship_classes(db_map, relationship_classes):
         oc_ids = [existing_classes[oc] for oc in oc_names if oc in existing_classes]
         if len(oc_ids) != len(oc_names):
             # not all object_classes exists in database
-            error_log.append(ImportErrorLogItem(msg="Relationship class: '{}' can't be inserted because it contains object classes that doesn't exist in db".format(name), db_type='relationship class'))
+            error_log.append("Relationship class '{}' can't be inserted because it contains object classes "
+                             "that doesn't exist in db".format(name))
             continue
-        if name in existing_relationship_classes:
-            # relationship class exists
-            if oc_ids != existing_relationship_classes[name]:
-                # not same object classes
-                error_log.append(ImportErrorLogItem(msg="Relationship class: '{}' can't be inserted because name already exists in database with different object class names", db_type='relationship class'))
-        else:
-            # new relationship class
-            new_rc.append({'name': name, 'object_class_id_list': oc_ids})
-            # add to existing_relationship_classes to avoid inserting duplicates
-            existing_relationship_classes[name] = oc_ids
-    if new_rc:
-        db_map.add_wide_relationship_classes(*new_rc)
-    return len(new_rc), error_log
+        # new relationship class
+        new_rc.append({'name': name, 'object_class_id_list': oc_ids})
+    added, intgr_error_log = db_map.add_wide_relationship_classes(*new_rc, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    return added.count(), [ImportErrorLogItem(msg=msg, db_type="relationship class") for msg in error_log]
 
 
 def import_object_parameters(db_map, parameter_data):
@@ -225,39 +204,30 @@ def import_object_parameters(db_map, parameter_data):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
-                                 object name and object class name
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 object class name and parameter name
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    # get existing classes
-    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list().all()}
-    existing_parameters = {oc.name: oc.object_class_id for oc in db_map.parameter_list().all()}
+    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
     error_log = []
     new_parameters = []
     for p in parameter_data:
         name = p[0]
         oc_name = p[1]
-        if oc_name in existing_classes:
+        try:
             oc_id = existing_classes[oc_name]
-        else:
-            # not all object_classes exists in database
-            error_log.append(ImportErrorLogItem(msg="Parameter: '{}' can't be inserted because it contains object class that doesn't exist in db".format(name), db_type='parameter'))
+        except KeyError:
+            # Object class doesn't exists
+            error_log.append("Parameter '{}' can't be inserted "
+                             "because object class '{}' doesn't exist in database".format(name, oc_name))
             continue
-        if name in existing_parameters:
-            # relationship class exists
-            if oc_id != existing_parameters[name]:
-                # not same object classes
-                error_log.append(ImportErrorLogItem(msg="Parameter: '{}' can't be inserted because name already exists in database with different object class", db_type='parameter'))
-        else:
-            # new relationship class
-            new_parameters.append({'name': name, 'object_class_id': oc_id})
-            # add to existing_relationship_classes to avoid inserting duplicates
-            existing_parameters[name] = oc_id
-    if new_parameters:
-        db_map.add_parameters(*new_parameters)
-    return len(new_parameters), error_log
+        # new parameter
+        new_parameters.append({'name': name, 'object_class_id': oc_id})
+    added, intgr_error_log = db_map.add_parameters(*new_parameters, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    return added.count(), [ImportErrorLogItem(msg=msg, db_type="parameter") for msg in error_log]
 
 
 def import_relationship_parameters(db_map, parameter_data):
@@ -268,39 +238,30 @@ def import_relationship_parameters(db_map, parameter_data):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
-                                 object name and object class name
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 relationship class name and parameter name
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    # get existing classes
-    existing_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list().all()}
-    existing_parameters = {oc.name: oc.relationship_class_id for oc in db_map.parameter_list().all()}
+    existing_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
     error_log = []
     new_parameters = []
     for p in parameter_data:
         name = p[0]
         rc_name = p[1]
-        if rc_name in existing_classes:
+        try:
             rc_id = existing_classes[rc_name]
-        else:
-            # not all object_classes exists in database
-            error_log.append(ImportErrorLogItem(msg="Parameter: '{}' can't be inserted because it contains relationship class that doesn't exist in db".format(name), db_type='parameter'))
+        except KeyError:
+            # Relationship class doesn't exists
+            error_log.append("Parameter '{}' can't be inserted "
+                             "because relationship class '{}' doesn't exist in database".format(name, rc_name))
             continue
-        if name in existing_parameters:
-            # relationship class exists
-            if rc_id != existing_parameters[name]:
-                # not same object classes
-                error_log.append(ImportErrorLogItem(msg="Parameter: '{}' can't be inserted because name already exists in database with different relatioship class", db_type='parameter'))
-        else:
-            # new relationship class
-            new_parameters.append({'name': name, 'relationship_class_id': rc_id})
-            # add to existing_relationship_classes to avoid inserting duplicates
-            existing_parameters[name] = rc_id
-    if new_parameters:
-        db_map.add_parameters(*new_parameters)
-    return len(new_parameters), error_log
+        # new parameter
+        new_parameters.append({'name': name, 'relationship_class_id': rc_id})
+    added, intgr_error_log = db_map.add_parameters(*new_parameters, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    return added.count(), [ImportErrorLogItem(msg=msg, db_type="parameter") for msg in error_log]
 
 
 def import_relationships(db_map, relationship_data):
@@ -311,48 +272,37 @@ def import_relationships(db_map, relationship_data):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
-                                 object name and object class name
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 relationship class name and list of object names
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    # get existing classes
-    existing_objects = {o.name: (o.id, o.class_id) for o in db_map.object_list().all()}
-    existing_relationship_classes = {oc.name: (oc.id, list(map(int,oc.object_class_id_list.split(',')))) for oc in db_map.wide_relationship_class_list().all()}
-    existing_relationships = {(oc.class_id,) + tuple(map(int,oc.object_id_list.split(','))) for oc in db_map.wide_relationship_list().all()}
-
+    existing_objects = {o.name: o.id for o in db_map.object_list()}
+    existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
     error_log = []
     new_relationships = []
     for r in relationship_data:
         o_names = r[1]
         rc_name = r[0]
-        if rc_name in existing_relationship_classes:
-            rc_id = existing_relationship_classes[rc_name][0]
-            rc_oc_ids = existing_relationship_classes[rc_name][1]
-        else:
-            # not all object_classes exists in database
-            error_log.append(ImportErrorLogItem(msg="Relationship: '{}: {}' can't be inserted because it contains relationship class that doesn't exist in db".format(rc_name,','.join(o_names)), db_type='relationship'))
+        try:
+            rc_id = existing_relationship_classes[rc_name]
+        except KeyError:
+            # Relationship class doesn't exist
+            error_log.append("Relationship '{0}: {1}' can't be inserted because "
+                             "relationship class '{0}' doesn't exist in database".format(rc_name, ','.join(o_names)))
             continue
-        o_ids = tuple(existing_objects[n][0] for n in o_names if n in existing_objects)
-        oc_ids = [existing_objects[n][1] for n in o_names if n in existing_objects]
+        o_ids = tuple(existing_objects[n] for n in o_names if n in existing_objects)
         if len(o_ids) != len(o_names):
-            # not all objects exits
-            error_log.append(ImportErrorLogItem(msg="Relationship: '{}: {}' can't be inserted because not all objects exists in database".format(rc_name,','.join(o_names)), db_type='relationship'))
+            # not all objects exist
+            error_log.append("Relationship '{}: {}' can't be inserted because it contains objects "
+                             "that don't exist in db".format(rc_name, ','.join(o_names)))
             continue
-        if oc_ids != rc_oc_ids:
-            # object classes doesn't match
-            error_log.append(ImportErrorLogItem(msg="Relationship: '{}: {}' can't be inserted because object classes doesn't match".format(rc_name,','.join(o_names)), db_type='relationship'))
-            continue
-        rel_key = (rc_id,) + o_ids
-        if not rel_key in existing_relationships:
-            # relationship doesn't exists
-            new_relationships.append({'name': rc_name + '__' + '_'.join(o_names), 'class_id': rc_id, 'object_id_list': o_ids})
-            existing_relationships.add(rel_key)
-
-    if new_relationships:
-        db_map.add_wide_relationships(*new_relationships)
-    return len(new_relationships), error_log
+        new_relationships.append(
+            {'name': rc_name + '_' + '__'.join(o_names), 'class_id': rc_id, 'object_id_list': o_ids})
+    added, intgr_error_log = db_map.add_wide_relationships(*new_relationships, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    return added.count(), [ImportErrorLogItem(msg=msg, db_type="relationship") for msg in error_log]
 
 
 def import_object_parameter_values(db_map, data):
@@ -364,67 +314,61 @@ def import_object_parameter_values(db_map, data):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
-                                 object name and object class name
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 object name, parameter name, field name, parameter value
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    # get existing classes
-    existing_objects = {o.name: (o.id, o.class_id) for o in db_map.object_list().all()}
-    existing_parameters = {oc.name: (oc.id, oc.object_class_id) for oc in db_map.parameter_list().all()}
-    existing_parameter_values = {(oc.parameter_id, oc.object_id): oc.id for oc in db_map.object_parameter_value_list().all()}
-
+    existing_objects = {o.name: o.id for o in db_map.object_list()}
+    existing_parameters = {p.name: p.id for p in db_map.parameter_list()}
     error_log = []
     new_values = []
-    update_values = []
     checked_new_values = set()
     for p in data:
         o_name = p[0]
         p_name = p[1]
         f_name = p[2].lower()
-        if not f_name in ["value", "json"]:
+        if f_name not in ["value", "json"]:
             # invalid field name
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted field name must be 'value' or 'json'".format(o_name, p_name), db_type='parameter value value'))
+            error_log.append("Parameter value for '{}: {}' can't be inserted; field name must be "
+                             "'value' or 'json'".format(o_name, p_name))
             continue
-        if o_name in existing_objects:
-            oc_id = existing_objects[o_name][1]
-            o_id = existing_objects[o_name][0]
-        else:
+        try:
+            o_id = existing_objects[o_name]
+        except KeyError:
             # object doesn't exist
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because object doesn't exist".format(o_name, p_name), db_type='parameter value'))
+            error_log.append("Parameter value for '{0}: {1}' can't be inserted because object '{0}' "
+                             "doesn't exist".format(o_name, p_name))
             continue
-        if p_name in existing_parameters:
-            p_id = existing_parameters[p_name][0]
-            p_oc_id = existing_parameters[p_name][1]
-        else:
-            # not parameter doesn't exist
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because parameter doesn't exist".format(o_name, p_name), db_type='parameter value'))
+        try:
+            p_id = existing_parameters[p_name]
+        except KeyError:
+            # parameter doesn't exist
+            error_log.append("Parameter value for '{0}: {1}' can't be inserted because parameter '{1}' "
+                             "doesn't exist".format(o_name, p_name))
             continue
-        if oc_id != p_oc_id:
-            # not parameter object class and given object class doesn't match
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because parameter object class doesn't match db".format(o_name, p_name), db_type='parameter value'))
-            continue
-        value_key = (p_id, o_id)
         checked_key = (p_id, o_id, f_name)
-        if value_key in existing_parameter_values and checked_key not in checked_new_values:
-            pv_id = existing_parameter_values[value_key]
-            # value exists, update
-            update_values.append({'id': pv_id, f_name: p[3]})
-        elif checked_key not in checked_new_values:
+        if checked_key not in checked_new_values:
             # new values
             new_values.append({'parameter_id': p_id, 'object_id': o_id, f_name: p[3]})
-            # add to existing_relationship_classes to avoid inserting duplicates
+            # add to check new values to avoid duplicates
             checked_new_values.add(checked_key)
         else:
             # duplicate new value
-            error_log.append(ImportErrorLogItem(msg="Duplicate parameter value for: '{}: {}', only first value was inserted".format(o_name, p_name), db_type='parameter value'))
-
-    if new_values:
-        db_map.add_parameter_values(*new_values)
-    if update_values:
-        db_map.update_parameter_values(*update_values)
-    return len(new_values) + len(update_values), error_log
+            error_log.append("Duplicate parameter value for '{}: {}', only first value "
+                             "will be considered.".format(o_name, p_name))
+    # Try and add everything
+    added, intgr_error_log = db_map.add_parameter_values(*new_values, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    # Try and update whatever wasn't added
+    added_keys = set((x.parameter_id, x.object_id) for x in added)
+    updated_values = [x for x in new_values if (x['parameter_id'], x['object_id']) not in added_keys]
+    updated, intgr_error_log = db_map.update_parameter_values(*updated_values, raise_intgr_error=False)
+    # NOTE: this second intgr_error_log can only contain already known information,
+    # so it's fine to discard it
+    rich_error_log = [ImportErrorLogItem(msg=msg, db_type="parameter value") for msg in error_log]
+    return added.count() + updated.count(), rich_error_log
 
 
 def import_relationship_parameter_values(db_map, data):
@@ -436,86 +380,81 @@ def import_relationship_parameter_values(db_map, data):
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
-        data (List[List/Tuple]): list/set/iterabel of lists/tuples with
-                                 object name and object class name
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 relationship class name, list of object names, parameter name, field name,
+                                 parameter value
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    # get existing classes
-    existing_objects = {o.name: (o.id, o.class_id) for o in db_map.object_list().all()}
-    existing_parameters = {oc.name: (oc.id, oc.relationship_class_id) for oc in db_map.parameter_list().all()}
-    existing_parameter_values = {(oc.parameter_id, oc.relationship_id): oc.id for oc in db_map.relationship_parameter_value_list().all()}
-    existing_relationship_classes = {oc.name: (oc.id, list(map(int,oc.object_class_id_list.split(',')))) for oc in db_map.wide_relationship_class_list().all()}
-    existing_relationships = {(oc.class_id,) + tuple(map(int,oc.object_id_list.split(','))): oc.id for oc in db_map.wide_relationship_list().all()}
-
+    existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
+    existing_objects = {o.name: o.id for o in db_map.object_list()}
+    existing_parameters = {oc.name: oc.id for oc in db_map.parameter_list()}
+    existing_relationships = {
+        (r.class_id,) + tuple(map(int, r.object_id_list.split(','))): r.id
+        for r in db_map.wide_relationship_list()
+    }
     error_log = []
     new_values = []
-    update_values = []
     checked_new_values = set()
     for p in data:
         rc_name = p[0]
         o_names = p[1]
         p_name = p[2]
         f_name = p[3].lower()
-        if not f_name in ["value", "json"]:
+        if f_name not in ["value", "json"]:
             # invalid field name
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted field name must be 'value' or 'json'".format(','.join(o_names), p_name), db_type='parameter value'))
+            error_log.append("Parameter value for '{0}: {1}: {2}' can't be inserted; field name must be "
+                             "'value' or 'json'".format(rc_name, ','.join(o_names), p_name))
             continue
-        if rc_name in existing_relationship_classes:
-            # relationship class ids
-            rc_id = existing_relationship_classes[rc_name][0]
-            rc_oc_ids = existing_relationship_classes[rc_name][1]
-        else:
+        try:
+            # relationship class id
+            rc_id = existing_relationship_classes[rc_name]
+        except KeyError:
             # relationship class doesn't exist
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because it contains relationship class that doesn't exist in db".format(','.join(o_names), p_name), db_type='relationship'))
+            error_log.append("Parameter value for '{0}: {1}: {2}' can't be inserted because relationship class '{0}'"
+                             "doesn't exist in db".format(rc_name, ','.join(o_names), p_name))
             continue
-        #object ids
-        o_ids = tuple(existing_objects[n][0] for n in o_names if n in existing_objects)
-        oc_ids = [existing_objects[n][1] for n in o_names if n in existing_objects]
+        # object ids
+        o_ids = tuple(existing_objects[n] for n in o_names if n in existing_objects)
         if len(o_ids) != len(o_names):
-            # not all objects exits
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted field name must be 'value' or 'json'".format(','.join(o_names), p_name), db_type='parameter value'))
-            continue
-        if oc_ids != rc_oc_ids:
-            # object classes doesn't match
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because object classes doesn't match".format(','.join(o_names), p_name), db_type='relationship'))
+            # not all objects exist
+            error_log.append("Parameter value for '{0}: {1}: {2}' can't be inserted because it contains objects "
+                             "that don't exist in db".format(rc_name, ','.join(o_names), p_name))
             continue
         rel_key = (rc_id,) + o_ids
-        if rel_key in existing_relationships:
+        try:
             r_id = existing_relationships[rel_key]
-        else:
-            # relationship doesn't exists
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because relationship doesn't exist".format(','.join(o_names), p_name), db_type='relationship'))
+        except KeyError:
+            # relationship doesn't exist
+            error_log.append("Parameter value for '{0}: {1}: {2}' can't be inserted because relationship "
+                             "doesn't exist".format(rc_name, ','.join(o_names), p_name))
             continue
-        if p_name in existing_parameters:
-            p_id = existing_parameters[p_name][0]
-            p_rc_id = existing_parameters[p_name][1]
-        else:
+        try:
+            p_id = existing_parameters[p_name]
+        except KeyError:
             # parameter doesn't exist
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because parameter doesn't exist".format(','.join(o_names), p_name), db_type='parameter value'))
+            error_log.append("Parameter value for '{0}: {1}: {2}' can't be inserted because parameter '{2}' "
+                             "doesn't exist".format(rc_name, ','.join(o_names), p_name))
             continue
-        if rc_id != p_rc_id:
-            # parameter class and given class doesn't match
-            error_log.append(ImportErrorLogItem(msg="Parameter value for: '{}: {}' can't be inserted because parameter relationship class doesn't match db".format(','.join(o_names), p_name), db_type='parameter value'))
-            continue
-        value_key = (p_id, r_id)
         checked_key = (p_id, r_id, f_name)
-        if value_key in existing_parameter_values and checked_key not in checked_new_values:
-            pv_id = existing_parameter_values[value_key]
-            # value exists, update
-            update_values.append({'id': pv_id, f_name: p[4]})
-        elif checked_key not in checked_new_values:
+        if checked_key not in checked_new_values:
             # new values
             new_values.append({'parameter_id': p_id, 'relationship_id': r_id, f_name: p[4]})
             # track new values to avoid inserting duplicates
             checked_new_values.add(checked_key)
         else:
             # duplicate new value
-            error_log.append(ImportErrorLogItem(msg="Duplicate parameter value for: '{}: {}', only first value was inserted".format(','.join(o_names), p_name), db_type='parameter value'))
-
-    if new_values:
-        db_map.add_parameter_values(*new_values)
-    if update_values:
-        db_map.update_parameter_values(*update_values)
-    return len(new_values) + len(update_values), error_log
+            error_log.append("Duplicate parameter value for '{0}: {1}: {2}', only first value "
+                             "will be considered".format(rc_name, ','.join(o_names), p_name))
+    # Try and add everything
+    added, intgr_error_log = db_map.add_parameter_values(*new_values, raise_intgr_error=False)
+    error_log.extend(intgr_error_log)
+    # Try and update whatever wasn't added
+    added_keys = set((x.parameter_id, x.relationship_id) for x in added)
+    updated_values = [x for x in new_values if (x['parameter_id'], x['relationship_id']) not in added_keys]
+    updated, intgr_error_log = db_map.update_parameter_values(*updated_values, raise_intgr_error=False)
+    # NOTE: this second intgr_error_log can only contain already known information,
+    # so it's fine to discard it
+    rich_error_log = [ImportErrorLogItem(msg=msg, db_type="parameter value") for msg in error_log]
+    return added.count() + updated.count(), rich_error_log
