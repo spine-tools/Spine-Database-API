@@ -1506,7 +1506,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Add relationship classes to database.
 
         Args:
-            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
             raise_intgr_error (bool): if True (the default) SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
 
@@ -1552,7 +1552,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Add relationships to database.
 
         Args:
-            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
             raise_intgr_error (bool): if True (the default) SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
 
