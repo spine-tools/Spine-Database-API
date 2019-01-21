@@ -322,6 +322,8 @@ def import_object_parameter_values(db_map, data):
     """
     existing_objects = {o.name: o.id for o in db_map.object_list()}
     existing_parameters = {p.name: p.id for p in db_map.parameter_list()}
+    existing_parameter_values = {
+        (pv.parameter_id, pv.object_id): pv.id for pv in db_map.object_parameter_value_list()}
     error_log = []
     new_values = []
     checked_new_values = set()
@@ -363,7 +365,9 @@ def import_object_parameter_values(db_map, data):
     error_log.extend(intgr_error_log)
     # Try and update whatever wasn't added
     added_keys = set((x.parameter_id, x.object_id) for x in added)
-    updated_values = [x for x in new_values if (x['parameter_id'], x['object_id']) not in added_keys]
+    updated_values = [
+        {'id': existing_parameter_values[x['parameter_id'], x['object_id']], f_name: p[3]}
+        for x in new_values if (x['parameter_id'], x['object_id']) not in added_keys]
     updated, intgr_error_log = db_map.update_parameter_values(*updated_values, raise_intgr_error=False)
     # NOTE: this second intgr_error_log can only contain already known information,
     # so it's fine to discard it
@@ -374,9 +378,8 @@ def import_object_parameter_values(db_map, data):
 def import_relationship_parameter_values(db_map, data):
     """Imports list of object parameter values:
         ex:
-            data = [('object_name', 'parameter_name', 'value', 123.4),
-                    ('object_name', 'parameter_name2', 'json', '{"timeseries": [1,2,3]}')]
-            import_object_parameter_values(db_map, data)
+            data = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 'value', 2.718]]
+            import_relationship_parameter_values(db_map, data)
 
     Args:
         db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
@@ -394,6 +397,8 @@ def import_relationship_parameter_values(db_map, data):
         (r.class_id,) + tuple(map(int, r.object_id_list.split(','))): r.id
         for r in db_map.wide_relationship_list()
     }
+    existing_parameter_values = {
+        (pv.parameter_id, pv.relationship_id): pv.id for pv in db_map.relationship_parameter_value_list()}
     error_log = []
     new_values = []
     checked_new_values = set()
@@ -452,7 +457,9 @@ def import_relationship_parameter_values(db_map, data):
     error_log.extend(intgr_error_log)
     # Try and update whatever wasn't added
     added_keys = set((x.parameter_id, x.relationship_id) for x in added)
-    updated_values = [x for x in new_values if (x['parameter_id'], x['relationship_id']) not in added_keys]
+    updated_values = [
+        {'id': existing_parameter_values[x['parameter_id'], x['relationship_id']], f_name: p[4]}
+        for x in new_values if (x['parameter_id'], x['relationship_id']) not in added_keys]
     updated, intgr_error_log = db_map.update_parameter_values(*updated_values, raise_intgr_error=False)
     # NOTE: this second intgr_error_log can only contain already known information,
     # so it's fine to discard it
