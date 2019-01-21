@@ -99,15 +99,14 @@ class TestIntegrationImportData(unittest.TestCase):
         db_map.create_diff_tables_and_mapping()
         db_map.init_next_id()
 
-        object_c = ['example_class', 'other_class']
-        obj_parameters = [['example_parameter', 'example_class']]
-        relationship_c = [['example_rel_class', ['example_class', 'other_class']]]
-        rel_parameters = [['rel_parameter', 'example_rel_class']]
-        objects = [['example_object', 'example_class'],
-                   ['other_object', 'other_class']]
-        object_p_values = [['example_object', 'example_parameter', 'value', 3.14]]
-        relationships = [['example_rel_class', ['example_object', 'other_object']]]
-        rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 'value', 2.718]]
+        object_c = ['example_class', 'other_class'] # 2 items
+        objects = [['example_object', 'example_class'], ['other_object', 'other_class']] # 2 items
+        relationship_c = [['example_rel_class', ['example_class', 'other_class']]] # 1 item
+        relationships = [['example_rel_class', ['example_object', 'other_object']]] # 1 item
+        obj_parameters = [['example_parameter', 'example_class']] # 1 item
+        rel_parameters = [['rel_parameter', 'example_rel_class']] # 1 item
+        object_p_values = [['example_object', 'example_parameter', 'value', 3.14]] # 1 item
+        rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 'value', 2.718]] # 1
 
         num_imports, errors = import_data(
             db_map,

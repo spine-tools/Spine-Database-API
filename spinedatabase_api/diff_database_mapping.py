@@ -331,7 +331,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.relationship_parameter_value_list().\
             filter(or_(self.ParameterValue.id == id, self.DiffParameterValue.id == id))
 
-    def object_class_list(self, id_list=set(), ordered=True):
+    def object_class_list(self, id_list=None, ordered=True):
         """Return object classes ordered by display order."""
         qry = super().object_class_list(id_list=id_list, ordered=False).\
             filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
@@ -340,14 +340,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObjectClass.name.label("name"),
             self.DiffObjectClass.display_order.label("display_order"),
             self.DiffObjectClass.description.label("description"))
-        if id_list:
+        if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffObjectClass.id.in_(id_list))
         qry = qry.union_all(diff_qry)
         if ordered:
             qry = qry.order_by(self.ObjectClass.display_order, self.DiffObjectClass.display_order)
         return qry
 
-    def object_list(self, id_list=set(), class_id=None):
+    def object_list(self, id_list=None, class_id=None):
         """Return objects, optionally filtered by class id."""
         qry = super().object_list(id_list=id_list, class_id=class_id).\
             filter(~self.Object.id.in_(self.touched_item_id["object"]))
@@ -356,7 +356,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObject.class_id.label('class_id'),
             self.DiffObject.name.label('name'),
             self.DiffObject.description.label("description"))
-        if id_list:
+        if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffObject.id.in_(id_list))
         if class_id:
             diff_qry = diff_qry.filter_by(class_id=class_id)
@@ -381,7 +381,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.DiffRelationshipClass.id, self.DiffRelationshipClass.dimension)
         return qry
 
-    def wide_relationship_class_list(self, id_list=set(), object_class_id=None):
+    def wide_relationship_class_list(self, id_list=None, object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
         object_class_list = self.object_class_list(ordered=False).subquery()
         qry = self.session.query(
@@ -397,7 +397,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_class_list.c.name.label('object_class_name'),
             self.DiffRelationshipClass.name.label('name')
         ).filter(self.DiffRelationshipClass.object_class_id == object_class_list.c.id)
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.RelationshipClass.id.in_(id_list))
             diff_qry = diff_qry.filter(self.DiffRelationshipClass.id.in_(id_list))
         if object_class_id:
@@ -415,7 +415,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def wide_relationship_list(self, id_list=set(), class_id=None, object_id=None):
+    def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
         object_list = self.object_list().subquery()
         qry = self.session.query(
@@ -433,7 +433,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_list.c.name.label('object_name'),
             self.DiffRelationship.name.label('name')
         ).filter(self.DiffRelationship.object_id == object_list.c.id)
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.Relationship.id.in_(id_list))
             diff_qry = diff_qry.filter(self.DiffRelationship.id.in_(id_list))
         if class_id:
@@ -455,7 +455,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def parameter_list(self, id_list=set(), object_class_id=None, relationship_class_id=None):
+    def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = super().parameter_list(
             id_list=id_list,
@@ -475,7 +475,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameter.precision.label('precision'),
             self.DiffParameter.minimum_value.label('minimum_value'),
             self.DiffParameter.maximum_value.label('maximum_value'))
-        if id_list:
+        if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameter.id.in_(id_list))
         if object_class_id:
             diff_qry = diff_qry.filter_by(object_class_id=object_class_id)
@@ -567,7 +567,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter(self.DiffParameter.id == parameter_id)
         return qry.union_all(diff_qry).order_by(self.Parameter.id, self.DiffParameter.id)
 
-    def parameter_value_list(self, id_list=set(), object_id=None, relationship_id=None):
+    def parameter_value_list(self, id_list=None, object_id=None, relationship_id=None):
         """Return parameter values."""
         qry = super().parameter_value_list(
             id_list=id_list,
@@ -586,7 +586,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValue.time_pattern,
             self.DiffParameterValue.time_series_id,
             self.DiffParameterValue.stochastic_model_id)
-        if id_list:
+        if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterValue.id.in_(id_list))
         if object_id:
             diff_qry = diff_qry.filter_by(object_id=object_id)
