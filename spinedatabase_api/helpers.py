@@ -24,6 +24,7 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
+import os
 from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
 from sqlalchemy.ext.automap import generate_relationship
