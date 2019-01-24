@@ -261,7 +261,6 @@ class DatabaseMapping(object):
     def single_object_parameter_value(self, id=None, parameter_id=None, object_id=None):
         """Return object and the parameter value, either corresponding to id,
         or to parameter_id and object_id.
-        NOTE: The parameter_id, object_id arguments are used by NetworkMap
         """
         qry = self.object_parameter_value_list()
         if id:
@@ -271,7 +270,7 @@ class DatabaseMapping(object):
                 filter(self.ParameterValue.object_id == object_id)
         return self.empty_list()
 
-    def single_relationship_parameter_value(self, id, parameter_id=None, relationship_id=None):
+    def single_relationship_parameter_value(self, id):
         """Return relationship and the parameter value corresponding to id."""
         return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id)
 
@@ -559,6 +558,7 @@ class DatabaseMapping(object):
         return self.parameter_list(object_class_id=object_.class_id).\
             filter(~self.Parameter.id.in_(valued_parameter_ids))
 
+    # NOTE: maybe these unvalued... are obsolete
     def unvalued_object_list(self, parameter_id):
         """Return objects for which given parameter does not have a value."""
         parameter = self.single_parameter(parameter_id).one_or_none()
