@@ -15,16 +15,15 @@ Unit tests for DiffDatabaseMapping class.
 :author: P. Vennström (VTT)
 :date:   29.11.2018
 """
-#import sys
-#sys.path.append('/spinedatabase_api')
 
+import os
+import unittest
+import logging
+import sys
 from spinedatabase_api.diff_database_mapping import DiffDatabaseMapping, SpineIntegrityError
 from spinedatabase_api.helpers import create_new_spine_database
 from sqlalchemy.util import KeyedTuple
-import unittest
 from unittest import mock
-import logging
-import sys
 from sqlalchemy.orm import Session
 
 class TestDiffDatabaseMapping(unittest.TestCase):
@@ -35,14 +34,21 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         logging.basicConfig(stream=sys.stderr, level=logging.DEBUG,
                             format='%(asctime)s %(levelname)s: %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S')
-        engine = create_new_spine_database('sqlite://')
-        cls.db_map = DiffDatabaseMapping("", username='UnitTest', create_all=False)
-        cls.db_map.engine = engine
-        cls.db_map.engine.connect()
-        cls.db_map.session = Session(cls.db_map.engine, autoflush=False)
-        cls.db_map.create_mapping()
-        cls.db_map.create_diff_tables_and_mapping()
-        cls.db_map.init_next_id()
+        try:
+            os.remove("temp.sqlite")
+        except OSError:
+            pass
+        db_url = 'sqlite:///temp.sqlite'
+        engine = create_new_spine_database(db_url)
+        cls.db_map = DiffDatabaseMapping(db_url, username='UnitTest')
+
+    @classmethod
+    def tearDownClass(cls):
+        """Overridden method. Runs once after all tests in this class."""
+        try:
+            os.remove("temp.sqlite")
+        except OSError:
+            pass
 
     def setUp(self):
         """Overridden method. Runs before each test. Makes instances of TreeViewForm and GraphViewForm classes.
@@ -432,11 +438,11 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 self.fail("add_parameter_values() raised SpineIntegrityError unexpectedly")
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 2)
-        self.assertEqual(parameter_values[0].parameter_id, 1)
+        self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].object_id, 1)
         self.assertIsNone(parameter_values[0].relationship_id)
         self.assertEqual(parameter_values[0].value, 'orange')
-        self.assertEqual(parameter_values[1].parameter_id, 2)
+        self.assertEqual(parameter_values[1].parameter_definition_id, 2)
         self.assertIsNone(parameter_values[1].object_id)
         self.assertEqual(parameter_values[1].relationship_id, 1)
         self.assertEqual(parameter_values[1].value, '125')
@@ -535,7 +541,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 raise_intgr_error=False)
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 1)
-        self.assertEqual(parameter_values[0].parameter_id, 1)
+        self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].object_id, 1)
         self.assertIsNone(parameter_values[0].relationship_id)
         self.assertEqual(parameter_values[0].value, 'orange')
@@ -559,7 +565,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             ]
             mock_parameter_value_list.return_value = [
                 KeyedTuple(
-                    [1, 1, 1, None, 'orange'], labels=["id", "parameter_id", "object_id", "relationship_id", "value"])
+                    [1, 1, 1, None, 'orange'],
+                    labels=["id", "parameter_definition_id", "object_id", "relationship_id", "value"])
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values({'parameter_id': 1, 'object_id': 1, 'value': 'blue'})
