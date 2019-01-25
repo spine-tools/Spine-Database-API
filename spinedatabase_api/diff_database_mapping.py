@@ -161,7 +161,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObject = getattr(self.DiffBase.classes, self.diff_prefix + "object")
             self.DiffRelationshipClass = getattr(self.DiffBase.classes, self.diff_prefix + "relationship_class")
             self.DiffRelationship = getattr(self.DiffBase.classes, self.diff_prefix + "relationship")
-            self.DiffParameter = getattr(self.DiffBase.classes, self.diff_prefix + "parameter")
+            self.DiffParameter = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_definition")
             self.DiffParameterValue = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value")
         except NoSuchTableError as table:
             self.close()
@@ -183,7 +183,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             Column('object_id', Integer),
             Column('relationship_class_id', Integer),
             Column('relationship_id', Integer),
-            Column('parameter_id', Integer),
+            Column('parameter_definition_id', Integer),
             Column('parameter_value_id', Integer)
         )
         next_id_table.create(self.engine, checkfirst=True)
@@ -319,10 +319,10 @@ class DiffDatabaseMapping(DatabaseMapping):
         if parameter_id and object_id:
             return qry.filter(or_(
                 and_(
-                    self.ParameterValue.parameter_id == parameter_id,
+                    self.ParameterValue.parameter_definition_id == parameter_id,
                     self.ParameterValue.object_id == object_id),
                 and_(
-                    self.DiffParameterValue.parameter_id == parameter_id,
+                    self.DiffParameterValue.parameter_definition_id == parameter_id,
                     self.DiffParameterValue.object_id == object_id)))
         return self.empty_list()
 
@@ -576,7 +576,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         ).filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
             self.DiffParameterValue.id,
-            self.DiffParameterValue.parameter_id,
+            self.DiffParameterValue.parameter_definition_id,
             self.DiffParameterValue.object_id,
             self.DiffParameterValue.relationship_id,
             self.DiffParameterValue.index,
@@ -614,7 +614,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
-        ).filter(parameter_list.c.id == self.ParameterValue.parameter_id).\
+        ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.object_id == object_list.c.id).\
         filter(parameter_list.c.object_class_id == object_class_list.c.id).\
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
@@ -633,7 +633,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValue.time_pattern,
             self.DiffParameterValue.time_series_id,
             self.DiffParameterValue.stochastic_model_id
-        ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_id).\
+        ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_definition_id).\
         filter(self.DiffParameterValue.object_id == object_list.c.id).\
         filter(parameter_list.c.object_class_id == object_class_list.c.id)
         if object_class_id:
@@ -667,7 +667,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
-        ).filter(parameter_list.c.id == self.ParameterValue.parameter_id).\
+        ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.relationship_id == wide_relationship_list.c.id).\
         filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id).\
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
@@ -689,7 +689,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValue.time_pattern,
             self.DiffParameterValue.time_series_id,
             self.DiffParameterValue.stochastic_model_id
-        ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_id).\
+        ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_definition_id).\
         filter(self.DiffParameterValue.relationship_id == wide_relationship_list.c.id).\
         filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id)
         if relationship_class_id:
@@ -709,7 +709,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             return self.empty_list()
         valued_parameters = self.parameter_value_list(object_id=object_id)
         return self.parameter_list(object_class_id=object_.class_id).\
-            filter(~self.Parameter.id.in_([x.parameter_id for x in valued_parameters]))
+            filter(~self.Parameter.id.in_([x.parameter_definition_id for x in valued_parameters]))
 
     def unvalued_object_list(self, parameter_id):
         """Return objects for which given parameter does not have a value."""
@@ -717,7 +717,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         if not parameter:
             return self.empty_list()
         valued_object_ids = self.session.query(self.ParameterValue.object_id).\
-            filter_by(parameter_id=parameter_id)
+            filter_by(parameter_definition_id=parameter_id)
         return self.object_list().filter_by(class_id=parameter.object_class_id).\
             filter(~self.Object.id.in_(valued_object_ids))
 
@@ -728,7 +728,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             return self.empty_list()
         valued_parameters = self.parameter_value_list(relationship_id=relationship_id)
         return self.parameter_list(relationship_class_id=relationship.class_id).\
-            filter(~self.Parameter.id.in_([x.parameter_id for x in valued_parameters]))
+            filter(~self.Parameter.id.in_([x.parameter_definition_id for x in valued_parameters]))
 
     def unvalued_relationship_list(self, parameter_id):
         """Return relationships for which given parameter does not have a value."""
@@ -736,7 +736,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         if not parameter:
             return self.empty_list()
         valued_relationship_ids = self.session.query(self.ParameterValue.relationship_id).\
-            filter_by(parameter_id=parameter_id)
+            filter_by(parameter_definition_id=parameter_id)
         return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
             filter(~self.Relationship.id.in_(valued_relationship_ids))
 
@@ -1202,10 +1202,10 @@ class DiffDatabaseMapping(DatabaseMapping):
         checked_kwargs_list = list()
         # Per's suggestions
         object_parameter_values = {
-            (x.object_id, x.parameter_id) for x in self.parameter_value_list() if x.object_id
+            (x.object_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.object_id
         }
         relationship_parameter_values = {
-            (x.relationship_id, x.parameter_id) for x in self.parameter_value_list() if x.relationship_id
+            (x.relationship_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.relationship_id
         }
         parameter_dict = {
             x.id: {
@@ -1229,7 +1229,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                     kwargs, object_parameter_values, relationship_parameter_values,
                     parameter_dict, object_dict, relationship_dict)
                 checked_kwargs_list.append(kwargs)
-                # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                # Update sets of tuples (object_id, parameter_definition_id) and (relationship_id, parameter_definition_id)
                 object_id = kwargs.get("object_id", None)
                 relationship_id = kwargs.get("relationship_id", None)
                 if object_id:
@@ -1248,16 +1248,16 @@ class DiffDatabaseMapping(DatabaseMapping):
         checked_kwargs_list = list()
         parameter_value_dict = {
             x.id: {
-                "parameter_id": x.parameter_id,
+                "parameter_definition_id": x.parameter_definition_id,
                 "object_id": x.object_id,
                 "relationship_id": x.relationship_id
             } for x in self.parameter_value_list()}
         # Per's suggestions
         object_parameter_values = {
-            (x.object_id, x.parameter_id) for x in self.parameter_value_list() if x.object_id
+            (x.object_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.object_id
         }
         relationship_parameter_values = {
-            (x.relationship_id, x.parameter_id) for x in self.parameter_value_list() if x.relationship_id
+            (x.relationship_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.relationship_id
         }
         parameter_dict = {
             x.id: {
@@ -1286,13 +1286,13 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_kwargs = parameter_value_dict.pop(id)
-                # Remove current tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                # Remove current tuples (object_id, parameter_definition_id) and (relationship_id, parameter_definition_id)
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
-                    object_parameter_values.remove((object_id, updated_kwargs['parameter_id']))
+                    object_parameter_values.remove((object_id, updated_kwargs['parameter_definition_id']))
                 elif relationship_id:
-                    relationship_parameter_values.remove((relationship_id, updated_kwargs['parameter_id']))
+                    relationship_parameter_values.remove((relationship_id, updated_kwargs['parameter_definition_id']))
             except KeyError:
                 msg = "Parameter value not found."
                 if raise_intgr_error:
@@ -1311,13 +1311,13 @@ class DiffDatabaseMapping(DatabaseMapping):
                     parameter_dict, object_dict, relationship_dict)
                 checked_kwargs_list.append(kwargs)
                 parameter_value_dict[id] = updated_kwargs
-                # Add updated tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                # Add updated tuples (object_id, parameter_definition_id) and (relationship_id, parameter_definition_id)
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
-                    object_parameter_values.add((object_id, updated_kwargs['parameter_id']))
+                    object_parameter_values.add((object_id, updated_kwargs['parameter_definition_id']))
                 elif relationship_id:
-                    relationship_parameter_values.add((relationship_id, updated_kwargs['parameter_id']))
+                    relationship_parameter_values.add((relationship_id, updated_kwargs['parameter_definition_id']))
             except SpineIntegrityError as e:
                 if raise_intgr_error:
                     raise e
@@ -1329,11 +1329,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_dict, object_dict, relationship_dict):
         """Raise a SpineIntegrityError if the parameter value given by `kwargs` violates any integrity constraints."""
         try:
-            parameter_id = kwargs["parameter_id"]
+            parameter_definition_id = kwargs["parameter_definition_id"]
         except KeyError:
             raise SpineIntegrityError("Missing parameter identifier.")
         try:
-            parameter = parameter_dict[parameter_id]
+            parameter = parameter_dict[parameter_definition_id]
         except KeyError:
             raise SpineIntegrityError("Parameter not found.")
         object_id = kwargs.get("object_id", None)
@@ -1359,7 +1359,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("Incorrect object '{}' for "
                                           "parameter '{}'.".format(object_name, parameter_name))
-            if (object_id, parameter_id) in object_parameter_values:
+            if (object_id, parameter_definition_id) in object_parameter_values:
                 object_name = object_dict[object_id]['name']
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("The value of parameter '{}' for object '{}' is "
@@ -1374,7 +1374,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("Incorrect relationship '{}' for "
                                           "parameter '{}'.".format(relationship_name, parameter_name))
-            if (relationship_id, parameter_id) in relationship_parameter_values:
+            if (relationship_id, parameter_definition_id) in relationship_parameter_values:
                 relationship_name = relationship_dict[relationship_id]['name']
                 parameter_name = parameter['name']
                 raise SpineIntegrityError("The value of parameter '{}' for relationship '{}' is "
@@ -1610,8 +1610,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         checked_kwargs_list, intgr_error_log = self.check_parameters_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
         next_id = self.next_id_with_lock()
-        if next_id.parameter_id:
-            id = next_id.parameter_id
+        if next_id.parameter_definition_id:
+            id = next_id.parameter_definition_id
         else:
             max_id = self.session.query(func.max(self.Parameter.id)).scalar()
             id = max_id + 1 if max_id else 1
@@ -1623,7 +1623,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 item_list.append(kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffParameter, item_list)
-            next_id.parameter_id = id
+            next_id.parameter_definition_id = id
             self.session.commit()
             self.new_item_id["parameter"].update(id_list)
             new_item_list = self.parameter_list(id_list=id_list)
@@ -1642,6 +1642,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_values (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
+        # FIXME: this should be removed once the 'parameter_definition_id' comes in the kwargs
+        for kwargs in kwargs_list:
+            kwargs["parameter_definition_id"] = kwargs["parameter_id"]
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
         next_id = self.next_id_with_lock()
@@ -2224,9 +2227,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         removed_diff_item_id.setdefault("parameter", set()).update(diff_ids)
         # parameter_value
         item_list = self.session.query(self.ParameterValue.id).\
-            filter(self.ParameterValue.parameter_id.in_(ids))
+            filter(self.ParameterValue.parameter_definition_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
-            filter(self.DiffParameterValue.parameter_id.in_(ids + diff_ids))
+            filter(self.DiffParameterValue.parameter_definition_id.in_(ids + diff_ids))
         self._remove_cascade_parameter_values(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],

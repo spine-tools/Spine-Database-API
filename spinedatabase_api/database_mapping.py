@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
 from .exception import SpineDBAPIError, SpineTableNotFoundError, RecordNotFoundError, ParameterValueError
-from .helpers import custom_generate_relationship, attr_dict
+from .helpers import custom_generate_relationship, attr_dict, do_migration
 from datetime import datetime, timezone
 
 # TODO: Consider returning lists of dict (with _asdict()) rather than queries,
@@ -65,6 +65,7 @@ class DatabaseMapping(object):
         self.Parameter = None
         self.ParameterValue = None
         self.Commit = None
+        do_migration(db_url)
         if create_all:
             self.create_engine_and_session()
             self.create_mapping()
@@ -99,7 +100,7 @@ class DatabaseMapping(object):
             self.Object = self.Base.classes.object
             self.RelationshipClass = self.Base.classes.relationship_class
             self.Relationship = self.Base.classes.relationship
-            self.Parameter = self.Base.classes.parameter
+            self.Parameter = self.Base.classes.parameter_definition
             self.ParameterValue = self.Base.classes.parameter_value
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
@@ -266,7 +267,7 @@ class DatabaseMapping(object):
         if id:
             return qry.filter(self.ParameterValue.id == id)
         if parameter_id and object_id:
-            return qry.filter(self.ParameterValue.parameter_id == parameter_id).\
+            return qry.filter(self.ParameterValue.parameter_definition_id == parameter_id).\
                 filter(self.ParameterValue.object_id == object_id)
         return self.empty_list()
 
@@ -452,7 +453,7 @@ class DatabaseMapping(object):
         """Return parameter values."""
         qry = self.session.query(
             self.ParameterValue.id,
-            self.ParameterValue.parameter_id,
+            self.ParameterValue.parameter_definition_id,
             self.ParameterValue.object_id,
             self.ParameterValue.relationship_id,
             self.ParameterValue.index,
@@ -490,7 +491,7 @@ class DatabaseMapping(object):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
-        ).filter(parameter_list.c.id == self.ParameterValue.parameter_id).\
+        ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.object_id == object_list.c.id).\
         filter(parameter_list.c.object_class_id == object_class_list.c.id)
         if parameter_name:
@@ -519,7 +520,7 @@ class DatabaseMapping(object):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id
-        ).filter(parameter_list.c.id == self.ParameterValue.parameter_id).\
+        ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.relationship_id == wide_relationship_list.c.id).\
         filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id)
         if parameter_name:
@@ -543,7 +544,7 @@ class DatabaseMapping(object):
             self.ParameterValue.stochastic_model_id
         ).filter(self.ParameterValue.object_id == self.Object.id).\
         outerjoin(self.ParameterValue).\
-        filter(self.Parameter.id == self.ParameterValue.parameter_id)
+        filter(self.Parameter.id == self.ParameterValue.parameter_definition_id)
         if parameter_id:
             qry = qry.filter(self.Parameter.id == parameter_id)
         return qry
@@ -553,7 +554,7 @@ class DatabaseMapping(object):
         object_ = self.single_object(id=object_id).one_or_none()
         if not object_:
             return self.empty_list()
-        valued_parameter_ids = self.session.query(self.ParameterValue.parameter_id).\
+        valued_parameter_ids = self.session.query(self.ParameterValue.parameter_definition_id).\
             filter_by(object_id=object_id)
         return self.parameter_list(object_class_id=object_.class_id).\
             filter(~self.Parameter.id.in_(valued_parameter_ids))
@@ -574,7 +575,7 @@ class DatabaseMapping(object):
         relationship = self.single_wide_relationship(id=relationship_id).one_or_none()
         if not relationship:
             return self.empty_list()
-        valued_parameter_ids = self.session.query(self.ParameterValue.parameter_id).\
+        valued_parameter_ids = self.session.query(self.ParameterValue.parameter_definition_id).\
             filter_by(relationship_id=relationship_id)
         return self.parameter_list().filter_by(relationship_class_id=relationship.class_id).\
             filter(~self.Parameter.id.in_(valued_parameter_ids))
