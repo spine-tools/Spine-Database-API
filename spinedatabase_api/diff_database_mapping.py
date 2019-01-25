@@ -1074,11 +1074,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             relationship_class_name = relationship_class_dict[class_id]['name']
             raise SpineIntegrityError("Incorrect objects '{}' for "
                                       "relationship class '{}'.".format(object_name_list, relationship_class_name))
-        if len(object_id_list) != len(set(object_id_list)):
-            object_name_list = [object_dict[id]['name'] for id in object_id_list]
-            raise SpineIntegrityError("Incorrect object name list '{}'. "
-                                      "The same object can't appear twice "
-                                      "in one relationship.".format(object_name_list))
+        # if len(object_id_list) != len(set(object_id_list)):
+            # object_name_list = [object_dict[id]['name'] for id in object_id_list]
+            # raise SpineIntegrityError("Incorrect object name list '{}'. "
+                                      # "The same object can't appear twice "
+                                      # "in one relationship.".format(object_name_list))
         join_object_id_list = ",".join([str(x) for x in object_id_list])
         if (class_id, join_object_id_list) in relationship_class_objects_tuples:
             object_name_list = [object_dict[id]['name'] for id in object_id_list]
