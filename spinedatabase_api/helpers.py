@@ -24,8 +24,7 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
-import os
-import warnings
+from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.pool import StaticPool
@@ -36,17 +35,7 @@ from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
 from .exception import SpineDBAPIError
 from sqlalchemy import inspect
-from alembic.config import Config
-from alembic import command
-
-
-def do_migration(db_url):
-    # NOTE: this assumes alembic.ini is in the same folder as this file
-    path = os.path.dirname(__file__)
-    alembic_cfg = Config(os.path.join(path, "alembic.ini"))
-    alembic_cfg.set_main_option("script_location", "spinedatabase_api:alembic")
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-    command.upgrade(alembic_cfg, "head")
+import warnings
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -417,3 +406,4 @@ def create_new_spine_database(db_url):
         return engine
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+

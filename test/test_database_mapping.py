@@ -197,7 +197,7 @@ class TestDatabaseAPI(unittest.TestCase):
 
         [self.db_map.add_parameter_value(**{
             'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
-            'parameter_definition_id': parameter_list_ids[i],
+            'parameter_id': parameter_list_ids[i],
             'object_id': obj_ids_list[i],
             'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
             'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
@@ -434,7 +434,7 @@ class TestDatabaseAPI(unittest.TestCase):
 
         [parameter_value_ids.append(self.db_map.add_parameter_value(**{
             'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
-            'parameter_definition_id': parameter_list_ids[i],
+            'parameter_id': parameter_list_ids[i],
             'object_id': obj_ids_list[i],
             'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
             'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
@@ -619,7 +619,7 @@ class TestDatabaseAPI(unittest.TestCase):
 
         [parameter_value_ids.append(self.db_map.add_parameter_value(**{
             'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
-            'parameter_definition_id': parameter_list_ids[i],
+            'parameter_id': parameter_list_ids[i],
             'object_id': obj_ids_list[i],
             'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
             'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
@@ -668,7 +668,7 @@ class TestDatabaseAPI(unittest.TestCase):
 
         [parameter_value_ids.append(self.db_map.add_parameter_value(**{
             'json': str(fake.pydict(nb_elements=3, variable_nb_elements=True)),
-            'parameter_definition_id': parameter_list_ids[i],
+            'parameter_id': parameter_list_ids[i],
             'object_id': obj_ids_list[i],
             'value': fake.pyfloat(left_digits=None, right_digits=None, positive=False),
             'expression': str(fake.pydict(nb_elements=3, variable_nb_elements=True))
