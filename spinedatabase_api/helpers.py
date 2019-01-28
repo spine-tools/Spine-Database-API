@@ -35,7 +35,26 @@ from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
 from .exception import SpineDBAPIError
 from sqlalchemy import inspect
-import warnings
+from alembic.config import Config
+from alembic import command
+
+
+def upgrade_to_head(db_url):
+    # NOTE: this assumes alembic.ini is in the same folder as this file
+    path = os.path.dirname(__file__)
+    alembic_cfg = Config(os.path.join(path, "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", "spinedatabase_api:alembic")
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+    command.upgrade(alembic_cfg, "head")
+
+
+def downgrade_to_base(db_url):
+    # NOTE: this assumes alembic.ini is in the same folder as this file
+    path = os.path.dirname(__file__)
+    alembic_cfg = Config(os.path.join(path, "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", "spinedatabase_api:alembic")
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+    command.downgrade(alembic_cfg, "base")
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -406,4 +425,3 @@ def create_new_spine_database(db_url):
         return engine
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
-

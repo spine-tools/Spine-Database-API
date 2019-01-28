@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
 from .exception import SpineDBAPIError, SpineTableNotFoundError, RecordNotFoundError, ParameterValueError
-from .helpers import custom_generate_relationship, attr_dict
+from .helpers import custom_generate_relationship, attr_dict, upgrade_to_head
 from datetime import datetime, timezone
 
 # TODO: Consider returning lists of dict (with _asdict()) rather than queries,
@@ -65,6 +65,7 @@ class DatabaseMapping(object):
         self.Parameter = None
         self.ParameterValue = None
         self.Commit = None
+        upgrade_to_head(db_url)
         if create_all:
             self.create_engine_and_session()
             self.create_mapping()
