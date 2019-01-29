@@ -1,4 +1,4 @@
-"""Add parameter_class and parameter_definition_enum
+"""Add parameter_tag, parameter_definition_tag, and parameter_enum
 
 Revision ID: 51fd7b69acf7
 Revises: 8c19c53d5701
@@ -20,21 +20,21 @@ def upgrade():
     op.create_table(
         'parameter_tag',
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('name', sa.String(155), nullable=False),
+        sa.Column('tag', sa.String(155), nullable=False, unique=True),
         sa.Column('description', sa.Unicode(255)),
         sa.Column('commit_id', sa.Integer, sa.ForeignKey('commit.id'), nullable=False)
     )
     op.create_table(
         'parameter_definition_tag',
-        sa.Column('id', sa.Integer, nullable=False),
+        sa.Column('id', sa.Integer, nullable=False, primary_key=True),
         sa.Column('parameter_definition_id', sa.Integer, sa.ForeignKey('parameter_definition.id'), nullable=False),
         sa.Column('parameter_tag_id', sa.Integer, sa.ForeignKey('parameter_tag.id'), nullable=False),
         sa.Column('commit_id', sa.Integer, sa.ForeignKey('commit.id'), nullable=False)
     )
     op.create_table(
         'parameter_enum',
-        sa.Column('id', sa.Integer),
-        sa.Column('symbol', sa.Unicode(255), nullable=False),
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('symbol', sa.Unicode(255), primary_key=True, nullable=False),
         sa.Column('value', sa.Unicode(255)),
         sa.Column('commit_id', sa.Integer, sa.ForeignKey('commit.id'), nullable=False)
     )
