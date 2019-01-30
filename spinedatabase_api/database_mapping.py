@@ -63,9 +63,10 @@ class DatabaseMapping(object):
         self.RelationshipClass = None
         self.Relationship = None
         self.ParameterDefinition = None
+        self.ParameterValue = None
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
-        self.ParameterValue = None
+        self.ParameterEnum = None
         self.Commit = None
         upgrade_to_head(db_url)
         if create_all:
@@ -103,9 +104,10 @@ class DatabaseMapping(object):
             self.RelationshipClass = self.Base.classes.relationship_class
             self.Relationship = self.Base.classes.relationship
             self.ParameterDefinition = self.Base.classes.parameter_definition
+            self.ParameterValue = self.Base.classes.parameter_value
             self.ParameterTag = self.Base.classes.parameter_tag
             self.ParameterDefinitionTag = self.Base.classes.parameter_definition_tag
-            self.ParameterValue = self.Base.classes.parameter_value
+            self.ParameterEnum = self.Base.classes.parameter_enum
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
             self.close()
@@ -280,27 +282,27 @@ class DatabaseMapping(object):
         """Return relationship and the parameter value corresponding to id."""
         return self.relationship_parameter_value_list().filter(self.ParameterValue.id == id)
 
-    def object_class_list(self, id_list=set(), ordered=True):
+    def object_class_list(self, id_list=None, ordered=True):
         """Return object classes ordered by display order."""
         qry = self.session.query(
             self.ObjectClass.id.label("id"),
             self.ObjectClass.name.label("name"),
             self.ObjectClass.display_order.label("display_order"),
             self.ObjectClass.description.label("description"))
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.ObjectClass.id.in_(id_list))
         if ordered:
             qry = qry.order_by(self.ObjectClass.display_order)
         return qry
 
-    def object_list(self, id_list=set(), class_id=None):
+    def object_list(self, id_list=None, class_id=None):
         """Return objects, optionally filtered by class id."""
         qry = self.session.query(
             self.Object.id.label('id'),
             self.Object.class_id.label('class_id'),
             self.Object.name.label('name'),
             self.Object.description.label("description"))
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.Object.id.in_(id_list))
         if class_id:
             qry = qry.filter_by(class_id=class_id)
@@ -320,7 +322,7 @@ class DatabaseMapping(object):
             qry = qry.order_by(self.RelationshipClass.id, self.RelationshipClass.dimension)
         return qry
 
-    def wide_relationship_class_list(self, id_list=set(), object_class_id=None):
+    def wide_relationship_class_list(self, id_list=None, object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
         object_class_list = self.object_class_list(ordered=False).subquery()
         qry = self.session.query(
@@ -329,7 +331,7 @@ class DatabaseMapping(object):
             object_class_list.c.name.label('object_class_name'),
             self.RelationshipClass.name.label('name')
         ).filter(self.RelationshipClass.object_class_id == object_class_list.c.id)
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.RelationshipClass.id.in_(id_list))
         if object_class_id:
             qry = qry.filter(self.RelationshipClass.id.in_(
@@ -356,7 +358,7 @@ class DatabaseMapping(object):
             qry = qry.filter_by(id=id)
         return qry
 
-    def wide_relationship_list(self, id_list=set(), class_id=None, object_id=None):
+    def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
         object_list = self.object_list().subquery()
         qry = self.session.query(
@@ -366,7 +368,7 @@ class DatabaseMapping(object):
             object_list.c.name.label('object_name'),
             self.Relationship.name.label('name')
         ).filter(self.Relationship.object_id == object_list.c.id)
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.Relationship.id.in_(id_list))
         if class_id:
             qry = qry.filter(self.Relationship.id.in_(
@@ -383,14 +385,27 @@ class DatabaseMapping(object):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def parameter_tag_list(self):
+    def parameter_tag_list(self, id_list=None):
         """Return list of parameter tags."""
-        return self.session.query(
+        qry = self.session.query(
             self.ParameterTag.id,
             self.ParameterTag.tag,
             self.ParameterTag.description)
+        if id_list is not None:
+            qry = qry.filter(self.ParameterTag.id.in_(id_list))
+        return qry
 
-    def wide_parameter_tag_list(self, parameter_definition_id=None):
+    def parameter_definition_tag_list(self, id_list=None):
+        """Return list of parameter definition tags."""
+        qry = self.session.query(
+            self.ParameterDefinitionTag.id,
+            self.ParameterDefinitionTag.parameter_definition_id,
+            self.ParameterDefinitionTag.parameter_tag_id)
+        if id_list is not None:
+            qry = qry.filter(self.ParameterDefinitionTag.id.in_(id_list))
+        return qry
+
+    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
         """Return list of parameter tags in wide format for a given parameter definition."""
         qry = self.session.query(
             self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
@@ -406,7 +421,7 @@ class DatabaseMapping(object):
             func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
         ).group_by(subqry.c.parameter_definition_id)
 
-    def parameter_list(self, id_list=set(), object_class_id=None, relationship_class_id=None):
+    def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
@@ -421,7 +436,7 @@ class DatabaseMapping(object):
             self.ParameterDefinition.precision.label('precision'),
             self.ParameterDefinition.minimum_value.label('minimum_value'),
             self.ParameterDefinition.maximum_value.label('maximum_value'))
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.ParameterDefinition.id.in_(id_list))
         if object_class_id:
             qry = qry.filter_by(object_class_id=object_class_id)
@@ -432,13 +447,13 @@ class DatabaseMapping(object):
     def object_parameter_list(self, object_class_id=None, parameter_id=None):
         """Return object classes and their parameters."""
         object_class_list = self.object_class_list().subquery()
-        wide_parameter_tag_list = self.wide_parameter_tag_list().subquery()
+        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.ParameterDefinition.name.label('parameter_name'),
-            wide_parameter_tag_list.c.name.label('parameter_tag_list'),
+            wide_parameter_definition_tag_list.c.name.label('parameter_tag_list'),
             self.ParameterDefinition.can_have_time_series,
             self.ParameterDefinition.can_have_time_pattern,
             self.ParameterDefinition.can_be_stochastic,
@@ -447,7 +462,10 @@ class DatabaseMapping(object):
             self.ParameterDefinition.precision,
             self.ParameterDefinition.minimum_value,
             self.ParameterDefinition.maximum_value
-        ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id)
+        ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id)
         if object_class_id:
             qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
         if parameter_id:
@@ -479,7 +497,7 @@ class DatabaseMapping(object):
             qry = qry.filter(self.ParameterDefinition.id == parameter_id)
         return qry
 
-    def parameter_value_list(self, id_list=set(), object_id=None, relationship_id=None):
+    def parameter_value_list(self, id_list=None, object_id=None, relationship_id=None):
         """Return parameter values."""
         qry = self.session.query(
             self.ParameterValue.id,
@@ -493,7 +511,7 @@ class DatabaseMapping(object):
             self.ParameterValue.time_pattern,
             self.ParameterValue.time_series_id,
             self.ParameterValue.stochastic_model_id)
-        if id_list:
+        if id_list is not None:
             qry = qry.filter(self.ParameterValue.id.in_(id_list))
         if object_id:
             qry = qry.filter_by(object_id=object_id)
@@ -1054,6 +1072,9 @@ class DatabaseMapping(object):
         self.session.query(self.Relationship).delete(synchronize_session=False)
         self.session.query(self.ParameterDefinition).delete(synchronize_session=False)
         self.session.query(self.ParameterValue).delete(synchronize_session=False)
+        self.session.query(self.ParameterTag).delete(synchronize_session=False)
+        self.session.query(self.ParameterDefinitionTag).delete(synchronize_session=False)
+        self.session.query(self.ParameterEnum).delete(synchronize_session=False)
         self.session.query(self.Commit).delete(synchronize_session=False)
 
     def close(self):

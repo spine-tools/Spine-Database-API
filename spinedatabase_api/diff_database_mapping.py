@@ -56,9 +56,10 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.DiffRelationshipClass = None
         self.DiffRelationship = None
         self.DiffParameterDefinition = None
+        self.DiffParameterValue = None
         self.DiffParameterTag = None
         self.DiffParameterDefinitionTag = None
-        self.DiffParameterValue = None
+        self.DiffParameterEnum = None
         self.NextId = None
         # Diff dictionaries
         self.new_item_id = {}
@@ -90,9 +91,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             "relationship_class": set(),
             "relationship": set(),
             "parameter_definition": set(),
+            "parameter_value": set(),
             "parameter_tag": set(),
             "parameter_definition_tag": set(),
-            "parameter_value": set(),
+            "parameter_enum": set(),
         }
         self.dirty_item_id = {
             "object_class": set(),
@@ -100,9 +102,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             "relationship_class": set(),
             "relationship": set(),
             "parameter_definition": set(),
+            "parameter_value": set(),
             "parameter_tag": set(),
             "parameter_definition_tag": set(),
-            "parameter_value": set(),
+            "parameter_enum": set(),
         }
         self.removed_item_id = {
             "object_class": set(),
@@ -110,9 +113,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             "relationship_class": set(),
             "relationship": set(),
             "parameter_definition": set(),
+            "parameter_value": set(),
             "parameter_tag": set(),
             "parameter_definition_tag": set(),
-            "parameter_value": set(),
+            "parameter_enum": set(),
         }
         # Items that we don't want to read from the original tables (either dirty, or removed)
         self.touched_item_id = {
@@ -121,9 +125,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             "relationship_class": set(),
             "relationship": set(),
             "parameter_definition": set(),
+            "parameter_value": set(),
             "parameter_tag": set(),
             "parameter_definition_tag": set(),
-            "parameter_value": set(),
+            "parameter_enum": set(),
         }
 
     def create_diff_tables_and_mapping(self):
@@ -172,10 +177,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffRelationshipClass = getattr(self.DiffBase.classes, self.diff_prefix + "relationship_class")
             self.DiffRelationship = getattr(self.DiffBase.classes, self.diff_prefix + "relationship")
             self.DiffParameterDefinition = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_definition")
+            self.DiffParameterValue = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value")
             self.DiffParameterTag = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_tag")
             self.DiffParameterDefinitionTag = getattr(
                 self.DiffBase.classes, self.diff_prefix + "parameter_definition_tag")
-            self.DiffParameterValue = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value")
+            self.DiffParameterEnum = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_enum")
         except NoSuchTableError as table:
             self.close()
             raise SpineTableNotFoundError(table)
@@ -198,7 +204,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             Column('relationship_id', Integer),
             Column('parameter_definition_id', Integer),
             Column('parameter_value_id', Integer),
-            Column('parameter_tag_id', Integer)
+            Column('parameter_tag_id', Integer),
+            Column('parameter_enum_id', Integer),
+            Column('parameter_definition_tag_id', Integer)
         )
         next_id_table.create(self.engine, checkfirst=True)
         # Mapping...
@@ -310,11 +318,13 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def single_object_parameter(self, id):
         """Return object class and the parameter corresponding to id."""
-        return self.object_parameter_list().filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
+        return self.object_parameter_list().\
+            filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
 
     def single_relationship_parameter(self, id):
         """Return relationship class and the parameter corresponding to id."""
-        return self.relationship_parameter_list().filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
+        return self.relationship_parameter_list().\
+            filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
 
     def single_parameter_value(self, id=None):
         """Return parameter value corresponding to id."""
@@ -469,22 +479,38 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def parameter_tag_list(self):
+    def parameter_tag_list(self, id_list=None):
         """Return list of parameter tags."""
-        qry = super().parameter_tag_list()
+        qry = super().parameter_tag_list(id_list=id_list).\
+            filter(~self.ParameterTag.id.in_(self.touched_item_id["parameter_tag"]))
         diff_qry = self.session.query(
             self.DiffParameterTag.id,
             self.DiffParameterTag.tag,
             self.DiffParameterTag.description)
+        if id_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterTag.id.in_(id_list))
         return qry.union_all(diff_qry)
 
-    def wide_parameter_tag_list(self, parameter_definition_id=None):
+    def parameter_definition_tag_list(self, id_list=None):
+        """Return list of parameter definition tags."""
+        qry = super().parameter_definition_tag_list(id_list=id_list).\
+            filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinitionTag.id,
+            self.DiffParameterDefinitionTag.parameter_definition_id,
+            self.DiffParameterDefinitionTag.parameter_tag_id)
+        if id_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterDefinitionTag.id.in_(id_list))
+        return qry.union_all(diff_qry)
+
+    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
         """Return list of parameter tags in wide format for a given parameter definition."""
         qry = self.session.query(
             self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
             self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
             self.ParameterTag.tag.label('parameter_tag')
-        ).filter(self.ParameterDefinitionTag.parameter_tag_id == self.ParameterTag.id)
+        ).filter(self.ParameterDefinitionTag.parameter_tag_id == self.ParameterTag.id).\
+        filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
         diff_qry = self.session.query(
             self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
             self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
@@ -532,13 +558,13 @@ class DiffDatabaseMapping(DatabaseMapping):
     def object_parameter_list(self, object_class_id=None, parameter_id=None):
         """Return object classes and their parameters."""
         object_class_list = self.object_class_list().subquery()
-        wide_parameter_tag_list = self.wide_parameter_tag_list().subquery()
+        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.ParameterDefinition.name.label('parameter_name'),
-            wide_parameter_tag_list.c.parameter_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
             self.ParameterDefinition.can_have_time_pattern,
             self.ParameterDefinition.can_be_stochastic,
@@ -549,15 +575,15 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.ParameterDefinition.maximum_value
         ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
         outerjoin(
-            wide_parameter_tag_list,
-            wide_parameter_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
         filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
         diff_qry = self.session.query(
             self.DiffParameterDefinition.id.label('id'),
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.DiffParameterDefinition.name.label('parameter_name'),
-            wide_parameter_tag_list.c.parameter_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.DiffParameterDefinition.can_have_time_series,
             self.DiffParameterDefinition.can_have_time_pattern,
             self.DiffParameterDefinition.can_be_stochastic,
@@ -568,8 +594,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterDefinition.maximum_value
         ).filter(object_class_list.c.id == self.DiffParameterDefinition.object_class_id).\
         outerjoin(
-            wide_parameter_tag_list,
-            wide_parameter_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id)
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id)
         if object_class_id:
             qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
             diff_qry = diff_qry.filter(self.DiffParameterDefinition.object_class_id == object_class_id)
@@ -1147,30 +1173,31 @@ class DiffDatabaseMapping(DatabaseMapping):
         if name in relationship_names:
             raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name))
 
-    def check_parameters_for_insert(self, *kwargs_list, raise_intgr_error=True):
+    def check_parameter_definitions_for_insert(self, *kwargs_list, raise_intgr_error=True):
         """Check that parameters respect integrity constraints for an insert operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        parameter_names = {x.name for x in self.parameter_list()}
+        parameter_definition_names = {x.name for x in self.parameter_list()}
         object_class_dict = {x.id: x.name for x in self.object_class_list()}
         relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
             try:
-                self.check_parameter(kwargs, parameter_names, object_class_dict, relationship_class_dict)
+                self.check_parameter_definition(
+                    kwargs, parameter_definition_names, object_class_dict, relationship_class_dict)
                 checked_kwargs_list.append(kwargs)
-                parameter_names.add(kwargs["name"])
+                parameter_definition_names.add(kwargs["name"])
             except SpineIntegrityError as e:
                 if raise_intgr_error:
                     raise e
                 intgr_error_log.append(e.msg)
         return checked_kwargs_list, intgr_error_log
 
-    def check_parameters_for_update(self, *kwargs_list, raise_intgr_error=True):
+    def check_parameter_definitions_for_update(self, *kwargs_list, raise_intgr_error=True):
         """Check that parameters respect integrity constraints for an update operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        parameter_names = {x.name for x in self.parameter_list()}
-        parameter_dict = {
+        parameter_definition_names = {x.name for x in self.parameter_list()}
+        parameter_definition_dict = {
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
@@ -1182,14 +1209,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 id = kwargs["id"]
             except KeyError:
-                msg = "Missing parameter identifier."
+                msg = "Missing parameter definition identifier."
                 if raise_intgr_error:
                     raise SpineIntegrityError(msg)
                 intgr_error_log.append(msg)
                 continue
             try:
-                updated_kwargs = parameter_dict.pop(id)
-                parameter_names.remove(updated_kwargs["name"])
+                updated_kwargs = parameter_definition_dict.pop(id)
+                parameter_definition_names.remove(updated_kwargs["name"])
             except KeyError:
                 msg = "Parameter not found."
                 if raise_intgr_error:
@@ -1203,20 +1230,22 @@ class DiffDatabaseMapping(DatabaseMapping):
                 if "relationship_class_id" in kwargs:
                     kwargs.setdefault("object_class_id", None)
                 updated_kwargs.update(kwargs)
-                self.check_parameter(
-                    updated_kwargs, parameter_names,
+                self.check_parameter_definition(
+                    updated_kwargs, parameter_definition_names,
                     object_class_dict, relationship_class_dict)
                 checked_kwargs_list.append(kwargs)
-                parameter_dict[id] = updated_kwargs
-                parameter_names.add(updated_kwargs["name"])
+                parameter_definition_dict[id] = updated_kwargs
+                parameter_definition_names.add(updated_kwargs["name"])
             except SpineIntegrityError as e:
                 if raise_intgr_error:
                     raise e
                 intgr_error_log.append(e.msg)
         return checked_kwargs_list, intgr_error_log
 
-    def check_parameter(self, kwargs, parameter_names, object_class_dict, relationship_class_dict):
-        """Raise a SpineIntegrityError if the parameter given by `kwargs` violates any integrity constraints."""
+    def check_parameter_definition(
+            self, kwargs, parameter_definition_names, object_class_dict, relationship_class_dict):
+        """Raise a SpineIntegrityError if the parameter definition given by `kwargs` violates any
+        integrity constraints."""
         object_class_id = kwargs.get("object_class_id", None)
         relationship_class_id = kwargs.get("relationship_class_id", None)
         if object_class_id and relationship_class_id:
@@ -1237,7 +1266,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 name = kwargs["name"]
             except KeyError:
                 raise SpineIntegrityError("Missing parameter name.")
-            if name in parameter_names:
+            if name in parameter_definition_names:
                 raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
         elif relationship_class_id:
             if relationship_class_id not in relationship_class_dict:
@@ -1246,7 +1275,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 name = kwargs["name"]
             except KeyError:
                 raise SpineIntegrityError("Missing parameter name.")
-            if name in parameter_names:
+            if name in parameter_definition_names:
                 raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
         else:
             raise SpineIntegrityError("Missing object class or relationship class identifier.")
@@ -1262,7 +1291,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         relationship_parameter_values = {
             (x.relationship_id, x.parameter_id) for x in self.parameter_value_list() if x.relationship_id
         }
-        parameter_dict = {
+        parameter_definition_dict = {
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
@@ -1282,9 +1311,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 self.check_parameter_value(
                     kwargs, object_parameter_values, relationship_parameter_values,
-                    parameter_dict, object_dict, relationship_dict)
+                    parameter_definition_dict, object_dict, relationship_dict)
                 checked_kwargs_list.append(kwargs)
-                # Update sets of tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                # Update sets of tuples (object_id, parameter_definition_id)
+                # and (relationship_id, parameter_definition_id)
                 object_id = kwargs.get("object_id", None)
                 relationship_id = kwargs.get("relationship_id", None)
                 if object_id:
@@ -1314,7 +1344,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         relationship_parameter_values = {
             (x.relationship_id, x.parameter_id) for x in self.parameter_value_list() if x.relationship_id
         }
-        parameter_dict = {
+        parameter_definition_dict = {
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
@@ -1341,7 +1371,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_kwargs = parameter_value_dict.pop(id)
-                # Remove current tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                # Remove current tuples (object_id, parameter_definition_id)
+                # and (relationship_id, parameter_definition_id)
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
@@ -1363,10 +1394,11 @@ class DiffDatabaseMapping(DatabaseMapping):
                 updated_kwargs.update(kwargs)
                 self.check_parameter_value(
                     updated_kwargs, object_parameter_values, relationship_parameter_values,
-                    parameter_dict, object_dict, relationship_dict)
+                    parameter_definition_dict, object_dict, relationship_dict)
                 checked_kwargs_list.append(kwargs)
                 parameter_value_dict[id] = updated_kwargs
-                # Add updated tuples (object_id, parameter_id) and (relationship_id, parameter_id)
+                # Add updated tuples (object_id, parameter_definition_id)
+                # and (relationship_id, parameter_definition_id)
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
@@ -1381,14 +1413,14 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def check_parameter_value(
             self, kwargs, object_parameter_values, relationship_parameter_values,
-            parameter_dict, object_dict, relationship_dict):
+            parameter_definition_dict, object_dict, relationship_dict):
         """Raise a SpineIntegrityError if the parameter value given by `kwargs` violates any integrity constraints."""
         try:
             parameter_id = kwargs["parameter_id"]
         except KeyError:
             raise SpineIntegrityError("Missing parameter identifier.")
         try:
-            parameter = parameter_dict[parameter_id]
+            parameter_definition = parameter_definition_dict[parameter_definition_id]
         except KeyError:
             raise SpineIntegrityError("Parameter not found.")
         object_id = kwargs.get("object_id", None)
@@ -1409,14 +1441,14 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_class_id = object_dict[object_id]['class_id']
             except KeyError:
                 raise SpineIntegrityError("Object not found")
-            if object_class_id != parameter["object_class_id"]:
+            if object_class_id != parameter_definition["object_class_id"]:
                 object_name = object_dict[object_id]['name']
-                parameter_name = parameter['name']
+                parameter_name = parameter_definition['name']
                 raise SpineIntegrityError("Incorrect object '{}' for "
                                           "parameter '{}'.".format(object_name, parameter_name))
             if (object_id, parameter_id) in object_parameter_values:
                 object_name = object_dict[object_id]['name']
-                parameter_name = parameter['name']
+                parameter_name = parameter_definition['name']
                 raise SpineIntegrityError("The value of parameter '{}' for object '{}' is "
                                           "already specified.".format(parameter_name, object_name))
         elif relationship_id:
@@ -1424,14 +1456,14 @@ class DiffDatabaseMapping(DatabaseMapping):
                 relationship_class_id = relationship_dict[relationship_id]['class_id']
             except KeyError:
                 raise SpineIntegrityError("Relationship not found")
-            if relationship_class_id != parameter["relationship_class_id"]:
+            if relationship_class_id != parameter_definition["relationship_class_id"]:
                 relationship_name = relationship_dict[relationship_id]['name']
-                parameter_name = parameter['name']
+                parameter_name = parameter_definition['name']
                 raise SpineIntegrityError("Incorrect relationship '{}' for "
                                           "parameter '{}'.".format(relationship_name, parameter_name))
             if (relationship_id, parameter_id) in relationship_parameter_values:
                 relationship_name = relationship_dict[relationship_id]['name']
-                parameter_name = parameter['name']
+                parameter_name = parameter_definition['name']
                 raise SpineIntegrityError("The value of parameter '{}' for relationship '{}' is "
                                           "already specified.".format(parameter_name, relationship_name))
         else:
@@ -1504,6 +1536,50 @@ class DiffDatabaseMapping(DatabaseMapping):
             raise SpineIntegrityError("Missing parameter tag.")
         if tag in parameter_tags:
             raise SpineIntegrityError("There can't be more than one '{}' tag.".format(tag))
+
+    def check_parameter_definition_tags_for_insert(self, *kwargs_list, raise_intgr_error=True):
+        """Check that parameter definition tags respect integrity constraints for an insert operation."""
+        intgr_error_log = []
+        checked_kwargs_list = list()
+        parameter_definition_tags = {
+            (x.parameter_definition_id, x.parameter_tag_id) for x in self.parameter_definition_tag_list()}
+        parameter_name_dict = {x.id: x.name for x in self.parameter_list()}
+        parameter_tag_dict = {x.id: x.tag for x in self.parameter_tag_list()}
+        for kwargs in kwargs_list:
+            try:
+                self.check_parameter_definition_tag(
+                    kwargs, parameter_definition_tags, parameter_name_dict, parameter_tag_dict)
+                checked_kwargs_list.append(kwargs)
+                parameter_definition_tags.add((kwargs["parameter_definition_id"], kwargs["parameter_tag_id"]))
+            except SpineIntegrityError as e:
+                if raise_intgr_error:
+                    raise e
+                intgr_error_log.append(e.msg)
+        return checked_kwargs_list, intgr_error_log
+
+    def check_parameter_definition_tag(self, kwargs, parameter_definition_tags,
+            parameter_name_dict, parameter_tag_dict):
+        """Raise a SpineIntegrityError if the parameter definition tag given by `kwargs` violates any
+        integrity constraints.
+        """
+        try:
+            parameter_definition_id = kwargs["parameter_definition_id"]
+        except KeyError:
+            raise SpineIntegrityError("Missing parameter definition identifier.")
+        try:
+            parameter_tag_id = kwargs["parameter_tag_id"]
+        except KeyError:
+            raise SpineIntegrityError("Missing parameter tag identifier.")
+        try:
+            parameter_name = parameter_name_dict[parameter_definition_id]
+        except KeyError:
+            raise SpineIntegrityError("Parameter definition not found.")
+        try:
+            tag = parameter_tag_dict[parameter_tag_id]
+        except KeyError:
+            raise SpineIntegrityError("Parameter tag not found.")
+        if (parameter_definition_id, parameter_tag_id) in parameter_definition_tags:
+            raise SpineIntegrityError("Parameter '{0}' already has the tag '{1}'.".format(parameter_name, tag))
 
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""
@@ -1783,7 +1859,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameters (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
-        checked_kwargs_list, intgr_error_log = self.check_parameters_for_insert(
+        checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
         new_item_list = self._add_parameters(*checked_kwargs_list)
         if not raise_intgr_error:
@@ -1904,7 +1980,47 @@ class DiffDatabaseMapping(DatabaseMapping):
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter_tags: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting parameter tags: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def add_parameter_definition_tags(self, *kwargs_list, raise_intgr_error=True):
+        """Add parameter definition tags to database.
+
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_error (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            parameter_tags (list): added instances
+            intgr_error_log (list): list of integrity error messages
+        """
+        checked_kwargs_list, intgr_error_log = self.check_parameter_definition_tags_for_insert(
+            *kwargs_list, raise_intgr_error=raise_intgr_error)
+        next_id = self.next_id_with_lock()
+        if next_id.parameter_definition_tag_id:
+            id = next_id.parameter_definition_tag_id
+        else:
+            max_id = self.session.query(func.max(self.ParameterDefinitionTag.id)).scalar()
+            id = max_id + 1 if max_id else 1
+        try:
+            item_list = list()
+            id_list = set(range(id, id + len(checked_kwargs_list)))
+            for kwargs in checked_kwargs_list:
+                kwargs["id"] = id
+                item_list.append(kwargs)
+                id += 1
+            self.session.bulk_insert_mappings(self.DiffParameterDefinitionTag, item_list)
+            next_id.parameter_definition_tag_id = id
+            self.session.commit()
+            self.new_item_id["parameter_definition_tag"].update(id_list)
+            new_item_list = self.parameter_definition_tag_list(id_list=id_list)
+            if not raise_intgr_error:
+                return new_item_list, intgr_error_log
+            return new_item_list
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def get_or_add_object_class(self, **kwargs):
@@ -2154,7 +2270,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def update_parameters(self, *kwargs_list, raise_intgr_error=True):
         """Update parameters."""
-        checked_kwargs_list, intgr_error_log = self.check_parameters_for_update(
+        checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_update(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
         try:
             items_for_update = list()
@@ -2245,6 +2361,81 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while updating parameter values: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    def update_parameter_tags(self, *kwargs_list, raise_intgr_error=True):
+        """Update parameter tags."""
+        checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_update(
+            *kwargs_list, raise_intgr_error=raise_intgr_error)
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for kwargs in checked_kwargs_list:
+                try:
+                    id = kwargs['id']
+                except KeyError:
+                    continue
+                diff_item = self.session.query(self.DiffParameterTag).filter_by(id=id).one_or_none()
+                if diff_item:
+                    updated_kwargs = attr_dict(diff_item)
+                    updated_kwargs.update(kwargs)
+                    items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item = self.session.query(self.ParameterTag).filter_by(id=id).one_or_none()
+                    if item:
+                        updated_kwargs = attr_dict(item)
+                        updated_kwargs.update(kwargs)
+                        items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffParameterTag, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffParameterTag, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["parameter_tag"].update(new_dirty_ids)
+            self.dirty_item_id["parameter_tag"].update(new_dirty_ids)
+            updated_item_list = self.parameter_tag_list(id_list=updated_ids)
+            if not raise_intgr_error:
+                return updated_item_list, intgr_error_log
+            return updated_item_list
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating parameter tags: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def set_parameter_definition_tags(self, *tag_dicts, raise_intgr_error=True):
+        """Set tags for parameter definitions."""
+        parameter_tag_id_dict = {x.tag: x.id for x in self.parameter_tag_list()}
+        items_to_insert = set()
+        ids_to_delete = set()
+        for tag_dict in tag_dicts:
+            parameter_definition_id = tag_dict["parameter_definition_id"]
+            split_parameter_tag_list = tag_dict["parameter_tag_list"].split(",")
+            for tag in split_parameter_tag_list:
+                try:
+                    parameter_tag_id = parameter_tag_id_dict[tag]
+                except KeyError:
+                    # Skip if tag not found in parameter_tag table
+                    continue
+                items_to_insert.add((parameter_definition_id, parameter_tag_id))
+        for parameter_definition_tag in self.parameter_definition_tag_list():
+            parameter_definition_id = parameter_definition_tag.parameter_definition_id
+            parameter_tag_id = parameter_definition_tag.parameter_tag_id
+            try:
+                items_to_insert.remove((parameter_definition_id, parameter_tag_id))
+            except KeyError:
+                ids_to_delete.add(parameter_definition_tag.id)
+        item_dicts = list()
+        for item in items_to_insert:
+            parameter_definition_id, parameter_tag_id = item
+            item_dict = {
+                "parameter_definition_id": parameter_definition_id,
+                "parameter_tag_id": parameter_tag_id
+            }
+            item_dicts.append(item_dict)
+        self.add_parameter_definition_tags(*item_dicts, raise_intgr_error=raise_intgr_error)
+        self.remove_items(parameter_definition_tag_ids=ids_to_delete)
+
     def remove_items(
             self,
             object_class_ids=set(),
@@ -2252,7 +2443,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             relationship_class_ids=set(),
             relationship_ids=set(),
             parameter_ids=set(),
-            parameter_value_ids=set()
+            parameter_value_ids=set(),
+            parameter_tag_ids=set(),
+            parameter_definition_tag_ids=set(),
+            parameter_enum_ids=set()
         ):
         """Remove items."""
         removed_item_id, removed_diff_item_id = self._removed_items(
@@ -2261,7 +2455,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             relationship_class_ids=relationship_class_ids,
             relationship_ids=relationship_ids,
             parameter_definition_ids=parameter_ids,
-            parameter_value_ids=parameter_value_ids)
+            parameter_value_ids=parameter_value_ids,
+            parameter_tag_ids=parameter_tag_ids,
+            parameter_definition_tag_ids=parameter_definition_tag_ids)
         diff_ids = removed_diff_item_id.get('object_class', set())
         self.session.query(self.DiffObjectClass).filter(self.DiffObjectClass.id.in_(diff_ids)).\
             delete(synchronize_session=False)
@@ -2280,6 +2476,12 @@ class DiffDatabaseMapping(DatabaseMapping):
         diff_ids = removed_diff_item_id.get('parameter_value', set())
         self.session.query(self.DiffParameterValue).filter(self.DiffParameterValue.id.in_(diff_ids)).\
             delete(synchronize_session=False)
+        diff_ids = removed_diff_item_id.get('parameter_tag', set())
+        self.session.query(self.DiffParameterTag).filter(self.DiffParameterTag.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
+        diff_ids = removed_diff_item_id.get('parameter_definition_tag', set())
+        self.session.query(self.DiffParameterDefinitionTag).filter(self.DiffParameterDefinitionTag.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         try:
             self.session.commit()
         except DBAPIError as e:
@@ -2297,7 +2499,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             relationship_class_ids=set(),
             relationship_ids=set(),
             parameter_definition_ids=set(),
-            parameter_value_ids=set()
+            parameter_value_ids=set(),
+            parameter_tag_ids=set(),
+            parameter_definition_tag_ids=set()
         ):
         """Return all items that should be removed when removing items given as arguments.
 
@@ -2344,8 +2548,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             removed_item_id,
             removed_diff_item_id)
         # parameter
-        item_list = self.session.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.id.in_(parameter_definition_ids))
-        diff_item_list = self.session.query(self.DiffParameterDefinition.id).filter(self.DiffParameterDefinition.id.in_(parameter_definition_ids))
+        item_list = self.session.query(self.ParameterDefinition.id).\
+            filter(self.ParameterDefinition.id.in_(parameter_definition_ids))
+        diff_item_list = self.session.query(self.DiffParameterDefinition.id).\
+            filter(self.DiffParameterDefinition.id.in_(parameter_definition_ids))
         self._remove_cascade_parameter_definitions(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
@@ -2356,6 +2562,25 @@ class DiffDatabaseMapping(DatabaseMapping):
         diff_item_list = self.session.query(self.DiffParameterValue.id).\
             filter(self.DiffParameterValue.id.in_(parameter_value_ids))
         self._remove_cascade_parameter_values(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # parameter_tag
+        item_list = self.session.query(self.ParameterTag.id).filter(self.ParameterTag.id.in_(parameter_tag_ids))
+        diff_item_list = self.session.query(self.DiffParameterTag.id).\
+            filter(self.DiffParameterTag.id.in_(parameter_tag_ids))
+        self._remove_cascade_parameter_tags(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # parameter_definition_tag
+        item_list = self.session.query(self.ParameterDefinitionTag.id).\
+            filter(self.ParameterDefinitionTag.id.in_(parameter_definition_tag_ids))
+        diff_item_list = self.session.query(self.DiffParameterDefinitionTag.id).\
+            filter(self.DiffParameterDefinitionTag.id.in_(parameter_definition_tag_ids))
+        self._remove_cascade_parameter_definition_tags(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -2386,7 +2611,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             removed_item_id,
             removed_diff_item_id)
         # parameter
-        item_list = self.session.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.object_class_id.in_(ids))
+        item_list = self.session.query(self.ParameterDefinition.id).\
+            filter(self.ParameterDefinition.object_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameterDefinition.id).\
             filter(self.DiffParameterDefinition.object_class_id.in_(ids + diff_ids))
         self._remove_cascade_parameter_definitions(
@@ -2434,7 +2660,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             removed_item_id,
             removed_diff_item_id)
         # parameter
-        item_list = self.session.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.relationship_class_id.in_(ids))
+        item_list = self.session.query(self.ParameterDefinition.id).\
+            filter(self.ParameterDefinition.relationship_class_id.in_(ids))
         diff_item_list = self.session.query(self.DiffParameterDefinition.id).\
             filter(self.DiffParameterDefinition.relationship_class_id.in_(ids + diff_ids))
         self._remove_cascade_parameter_definitions(
@@ -2474,11 +2701,42 @@ class DiffDatabaseMapping(DatabaseMapping):
             [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id)
+        # parameter_definition_tag
+        item_list = self.session.query(self.ParameterDefinitionTag.id).\
+            filter(self.ParameterDefinitionTag.parameter_definition_id.in_(ids))
+        diff_item_list = self.session.query(self.DiffParameterDefinitionTag.id).\
+            filter(self.DiffParameterDefinitionTag.parameter_definition_id.in_(ids + diff_ids))
+        self._remove_cascade_parameter_definition_tags(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
 
     def _remove_cascade_parameter_values(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove parameter values and all related items."""
         removed_item_id.setdefault("parameter_value", set()).update(ids)
         removed_diff_item_id.setdefault("parameter_value", set()).update(diff_ids)
+
+    def _remove_cascade_parameter_tags(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove parameter tags and all related items."""
+        # Touch
+        removed_item_id.setdefault("parameter_tag", set()).update(ids)
+        removed_diff_item_id.setdefault("parameter_tag", set()).update(diff_ids)
+        # parameter_definition_tag
+        item_list = self.session.query(self.ParameterDefinitionTag.id).\
+            filter(self.ParameterDefinitionTag.parameter_tag_id.in_(ids))
+        diff_item_list = self.session.query(self.DiffParameterDefinitionTag.id).\
+            filter(self.DiffParameterDefinitionTag.parameter_tag_id.in_(ids + diff_ids))
+        self._remove_cascade_parameter_definition_tags(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+
+    def _remove_cascade_parameter_definition_tags(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove parameter definition tag pairs and all related items."""
+        removed_item_id.setdefault("parameter_definition_tag", set()).update(ids)
+        removed_diff_item_id.setdefault("parameter_definition_tag", set()).update(diff_ids)
 
     def reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
@@ -2488,6 +2746,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.session.query(self.DiffRelationship).delete()
         self.session.query(self.DiffParameterDefinition).delete()
         self.session.query(self.DiffParameterValue).delete()
+        self.session.query(self.DiffParameterTag).delete()
+        self.session.query(self.DiffParameterDefinitionTag).delete()
+        self.session.query(self.DiffParameterEnum).delete()
 
     def commit_session(self, comment):
         """Make differences into original tables and commit."""
@@ -2503,8 +2764,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             removed_object_id = list(self.removed_item_id["object"])
             removed_relationship_class_id = list(self.removed_item_id["relationship_class"])
             removed_relationship_id = list(self.removed_item_id["relationship"])
-            removed_parameter_id = list(self.removed_item_id["parameter_definition"])
+            removed_parameter_definition_id = list(self.removed_item_id["parameter_definition"])
             removed_parameter_value_id = list(self.removed_item_id["parameter_value"])
+            removed_parameter_tag_id = list(self.removed_item_id["parameter_tag"])
+            removed_parameter_definition_tag_id = list(self.removed_item_id["parameter_definition_tag"])
+            removed_parameter_enum_id = list(self.removed_item_id["parameter_enum"])
             for i in range(0, len(removed_object_class_id), n):
                 self.session.query(self.ObjectClass).filter(
                     self.ObjectClass.id.in_(removed_object_class_id[i:i + n])
@@ -2521,13 +2785,25 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.session.query(self.Relationship).filter(
                     self.Relationship.id.in_(removed_relationship_id[i:i + n])
                 ).delete(synchronize_session=False)
-            for i in range(0, len(removed_parameter_id), n):
+            for i in range(0, len(removed_parameter_definition_id), n):
                 self.session.query(self.ParameterDefinition).filter(
-                    self.ParameterDefinition.id.in_(removed_parameter_id[i:i + n])
+                    self.ParameterDefinition.id.in_(removed_parameter_definition_id[i:i + n])
                 ).delete(synchronize_session=False)
             for i in range(0, len(removed_parameter_value_id), n):
                 self.session.query(self.ParameterValue).filter(
                     self.ParameterValue.id.in_(removed_parameter_value_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_parameter_tag_id), n):
+                self.session.query(self.ParameterTag).filter(
+                    self.ParameterTag.id.in_(removed_parameter_tag_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_parameter_definition_tag_id), n):
+                self.session.query(self.ParameterDefinitionTag).filter(
+                    self.ParameterDefinitionTag.id.in_(removed_parameter_definition_tag_id[i:i + n])
+                ).delete(synchronize_session=False)
+            for i in range(0, len(removed_parameter_enum_id), n):
+                self.session.query(self.ParameterEnum).filter(
+                    self.ParameterEnum.id.in_(removed_parameter_enum_id[i:i + n])
                 ).delete(synchronize_session=False)
             # Merge dirty
             dirty_object_class_id = list(self.dirty_item_id["object_class"])
@@ -2536,6 +2812,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             dirty_relationship_id = list(self.dirty_item_id["relationship"])
             dirty_parameter_id = list(self.dirty_item_id["parameter_definition"])
             dirty_parameter_value_id = list(self.dirty_item_id["parameter_value"])
+            dirty_parameter_tag_id = list(self.dirty_item_id["parameter_tag"])
+            dirty_parameter_definition_tag_id = list(self.dirty_item_id["parameter_definition_tag"])
+            dirty_parameter_enum_id = list(self.dirty_item_id["parameter_enum"])
             dirty_items = {}
             for i in range(0, len(dirty_object_class_id), n):
                 for item in self.session.query(self.DiffObjectClass).\
@@ -2573,6 +2852,24 @@ class DiffDatabaseMapping(DatabaseMapping):
                     kwargs = attr_dict(item)
                     kwargs['commit_id'] = commit.id
                     dirty_items.setdefault(self.ParameterValue, []).append(kwargs)
+            for i in range(0, len(dirty_parameter_tag_id), n):
+                for item in self.session.query(self.DiffParameterTag).\
+                        filter(self.DiffParameterTag.id.in_(dirty_parameter_tag_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.ParameterTag, []).append(kwargs)
+            for i in range(0, len(dirty_parameter_definition_tag_id), n):
+                for item in self.session.query(self.DiffParameterDefinitionTag).\
+                        filter(self.DiffParameterDefinitionTag.id.in_(dirty_parameter_definition_tag_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.ParameterDefinitionTag, []).append(kwargs)
+            for i in range(0, len(dirty_parameter_enum_id), n):
+                for item in self.session.query(self.DiffParameterEnum).\
+                        filter(self.DiffParameterEnum.id.in_(dirty_parameter_enum_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    dirty_items.setdefault(self.ParameterEnum, []).append(kwargs)
             self.session.flush()  # TODO: Check if this is needed
             # Bulk update
             for k, v in dirty_items.items():
@@ -2584,6 +2881,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             new_relationship_id = list(self.new_item_id["relationship"])
             new_parameter_id = list(self.new_item_id["parameter_definition"])
             new_parameter_value_id = list(self.new_item_id["parameter_value"])
+            new_parameter_tag_id = list(self.new_item_id["parameter_tag"])
+            new_parameter_definition_tag_id = list(self.new_item_id["parameter_definition_tag"])
+            new_parameter_enum_id = list(self.new_item_id["parameter_enum"])
             new_items = {}
             for i in range(0, len(new_object_class_id), n):
                 for item in self.session.query(self.DiffObjectClass).\
@@ -2621,6 +2921,24 @@ class DiffDatabaseMapping(DatabaseMapping):
                     kwargs = attr_dict(item)
                     kwargs['commit_id'] = commit.id
                     new_items.setdefault(self.ParameterValue, []).append(kwargs)
+            for i in range(0, len(new_parameter_tag_id), n):
+                for item in self.session.query(self.DiffParameterTag).\
+                        filter(self.DiffParameterTag.id.in_(new_parameter_tag_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.ParameterTag, []).append(kwargs)
+            for i in range(0, len(new_parameter_definition_tag_id), n):
+                for item in self.session.query(self.DiffParameterDefinitionTag).\
+                        filter(self.DiffParameterDefinitionTag.id.in_(new_parameter_definition_tag_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.ParameterDefinitionTag, []).append(kwargs)
+            for i in range(0, len(new_parameter_enum_id), n):
+                for item in self.session.query(self.DiffParameterEnum).\
+                        filter(self.DiffParameterEnum.id.in_(new_parameter_enum_id[i:i + n])):
+                    kwargs = attr_dict(item)
+                    kwargs['commit_id'] = commit.id
+                    new_items.setdefault(self.ParameterEnum, []).append(kwargs)
             # Bulk insert
             for k, v in new_items.items():
                 self.session.bulk_insert_mappings(k, v)
@@ -2652,6 +2970,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.session.query(self.DiffRelationship).delete(synchronize_session=False)
         self.session.query(self.DiffParameterDefinition).delete(synchronize_session=False)
         self.session.query(self.DiffParameterValue).delete(synchronize_session=False)
+        self.session.query(self.DiffParameterTag).delete(synchronize_session=False)
+        self.session.query(self.DiffParameterDefinitionTag).delete(synchronize_session=False)
+        self.session.query(self.DiffParameterEnum).delete(synchronize_session=False)
         self.session.query(self.DiffCommit).delete(synchronize_session=False)
 
     def close(self):
