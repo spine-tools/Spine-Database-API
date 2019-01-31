@@ -22,7 +22,7 @@ def upgrade():
             batch_op.add_column(sa.Column('parameter_tag_id', sa.Integer))
             batch_op.add_column(sa.Column('parameter_enum_id', sa.Integer))
             batch_op.add_column(sa.Column('parameter_definition_tag_id', sa.Integer))
-    except sa.exc.NoSuchTableError:
+    except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
         pass
     op.create_table(
         'parameter_tag',
@@ -57,7 +57,7 @@ def downgrade():
             batch_op.drop_column('parameter_tag_id')
             batch_op.drop_column('parameter_enum_id')
             batch_op.drop_column('parameter_definition_tag_id')
-    except sa.exc.NoSuchTableError:
+    except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
         pass
     with op.batch_alter_table("parameter_definition") as batch_op:
         batch_op.drop_column('enum_id')

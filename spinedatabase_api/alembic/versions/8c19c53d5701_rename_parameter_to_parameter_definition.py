@@ -23,7 +23,7 @@ def upgrade():
     try:
         with op.batch_alter_table("next_id") as batch_op:
             batch_op.alter_column('parameter_id', new_column_name='parameter_definition_id')
-    except sa.exc.NoSuchTableError:
+    except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
         pass
     with op.batch_alter_table("parameter_value", naming_convention=naming_convention) as batch_op:
         batch_op.alter_column('parameter_id', new_column_name='parameter_definition_id')
@@ -38,7 +38,7 @@ def downgrade():
     try:
         with op.batch_alter_table("next_id") as batch_op:
             batch_op.alter_column('parameter_definition_id', new_column_name='parameter_id')
-    except sa.exc.NoSuchTableError:
+    except (sa.exc.NoSuchTableError, sa.exc.OperationalError):
         pass
     with op.batch_alter_table("parameter_value") as batch_op:
         batch_op.alter_column('parameter_definition_id', new_column_name='parameter_id')

@@ -104,6 +104,7 @@ class DatabaseMapping(object):
             self.RelationshipClass = self.Base.classes.relationship_class
             self.Relationship = self.Base.classes.relationship
             self.ParameterDefinition = self.Base.classes.parameter_definition
+            self.Parameter = self.ParameterDefinition  # FIXME
             self.ParameterValue = self.Base.classes.parameter_value
             self.ParameterTag = self.Base.classes.parameter_tag
             self.ParameterDefinitionTag = self.Base.classes.parameter_definition_tag
@@ -388,9 +389,9 @@ class DatabaseMapping(object):
     def parameter_tag_list(self, id_list=None):
         """Return list of parameter tags."""
         qry = self.session.query(
-            self.ParameterTag.id,
-            self.ParameterTag.tag,
-            self.ParameterTag.description)
+            self.ParameterTag.id.label("id"),
+            self.ParameterTag.tag.label("tag"),
+            self.ParameterTag.description.label("description"))
         if id_list is not None:
             qry = qry.filter(self.ParameterTag.id.in_(id_list))
         return qry
@@ -398,9 +399,9 @@ class DatabaseMapping(object):
     def parameter_definition_tag_list(self, id_list=None):
         """Return list of parameter definition tags."""
         qry = self.session.query(
-            self.ParameterDefinitionTag.id,
-            self.ParameterDefinitionTag.parameter_definition_id,
-            self.ParameterDefinitionTag.parameter_tag_id)
+            self.ParameterDefinitionTag.id.label('id'),
+            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
         if id_list is not None:
             qry = qry.filter(self.ParameterDefinitionTag.id.in_(id_list))
         return qry

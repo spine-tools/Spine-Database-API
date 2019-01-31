@@ -177,6 +177,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffRelationshipClass = getattr(self.DiffBase.classes, self.diff_prefix + "relationship_class")
             self.DiffRelationship = getattr(self.DiffBase.classes, self.diff_prefix + "relationship")
             self.DiffParameterDefinition = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_definition")
+            self.DiffParameter = self.DiffParameterDefinition  # FIXME
             self.DiffParameterValue = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value")
             self.DiffParameterTag = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_tag")
             self.DiffParameterDefinitionTag = getattr(
@@ -484,9 +485,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         qry = super().parameter_tag_list(id_list=id_list).\
             filter(~self.ParameterTag.id.in_(self.touched_item_id["parameter_tag"]))
         diff_qry = self.session.query(
-            self.DiffParameterTag.id,
-            self.DiffParameterTag.tag,
-            self.DiffParameterTag.description)
+            self.DiffParameterTag.id.label("id"),
+            self.DiffParameterTag.tag.label("tag"),
+            self.DiffParameterTag.description.label("description"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterTag.id.in_(id_list))
         return qry.union_all(diff_qry)
@@ -496,26 +497,27 @@ class DiffDatabaseMapping(DatabaseMapping):
         qry = super().parameter_definition_tag_list(id_list=id_list).\
             filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
         diff_qry = self.session.query(
-            self.DiffParameterDefinitionTag.id,
-            self.DiffParameterDefinitionTag.parameter_definition_id,
-            self.DiffParameterDefinitionTag.parameter_tag_id)
+            self.DiffParameterDefinitionTag.id.label('id'),
+            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterDefinitionTag.id.in_(id_list))
         return qry.union_all(diff_qry)
 
     def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
         """Return list of parameter tags in wide format for a given parameter definition."""
+        parameter_tag_list = self.parameter_tag_list().subquery()
         qry = self.session.query(
             self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
             self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            self.ParameterTag.tag.label('parameter_tag')
-        ).filter(self.ParameterDefinitionTag.parameter_tag_id == self.ParameterTag.id).\
+            parameter_tag_list.c.tag.label('parameter_tag')
+        ).filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id).\
         filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
         diff_qry = self.session.query(
             self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
             self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            self.DiffParameterTag.tag.label('parameter_tag')
-        ).filter(self.DiffParameterDefinitionTag.parameter_tag_id == self.DiffParameterTag.id)
+            parameter_tag_list.c.tag.label('parameter_tag')
+        ).filter(self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id)
         if parameter_definition_id:
             qry = qry.filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
             diff_qry = diff_qry.filter(
@@ -526,6 +528,37 @@ class DiffDatabaseMapping(DatabaseMapping):
             func.group_concat(subqry.c.parameter_tag_id).label('parameter_tag_id_list'),
             func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
         ).group_by(subqry.c.parameter_definition_id)
+
+    def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
+        """Return list of parameter definitions in wide format for a given parameter tag."""
+        parameter_tag_list = self.parameter_tag_list().subquery()
+        parameter_definition_list = self.parameter_list().subquery()
+        qry = self.session.query(
+            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
+            parameter_tag_list.c.tag.label('parameter_tag'),
+            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            parameter_definition_list.c.name.label('parameter_name')
+        ).filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_list.c.id).\
+        filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id).\
+        filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
+            parameter_tag_list.c.tag.label('parameter_tag'),
+            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            parameter_definition_list.c.name.label('parameter_name')
+        ).filter(self.DiffParameterDefinitionTag.parameter_definition_id == parameter_definition_list.c.id).\
+        filter(self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id)
+        if parameter_tag_id:
+            qry = qry.filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_id)
+            diff_qry = diff_qry.filter(
+                self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_id)
+        subqry = qry.union_all(diff_qry).subquery()
+        return self.session.query(
+            subqry.c.parameter_tag_id,
+            subqry.c.parameter_tag,
+            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list'),
+            func.group_concat(subqry.c.parameter_name).label('parameter_name_list')
+        ).group_by(subqry.c.parameter_tag_id)
 
     def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
@@ -554,6 +587,36 @@ class DiffDatabaseMapping(DatabaseMapping):
         if relationship_class_id:
             diff_qry = diff_qry.filter_by(relationship_class_id=relationship_class_id)
         return qry.union_all(diff_qry)
+
+    def wide_object_parameter_definition_list(self, object_class_id_list=None, parameter_definition_id_list=None):
+        """Return object classes and their parameter definitions concatenated."""
+        object_class_list = self.object_class_list().subquery()
+        qry = self.session.query(
+            object_class_list.c.id.label('object_class_id'),
+            object_class_list.c.name.label('object_class_name'),
+            self.ParameterDefinition.id.label('parameter_definition_id'),
+            self.ParameterDefinition.name.label('parameter_name')
+        ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
+        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
+        diff_qry = self.session.query(
+            object_class_list.c.id.label('object_class_id'),
+            object_class_list.c.name.label('object_class_name'),
+            self.DiffParameterDefinition.id.label('parameter_definition_id'),
+            self.DiffParameterDefinition.name.label('parameter_name')
+        ).filter(object_class_list.c.id == self.DiffParameterDefinition.object_class_id)
+        if object_class_id_list is not None:
+            qry = qry.filter(self.ParameterDefinition.object_class_id.in_(object_class_id_list))
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.object_class_id.in_(object_class_id_list))
+        if parameter_definition_id_list is not None:
+            qry = qry.filter(self.ParameterDefinition.id.in_(parameter_definition_id_list))
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id.in_(parameter_definition_id_list))
+        subqry = qry.union_all(diff_qry).subquery()
+        return self.session.query(
+            subqry.c.object_class_id,
+            subqry.c.object_class_name,
+            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list'),
+            func.group_concat(subqry.c.parameter_name).label('parameter_name_list')
+        ).group_by(subqry.c.object_class_id)
 
     def object_parameter_list(self, object_class_id=None, parameter_id=None):
         """Return object classes and their parameters."""
@@ -2403,38 +2466,49 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while updating parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def set_parameter_definition_tags(self, *tag_dicts, raise_intgr_error=True):
+    def set_parameter_definition_tags(self, tag_dict, raise_intgr_error=True):
         """Set tags for parameter definitions."""
-        parameter_tag_id_dict = {x.tag: x.id for x in self.parameter_tag_list()}
-        items_to_insert = set()
+        tag_id_dict = {x.tag: x.id for x in self.parameter_tag_list()}
+        tag_id_lists = {
+            x.parameter_definition_id: [int(y) for y in x.parameter_tag_id_list.split(",")]
+            for x in self.wide_parameter_definition_tag_list()
+        }
+        definition_tag_id_dict = {
+            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.parameter_definition_tag_list()
+        }
+        intgr_error_log = []
+        items_to_insert = list()
         ids_to_delete = set()
-        for tag_dict in tag_dicts:
-            parameter_definition_id = tag_dict["parameter_definition_id"]
-            split_parameter_tag_list = tag_dict["parameter_tag_list"].split(",")
-            for tag in split_parameter_tag_list:
+        for definition_id, tag_list in tag_dict.items():
+            target_tag_list = tag_list.split(",") if tag_list else []
+            target_tag_id_list = list()
+            for tag in target_tag_list:
                 try:
-                    parameter_tag_id = parameter_tag_id_dict[tag]
+                    target_tag_id_list.append(tag_id_dict[tag])
                 except KeyError:
-                    # Skip if tag not found in parameter_tag table
-                    continue
-                items_to_insert.add((parameter_definition_id, parameter_tag_id))
-        for parameter_definition_tag in self.parameter_definition_tag_list():
-            parameter_definition_id = parameter_definition_tag.parameter_definition_id
-            parameter_tag_id = parameter_definition_tag.parameter_tag_id
-            try:
-                items_to_insert.remove((parameter_definition_id, parameter_tag_id))
-            except KeyError:
-                ids_to_delete.add(parameter_definition_tag.id)
-        item_dicts = list()
-        for item in items_to_insert:
-            parameter_definition_id, parameter_tag_id = item
-            item_dict = {
-                "parameter_definition_id": parameter_definition_id,
-                "parameter_tag_id": parameter_tag_id
-            }
-            item_dicts.append(item_dict)
-        self.add_parameter_definition_tags(*item_dicts, raise_intgr_error=raise_intgr_error)
+                    msg = "Tag '{}' not found.".format(tag)
+                    if raise_intgr_error:
+                        raise SpineIntegrityError(msg)
+                    intgr_error_log.append(msg)
+                    break
+            if len(target_tag_list) != len(target_tag_id_list):
+                continue
+            current_tag_id_list = tag_id_lists.get(definition_id, [])
+            for tag_id in target_tag_id_list:
+                if tag_id not in current_tag_id_list:
+                    item = {
+                        "parameter_definition_id": definition_id,
+                        "parameter_tag_id": tag_id
+                    }
+                    items_to_insert.append(item)
+            for tag_id in current_tag_id_list:
+                if tag_id not in target_tag_id_list:
+                    ids_to_delete.add(definition_tag_id_dict[definition_id, tag_id])
         self.remove_items(parameter_definition_tag_ids=ids_to_delete)
+        ret = self.add_parameter_definition_tags(*items_to_insert, raise_intgr_error=raise_intgr_error)
+        if not raise_intgr_error:
+            intgr_error_log += ret[1]
+            return intgr_error_log
 
     def remove_items(
             self,
