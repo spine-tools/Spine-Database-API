@@ -505,7 +505,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         return qry.union_all(diff_qry)
 
     def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
-        """Return list of parameter tags in wide format for a given parameter definition."""
+        """Return list of parameter definitions and their tags in wide format.
+        """
         parameter_tag_list = self.parameter_tag_list().subquery()
         qry = self.session.query(
             self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
@@ -530,34 +531,29 @@ class DiffDatabaseMapping(DatabaseMapping):
         ).group_by(subqry.c.parameter_definition_id)
 
     def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
-        """Return list of parameter definitions in wide format for a given parameter tag."""
-        parameter_tag_list = self.parameter_tag_list().subquery()
-        parameter_definition_list = self.parameter_list().subquery()
+        """Return list of parameter tags (including the NULL tag) and their definitions in wide format.
+        """
+        parameter_definition_tag_list = self.parameter_definition_tag_list().subquery()
         qry = self.session.query(
-            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            parameter_tag_list.c.tag.label('parameter_tag'),
-            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            parameter_definition_list.c.name.label('parameter_name')
-        ).filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_list.c.id).\
-        filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id).\
-        filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
+            self.ParameterDefinition.id.label('parameter_definition_id'),
+            parameter_definition_tag_list.c.parameter_tag_id.label('parameter_tag_id')
+        ).outerjoin(
+            parameter_definition_tag_list,
+            self.ParameterDefinition.id == parameter_definition_tag_list.c.parameter_definition_id).\
+        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
         diff_qry = self.session.query(
-            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            parameter_tag_list.c.tag.label('parameter_tag'),
-            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            parameter_definition_list.c.name.label('parameter_name')
-        ).filter(self.DiffParameterDefinitionTag.parameter_definition_id == parameter_definition_list.c.id).\
-        filter(self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id)
+            self.DiffParameterDefinition.id.label('parameter_definition_id'),
+            parameter_definition_tag_list.c.parameter_tag_id.label('parameter_tag_id')
+        ).outerjoin(
+            parameter_definition_tag_list,
+            self.DiffParameterDefinition.id == parameter_definition_tag_list.c.parameter_definition_id)
         if parameter_tag_id:
-            qry = qry.filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_id)
-            diff_qry = diff_qry.filter(
-                self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_id)
+            qry = qry.filter(parameter_definition_tag_list.c.parameter_tag_id == parameter_tag_id)
+            diff_qry = diff_qry.filter(parameter_definition_tag_list.c.parameter_tag_id == parameter_tag_id)
         subqry = qry.union_all(diff_qry).subquery()
         return self.session.query(
             subqry.c.parameter_tag_id,
-            subqry.c.parameter_tag,
-            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list'),
-            func.group_concat(subqry.c.parameter_name).label('parameter_name_list')
+            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list')
         ).group_by(subqry.c.parameter_tag_id)
 
     def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
@@ -589,27 +585,28 @@ class DiffDatabaseMapping(DatabaseMapping):
         return qry.union_all(diff_qry)
 
     def wide_object_parameter_definition_list(self, object_class_id_list=None, parameter_definition_id_list=None):
-        """Return object classes and their parameter definitions concatenated."""
-        object_class_list = self.object_class_list().subquery()
+        """Return object classes and their parameter definitions in wide format."""
+        parameter_definition_list = self.parameter_list().subquery()
         qry = self.session.query(
-            object_class_list.c.id.label('object_class_id'),
-            object_class_list.c.name.label('object_class_name'),
-            self.ParameterDefinition.id.label('parameter_definition_id'),
-            self.ParameterDefinition.name.label('parameter_name')
-        ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
-        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
+            self.ObjectClass.id.label('object_class_id'),
+            self.ObjectClass.name.label('object_class_name'),
+            parameter_definition_list.c.id.label('parameter_definition_id'),
+            parameter_definition_list.c.name.label('parameter_name')
+        ).filter(self.ObjectClass.id == parameter_definition_list.c.object_class_id).\
+        filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
         diff_qry = self.session.query(
-            object_class_list.c.id.label('object_class_id'),
-            object_class_list.c.name.label('object_class_name'),
-            self.DiffParameterDefinition.id.label('parameter_definition_id'),
-            self.DiffParameterDefinition.name.label('parameter_name')
-        ).filter(object_class_list.c.id == self.DiffParameterDefinition.object_class_id)
+            self.DiffObjectClass.id.label('object_class_id'),
+            self.DiffObjectClass.name.label('object_class_name'),
+            parameter_definition_list.c.id.label('parameter_definition_id'),
+            parameter_definition_list.c.name.label('parameter_name')
+        ).filter(self.DiffObjectClass.id == parameter_definition_list.c.object_class_id)
         if object_class_id_list is not None:
-            qry = qry.filter(self.ParameterDefinition.object_class_id.in_(object_class_id_list))
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.object_class_id.in_(object_class_id_list))
+            print(object_class_id_list)
+            qry = qry.filter(self.ObjectClass.id.in_(object_class_id_list))
+            diff_qry = diff_qry.filter(self.ObjectClass.id.in_(object_class_id_list))
         if parameter_definition_id_list is not None:
-            qry = qry.filter(self.ParameterDefinition.id.in_(parameter_definition_id_list))
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id.in_(parameter_definition_id_list))
+            qry = qry.filter(parameter_definition_list.c.id.in_(parameter_definition_id_list))
+            diff_qry = diff_qry.filter(parameter_definition_list.c.id.in_(parameter_definition_id_list))
         subqry = qry.union_all(diff_qry).subquery()
         return self.session.query(
             subqry.c.object_class_id,
