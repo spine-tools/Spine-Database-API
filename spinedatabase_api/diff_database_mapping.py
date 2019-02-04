@@ -1436,6 +1436,22 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_object_classes_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_object_classes(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list       
+
+    def _add_object_classes(self, *kwargs_list):
+        """Add object classes to database without testing classes for integrity
+
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_error (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            object_classes (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.object_class_id:
             id = next_id.object_class_id
@@ -1444,8 +1460,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_kwargs_list)))
-            for kwargs in checked_kwargs_list:
+            id_list = set(range(id, id + len(kwargs_list)))
+            for kwargs in kwargs_list:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
@@ -1454,14 +1470,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["object_class"].update(id_list)
             new_item_list = self.object_class_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
-
+            
     def add_objects(self, *kwargs_list, raise_intgr_error=True):
         """Add objects to database.
 
@@ -1476,6 +1490,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_objects_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_objects(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_objects(self, *kwargs_list):
+        """Add objects to database without checking integrity
+
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+
+        Returns:
+            objects (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.object_id:
             id = next_id.object_id
@@ -1484,8 +1512,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_kwargs_list)))
-            for kwargs in checked_kwargs_list:
+            id_list = set(range(id, id + len(kwargs_list)))
+            for kwargs in kwargs_list:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
@@ -1494,8 +1522,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["object"].update(id_list)
             new_item_list = self.object_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
@@ -1516,6 +1542,22 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_relationship_classes_for_insert(
             *wide_kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_wide_relationship_classes(*checked_wide_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_wide_relationship_classes(self, *wide_kwargs_list):
+        """Add relationship classes to database without integrity check
+
+        Args:
+            wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_error (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            wide_relationship_classes (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.relationship_class_id:
             id = next_id.relationship_class_id
@@ -1524,8 +1566,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_wide_kwargs_list)))
-            for wide_kwargs in checked_wide_kwargs_list:
+            id_list = set(range(id, id + len(wide_kwargs_list)))
+            for wide_kwargs in wide_kwargs_list:
                 for dimension, object_class_id in enumerate(wide_kwargs['object_class_id_list']):
                     narrow_kwargs = {
                         'id': id,
@@ -1540,8 +1582,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["relationship_class"].update(id_list)
             new_item_list = self.wide_relationship_class_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
@@ -1562,6 +1602,21 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_relationships_for_insert(
             *wide_kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_wide_relationships(*checked_wide_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+    
+    def _add_wide_relationships(self, *wide_kwargs_list):
+        """Add relationships to database without integrity
+
+        Args:
+            wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
+
+        Returns:
+            wide_relationships (list): added instances
+        """
+        
         next_id = self.next_id_with_lock()
         if next_id.relationship_id:
             id = next_id.relationship_id
@@ -1570,8 +1625,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_wide_kwargs_list)))
-            for wide_kwargs in checked_wide_kwargs_list:
+            id_list = set(range(id, id + len(wide_kwargs_list)))
+            for wide_kwargs in wide_kwargs_list:
                 for dimension, object_id in enumerate(wide_kwargs['object_id_list']):
                     narrow_kwargs = {
                         'id': id,
@@ -1587,8 +1642,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["relationship"].update(id_list)
             new_item_list = self.wide_relationship_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
@@ -1609,6 +1662,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_parameters_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_parameters(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_parameters(self, *kwargs_list):
+        """Add parameter to database without integrity check
+
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+
+        Returns:
+            parameters (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.parameter_id:
             id = next_id.parameter_id
@@ -1617,8 +1684,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_kwargs_list)))
-            for kwargs in checked_kwargs_list:
+            id_list = set(range(id, id + len(kwargs_list)))
+            for kwargs in kwargs_list:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
@@ -1627,8 +1694,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["parameter"].update(id_list)
             new_item_list = self.parameter_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
@@ -1644,6 +1709,17 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_parameter_values(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_parameter_values(self, *kwargs_list):
+        """Add parameter value to database.
+
+        Returns:
+            parameter_values (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.parameter_value_id:
             id = next_id.parameter_value_id
@@ -1652,8 +1728,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_kwargs_list)))
-            for kwargs in checked_kwargs_list:
+            id_list = set(range(id, id + len(kwargs_list)))
+            for kwargs in kwargs_list:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
@@ -1662,8 +1738,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["parameter_value"].update(id_list)
             new_item_list = self.parameter_value_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
@@ -1963,12 +2037,19 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Update parameter values."""
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_update(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        updated_item_list = self._update_parameter_values(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return updated_item_list, intgr_error_log
+        return updated_item_list
+
+    def _update_parameter_values(self, *kwargs_list):
+        """Update parameter values."""
         try:
             items_for_update = list()
             items_for_insert = list()
             new_dirty_ids = set()
             updated_ids = set()
-            for kwargs in checked_kwargs_list:
+            for kwargs in kwargs_list:
                 if "object_id" in kwargs or "relationship_id" in kwargs or "parameter_id" in kwargs:
                     continue
                 try:
@@ -1995,8 +2076,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.touched_item_id["parameter_value"].update(new_dirty_ids)
             self.dirty_item_id["parameter_value"].update(new_dirty_ids)
             updated_item_list = self.parameter_value_list(id_list=updated_ids)
-            if not raise_intgr_error:
-                return updated_item_list, intgr_error_log
             return updated_item_list
         except DBAPIError as e:
             self.session.rollback()
