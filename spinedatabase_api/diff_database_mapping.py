@@ -601,7 +601,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_definition_list.c.name.label('parameter_name')
         ).filter(self.DiffObjectClass.id == parameter_definition_list.c.object_class_id)
         if object_class_id_list is not None:
-            print(object_class_id_list)
             qry = qry.filter(self.ObjectClass.id.in_(object_class_id_list))
             diff_qry = diff_qry.filter(self.ObjectClass.id.in_(object_class_id_list))
         if parameter_definition_id_list is not None:
@@ -624,6 +623,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.ParameterDefinition.name.label('parameter_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
             wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
             self.ParameterDefinition.can_have_time_pattern,
@@ -643,6 +643,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.DiffParameterDefinition.name.label('parameter_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
             wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.DiffParameterDefinition.can_have_time_series,
             self.DiffParameterDefinition.can_have_time_pattern,
@@ -664,9 +665,41 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
         return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
 
+    def wide_relationship_parameter_definition_list(
+            self, relationship_class_id_list=None, parameter_definition_id_list=None):
+        """Return relationship classes and their parameter definitions in wide format."""
+        parameter_definition_list = self.parameter_list().subquery()
+        qry = self.session.query(
+            self.RelationshipClass.id.label('relationship_class_id'),
+            self.RelationshipClass.name.label('relationship_class_name'),
+            parameter_definition_list.c.id.label('parameter_definition_id'),
+            parameter_definition_list.c.name.label('parameter_name')
+        ).filter(self.RelationshipClass.id == parameter_definition_list.c.relationship_class_id).\
+        filter(~self.RelationshipClass.id.in_(self.touched_item_id["relationship_class"]))
+        diff_qry = self.session.query(
+            self.DiffRelationshipClass.id.label('relationship_class_id'),
+            self.DiffRelationshipClass.name.label('relationship_class_name'),
+            parameter_definition_list.c.id.label('parameter_definition_id'),
+            parameter_definition_list.c.name.label('parameter_name')
+        ).filter(self.DiffRelationshipClass.id == parameter_definition_list.c.relationship_class_id)
+        if relationship_class_id_list is not None:
+            qry = qry.filter(self.RelationshipClass.id.in_(relationship_class_id_list))
+            diff_qry = diff_qry.filter(self.DiffRelationshipClass.id.in_(relationship_class_id_list))
+        if parameter_definition_id_list is not None:
+            qry = qry.filter(parameter_definition_list.c.id.in_(parameter_definition_id_list))
+            diff_qry = diff_qry.filter(parameter_definition_list.c.id.in_(parameter_definition_id_list))
+        subqry = qry.union_all(diff_qry).subquery()
+        return self.session.query(
+            subqry.c.relationship_class_id,
+            subqry.c.relationship_class_name,
+            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list'),
+            func.group_concat(subqry.c.parameter_name).label('parameter_name_list')
+        ).group_by(subqry.c.relationship_class_id)
+
     def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
         """Return relationship classes and their parameters."""
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
+        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             wide_relationship_class_list.c.id.label('relationship_class_id'),
@@ -674,6 +707,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
             self.ParameterDefinition.name.label('parameter_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
             self.ParameterDefinition.can_have_time_pattern,
             self.ParameterDefinition.can_be_stochastic,
@@ -683,6 +718,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.ParameterDefinition.minimum_value,
             self.ParameterDefinition.maximum_value
         ).filter(self.ParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
         filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
         diff_qry = self.session.query(
             self.DiffParameterDefinition.id.label('id'),
@@ -691,6 +729,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
             self.DiffParameterDefinition.name.label('parameter_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.DiffParameterDefinition.can_have_time_series,
             self.DiffParameterDefinition.can_have_time_pattern,
             self.DiffParameterDefinition.can_be_stochastic,
@@ -699,7 +739,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterDefinition.precision,
             self.DiffParameterDefinition.minimum_value,
             self.DiffParameterDefinition.maximum_value
-        ).filter(self.DiffParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id)
+        ).filter(self.DiffParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id)
         if relationship_class_id:
             qry = qry.filter(self.ParameterDefinition.relationship_class_id == relationship_class_id)
             diff_qry = diff_qry.filter(self.DiffParameterDefinition.relationship_class_id == relationship_class_id)
