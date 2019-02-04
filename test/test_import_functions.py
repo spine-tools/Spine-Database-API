@@ -22,7 +22,7 @@ Unit tests for import_functions.py.
 import unittest
 from collections import namedtuple
 from unittest.mock import MagicMock
-from sqlalchemy.orm import Session
+import os
 
 from spinedatabase_api.diff_database_mapping import DiffDatabaseMapping
 from spinedatabase_api.helpers import create_new_spine_database
@@ -35,6 +35,9 @@ from spinedatabase_api.import_functions import (import_object_classes,
                               import_relationships,
                               import_data)
 
+
+UUID_STR = 'e152e3ae-2301-11e9-97d6-7c7635d22f20'
+TEMP_SQLITE_FILENAME = UUID_STR + '-first.sqlite'
 
 def create_mock_db_map():
     # dataclasses for database_api
@@ -83,21 +86,37 @@ def create_mock_db_map():
     db_map.add_wide_relationships.return_value = [query, []]
     db_map.add_parameter_values.return_value = [query, []]
     db_map.update_parameter_values.return_value = [query, []]
+    
+    
+    #FIXME: So here we are mocking the check functions from DiffDatabaseMapping
+    # and setting the self value for the methods to 0. this is a bit of a hack?
+    def self_remover(f):
+        def wrapper(*args, **kwds):
+            return f(0, *args, **kwds)
+        return wrapper
+    
+    db_map.check_parameter = self_remover(DiffDatabaseMapping.check_parameter)
+    db_map.check_parameter_value = self_remover(DiffDatabaseMapping.check_parameter_value)
+    db_map.check_wide_relationship = self_remover(DiffDatabaseMapping.check_wide_relationship)
+    db_map.check_wide_relationship_class = self_remover(DiffDatabaseMapping.check_wide_relationship_class)
+    db_map.check_object = self_remover(DiffDatabaseMapping.check_object)
+    db_map.check_object_class = self_remover(DiffDatabaseMapping.check_object_class)
+    
     return db_map
 
 class TestIntegrationImportData(unittest.TestCase):
 
     def test_import_data_integration(self):
-        """Test all import functions to an in memmory database"""
-        input_db = create_new_spine_database('sqlite://')
+        try:
+            os.remove(TEMP_SQLITE_FILENAME)
+        except OSError:
+            pass
+        
+        # create a in memory database with objects, relationship, parameters and values
+        create_new_spine_database('sqlite:///' + TEMP_SQLITE_FILENAME)
         db_map = DiffDatabaseMapping(
-            "", username='IntegrationTest', create_all=False)
-        db_map.engine = input_db
-        db_map.engine.connect()
-        db_map.session = Session(db_map.engine, autoflush=False)
-        db_map.create_mapping()
-        db_map.create_diff_tables_and_mapping()
-        db_map.init_next_id()
+            'sqlite:///' + TEMP_SQLITE_FILENAME,
+            username='IntegrationTest')
 
         object_c = ['example_class', 'other_class'] # 2 items
         objects = [['example_object', 'example_class'], ['other_object', 'other_class']] # 2 items
@@ -119,9 +138,15 @@ class TestIntegrationImportData(unittest.TestCase):
             object_parameter_values=object_p_values,
             relationship_parameter_values=rel_p_values
         )
+        db_map.close()
 
         self.assertEqual(num_imports, 10)
         self.assertEqual(len(errors), 0)
+        
+        try:
+            os.remove(TEMP_SQLITE_FILENAME)
+        except OSError:
+            pass
 
 
 class TestImportObjectClass(unittest.TestCase):
@@ -135,8 +160,8 @@ class TestImportObjectClass(unittest.TestCase):
     def test_import_object_class(self):
         """Test that importing object class works"""
         num_imported, errors = import_object_classes(self.mock_db_map, ["new_class"])
-        self.mock_db_map.add_object_classes.assert_called_once_with(
-            {'name': 'new_class'}, raise_intgr_error=False)
+        self.mock_db_map._add_object_classes.assert_called_once_with(
+            {'name': 'new_class'})
         self.assertEqual(len(errors), 0)
 
 
@@ -150,13 +175,13 @@ class TestImportObject(unittest.TestCase):
 
     def test_import_valid_objects(self):
         num_imported, errors = import_objects(self.mock_db_map, [["new_object", "existing_oc1"]])
-        self.mock_db_map.add_objects.assert_called_once_with(
-            {'name': 'new_object', "class_id": 1}, raise_intgr_error=False)
+        self.mock_db_map._add_objects.assert_called_once_with(
+            {'name': 'new_object', "class_id": 1})
         self.assertEqual(len(errors), 0)
 
     def test_import_object_with_invalid_object_class_name(self):
         num_imported, errors = import_objects(self.mock_db_map, [["new_object", "invalid_class_name"]])
-        self.mock_db_map.add_objects.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_objects.assert_called_once()
         self.assertEqual(len(errors), 1)
 
 
@@ -171,16 +196,23 @@ class TestImportRelationshipClass(unittest.TestCase):
     def test_import_valid_relationship_class(self):
         num_imported, errors = import_relationship_classes(
             self.mock_db_map, [["new_rc", ["existing_oc1", "existing_oc2"]]])
-        self.mock_db_map.add_wide_relationship_classes.assert_called_once_with(
-            {'name': 'new_rc', 'object_class_id_list': [1, 2]}, raise_intgr_error=False)
+        self.mock_db_map._add_wide_relationship_classes.assert_called_once_with(
+            {'name': 'new_rc', 'object_class_id_list': [1, 2]})
         self.assertEqual(len(errors), 0)
 
     def test_import_relationship_class_with_invalid_object_class_name(self):
         num_imported, errors = import_relationship_classes(
             self.mock_db_map, [["new_rc", ["existing_oc1", "invalid_oc"]]])
-        self.mock_db_map.add_wide_relationship_classes.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_wide_relationship_classes.assert_called_once()
         self.assertEqual(len(errors), 1)
-
+    
+    def test_import_relationship_class_name_twice(self):
+        num_imported, errors = import_relationship_classes(
+            self.mock_db_map, [["new_rc", ["existing_oc1", "existing_oc2"]],
+                               ["new_rc", ["existing_oc2", "existing_oc1"]]])
+        self.mock_db_map._add_wide_relationship_classes.assert_called_once_with(
+            {'name': 'new_rc', 'object_class_id_list': [1, 2]})
+        self.assertEqual(len(errors), 1)
 
 class TestImportObjectClassParameter(unittest.TestCase):
 
@@ -192,14 +224,22 @@ class TestImportObjectClassParameter(unittest.TestCase):
 
     def test_import_valid_object_class_parameter(self):
         num_imported, errors = import_object_parameters(self.mock_db_map, [["new_parameter", "existing_oc1"]])
-        self.mock_db_map.add_parameters.assert_called_once_with(
-            {'name': 'new_parameter', 'object_class_id': 1}, raise_intgr_error=False)
+        self.mock_db_map._add_parameters.assert_called_once_with(
+            {'name': 'new_parameter', 'object_class_id': 1})
         self.assertEqual(len(errors), 0)
 
     def test_import_parameter_with_invalid_object_class_name(self):
         num_imported, errors = import_object_parameters(
             self.mock_db_map, [["new_parameter", "invalid_object_class"]])
-        self.mock_db_map.add_parameters.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameters.assert_called_once()
+        self.assertEqual(len(errors), 1)
+    
+    def test_import_object_class_parameter_name_twice(self):
+        num_imported, errors = import_object_parameters(self.mock_db_map,
+                                                        [["new_parameter", "existing_oc1"],
+                                                         ["new_parameter", "existing_oc2"]])
+        self.mock_db_map._add_parameters.assert_called_once_with(
+            {'name': 'new_parameter', 'object_class_id': 1})
         self.assertEqual(len(errors), 1)
 
 
@@ -214,16 +254,22 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
     def test_import_valid_relationship_class_parameter(self):
         num_imported, errors = import_relationship_parameters(
             self.mock_db_map, [["new_parameter", "existing_rc1"]])
-        self.mock_db_map.add_parameters.assert_called_once_with(
-            {'name': 'new_parameter', 'relationship_class_id': 1}, raise_intgr_error=False)
+        self.mock_db_map._add_parameters.assert_called_once_with(
+            {'name': 'new_parameter', 'relationship_class_id': 1})
         self.assertEqual(len(errors), 0)
 
     def test_import_parameter_with_invalid_relationship_class_name(self):
         num_imported, errors = import_relationship_parameters(
             self.mock_db_map, [["new_parameter", "invalid_relationship_class"]])
-        self.mock_db_map.add_parameters.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameters.assert_called_once()
         self.assertEqual(len(errors), 1)
-
+    
+    def test_import_relationship_class_parameter_name_twice(self):
+        num_imported, errors = import_relationship_parameters(
+            self.mock_db_map, [["new_parameter", "existing_rc1"],
+                               ["new_parameter", "existing_rc2"]])
+        self.mock_db_map._add_parameters.assert_called_once_with({'name':'new_parameter','relationship_class_id':1})
+        self.assertEqual(len(errors), 1)
 
 class TestImportRelationship(unittest.TestCase):
 
@@ -236,21 +282,21 @@ class TestImportRelationship(unittest.TestCase):
     def test_import_valid_relationship(self):
         num_imported, errors = import_relationships(
             self.mock_db_map, [["existing_rc2", ["existing_o2", "existing_o1"]]])
-        self.mock_db_map.add_wide_relationships.assert_called_once_with(
-            {'name': 'existing_rc2_existing_o2__existing_o1', 'class_id': 2, 'object_id_list': (2, 1)},
-            raise_intgr_error=False)
+        self.mock_db_map._add_wide_relationships.assert_called_once_with(
+            {'name': 'existing_rc2_existing_o2__existing_o1',
+             'class_id': 2, 'object_id_list': (2, 1)})
         self.assertEqual(len(errors), 0)
 
     def test_import_relationship_with_invalid_class_name(self):
         num_imported, errors = import_relationships(
             self.mock_db_map, [["invalid_relationship_class", ["existing_o1", "existing_o2"]]])
-        self.mock_db_map.add_wide_relationships.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_wide_relationships.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_relationship_with_invalid_object_name(self):
         num_imported, errors = import_relationships(
             self.mock_db_map, [["existing_rc1", ["none_existing_object", "existing_o2"]]])
-        self.mock_db_map.add_wide_relationships.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_wide_relationships.assert_called_once()
         self.assertEqual(len(errors), 1)
 
 
@@ -268,12 +314,12 @@ class TestImportParameterValue(unittest.TestCase):
         added = MagicMock()
         added.__iter__.return_value = {ParameterValue(3, 3, 1, None)}
         added.count.return_value = 1
-        self.mock_db_map.add_parameter_values.return_value = added, []
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map, [["existing_o1", "existing_p3", "value", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'object_id': 1, 'parameter_id': 3, 'value': 1}, raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'object_id': 1, 'parameter_id': 3, 'value': 1})
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
 
     def test_import_valid_object_parameter_json_value(self):
@@ -282,50 +328,46 @@ class TestImportParameterValue(unittest.TestCase):
         added = MagicMock()
         added.__iter__.return_value = {ParameterValue(3, 3, 1, None)}
         added.count.return_value = 1
-        self.mock_db_map.add_parameter_values.return_value = added, []
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map, [["existing_o1", "existing_p3", "json", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'object_id': 1, 'parameter_id': 3, 'json': 1}, raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'object_id': 1, 'parameter_id': 3, 'json': 1})
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
 
     def test_import_object_parameter_value_with_invalid_object(self):
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map, [["invalid_object", "existing_p3", "value", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once()
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_object_parameter_value_with_invalid_parameter(self):
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map, [["existing_o1", "invalid_parameter", "json", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once()
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_object_parameter_value_with_invalid_field(self):
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map, [["existing_o1", "existing_p3", "invalid_field", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once()
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_existing_object_parameter_value(self):
-        ParameterValue = namedtuple("ParameterValue",
-                                    ["id", "parameter_id", "object_id", "relationship_id"])
         added = MagicMock()
         added.__iter__.return_value = {}
         added.count.return_value = 0
-        self.mock_db_map.add_parameter_values.return_value = added, ['error']
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map, [["existing_o1", "existing_p1", "value", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'parameter_id': 1, 'object_id': 1, 'value': 1},
-            raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(
-            {'id': 1, 'value': 1}, raise_intgr_error=False)
-        self.assertEqual(len(errors), 1)
+        self.mock_db_map._add_parameter_values.assert_called_once_with()
+        self.mock_db_map._update_parameter_values.assert_called_once_with(
+            {'id':1 ,'parameter_id': 1, 'object_id': 1, 'value': 1})
+        self.assertEqual(len(errors), 0)
 
     def test_import_duplicate_object_parameter_value(self):
         ParameterValue = namedtuple("ParameterValue",
@@ -333,13 +375,13 @@ class TestImportParameterValue(unittest.TestCase):
         added = MagicMock()
         added.__iter__.return_value = {ParameterValue(3, 3, 1, None)}
         added.count.return_value = 1
-        self.mock_db_map.add_parameter_values.return_value = added, []
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_object_parameter_values(
             self.mock_db_map,
             [["existing_o1", "existing_p3", "value", 1], ["existing_o1", "existing_p3", "value", "4"]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'object_id': 1, 'parameter_id': 3, 'value': 1}, raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'object_id': 1, 'parameter_id': 3, 'value': 1})
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_valid_relationship_parameter_value(self):
@@ -348,12 +390,12 @@ class TestImportParameterValue(unittest.TestCase):
         added = MagicMock()
         added.__iter__.return_value = {ParameterValue(3, 4, None, 1)}
         added.count.return_value = 1
-        self.mock_db_map.add_parameter_values.return_value = added, []
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"], "existing_p4", "value", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'relationship_id': 1, 'parameter_id': 4, 'value': 1}, raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'relationship_id': 1, 'parameter_id': 4, 'value': 1})
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
 
     def test_import_valid_relationship_parameter_json_value(self):
@@ -362,50 +404,46 @@ class TestImportParameterValue(unittest.TestCase):
         added = MagicMock()
         added.__iter__.return_value = {ParameterValue(3, 4, None, 1)}
         added.count.return_value = 1
-        self.mock_db_map.add_parameter_values.return_value = added, []
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"], "existing_p4", "json", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'relationship_id': 1, 'parameter_id': 4, 'json': 1}, raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'relationship_id': 1, 'parameter_id': 4, 'json': 1})
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
 
     def test_import_relationship_parameter_value_with_invalid_object(self):
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map, [["existing_rc1", ["existing_o1", "invalid_object"], "existing_p4", "json", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once()
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_relationship_parameter_value_with_invalid_relationship_class(self):
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map, [["invalid_rel_cls", ["existing_o1", "existing_o2"], "existing_p4", "json", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once()
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_relationship_parameter_value_with_invalid_parameter(self):
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"], "invalid_param", "json", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once()
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
     def test_import_existing_relationship_parameter_value(self):
-        ParameterValue = namedtuple("ParameterValue",
-                                    ["id", "parameter_id", "object_id", "relationship_id"])
         added = MagicMock()
         added.__iter__.return_value = {}
         added.count.return_value = 0
-        self.mock_db_map.add_parameter_values.return_value = added, ['error']
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"], "existing_p2", "value", 1]])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'parameter_id': 2, 'relationship_id': 1, 'value': 1},
-            raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(
-            {'id': 2, 'value': 1}, raise_intgr_error=False)
-        self.assertEqual(len(errors), 1)
+        self.mock_db_map._add_parameter_values.assert_called_once_with()
+        self.mock_db_map._update_parameter_values.assert_called_once_with(
+            {'parameter_id': 2, 'relationship_id': 1, 'value': 1, 'id': 2})
+        self.assertEqual(len(errors), 0)
 
     def test_import_duplicate_relationship_parameter_value(self):
         ParameterValue = namedtuple("ParameterValue",
@@ -413,16 +451,16 @@ class TestImportParameterValue(unittest.TestCase):
         added = MagicMock()
         added.__iter__.return_value = {ParameterValue(3, 4, None, 1)}
         added.count.return_value = 1
-        self.mock_db_map.add_parameter_values.return_value = added, []
+        self.mock_db_map._add_parameter_values.return_value = added
         num_imported, errors = import_relationship_parameter_values(
             self.mock_db_map,
             [
                 ["existing_rc1", ["existing_o1", "existing_o2"], "existing_p4", "value", 1],
                 ["existing_rc1", ["existing_o1", "existing_o2"], "existing_p4", "value", 8]
             ])
-        self.mock_db_map.add_parameter_values.assert_called_once_with(
-            {'relationship_id': 1, 'parameter_id': 4, 'value': 1}, raise_intgr_error=False)
-        self.mock_db_map.update_parameter_values.assert_called_once_with(raise_intgr_error=False)
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'relationship_id': 1, 'parameter_id': 4, 'value': 1})
+        self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 1)
 
 
