@@ -411,6 +411,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         object_class_list = self.object_class_list(ordered=False).subquery()
         qry = self.session.query(
             self.RelationshipClass.id.label('id'),
+            self.RelationshipClass.dimension.label('dimension'),
             self.RelationshipClass.object_class_id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.RelationshipClass.name.label('name')
@@ -418,6 +419,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(~self.RelationshipClass.id.in_(self.touched_item_id["relationship_class"]))
         diff_qry = self.session.query(
             self.DiffRelationshipClass.id.label('id'),
+            self.DiffRelationshipClass.dimension.label('dimension'),
             self.DiffRelationshipClass.object_class_id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.DiffRelationshipClass.name.label('name')
@@ -438,13 +440,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             func.group_concat(subqry.c.object_class_id).label('object_class_id_list'),
             func.group_concat(subqry.c.object_class_name).label('object_class_name_list'),
             subqry.c.name
-        ).group_by(subqry.c.id)
+        ).order_by(subqry.c.id, subqry.c.dimension).group_by(subqry.c.id)
 
     def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
         object_list = self.object_list().subquery()
         qry = self.session.query(
             self.Relationship.id.label('id'),
+            self.Relationship.dimension.label('dimension'),
             self.Relationship.class_id.label('class_id'),
             self.Relationship.object_id.label('object_id'),
             object_list.c.name.label('object_name'),
@@ -453,6 +456,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         filter(~self.Relationship.id.in_(self.touched_item_id["relationship"]))
         diff_qry = self.session.query(
             self.DiffRelationship.id.label('id'),
+            self.DiffRelationship.dimension.label('dimension'),
             self.DiffRelationship.class_id.label('class_id'),
             self.DiffRelationship.object_id.label('object_id'),
             object_list.c.name.label('object_name'),
@@ -478,7 +482,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             func.group_concat(subqry.c.object_id).label('object_id_list'),
             func.group_concat(subqry.c.object_name).label('object_name_list'),
             subqry.c.name
-        ).group_by(subqry.c.id)
+        ).order_by(subqry.c.id, subqry.c.dimension).group_by(subqry.c.id)
 
     def parameter_tag_list(self, id_list=None):
         """Return list of parameter tags."""
@@ -490,7 +494,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterTag.description.label("description"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterTag.id.in_(id_list))
-        return qry.union_all(diff_qry)
+        return qry.union_all(diff_qry).order_by(self.ParameterTag.id, self.DiffParameterTag.id)
 
     def parameter_definition_tag_list(self, id_list=None):
         """Return list of parameter definition tags."""
@@ -555,6 +559,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.parameter_tag_id,
             func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list')
         ).group_by(subqry.c.parameter_tag_id)
+
+    def parameter_enum_list(self, id_list=None):
+        """Return list of parameter enums."""
+        qry = super().parameter_enum_list(id_list=id_list).\
+            filter(~self.ParameterEnum.id.in_(self.touched_item_id["parameter_enum"]))
+        diff_qry = self.session.query(
+            self.DiffParameterEnum.id.label("id"),
+            self.DiffParameterEnum.name.label("name"),
+            self.DiffParameterEnum.element_index.label("element_index"),
+            self.DiffParameterEnum.element.label("element"),
+            self.DiffParameterEnum.value.label("value"))
+        if id_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterEnum.id.in_(id_list))
+        return qry.union_all(diff_qry)
 
     def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
@@ -1684,6 +1702,86 @@ class DiffDatabaseMapping(DatabaseMapping):
         if (parameter_definition_id, parameter_tag_id) in parameter_definition_tags:
             raise SpineIntegrityError("Parameter '{0}' already has the tag '{1}'.".format(parameter_name, tag))
 
+    def check_wide_parameter_enums_for_insert(self, *wide_kwargs_list, raise_intgr_error=True):
+        """Check that parameter enums respect integrity constraints for an insert operation."""
+        intgr_error_log = []
+        checked_wide_kwargs_list = list()
+        parameter_enum_names = {x.name for x in self.wide_parameter_enum_list()}
+        for wide_kwargs in wide_kwargs_list:
+            try:
+                self.check_wide_parameter_enum(wide_kwargs, parameter_enum_names)
+                checked_wide_kwargs_list.append(wide_kwargs)
+                parameter_enum_names.add((wide_kwargs["name"]))
+            except SpineIntegrityError as e:
+                if raise_intgr_error:
+                    raise e
+                intgr_error_log.append(e.msg)
+        return checked_wide_kwargs_list, intgr_error_log
+
+    def check_wide_parameter_enums_for_update(self, *wide_kwargs_list, raise_intgr_error=True):
+        """Check that parameter enums respect integrity constraints for an update operation.
+        NOTE: To check for an update we basically 'remove' the current instance
+        and then check for an insert of the updated instance.
+        """
+        intgr_error_log = []
+        checked_wide_kwargs_list = list()
+        parameter_enum_dict = {
+            x.id: {
+                "name": x.name,
+                "element_list": x.element_list.split(","),
+                "value_list": x.value_list.split(","),
+            } for x in self.wide_parameter_enum_list()
+        }
+        parameter_enum_names = {x.name for x in self.wide_parameter_enum_list()}
+        for wide_kwargs in wide_kwargs_list:
+            try:
+                id = wide_kwargs["id"]
+            except KeyError:
+                msg = "Missing parameter enum identifier."
+                if raise_intgr_error:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(msg)
+                continue
+            try:
+                # 'Remove' current instance
+                updated_wide_kwargs = parameter_enum_dict.pop(id)
+                parameter_enum_names.remove(updated_wide_kwargs['name'])
+            except KeyError:
+                msg = "Parameter enum not found."
+                if raise_intgr_error:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(msg)
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_wide_kwargs.update(wide_kwargs)
+                self.check_wide_parameter_enum(updated_wide_kwargs, parameter_enum_names)
+                checked_wide_kwargs_list.append(wide_kwargs)
+                parameter_enum_dict[id] = updated_wide_kwargs
+                parameter_enum_names.add(updated_wide_kwargs["name"])
+            except SpineIntegrityError as e:
+                if raise_intgr_error:
+                    raise e
+                intgr_error_log.append(e.msg)
+        return checked_wide_kwargs_list, intgr_error_log
+
+    def check_wide_parameter_enum(self, wide_kwargs, parameter_enum_names):
+        """Raise a SpineIntegrityError if the parameter enum given by `wide_kwargs` violates any
+        integrity constraints.
+        """
+        try:
+            name = wide_kwargs["name"]
+        except KeyError:
+            raise SpineIntegrityError("Missing parameter enum name.")
+        if name in parameter_enum_names:
+            raise SpineIntegrityError("There can't be more than one parameter enum called '{}'.".format(name))
+        try:
+            element_list = wide_kwargs["element_list"]
+        except KeyError:
+            raise SpineIntegrityError("Missing list of elements.")
+        if len(element_list) != len(set(element_list)):
+            raise SpineIntegrityError("Elements must be unique.")
+
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""
         next_id = self.session.query(self.NextId).one_or_none()
@@ -1918,7 +2016,6 @@ class DiffDatabaseMapping(DatabaseMapping):
         Returns:
             wide_relationships (list): added instances
         """
-
         next_id = self.next_id_with_lock()
         if next_id.relationship_id:
             id = next_id.relationship_id
@@ -2063,6 +2160,17 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_parameter_tags(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_parameter_tags(self, *kwargs_list):
+        """Add parameter tags to database.
+
+        Returns:
+            parameter_tags (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.parameter_tag_id:
             id = next_id.parameter_tag_id
@@ -2071,8 +2179,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_kwargs_list)))
-            for kwargs in checked_kwargs_list:
+            id_list = set(range(id, id + len(kwargs_list)))
+            for kwargs in kwargs_list:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
@@ -2081,8 +2189,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["parameter_tag"].update(id_list)
             new_item_list = self.parameter_tag_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
@@ -2098,11 +2204,22 @@ class DiffDatabaseMapping(DatabaseMapping):
                 they are catched and returned as a log
 
         Returns:
-            parameter_tags (list): added instances
+            parameter_definition_tags (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_definition_tags_for_insert(
             *kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_parameter_definition_tags(*checked_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_parameter_definition_tags(self, *kwargs_list):
+        """Add parameter definition tags to database.
+
+        Returns:
+            parameter_definition_tags (list): added instances
+        """
         next_id = self.next_id_with_lock()
         if next_id.parameter_definition_tag_id:
             id = next_id.parameter_definition_tag_id
@@ -2111,8 +2228,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
-            id_list = set(range(id, id + len(checked_kwargs_list)))
-            for kwargs in checked_kwargs_list:
+            id_list = set(range(id, id + len(kwargs_list)))
+            for kwargs in kwargs_list:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
@@ -2121,12 +2238,67 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.new_item_id["parameter_definition_tag"].update(id_list)
             new_item_list = self.parameter_definition_tag_list(id_list=id_list)
-            if not raise_intgr_error:
-                return new_item_list, intgr_error_log
             return new_item_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def add_wide_parameter_enums(self, *wide_kwargs_list, raise_intgr_error=True):
+        """Add wide parameter enums to database.
+
+        Args:
+            wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            raise_intgr_error (bool): if True (the default) SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            parameter_enums (list): added instances
+            intgr_error_log (list): list of integrity error messages
+        """
+        checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_enums_for_insert(
+            *wide_kwargs_list, raise_intgr_error=raise_intgr_error)
+        new_item_list = self._add_wide_parameter_enums(*checked_wide_kwargs_list)
+        if not raise_intgr_error:
+            return new_item_list, intgr_error_log
+        return new_item_list
+
+    def _add_wide_parameter_enums(self, *wide_kwargs_list):
+        """Add wide parameter enums to database.
+
+        Returns:
+            parameter_enums (list): added instances
+        """
+        next_id = self.next_id_with_lock()
+        if next_id.parameter_enum_id:
+            id = next_id.parameter_enum_id
+        else:
+            max_id = self.session.query(func.max(self.ParameterEnum.id)).scalar()
+            id = max_id + 1 if max_id else 1
+        try:
+            item_list = list()
+            id_list = set(range(id, id + len(wide_kwargs_list)))
+            for wide_kwargs in wide_kwargs_list:
+                for k, element in enumerate(wide_kwargs['element_list']):
+                    value = wide_kwargs['value_list'][k]
+                    narrow_kwargs = {
+                        'id': id,
+                        'name': wide_kwargs['name'],
+                        'element_index': k,
+                        'element': element,
+                        'value': value
+                    }
+                    item_list.append(narrow_kwargs)
+                id += 1
+            self.session.bulk_insert_mappings(self.DiffParameterEnum, item_list)
+            next_id.parameter_enum_id = id
+            self.session.commit()
+            self.new_item_id["parameter_enum"].update(id_list)
+            new_item_list = self.wide_parameter_enum_list(id_list=id_list)
+            return new_item_list
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting parameter enums: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def get_or_add_object_class(self, **kwargs):
@@ -2552,6 +2724,62 @@ class DiffDatabaseMapping(DatabaseMapping):
         if not raise_intgr_error:
             intgr_error_log += ret[1]
             return intgr_error_log
+
+    def update_wide_parameter_enums(self, *wide_kwargs_list, raise_intgr_error=True):
+        """Update parameter enums."""
+        checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_enums_for_update(
+            *wide_kwargs_list, raise_intgr_error=raise_intgr_error)
+        try:
+            items_for_update = list()
+            items_for_insert = list()
+            new_dirty_ids = set()
+            updated_ids = set()
+            for wide_kwargs in checked_wide_kwargs_list:
+                try:
+                    id = wide_kwargs['id']
+                except KeyError:
+                    continue
+                element_list = wide_kwargs.pop('element_list', list())
+                diff_item_list = self.session.query(self.DiffParameterEnum).filter_by(id=id).\
+                    order_by(self.DiffParameterEnum.element_index)
+                if diff_item_list.count():
+                    for element_index, diff_item in enumerate(diff_item_list):
+                        narrow_kwargs = wide_kwargs
+                        try:
+                            narrow_kwargs.update({'element': element_list[element_index]})
+                        except IndexError:
+                            pass
+                        updated_kwargs = attr_dict(diff_item)
+                        updated_kwargs.update(narrow_kwargs)
+                        items_for_update.append(updated_kwargs)
+                    updated_ids.add(id)
+                else:
+                    item_list = self.session.query(self.ParameterEnum).filter_by(id=id)
+                    if item_list.count():
+                        for element_index, item in enumerate(item_list):
+                            narrow_kwargs = wide_kwargs
+                            try:
+                                narrow_kwargs.update({'element': element_list[element_index]})
+                            except IndexError:
+                                pass
+                            updated_kwargs = attr_dict(item)
+                            updated_kwargs.update(narrow_kwargs)
+                            items_for_insert.append(updated_kwargs)
+                        new_dirty_ids.add(id)
+                        updated_ids.add(id)
+            self.session.bulk_update_mappings(self.DiffParameterEnum, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffParameterEnum, items_for_insert)
+            self.session.commit()
+            self.touched_item_id["parameter_enum"].update(new_dirty_ids)
+            self.dirty_item_id["parameter_enum"].update(new_dirty_ids)
+            updated_item_list = self.wide_parameter_enum_list(id_list=updated_ids)
+            if not raise_intgr_error:
+                return updated_item_list, intgr_error_log
+            return updated_item_list
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating parameter enums: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def remove_items(
             self,

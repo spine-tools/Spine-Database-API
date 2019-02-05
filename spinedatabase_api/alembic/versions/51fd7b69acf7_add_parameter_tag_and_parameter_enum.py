@@ -42,13 +42,15 @@ def upgrade():
     op.create_table(
         'parameter_enum',
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('symbol', sa.Unicode(255), primary_key=True, nullable=False),
+        sa.Column('name', sa.String(155), nullable=False),
+        sa.Column('element_index', sa.Integer, primary_key=True, nullable=False),
+        sa.Column('element', sa.Unicode(255), nullable=False),
         sa.Column('value', sa.Unicode(255)),
         sa.Column('commit_id', sa.Integer, sa.ForeignKey('commit.id'))
     )
     with op.batch_alter_table("parameter_definition") as batch_op:
-        batch_op.add_column(sa.Column('enum_id', sa.Integer, sa.ForeignKey(
-            'parameter_enum.id', name='fk_parameter_definition_enum_id_parameter_enum')))
+        batch_op.add_column(sa.Column('enum_id', sa.Integer))
+        batch_op.drop_column('dummy_relationship_class_dimmension')
 
 
 def downgrade():
@@ -61,6 +63,11 @@ def downgrade():
         pass
     with op.batch_alter_table("parameter_definition") as batch_op:
         batch_op.drop_column('enum_id')
+        batch_op.add_column(sa.Column('dummy_relationship_class_dimmension', sa.Integer))
+        batch_op.create_foreign_key(
+            "fk_parameter_relationship_class_id_relationship_class",
+            "relationship_class",
+            ["relationship_class_id", "dummy_relationship_class_dimmension"], ["id", "dimension"])
     op.drop_table('parameter_enum')
     op.drop_table('parameter_definition_tag')
     op.drop_table('parameter_tag')

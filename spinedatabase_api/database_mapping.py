@@ -421,6 +421,28 @@ class DatabaseMapping(object):
             func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
         ).group_by(subqry.c.parameter_definition_id)
 
+    def parameter_enum_list(self, id_list=None):
+        """Return list of parameter enums."""
+        qry = self.session.query(
+            self.ParameterEnum.id.label("id"),
+            self.ParameterEnum.name.label("name"),
+            self.ParameterEnum.element_index.label("element_index"),
+            self.ParameterEnum.element.label("element"),
+            self.ParameterEnum.value.label("value"))
+        if id_list is not None:
+            qry = qry.filter(self.ParameterEnum.id.in_(id_list))
+        return qry
+
+    def wide_parameter_enum_list(self, id_list=None):
+        """Return list of parameter enums and their elements in wide format."""
+        subqry = self.parameter_enum_list(id_list=id_list).subquery()
+        return self.session.query(
+            subqry.c.id,
+            subqry.c.name,
+            func.group_concat(subqry.c.element).label('element_list'),
+            func.group_concat(subqry.c.value).label('value_list')
+        ).order_by(subqry.c.id, subqry.c.element_index).group_by(subqry.c.id)
+
     def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = self.session.query(
