@@ -1728,8 +1728,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         parameter_enum_dict = {
             x.id: {
                 "name": x.name,
-                "element_list": x.element_list.split(","),
-                "value_list": x.value_list.split(","),
+                "element_list": x.element_list.split(",")
             } for x in self.wide_parameter_enum_list()
         }
         parameter_enum_names = {x.name for x in self.wide_parameter_enum_list()}
@@ -2726,52 +2725,35 @@ class DiffDatabaseMapping(DatabaseMapping):
             return intgr_error_log
 
     def update_wide_parameter_enums(self, *wide_kwargs_list, raise_intgr_error=True):
-        """Update parameter enums."""
-        checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_enums_for_update(
-            *wide_kwargs_list, raise_intgr_error=raise_intgr_error)
+        """Update parameter enums.
+        NOTE: It's too difficult to do it cleanly, so we just remove and then add.
+        """
         try:
-            items_for_update = list()
-            items_for_insert = list()
-            new_dirty_ids = set()
+            wide_parameter_enum_dict = {x.id: x._asdict() for x in self.wide_parameter_enum_list()}
             updated_ids = set()
-            for wide_kwargs in checked_wide_kwargs_list:
+            item_list = list()
+            for wide_kwargs in wide_kwargs_list:
                 try:
                     id = wide_kwargs['id']
+                    updated_wide_kwargs = wide_parameter_enum_dict[id]
                 except KeyError:
                     continue
-                element_list = wide_kwargs.pop('element_list', list())
-                diff_item_list = self.session.query(self.DiffParameterEnum).filter_by(id=id).\
-                    order_by(self.DiffParameterEnum.element_index)
-                if diff_item_list.count():
-                    for element_index, diff_item in enumerate(diff_item_list):
-                        narrow_kwargs = wide_kwargs
-                        try:
-                            narrow_kwargs.update({'element': element_list[element_index]})
-                        except IndexError:
-                            pass
-                        updated_kwargs = attr_dict(diff_item)
-                        updated_kwargs.update(narrow_kwargs)
-                        items_for_update.append(updated_kwargs)
-                    updated_ids.add(id)
-                else:
-                    item_list = self.session.query(self.ParameterEnum).filter_by(id=id)
-                    if item_list.count():
-                        for element_index, item in enumerate(item_list):
-                            narrow_kwargs = wide_kwargs
-                            try:
-                                narrow_kwargs.update({'element': element_list[element_index]})
-                            except IndexError:
-                                pass
-                            updated_kwargs = attr_dict(item)
-                            updated_kwargs.update(narrow_kwargs)
-                            items_for_insert.append(updated_kwargs)
-                        new_dirty_ids.add(id)
-                        updated_ids.add(id)
-            self.session.bulk_update_mappings(self.DiffParameterEnum, items_for_update)
-            self.session.bulk_insert_mappings(self.DiffParameterEnum, items_for_insert)
+                updated_ids.add(id)
+                updated_wide_kwargs.update(wide_kwargs)
+                for k, element in enumerate(updated_wide_kwargs['element_list']):
+                    value = updated_wide_kwargs['value_list'][k]
+                    updated_narrow_kwargs = {
+                        'id': id,
+                        'name': updated_wide_kwargs['name'],
+                        'element_index': k,
+                        'element': element,
+                        'value': value
+                    }
+                    item_list.append(updated_narrow_kwargs)
+            self.remove_items(parameter_enum_ids=updated_ids)
+            self.session.bulk_insert_mappings(self.DiffParameterEnum, item_list)
             self.session.commit()
-            self.touched_item_id["parameter_enum"].update(new_dirty_ids)
-            self.dirty_item_id["parameter_enum"].update(new_dirty_ids)
+            self.new_item_id["parameter_enum"].update(updated_ids)
             updated_item_list = self.wide_parameter_enum_list(id_list=updated_ids)
             if not raise_intgr_error:
                 return updated_item_list, intgr_error_log
@@ -2802,7 +2784,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_definition_ids=parameter_ids,
             parameter_value_ids=parameter_value_ids,
             parameter_tag_ids=parameter_tag_ids,
-            parameter_definition_tag_ids=parameter_definition_tag_ids)
+            parameter_definition_tag_ids=parameter_definition_tag_ids,
+            parameter_enum_ids=parameter_enum_ids)
         diff_ids = removed_diff_item_id.get('object_class', set())
         self.session.query(self.DiffObjectClass).filter(self.DiffObjectClass.id.in_(diff_ids)).\
             delete(synchronize_session=False)
@@ -2827,6 +2810,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         diff_ids = removed_diff_item_id.get('parameter_definition_tag', set())
         self.session.query(self.DiffParameterDefinitionTag).filter(self.DiffParameterDefinitionTag.id.in_(diff_ids)).\
             delete(synchronize_session=False)
+        diff_ids = removed_diff_item_id.get('parameter_enum', set())
+        self.session.query(self.DiffParameterEnum).filter(self.DiffParameterEnum.id.in_(diff_ids)).\
+            delete(synchronize_session=False)
         try:
             self.session.commit()
         except DBAPIError as e:
@@ -2846,7 +2832,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_definition_ids=set(),
             parameter_value_ids=set(),
             parameter_tag_ids=set(),
-            parameter_definition_tag_ids=set()
+            parameter_definition_tag_ids=set(),
+            parameter_enum_ids=set()
         ):
         """Return all items that should be removed when removing items given as arguments.
 
@@ -2926,6 +2913,15 @@ class DiffDatabaseMapping(DatabaseMapping):
         diff_item_list = self.session.query(self.DiffParameterDefinitionTag.id).\
             filter(self.DiffParameterDefinitionTag.id.in_(parameter_definition_tag_ids))
         self._remove_cascade_parameter_definition_tags(
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
+            removed_item_id,
+            removed_diff_item_id)
+        # parameter_enum
+        item_list = self.session.query(self.ParameterEnum.id).filter(self.ParameterEnum.id.in_(parameter_enum_ids))
+        diff_item_list = self.session.query(self.DiffParameterEnum.id).\
+            filter(self.DiffParameterEnum.id.in_(parameter_enum_ids))
+        self._remove_cascade_parameter_enums(
             [x.id for x in item_list],
             [x.id for x in diff_item_list],
             removed_item_id,
@@ -3082,6 +3078,14 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Remove parameter definition tag pairs and all related items."""
         removed_item_id.setdefault("parameter_definition_tag", set()).update(ids)
         removed_diff_item_id.setdefault("parameter_definition_tag", set()).update(diff_ids)
+
+    def _remove_cascade_parameter_enums(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
+        """Remove parameter enums and all related items.
+        TODO: Should we remove parameter definitions here? Do we care if they have invalid enum?
+        If we *do* remove parameter definitions then we need to fix `update_wide_parameter_enum`
+        """
+        removed_item_id.setdefault("parameter_enum", set()).update(ids)
+        removed_diff_item_id.setdefault("parameter_enum", set()).update(diff_ids)
 
     def reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
