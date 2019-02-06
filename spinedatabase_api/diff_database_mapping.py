@@ -484,96 +484,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).order_by(subqry.c.id, subqry.c.dimension).group_by(subqry.c.id)
 
-    def parameter_tag_list(self, id_list=None):
-        """Return list of parameter tags."""
-        qry = super().parameter_tag_list(id_list=id_list).\
-            filter(~self.ParameterTag.id.in_(self.touched_item_id["parameter_tag"]))
-        diff_qry = self.session.query(
-            self.DiffParameterTag.id.label("id"),
-            self.DiffParameterTag.tag.label("tag"),
-            self.DiffParameterTag.description.label("description"))
-        if id_list is not None:
-            diff_qry = diff_qry.filter(self.DiffParameterTag.id.in_(id_list))
-        return qry.union_all(diff_qry).order_by(self.ParameterTag.id, self.DiffParameterTag.id)
-
-    def parameter_definition_tag_list(self, id_list=None):
-        """Return list of parameter definition tags."""
-        qry = super().parameter_definition_tag_list(id_list=id_list).\
-            filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
-        diff_qry = self.session.query(
-            self.DiffParameterDefinitionTag.id.label('id'),
-            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
-        if id_list is not None:
-            diff_qry = diff_qry.filter(self.DiffParameterDefinitionTag.id.in_(id_list))
-        return qry.union_all(diff_qry)
-
-    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
-        """Return list of parameter definitions and their tags in wide format.
-        """
-        parameter_tag_list = self.parameter_tag_list().subquery()
-        qry = self.session.query(
-            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            parameter_tag_list.c.tag.label('parameter_tag')
-        ).filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id).\
-        filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
-        diff_qry = self.session.query(
-            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            parameter_tag_list.c.tag.label('parameter_tag')
-        ).filter(self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id)
-        if parameter_definition_id:
-            qry = qry.filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
-            diff_qry = diff_qry.filter(
-                self.DiffParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
-        subqry = qry.union_all(diff_qry).subquery()
-        return self.session.query(
-            subqry.c.parameter_definition_id,
-            func.group_concat(subqry.c.parameter_tag_id).label('parameter_tag_id_list'),
-            func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
-        ).group_by(subqry.c.parameter_definition_id)
-
-    def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
-        """Return list of parameter tags (including the NULL tag) and their definitions in wide format.
-        """
-        parameter_definition_tag_list = self.parameter_definition_tag_list().subquery()
-        qry = self.session.query(
-            self.ParameterDefinition.id.label('parameter_definition_id'),
-            parameter_definition_tag_list.c.parameter_tag_id.label('parameter_tag_id')
-        ).outerjoin(
-            parameter_definition_tag_list,
-            self.ParameterDefinition.id == parameter_definition_tag_list.c.parameter_definition_id).\
-        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
-        diff_qry = self.session.query(
-            self.DiffParameterDefinition.id.label('parameter_definition_id'),
-            parameter_definition_tag_list.c.parameter_tag_id.label('parameter_tag_id')
-        ).outerjoin(
-            parameter_definition_tag_list,
-            self.DiffParameterDefinition.id == parameter_definition_tag_list.c.parameter_definition_id)
-        if parameter_tag_id:
-            qry = qry.filter(parameter_definition_tag_list.c.parameter_tag_id == parameter_tag_id)
-            diff_qry = diff_qry.filter(parameter_definition_tag_list.c.parameter_tag_id == parameter_tag_id)
-        subqry = qry.union_all(diff_qry).subquery()
-        return self.session.query(
-            subqry.c.parameter_tag_id,
-            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list')
-        ).group_by(subqry.c.parameter_tag_id)
-
-    def parameter_enum_list(self, id_list=None):
-        """Return list of parameter enums."""
-        qry = super().parameter_enum_list(id_list=id_list).\
-            filter(~self.ParameterEnum.id.in_(self.touched_item_id["parameter_enum"]))
-        diff_qry = self.session.query(
-            self.DiffParameterEnum.id.label("id"),
-            self.DiffParameterEnum.name.label("name"),
-            self.DiffParameterEnum.element_index.label("element_index"),
-            self.DiffParameterEnum.element.label("element"),
-            self.DiffParameterEnum.value.label("value"))
-        if id_list is not None:
-            diff_qry = diff_qry.filter(self.DiffParameterEnum.id.in_(id_list))
-        return qry.union_all(diff_qry)
-
     def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = super().parameter_list(
@@ -601,6 +511,134 @@ class DiffDatabaseMapping(DatabaseMapping):
         if relationship_class_id:
             diff_qry = diff_qry.filter_by(relationship_class_id=relationship_class_id)
         return qry.union_all(diff_qry)
+
+    def object_parameter_list(self, object_class_id=None, parameter_id=None):
+        """Return object classes and their parameters."""
+        object_class_list = self.object_class_list().subquery()
+        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
+        wide_parameter_enum_list = self.wide_parameter_enum_list().subquery()
+        qry = self.session.query(
+            self.ParameterDefinition.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
+            object_class_list.c.name.label('object_class_name'),
+            self.ParameterDefinition.name.label('parameter_name'),
+            self.ParameterDefinition.enum_id,
+            wide_parameter_enum_list.c.name.label('enum_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
+            self.ParameterDefinition.can_have_time_series,
+            self.ParameterDefinition.can_have_time_pattern,
+            self.ParameterDefinition.can_be_stochastic,
+            self.ParameterDefinition.default_value,
+            self.ParameterDefinition.is_mandatory,
+            self.ParameterDefinition.precision,
+            self.ParameterDefinition.minimum_value,
+            self.ParameterDefinition.maximum_value
+        ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
+        outerjoin(
+            wide_parameter_enum_list,
+            wide_parameter_enum_list.c.id == self.ParameterDefinition.enum_id).\
+        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinition.id.label('id'),
+            object_class_list.c.id.label('object_class_id'),
+            object_class_list.c.name.label('object_class_name'),
+            self.DiffParameterDefinition.name.label('parameter_name'),
+            self.DiffParameterDefinition.enum_id,
+            wide_parameter_enum_list.c.name.label('enum_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
+            self.DiffParameterDefinition.can_have_time_series,
+            self.DiffParameterDefinition.can_have_time_pattern,
+            self.DiffParameterDefinition.can_be_stochastic,
+            self.DiffParameterDefinition.default_value,
+            self.DiffParameterDefinition.is_mandatory,
+            self.DiffParameterDefinition.precision,
+            self.DiffParameterDefinition.minimum_value,
+            self.DiffParameterDefinition.maximum_value
+        ).filter(object_class_list.c.id == self.DiffParameterDefinition.object_class_id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id).\
+        outerjoin(
+            wide_parameter_enum_list,
+            wide_parameter_enum_list.c.id == self.DiffParameterDefinition.enum_id)
+        if object_class_id:
+            qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.object_class_id == object_class_id)
+        if parameter_id:
+            qry = qry.filter(self.ParameterDefinition.id == parameter_id)
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
+        return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
+
+    def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
+        """Return relationship classes and their parameters."""
+        wide_relationship_class_list = self.wide_relationship_class_list().subquery()
+        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
+        wide_parameter_enum_list = self.wide_parameter_enum_list().subquery()
+        qry = self.session.query(
+            self.ParameterDefinition.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
+            wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
+            wide_relationship_class_list.c.object_class_name_list,
+            self.ParameterDefinition.name.label('parameter_name'),
+            self.ParameterDefinition.enum_id,
+            wide_parameter_enum_list.c.name.label('enum_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
+            self.ParameterDefinition.can_have_time_series,
+            self.ParameterDefinition.can_have_time_pattern,
+            self.ParameterDefinition.can_be_stochastic,
+            self.ParameterDefinition.default_value,
+            self.ParameterDefinition.is_mandatory,
+            self.ParameterDefinition.precision,
+            self.ParameterDefinition.minimum_value,
+            self.ParameterDefinition.maximum_value
+        ).filter(self.ParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
+        outerjoin(
+            wide_parameter_enum_list,
+            wide_parameter_enum_list.c.id == self.ParameterDefinition.enum_id).\
+        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinition.id.label('id'),
+            wide_relationship_class_list.c.id.label('relationship_class_id'),
+            wide_relationship_class_list.c.name.label('relationship_class_name'),
+            wide_relationship_class_list.c.object_class_id_list,
+            wide_relationship_class_list.c.object_class_name_list,
+            self.DiffParameterDefinition.name.label('parameter_name'),
+            self.DiffParameterDefinition.enum_id,
+            wide_parameter_enum_list.c.name.label('enum_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
+            self.DiffParameterDefinition.can_have_time_series,
+            self.DiffParameterDefinition.can_have_time_pattern,
+            self.DiffParameterDefinition.can_be_stochastic,
+            self.DiffParameterDefinition.default_value,
+            self.DiffParameterDefinition.is_mandatory,
+            self.DiffParameterDefinition.precision,
+            self.DiffParameterDefinition.minimum_value,
+            self.DiffParameterDefinition.maximum_value
+        ).filter(self.DiffParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id).\
+        outerjoin(
+            wide_parameter_enum_list,
+            wide_parameter_enum_list.c.id == self.DiffParameterDefinition.enum_id)
+        if relationship_class_id:
+            qry = qry.filter(self.ParameterDefinition.relationship_class_id == relationship_class_id)
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.relationship_class_id == relationship_class_id)
+        if parameter_id:
+            qry = qry.filter(self.ParameterDefinition.id == parameter_id)
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
+        return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
 
     def wide_object_parameter_definition_list(self, object_class_id_list=None, parameter_definition_id_list=None):
         """Return object classes and their parameter definitions in wide format."""
@@ -632,57 +670,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             func.group_concat(subqry.c.parameter_name).label('parameter_name_list')
         ).group_by(subqry.c.object_class_id)
 
-    def object_parameter_list(self, object_class_id=None, parameter_id=None):
-        """Return object classes and their parameters."""
-        object_class_list = self.object_class_list().subquery()
-        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
-        qry = self.session.query(
-            self.ParameterDefinition.id.label('id'),
-            object_class_list.c.id.label('object_class_id'),
-            object_class_list.c.name.label('object_class_name'),
-            self.ParameterDefinition.name.label('parameter_name'),
-            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
-            wide_parameter_definition_tag_list.c.parameter_tag_list,
-            self.ParameterDefinition.can_have_time_series,
-            self.ParameterDefinition.can_have_time_pattern,
-            self.ParameterDefinition.can_be_stochastic,
-            self.ParameterDefinition.default_value,
-            self.ParameterDefinition.is_mandatory,
-            self.ParameterDefinition.precision,
-            self.ParameterDefinition.minimum_value,
-            self.ParameterDefinition.maximum_value
-        ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
-        outerjoin(
-            wide_parameter_definition_tag_list,
-            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
-        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
-        diff_qry = self.session.query(
-            self.DiffParameterDefinition.id.label('id'),
-            object_class_list.c.id.label('object_class_id'),
-            object_class_list.c.name.label('object_class_name'),
-            self.DiffParameterDefinition.name.label('parameter_name'),
-            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
-            wide_parameter_definition_tag_list.c.parameter_tag_list,
-            self.DiffParameterDefinition.can_have_time_series,
-            self.DiffParameterDefinition.can_have_time_pattern,
-            self.DiffParameterDefinition.can_be_stochastic,
-            self.DiffParameterDefinition.default_value,
-            self.DiffParameterDefinition.is_mandatory,
-            self.DiffParameterDefinition.precision,
-            self.DiffParameterDefinition.minimum_value,
-            self.DiffParameterDefinition.maximum_value
-        ).filter(object_class_list.c.id == self.DiffParameterDefinition.object_class_id).\
-        outerjoin(
-            wide_parameter_definition_tag_list,
-            wide_parameter_definition_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id)
-        if object_class_id:
-            qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.object_class_id == object_class_id)
-        if parameter_id:
-            qry = qry.filter(self.ParameterDefinition.id == parameter_id)
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
-        return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
-
     def wide_relationship_parameter_definition_list(
             self, relationship_class_id_list=None, parameter_definition_id_list=None):
         """Return relationship classes and their parameter definitions in wide format."""
@@ -713,61 +700,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list'),
             func.group_concat(subqry.c.parameter_name).label('parameter_name_list')
         ).group_by(subqry.c.relationship_class_id)
-
-    def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
-        """Return relationship classes and their parameters."""
-        wide_relationship_class_list = self.wide_relationship_class_list().subquery()
-        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
-        qry = self.session.query(
-            self.ParameterDefinition.id.label('id'),
-            wide_relationship_class_list.c.id.label('relationship_class_id'),
-            wide_relationship_class_list.c.name.label('relationship_class_name'),
-            wide_relationship_class_list.c.object_class_id_list,
-            wide_relationship_class_list.c.object_class_name_list,
-            self.ParameterDefinition.name.label('parameter_name'),
-            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
-            wide_parameter_definition_tag_list.c.parameter_tag_list,
-            self.ParameterDefinition.can_have_time_series,
-            self.ParameterDefinition.can_have_time_pattern,
-            self.ParameterDefinition.can_be_stochastic,
-            self.ParameterDefinition.default_value,
-            self.ParameterDefinition.is_mandatory,
-            self.ParameterDefinition.precision,
-            self.ParameterDefinition.minimum_value,
-            self.ParameterDefinition.maximum_value
-        ).filter(self.ParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
-        outerjoin(
-            wide_parameter_definition_tag_list,
-            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
-        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
-        diff_qry = self.session.query(
-            self.DiffParameterDefinition.id.label('id'),
-            wide_relationship_class_list.c.id.label('relationship_class_id'),
-            wide_relationship_class_list.c.name.label('relationship_class_name'),
-            wide_relationship_class_list.c.object_class_id_list,
-            wide_relationship_class_list.c.object_class_name_list,
-            self.DiffParameterDefinition.name.label('parameter_name'),
-            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
-            wide_parameter_definition_tag_list.c.parameter_tag_list,
-            self.DiffParameterDefinition.can_have_time_series,
-            self.DiffParameterDefinition.can_have_time_pattern,
-            self.DiffParameterDefinition.can_be_stochastic,
-            self.DiffParameterDefinition.default_value,
-            self.DiffParameterDefinition.is_mandatory,
-            self.DiffParameterDefinition.precision,
-            self.DiffParameterDefinition.minimum_value,
-            self.DiffParameterDefinition.maximum_value
-        ).filter(self.DiffParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
-        outerjoin(
-            wide_parameter_definition_tag_list,
-            wide_parameter_definition_tag_list.c.parameter_definition_id == self.DiffParameterDefinition.id)
-        if relationship_class_id:
-            qry = qry.filter(self.ParameterDefinition.relationship_class_id == relationship_class_id)
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.relationship_class_id == relationship_class_id)
-        if parameter_id:
-            qry = qry.filter(self.ParameterDefinition.id == parameter_id)
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
-        return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
 
     def parameter_value_list(self, id_list=None, object_id=None, relationship_id=None):
         """Return parameter values."""
@@ -941,6 +873,96 @@ class DiffDatabaseMapping(DatabaseMapping):
             filter_by(parameter_definition_id=parameter_id)
         return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
             filter(~self.Relationship.id.in_(valued_relationship_ids))
+
+    def parameter_tag_list(self, id_list=None):
+        """Return list of parameter tags."""
+        qry = super().parameter_tag_list(id_list=id_list).\
+            filter(~self.ParameterTag.id.in_(self.touched_item_id["parameter_tag"]))
+        diff_qry = self.session.query(
+            self.DiffParameterTag.id.label("id"),
+            self.DiffParameterTag.tag.label("tag"),
+            self.DiffParameterTag.description.label("description"))
+        if id_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterTag.id.in_(id_list))
+        return qry.union_all(diff_qry).order_by(self.ParameterTag.id, self.DiffParameterTag.id)
+
+    def parameter_definition_tag_list(self, id_list=None):
+        """Return list of parameter definition tags."""
+        qry = super().parameter_definition_tag_list(id_list=id_list).\
+            filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinitionTag.id.label('id'),
+            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
+        if id_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterDefinitionTag.id.in_(id_list))
+        return qry.union_all(diff_qry)
+
+    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
+        """Return list of parameter definitions and their tags in wide format.
+        """
+        parameter_tag_list = self.parameter_tag_list().subquery()
+        qry = self.session.query(
+            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
+            parameter_tag_list.c.tag.label('parameter_tag')
+        ).filter(self.ParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id).\
+        filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
+            parameter_tag_list.c.tag.label('parameter_tag')
+        ).filter(self.DiffParameterDefinitionTag.parameter_tag_id == parameter_tag_list.c.id)
+        if parameter_definition_id:
+            qry = qry.filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
+            diff_qry = diff_qry.filter(
+                self.DiffParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
+        subqry = qry.union_all(diff_qry).subquery()
+        return self.session.query(
+            subqry.c.parameter_definition_id,
+            func.group_concat(subqry.c.parameter_tag_id).label('parameter_tag_id_list'),
+            func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
+        ).group_by(subqry.c.parameter_definition_id)
+
+    def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
+        """Return list of parameter tags (including the NULL tag) and their definitions in wide format.
+        """
+        parameter_definition_tag_list = self.parameter_definition_tag_list().subquery()
+        qry = self.session.query(
+            self.ParameterDefinition.id.label('parameter_definition_id'),
+            parameter_definition_tag_list.c.parameter_tag_id.label('parameter_tag_id')
+        ).outerjoin(
+            parameter_definition_tag_list,
+            self.ParameterDefinition.id == parameter_definition_tag_list.c.parameter_definition_id).\
+        filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
+        diff_qry = self.session.query(
+            self.DiffParameterDefinition.id.label('parameter_definition_id'),
+            parameter_definition_tag_list.c.parameter_tag_id.label('parameter_tag_id')
+        ).outerjoin(
+            parameter_definition_tag_list,
+            self.DiffParameterDefinition.id == parameter_definition_tag_list.c.parameter_definition_id)
+        if parameter_tag_id:
+            qry = qry.filter(parameter_definition_tag_list.c.parameter_tag_id == parameter_tag_id)
+            diff_qry = diff_qry.filter(parameter_definition_tag_list.c.parameter_tag_id == parameter_tag_id)
+        subqry = qry.union_all(diff_qry).subquery()
+        return self.session.query(
+            subqry.c.parameter_tag_id,
+            func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list')
+        ).group_by(subqry.c.parameter_tag_id)
+
+    def parameter_enum_list(self, id_list=None):
+        """Return list of parameter enums."""
+        qry = super().parameter_enum_list(id_list=id_list).\
+            filter(~self.ParameterEnum.id.in_(self.touched_item_id["parameter_enum"]))
+        diff_qry = self.session.query(
+            self.DiffParameterEnum.id.label("id"),
+            self.DiffParameterEnum.name.label("name"),
+            self.DiffParameterEnum.element_index.label("element_index"),
+            self.DiffParameterEnum.element.label("element"),
+            self.DiffParameterEnum.value.label("value"))
+        if id_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterEnum.id.in_(id_list))
+        return qry.union_all(diff_qry)
 
     def check_object_classes_for_insert(self, *kwargs_list, raise_intgr_error=True):
         """Check that object classes respect integrity constraints for an insert operation."""
@@ -1269,8 +1291,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             raise SpineIntegrityError("Missing object identifier.")
         try:
             given_object_class_id_list = [object_dict[id]['class_id'] for id in object_id_list]
-        except KeyError:
-            raise SpineIntegrityError("Object not found.")
+        except KeyError as e:
+            raise SpineIntegrityError("Object id '{}' not found.".format(e))
         if given_object_class_id_list != object_class_id_list:
             object_name_list = [object_dict[id]['name'] for id in object_id_list]
             relationship_class_name = relationship_class_dict[class_id]['name']
@@ -2682,7 +2704,8 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def set_parameter_definition_tags(self, tag_dict, raise_intgr_error=True):
         """Set tags for parameter definitions."""
-        tag_id_dict = {x.tag: x.id for x in self.parameter_tag_list()}
+        if not tag_dict:
+            return None
         tag_id_lists = {
             x.parameter_definition_id: [int(y) for y in x.parameter_tag_id_list.split(",")]
             for x in self.wide_parameter_definition_tag_list()
@@ -2690,23 +2713,10 @@ class DiffDatabaseMapping(DatabaseMapping):
         definition_tag_id_dict = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.parameter_definition_tag_list()
         }
-        intgr_error_log = []
         items_to_insert = list()
         ids_to_delete = set()
-        for definition_id, tag_list in tag_dict.items():
-            target_tag_list = tag_list.split(",") if tag_list else []
-            target_tag_id_list = list()
-            for tag in target_tag_list:
-                try:
-                    target_tag_id_list.append(tag_id_dict[tag])
-                except KeyError:
-                    msg = "Tag '{}' not found.".format(tag)
-                    if raise_intgr_error:
-                        raise SpineIntegrityError(msg)
-                    intgr_error_log.append(msg)
-                    break
-            if len(target_tag_list) != len(target_tag_id_list):
-                continue
+        for definition_id, tag_id_list in tag_dict.items():
+            target_tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
             current_tag_id_list = tag_id_lists.get(definition_id, [])
             for tag_id in target_tag_id_list:
                 if tag_id not in current_tag_id_list:
@@ -2721,8 +2731,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.remove_items(parameter_definition_tag_ids=ids_to_delete)
         ret = self.add_parameter_definition_tags(*items_to_insert, raise_intgr_error=raise_intgr_error)
         if not raise_intgr_error:
-            intgr_error_log += ret[1]
-            return intgr_error_log
+            return ret[1]
 
     def update_wide_parameter_enums(self, *wide_kwargs_list, raise_intgr_error=True):
         """Update parameter enums.

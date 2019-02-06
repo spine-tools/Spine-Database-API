@@ -385,64 +385,6 @@ class DatabaseMapping(object):
             subqry.c.name
         ).group_by(subqry.c.id)
 
-    def parameter_tag_list(self, id_list=None):
-        """Return list of parameter tags."""
-        qry = self.session.query(
-            self.ParameterTag.id.label("id"),
-            self.ParameterTag.tag.label("tag"),
-            self.ParameterTag.description.label("description"))
-        if id_list is not None:
-            qry = qry.filter(self.ParameterTag.id.in_(id_list))
-        return qry
-
-    def parameter_definition_tag_list(self, id_list=None):
-        """Return list of parameter definition tags."""
-        qry = self.session.query(
-            self.ParameterDefinitionTag.id.label('id'),
-            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
-        if id_list is not None:
-            qry = qry.filter(self.ParameterDefinitionTag.id.in_(id_list))
-        return qry
-
-    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
-        """Return list of parameter tags in wide format for a given parameter definition."""
-        qry = self.session.query(
-            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
-            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
-            self.ParameterTag.tag.label('parameter_tag')
-        ).filter(self.ParameterDefinitionTag.parameter_tag_id == self.ParameterTag.id)
-        if parameter_definition_id:
-            qry = qry.filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
-        subqry = qry.subquery()
-        return self.session.query(
-            subqry.c.parameter_definition_id,
-            func.group_concat(subqry.c.parameter_tag_id).label('parameter_tag_id_list'),
-            func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
-        ).group_by(subqry.c.parameter_definition_id)
-
-    def parameter_enum_list(self, id_list=None):
-        """Return list of parameter enums."""
-        qry = self.session.query(
-            self.ParameterEnum.id.label("id"),
-            self.ParameterEnum.name.label("name"),
-            self.ParameterEnum.element_index.label("element_index"),
-            self.ParameterEnum.element.label("element"),
-            self.ParameterEnum.value.label("value"))
-        if id_list is not None:
-            qry = qry.filter(self.ParameterEnum.id.in_(id_list))
-        return qry
-
-    def wide_parameter_enum_list(self, id_list=None):
-        """Return list of parameter enums and their elements in wide format."""
-        subqry = self.parameter_enum_list(id_list=id_list).subquery()
-        return self.session.query(
-            subqry.c.id,
-            subqry.c.name,
-            func.group_concat(subqry.c.element).label('element_list'),
-            func.group_concat(subqry.c.value).label('value_list')
-        ).order_by(subqry.c.id, subqry.c.element_index).group_by(subqry.c.id)
-
     def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = self.session.query(
@@ -541,6 +483,7 @@ class DatabaseMapping(object):
             qry = qry.filter_by(relationship_id=relationship_id)
         return qry
 
+    # TODO: This should be updated so it also brings enum and tag_list
     def object_parameter_value_list(self, parameter_name=None):
         """Return objects and their parameter values."""
         parameter_list = self.parameter_list().subquery()
@@ -568,6 +511,7 @@ class DatabaseMapping(object):
             qry = qry.filter(parameter_list.c.name == parameter_name)
         return qry
 
+    # TODO: This should be updated so it also brings enum and tag_list
     def relationship_parameter_value_list(self, parameter_name=None):
         """Return relationships and their parameter values."""
         parameter_list = self.parameter_list().subquery()
@@ -619,6 +563,7 @@ class DatabaseMapping(object):
             qry = qry.filter(self.ParameterDefinition.id == parameter_id)
         return qry
 
+    # NOTE: maybe these unvalued... are obsolete
     def unvalued_object_parameter_list(self, object_id):
         """Return parameters that do not have a value for given object."""
         object_ = self.single_object(id=object_id).one_or_none()
@@ -629,7 +574,6 @@ class DatabaseMapping(object):
         return self.parameter_list(object_class_id=object_.class_id).\
             filter(~self.ParameterDefinition.id.in_(valued_parameter_ids))
 
-    # NOTE: maybe these unvalued... are obsolete
     def unvalued_object_list(self, parameter_id):
         """Return objects for which given parameter does not have a value."""
         parameter = self.single_parameter(parameter_id).one_or_none()
@@ -659,6 +603,64 @@ class DatabaseMapping(object):
             filter_by(parameter_id=parameter_id)
         return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
             filter(~self.Relationship.id.in_(valued_relationship_ids))
+
+    def parameter_tag_list(self, id_list=None):
+        """Return list of parameter tags."""
+        qry = self.session.query(
+            self.ParameterTag.id.label("id"),
+            self.ParameterTag.tag.label("tag"),
+            self.ParameterTag.description.label("description"))
+        if id_list is not None:
+            qry = qry.filter(self.ParameterTag.id.in_(id_list))
+        return qry
+
+    def parameter_definition_tag_list(self, id_list=None):
+        """Return list of parameter definition tags."""
+        qry = self.session.query(
+            self.ParameterDefinitionTag.id.label('id'),
+            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
+        if id_list is not None:
+            qry = qry.filter(self.ParameterDefinitionTag.id.in_(id_list))
+        return qry
+
+    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
+        """Return list of parameter tags in wide format for a given parameter definition."""
+        qry = self.session.query(
+            self.ParameterDefinitionTag.parameter_definition_id.label('parameter_definition_id'),
+            self.ParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'),
+            self.ParameterTag.tag.label('parameter_tag')
+        ).filter(self.ParameterDefinitionTag.parameter_tag_id == self.ParameterTag.id)
+        if parameter_definition_id:
+            qry = qry.filter(self.ParameterDefinitionTag.parameter_definition_id == parameter_definition_id)
+        subqry = qry.subquery()
+        return self.session.query(
+            subqry.c.parameter_definition_id,
+            func.group_concat(subqry.c.parameter_tag_id).label('parameter_tag_id_list'),
+            func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
+        ).group_by(subqry.c.parameter_definition_id)
+
+    def parameter_enum_list(self, id_list=None):
+        """Return list of parameter enums."""
+        qry = self.session.query(
+            self.ParameterEnum.id.label("id"),
+            self.ParameterEnum.name.label("name"),
+            self.ParameterEnum.element_index.label("element_index"),
+            self.ParameterEnum.element.label("element"),
+            self.ParameterEnum.value.label("value"))
+        if id_list is not None:
+            qry = qry.filter(self.ParameterEnum.id.in_(id_list))
+        return qry
+
+    def wide_parameter_enum_list(self, id_list=None):
+        """Return list of parameter enums and their elements in wide format."""
+        subqry = self.parameter_enum_list(id_list=id_list).subquery()
+        return self.session.query(
+            subqry.c.id,
+            subqry.c.name,
+            func.group_concat(subqry.c.element).label('element_list'),
+            func.group_concat(subqry.c.value).label('value_list')
+        ).order_by(subqry.c.id, subqry.c.element_index).group_by(subqry.c.id)
 
     def object_parameter_fields(self):
         """Return object parameter fields."""
