@@ -957,8 +957,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         diff_qry = self.session.query(
             self.DiffParameterEnum.id.label("id"),
             self.DiffParameterEnum.name.label("name"),
-            self.DiffParameterEnum.element_index.label("element_index"),
-            self.DiffParameterEnum.element.label("element"),
+            self.DiffParameterEnum.value_index.label("value_index"),
             self.DiffParameterEnum.value.label("value"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterEnum.id.in_(id_list))
@@ -1797,11 +1796,11 @@ class DiffDatabaseMapping(DatabaseMapping):
         if name in parameter_enum_names:
             raise SpineIntegrityError("There can't be more than one parameter enum called '{}'.".format(name))
         try:
-            element_list = wide_kwargs["element_list"]
+            value_list = wide_kwargs["value_list"]
         except KeyError:
-            raise SpineIntegrityError("Missing list of elements.")
-        if len(element_list) != len(set(element_list)):
-            raise SpineIntegrityError("Elements must be unique.")
+            raise SpineIntegrityError("Missing list of values.")
+        if len(value_list) != len(set(value_list)):
+            raise SpineIntegrityError("Values must be unique.")
 
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""
@@ -2300,13 +2299,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             item_list = list()
             id_list = set(range(id, id + len(wide_kwargs_list)))
             for wide_kwargs in wide_kwargs_list:
-                for k, element in enumerate(wide_kwargs['element_list']):
-                    value = wide_kwargs['value_list'][k]
+                for k, value in enumerate(wide_kwargs['value_list']):
                     narrow_kwargs = {
                         'id': id,
                         'name': wide_kwargs['name'],
-                        'element_index': k,
-                        'element': element,
+                        'value_index': k,
                         'value': value
                     }
                     item_list.append(narrow_kwargs)
@@ -2749,13 +2746,11 @@ class DiffDatabaseMapping(DatabaseMapping):
                     continue
                 updated_ids.add(id)
                 updated_wide_kwargs.update(wide_kwargs)
-                for k, element in enumerate(updated_wide_kwargs['element_list']):
-                    value = updated_wide_kwargs['value_list'][k]
+                for k, value in enumerate(updated_wide_kwargs['value_list']):
                     updated_narrow_kwargs = {
                         'id': id,
                         'name': updated_wide_kwargs['name'],
-                        'element_index': k,
-                        'element': element,
+                        'value_index': k,
                         'value': value
                     }
                     item_list.append(updated_narrow_kwargs)

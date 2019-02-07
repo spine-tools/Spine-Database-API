@@ -41,11 +41,10 @@ def upgrade():
     )
     op.create_table(
         'parameter_enum',
-        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('id', sa.Integer, primary_key=True, nullable=False),
         sa.Column('name', sa.String(155), nullable=False),
-        sa.Column('element_index', sa.Integer, primary_key=True, nullable=False),
-        sa.Column('element', sa.Unicode(255), nullable=False),
-        sa.Column('value', sa.Unicode(255)),
+        sa.Column('value_index', sa.Integer, primary_key=True, nullable=False),
+        sa.Column('value', sa.Unicode(255), nullable=False),
         sa.Column('commit_id', sa.Integer, sa.ForeignKey('commit.id'))
     )
     with op.batch_alter_table("parameter_definition") as batch_op:

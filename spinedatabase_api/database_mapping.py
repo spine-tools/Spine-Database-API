@@ -645,8 +645,7 @@ class DatabaseMapping(object):
         qry = self.session.query(
             self.ParameterEnum.id.label("id"),
             self.ParameterEnum.name.label("name"),
-            self.ParameterEnum.element_index.label("element_index"),
-            self.ParameterEnum.element.label("element"),
+            self.ParameterEnum.value.label("value_index"),
             self.ParameterEnum.value.label("value"))
         if id_list is not None:
             qry = qry.filter(self.ParameterEnum.id.in_(id_list))
@@ -658,9 +657,8 @@ class DatabaseMapping(object):
         return self.session.query(
             subqry.c.id,
             subqry.c.name,
-            func.group_concat(subqry.c.element).label('element_list'),
             func.group_concat(subqry.c.value).label('value_list')
-        ).order_by(subqry.c.id, subqry.c.element_index).group_by(subqry.c.id)
+        ).order_by(subqry.c.id, subqry.c.value_index).group_by(subqry.c.id)
 
     def object_parameter_fields(self):
         """Return object parameter fields."""
