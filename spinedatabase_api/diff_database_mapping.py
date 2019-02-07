@@ -496,6 +496,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterDefinition.name.label('name'),
             self.DiffParameterDefinition.relationship_class_id.label('relationship_class_id'),
             self.DiffParameterDefinition.object_class_id.label('object_class_id'),
+            self.DiffParameterDefinition.enum_id.label('enum_id'),
             self.DiffParameterDefinition.can_have_time_series.label('can_have_time_series'),
             self.DiffParameterDefinition.can_have_time_pattern.label('can_have_time_pattern'),
             self.DiffParameterDefinition.can_be_stochastic.label('can_be_stochastic'),
@@ -2372,9 +2373,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             new_dirty_ids = set()
             updated_ids = set()
             for kwargs in checked_kwargs_list:
-                try:
-                    id = kwargs['id']
-                except KeyError:
+                id = kwargs.pop('id')
+                if not id or not kwargs:
                     continue
                 diff_item = self.session.query(self.DiffObjectClass).filter_by(id=id).one_or_none()
                 if diff_item:
@@ -2416,9 +2416,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             for kwargs in checked_kwargs_list:
                 if "class_id" in kwargs:
                     continue
-                try:
-                    id = kwargs['id']
-                except KeyError:
+                id = kwargs.pop('id')
+                if not id or not kwargs:
                     continue
                 diff_item = self.session.query(self.DiffObject).filter_by(id=id).one_or_none()
                 if diff_item:
@@ -2461,9 +2460,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 # Don't update object_class_id for now (even though below we handle it)
                 if "object_class_id_list" in wide_kwargs:
                     continue
-                try:
-                    id = wide_kwargs['id']
-                except KeyError:
+                id = wide_kwargs.pop('id')
+                if not id or not wide_kwargs:
                     continue
                 object_class_id_list = wide_kwargs.pop('object_class_id_list', list())
                 diff_item_list = self.session.query(self.DiffRelationshipClass).filter_by(id=id)
@@ -2518,9 +2516,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             for wide_kwargs in checked_wide_kwargs_list:
                 if "class_id" in wide_kwargs:
                     continue
-                try:
-                    id = wide_kwargs['id']
-                except KeyError:
+                id = wide_kwargs.pop('id')
+                if not id or not wide_kwargs:
                     continue
                 object_id_list = wide_kwargs.pop('object_id_list', list())
                 diff_item_list = self.session.query(self.DiffRelationship).filter_by(id=id).\
@@ -2576,9 +2573,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             for kwargs in checked_kwargs_list:
                 if "object_class_id" in kwargs or "relationship_class_id" in kwargs:
                     continue
-                try:
-                    id = kwargs['id']
-                except KeyError:
+                id = kwargs.pop('id')
+                if not id or not kwargs:
                     continue
                 diff_item = self.session.query(self.DiffParameterDefinition).filter_by(id=id).one_or_none()
                 if diff_item:
@@ -2627,9 +2623,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             for kwargs in kwargs_list:
                 if "object_id" in kwargs or "relationship_id" in kwargs or "parameter_id" in kwargs:
                     continue
-                try:
-                    id = kwargs['id']
-                except KeyError:
+                id = kwargs.pop('id')
+                if not id or not kwargs:
                     continue
                 diff_item = self.session.query(self.DiffParameterValue).filter_by(id=id).one_or_none()
                 if diff_item:
@@ -2701,8 +2696,6 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def set_parameter_definition_tags(self, tag_dict, raise_intgr_error=True):
         """Set tags for parameter definitions."""
-        if not tag_dict:
-            return None
         tag_id_lists = {
             x.parameter_definition_id: [int(y) for y in x.parameter_tag_id_list.split(",")]
             for x in self.wide_parameter_definition_tag_list()
@@ -2726,9 +2719,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 if tag_id not in target_tag_id_list:
                     ids_to_delete.add(definition_tag_id_dict[definition_id, tag_id])
         self.remove_items(parameter_definition_tag_ids=ids_to_delete)
-        ret = self.add_parameter_definition_tags(*items_to_insert, raise_intgr_error=raise_intgr_error)
-        if not raise_intgr_error:
-            return ret[1]
+        return self.add_parameter_definition_tags(*items_to_insert, raise_intgr_error=raise_intgr_error)
 
     def update_wide_parameter_enums(self, *wide_kwargs_list, raise_intgr_error=True):
         """Update parameter enums.

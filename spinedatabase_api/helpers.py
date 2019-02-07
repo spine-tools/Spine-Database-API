@@ -279,7 +279,6 @@ def create_new_spine_database(db_url):
             description VARCHAR(155) DEFAULT NULL,
             data_type VARCHAR(155) DEFAULT 'NUMERIC',
             relationship_class_id INTEGER DEFAULT NULL,
-            dummy_relationship_class_dimension INTEGER DEFAULT '0',
             object_class_id INTEGER DEFAULT NULL,
             can_have_time_series INTEGER DEFAULT '0',
             can_have_time_pattern INTEGER DEFAULT '1',
@@ -294,8 +293,6 @@ def create_new_spine_database(db_url):
             PRIMARY KEY (id),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(relationship_class_id, dummy_relationship_class_dimension)
-                REFERENCES relationship_class (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
             CHECK (`relationship_class_id` IS NOT NULL OR `object_class_id` IS NOT NULL),
             UNIQUE(name)
         );

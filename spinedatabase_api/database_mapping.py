@@ -392,6 +392,7 @@ class DatabaseMapping(object):
             self.ParameterDefinition.name.label('name'),
             self.ParameterDefinition.relationship_class_id.label('relationship_class_id'),
             self.ParameterDefinition.object_class_id.label('object_class_id'),
+            self.ParameterDefinition.enum_id.label('enum_id'),
             self.ParameterDefinition.can_have_time_series.label('can_have_time_series'),
             self.ParameterDefinition.can_have_time_pattern.label('can_have_time_pattern'),
             self.ParameterDefinition.can_be_stochastic.label('can_be_stochastic'),

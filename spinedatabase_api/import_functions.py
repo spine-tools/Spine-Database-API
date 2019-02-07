@@ -231,7 +231,7 @@ def import_object_parameters(db_map, parameter_data):
         param = {'name': parameter_name,
                  'object_class_id': existing_classes.get(oc_name, None)}
         try:
-            db_map.check_parameter(param, parameter_names, object_class_dict, relationship_class_dict)
+            db_map.check_parameter_definition(param, parameter_names, object_class_dict, relationship_class_dict)
             new_parameters.append(param)
             parameter_names.add(parameter_name)
         except SpineIntegrityError as e:
@@ -265,7 +265,7 @@ def import_relationship_parameters(db_map, parameter_data):
         rc_id = existing_classes.get(rel_class_name, None)
         new_param = {'name': param_name, 'relationship_class_id': rc_id}
         try:
-            db_map.check_parameter(new_param, parameter_names, {}, relationship_class_dict)
+            db_map.check_parameter_definition(new_param, parameter_names, {}, relationship_class_dict)
             new_parameters.append(new_param)
             parameter_names.add(param_name)
         except SpineIntegrityError as e:
@@ -368,7 +368,7 @@ def import_object_parameter_values(db_map, data):
         o_id = existing_objects.get(object_name, None)
         p_id = existing_parameters.get(param_name, None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        new_value = {'parameter_id': p_id, 'object_id': o_id,
+        new_value = {'parameter_definition_id': p_id, 'object_id': o_id,
                      field_name: field_value}
         if pv_id is not None:
             # existing value
@@ -383,8 +383,9 @@ def import_object_parameter_values(db_map, data):
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg,
                                                 db_type="parameter value"))
+            print(new_value)
+            print(e.msg)
             continue
-
         checked_key = (p_id, o_id, field_name)
         if checked_key not in checked_new_values:
             # new values
@@ -466,7 +467,7 @@ def import_relationship_parameter_values(db_map, data):
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get(param_name, None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        new_value = {'parameter_id': p_id, 'relationship_id': r_id,
+        new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id,
                      field_name: field_value}
         if pv_id is not None:
             # existing value
