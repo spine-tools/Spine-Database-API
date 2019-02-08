@@ -413,12 +413,16 @@ class DatabaseMapping(object):
         """Return object classes and their parameters."""
         object_class_list = self.object_class_list().subquery()
         wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
+        wide_parameter_enum_list = self.wide_parameter_enum_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.ParameterDefinition.name.label('parameter_name'),
-            wide_parameter_definition_tag_list.c.name.label('parameter_tag_list'),
+            self.ParameterDefinition.enum_id,
+            wide_parameter_enum_list.c.name.label('enum_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
             self.ParameterDefinition.can_have_time_pattern,
             self.ParameterDefinition.can_be_stochastic,
@@ -430,7 +434,10 @@ class DatabaseMapping(object):
         ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
         outerjoin(
             wide_parameter_definition_tag_list,
-            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id)
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
+        outerjoin(
+            wide_parameter_enum_list,
+            wide_parameter_enum_list.c.id == self.ParameterDefinition.enum_id)
         if object_class_id:
             qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
         if parameter_id:
@@ -440,6 +447,8 @@ class DatabaseMapping(object):
     def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
         """Return relationship classes and their parameters."""
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
+        wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
+        wide_parameter_enum_list = self.wide_parameter_enum_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             wide_relationship_class_list.c.id.label('relationship_class_id'),
@@ -447,6 +456,10 @@ class DatabaseMapping(object):
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
             self.ParameterDefinition.name.label('parameter_name'),
+            self.ParameterDefinition.enum_id,
+            wide_parameter_enum_list.c.name.label('enum_name'),
+            wide_parameter_definition_tag_list.c.parameter_tag_id_list,
+            wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
             self.ParameterDefinition.can_have_time_pattern,
             self.ParameterDefinition.can_be_stochastic,
@@ -455,7 +468,13 @@ class DatabaseMapping(object):
             self.ParameterDefinition.precision,
             self.ParameterDefinition.minimum_value,
             self.ParameterDefinition.maximum_value
-        ).filter(self.ParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id)
+        ).filter(self.ParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
+        outerjoin(
+            wide_parameter_definition_tag_list,
+            wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
+        outerjoin(
+            wide_parameter_enum_list,
+            wide_parameter_enum_list.c.id == self.ParameterDefinition.enum_id)
         if relationship_class_id:
             qry = qry.filter(self.ParameterDefinition.relationship_class_id == relationship_class_id)
         if parameter_id:
@@ -524,6 +543,7 @@ class DatabaseMapping(object):
             wide_relationship_class_list.c.name.label('relationship_class_name'),
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
+            wide_relationship_list.c.id.label('relationship_id'),
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
