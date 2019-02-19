@@ -43,9 +43,9 @@ class DiffDatabaseMapping(DatabaseMapping):
     In a nutshell, it works by creating a new bunch of tables to hold differences
     with respect to original tables.
     """
-    def __init__(self, db_url, username=None, create_all=True):
+    def __init__(self, db_url, username=None, create_all=True, migrate=False):
         """Initialize class."""
-        super().__init__(db_url, username=username, create_all=False)
+        super().__init__(db_url, username=username, create_all=create_all, migrate=migrate)
         # Diff meta, Base and tables
         self.diff_prefix = None
         self.diff_metadata = None
@@ -69,11 +69,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         # Initialize stuff
         self.init_diff_dicts()
         if create_all:
-            self.create_engine_and_session()
-            self.create_mapping()
             self.create_diff_tables_and_mapping()
             self.init_next_id()
-            # self.create_triggers()
+            # self.create_diff_triggers()
 
     def has_pending_changes(self):
         """Return True if there are uncommitted changes. Otherwise return False."""
@@ -222,13 +220,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.close()
             raise SpineTableNotFoundError(table)
 
-    def create_triggers(self):
+    def create_diff_triggers(self):
         """Create ad-hoc triggers.
         NOTE: Not in use at the moment. Cascade delete is implemented in the `remove_items` method.
         TODO: is there a way to synch this with our CREATE TRIGGER statements
         from `helpers.create_new_spine_database`?
         """
-        super().create_triggers()
         @event.listens_for(self.DiffObjectClass, 'after_delete')
         def receive_after_object_class_delete(mapper, connection, object_class):
             @event.listens_for(self.session, "after_flush", once=True)
@@ -1750,7 +1747,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         parameter_enum_dict = {
             x.id: {
                 "name": x.name,
-                "element_list": x.element_list.split(",")
+                "value_list": x.value_list.split(",")
             } for x in self.wide_parameter_enum_list()
         }
         parameter_enum_names = {x.name for x in self.wide_parameter_enum_list()}
@@ -2725,30 +2722,35 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Update parameter enums.
         NOTE: It's too difficult to do it cleanly, so we just remove and then add.
         """
+        checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_enums_for_update(
+            *wide_kwargs_list, raise_intgr_error=raise_intgr_error)
+        wide_parameter_enum_dict = {x.id: x._asdict() for x in self.wide_parameter_enum_list()}
+        updated_ids = set()
+        item_list = list()
+        for wide_kwargs in checked_wide_kwargs_list:
+            try:
+                id = wide_kwargs['id']
+                updated_wide_kwargs = wide_parameter_enum_dict[id]
+            except KeyError:
+                continue
+            updated_ids.add(id)
+            updated_wide_kwargs.update(wide_kwargs)
+            for k, value in enumerate(updated_wide_kwargs['value_list']):
+                updated_narrow_kwargs = {
+                    'id': id,
+                    'name': updated_wide_kwargs['name'],
+                    'value_index': k,
+                    'value': value
+                }
+                item_list.append(updated_narrow_kwargs)
         try:
-            wide_parameter_enum_dict = {x.id: x._asdict() for x in self.wide_parameter_enum_list()}
-            updated_ids = set()
-            item_list = list()
-            for wide_kwargs in wide_kwargs_list:
-                try:
-                    id = wide_kwargs['id']
-                    updated_wide_kwargs = wide_parameter_enum_dict[id]
-                except KeyError:
-                    continue
-                updated_ids.add(id)
-                updated_wide_kwargs.update(wide_kwargs)
-                for k, value in enumerate(updated_wide_kwargs['value_list']):
-                    updated_narrow_kwargs = {
-                        'id': id,
-                        'name': updated_wide_kwargs['name'],
-                        'value_index': k,
-                        'value': value
-                    }
-                    item_list.append(updated_narrow_kwargs)
-            self.remove_items(parameter_enum_ids=updated_ids)
+            self.session.query(self.DiffParameterEnum).filter(self.DiffParameterEnum.id.in_(updated_ids)).\
+                delete(synchronize_session=False)
             self.session.bulk_insert_mappings(self.DiffParameterEnum, item_list)
             self.session.commit()
             self.new_item_id["parameter_enum"].update(updated_ids)
+            self.removed_item_id["parameter_enum"].update(updated_ids)
+            self.touched_item_id["parameter_enum"].update(updated_ids)
             updated_item_list = self.wide_parameter_enum_list(id_list=updated_ids)
             if not raise_intgr_error:
                 return updated_item_list, intgr_error_log
@@ -3076,8 +3078,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def _remove_cascade_parameter_enums(self, ids, diff_ids, removed_item_id, removed_diff_item_id):
         """Remove parameter enums and all related items.
-        TODO: Should we remove parameter definitions here? Do we care if they have invalid enum?
-        If we *do* remove parameter definitions then we need to fix `update_wide_parameter_enum`
+        TODO: Should we remove parameter definitions here? Set their enum_id to NULL?
         """
         removed_item_id.setdefault("parameter_enum", set()).update(ids)
         removed_diff_item_id.setdefault("parameter_enum", set()).update(diff_ids)

@@ -24,6 +24,7 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
+import os
 import time
 import logging
 from sqlalchemy import create_engine, false, distinct, func, MetaData, event
@@ -31,8 +32,13 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
-from .exception import SpineDBAPIError, SpineTableNotFoundError, RecordNotFoundError, ParameterValueError
-from .helpers import custom_generate_relationship, attr_dict, upgrade_to_head
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from alembic.config import Config
+from alembic import command
+from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError, \
+    RecordNotFoundError, ParameterValueError
+from .helpers import custom_generate_relationship, attr_dict
 from datetime import datetime, timezone
 
 # TODO: Consider returning lists of dict (with _asdict()) rather than queries,
@@ -49,7 +55,7 @@ class DatabaseMapping(object):
         db_url (str): The database url formatted according to sqlalchemy rules
         username (str): The user name
     """
-    def __init__(self, db_url, username=None, create_all=True):
+    def __init__(self, db_url, username=None, create_all=True, migrate=False):
         """Initialize class."""
         self.db_url = db_url
         self.username = username
@@ -68,14 +74,14 @@ class DatabaseMapping(object):
         self.ParameterDefinitionTag = None
         self.ParameterEnum = None
         self.Commit = None
-        upgrade_to_head(db_url)
         if create_all:
             self.create_engine_and_session()
+            self.check_db_version(migrate=migrate)
             self.create_mapping()
             # self.create_triggers()
 
     def create_engine_and_session(self):
-        """Create engine connected to self.db_url and session."""
+        """Create engine connected to self.db_url and corresponding session."""
         try:
             self.engine = create_engine(self.db_url)
             self.engine.connect()
@@ -93,6 +99,24 @@ class DatabaseMapping(object):
             #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
             #     raise SpineDBAPIError(msg)
         self.session = Session(self.engine, autoflush=False)
+
+    def check_db_version(self, migrate=False):
+        """Check if database is the latest version and raise a SpineDBVersionError if not.
+        If migrate is True, then don't raise the error and upgrade the database instead.
+        """
+        path = os.path.dirname(__file__)  # NOTE: this assumes this file and alembic.ini are on the same path
+        config = Config(os.path.join(path, "alembic.ini"))
+        config.set_main_option("script_location", "spinedatabase_api:alembic")
+        config.set_main_option("sqlalchemy.url", self.db_url)
+        script = ScriptDirectory.from_config(config)
+        head = script.get_current_head()
+        context = MigrationContext.configure(self.engine.connect())
+        current = context.get_current_revision()
+        if current == head:
+            return
+        if not migrate:
+            raise SpineDBVersionError(url=self.db_url, current=current, head=head)
+        command.upgrade(config, "head")
 
     def create_mapping(self):
         """Create ORM."""
@@ -666,7 +690,7 @@ class DatabaseMapping(object):
         qry = self.session.query(
             self.ParameterEnum.id.label("id"),
             self.ParameterEnum.name.label("name"),
-            self.ParameterEnum.value.label("value_index"),
+            self.ParameterEnum.value_index.label("value_index"),
             self.ParameterEnum.value.label("value"))
         if id_list is not None:
             qry = qry.filter(self.ParameterEnum.id.in_(id_list))
