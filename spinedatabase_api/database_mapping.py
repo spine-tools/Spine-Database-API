@@ -77,6 +77,8 @@ class DatabaseMapping(object):
         if create_all:
             self.create_engine_and_session()
             self.check_db_version(migrate=migrate)
+            # TODO: create_mapping is the first place where we check that the database is a Spine database,
+            # so if it's not, we will raise SpineDBVersionError with a misleading message
             self.create_mapping()
             # self.create_triggers()
 
@@ -87,6 +89,10 @@ class DatabaseMapping(object):
             self.engine.connect()
         except DatabaseError as e:
             raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
+        try:
+            self.engine.execute('SELECT * from object_class;')
+        except DBAPIError as e:
+            raise SpineDBAPIError("Table 'object_class' not found. Not a Spine database?")
         if self.db_url.startswith('sqlite'):
             try:
                 self.engine.execute('pragma quick_check;')
@@ -120,6 +126,7 @@ class DatabaseMapping(object):
 
     def create_mapping(self):
         """Create ORM."""
+        # NOTE: Should we include all missing tables in the error message, rather than only the first one?
         try:
             self.Base = automap_base()
             self.Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)

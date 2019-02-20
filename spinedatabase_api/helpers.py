@@ -24,6 +24,7 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
+import warnings
 import os
 from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
@@ -100,7 +101,7 @@ def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
     for t in meta.sorted_tables:
         if t.name.startswith("diff"):
             continue
-        if only_tables and t.name not in only_tables:
+        if only_tables and t.name not in only_tables and t.name != "alembic_version":
             continue
         if t.name in skip_tables:
             continue
