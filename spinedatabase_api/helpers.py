@@ -88,12 +88,14 @@ def attr_dict(item):
     return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 
-def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
+def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
     meta = MetaData()
     meta.reflect(source_engine)
+    if overwrite:
+        meta.drop_all(dest_engine)
     meta.create_all(dest_engine)
     # Copy tables
     source_meta = MetaData(bind=source_engine)
@@ -109,14 +111,42 @@ def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
         dest_table = Table(t, dest_meta, autoload=True)
         sel = select([source_table])
         result = source_engine.execute(sel)
-        values = [row for row in result]
-        if not values:
-            continue
-        ins = dest_table.insert()
-        try:
-            dest_engine.execute(ins, values)
-        except IntegrityError as e:
-            warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+        if t.name == 'next_id':
+            data = result.fetchone()
+            dest_sel = select([dest_table])
+            dest_result = dest_engine.execute(dest_sel)
+            dest_data = dest_result.fetchone()
+            if not dest_data:
+                # No data in destination, just insert data from source
+                ins = dest_table.insert()
+                try:
+                    dest_engine.execute(ins, data)
+                except IntegrityError as e:
+                    warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+            else:
+                # Some data in destination, update with the maximum between the two
+                new_data = dict()
+                for key, value in data.items():
+                    dest_value = dest_data[key]
+                    try:
+                        assert key != "user"
+                        new_data[key] = max(value, dest_value)
+                    except (AssertionError, TypeError):
+                        new_data[key] = value
+                upd = dest_table.update()
+                try:
+                    dest_engine.execute(upd, new_data)
+                except IntegrityError as e:
+                    warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+        else:
+            data = result.fetchall()
+            if not data:
+                continue
+            ins = dest_table.insert()
+            try:
+                dest_engine.execute(ins, data)
+            except IntegrityError as e:
+                warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
@@ -128,7 +158,7 @@ def custom_generate_relationship(base, direction, return_fn, attrname, local_cls
 
 def is_unlocked(db_url, timeout=0):
     """Return True if the SQLite db_url is unlocked, after waiting at most timeout seconds.
-    Otherwise returns False."""
+    Otherwise return False."""
     if not db_url.startswith("sqlite"):
         return False
     try:
@@ -137,32 +167,6 @@ def is_unlocked(db_url, timeout=0):
         return True
     except OperationalError:
         return False
-
-
-def merge_database(dest_url, source_url, skip_tables=list()):
-    """Merge the database from source_url into dest_url."""
-    source_engine = create_engine(source_url)
-    dest_engine = create_engine(dest_url)
-    # Reflect meta and create tables
-    meta = MetaData()
-    meta.reflect(source_engine)
-    meta.create_all(dest_engine)
-    # Copy tables
-    source_meta = MetaData(bind=source_engine)
-    dest_meta = MetaData(bind=dest_engine)
-    for t in meta.sorted_tables:
-        if t.name in skip_tables:
-            continue
-        source_table = Table(t, source_meta, autoload=True)
-        dest_table = Table(t, dest_meta, autoload=True)
-        sel = select([source_table])
-        result = source_engine.execute(sel)
-        for row in result:
-            ins = dest_table.insert()
-            try:
-                dest_engine.execute(ins, row)
-            except IntegrityError as e:
-                warnings.warn('Skipping row {0}: {1}'.format(row, e.orig.args))
 
 
 def create_new_spine_database(db_url, for_spine_model=True):

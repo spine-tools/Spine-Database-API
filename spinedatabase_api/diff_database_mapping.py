@@ -43,9 +43,9 @@ class DiffDatabaseMapping(DatabaseMapping):
     In a nutshell, it works by creating a new bunch of tables to hold differences
     with respect to original tables.
     """
-    def __init__(self, db_url, username=None, create_all=True, migrate=False):
+    def __init__(self, db_url, username, create_all=True, upgrade=False):
         """Initialize class."""
-        super().__init__(db_url, username=username, create_all=create_all, migrate=migrate)
+        super().__init__(db_url, username=username, create_all=create_all, upgrade=upgrade)
         # Diff meta, Base and tables
         self.diff_prefix = None
         self.diff_metadata = None

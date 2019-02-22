@@ -55,7 +55,7 @@ class DatabaseMapping(object):
         db_url (str): The database url formatted according to sqlalchemy rules
         username (str): The user name
     """
-    def __init__(self, db_url, username=None, create_all=True, migrate=False):
+    def __init__(self, db_url, username=None, create_all=True, upgrade=False):
         """Initialize class."""
         self.db_url = db_url
         self.username = username
@@ -76,7 +76,7 @@ class DatabaseMapping(object):
         self.Commit = None
         if create_all:
             self.create_engine_and_session()
-            self.check_db_version(migrate=migrate)
+            self.check_db_version(upgrade=upgrade)
             # TODO: create_mapping is the first place where we check that the database is a Spine database,
             # so if it's not, we will raise SpineDBVersionError with a misleading message
             self.create_mapping()
@@ -106,9 +106,9 @@ class DatabaseMapping(object):
             #     raise SpineDBAPIError(msg)
         self.session = Session(self.engine, autoflush=False)
 
-    def check_db_version(self, migrate=False):
+    def check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a SpineDBVersionError if not.
-        If migrate is True, then don't raise the error and upgrade the database instead.
+        If upgrade is True, then don't raise the error and upgrade the database instead.
         """
         path = os.path.dirname(__file__)  # NOTE: this assumes this file and alembic.ini are on the same path
         config = Config(os.path.join(path, "alembic.ini"))
@@ -120,7 +120,7 @@ class DatabaseMapping(object):
         current = context.get_current_revision()
         if current == head:
             return
-        if not migrate:
+        if not upgrade:
             raise SpineDBVersionError(url=self.db_url, current=current, head=head)
         command.upgrade(config, "head")
 
