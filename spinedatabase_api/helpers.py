@@ -165,12 +165,12 @@ def merge_database(dest_url, source_url, skip_tables=list()):
                 warnings.warn('Skipping row {0}: {1}'.format(row, e.orig.args))
 
 
-def create_new_spine_database(db_url):
-    """Create a new Spine database in the given database url."""
+def create_new_spine_database(db_url, for_spine_model=True):
+    """Create a new Spine database at the given database url."""
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
     sql_list = list()
     sql = """
         CREATE TABLE IF NOT EXISTS "commit" (
@@ -326,68 +326,67 @@ def create_new_spine_database(db_url):
         );
     """
     sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
-        (1, 'direction', 'A flow direction, e.g., out of a node and into a unit', NULL, 1, NULL, 0, NULL),
-        (2, 'unit', 'An entity where an energy conversion process takes place', NULL, 2, NULL, 0, NULL),
-        (3, 'commodity', 'A commodity', NULL, 3, NULL, 0, NULL),
-        (4, 'node', 'An entity where an energy balance takes place', NULL, 4, NULL, 0, NULL),
-        (5, 'connection', 'An entity where an energy transfer takes place', NULL, 5, NULL, 0, NULL),
-        (6, 'grid', 'A grid', NULL, 6, NULL, 0, NULL),
-        (7, 'time_stage', 'A time stage', NULL, 7, NULL, 0, NULL),
-        (8, 'unit_group', 'A group of units', NULL, 7, NULL, 0, NULL),
-        (9, 'commodity_group', 'A group of commodities', NULL, 7, NULL, 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `object` (`class_id`, `name`, `description`, `category_id`, `commit_id`) VALUES
-        (1, 'in', 'Into a unit, out of a node', NULL, NULL),
-        (1, 'out', 'Out of a unit, into a node', NULL, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `relationship_class` (`id`, `dimension`, `object_class_id`, `name`, `hidden`, `commit_id`) VALUES
-        (1, 0, 3, 'commodity__node__unit__direction', 0, NULL),
-        (1, 1, 4, 'commodity__node__unit__direction', 0, NULL),
-        (1, 2, 2, 'commodity__node__unit__direction', 0, NULL),
-        (1, 3, 1, 'commodity__node__unit__direction', 0, NULL),
-        (2, 0, 5, 'connection__from_node__to_node', 0, NULL),
-        (2, 1, 4, 'connection__from_node__to_node', 0, NULL),
-        (2, 2, 4, 'connection__from_node__to_node', 0, NULL),
-        (3, 0, 2, 'unit__commodity', 0, NULL),
-        (3, 1, 3, 'unit__commodity', 0, NULL),
-        (4, 0, 2, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
-        (4, 1, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
-        (4, 2, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
-        (5, 0, 8, 'unit_group__unit', 0, NULL),
-        (5, 1, 2, 'unit_group__unit', 0, NULL),
-        (6, 0, 9, 'commodity_group__commodity', 0, NULL),
-        (6, 1, 3, 'commodity_group__commodity', 0, NULL),
-        (7, 0, 8, 'unit_group__commodity_group', 0, NULL),
-        (7, 1, 9, 'unit_group__commodity_group', 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter` (`name`, `object_class_id`, `commit_id`) VALUES
-        ('avail_factor', 2, NULL),
-        ('number_of_units', 2, NULL),
-        ('demand', 4, NULL),
-        ('trans_cap', 5, NULL),
-        ('number_of_timesteps', 7, NULL);
-    """
-    sql_list.append(sql)
-
-    sql = """
-        INSERT OR IGNORE INTO `parameter` (`name`, `relationship_class_id`, `commit_id`) VALUES
-        ('unit_capacity', 3, NULL),
-        ('unit_conv_cap_to_flow', 3, NULL),
-        ('conversion_cost', 3, NULL),
-        ('fix_ratio_out_in_flow', 4, NULL),
-        ('max_cum_in_flow_bound', 7, NULL);
-    """
-    sql_list.append(sql)
-
-    # @TODO Fabiano - double creation of triggers?? to be clarified
+    if for_spine_model:
+        sql = """
+            INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
+            (1, 'direction', 'A flow direction, e.g., out of a node and into a unit', NULL, 1, NULL, 0, NULL),
+            (2, 'unit', 'An entity where an energy conversion process takes place', NULL, 2, NULL, 0, NULL),
+            (3, 'commodity', 'A commodity', NULL, 3, NULL, 0, NULL),
+            (4, 'node', 'An entity where an energy balance takes place', NULL, 4, NULL, 0, NULL),
+            (5, 'connection', 'An entity where an energy transfer takes place', NULL, 5, NULL, 0, NULL),
+            (6, 'grid', 'A grid', NULL, 6, NULL, 0, NULL),
+            (7, 'time_stage', 'A time stage', NULL, 7, NULL, 0, NULL),
+            (8, 'unit_group', 'A group of units', NULL, 7, NULL, 0, NULL),
+            (9, 'commodity_group', 'A group of commodities', NULL, 7, NULL, 0, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `object` (`class_id`, `name`, `description`, `category_id`, `commit_id`) VALUES
+            (1, 'in', 'Into a unit, out of a node', NULL, NULL),
+            (1, 'out', 'Out of a unit, into a node', NULL, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `relationship_class` (`id`, `dimension`, `object_class_id`, `name`, `hidden`, `commit_id`) VALUES
+            (1, 0, 3, 'commodity__node__unit__direction', 0, NULL),
+            (1, 1, 4, 'commodity__node__unit__direction', 0, NULL),
+            (1, 2, 2, 'commodity__node__unit__direction', 0, NULL),
+            (1, 3, 1, 'commodity__node__unit__direction', 0, NULL),
+            (2, 0, 5, 'connection__from_node__to_node', 0, NULL),
+            (2, 1, 4, 'connection__from_node__to_node', 0, NULL),
+            (2, 2, 4, 'connection__from_node__to_node', 0, NULL),
+            (3, 0, 2, 'unit__commodity', 0, NULL),
+            (3, 1, 3, 'unit__commodity', 0, NULL),
+            (4, 0, 2, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+            (4, 1, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+            (4, 2, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+            (5, 0, 8, 'unit_group__unit', 0, NULL),
+            (5, 1, 2, 'unit_group__unit', 0, NULL),
+            (6, 0, 9, 'commodity_group__commodity', 0, NULL),
+            (6, 1, 3, 'commodity_group__commodity', 0, NULL),
+            (7, 0, 8, 'unit_group__commodity_group', 0, NULL),
+            (7, 1, 9, 'unit_group__commodity_group', 0, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `parameter` (`name`, `object_class_id`, `commit_id`) VALUES
+            ('avail_factor', 2, NULL),
+            ('number_of_units', 2, NULL),
+            ('demand', 4, NULL),
+            ('trans_cap', 5, NULL),
+            ('number_of_timesteps', 7, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `parameter` (`name`, `relationship_class_id`, `commit_id`) VALUES
+            ('unit_capacity', 3, NULL),
+            ('unit_conv_cap_to_flow', 3, NULL),
+            ('conversion_cost', 3, NULL),
+            ('fix_ratio_out_in_flow', 4, NULL),
+            ('max_cum_in_flow_bound', 7, NULL);
+        """
+        sql_list.append(sql)
+    # TODO Fabiano - double creation of triggers?? to be clarified
     sql = """
         CREATE TRIGGER after_object_class_delete
             AFTER DELETE ON object_class
@@ -401,7 +400,6 @@ def create_new_spine_database(db_url):
         END
     """
     sql_list.append(sql)
-
     sql = """
         CREATE TRIGGER after_object_delete
             AFTER DELETE ON object
@@ -414,13 +412,11 @@ def create_new_spine_database(db_url):
             );
         END
     """
-    #sql_list.append(sql)
-
-
-
+    sql_list.append(sql)
     try:
         for sql in sql_list:
             engine.execute(text(sql))
-        return engine
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+    upgrade_to_head(db_url)
+    return engine
