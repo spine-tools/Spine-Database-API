@@ -1435,7 +1435,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
-                "relationship_class_id": x.relationship_class_id
+                "relationship_class_id": x.relationship_class_id,
+                "enum_id": x.enum_id
             } for x in self.parameter_list()}
         object_dict = {
             x.id: {
@@ -1447,11 +1448,13 @@ class DiffDatabaseMapping(DatabaseMapping):
                 'class_id': x.class_id,
                 'name': x.name
             } for x in self.wide_relationship_list()}
+        parameter_enum_dict = {
+            x.id: x.value_list for x in self.wide_parameter_enum_list()}
         for kwargs in kwargs_list:
             try:
                 self.check_parameter_value(
                     kwargs, object_parameter_values, relationship_parameter_values,
-                    parameter_definition_dict, object_dict, relationship_dict)
+                    parameter_definition_dict, object_dict, relationship_dict, parameter_enum_dict)
                 checked_kwargs_list.append(kwargs)
                 # Update sets of tuples (object_id, parameter_definition_id)
                 # and (relationship_id, parameter_definition_id)
@@ -1488,7 +1491,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
-                "relationship_class_id": x.relationship_class_id
+                "relationship_class_id": x.relationship_class_id,
+                "enum_id": x.enum_id
             } for x in self.parameter_list()}
         object_dict = {
             x.id: {
@@ -1500,6 +1504,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 'class_id': x.class_id,
                 'name': x.name
             } for x in self.wide_relationship_list()}
+        parameter_enum_dict = {
+            x.id: x.value_list for x in self.wide_parameter_enum_list()}
         for kwargs in kwargs_list:
             try:
                 id = kwargs["id"]
@@ -1534,7 +1540,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 updated_kwargs.update(kwargs)
                 self.check_parameter_value(
                     updated_kwargs, object_parameter_values, relationship_parameter_values,
-                    parameter_definition_dict, object_dict, relationship_dict)
+                    parameter_definition_dict, object_dict, relationship_dict, parameter_enum_dict)
                 checked_kwargs_list.append(kwargs)
                 parameter_value_dict[id] = updated_kwargs
                 # Add updated tuples (object_id, parameter_definition_id)
@@ -1553,7 +1559,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def check_parameter_value(
             self, kwargs, object_parameter_values, relationship_parameter_values,
-            parameter_definition_dict, object_dict, relationship_dict):
+            parameter_definition_dict, object_dict, relationship_dict, parameter_enum_dict):
         """Raise a SpineIntegrityError if the parameter value given by `kwargs` violates any integrity constraints."""
         try:
             parameter_definition_id = kwargs["parameter_definition_id"]
@@ -1563,6 +1569,13 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_definition = parameter_definition_dict[parameter_definition_id]
         except KeyError:
             raise SpineIntegrityError("Parameter not found.")
+        enum_id = parameter_definition["enum_id"]
+        if enum_id in parameter_enum_dict:
+            value_list = parameter_enum_dict[enum_id]
+            if 'value' in kwargs and kwargs['value'] not in value_list.split(","):
+                raise SpineIntegrityError("The value '{}' is not a valid enumerated value "
+                                          "for parameter '{}' (valid values are "
+                                          "'{}')".format(kwargs['value'], parameter_definition['name'], value_list))
         object_id = kwargs.get("object_id", None)
         relationship_id = kwargs.get("relationship_id", None)
         if object_id and relationship_id:

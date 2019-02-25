@@ -112,6 +112,7 @@ def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_
         sel = select([source_table])
         result = source_engine.execute(sel)
         if t.name == 'next_id':
+            # `next_id` should always have one (and only one) row, so we need to treat it separately
             data = result.fetchone()
             dest_sel = select([dest_table])
             dest_result = dest_engine.execute(dest_sel)
@@ -124,7 +125,7 @@ def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_
                 except IntegrityError as e:
                     warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
             else:
-                # Some data in destination, update with the maximum between the two
+                # Some data in destination, update with the maximum between the source and destination
                 new_data = dict()
                 for key, value in data.items():
                     dest_value = dest_data[key]
