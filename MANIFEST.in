@@ -1,0 +1,1 @@
+recursive-include spinedatabase_api/alembic/versions *.py

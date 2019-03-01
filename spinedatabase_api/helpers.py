@@ -24,6 +24,8 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
+import warnings
+import os
 from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
 from sqlalchemy.ext.automap import generate_relationship
@@ -35,7 +37,65 @@ from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
 from .exception import SpineDBAPIError
 from sqlalchemy import inspect
-import warnings
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from alembic.migration import MigrationContext
+from alembic.environment import EnvironmentContext
+from alembic import command
+
+
+def is_head(db_url):
+    config = Config()
+    config.set_main_option("script_location", "spinedatabase_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    head = script.get_current_head()
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        migration_context = MigrationContext.configure(connection)
+        current = migration_context.get_current_revision()
+        return current == head
+
+def upgrade_to_head(db_url):
+    config = Config()
+    config.set_main_option("script_location", "spinedatabase_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        # Upgrade function
+        def upgrade_to_head(rev, context):
+            return script._upgrade_revs("head", rev)
+        with EnvironmentContext(
+                config,
+                script,
+                fn=upgrade_to_head,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="head",
+                tag=None) as environment_context:
+            environment_context.configure(connection=connection, target_metadata=None)
+            with environment_context.begin_transaction():
+                environment_context.run_migrations()
+
+def downgrade_to_base(db_url):
+    config = Config()
+    config.set_main_option("script_location", "spinedatabase_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        # Downgrade function
+        def downgrade_to_base(rev, context):
+            return script._downgrade_revs("base", rev)
+        with EnvironmentContext(
+                config,
+                script,
+                fn=downgrade_to_base,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="base",
+                tag=None) as environment_context:
+            environment_context.configure(connection=connection, target_metadata=None)
+            with environment_context.begin_transaction():
+                environment_context.run_migrations()
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -49,6 +109,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+    
 
 @compiles(TINYINT, 'sqlite')
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
@@ -67,12 +128,14 @@ def attr_dict(item):
     return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 
-def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
+def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
     meta = MetaData()
     meta.reflect(source_engine)
+    if overwrite:
+        meta.drop_all(dest_engine)
     meta.create_all(dest_engine)
     # Copy tables
     source_meta = MetaData(bind=source_engine)
@@ -80,7 +143,7 @@ def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
     for t in meta.sorted_tables:
         if t.name.startswith("diff"):
             continue
-        if only_tables and t.name not in only_tables:
+        if only_tables and t.name not in only_tables and t.name != "alembic_version":
             continue
         if t.name in skip_tables:
             continue
@@ -88,14 +151,43 @@ def copy_database(dest_url, source_url, only_tables=list(), skip_tables=list()):
         dest_table = Table(t, dest_meta, autoload=True)
         sel = select([source_table])
         result = source_engine.execute(sel)
-        values = [row for row in result]
-        if not values:
-            continue
-        ins = dest_table.insert()
-        try:
-            dest_engine.execute(ins, values)
-        except IntegrityError as e:
-            warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+        if t.name == 'next_id':
+            # `next_id` should always have one (and only one) row, so we need to treat it separately
+            data = result.fetchone()
+            dest_sel = select([dest_table])
+            dest_result = dest_engine.execute(dest_sel)
+            dest_data = dest_result.fetchone()
+            if not dest_data:
+                # No data in destination, just insert data from source
+                ins = dest_table.insert()
+                try:
+                    dest_engine.execute(ins, data)
+                except IntegrityError as e:
+                    warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+            else:
+                # Some data in destination, update with the maximum between the source and destination
+                new_data = dict()
+                for key, value in data.items():
+                    dest_value = dest_data[key]
+                    try:
+                        assert key != "user"
+                        new_data[key] = max(value, dest_value)
+                    except (AssertionError, TypeError):
+                        new_data[key] = value
+                upd = dest_table.update()
+                try:
+                    dest_engine.execute(upd, new_data)
+                except IntegrityError as e:
+                    warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+        else:
+            data = result.fetchall()
+            if not data:
+                continue
+            ins = dest_table.insert()
+            try:
+                dest_engine.execute(ins, data)
+            except IntegrityError as e:
+                warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
@@ -107,7 +199,7 @@ def custom_generate_relationship(base, direction, return_fn, attrname, local_cls
 
 def is_unlocked(db_url, timeout=0):
     """Return True if the SQLite db_url is unlocked, after waiting at most timeout seconds.
-    Otherwise returns False."""
+    Otherwise return False."""
     if not db_url.startswith("sqlite"):
         return False
     try:
@@ -118,38 +210,12 @@ def is_unlocked(db_url, timeout=0):
         return False
 
 
-def merge_database(dest_url, source_url, skip_tables=list()):
-    """Merge the database from source_url into dest_url."""
-    source_engine = create_engine(source_url)
-    dest_engine = create_engine(dest_url)
-    # Reflect meta and create tables
-    meta = MetaData()
-    meta.reflect(source_engine)
-    meta.create_all(dest_engine)
-    # Copy tables
-    source_meta = MetaData(bind=source_engine)
-    dest_meta = MetaData(bind=dest_engine)
-    for t in meta.sorted_tables:
-        if t.name in skip_tables:
-            continue
-        source_table = Table(t, source_meta, autoload=True)
-        dest_table = Table(t, dest_meta, autoload=True)
-        sel = select([source_table])
-        result = source_engine.execute(sel)
-        for row in result:
-            ins = dest_table.insert()
-            try:
-                dest_engine.execute(ins, row)
-            except IntegrityError as e:
-                warnings.warn('Skipping row {0}: {1}'.format(row, e.orig.args))
-
-
-def create_new_spine_database(db_url):
-    """Create a new Spine database in the given database url."""
+def create_new_spine_database(db_url, for_spine_model=True):
+    """Create a new Spine database at the given database url."""
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
     sql_list = list()
     sql = """
         CREATE TABLE IF NOT EXISTS "commit" (
@@ -259,7 +325,6 @@ def create_new_spine_database(db_url):
             description VARCHAR(155) DEFAULT NULL,
             data_type VARCHAR(155) DEFAULT 'NUMERIC',
             relationship_class_id INTEGER DEFAULT NULL,
-            dummy_relationship_class_dimension INTEGER DEFAULT '0',
             object_class_id INTEGER DEFAULT NULL,
             can_have_time_series INTEGER DEFAULT '0',
             can_have_time_pattern INTEGER DEFAULT '1',
@@ -274,8 +339,6 @@ def create_new_spine_database(db_url):
             PRIMARY KEY (id),
             FOREIGN KEY(commit_id) REFERENCES "commit" (id),
             FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(relationship_class_id, dummy_relationship_class_dimension)
-                REFERENCES relationship_class (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
             CHECK (`relationship_class_id` IS NOT NULL OR `object_class_id` IS NOT NULL),
             UNIQUE(name)
         );
@@ -308,65 +371,67 @@ def create_new_spine_database(db_url):
         );
     """
     sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
-        (1, 'direction', 'A flow direction, e.g., out of a node and into a unit', NULL, 1, NULL, 0, NULL),
-        (2, 'unit', 'An entity where an energy conversion process takes place', NULL, 2, NULL, 0, NULL),
-        (3, 'commodity', 'A commodity', NULL, 3, NULL, 0, NULL),
-        (4, 'node', 'An entity where an energy balance takes place', NULL, 4, NULL, 0, NULL),
-        (5, 'connection', 'An entity where an energy transfer takes place', NULL, 5, NULL, 0, NULL),
-        (6, 'grid', 'A grid', NULL, 6, NULL, 0, NULL),
-        (7, 'time_stage', 'A time stage', NULL, 7, NULL, 0, NULL),
-        (8, 'unit_group', 'A group of units', NULL, 7, NULL, 0, NULL),
-        (9, 'commodity_group', 'A group of commodities', NULL, 7, NULL, 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `object` (`class_id`, `name`, `description`, `category_id`, `commit_id`) VALUES
-        (1, 'in', 'Into a unit, out of a node', NULL, NULL),
-        (1, 'out', 'Out of a unit, into a node', NULL, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `relationship_class` (`id`, `dimension`, `object_class_id`, `name`, `hidden`, `commit_id`) VALUES
-        (1, 0, 3, 'commodity__node__unit__direction', 0, NULL),
-        (1, 1, 4, 'commodity__node__unit__direction', 0, NULL),
-        (1, 2, 2, 'commodity__node__unit__direction', 0, NULL),
-        (1, 3, 1, 'commodity__node__unit__direction', 0, NULL),
-        (2, 0, 5, 'connection__from_node__to_node', 0, NULL),
-        (2, 1, 4, 'connection__from_node__to_node', 0, NULL),
-        (2, 2, 4, 'connection__from_node__to_node', 0, NULL),
-        (3, 0, 2, 'unit__commodity', 0, NULL),
-        (3, 1, 3, 'unit__commodity', 0, NULL),
-        (4, 0, 2, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
-        (4, 1, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
-        (4, 2, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
-        (5, 0, 8, 'unit_group__unit', 0, NULL),
-        (5, 1, 2, 'unit_group__unit', 0, NULL),
-        (6, 0, 9, 'commodity_group__commodity', 0, NULL),
-        (6, 1, 3, 'commodity_group__commodity', 0, NULL),
-        (7, 0, 8, 'unit_group__commodity_group', 0, NULL),
-        (7, 1, 9, 'unit_group__commodity_group', 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter` (`name`, `object_class_id`, `commit_id`) VALUES
-        ('avail_factor', 2, NULL),
-        ('number_of_units', 2, NULL),
-        ('demand', 4, NULL),
-        ('trans_cap', 5, NULL),
-        ('number_of_timesteps', 7, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter` (`name`, `relationship_class_id`, `commit_id`) VALUES
-        ('unit_capacity', 3, NULL),
-        ('unit_conv_cap_to_flow', 3, NULL),
-        ('conversion_cost', 3, NULL),
-        ('fix_ratio_out_in_flow', 4, NULL),
-        ('max_cum_in_flow_bound', 7, NULL);
-    """
-    sql_list.append(sql)
+    if for_spine_model:
+        sql = """
+            INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
+            (1, 'direction', 'A flow direction, e.g., out of a node and into a unit', NULL, 1, NULL, 0, NULL),
+            (2, 'unit', 'An entity where an energy conversion process takes place', NULL, 2, NULL, 0, NULL),
+            (3, 'commodity', 'A commodity', NULL, 3, NULL, 0, NULL),
+            (4, 'node', 'An entity where an energy balance takes place', NULL, 4, NULL, 0, NULL),
+            (5, 'connection', 'An entity where an energy transfer takes place', NULL, 5, NULL, 0, NULL),
+            (6, 'grid', 'A grid', NULL, 6, NULL, 0, NULL),
+            (7, 'time_stage', 'A time stage', NULL, 7, NULL, 0, NULL),
+            (8, 'unit_group', 'A group of units', NULL, 7, NULL, 0, NULL),
+            (9, 'commodity_group', 'A group of commodities', NULL, 7, NULL, 0, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `object` (`class_id`, `name`, `description`, `category_id`, `commit_id`) VALUES
+            (1, 'in', 'Into a unit, out of a node', NULL, NULL),
+            (1, 'out', 'Out of a unit, into a node', NULL, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `relationship_class` (`id`, `dimension`, `object_class_id`, `name`, `hidden`, `commit_id`) VALUES
+            (1, 0, 3, 'commodity__node__unit__direction', 0, NULL),
+            (1, 1, 4, 'commodity__node__unit__direction', 0, NULL),
+            (1, 2, 2, 'commodity__node__unit__direction', 0, NULL),
+            (1, 3, 1, 'commodity__node__unit__direction', 0, NULL),
+            (2, 0, 5, 'connection__from_node__to_node', 0, NULL),
+            (2, 1, 4, 'connection__from_node__to_node', 0, NULL),
+            (2, 2, 4, 'connection__from_node__to_node', 0, NULL),
+            (3, 0, 2, 'unit__commodity', 0, NULL),
+            (3, 1, 3, 'unit__commodity', 0, NULL),
+            (4, 0, 2, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+            (4, 1, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+            (4, 2, 9, 'unit__out_commodity_group__in_commodity_group', 0, NULL),
+            (5, 0, 8, 'unit_group__unit', 0, NULL),
+            (5, 1, 2, 'unit_group__unit', 0, NULL),
+            (6, 0, 9, 'commodity_group__commodity', 0, NULL),
+            (6, 1, 3, 'commodity_group__commodity', 0, NULL),
+            (7, 0, 8, 'unit_group__commodity_group', 0, NULL),
+            (7, 1, 9, 'unit_group__commodity_group', 0, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `parameter` (`name`, `object_class_id`, `commit_id`) VALUES
+            ('avail_factor', 2, NULL),
+            ('number_of_units', 2, NULL),
+            ('demand', 4, NULL),
+            ('trans_cap', 5, NULL),
+            ('number_of_timesteps', 7, NULL);
+        """
+        sql_list.append(sql)
+        sql = """
+            INSERT OR IGNORE INTO `parameter` (`name`, `relationship_class_id`, `commit_id`) VALUES
+            ('unit_capacity', 3, NULL),
+            ('unit_conv_cap_to_flow', 3, NULL),
+            ('conversion_cost', 3, NULL),
+            ('fix_ratio_out_in_flow', 4, NULL),
+            ('max_cum_in_flow_bound', 7, NULL);
+        """
+        sql_list.append(sql)
+    # TODO Fabiano - double creation of triggers?? to be clarified
     sql = """
         CREATE TRIGGER after_object_class_delete
             AFTER DELETE ON object_class
@@ -396,6 +461,7 @@ def create_new_spine_database(db_url):
     try:
         for sql in sql_list:
             engine.execute(text(sql))
-        return engine
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+    upgrade_to_head(db_url)
+    return engine

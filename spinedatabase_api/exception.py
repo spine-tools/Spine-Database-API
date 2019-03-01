@@ -38,6 +38,15 @@ class SpineIntegrityError(SpineDBAPIError):
         super().__init__(msg)
 
 
+class SpineDBVersionError(SpineDBAPIError):
+    """Database version error."""
+    def __init__(self, url=None, current=None, head=None):
+        super().__init__(msg="The database at '{}' is not the latest version.".format(url))
+        self.url = url
+        self.current = current
+        self.head = head
+
+
 class SpineTableNotFoundError(SpineDBAPIError):
     """Can't find one of the tables."""
     def __init__(self, table):
