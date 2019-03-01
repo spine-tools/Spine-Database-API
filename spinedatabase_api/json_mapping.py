@@ -550,7 +550,7 @@ class ObjectClassMapping:
                 last_pivot_row = max(last_pivot_row, self.object.value_reference)
             else:
                 last_pivot_row = self.object.value_reference
-        if type(self.parameters) == ParameterMapping:
+        if type(self.parameters) in (ParameterMapping, ParameterColumnCollectionMapping):
             if last_pivot_row is not None:
                 last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row())
             else:
