@@ -2745,21 +2745,25 @@ class DiffDatabaseMapping(DatabaseMapping):
         updated_ids = set()
         item_list = list()
         for wide_kwargs in checked_wide_kwargs_list:
+            id = wide_kwargs.pop('id')
+            if not id or not wide_kwargs:
+                continue
+            updated_ids.add(id)
             try:
-                id = wide_kwargs['id']
                 updated_wide_kwargs = wide_parameter_value_list_dict[id]
             except KeyError:
                 continue
-            updated_ids.add(id)
+            # Split value_list so it's actually a list
+            updated_wide_kwargs['value_list'] = updated_wide_kwargs['value_list'].split(",")
             updated_wide_kwargs.update(wide_kwargs)
             for k, value in enumerate(updated_wide_kwargs['value_list']):
-                updated_narrow_kwargs = {
+                narrow_kwargs = {
                     'id': id,
                     'name': updated_wide_kwargs['name'],
                     'value_index': k,
                     'value': value
                 }
-                item_list.append(updated_narrow_kwargs)
+                item_list.append(narrow_kwargs)
         try:
             self.session.query(self.DiffParameterValueList).filter(self.DiffParameterValueList.id.in_(updated_ids)).\
                 delete(synchronize_session=False)
