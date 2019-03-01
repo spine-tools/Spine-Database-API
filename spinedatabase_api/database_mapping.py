@@ -24,8 +24,6 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-import os
-import time
 import logging
 from sqlalchemy import create_engine, false, distinct, func, MetaData, event
 from sqlalchemy.ext.automap import automap_base
@@ -33,9 +31,9 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
 from alembic.migration import MigrationContext
+from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
-from alembic import command
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError, \
     RecordNotFoundError, ParameterValueError
 from .helpers import custom_generate_relationship, attr_dict
@@ -72,7 +70,7 @@ class DatabaseMapping(object):
         self.ParameterValue = None
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
-        self.ParameterEnum = None
+        self.ParameterValueList = None
         self.Commit = None
         if create_all:
             self.create_engine_and_session()
@@ -86,7 +84,8 @@ class DatabaseMapping(object):
         """Create engine connected to self.db_url and corresponding session."""
         try:
             self.engine = create_engine(self.db_url)
-            self.engine.connect()
+            with self.engine.connect():
+                pass
         except DatabaseError as e:
             raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
         try:
@@ -110,19 +109,31 @@ class DatabaseMapping(object):
         """Check if database is the latest version and raise a SpineDBVersionError if not.
         If upgrade is True, then don't raise the error and upgrade the database instead.
         """
-        path = os.path.dirname(__file__)  # NOTE: this assumes this file and alembic.ini are on the same path
-        config = Config(os.path.join(path, "alembic.ini"))
+        config = Config()
         config.set_main_option("script_location", "spinedatabase_api:alembic")
-        config.set_main_option("sqlalchemy.url", self.db_url)
         script = ScriptDirectory.from_config(config)
         head = script.get_current_head()
-        context = MigrationContext.configure(self.engine.connect())
-        current = context.get_current_revision()
-        if current == head:
-            return
-        if not upgrade:
-            raise SpineDBVersionError(url=self.db_url, current=current, head=head)
-        command.upgrade(config, "head")
+        with self.engine.connect() as connection:
+            migration_context = MigrationContext.configure(connection)
+            current = migration_context.get_current_revision()
+            if current == head:
+                return
+            if not upgrade:
+                raise SpineDBVersionError(url=self.db_url, current=current, head=head)
+            # Upgrade function
+            def upgrade_to_head(rev, context):
+                return script._upgrade_revs("head", rev)
+            with EnvironmentContext(
+                    config,
+                    script,
+                    fn=upgrade_to_head,
+                    as_sql=False,
+                    starting_rev=None,
+                    destination_rev="head",
+                    tag=None) as environment_context:
+                environment_context.configure(connection=connection, target_metadata=None)
+                with environment_context.begin_transaction():
+                    environment_context.run_migrations()
 
     def create_mapping(self):
         """Create ORM."""
@@ -139,7 +150,7 @@ class DatabaseMapping(object):
             self.ParameterValue = self.Base.classes.parameter_value
             self.ParameterTag = self.Base.classes.parameter_tag
             self.ParameterDefinitionTag = self.Base.classes.parameter_definition_tag
-            self.ParameterEnum = self.Base.classes.parameter_enum
+            self.ParameterValueList = self.Base.classes.parameter_value_list
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
             self.close()
@@ -423,7 +434,7 @@ class DatabaseMapping(object):
             self.ParameterDefinition.name.label('name'),
             self.ParameterDefinition.relationship_class_id.label('relationship_class_id'),
             self.ParameterDefinition.object_class_id.label('object_class_id'),
-            self.ParameterDefinition.enum_id.label('enum_id'),
+            self.ParameterDefinition.parameter_value_list_id.label('parameter_value_list_id'),
             self.ParameterDefinition.can_have_time_series.label('can_have_time_series'),
             self.ParameterDefinition.can_have_time_pattern.label('can_have_time_pattern'),
             self.ParameterDefinition.can_be_stochastic.label('can_be_stochastic'),
@@ -444,14 +455,14 @@ class DatabaseMapping(object):
         """Return object classes and their parameters."""
         object_class_list = self.object_class_list().subquery()
         wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
-        wide_parameter_enum_list = self.wide_parameter_enum_list().subquery()
+        wide_parameter_value_list_list = self.wide_parameter_value_list_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             object_class_list.c.id.label('object_class_id'),
             object_class_list.c.name.label('object_class_name'),
             self.ParameterDefinition.name.label('parameter_name'),
-            self.ParameterDefinition.enum_id,
-            wide_parameter_enum_list.c.name.label('enum_name'),
+            self.ParameterDefinition.parameter_value_list_id.label('value_list_id'),
+            wide_parameter_value_list_list.c.name.label('value_list_name'),
             wide_parameter_definition_tag_list.c.parameter_tag_id_list,
             wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
@@ -467,8 +478,8 @@ class DatabaseMapping(object):
             wide_parameter_definition_tag_list,
             wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
         outerjoin(
-            wide_parameter_enum_list,
-            wide_parameter_enum_list.c.id == self.ParameterDefinition.enum_id)
+            wide_parameter_value_list_list,
+            wide_parameter_value_list_list.c.id == self.ParameterDefinition.parameter_value_list_id)
         if object_class_id:
             qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
         if parameter_id:
@@ -479,7 +490,7 @@ class DatabaseMapping(object):
         """Return relationship classes and their parameters."""
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
-        wide_parameter_enum_list = self.wide_parameter_enum_list().subquery()
+        wide_parameter_value_list_list = self.wide_parameter_value_list_list().subquery()
         qry = self.session.query(
             self.ParameterDefinition.id.label('id'),
             wide_relationship_class_list.c.id.label('relationship_class_id'),
@@ -487,8 +498,8 @@ class DatabaseMapping(object):
             wide_relationship_class_list.c.object_class_id_list,
             wide_relationship_class_list.c.object_class_name_list,
             self.ParameterDefinition.name.label('parameter_name'),
-            self.ParameterDefinition.enum_id,
-            wide_parameter_enum_list.c.name.label('enum_name'),
+            self.ParameterDefinition.parameter_value_list_id.label('value_list_id'),
+            wide_parameter_value_list_list.c.name.label('value_list_name'),
             wide_parameter_definition_tag_list.c.parameter_tag_id_list,
             wide_parameter_definition_tag_list.c.parameter_tag_list,
             self.ParameterDefinition.can_have_time_series,
@@ -504,8 +515,8 @@ class DatabaseMapping(object):
             wide_parameter_definition_tag_list,
             wide_parameter_definition_tag_list.c.parameter_definition_id == self.ParameterDefinition.id).\
         outerjoin(
-            wide_parameter_enum_list,
-            wide_parameter_enum_list.c.id == self.ParameterDefinition.enum_id)
+            wide_parameter_value_list_list,
+            wide_parameter_value_list_list.c.id == self.ParameterDefinition.parameter_value_list_id)
         if relationship_class_id:
             qry = qry.filter(self.ParameterDefinition.relationship_class_id == relationship_class_id)
         if parameter_id:
@@ -534,7 +545,7 @@ class DatabaseMapping(object):
             qry = qry.filter_by(relationship_id=relationship_id)
         return qry
 
-    # TODO: This should be updated so it also brings enum and tag_list
+    # TODO: This should be updated so it also brings value_list and tag_list
     def object_parameter_value_list(self, parameter_name=None):
         """Return objects and their parameter values."""
         parameter_list = self.parameter_list().subquery()
@@ -562,7 +573,7 @@ class DatabaseMapping(object):
             qry = qry.filter(parameter_list.c.name == parameter_name)
         return qry
 
-    # TODO: This should be updated so it also brings enum and tag_list
+    # TODO: This should be updated so it also brings value_list and tag_list
     def relationship_parameter_value_list(self, parameter_name=None):
         """Return relationships and their parameter values."""
         parameter_list = self.parameter_list().subquery()
@@ -692,20 +703,20 @@ class DatabaseMapping(object):
             func.group_concat(subqry.c.parameter_tag).label('parameter_tag_list')
         ).group_by(subqry.c.parameter_definition_id)
 
-    def parameter_enum_list(self, id_list=None):
-        """Return list of parameter enums."""
+    def parameter_value_list_list(self, id_list=None):
+        """Return list of parameter value_lists."""
         qry = self.session.query(
-            self.ParameterEnum.id.label("id"),
-            self.ParameterEnum.name.label("name"),
-            self.ParameterEnum.value_index.label("value_index"),
-            self.ParameterEnum.value.label("value"))
+            self.ParameterValueList.id.label("id"),
+            self.ParameterValueList.name.label("name"),
+            self.ParameterValueList.value_index.label("value_index"),
+            self.ParameterValueList.value.label("value"))
         if id_list is not None:
-            qry = qry.filter(self.ParameterEnum.id.in_(id_list))
+            qry = qry.filter(self.ParameterValueList.id.in_(id_list))
         return qry
 
-    def wide_parameter_enum_list(self, id_list=None):
-        """Return list of parameter enums and their elements in wide format."""
-        subqry = self.parameter_enum_list(id_list=id_list).subquery()
+    def wide_parameter_value_list_list(self, id_list=None):
+        """Return list of parameter value_lists and their elements in wide format."""
+        subqry = self.parameter_value_list_list(id_list=id_list).subquery()
         return self.session.query(
             subqry.c.id,
             subqry.c.name,
@@ -1149,7 +1160,7 @@ class DatabaseMapping(object):
         self.session.query(self.ParameterValue).delete(synchronize_session=False)
         self.session.query(self.ParameterTag).delete(synchronize_session=False)
         self.session.query(self.ParameterDefinitionTag).delete(synchronize_session=False)
-        self.session.query(self.ParameterEnum).delete(synchronize_session=False)
+        self.session.query(self.ParameterValueList).delete(synchronize_session=False)
         self.session.query(self.Commit).delete(synchronize_session=False)
 
     def close(self):

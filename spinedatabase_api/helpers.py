@@ -38,25 +38,64 @@ from sqlalchemy.engine import Engine
 from .exception import SpineDBAPIError
 from sqlalchemy import inspect
 from alembic.config import Config
+from alembic.script import ScriptDirectory
+from alembic.migration import MigrationContext
+from alembic.environment import EnvironmentContext
 from alembic import command
 
 
-def upgrade_to_head(db_url):
-    # NOTE: this assumes alembic.ini is in the same folder as this file
-    path = os.path.dirname(__file__)
-    alembic_cfg = Config(os.path.join(path, "alembic.ini"))
-    alembic_cfg.set_main_option("script_location", "spinedatabase_api:alembic")
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-    command.upgrade(alembic_cfg, "head")
+def is_head(db_url):
+    config = Config()
+    config.set_main_option("script_location", "spinedatabase_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    head = script.get_current_head()
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        migration_context = MigrationContext.configure(connection)
+        current = migration_context.get_current_revision()
+        return current == head
 
+def upgrade_to_head(db_url):
+    config = Config()
+    config.set_main_option("script_location", "spinedatabase_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        # Upgrade function
+        def upgrade_to_head(rev, context):
+            return script._upgrade_revs("head", rev)
+        with EnvironmentContext(
+                config,
+                script,
+                fn=upgrade_to_head,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="head",
+                tag=None) as environment_context:
+            environment_context.configure(connection=connection, target_metadata=None)
+            with environment_context.begin_transaction():
+                environment_context.run_migrations()
 
 def downgrade_to_base(db_url):
-    # NOTE: this assumes alembic.ini is in the same folder as this file
-    path = os.path.dirname(__file__)
-    alembic_cfg = Config(os.path.join(path, "alembic.ini"))
-    alembic_cfg.set_main_option("script_location", "spinedatabase_api:alembic")
-    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-    command.downgrade(alembic_cfg, "base")
+    config = Config()
+    config.set_main_option("script_location", "spinedatabase_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        # Downgrade function
+        def downgrade_to_base(rev, context):
+            return script._downgrade_revs("base", rev)
+        with EnvironmentContext(
+                config,
+                script,
+                fn=downgrade_to_base,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="base",
+                tag=None) as environment_context:
+            environment_context.configure(connection=connection, target_metadata=None)
+            with environment_context.begin_transaction():
+                environment_context.run_migrations()
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -70,6 +109,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+    
 
 @compiles(TINYINT, 'sqlite')
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
