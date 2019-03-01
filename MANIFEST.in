@@ -1,2 +1,1 @@
-include spinedatabase_api/alembic.ini
-recursive-include spinedatabase_api/alembic *.py
+recursive-include spinedatabase_api/alembic/versions *.py
