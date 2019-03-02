@@ -342,11 +342,13 @@ def import_object_parameter_values(db_map, data):
     object_parameter_values = {(x.object_id, x.parameter_id): x.id
                                for x in db_map.object_parameter_value_list()}
     parameter_dict = {x.id: {"name": x.name,"object_class_id": x.object_class_id,
-                             "relationship_class_id": x.relationship_class_id}
+                             "relationship_class_id": x.relationship_class_id,
+                             "parameter_value_list_id": x.parameter_value_list_id}
                       for x in db_map.parameter_list()}
     object_dict = {x.id: {'class_id': x.class_id,'name': x.name}
                    for x in db_map.object_list()}
-
+    parameter_value_list_dict = {x.id: x.value_list
+                                 for x in db_map.wide_parameter_value_list_list()}
     existing_objects = {o['name']: o_id for o_id, o in object_dict.items()}
     existing_parameters = {p['name']: p_id for p_id, p in parameter_dict.items()}
     error_log = []
@@ -379,7 +381,7 @@ def import_object_parameter_values(db_map, data):
             if (o_id, p_id) in object_parameter_values:
                 object_parameter_values.pop((o_id, p_id))
             db_map.check_parameter_value(new_value, object_parameter_values, {},
-                                         parameter_dict, object_dict, {})
+                                         parameter_dict, object_dict, {}, parameter_value_list_dict)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg,
                                                 db_type="parameter value"))
@@ -430,14 +432,16 @@ def import_relationship_parameter_values(db_map, data):
     relationship_parameter_values = {(x.relationship_id, x.parameter_id): x.id
                                      for x in db_map.relationship_parameter_value_list()}
     parameter_dict = {x.id: {"name": x.name,"object_class_id": x.object_class_id,
-                             "relationship_class_id": x.relationship_class_id}
+                             "relationship_class_id": x.relationship_class_id,
+                             "parameter_value_list_id": x.parameter_value_list_id}
                       for x in db_map.parameter_list()}
     object_dict = {x.id: {'class_id': x.class_id,'name': x.name}
                    for x in db_map.object_list()}
     relationship_dict = {x.id: {'class_id': x.class_id, 'name': x.name,
                                 'object_id_list': [int(i) for i in x.object_id_list.split(',')]}
                          for x in db_map.wide_relationship_list()}
-
+    parameter_value_list_dict = {x.id: x.value_list
+                                 for x in db_map.wide_parameter_value_list_list()}
     existing_objects = {o['name']: o_id for o_id, o in object_dict.items()}
     existing_parameters = {p['name']: p_id for p_id, p in parameter_dict.items()}
     existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
@@ -478,7 +482,7 @@ def import_relationship_parameter_values(db_map, data):
             if (r_id, p_id) in relationship_parameter_values:
                 relationship_parameter_values.pop((r_id, p_id))
             db_map.check_parameter_value(new_value, {}, relationship_parameter_values,
-                                         parameter_dict, {}, relationship_dict)
+                                         parameter_dict, {}, relationship_dict, parameter_value_list_dict)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg,
                                                 db_type="parameter value"))
