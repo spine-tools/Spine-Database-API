@@ -30,19 +30,18 @@ from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
+from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
-from .exception import SpineDBAPIError
+from .exception import SpineDBAPIError, SpineDBVersionError
 from sqlalchemy import inspect
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic import command
-
 
 def is_head(db_url):
     config = Config()
@@ -109,7 +108,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
-    
+
 
 @compiles(TINYINT, 'sqlite')
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
@@ -128,31 +127,58 @@ def attr_dict(item):
     return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 
-def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_tables=set()):
+def copy_database(dest_url, source_url, upgrade=False, overwrite=True, only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
+    # Upgrading stuff
+    if not is_head(source_url):
+        if not upgrade:
+            raise SpineDBVersionError(url=source_url)
+        try:
+            upgrade_to_head(source_url)
+        except DBAPIError:
+            pass
+    if not is_head(dest_url):
+        if not upgrade:
+            raise SpineDBVersionError(url=dest_url)
+        try:
+            upgrade_to_head(dest_url)
+        except DBAPIError:
+            pass
+    # Copy db
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
     meta = MetaData()
     meta.reflect(source_engine)
     if overwrite:
         meta.drop_all(dest_engine)
-    meta.create_all(dest_engine)
-    # Copy tables
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
     for t in meta.sorted_tables:
         if t.name.startswith("diff"):
             continue
+        # Create table in dest
+        source_table = Table(t, source_meta, autoload=True)
+        source_table.create(dest_engine, checkfirst=True)
+        # Skip tables according to `only_tables` and `skip_tables`, but never skip "alembic_version"
         if only_tables and t.name not in only_tables and t.name != "alembic_version":
             continue
-        if t.name in skip_tables:
+        if t.name in skip_tables and t.name != "alembic_version":
             continue
-        source_table = Table(t, source_meta, autoload=True)
         dest_table = Table(t, dest_meta, autoload=True)
         sel = select([source_table])
         result = source_engine.execute(sel)
-        if t.name == 'next_id':
-            # `next_id` should always have one (and only one) row, so we need to treat it separately
+        if t.name != 'next_id':
+            # Insert data from source into destination
+            data = result.fetchall()
+            if not data:
+                continue
+            ins = dest_table.insert()
+            try:
+                dest_engine.execute(ins, data)
+            except IntegrityError as e:
+                warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+        else:
+            # Combine data from source *and* destination to get the highest id
             data = result.fetchone()
             dest_sel = select([dest_table])
             dest_result = dest_engine.execute(dest_sel)
@@ -165,7 +191,7 @@ def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_
                 except IntegrityError as e:
                     warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
             else:
-                # Some data in destination, update with the maximum between the source and destination
+                # Some data in destination, update with the maximum id between source and destination
                 new_data = dict()
                 for key, value in data.items():
                     dest_value = dest_data[key]
@@ -179,15 +205,6 @@ def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_
                     dest_engine.execute(upd, new_data)
                 except IntegrityError as e:
                     warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
-        else:
-            data = result.fetchall()
-            if not data:
-                continue
-            ins = dest_table.insert()
-            try:
-                dest_engine.execute(ins, data)
-            except IntegrityError as e:
-                warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):

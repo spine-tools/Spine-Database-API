@@ -75,8 +75,6 @@ class DatabaseMapping(object):
         if create_all:
             self.create_engine_and_session()
             self.check_db_version(upgrade=upgrade)
-            # TODO: create_mapping is the first place where we check that the database is a Spine database,
-            # so if it's not, we will raise SpineDBVersionError with a misleading message
             self.create_mapping()
             # self.create_triggers()
 
@@ -89,6 +87,7 @@ class DatabaseMapping(object):
         except DatabaseError as e:
             raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
         try:
+            # Quickly check if at least object_class is there...
             self.engine.execute('SELECT * from object_class;')
         except DBAPIError as e:
             raise SpineDBAPIError("Table 'object_class' not found. Not a Spine database?")
@@ -140,7 +139,7 @@ class DatabaseMapping(object):
         # NOTE: Should we include all missing tables in the error message, rather than only the first one?
         try:
             self.Base = automap_base()
-            self.Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
+            self.Base.prepare(self.engine, reflect=True)
             self.ObjectClass = self.Base.classes.object_class
             self.Object = self.Base.classes.object
             self.RelationshipClass = self.Base.classes.relationship_class
@@ -154,10 +153,10 @@ class DatabaseMapping(object):
             self.Commit = self.Base.classes.commit
         except NoSuchTableError as table:
             self.close()
-            raise SpineTableNotFoundError(table)
+            raise SpineTableNotFoundError(table, self.db_url)
         except AttributeError as table:
             self.close()
-            raise SpineTableNotFoundError(table)
+            raise SpineTableNotFoundError(table, self.db_url)
 
     def create_triggers(self):
         """Create ad-hoc triggers.

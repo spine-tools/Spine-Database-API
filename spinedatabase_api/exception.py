@@ -49,8 +49,8 @@ class SpineDBVersionError(SpineDBAPIError):
 
 class SpineTableNotFoundError(SpineDBAPIError):
     """Can't find one of the tables."""
-    def __init__(self, table):
-        super().__init__(msg="Table '{}' is missing from the database.".format(table))
+    def __init__(self, table, url=None):
+        super().__init__(msg="Table '{}' couldn't be mapped from the database at '{}'.".format(table, url))
         self.table = table
 
 

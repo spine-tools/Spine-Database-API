@@ -186,10 +186,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValueList = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value_list")
         except NoSuchTableError as table:
             self.close()
-            raise SpineTableNotFoundError(table)
+            raise SpineTableNotFoundError(table, self.db_url)
         except AttributeError as table:
             self.close()
-            raise SpineTableNotFoundError(table)
+            raise SpineTableNotFoundError(table, self.db_url)
 
     def init_next_id(self):
         """Create next_id table if not exists and map it."""
@@ -218,10 +218,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.NextId = Base.classes.next_id
         except NoSuchTableError as table:
             self.close()
-            raise SpineTableNotFoundError(table)
+            raise SpineTableNotFoundError(table, self.db_url)
         except AttributeError as table:
             self.close()
-            raise SpineTableNotFoundError(table)
+            raise SpineTableNotFoundError(table, self.db_url)
 
     def create_diff_triggers(self):
         """Create ad-hoc triggers.
