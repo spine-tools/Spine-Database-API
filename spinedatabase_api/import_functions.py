@@ -166,6 +166,7 @@ def import_objects(db_map, object_data):
         try:
             db_map.check_object(db_object, existing_objects, existing_class_ids)
             new_objects.append(db_object)
+            existing_objects.add(name)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object"))
     added = db_map._add_objects(*new_objects)
