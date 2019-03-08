@@ -135,14 +135,14 @@ def copy_database(dest_url, source_url, upgrade=False, overwrite=True, only_tabl
             raise SpineDBVersionError(url=source_url)
         try:
             upgrade_to_head(source_url)
-        except DBAPIError, NoSuchTableError:
+        except (DBAPIError, NoSuchTableError):
             pass
     if not is_head(dest_url):
         if not upgrade:
             raise SpineDBVersionError(url=dest_url)
         try:
             upgrade_to_head(dest_url)
-        except DBAPIError, NoSuchTableError:
+        except (DBAPIError, NoSuchTableError):
             pass
     # Copy db
     source_engine = create_engine(source_url)
