@@ -183,6 +183,13 @@ class TestImportObject(unittest.TestCase):
         num_imported, errors = import_objects(self.mock_db_map, [["new_object", "invalid_class_name"]])
         self.mock_db_map._add_objects.assert_called_once()
         self.assertEqual(len(errors), 1)
+    
+    def test_import_two_objects_with_same_name(self):
+        num_imported, errors = import_objects(self.mock_db_map, [["new_object", "existing_oc1"],
+                                                                 ["new_object", "existing_oc2"]])
+        self.mock_db_map._add_objects.assert_called_once_with(
+            {'name': 'new_object', "class_id": 1})
+        self.assertEqual(len(errors), 1)
 
 
 class TestImportRelationshipClass(unittest.TestCase):
