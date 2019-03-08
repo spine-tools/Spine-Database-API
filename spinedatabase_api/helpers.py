@@ -30,7 +30,7 @@ from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError
+from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
@@ -135,14 +135,14 @@ def copy_database(dest_url, source_url, upgrade=False, overwrite=True, only_tabl
             raise SpineDBVersionError(url=source_url)
         try:
             upgrade_to_head(source_url)
-        except DBAPIError:
+        except DBAPIError, NoSuchTableError:
             pass
     if not is_head(dest_url):
         if not upgrade:
             raise SpineDBVersionError(url=dest_url)
         try:
             upgrade_to_head(dest_url)
-        except DBAPIError:
+        except DBAPIError, NoSuchTableError:
             pass
     # Copy db
     source_engine = create_engine(source_url)
