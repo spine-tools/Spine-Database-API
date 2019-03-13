@@ -43,6 +43,7 @@ from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic import command
 
+
 def is_head(db_url):
     config = Config()
     config.set_main_option("script_location", "spinedatabase_api:alembic")
@@ -53,6 +54,7 @@ def is_head(db_url):
         migration_context = MigrationContext.configure(connection)
         current = migration_context.get_current_revision()
         return current == head
+
 
 def upgrade_to_head(db_url):
     config = Config()
@@ -74,6 +76,7 @@ def upgrade_to_head(db_url):
             environment_context.configure(connection=connection, target_metadata=None)
             with environment_context.begin_transaction():
                 environment_context.run_migrations()
+
 
 def downgrade_to_base(db_url):
     config = Config()
