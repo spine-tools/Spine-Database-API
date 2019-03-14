@@ -44,31 +44,35 @@ def create_mock_db_map():
     ObjectClass = namedtuple("ObjectClass", ["name", "id"])
     Object = namedtuple("Object", ["name", "id", "class_id"])
     Parameter = namedtuple("Parameter",
-                           ["name", "id", "object_class_id", "relationship_class_id"])
+                           ["name", "id", "object_class_id", "relationship_class_id", "parameter_value_list_id"])
     RelationshipClass = namedtuple("RelationshipClass",
                                    ["name", "id", "object_class_id_list", "object_class_name_list"])
     Relationship = namedtuple("Relationship",
                               ["name", "id", "object_id_list", "class_id"])
     ParameterValue = namedtuple("ParameterValue",
                                 ["id", "parameter_id", "object_id", "relationship_id"])
+    ParameterValueList = namedtuple("ParameterValueList",
+                                ["id", "value_list"])
 
     # mock data
     existing_object_classes = [ObjectClass(
         'existing_oc1', 1), ObjectClass('existing_oc2', 2)]
     existing_rel_class = [RelationshipClass('existing_rc1', 1, "1,2", "existing_oc1,existing_oc2"),
                           RelationshipClass('existing_rc2', 2, "2,1", "existing_oc2,existing_oc1")]
-    existing_parameter = [Parameter("existing_p1", 1, 1, None),
-                          Parameter("existing_p2", 2, None, 1),
-                          Parameter("existing_p3", 3, 1, None),
-                          Parameter("existing_p4", 4, None, 1)]
+    existing_parameter = [Parameter("existing_p1", 1, 1, None, None),
+                          Parameter("existing_p2", 2, None, 1, None),
+                          Parameter("existing_p3", 3, 1, None, None),
+                          Parameter("existing_p4", 4, None, 1, None)]
     existing_objects = [Object('existing_o1', 1, 1),
                         Object('existing_o2', 2, 2)]
     existing_relationship = [Relationship("existing_r1", 1, "1,2", 1)]
     existing_parameter_value = [ParameterValue(1, 1, 1, None),
                                 ParameterValue(2, 2, None, 1)]
+    existing_parameter_value_list = []
 
     # Mock DiffDatabaseMapping
     db_map = MagicMock()
+    db_map.wide_parameter_value_list_list.return_value = existing_parameter_value_list
     db_map.object_class_list.return_value = existing_object_classes
     db_map.object_list.return_value = existing_objects
     db_map.wide_relationship_class_list.return_value = existing_rel_class
