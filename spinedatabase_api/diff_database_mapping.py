@@ -1413,7 +1413,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing parameter name.")
             if name in parameter_definition_names:
                 raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name),
-                                          name=parameter_definition_names[name])
+                                          id=parameter_definition_names[name])
         elif relationship_class_id:
             if relationship_class_id not in relationship_class_dict:
                 raise SpineIntegrityError("Relationship class not found.")
@@ -1423,7 +1423,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Missing parameter name.")
             if name in parameter_definition_names:
                 raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name),
-                                          name=parameter_definition_names[name])
+                                          id=parameter_definition_names[name])
         else:
             raise SpineIntegrityError("Missing object class or relationship class identifier.")
 
@@ -2154,8 +2154,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_values(self, *kwargs_list, strict=False):
+    def add_parameter_values(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter value to database.
+
+        Args:
+            kwargs_list (iter): list of dictionaries which correspond to the instances to add
+            strict (bool): if True SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             parameter_values (list): added instances
