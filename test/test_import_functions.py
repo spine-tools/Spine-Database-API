@@ -44,7 +44,7 @@ def create_mock_db_map():
     ObjectClass = namedtuple("ObjectClass", ["name", "id"])
     Object = namedtuple("Object", ["name", "id", "class_id"])
     Parameter = namedtuple("Parameter",
-                           ["name", "id", "object_class_id", "relationship_class_id"])
+                           ["name", "id", "object_class_id", "relationship_class_id", "parameter_value_list_id"])
     RelationshipClass = namedtuple("RelationshipClass",
                                    ["name", "id", "object_class_id_list", "object_class_name_list"])
     Relationship = namedtuple("Relationship",
@@ -57,10 +57,10 @@ def create_mock_db_map():
         'existing_oc1', 1), ObjectClass('existing_oc2', 2)]
     existing_rel_class = [RelationshipClass('existing_rc1', 1, "1,2", "existing_oc1,existing_oc2"),
                           RelationshipClass('existing_rc2', 2, "2,1", "existing_oc2,existing_oc1")]
-    existing_parameter = [Parameter("existing_p1", 1, 1, None),
-                          Parameter("existing_p2", 2, None, 1),
-                          Parameter("existing_p3", 3, 1, None),
-                          Parameter("existing_p4", 4, None, 1)]
+    existing_parameter = [Parameter("existing_p1", 1, 1, None, None),
+                          Parameter("existing_p2", 2, None, 1, None),
+                          Parameter("existing_p3", 3, 1, None, None),
+                          Parameter("existing_p4", 4, None, 1, None)]
     existing_objects = [Object('existing_o1', 1, 1),
                         Object('existing_o2', 2, 2)]
     existing_relationship = [Relationship("existing_r1", 1, "1,2", 1)]
@@ -183,7 +183,7 @@ class TestImportObject(unittest.TestCase):
         num_imported, errors = import_objects(self.mock_db_map, [["new_object", "invalid_class_name"]])
         self.mock_db_map._add_objects.assert_called_once()
         self.assertEqual(len(errors), 1)
-    
+
     def test_import_two_objects_with_same_name(self):
         num_imported, errors = import_objects(self.mock_db_map, [["new_object", "existing_oc1"],
                                                                  ["new_object", "existing_oc2"]])
