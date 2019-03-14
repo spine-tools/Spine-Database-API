@@ -356,9 +356,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.relationship_parameter_value_list().\
             filter(or_(self.ParameterValue.id == id, self.DiffParameterValue.id == id))
 
-    def object_class_list(self, id_list=None, ordered=True):
+    def object_class_list(self, id_list=None, name_list=None, ordered=True):
         """Return object classes ordered by display order."""
-        qry = super().object_class_list(id_list=id_list, ordered=False).\
+        qry = super().object_class_list(id_list=id_list, name_list=name_list, ordered=False).\
             filter(~self.ObjectClass.id.in_(self.touched_item_id["object_class"]))
         diff_qry = self.session.query(
             self.DiffObjectClass.id.label("id"),
@@ -367,14 +367,16 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObjectClass.description.label("description"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffObjectClass.id.in_(id_list))
+        if name_list is not None:
+            diff_qry = diff_qry.filter(self.DiffObjectClass.name.in_(name_list))
         qry = qry.union_all(diff_qry)
         if ordered:
             qry = qry.order_by(self.ObjectClass.display_order, self.DiffObjectClass.display_order)
         return qry
 
-    def object_list(self, id_list=None, class_id=None):
+    def object_list(self, id_list=None, name_list=None, class_id=None):
         """Return objects, optionally filtered by class id."""
-        qry = super().object_list(id_list=id_list, class_id=class_id).\
+        qry = super().object_list(id_list=id_list, name_list=name_list, class_id=class_id).\
             filter(~self.Object.id.in_(self.touched_item_id["object"]))
         diff_qry = self.session.query(
             self.DiffObject.id.label('id'),
@@ -383,6 +385,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObject.description.label("description"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffObject.id.in_(id_list))
+        if name_list is not None:
+            diff_qry = diff_qry.filter(self.DiffObject.name.in_(name_list))
         if class_id:
             diff_qry = diff_qry.filter_by(class_id=class_id)
         return qry.union_all(diff_qry)
@@ -406,7 +410,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.DiffRelationshipClass.id, self.DiffRelationshipClass.dimension)
         return qry
 
-    def wide_relationship_class_list(self, id_list=None, object_class_id=None):
+    def wide_relationship_class_list(self, id_list=None, name_list=None, object_class_id=None):
         """Return list of relationship classes in wide format involving a given object class."""
         object_class_list = self.object_class_list(ordered=False).subquery()
         qry = self.session.query(
@@ -427,6 +431,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         if id_list is not None:
             qry = qry.filter(self.RelationshipClass.id.in_(id_list))
             diff_qry = diff_qry.filter(self.DiffRelationshipClass.id.in_(id_list))
+        if name_list is not None:
+            qry = qry.filter(self.RelationshipClass.name.in_(name_list))
+            diff_qry = diff_qry.filter(self.DiffRelationshipClass.name.in_(name_list))
         if object_class_id:
             qry = qry.filter(self.RelationshipClass.id.in_(
                 self.session.query(self.RelationshipClass.id).\
@@ -442,7 +449,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).order_by(subqry.c.id, subqry.c.dimension).group_by(subqry.c.id)
 
-    def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
+    def wide_relationship_list(self, id_list=None, name_list=None, class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
         object_list = self.object_list().subquery()
         qry = self.session.query(
@@ -465,6 +472,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         if id_list is not None:
             qry = qry.filter(self.Relationship.id.in_(id_list))
             diff_qry = diff_qry.filter(self.DiffRelationship.id.in_(id_list))
+        if name_list is not None:
+            qry = qry.filter(self.Relationship.name.in_(name_list))
+            diff_qry = diff_qry.filter(self.DiffRelationship.name.in_(name_list))
         if class_id:
             qry = qry.filter(self.Relationship.id.in_(
                 self.session.query(self.Relationship.id).filter_by(class_id=class_id).distinct()))
@@ -484,10 +494,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).order_by(subqry.c.id, subqry.c.dimension).group_by(subqry.c.id)
 
-    def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
+    def parameter_list(self, id_list=None, name_list=None, object_class_id=None, relationship_class_id=None):
         """Return parameters."""
         qry = super().parameter_list(
             id_list=id_list,
+            name_list=name_list,
             object_class_id=object_class_id,
             relationship_class_id=relationship_class_id
         ).filter(~self.ParameterDefinition.id.in_(self.touched_item_id["parameter_definition"]))
@@ -507,6 +518,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterDefinition.maximum_value.label('maximum_value'))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterDefinition.id.in_(id_list))
+        if name_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.name.in_(name_list))
         if object_class_id:
             diff_qry = diff_qry.filter_by(object_class_id=object_class_id)
         if relationship_class_id:
@@ -875,9 +888,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         return self.wide_relationship_list().filter_by(class_id=parameter.relationship_class_id).\
             filter(~self.Relationship.id.in_(valued_relationship_ids))
 
-    def parameter_tag_list(self, id_list=None):
+    def parameter_tag_list(self, id_list=None, tag_list=None):
         """Return list of parameter tags."""
-        qry = super().parameter_tag_list(id_list=id_list).\
+        qry = super().parameter_tag_list(id_list=id_list, tag_list=tag_list).\
             filter(~self.ParameterTag.id.in_(self.touched_item_id["parameter_tag"]))
         diff_qry = self.session.query(
             self.DiffParameterTag.id.label("id"),
@@ -885,9 +898,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterTag.description.label("description"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterTag.id.in_(id_list))
+        if tag_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterTag.tag.in_(tag_list))
         return qry.union_all(diff_qry).order_by(self.ParameterTag.id, self.DiffParameterTag.id)
 
-    def parameter_definition_tag_list(self, id_list=None):
+    def parameter_definition_tag_list(self, id_list=None, tag_path_list=None):
         """Return list of parameter definition tags."""
         qry = super().parameter_definition_tag_list(id_list=id_list).\
             filter(~self.ParameterDefinitionTag.id.in_(self.touched_item_id["parameter_definition_tag"]))
@@ -897,6 +912,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterDefinitionTag.parameter_tag_id.label('parameter_tag_id'))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterDefinitionTag.id.in_(id_list))
+        if tag_path_list is not None:
+            parameter_definition_id_list, parameter_tag_id_list = zip(*tag_path_list)
+            diff_qry = diff_qry.filter(
+                self.DiffParameterDefinitionTag.parameter_definition_id.in_(parameter_definition_id_list),
+                self.DiffParameterDefinitionTag.parameter_tag_id.in_(parameter_tag_id_list))
         return qry.union_all(diff_qry)
 
     def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
@@ -951,7 +971,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             func.group_concat(subqry.c.parameter_definition_id).label('parameter_definition_id_list')
         ).group_by(subqry.c.parameter_tag_id)
 
-    def parameter_value_list_list(self, id_list=None):
+    def parameter_value_list_list(self, id_list=None, name_list=None):
         """Return list of parameter value_lists."""
         qry = super().parameter_value_list_list(id_list=id_list).\
             filter(~self.ParameterValueList.id.in_(self.touched_item_id["parameter_value_list"]))
@@ -962,6 +982,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffParameterValueList.value.label("value"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffParameterValueList.id.in_(id_list))
+        if name_list is not None:
+            diff_qry = diff_qry.filter(self.DiffParameterValueList.name.in_(name_list))
         return qry.union_all(diff_qry)
 
     def check_object_classes_for_insert(self, *kwargs_list, strict=False):
@@ -978,7 +1000,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_object_classes_for_update(self, *kwargs_list, strict=False):
@@ -997,7 +1019,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing object class identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 # 'Remove' current instance
@@ -1007,7 +1029,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Object class not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             # Check for an insert of the updated instance
             try:
@@ -1020,7 +1042,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_object_class(self, kwargs, object_class_names):
@@ -1032,7 +1054,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing object class name.")
         if name in object_class_names:
-            raise SpineIntegrityError("There can't be more than one object class called '{}'.".format(name))
+            raise SpineIntegrityError("There can't be more than one object class called '{}'.".format(name),
+                                      name=name)
 
     def check_objects_for_insert(self, *kwargs_list, strict=False):
         """Check that objects respect integrity constraints for an insert operation."""
@@ -1048,7 +1071,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_objects_for_update(self, *kwargs_list, strict=False):
@@ -1065,7 +1088,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing object identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_kwargs = object_dict.pop(id)
@@ -1074,7 +1097,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Object not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_kwargs.update(kwargs)
@@ -1085,7 +1108,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_object(self, kwargs, object_names, object_class_id_list):
@@ -1102,7 +1125,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing object name.")
         if name in object_names:
-            raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name))
+            raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name),
+                                      name=name)
 
     def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list, strict=False):
         """Check that relationship classes respect integrity constraints for an insert operation."""
@@ -1118,7 +1142,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_relationship_classes_for_update(self, *wide_kwargs_list, strict=False):
@@ -1139,7 +1163,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing relationship class identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_wide_kwargs = relationship_class_dict.pop(id)
@@ -1148,7 +1172,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Relationship class not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_wide_kwargs.update(wide_kwargs)
@@ -1160,7 +1184,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_relationship_class(self, wide_kwargs, relationship_class_names, object_class_id_list):
@@ -1179,7 +1203,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing relationship class name.")
         if name in relationship_class_names:
-            raise SpineIntegrityError("There can't be more than one relationship class called '{}'.".format(name))
+            raise SpineIntegrityError("There can't be more than one relationship class called '{}'.".format(name),
+                                      name=name)
 
     def check_wide_relationships_for_insert(self, *wide_kwargs_list, strict=False):
         """Check that relationships respect integrity constraints for an insert operation."""
@@ -1210,7 +1235,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_relationships_for_update(self, *wide_kwargs_list, strict=False):
@@ -1244,7 +1269,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing relationship identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_wide_kwargs = relationship_dict.pop(id)
@@ -1255,7 +1280,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Relationship not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_wide_kwargs.update(wide_kwargs)
@@ -1270,7 +1295,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_relationship(
@@ -1303,13 +1328,15 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_name_list = [object_dict[id]['name'] for id in object_id_list]
             relationship_class_name = relationship_class_dict[class_id]['name']
             raise SpineIntegrityError("There's already a relationship between objects {} "
-                                      "in class {}.".format(object_name_list, relationship_class_name))
+                                      "in class {}.".format(object_name_list, relationship_class_name),
+                                      relationship_path = (class_id, join_object_id_list))
         try:
             name = wide_kwargs["name"]
         except KeyError:
             raise SpineIntegrityError("Missing relationship name.")
         if name in relationship_names:
-            raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name))
+            raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name),
+                                      name=name)
 
     def check_parameter_definitions_for_insert(self, *kwargs_list, strict=False):
         """Check that parameters respect integrity constraints for an insert operation."""
@@ -1327,7 +1354,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_definitions_for_update(self, *kwargs_list, strict=False):
@@ -1350,7 +1377,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing parameter definition identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_kwargs = parameter_definition_dict.pop(id)
@@ -1359,7 +1386,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Parameter not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 # Allow turning an object class parameter into a relationship class parameter, and viceversa
@@ -1377,7 +1404,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_definition(
@@ -1405,7 +1432,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing parameter name.")
             if name in parameter_definition_names:
-                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
+                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name),
+                                          name=name)
         elif relationship_class_id:
             if relationship_class_id not in relationship_class_dict:
                 raise SpineIntegrityError("Relationship class not found.")
@@ -1414,7 +1442,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             except KeyError:
                 raise SpineIntegrityError("Missing parameter name.")
             if name in parameter_definition_names:
-                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name))
+                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name),
+                                          name=name)
         else:
             raise SpineIntegrityError("Missing object class or relationship class identifier.")
 
@@ -1422,7 +1451,6 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that parameter values respect integrity constraints for an insert operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        # Per's suggestions
         object_parameter_values = {
             (x.object_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.object_id
         }
@@ -1465,7 +1493,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_values_for_update(self, *kwargs_list, strict=False):
@@ -1511,7 +1539,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing parameter value identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 updated_kwargs = parameter_value_dict.pop(id)
@@ -1527,7 +1555,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Parameter value not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 # Allow turning an object parameter value into a relationship parameter value, and viceversa
@@ -1552,7 +1580,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_value(
@@ -1602,7 +1630,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_name = object_dict[object_id]['name']
                 parameter_name = parameter_definition['name']
                 raise SpineIntegrityError("The value of parameter '{}' for object '{}' is "
-                                          "already specified.".format(parameter_name, object_name))
+                                          "already specified.".format(parameter_name, object_name),
+                                          parameter_value_path=(object_id, parameter_definition_id))
         elif relationship_id:
             try:
                 relationship_class_id = relationship_dict[relationship_id]['class_id']
@@ -1617,7 +1646,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 relationship_name = relationship_dict[relationship_id]['name']
                 parameter_name = parameter_definition['name']
                 raise SpineIntegrityError("The value of parameter '{}' for relationship '{}' is "
-                                          "already specified.".format(parameter_name, relationship_name))
+                                          "already specified.".format(parameter_name, relationship_name),
+                                          parameter_value_path=(relationship_id, parameter_definition_id))
         else:
             raise SpineIntegrityError("Missing object or relationship identifier.")
 
@@ -1634,7 +1664,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_tags_for_update(self, *kwargs_list, strict=False):
@@ -1653,7 +1683,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing parameter tag identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 # 'Remove' current instance
@@ -1663,7 +1693,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Parameter tag not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             # Check for an insert of the updated instance
             try:
@@ -1675,7 +1705,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_tag(self, kwargs, parameter_tags):
@@ -1687,7 +1717,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing parameter tag.")
         if tag in parameter_tags:
-            raise SpineIntegrityError("There can't be more than one '{}' tag.".format(tag))
+            raise SpineIntegrityError("There can't be more than one '{}' tag.".format(tag),
+                                      name=tag)
 
     def check_parameter_definition_tags_for_insert(self, *kwargs_list, strict=False):
         """Check that parameter definition tags respect integrity constraints for an insert operation."""
@@ -1706,7 +1737,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_definition_tag(self, kwargs, parameter_definition_tags,
@@ -1731,7 +1762,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Parameter tag not found.")
         if (parameter_definition_id, parameter_tag_id) in parameter_definition_tags:
-            raise SpineIntegrityError("Parameter '{0}' already has the tag '{1}'.".format(parameter_name, tag))
+            raise SpineIntegrityError("Parameter '{0}' already has the tag '{1}'.".format(parameter_name, tag),
+                                      parameter_tag_path=(parameter_definition_id, parameter_tag_id))
 
     def check_wide_parameter_value_lists_for_insert(self, *wide_kwargs_list, strict=False):
         """Check that parameter value_lists respect integrity constraints for an insert operation."""
@@ -1746,7 +1778,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_parameter_value_lists_for_update(self, *wide_kwargs_list, strict=False):
@@ -1770,7 +1802,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Missing parameter value list identifier."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
                 # 'Remove' current instance
@@ -1780,7 +1812,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 msg = "Parameter value list not found."
                 if strict:
                     raise SpineIntegrityError(msg)
-                intgr_error_log.append(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             # Check for an insert of the updated instance
             try:
@@ -1792,7 +1824,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             except SpineIntegrityError as e:
                 if strict:
                     raise e
-                intgr_error_log.append(e.msg)
+                intgr_error_log.append(e)
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_parameter_value_list(self, wide_kwargs, parameter_value_list_names):
@@ -1804,7 +1836,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing parameter value list name.")
         if name in parameter_value_list_names:
-            raise SpineIntegrityError("There can't be more than one parameter value_list called '{}'.".format(name))
+            raise SpineIntegrityError("There can't be more than one parameter value_list called '{}'.".format(name),
+                                      name=name)
         try:
             value_list = wide_kwargs["value_list"]
         except KeyError:
@@ -1852,20 +1885,26 @@ class DiffDatabaseMapping(DatabaseMapping):
     def add_parameter_value(self, **kwargs):
         return self.add_parameter_values(kwargs)[0].one_or_none()
 
-    def add_object_classes(self, *kwargs_list, strict=False):
+    def add_object_classes(self, *kwargs_list, strict=False, return_dups=False):
         """Add object classes to database.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             object_classes (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
         checked_kwargs_list, intgr_error_log = self.check_object_classes_for_insert(*kwargs_list, strict=strict)
-        new_item_list = self._add_object_classes(*checked_kwargs_list)
+        id_list = self._add_object_classes(*checked_kwargs_list)
+        new_item_list = self.object_class_list(id_list=id_list)
+        if return_dups:
+            name_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.object_class_list(name_list=name_list, ordered=False)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_object_classes(self, *kwargs_list):
@@ -1877,7 +1916,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 they are catched and returned as a log
 
         Returns:
-            object_classes (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.object_class_id:
@@ -1896,27 +1935,32 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.object_class_id = id
             self.session.commit()
             self.new_item_id["object_class"].update(id_list)
-            new_item_list = self.object_class_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_objects(self, *kwargs_list, strict=False):
+    def add_objects(self, *kwargs_list, strict=False, return_dups=False):
         """Add objects to database.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             objects (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
         checked_kwargs_list, intgr_error_log = self.check_objects_for_insert(*kwargs_list, strict=strict)
-        new_item_list = self._add_objects(*checked_kwargs_list)
+        id_list = self._add_objects(*checked_kwargs_list)
+        new_item_list = self.object_list(id_list=id_list)
+        if return_dups:
+            name_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.object_list(name_list=name_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_objects(self, *kwargs_list):
@@ -1926,7 +1970,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
 
         Returns:
-            objects (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.object_id:
@@ -1945,20 +1989,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.object_id = id
             self.session.commit()
             self.new_item_id["object"].update(id_list)
-            new_item_list = self.object_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(self, *wide_kwargs_list, strict=False):
+    def add_wide_relationship_classes(self, *wide_kwargs_list, strict=False, return_dups=False):
         """Add relationship classes to database.
 
         Args:
             wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             wide_relationship_classes (list): added instances
@@ -1966,7 +2010,12 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_relationship_classes_for_insert(
             *wide_kwargs_list, strict=strict)
-        new_item_list = self._add_wide_relationship_classes(*checked_wide_kwargs_list)
+        id_list = self._add_wide_relationship_classes(*checked_wide_kwargs_list)
+        new_item_list = self.wide_relationship_class_list(id_list=id_list)
+        if return_dups:
+            name_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.wide_relationship_class_list(name_list=name_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_wide_relationship_classes(self, *wide_kwargs_list):
@@ -1978,7 +2027,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 they are catched and returned as a log
 
         Returns:
-            wide_relationship_classes (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.relationship_class_id:
@@ -2003,20 +2052,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.relationship_class_id = id
             self.session.commit()
             self.new_item_id["relationship_class"].update(id_list)
-            new_item_list = self.wide_relationship_class_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationships(self, *wide_kwargs_list, strict=False):
+    def add_wide_relationships(self, *wide_kwargs_list, strict=False, return_dups=False):
         """Add relationships to database.
 
         Args:
             wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             wide_relationships (list): added instances
@@ -2024,7 +2073,12 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_relationships_for_insert(
             *wide_kwargs_list, strict=strict)
-        new_item_list = self._add_wide_relationships(*checked_wide_kwargs_list)
+        id_list = self._add_wide_relationships(*checked_wide_kwargs_list)
+        new_item_list = self.wide_relationship_list(id_list=id_list)
+        if return_dups:
+            name_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.wide_relationship_list(name_list=name_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_wide_relationships(self, *wide_kwargs_list):
@@ -2034,7 +2088,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
 
         Returns:
-            wide_relationships (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.relationship_id:
@@ -2060,20 +2114,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.relationship_id = id
             self.session.commit()
             self.new_item_id["relationship"].update(id_list)
-            new_item_list = self.wide_relationship_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameters(self, *kwargs_list, strict=False):
+    def add_parameters(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter to database.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             parameters (list): added instances
@@ -2081,7 +2135,12 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_insert(
             *kwargs_list, strict=strict)
-        new_item_list = self._add_parameters(*checked_kwargs_list)
+        id_list = self._add_parameters(*checked_kwargs_list)
+        new_item_list = self.parameter_list(id_list=id_list)
+        if return_dups:
+            name_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.parameter_list(name_list=name_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_parameters(self, *kwargs_list):
@@ -2091,7 +2150,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
 
         Returns:
-            parameters (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.parameter_definition_id:
@@ -2110,8 +2169,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_definition_id = id
             self.session.commit()
             self.new_item_id["parameter_definition"].update(id_list)
-            new_item_list = self.parameter_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
@@ -2128,14 +2186,15 @@ class DiffDatabaseMapping(DatabaseMapping):
         for kwargs in kwargs_list:
             kwargs["parameter_definition_id"] = kwargs["parameter_id"]
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(*kwargs_list, strict=strict)
-        new_item_list = self._add_parameter_values(*checked_kwargs_list)
+        id_list = self._add_parameter_values(*checked_kwargs_list)
+        new_item_list = self.parameter_value_list(id_list=id_list)
         return new_item_list, intgr_error_log
 
     def _add_parameter_values(self, *kwargs_list):
         """Add parameter value to database.
 
         Returns:
-            parameter_values (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.parameter_value_id:
@@ -2154,34 +2213,39 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_value_id = id
             self.session.commit()
             self.new_item_id["parameter_value"].update(id_list)
-            new_item_list = self.parameter_value_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_tags(self, *kwargs_list, strict=False):
+    def add_parameter_tags(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter tags to database.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             parameter_tags (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_insert(*kwargs_list, strict=strict)
-        new_item_list = self._add_parameter_tags(*checked_kwargs_list)
+        id_list = self._add_parameter_tags(*checked_kwargs_list)
+        new_item_list = self.parameter_tag_list(id_list=id_list)
+        if return_dups:
+            tag_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.parameter_tag_list(tag_list=tag_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_parameter_tags(self, *kwargs_list):
         """Add parameter tags to database.
 
         Returns:
-            parameter_tags (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.parameter_tag_id:
@@ -2200,20 +2264,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_tag_id = id
             self.session.commit()
             self.new_item_id["parameter_tag"].update(id_list)
-            new_item_list = self.parameter_tag_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_definition_tags(self, *kwargs_list, strict=False):
+    def add_parameter_definition_tags(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter definition tags to database.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             parameter_definition_tags (list): added instances
@@ -2221,14 +2285,19 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_definition_tags_for_insert(
             *kwargs_list, strict=strict)
-        new_item_list = self._add_parameter_definition_tags(*checked_kwargs_list)
+        id_list = self._add_parameter_definition_tags(*checked_kwargs_list)
+        new_item_list = self.parameter_definition_tag_list(id_list=id_list)
+        if return_dups:
+            tag_path_list = set(x.parameter_tag_path for x in intgr_error_log)
+            dup_item_list = self.parameter_definition_tag_list(tag_path_list=tag_path_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_parameter_definition_tags(self, *kwargs_list):
         """Add parameter definition tags to database.
 
         Returns:
-            parameter_definition_tags (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.parameter_definition_tag_id:
@@ -2247,20 +2316,20 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_definition_tag_id = id
             self.session.commit()
             self.new_item_id["parameter_definition_tag"].update(id_list)
-            new_item_list = self.parameter_definition_tag_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False):
+    def add_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False, return_dups=False):
         """Add wide parameter value_lists to database.
 
         Args:
             wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
+            return_dups (bool): if True, duplicates are also returned
 
         Returns:
             parameter_value_lists (list): added instances
@@ -2268,14 +2337,19 @@ class DiffDatabaseMapping(DatabaseMapping):
         """
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_value_lists_for_insert(
             *wide_kwargs_list, strict=strict)
-        new_item_list = self._add_wide_parameter_value_lists(*checked_wide_kwargs_list)
+        id_list = self._add_wide_parameter_value_lists(*checked_wide_kwargs_list)
+        new_item_list = self.wide_parameter_value_list_list(id_list=id_list)
+        if return_dups:
+            name_list = set(x.name for x in intgr_error_log)
+            dup_item_list = self.wide_parameter_value_list_list(name_list=name_list)
+            new_item_list = new_item_list.union(dup_item_list)
         return new_item_list, intgr_error_log
 
     def _add_wide_parameter_value_lists(self, *wide_kwargs_list):
         """Add wide parameter value_lists to database.
 
         Returns:
-            parameter_value_lists (list): added instances
+            id_list (set): added instances' ids
         """
         next_id = self.next_id_with_lock()
         if next_id.parameter_value_list_id:
@@ -2300,8 +2374,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             next_id.parameter_value_list_id = id
             self.session.commit()
             self.new_item_id["parameter_value_list"].update(id_list)
-            new_item_list = self.wide_parameter_value_list_list(id_list=id_list)
-            return new_item_list
+            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
@@ -2349,6 +2422,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         if parameter:
             return parameter
         return self.add_parameters(kwargs).one_or_none()
+
+# TODO: split all update_ methods like update_parameter_values...
 
     def update_object_classes(self, *kwargs_list, strict=False):
         """Update object classes."""
@@ -2583,11 +2658,16 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Update parameter values."""
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_update(
             *kwargs_list, strict=strict)
-        updated_item_list = self._update_parameter_values(*checked_kwargs_list)
+        updated_ids = self._update_parameter_values(*checked_kwargs_list)
+        updated_item_list = self.parameter_value_list(id_list=updated_ids)
         return updated_item_list, intgr_error_log
 
     def _update_parameter_values(self, *kwargs_list):
-        """Update parameter values."""
+        """Update parameter values.
+
+        Returns:
+            updated_ids (set): updated instances' ids
+        """
         try:
             items_for_update = list()
             items_for_insert = list()
@@ -2618,8 +2698,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.commit()
             self.touched_item_id["parameter_value"].update(new_dirty_ids)
             self.dirty_item_id["parameter_value"].update(new_dirty_ids)
-            updated_item_list = self.parameter_value_list(id_list=updated_ids)
-            return updated_item_list
+            return updated_ids
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while updating parameter values: {}".format(e.orig.args)

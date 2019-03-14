@@ -138,7 +138,7 @@ def import_object_classes(db_map, object_classes):
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object class"))
 
     added = db_map._add_object_classes(*new_classes)
-    return added.count(), error_log
+    return len(added), error_log
 
 
 def import_objects(db_map, object_data):
@@ -170,7 +170,7 @@ def import_objects(db_map, object_data):
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object"))
     added = db_map._add_objects(*new_objects)
-    return added.count(), error_log
+    return len(added), error_log
 
 
 def import_relationship_classes(db_map, relationship_classes):
@@ -204,7 +204,7 @@ def import_relationship_classes(db_map, relationship_classes):
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship class"))
     added = db_map._add_wide_relationship_classes(*new_rc)
-    return added.count(), error_log
+    return len(added), error_log
 
 
 def import_object_parameters(db_map, parameter_data):
@@ -239,7 +239,7 @@ def import_object_parameters(db_map, parameter_data):
             # Object class doesn't exists
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
     added = db_map._add_parameters(*new_parameters)
-    return added.count(), error_log
+    return len(added), error_log
 
 
 def import_relationship_parameters(db_map, parameter_data):
@@ -273,7 +273,7 @@ def import_relationship_parameters(db_map, parameter_data):
             # Relationship class doesn't exists
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
     added = db_map._add_parameters(*new_parameters)
-    return added.count(), error_log
+    return len(added), error_log
 
 
 def import_relationships(db_map, relationship_data):
@@ -321,7 +321,7 @@ def import_relationships(db_map, relationship_data):
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship"))
 
     added = db_map._add_wide_relationships(*new_relationships)
-    return added.count(), error_log
+    return len(added), error_log
 
 
 def import_object_parameter_values(db_map, data):
@@ -411,7 +411,7 @@ def import_object_parameter_values(db_map, data):
     added = db_map._add_parameter_values(*new_values)
     # Try and update whatever wasn't added
     updated = db_map._update_parameter_values(*update_values)
-    return added.count() + updated.count(), error_log
+    return len(added) + len(updated), error_log
 
 
 def import_relationship_parameter_values(db_map, data):
@@ -514,4 +514,4 @@ def import_relationship_parameter_values(db_map, data):
     added = db_map._add_parameter_values(*new_values)
     # Try and update whatever wasn't added
     updated = db_map._update_parameter_values(*update_values)
-    return added.count() + updated.count(), error_log
+    return len(added) + len(updated), error_log

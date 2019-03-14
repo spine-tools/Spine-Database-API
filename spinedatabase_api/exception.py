@@ -31,11 +31,30 @@ class SpineDBAPIError(Exception):
         super().__init__(msg)
         self.msg = msg
 
+    def __str__(self):
+        return self.msg
+
 
 class SpineIntegrityError(SpineDBAPIError):
-    """Database integrity error while inserting/updating records."""
-    def __init__(self, msg=None):
+    """Database integrity error while inserting/updating records.
+
+    Attributes:
+        msg (str): the message to be displayed
+        name (str): a name that already exists
+        relationship_path (tuple): a tuple (relationship_class_id, join_object_class_id_list),
+            for a relationship that is already established
+        parameter_value_path (tuple): a tuple (object_id, parameter_definition_id)
+            or (relationship_id, parameter_definition_id) for a parameter value that's already specified
+        parameter_tag_path (tuple): a tuple (parameter_definition_id, parameter_tag_id)
+            for a parameter tag association that's already established
+    """
+    def __init__(self, msg=None, name=None, relationship_path=None, parameter_value_path=None,
+                 parameter_tag_path=None):
         super().__init__(msg)
+        self.name = name
+        self.relationship_path = relationship_path
+        self.parameter_value_path = parameter_value_path
+        self.parameter_tag_path = parameter_tag_path
 
 
 class SpineDBVersionError(SpineDBAPIError):
