@@ -18,6 +18,7 @@ Classes for reading data with json mapping specifications
 
 from operator import itemgetter
 import itertools
+import json
 
 
 # Constants for json spec
@@ -964,14 +965,17 @@ def create_read_parameter_functions(mapping, pivoted_data,
         p_v_getter, p_v_num, p_v_reads = \
             create_getter_function_from_function_list(p_v_getter, p_v_num,
                                                       p_v_reads)
+        has_ed = True
     else:
         p_v_getter = p_v_getter
         p_v_num = p_v_num
         p_v_reads = p_v_reads
+        has_ed = False
     
     getters = {'name': (p_n_getter, p_n_num, p_n_reads),
                'field': (p_f_getter, p_f_num, p_f_reads),
-               'value': (p_v_getter, p_v_num, p_v_reads)}
+               'value': (p_v_getter, p_v_num, p_v_reads),
+               'has_extra_dimensions': has_ed}
     return getters
 
 
@@ -1068,6 +1072,40 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
                     data[key].extend(reader(row_data))
             except Exception as e:
                 errors.append((row_number, e))
+                
+    # pack extra dimensions into list of list
+    new_data = {}
+    for k, v in data.items():
+        if k in ('object_parameter_values_ed', 'relationship_parameter_values_ed') and v:
+            v = sorted(v, key=lambda x: x[:-1])
+            new = []
+            for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
+                packed_vals = [items[-1] for items in values]
+                if keys[-1] == 'json':
+                    packed_vals = json.dumps(packed_vals)
+                new.append(keys + (packed_vals,))
+            if k == 'object_parameter_values_ed':
+                if 'object_parameter_values' in new_data:  
+                    new_data['object_parameter_values'] = new_data['object_parameter_values'].extend(new)
+                else:
+                    new_data['object_parameter_values'] = new
+            else:
+                if 'relationship_parameter_values' in new_data:  
+                    new_data['relationship_parameter_values'] = new_data['relationship_parameter_values'].extend(new)
+                else:
+                    new_data['relationship_parameter_values'] = new
+    
+    if 'object_parameter_values' not in data:
+        data['object_parameter_values'] = []
+    if 'relationship_parameter_values' not in data:
+        data['relationship_parameter_values'] = []
+    data['object_parameter_values'].extend(new_data.get('object_parameter_values',[]))
+    data['relationship_parameter_values'].extend(new_data.get('relationship_parameter_values',[]))
+
+    data.pop('object_parameter_values_ed', None)
+    data.pop('relationship_parameter_values_ed', None)
+ 
+ 
     return data, errors
 
 
@@ -1117,6 +1155,7 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
     p_n_getter, p_n_num, p_n_reads = parameter_getters['name']
     p_f_getter, p_f_num, p_f_reads = parameter_getters['field']
     p_v_getter, p_v_num, p_v_reads = parameter_getters['value']
+    has_ed = parameter_getters.get('has_extra_dimensions', False)
 
     if type(mapping) == ObjectClassMapping:
         # getter for object class and objects
@@ -1183,11 +1222,17 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
     readers = [('object_classes',oc_function, oc_reads),
                ('objects',o_function, o_reads),
                ('object_parameters',p_function, p_reads),
-               ('object_parameter_values',pv_function, pv_reads),
                ('relationship_classes',rc_function, rc_reads),
                ('relationships',r_function, r_reads),
-               ('relationship_parameters',r_p_function, r_p_reads),
-               ('relationship_parameter_values',r_pv_function, r_pv_reads)]
+               ('relationship_parameters',r_p_function, r_p_reads)]
+    if has_ed:
+        readers.extend([('object_parameter_values_ed',pv_function, pv_reads),
+                        ('relationship_parameter_values_ed',r_pv_function, r_pv_reads)])
+    else:
+        readers.extend([('object_parameter_values',pv_function, pv_reads),
+                        ('relationship_parameter_values',r_pv_function, r_pv_reads)])
+        
+        
     readers = [r for r in readers if r[1] is not None]
 
     return readers

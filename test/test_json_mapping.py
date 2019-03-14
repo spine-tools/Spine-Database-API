@@ -161,8 +161,8 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj1')],
                                 'object_parameters': [('object','parameter_name1')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',('scenario1','t1',1)),
-                                                            ('object','obj1','parameter_name1','value',('scenario1','t2',2))]})
+                                'object_parameter_values': [('object','obj1','parameter_name1','value',[('scenario1','t1',1),
+                                                                                                        ('scenario1','t2',2)])]})
         
         data = iter(input_data)
         data_header = next(data)
