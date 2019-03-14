@@ -40,21 +40,11 @@ class SpineIntegrityError(SpineDBAPIError):
 
     Attributes:
         msg (str): the message to be displayed
-        name (str): a name that already exists
-        relationship_path (tuple): a tuple (relationship_class_id, join_object_class_id_list),
-            for a relationship that is already established
-        parameter_value_path (tuple): a tuple (object_id, parameter_definition_id)
-            or (relationship_id, parameter_definition_id) for a parameter value that's already specified
-        parameter_tag_path (tuple): a tuple (parameter_definition_id, parameter_tag_id)
-            for a parameter tag association that's already established
+        id (int): the id the instance that caused a unique violation
     """
-    def __init__(self, msg=None, name=None, relationship_path=None, parameter_value_path=None,
-                 parameter_tag_path=None):
+    def __init__(self, msg=None, id=None):
         super().__init__(msg)
-        self.name = name
-        self.relationship_path = relationship_path
-        self.parameter_value_path = parameter_value_path
-        self.parameter_tag_path = parameter_tag_path
+        self.id = id
 
 
 class SpineDBVersionError(SpineDBAPIError):
