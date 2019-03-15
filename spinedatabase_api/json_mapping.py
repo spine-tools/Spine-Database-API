@@ -1370,12 +1370,13 @@ def create_pivot_getter_function(mapping, pivoted_data, pivoted_cols, data_heade
             else:
                 read_from = pivoted_data[mapping.value_reference]
             if pivoted_cols:
-                pivot_value_getter = itemgetter(*pivoted_cols)
-                piv_values = pivot_value_getter(read_from)
+                piv_values = [read_from[i] for i in pivoted_cols]
+                num = len(piv_values)
+                if len(piv_values) == 1:
+                    piv_values = piv_values[0]
                 def getter_fcn(x):
                     return piv_values
                 getter = getter_fcn
-                num = len(piv_values)
                 reads_data = False
             else:
                 # no data

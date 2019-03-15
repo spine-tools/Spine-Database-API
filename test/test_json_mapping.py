@@ -225,6 +225,30 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
+    
+    def test_read_parameter_header_with_only_one_parameter(self):
+        input_data = [['object','parameter_name1'],
+                      ['obj1', 0],
+                      ['obj2', 2]]
+        self.empty_data.update({'object_classes': ['object'],
+                                'objects': [('object','obj1'), ('object','obj2')],
+                                'object_parameters': [('object','parameter_name1')],
+                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
+                                                            ('object','obj2','parameter_name1','value',2)]})
+        
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+        
+        mapping = {'map_type': 'ObjectClass',
+                   'name': 'object',
+                   'object': 0,
+                   'parameters': {'map_type': 'parameter',
+                                  'name': {'map_type': 'row', 'value_reference': -1}}} #-1 to read pivot from header
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
 
 if __name__ == '__main__':
     
