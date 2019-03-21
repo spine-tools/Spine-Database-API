@@ -453,7 +453,7 @@ def create_new_spine_database(db_url, for_spine_model=True):
         sql_list.append(sql)
     # TODO Fabiano - double creation of triggers?? to be clarified
     sql = """
-        CREATE TRIGGER after_object_class_delete
+        CREATE TRIGGER IF NOT EXISTS after_object_class_delete
             AFTER DELETE ON object_class
             FOR EACH ROW
         BEGIN
@@ -466,7 +466,7 @@ def create_new_spine_database(db_url, for_spine_model=True):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TRIGGER after_object_delete
+        CREATE TRIGGER IF NOT EXISTS after_object_delete
             AFTER DELETE ON object
             FOR EACH ROW
         BEGIN
