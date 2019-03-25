@@ -130,23 +130,8 @@ def attr_dict(item):
     return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 
-def copy_database(dest_url, source_url, upgrade=False, overwrite=True, only_tables=set(), skip_tables=set()):
+def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
-    # Upgrading stuff
-    if not is_head(source_url):
-        if not upgrade:
-            raise SpineDBVersionError(url=source_url)
-        try:
-            upgrade_to_head(source_url)
-        except (DBAPIError, NoSuchTableError):
-            pass
-    if not is_head(dest_url):
-        if not upgrade:
-            raise SpineDBVersionError(url=dest_url)
-        try:
-            upgrade_to_head(dest_url)
-        except (DBAPIError, NoSuchTableError):
-            pass
     # Copy db
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
