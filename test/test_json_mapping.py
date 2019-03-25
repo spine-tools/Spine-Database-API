@@ -249,6 +249,56 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
+        
+    def test_read_pivoted_parameters_from_data_with_skipped_column(self):
+        input_data = [['object','parameter_name1','parameter_name2'],
+                      ['obj1', 0, 1],
+                      ['obj2', 2, 3]]
+        self.empty_data.update({'object_classes': ['object'],
+                                'objects': [('object','obj1'), ('object','obj2')],
+                                'object_parameters': [('object','parameter_name1')],
+                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
+                                                            ('object','obj2','parameter_name1','value',2)]})
+        
+        data = iter(input_data)
+        #data_header = next(data)
+        num_cols = len(input_data[0])
+        
+        mapping = {'map_type': 'ObjectClass',
+                   'name': 'object',
+                   'object': 0,
+                   'skip_columns': [2],
+                   'parameters': {'map_type': 'parameter',
+                                  'name': {'map_type': 'row', 'value_reference': 0}}} #-1 to read pivot from header
+
+        out, errors = read_with_mapping(data, mapping, num_cols)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
+    
+    def test_read_relationships_and_save_objects(self):
+        input_data = [['unit','node'],
+                      ['u1','n1'],
+                      ['u2','n2']]
+        self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
+                                'relationships': [('unit__node',('u1','n1')),
+                                                  ('unit__node',('u2','n2'))],
+                                'object_classes': ['unit', 'node'],
+                                'objects': [('unit','u1'), ('node','n1'),
+                                            ('unit','u2'), ('node','n2')]})
+        
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+        
+        mapping = {'map_type':'RelationshipClass',
+                   'name': 'unit__node',
+                   'object_classes': [0,1],
+                   'objects': [0,1],
+                   'import_objects': True}
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
 
 if __name__ == '__main__':
     

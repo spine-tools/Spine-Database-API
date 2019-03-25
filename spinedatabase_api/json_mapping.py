@@ -537,10 +537,11 @@ class ObjectClassMapping:
             parameters: ParameterMapping | ParameterColumnCollectionMapping | None
     }
     """
-    def __init__(self, name=None, obj=None, parameters=None):
+    def __init__(self, name=None, obj=None, parameters=None, skip_columns=None):
         self.name = name
         self.object = obj
         self.parameters = parameters
+        self.skip_columns = skip_columns
         self.__map_type = OBJECTCLASS
     
     def non_pivoted_columns(self):
@@ -574,6 +575,10 @@ class ObjectClassMapping:
         if type(self.parameters) in (ParameterMapping, ParameterColumnCollectionMapping):
             pivoted = pivoted | self.parameters.is_pivoted()
         return pivoted
+    
+    @property
+    def skip_columns(self, skip_columns=None):
+        return self.__skip_columns
     
     @property
     def name(self, name=None):
@@ -611,6 +616,24 @@ class ObjectClassMapping:
                              {type(parameters)}""")
         self.__parameters = parameters
     
+    @skip_columns.setter
+    def skip_columns(self, skip_columns=None):
+        if skip_columns is None:
+            self.__skip_columns = None
+        else:
+            if type(skip_columns) in (str, int):
+                skip_columns = [skip_columns]
+            if type(skip_columns) == list:
+                for i, c in enumerate(skip_columns):
+                    if type(c) not in (str, int):
+                        raise TypeError(f'''skip_columns must be str, int or 
+                                        list of str, int, instead got list 
+                                        with {type(c)} on index {i}''')
+            else:
+                raise TypeError(f'''skip_columns must be str, int or list of
+                                str, int, instead {type(skip_columns)}''')
+            self.__skip_columns  = skip_columns
+    
     @classmethod
     def from_dict(cls, map_dict):
         if type(map_dict) != dict:
@@ -619,8 +642,9 @@ class ObjectClassMapping:
             raise ValueError(f'''map_dict must contain field "map_type" 
                              with value: "{OBJECTCLASS}"''')
         name = mapping_from_dict_int_str(map_dict.get('name', None))
-        obj = mapping_from_dict_int_str(map_dict.get('object',None))
-        parameters = map_dict.get('parameters',None)
+        obj = mapping_from_dict_int_str(map_dict.get('object', None))
+        parameters = map_dict.get('parameters', None)
+        skip_columns = map_dict.get('skip_columns', None)
         if type(parameters) == dict:
             p_type = parameters.get('map_type', None)
             if p_type == PARAMETER:
@@ -633,7 +657,7 @@ class ObjectClassMapping:
                           'parameters': list(parameters)}
             parameters = ParameterColumnCollectionMapping.from_dict(parameters)
             
-        return ObjectClassMapping(name, obj, parameters)
+        return ObjectClassMapping(name, obj, parameters, skip_columns)
     
     def to_dict(self):
         map_dict = {'map_type': self.__map_type}
@@ -646,6 +670,8 @@ class ObjectClassMapping:
             map_dict.update(object = self.object.to_dict)
         if self.parameters is not None:
             map_dict.update(parameters = [p.to_dict() for p in self.parameters])
+        if self.skip_columns:
+            map_dict.update(skip_columns = self.skip_columns)
         return map_dict
 
 
@@ -660,12 +686,15 @@ class RelationshipClassMapping:
     }
     """
     def __init__(self, name=None, object_classes=None,
-                 objects=None, parameters=None):
+                 objects=None, parameters=None,
+                 skip_columns=None, import_objects=False):
         self.__map_type = RELATIONSHIPCLASS
         self.name = name
         self.object_classes = object_classes
         self.objects = objects
         self.parameters = parameters
+        self.skip_columns = skip_columns
+        self.import_objects =import_objects
     
     def non_pivoted_columns(self):
         non_pivoted_columns = []
@@ -717,20 +746,53 @@ class RelationshipClassMapping:
         return pivoted
     
     @property
-    def name(self, name=None):
+    def import_objects(self):
+        return self.__import_objects
+    
+    @property
+    def name(self):
         return self.__name
     
     @property
-    def object_classes(self, object_classes=None):
+    def object_classes(self):
         return self.__object_classes
     
     @property
-    def objects(self, objects=None):
+    def objects(self):
         return self.__objects
     
     @property
-    def parameters(self, parameters=None):
+    def parameters(self):
         return self.__parameters
+    
+    @property
+    def skip_columns(self):
+        return self.__skip_columns
+    
+    @import_objects.setter
+    def import_objects(self, import_objects):
+        if import_objects:
+            self.__import_objects = True
+        else:
+            self.__import_objects = False
+    
+    @skip_columns.setter
+    def skip_columns(self, skip_columns=None):
+        if skip_columns is None:
+            self.__skip_columns = None
+        else:
+            if type(skip_columns) in (str, int):
+                skip_columns = [skip_columns]
+            if type(skip_columns) == list:
+                for i, c in enumerate(skip_columns):
+                    if type(c) not in (str, int):
+                        raise TypeError(f'''skip_columns must be str, int or 
+                                        list of str, int, instead got list 
+                                        with {type(c)} on index {i}''')
+            else:
+                raise TypeError(f'''skip_columns must be str, int or list of
+                                str, int, instead {type(skip_columns)}''')
+            self.__skip_columns  = skip_columns
     
     @name.setter
     def name(self, name=None):
@@ -789,11 +851,15 @@ class RelationshipClassMapping:
             parameters = {'map_type': PARAMETERCOLUMNCOLLECTION,
                           'parameters': list(parameters)}
             parameters = ParameterColumnCollectionMapping.from_dict(parameters)
+        skip_columns = map_dict.get('skip_columns', None)
+        import_objects = map_dict.get('import_objects', False)
         return RelationshipClassMapping(name, object_classes,
-                                        objects, parameters)
+                                        objects, parameters,
+                                        skip_columns, import_objects)
     
     def to_dict(self):
-        map_dict = {'map_type': self.__map_type}
+        map_dict = {'map_type': self.__map_type,
+                    'import_objects': self.__import_objects}
         if self.name is not None:
             if type(self.name) == Mapping:
                 map_dict.update(name = self.name.to_dict())
@@ -805,6 +871,8 @@ class RelationshipClassMapping:
             map_dict.update(objects = [o.to_dict() for o in self.objects])
         if self.parameters is not None:
             map_dict.update(parameters = [p.to_dict() for p in self.parameters])
+        if self.skip_columns:
+            map_dict.update(skip_columns = self.skip_columns)
         return map_dict
 
 
@@ -1052,7 +1120,9 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
     
     # run funcitons that reads from header or pivoted area first
     # select only readers that actually needs to read row data
-    data = {}
+    data = {'object_classes': [], 'objects': [], 'object_parameters': [],
+            'object_parameter_values': [],'relationship_classes': [], 'relationships':[],
+            'relationship_parameters': [], 'relationship_parameter_values': []}
     row_readers = []
     errors = []
     for key, func, reads_rows in readers:
@@ -1144,6 +1214,13 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
     elif mapping.is_pivoted():
         # paramater column mapping is not in use and we have a pivoted mapping
         pivoted_cols = set(range(num_cols)).difference(set(int_non_piv_cols))
+        # remove skipped columns
+        if mapping.skip_columns:
+            for skip_c in mapping.skip_columns:
+                if type(skip_c) == str:
+                    if skip_c in data_header:
+                        skip_c = data_header.index(skip_c)
+                pivoted_cols.discard(skip_c)
     else:
         # no pivoted mapping
         pivoted_cols = []
@@ -1155,19 +1232,43 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
     p_n_getter, p_n_num, p_n_reads = parameter_getters['name']
     p_f_getter, p_f_num, p_f_reads = parameter_getters['field']
     p_v_getter, p_v_num, p_v_reads = parameter_getters['value']
-    has_ed = parameter_getters.get('has_extra_dimensions', False)
 
+    
+    readers = []
+    if parameter_getters.get('has_extra_dimensions', False):
+        pv_key = 'object_parameter_values_ed'
+        pv_r_key = 'relationship_parameter_values_ed'
+    else:
+        pv_key = 'object_parameter_values'
+        pv_r_key = 'relationship_parameter_values'
+        
     if type(mapping) == ObjectClassMapping:
         # getter for object class and objects
         oc_getter, oc_num, oc_reads = \
             create_pivot_getter_function(mapping.name, pivoted_data,
                                          pivoted_cols, data_header)
+        readers.append(('object_classes',) + \
+                       create_final_getter_function([oc_getter],
+                                                    [oc_num],
+                                                    [oc_reads]))
         o_getter, o_num, o_reads = \
             create_pivot_getter_function(mapping.object, pivoted_data,
                                          pivoted_cols, data_header)
-        rc_getter, rc_num, rc_reads = (None, None, None)
-        rc_oc_getter, rc_oc_num, rc_oc_reads = (None, None, None)
-        r_getter, r_num, r_reads = (None, None, None)
+
+        readers.append(('objects',) + \
+                       create_final_getter_function([oc_getter, o_getter],
+                                                    [oc_num, o_num],
+                                                    [oc_reads, o_reads]))
+
+        readers.append(('object_parameters',) + \
+                       create_final_getter_function([oc_getter, p_n_getter],
+                                                    [oc_num, p_n_num],
+                                                    [oc_reads, p_n_reads]))
+
+        readers.append((pv_key,) + \
+                       create_final_getter_function([oc_getter, o_getter, p_n_getter, p_f_getter, p_v_getter],
+                                                    [oc_num, o_num, p_n_num, p_f_num, p_v_num],
+                                                    [oc_reads, o_reads, p_n_reads, p_f_reads, p_v_reads]))
     else:
         # getters for relationship class and relationships
         rc_getter, rc_num, rc_reads = \
@@ -1177,62 +1278,48 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
             create_getter_function_from_function_list(
                     *create_getter_list(mapping.object_classes, pivoted_data,
                                         pivoted_cols, data_header))
+        readers.append(('relationship_classes',) + \
+                       create_final_getter_function([rc_getter, rc_oc_getter],
+                                                    [rc_num, rc_oc_num],
+                                                    [rc_reads, rc_oc_reads]))
+        
         r_getter, r_num, r_reads = \
             create_getter_function_from_function_list(
                     *create_getter_list(mapping.objects, pivoted_data,
                                         pivoted_cols, data_header))
-        
-        oc_getter, oc_num, oc_reads = (None, None, None)
-        o_getter, o_num, o_reads = (None, None, None)
+        readers.append(('relationships',) + \
+                       create_final_getter_function([rc_getter, r_getter],
+                                                    [rc_num, r_num],
+                                                    [rc_reads, r_reads]))
     
-    # create function from list of functions
-    oc_function, oc_reads = \
-        create_final_getter_function([oc_getter],
-                                     [oc_num],
-                                     [oc_reads])
-    o_function, o_reads = \
-        create_final_getter_function([oc_getter, o_getter],
-                                     [oc_num, o_num],
-                                     [oc_reads, o_reads])
-    p_function, p_reads = \
-        create_final_getter_function([oc_getter, p_n_getter],
-                                     [oc_num, p_n_num],
-                                     [oc_reads, p_n_reads])
-    pv_function, pv_reads = \
-        create_final_getter_function([oc_getter, o_getter, p_n_getter, p_f_getter, p_v_getter],
-                                     [oc_num, o_num, p_n_num, p_f_num, p_v_num],
-                                     [oc_reads, o_reads, p_n_reads, p_f_reads, p_v_reads])
-    rc_function, rc_reads = \
-        create_final_getter_function([rc_getter, rc_oc_getter],
-                                     [rc_num, rc_oc_num],
-                                     [rc_reads, rc_oc_reads])
-    r_function, r_reads = \
-        create_final_getter_function([rc_getter, r_getter],
-                                     [rc_num, r_num],
-                                     [rc_reads, r_reads])
-    r_p_function, r_p_reads = \
-        create_final_getter_function([rc_getter, p_n_getter],
-                                     [rc_num, p_n_num],
-                                     [rc_reads, p_n_reads])
-    r_pv_function, r_pv_reads = \
-        create_final_getter_function([rc_getter, r_getter, p_n_getter, p_f_getter, p_v_getter],
-                                     [rc_num, r_num, p_n_num, p_f_num, p_v_num],
-                                     [rc_reads, r_reads, p_n_reads, p_f_reads, p_v_reads])
-
-    readers = [('object_classes',oc_function, oc_reads),
-               ('objects',o_function, o_reads),
-               ('object_parameters',p_function, p_reads),
-               ('relationship_classes',rc_function, rc_reads),
-               ('relationships',r_function, r_reads),
-               ('relationship_parameters',r_p_function, r_p_reads)]
-    if has_ed:
-        readers.extend([('object_parameter_values_ed',pv_function, pv_reads),
-                        ('relationship_parameter_values_ed',r_pv_function, r_pv_reads)])
-    else:
-        readers.extend([('object_parameter_values',pv_function, pv_reads),
-                        ('relationship_parameter_values',r_pv_function, r_pv_reads)])
+        readers.append(('relationship_parameters',) + \
+                       create_final_getter_function([rc_getter, p_n_getter],
+                                                    [rc_num, p_n_num],
+                                                    [rc_reads, p_n_reads]))
+        readers.append((pv_r_key,) + \
+                       create_final_getter_function([rc_getter, r_getter, p_n_getter, p_f_getter, p_v_getter],
+                                                    [rc_num, r_num, p_n_num, p_f_num, p_v_num],
+                                                    [rc_reads, r_reads, p_n_reads, p_f_reads, p_v_reads]))
         
-        
+        # add readers to object classes an objects
+        if mapping.import_objects and mapping.object_classes and mapping.objects:
+            for oc, o in zip(mapping.object_classes, mapping.objects):
+                oc_getter, oc_num, oc_reads = \
+                    create_pivot_getter_function(oc, pivoted_data,
+                                                 pivoted_cols, data_header)
+                o_getter, o_num, o_reads = \
+                    create_pivot_getter_function(o, pivoted_data,
+                                                 pivoted_cols, data_header)
+                readers.append(('object_classes',) + \
+                       create_final_getter_function([oc_getter],
+                                                    [oc_num],
+                                                    [oc_reads]))
+                readers.append(('objects',) + \
+                               create_final_getter_function([oc_getter, o_getter],
+                                                            [oc_num, o_num],
+                                                            [oc_reads, o_reads]))
+                
+    # remove any readers that doesn't read anything.
     readers = [r for r in readers if r[1] is not None]
 
     return readers
