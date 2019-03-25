@@ -29,7 +29,7 @@ class ImportErrorLogItem():
 def import_data(db_map, object_classes=[], relationship_classes=[], object_parameters=[],
                 relationship_parameters=[], objects=[], relationships=[],
                 object_parameter_values=[], relationship_parameter_values=[]):
-    """Imports data without ids into spine database by identifying by name
+    """Imports data into a Spine database using name references (rather than id references).
 
     Ex:
         object_c = ['example_class', 'other_class']
@@ -113,8 +113,8 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
 
 
 def import_object_classes(db_map, object_classes):
-    """Imports list of object class names into given database mapping.
-    Skips duplicate names and existing names.
+    """Imports list of object classes by name into given database mapping.
+    Ignores duplicate names and existing names.
         ex:
             data = ['new_object_class']
             import_objects(db_map, data)
@@ -128,7 +128,7 @@ def import_object_classes(db_map, object_classes):
     """
     existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
     new_classes = []
-    error_log=[]
+    error_log = []
     for object_class_name in set(object_classes).difference(existing_classes):
         try:
             new_oc = {'name': object_class_name}
@@ -136,13 +136,13 @@ def import_object_classes(db_map, object_classes):
             new_classes.append(new_oc)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object class"))
-
     added = db_map._add_object_classes(*new_classes)
     return len(added), error_log
 
 
 def import_objects(db_map, object_data):
-    """Imports list of object names with object classes:
+    """Imports list of object by name with associated object class name into given database mapping:
+    Ignores duplicate names and existing names.
         ex:
             data = [('object_class_name', 'new_object')]
             import_objects(db_map, data)
@@ -156,7 +156,7 @@ def import_objects(db_map, object_data):
         (Int, List) Number of succesfull inserted objects, list of errors
     """
     existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
-    existing_objects = {o.name: o.id for o in db_map.object_list()}
+    existing_objects = {(o.class_id, o.name): o.id for o in db_map.object_list()}
     existing_class_ids = set(existing_classes.values())
     # Check that class exists for each object we want to insert
     error_log = []
@@ -164,13 +164,13 @@ def import_objects(db_map, object_data):
     seen_objects = set()
     for oc_name, name in object_data:
         oc_id = existing_classes.get(oc_name, None)
+        if (name, oc_id) in seen_objects:
+            continue
         db_object = {'name': name, 'class_id': oc_id}
         try:
-            if (name, oc_id) not in seen_objects:
-                db_map.check_object(db_object, existing_objects, existing_class_ids)
-                new_objects.append(db_object)
-                existing_objects[name] = None
-                seen_objects.add((name, oc_id))
+            db_map.check_object(db_object, existing_objects, existing_class_ids)
+            new_objects.append(db_object)
+            seen_objects.add((name, oc_id))
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object"))
     added = db_map._add_objects(*new_objects)
@@ -199,15 +199,16 @@ def import_relationship_classes(db_map, relationship_classes):
     new_rc = []
     for name, oc_names in relationship_classes:
         oc_ids = tuple(existing_classes.get(oc, None) for oc in oc_names)
+        if (name, oc_ids) in seen_classes:
+            continue
         rel_class = {'name': name, 'object_class_id_list': oc_ids}
         try:
-            if (name, oc_ids) not in seen_classes:
-                db_map.check_wide_relationship_class(rel_class,
-                                                     relationship_class_names,
-                                                     existing_classes_ids)
-                new_rc.append(rel_class)
-                relationship_class_names[name] = None
-                seen_classes.add((name, oc_ids))
+            db_map.check_wide_relationship_class(rel_class,
+                                                 relationship_class_names,
+                                                 existing_classes_ids)
+            new_rc.append(rel_class)
+            relationship_class_names[name] = None
+            seen_classes.add((name, oc_ids))
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship class"))
     added = db_map._add_wide_relationship_classes(*new_rc)
@@ -232,9 +233,8 @@ def import_object_parameters(db_map, parameter_data):
         (Int, List) Number of succesfull inserted objects, list of errors
     """
 
-    parameter_names = {x.name: x.id for x in db_map.parameter_list()}
+    obj_parameter_names = {(x.object_class_id, x.name): x.id for x in db_map.parameter_list() if x.object_class_id}
     object_class_dict = {x.id: x.name for x in db_map.object_class_list()}
-    relationship_class_dict = {x.id: x.name for x in db_map.wide_relationship_class_list()}
     existing_classes = {oc_name: oc_id for oc_id, oc_name in object_class_dict.items()}
     seen_parameters = set()
     error_log = []
@@ -243,16 +243,16 @@ def import_object_parameters(db_map, parameter_data):
         oc_name = parameter[0]
         parameter_name = parameter[1]
         oc_id = existing_classes.get(oc_name, None)
+        if (oc_id, parameter_name) in seen_parameters:
+            continue
         param = {'name': parameter_name,
                  'object_class_id': oc_id}
         if len(parameter) > 2:
             param["default_value"] = parameter[2]
         try:
-            if (oc_id, parameter_name) not in seen_parameters:
-                db_map.check_parameter_definition(param, parameter_names, object_class_dict, relationship_class_dict)
-                new_parameters.append(param)
-                parameter_names[parameter_name] = None
-                seen_parameters.add((oc_id, parameter_name))
+            db_map.check_parameter_definition(param, obj_parameter_names, {}, object_class_dict, {})
+            new_parameters.append(param)
+            seen_parameters.add((oc_id, parameter_name))
         except SpineIntegrityError as e:
             # Object class doesn't exists
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
@@ -277,8 +277,9 @@ def import_relationship_parameters(db_map, parameter_data):
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
+    rel_parameter_names = {
+        (x.relationship_class_id, x.name): x.id for x in db_map.parameter_list() if x.relationship_class_id}
     relationship_class_dict = {x.id: x.name for x in db_map.wide_relationship_class_list()}
-    parameter_names = {x.name: x.id for x in db_map.parameter_list()}
     existing_classes = {rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()}
     seen_parameters = set()
 
@@ -288,15 +289,15 @@ def import_relationship_parameters(db_map, parameter_data):
         rel_class_name = parameter[0]
         param_name = parameter[1]
         rc_id = existing_classes.get(rel_class_name, None)
+        if (rc_id, param_name) in seen_parameters:
+            continue
         new_param = {'name': param_name, 'relationship_class_id': rc_id}
         if len(parameter) > 2:
             new_param["default_value"] = parameter[2]
         try:
-            if (rc_id, param_name) not in seen_parameters:
-                db_map.check_parameter_definition(new_param, parameter_names, {}, relationship_class_dict)
-                new_parameters.append(new_param)
-                parameter_names[param_name] = None
-                seen_parameters.add((rc_id, param_name))
+            db_map.check_parameter_definition(new_param, {}, rel_parameter_names, {}, relationship_class_dict)
+            new_parameters.append(new_param)
+            seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
@@ -320,8 +321,8 @@ def import_relationships(db_map, relationship_data):
     """
 
     relationships = {x.name: x for x in db_map.wide_relationship_list()}
-    relationship_names = {x.name: x.id for x in relationships.values()}
-    relationship_objects_tuples = {(x.class_id, x.object_id_list): x.id
+    relationship_names = {(x.class_id, x.name): x.id for x in relationships.values()}
+    relationship_objects = {(x.class_id, x.object_id_list): x.id
                                          for x in relationships.values()}
     relationship_class_dict = {
         x.id: {
@@ -338,16 +339,16 @@ def import_relationships(db_map, relationship_data):
     for rel_class_name, object_names in relationship_data:
         rc_id = existing_relationship_classes.get(rel_class_name, None)
         o_ids = tuple(existing_objects.get(n, None) for n in object_names)
-
+        if (rc_id, o_ids) in seen_relationships:
+            continue
         new_rel = {'name': rel_class_name + '_' + '__'.join(object_names),
                    'class_id': rc_id, 'object_id_list': o_ids}
         try:
-            if (rc_id, o_ids) not in seen_relationships:
-                db_map.check_wide_relationship(new_rel, relationship_names,
-                                               relationship_objects_tuples,
-                                               relationship_class_dict, object_dict)
-                new_relationships.append(new_rel)
-                seen_relationships.add((rc_id, o_ids))
+            db_map.check_wide_relationship(new_rel, relationship_names,
+                                           relationship_objects,
+                                           relationship_class_dict, object_dict)
+            new_relationships.append(new_rel)
+            seen_relationships.add((rc_id, o_ids))
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship"))
 

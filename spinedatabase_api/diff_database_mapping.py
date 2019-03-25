@@ -1041,13 +1041,13 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that objects respect integrity constraints for an insert operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        object_names = {x.name:x.id for x in self.object_list()}
+        object_names = {(x.class_id, x.name): x.id for x in self.object_list()}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for kwargs in kwargs_list:
             try:
                 self.check_object(kwargs, object_names, object_class_id_list)
                 checked_kwargs_list.append(kwargs)
-                object_names[kwargs["name"]] = None
+                object_names[kwargs["class_id"], kwargs["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1058,8 +1058,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that objects respect integrity constraints for an update operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        object_names = {x.name for x in self.object_list()}
-        object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in self.object_list()}
+        object_list = self.object_list()
+        object_names = {(x.class_id, x.name) for x in object_list}  # To check for name uniqueness
+        object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_list}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for kwargs in kwargs_list:
             try:
@@ -1072,7 +1073,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_kwargs = object_dict.pop(id)
-                object_names.remove(updated_kwargs["name"])
+                object_names.remove((updated_kwargs["class_id"], updated_kwargs["name"]))
             except KeyError:
                 msg = "Object not found."
                 if strict:
@@ -1084,7 +1085,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.check_object(updated_kwargs, object_names, object_class_id_list)
                 checked_kwargs_list.append(kwargs)
                 object_dict[id] = updated_kwargs
-                object_names.add(updated_kwargs["name"])
+                object_names.add((updated_kwargs["class_id"], updated_kwargs["name"]))
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1104,9 +1105,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             name = kwargs["name"]
         except KeyError:
             raise SpineIntegrityError("Missing object name.")
-        if name in object_names:
-            raise SpineIntegrityError("There can't be more than one object called '{}'.".format(name),
-                                      id=object_names[name])
+        if (class_id, name) in object_names:
+            raise SpineIntegrityError("There's already an one object called '{}' in the same class.".format(name),
+                                      id=object_names[class_id, name])
 
     def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list, strict=False):
         """Check that relationship classes respect integrity constraints for an insert operation."""
@@ -1129,12 +1130,13 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that relationship classes respect integrity constraints for an update operation."""
         intgr_error_log = []
         checked_wide_kwargs_list = list()
-        relationship_class_names = {x.name for x in self.wide_relationship_class_list()}
+        wide_relationship_class_list = self.wide_relationship_class_list()
+        relationship_class_names = {x.name for x in wide_relationship_class_list}
         relationship_class_dict = {
             x.id: {
                 "name": x.name,
                 "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')]
-            } for x in self.wide_relationship_class_list()}
+            } for x in wide_relationship_class_list}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for wide_kwargs in wide_kwargs_list:
             try:
@@ -1174,8 +1176,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             given_object_class_id_list = wide_kwargs["object_class_id_list"]
         except KeyError:
             raise SpineIntegrityError("Missing object class identifier.")
-        if len(given_object_class_id_list) < 2:
-            raise SpineIntegrityError("At least two object classes are needed.")
+        if len(given_object_class_id_list) == 0:
+            raise SpineIntegrityError("At least one object class is needed.")
         if not all([id in object_class_id_list for id in given_object_class_id_list]):
             raise SpineIntegrityError("Object class not found.")
         try:
@@ -1190,9 +1192,10 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that relationships respect integrity constraints for an insert operation."""
         intgr_error_log = []
         checked_wide_kwargs_list = list()
-        relationship_names = {x.name: x.id for x in self.wide_relationship_list()}
-        relationship_class_objects_tuples = {
-            (x.class_id, x.object_id_list): x.id for x in self.wide_relationship_list()}
+        wide_relationship_list = self.wide_relationship_list()
+        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_list}
+        relationship_objects = {
+            (x.class_id, x.object_id_list): x.id for x in wide_relationship_list}
         relationship_class_dict = {
             x.id: {
                 "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')],
@@ -1206,12 +1209,12 @@ class DiffDatabaseMapping(DatabaseMapping):
         for wide_kwargs in wide_kwargs_list:
             try:
                 self.check_wide_relationship(
-                    wide_kwargs, relationship_names, relationship_class_objects_tuples,
+                    wide_kwargs, relationship_names, relationship_objects,
                     relationship_class_dict, object_dict)
                 checked_wide_kwargs_list.append(wide_kwargs)
-                relationship_names[wide_kwargs['name']] = None
+                relationship_names[wide_kwargs['class_id'], wide_kwargs['name']] = None
                 join_object_id_list = ",".join([str(x) for x in wide_kwargs['object_id_list']])
-                relationship_class_objects_tuples[wide_kwargs['class_id'], join_object_id_list] = None
+                relationship_objects[wide_kwargs['class_id'], join_object_id_list] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1222,15 +1225,16 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that relationships respect integrity constraints for an update operation."""
         intgr_error_log = []
         checked_wide_kwargs_list = list()
-        relationship_names = {x.name for x in self.wide_relationship_list()}
-        relationship_class_objects_tuples = {
-            (x.class_id, x.object_id_list) for x in self.wide_relationship_list()}
+        wide_relationship_list = self.wide_relationship_list()
+        relationship_names = {(x.class_id, x.name) for x in wide_relationship_list}
+        relationship_objects = {
+            (x.class_id, x.object_id_list) for x in wide_relationship_list}
         relationship_dict = {
             x.id: {
                 "class_id": x.class_id,
                 "name": x.name,
                 "object_id_list": [int(y) for y in x.object_id_list.split(',')]
-            } for x in self.wide_relationship_list()
+            } for x in wide_relationship_list
         }
         relationship_class_dict = {
             x.id: {
@@ -1253,9 +1257,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_wide_kwargs = relationship_dict.pop(id)
-                relationship_names.remove(updated_wide_kwargs['name'])
+                relationship_names.remove((updated_wide_kwargs['class_id'], updated_wide_kwargs['name']))
                 join_object_id_list = ",".join([str(x) for x in updated_wide_kwargs['object_id_list']])
-                relationship_class_objects_tuples.remove((updated_wide_kwargs['class_id'], join_object_id_list))
+                relationship_objects.remove((updated_wide_kwargs['class_id'], join_object_id_list))
             except KeyError:
                 msg = "Relationship not found."
                 if strict:
@@ -1265,13 +1269,13 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 updated_wide_kwargs.update(wide_kwargs)
                 self.check_wide_relationship(
-                    updated_wide_kwargs, relationship_names, relationship_class_objects_tuples,
+                    updated_wide_kwargs, relationship_names, relationship_objects,
                     relationship_class_dict, object_dict)
                 checked_wide_kwargs_list.append(wide_kwargs)
                 relationship_dict[id] = updated_wide_kwargs
-                relationship_names.add(updated_wide_kwargs['name'])
+                relationship_names.add((updated_wide_kwargs['class_id'], updated_wide_kwargs['name']))
                 join_object_id_list = ",".join([str(x) for x in updated_wide_kwargs['object_id_list']])
-                relationship_class_objects_tuples.add((updated_wide_kwargs['class_id'], join_object_id_list))
+                relationship_objects.add((updated_wide_kwargs['class_id'], join_object_id_list))
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1279,20 +1283,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_relationship(
-            self, wide_kwargs, relationship_names, relationship_class_objects_tuples,
+            self, wide_kwargs, relationship_names, relationship_objects,
             relationship_class_dict, object_dict):
         """Raise a SpineIntegrityError if the relationship given by `kwargs` violates any integrity constraints."""
         try:
             name = wide_kwargs["name"]
         except KeyError:
             raise SpineIntegrityError("Missing relationship name.")
-        if name in relationship_names:
-            raise SpineIntegrityError("There can't be more than one relationship called '{}'.".format(name),
-                                      id=relationship_names[name])
         try:
             class_id = wide_kwargs['class_id']
         except KeyError:
             raise SpineIntegrityError("Missing relationship class identifier.")
+        if (class_id, name) in relationship_names:
+            raise SpineIntegrityError("There's already a relationship called '{}' in the same class.".format(name),
+                                      id=relationship_names[class_id, name])
         try:
             object_class_id_list = relationship_class_dict[class_id]['object_class_id_list']
         except KeyError:
@@ -1311,26 +1315,38 @@ class DiffDatabaseMapping(DatabaseMapping):
             raise SpineIntegrityError("Incorrect objects '{}' for "
                                       "relationship class '{}'.".format(object_name_list, relationship_class_name))
         join_object_id_list = ",".join([str(x) for x in object_id_list])
-        if (class_id, join_object_id_list) in relationship_class_objects_tuples:
+        if (class_id, join_object_id_list) in relationship_objects:
             object_name_list = [object_dict[id]['name'] for id in object_id_list]
             relationship_class_name = relationship_class_dict[class_id]['name']
             raise SpineIntegrityError("There's already a relationship between objects {} "
                                       "in class {}.".format(object_name_list, relationship_class_name),
-                                      id=relationship_class_objects_tuples[class_id, join_object_id_list])
+                                      id=relationship_objects[class_id, join_object_id_list])
 
     def check_parameter_definitions_for_insert(self, *kwargs_list, strict=False):
         """Check that parameters respect integrity constraints for an insert operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        parameter_definition_names = {x.name: x.id for x in self.parameter_list()}
+        obj_parameter_definition_names = {}
+        rel_parameter_definition_names = {}
+        for x in self.parameter_list():
+            if x.object_class_id:
+                obj_parameter_definition_names[x.object_class_id, x.name] = x.id
+            elif x.relationship_class_id:
+                rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
         object_class_dict = {x.id: x.name for x in self.object_class_list()}
         relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
             try:
                 self.check_parameter_definition(
-                    kwargs, parameter_definition_names, object_class_dict, relationship_class_dict)
+                    kwargs, obj_parameter_definition_names, rel_parameter_definition_names,
+                    object_class_dict, relationship_class_dict)
                 checked_kwargs_list.append(kwargs)
-                parameter_definition_names[kwargs["name"]] = None
+                object_class_id = kwargs.get("object_class_id", None)
+                relationship_class_id = kwargs.get("relationship_class_id", None)
+                if object_class_id:
+                    obj_parameter_definition_names[object_class_id, kwargs["name"]] = None
+                elif relationship_class_id:
+                    rel_parameter_definition_names[relationship_class_id, kwargs["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1341,13 +1357,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         """Check that parameters respect integrity constraints for an update operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
-        parameter_definition_names = {x.name for x in self.parameter_list()}
+        parameter_list = self.parameter_list()  # Query db only once
+        obj_parameter_definition_names = {}
+        rel_parameter_definition_names = {}
+        for x in self.parameter_list():
+            if x.object_class_id:
+                obj_parameter_definition_names[x.object_class_id, x.name] = x.id
+            elif x.relationship_class_id:
+                rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id
-            } for x in self.parameter_list()}
+            } for x in parameter_list}
         object_class_dict = {x.id: x.name for x in self.object_class_list()}
         relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
@@ -1376,11 +1399,16 @@ class DiffDatabaseMapping(DatabaseMapping):
                     kwargs.setdefault("object_class_id", None)
                 updated_kwargs.update(kwargs)
                 self.check_parameter_definition(
-                    updated_kwargs, parameter_definition_names,
+                    updated_kwargs, obj_parameter_definition_names, rel_parameter_definition_names,
                     object_class_dict, relationship_class_dict)
                 checked_kwargs_list.append(kwargs)
+                object_class_id = kwargs.get("object_class_id", None)
+                relationship_class_id = kwargs.get("relationship_class_id", None)
+                if object_class_id:
+                    obj_parameter_definition_names.add((object_class_id, kwargs["name"]))
+                elif relationship_class_id:
+                    rel_parameter_definition_names.add((relationship_class_id, kwargs["name"]))
                 parameter_definition_dict[id] = updated_kwargs
-                parameter_definition_names.add(updated_kwargs["name"])
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1388,7 +1416,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_definition(
-            self, kwargs, parameter_definition_names, object_class_dict, relationship_class_dict):
+            self, kwargs, obj_parameter_definition_names, rel_parameter_definition_names,
+            object_class_dict, relationship_class_dict):
         """Raise a SpineIntegrityError if the parameter definition given by `kwargs` violates any
         integrity constraints."""
         object_class_id = kwargs.get("object_class_id", None)
@@ -1397,11 +1426,11 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 object_class_name = object_class_dict[object_class_id]
             except KeyError:
-                object_class_name = 'object class id ' + object_class_id
+                object_class_name = 'id ' + object_class_id
             try:
                 relationship_class_name = relationship_class_dict[relationship_class_id]
             except KeyError:
-                relationship_class_name = 'relationship class id ' + relationship_class_id
+                relationship_class_name = 'id ' + relationship_class_id
             raise SpineIntegrityError("Can't associate a parameter to both object class '{}' and "
                                       "relationship class '{}'.".format(object_class_name, relationship_class_name))
         if object_class_id:
@@ -1411,9 +1440,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 name = kwargs["name"]
             except KeyError:
                 raise SpineIntegrityError("Missing parameter name.")
-            if name in parameter_definition_names:
-                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name),
-                                          id=parameter_definition_names[name])
+            if (object_class_id, name) in obj_parameter_definition_names:
+                raise SpineIntegrityError("There's already a parameter called '{}' in this class.".format(name),
+                                          id=obj_parameter_definition_names[object_class_id, name])
         elif relationship_class_id:
             if relationship_class_id not in relationship_class_dict:
                 raise SpineIntegrityError("Relationship class not found.")
@@ -1421,9 +1450,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 name = kwargs["name"]
             except KeyError:
                 raise SpineIntegrityError("Missing parameter name.")
-            if name in parameter_definition_names:
-                raise SpineIntegrityError("There can't be more than one parameter called '{}'.".format(name),
-                                          id=parameter_definition_names[name])
+            if (relationship_class_id, name) in rel_parameter_definition_names:
+                raise SpineIntegrityError("There's already a parameter called '{}' in this class.".format(name),
+                                          id=rel_parameter_definition_names[relationship_class_id, name])
         else:
             raise SpineIntegrityError("Missing object class or relationship class identifier.")
 
