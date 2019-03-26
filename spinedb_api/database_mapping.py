@@ -436,14 +436,7 @@ class DatabaseMapping(object):
             self.ParameterDefinition.relationship_class_id.label('relationship_class_id'),
             self.ParameterDefinition.object_class_id.label('object_class_id'),
             self.ParameterDefinition.parameter_value_list_id.label('parameter_value_list_id'),
-            self.ParameterDefinition.can_have_time_series.label('can_have_time_series'),
-            self.ParameterDefinition.can_have_time_pattern.label('can_have_time_pattern'),
-            self.ParameterDefinition.can_be_stochastic.label('can_be_stochastic'),
-            self.ParameterDefinition.default_value.label('default_value'),
-            self.ParameterDefinition.is_mandatory.label('is_mandatory'),
-            self.ParameterDefinition.precision.label('precision'),
-            self.ParameterDefinition.minimum_value.label('minimum_value'),
-            self.ParameterDefinition.maximum_value.label('maximum_value'))
+            self.ParameterDefinition.default_value.label('default_value'))
         if id_list is not None:
             qry = qry.filter(self.ParameterDefinition.id.in_(id_list))
         if object_class_id:
@@ -466,14 +459,7 @@ class DatabaseMapping(object):
             wide_parameter_value_list_list.c.name.label('value_list_name'),
             wide_parameter_definition_tag_list.c.parameter_tag_id_list,
             wide_parameter_definition_tag_list.c.parameter_tag_list,
-            self.ParameterDefinition.can_have_time_series,
-            self.ParameterDefinition.can_have_time_pattern,
-            self.ParameterDefinition.can_be_stochastic,
-            self.ParameterDefinition.default_value,
-            self.ParameterDefinition.is_mandatory,
-            self.ParameterDefinition.precision,
-            self.ParameterDefinition.minimum_value,
-            self.ParameterDefinition.maximum_value
+            self.ParameterDefinition.default_value
         ).filter(object_class_list.c.id == self.ParameterDefinition.object_class_id).\
         outerjoin(
             wide_parameter_definition_tag_list,
@@ -503,14 +489,7 @@ class DatabaseMapping(object):
             wide_parameter_value_list_list.c.name.label('value_list_name'),
             wide_parameter_definition_tag_list.c.parameter_tag_id_list,
             wide_parameter_definition_tag_list.c.parameter_tag_list,
-            self.ParameterDefinition.can_have_time_series,
-            self.ParameterDefinition.can_have_time_pattern,
-            self.ParameterDefinition.can_be_stochastic,
-            self.ParameterDefinition.default_value,
-            self.ParameterDefinition.is_mandatory,
-            self.ParameterDefinition.precision,
-            self.ParameterDefinition.minimum_value,
-            self.ParameterDefinition.maximum_value
+            self.ParameterDefinition.default_value
         ).filter(self.ParameterDefinition.relationship_class_id == wide_relationship_class_list.c.id).\
         outerjoin(
             wide_parameter_definition_tag_list,
@@ -531,13 +510,7 @@ class DatabaseMapping(object):
             self.ParameterValue.parameter_definition_id,
             self.ParameterValue.object_id,
             self.ParameterValue.relationship_id,
-            self.ParameterValue.index,
-            self.ParameterValue.value,
-            self.ParameterValue.json,
-            self.ParameterValue.expression,
-            self.ParameterValue.time_pattern,
-            self.ParameterValue.time_series_id,
-            self.ParameterValue.stochastic_model_id)
+            self.ParameterValue.value)
         if id_list is not None:
             qry = qry.filter(self.ParameterValue.id.in_(id_list))
         if object_id:
@@ -560,13 +533,7 @@ class DatabaseMapping(object):
             object_list.c.name.label('object_name'),
             parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
-            self.ParameterValue.index,
-            self.ParameterValue.value,
-            self.ParameterValue.json,
-            self.ParameterValue.expression,
-            self.ParameterValue.time_pattern,
-            self.ParameterValue.time_series_id,
-            self.ParameterValue.stochastic_model_id
+            self.ParameterValue.value
         ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.object_id == object_list.c.id).\
         filter(parameter_list.c.object_class_id == object_class_list.c.id)
@@ -591,13 +558,7 @@ class DatabaseMapping(object):
             wide_relationship_list.c.object_name_list,
             parameter_list.c.id.label('parameter_id'),
             parameter_list.c.name.label('parameter_name'),
-            self.ParameterValue.index,
-            self.ParameterValue.value,
-            self.ParameterValue.json,
-            self.ParameterValue.expression,
-            self.ParameterValue.time_pattern,
-            self.ParameterValue.time_series_id,
-            self.ParameterValue.stochastic_model_id
+            self.ParameterValue.value
         ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.relationship_id == wide_relationship_list.c.id).\
         filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id)
@@ -613,13 +574,7 @@ class DatabaseMapping(object):
             self.Object.name.label('object_name'),
             self.ParameterValue.id.label('parameter_value_id'),
             self.ParameterDefinition.name.label('parameter_name'),
-            self.ParameterValue.index,
-            self.ParameterValue.value,
-            self.ParameterValue.json,
-            self.ParameterValue.expression,
-            self.ParameterValue.time_pattern,
-            self.ParameterValue.time_series_id,
-            self.ParameterValue.stochastic_model_id
+            self.ParameterValue.value
         ).filter(self.ParameterValue.object_id == self.Object.id).\
         outerjoin(self.ParameterValue).\
         filter(self.ParameterDefinition.id == self.ParameterValue.parameter_definition_id)
