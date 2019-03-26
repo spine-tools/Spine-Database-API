@@ -120,7 +120,7 @@ def import_object_classes(db_map, object_classes):
             import_objects(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (Iterable): list/set/iterable of object class names (strings) to import
 
     Returns:
@@ -148,7 +148,7 @@ def import_objects(db_map, object_data):
             import_objects(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  object name and object class name
 
@@ -184,7 +184,7 @@ def import_relationship_classes(db_map, relationship_classes):
             import_relationship_classes(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  relationship class names and list of object class names
 
@@ -225,7 +225,7 @@ def import_object_parameters(db_map, parameter_data):
             import_object_parameters(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  object class name and parameter name
 
@@ -270,7 +270,7 @@ def import_relationship_parameters(db_map, parameter_data):
             import_object_parameters(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  relationship class name and parameter name
 
@@ -312,7 +312,7 @@ def import_relationships(db_map, relationship_data):
             import_object_parameters(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  relationship class name and list of object names
 
@@ -366,7 +366,7 @@ def import_object_parameter_values(db_map, data):
             import_object_parameter_values(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to
             insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
             object_class_name, object name, parameter name, field name,
@@ -457,7 +457,7 @@ def import_relationship_parameter_values(db_map, data):
             import_relationship_parameter_values(db_map, data)
 
     Args:
-        db (spinedatabase_api.DiffDatabaseMapping): mapping for database to insert into
+        db (spine_dbapi.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  relationship class name, list of object names, parameter name, field name,
                                  parameter value

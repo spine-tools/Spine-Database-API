@@ -109,7 +109,7 @@ class DatabaseMapping(object):
         If upgrade is True, then don't raise the error and upgrade the database instead.
         """
         config = Config()
-        config.set_main_option("script_location", "spinedatabase_api:alembic")
+        config.set_main_option("script_location", "spine_dbapi:alembic")
         script = ScriptDirectory.from_config(config)
         head = script.get_current_head()
         with self.engine.connect() as connection:
