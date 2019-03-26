@@ -12,4 +12,4 @@ from .json_mapping import Mapping, ParameterMapping, ObjectClassMapping, \
     RelationshipClassMapping, DataMapping, read_with_mapping
 from .version import __version__
 
-name = "spine_dbapi"
+name = "spinedb_api"

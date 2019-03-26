@@ -46,7 +46,7 @@ from alembic import command
 
 def is_head(db_url):
     config = Config()
-    config.set_main_option("script_location", "spine_dbapi:alembic")
+    config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
     head = script.get_current_head()
     engine = create_engine(db_url)
@@ -58,7 +58,7 @@ def is_head(db_url):
 
 def upgrade_to_head(db_url):
     config = Config()
-    config.set_main_option("script_location", "spine_dbapi:alembic")
+    config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
     engine = create_engine(db_url)
     with engine.connect() as connection:
@@ -80,7 +80,7 @@ def upgrade_to_head(db_url):
 
 def downgrade_to_base(db_url):
     config = Config()
-    config.set_main_option("script_location", "spine_dbapi:alembic")
+    config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
     engine = create_engine(db_url)
     with engine.connect() as connection:
