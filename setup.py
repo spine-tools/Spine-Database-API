@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
 
 version = {}
-with open("spinedatabase_api/version.py") as fp:
+with open("spine_dbapi/version.py") as fp:
     exec(fp.read(), version)
 
 setup(
-    name='spinedatabase_api',
+    name='spine_dbapi',
     version=version['__version__'],
     description='An API to talk to Spine databases',
     url='https://github.com/Spine-project/Spine-Database-API',

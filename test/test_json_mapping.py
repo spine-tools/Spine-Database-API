@@ -18,7 +18,7 @@ Unit tests for import_functions.py.
 
 import unittest
 from unittest.mock import MagicMock
-from spinedatabase_api.json_mapping import read_with_mapping
+from spine_dbapi.json_mapping import read_with_mapping
 
 
 class TestMappingIntegration(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestMappingIntegration(unittest.TestCase):
                            'relationships': [],
                            'relationship_parameters': [],
                            'relationship_parameter_values': []}
-    
+
     def test_read_flat_file(self):
         input_data = [['object_class','object','parameter','value'],
                       ['oc1','obj1','parameter_name1',1],
@@ -42,11 +42,11 @@ class TestMappingIntegration(unittest.TestCase):
                                 'object_parameters': [('oc1','parameter_name1'), ('oc2','parameter_name2')],
                                 'object_parameter_values': [('oc1','obj1','parameter_name1','value',1),
                                                             ('oc2','obj2','parameter_name2','value',2)]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type':'ObjectClass',
                    'name': 0,
                    'object': 1,
@@ -57,18 +57,18 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_flat_file_with_column_name_reference(self):
         input_data = [['object','parameter','value'],
                       ['obj1','parameter_name1',1],
                       ['obj2','parameter_name2',2]]
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj2')]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type': 'ObjectClass',
                    'name': {'map_type':'column_name','value_reference': 0},
                    'object': 0}
@@ -88,11 +88,11 @@ class TestMappingIntegration(unittest.TestCase):
                                                             ('object','obj1','parameter_name2','value',1),
                                                             ('object','obj2','parameter_name1','value',2),
                                                             ('object','obj2','parameter_name2','value',3)]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type': 'ObjectClass',
                    'name': {'map_type':'column_name','value_reference': 0},
                    'object': 0,
@@ -101,7 +101,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_pivoted_parameters_from_header(self):
         input_data = [['object','parameter_name1','parameter_name2'],
                       ['obj1', 0, 1],
@@ -113,11 +113,11 @@ class TestMappingIntegration(unittest.TestCase):
                                                             ('object','obj1','parameter_name2','value',1),
                                                             ('object','obj2','parameter_name1','value',2),
                                                             ('object','obj2','parameter_name2','value',3)]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type': 'ObjectClass',
                    'name': {'map_type':'column_name','value_reference': 0},
                    'object': 0,
@@ -127,7 +127,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_pivoted_parameters_from_data(self):
         input_data = [['object','parameter_name1','parameter_name2'],
                       ['obj1', 0, 1],
@@ -139,11 +139,11 @@ class TestMappingIntegration(unittest.TestCase):
                                                             ('object','obj1','parameter_name2','value',1),
                                                             ('object','obj2','parameter_name1','value',2),
                                                             ('object','obj2','parameter_name2','value',3)]})
-        
+
         data = iter(input_data)
         #data_header = next(data)
         num_cols = len(input_data[0])
-        
+
         mapping = {'map_type': 'ObjectClass',
                    'name': 'object',
                    'object': 0,
@@ -153,7 +153,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-        
+
     def test_read_flat_file_with_extra_value_dimensions(self):
         input_data = [['object','time','parameter_name1'],
                       ['obj1','t1',1],
@@ -163,11 +163,11 @@ class TestMappingIntegration(unittest.TestCase):
                                 'object_parameters': [('object','parameter_name1')],
                                 'object_parameter_values': [('object','obj1','parameter_name1','value',[('scenario1','t1',1),
                                                                                                         ('scenario1','t2',2)])]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type':'ObjectClass',
                    'name': 'object',
                    'object': 0,
@@ -178,7 +178,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_relationships(self):
         input_data = [['unit','node'],
                       ['u1','n1'],
@@ -186,11 +186,11 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
                                 'relationships': [('unit__node',('u1','n1')),
                                                   ('unit__node',('u1','n2'))]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type':'RelationshipClass',
                    'name': 'unit__node',
                    'object_classes': [0,1],
@@ -199,7 +199,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_relationships_with_parameters(self):
         input_data = [['unit','node','rel_parameter'],
                       ['u1','n1',0],
@@ -208,14 +208,14 @@ class TestMappingIntegration(unittest.TestCase):
                                 'relationships': [('unit__node',('u1','n1')),
                                                   ('unit__node',('u1','n2'))],
                                 'relationship_parameters': [('unit__node', 'rel_parameter')],
-                                'relationship_parameter_values': 
+                                'relationship_parameter_values':
                                     [('unit__node',('u1','n1'),'rel_parameter','value',0),
                                      ('unit__node',('u1','n2'),'rel_parameter','value',1)]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type':'RelationshipClass',
                    'name': 'unit__node',
                    'object_classes': [0,1],
@@ -225,7 +225,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_parameter_header_with_only_one_parameter(self):
         input_data = [['object','parameter_name1'],
                       ['obj1', 0],
@@ -235,11 +235,11 @@ class TestMappingIntegration(unittest.TestCase):
                                 'object_parameters': [('object','parameter_name1')],
                                 'object_parameter_values': [('object','obj1','parameter_name1','value',0),
                                                             ('object','obj2','parameter_name1','value',2)]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type': 'ObjectClass',
                    'name': 'object',
                    'object': 0,
@@ -249,7 +249,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-        
+
     def test_read_pivoted_parameters_from_data_with_skipped_column(self):
         input_data = [['object','parameter_name1','parameter_name2'],
                       ['obj1', 0, 1],
@@ -259,11 +259,11 @@ class TestMappingIntegration(unittest.TestCase):
                                 'object_parameters': [('object','parameter_name1')],
                                 'object_parameter_values': [('object','obj1','parameter_name1','value',0),
                                                             ('object','obj2','parameter_name1','value',2)]})
-        
+
         data = iter(input_data)
         #data_header = next(data)
         num_cols = len(input_data[0])
-        
+
         mapping = {'map_type': 'ObjectClass',
                    'name': 'object',
                    'object': 0,
@@ -274,7 +274,7 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_relationships_and_save_objects(self):
         input_data = [['unit','node'],
                       ['u1','n1'],
@@ -285,11 +285,11 @@ class TestMappingIntegration(unittest.TestCase):
                                 'object_classes': ['unit', 'node'],
                                 'objects': [('unit','u1'), ('node','n1'),
                                             ('unit','u2'), ('node','n2')]})
-        
+
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
-        
+
         mapping = {'map_type':'RelationshipClass',
                    'name': 'unit__node',
                    'object_classes': [0,1],
@@ -301,5 +301,5 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
 if __name__ == '__main__':
-    
+
     unittest.main()
