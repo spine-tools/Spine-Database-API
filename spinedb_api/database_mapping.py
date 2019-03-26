@@ -58,6 +58,7 @@ class DatabaseMapping(object):
         self.db_url = db_url
         self.username = username
         self.engine = None
+        self.connection = None
         self.session = None
         self._commit = None
         self.transactions = list()
@@ -102,7 +103,8 @@ class DatabaseMapping(object):
             # except DatabaseError as e:
             #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
             #     raise SpineDBAPIError(msg)
-        self.session = Session(self.engine, autoflush=False)
+        self.connection = self.engine.connect()
+        self.session = Session(self.connection, autoflush=False)
 
     def check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a SpineDBVersionError if not.

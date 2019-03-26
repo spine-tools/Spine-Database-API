@@ -135,8 +135,9 @@ class DiffDatabaseMapping(DatabaseMapping):
     def create_diff_tables_and_mapping(self):
         """Create tables to hold differences and the corresponding mapping using an automap_base."""
         # Tables...
-        # TODO: handle the case where username is None
-        self.diff_prefix = "diff_" + self.username + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
+        self.diff_prefix = "diff_"
+        self.diff_prefix += self.username if self.username else "anon"
+        self.diff_prefix += datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
         self.diff_metadata = MetaData()
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
@@ -165,9 +166,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             # Create table
             args = diff_columns + diff_constraints
             diff_table = Table(
-                self.diff_prefix + t.name, self.diff_metadata, *args)
+                self.diff_prefix + t.name, self.diff_metadata, *args, prefixes=["TEMPORARY"])
         self.diff_metadata.drop_all(self.engine)
-        self.diff_metadata.create_all(self.engine)
+        # Use self.connection in the below instruction, so the self.session can see the temp tables
+        self.diff_metadata.create_all(self.connection)
         # Mapping...
         self.DiffBase = automap_base(metadata=self.diff_metadata)
         self.DiffBase.prepare(generate_relationship=custom_generate_relationship)
