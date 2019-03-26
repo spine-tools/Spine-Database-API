@@ -16,10 +16,10 @@ Unit tests for DiffDatabaseMapping class.
 :date:   29.11.2018
 """
 
-from spine_dbapi.diff_database_mapping import DiffDatabaseMapping
+from spinedb_api.diff_database_mapping import DiffDatabaseMapping
 from sqlalchemy import inspect, MetaData
-from spine_dbapi.helpers import create_new_spine_database
-from spine_dbapi import DatabaseMapping
+from spinedb_api.helpers import create_new_spine_database
+from spinedb_api import DatabaseMapping
 import unittest
 from faker import Faker
 import random

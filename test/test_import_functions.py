@@ -16,7 +16,7 @@ Unit tests for import_functions.py.
 :date:   17.12.2018
 """
 #import sys
-#sys.path.append('/spine_dbapi')
+#sys.path.append('/spinedb_api')
 
 
 import unittest
@@ -24,9 +24,9 @@ from collections import namedtuple
 from unittest.mock import MagicMock
 import os
 
-from spine_dbapi.diff_database_mapping import DiffDatabaseMapping
-from spine_dbapi.helpers import create_new_spine_database
-from spine_dbapi.import_functions import (import_object_classes,
+from spinedb_api.diff_database_mapping import DiffDatabaseMapping
+from spinedb_api.helpers import create_new_spine_database
+from spinedb_api.import_functions import (import_object_classes,
                               import_object_parameter_values,
                               import_object_parameters, import_objects,
                               import_relationship_classes,

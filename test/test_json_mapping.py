@@ -18,7 +18,7 @@ Unit tests for import_functions.py.
 
 import unittest
 from unittest.mock import MagicMock
-from spine_dbapi.json_mapping import read_with_mapping
+from spinedb_api.json_mapping import read_with_mapping
 
 
 class TestMappingIntegration(unittest.TestCase):

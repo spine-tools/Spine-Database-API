@@ -20,8 +20,8 @@ import os
 import unittest
 import logging
 import sys
-from spine_dbapi.diff_database_mapping import DiffDatabaseMapping, SpineIntegrityError
-from spine_dbapi.helpers import create_new_spine_database
+from spinedb_api.diff_database_mapping import DiffDatabaseMapping, SpineIntegrityError
+from spinedb_api.helpers import create_new_spine_database
 from sqlalchemy.util import KeyedTuple
 from unittest import mock
 from sqlalchemy.orm import Session
