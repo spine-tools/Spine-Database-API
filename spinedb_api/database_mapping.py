@@ -120,7 +120,7 @@ class DatabaseMapping(object):
             if current == head:
                 return
             if not upgrade:
-                raise SpineDBVersionError(url=self.db_url, current=current, head=head)
+                raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
             # Upgrade function
             def upgrade_to_head(rev, context):
                 return script._upgrade_revs("head", rev)
@@ -153,10 +153,7 @@ class DatabaseMapping(object):
             self.ParameterDefinitionTag = self.Base.classes.parameter_definition_tag
             self.ParameterValueList = self.Base.classes.parameter_value_list
             self.Commit = self.Base.classes.commit
-        except NoSuchTableError as table:
-            self.close()
-            raise SpineTableNotFoundError(table, self.db_url)
-        except AttributeError as table:
+        except (NoSuchTableError, AttributeError) as table:
             self.close()
             raise SpineTableNotFoundError(table, self.db_url)
 
@@ -1121,9 +1118,10 @@ class DatabaseMapping(object):
         self.session.query(self.ParameterValueList).delete(synchronize_session=False)
         self.session.query(self.Commit).delete(synchronize_session=False)
 
+    # NOTE: Not needed anymore
     def close(self):
         if self.session:
-            self.session.rollback()
+            self.session.rollback()  # Why, if temp tables are getting dissolved anyways
             self.session.close()
         if self.engine:
-            self.engine.dispose()
+            self.engine.dispose()  # This clears the engine,

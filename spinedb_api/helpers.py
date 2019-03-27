@@ -44,62 +44,6 @@ from alembic.environment import EnvironmentContext
 from alembic import command
 
 
-def is_head(db_url):
-    config = Config()
-    config.set_main_option("script_location", "spinedb_api:alembic")
-    script = ScriptDirectory.from_config(config)
-    head = script.get_current_head()
-    engine = create_engine(db_url)
-    with engine.connect() as connection:
-        migration_context = MigrationContext.configure(connection)
-        current = migration_context.get_current_revision()
-        return current == head
-
-
-def upgrade_to_head(db_url):
-    config = Config()
-    config.set_main_option("script_location", "spinedb_api:alembic")
-    script = ScriptDirectory.from_config(config)
-    engine = create_engine(db_url)
-    with engine.connect() as connection:
-        # Upgrade function
-        def upgrade_to_head(rev, context):
-            return script._upgrade_revs("head", rev)
-        with EnvironmentContext(
-                config,
-                script,
-                fn=upgrade_to_head,
-                as_sql=False,
-                starting_rev=None,
-                destination_rev="head",
-                tag=None) as environment_context:
-            environment_context.configure(connection=connection, target_metadata=None)
-            with environment_context.begin_transaction():
-                environment_context.run_migrations()
-
-
-def downgrade_to_base(db_url):
-    config = Config()
-    config.set_main_option("script_location", "spinedb_api:alembic")
-    script = ScriptDirectory.from_config(config)
-    engine = create_engine(db_url)
-    with engine.connect() as connection:
-        # Downgrade function
-        def downgrade_to_base(rev, context):
-            return script._downgrade_revs("base", rev)
-        with EnvironmentContext(
-                config,
-                script,
-                fn=downgrade_to_base,
-                as_sql=False,
-                starting_rev=None,
-                destination_rev="base",
-                tag=None) as environment_context:
-            environment_context.configure(connection=connection, target_metadata=None)
-            with environment_context.begin_transaction():
-                environment_context.run_migrations()
-
-
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
 # plus a CHECK constraint that at least one of the two is NOT NULL.
@@ -130,8 +74,55 @@ def attr_dict(item):
     return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 
-def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_tables=set()):
+def is_head(db_url, upgrade=False):
+    """Check whether or not db_url is head.
+
+    Args:
+        db_url (str): database url
+        upgrade (Bool): if True, upgrade db to head
+    """
+    config = Config()
+    config.set_main_option("script_location", "spinedb_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    head = script.get_current_head()
+    engine = create_engine(db_url)
+    with engine.connect() as connection:
+        migration_context = MigrationContext.configure(connection)
+        current_rev = migration_context.get_current_revision()
+        if current_rev == head:
+            return True
+        if current_rev is None:
+            return False
+        if not upgrade:
+            return False
+        # Upgrade function
+        def fn(rev, context):
+            return script._upgrade_revs("head", rev)
+        with EnvironmentContext(
+                config,
+                script,
+                fn=fn,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="head",
+                tag=None) as environment_context:
+            environment_context.configure(connection=connection, target_metadata=None)
+            with environment_context.begin_transaction():
+                environment_context.run_migrations()
+    return True
+
+
+def copy_database(dest_url, source_url, overwrite=True, upgrade=False,
+                  only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
+    copy_alembic = False
+    if not is_head(dest_url, upgrade=upgrade):
+        if not upgrade:
+            raise SpineDBVersionError(url=dest_url)
+        # Couldn't upgrade, this means dest_url is empty
+        copy_alembic = True  # we'll upgrade when copying
+    if not is_head(source_url, upgrade=upgrade):
+        raise SpineDBVersionError(url=source_url)
     # Copy db
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
@@ -142,16 +133,18 @@ def copy_database(dest_url, source_url, overwrite=True, only_tables=set(), skip_
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
     for t in meta.sorted_tables:
-        if t.name.startswith("diff"):
-            continue
         # Create table in dest
         source_table = Table(t, source_meta, autoload=True)
         source_table.create(dest_engine, checkfirst=True)
-        # Skip tables according to `only_tables` and `skip_tables`, but never skip "alembic_version"
-        if only_tables and t.name not in only_tables and t.name != "alembic_version":
-            continue
-        if t.name in skip_tables and t.name != "alembic_version":
-            continue
+        if t.name == "alembic_version":
+            if not copy_alembic:
+                continue
+        else:
+            # Skip tables according to `only_tables` and `skip_tables`
+            if only_tables and t.name not in only_tables:
+                continue
+            if t.name in skip_tables:
+                continue
         dest_table = Table(t, dest_meta, autoload=True)
         sel = select([source_table])
         result = source_engine.execute(sel)
@@ -215,7 +208,7 @@ def is_unlocked(db_url, timeout=0):
         return False
 
 
-def create_new_spine_database(db_url, for_spine_model=True):
+def create_new_spine_database(db_url, for_spine_model=False):
     """Create a new Spine database at the given database url."""
     try:
         engine = create_engine(db_url)
@@ -468,5 +461,5 @@ def create_new_spine_database(db_url, for_spine_model=True):
             engine.execute(text(sql))
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
-    upgrade_to_head(db_url)
+    is_head(db_url, upgrade=True)
     return engine
