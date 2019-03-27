@@ -38,9 +38,9 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
         rel_parameters = [['example_rel_class', 'rel_parameter']]
         objects = [['example_class', 'example_object'],
                    ['other_class', 'other_object']]
-        object_p_values = [['example_object_class', 'example_object', 'example_parameter', 'value', 3.14]]
+        object_p_values = [['example_object_class', 'example_object', 'example_parameter', 3.14]]
         relationships = [['example_rel_class', ['example_object', 'other_object']]]
-        rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 'value', 2.718]]
+        rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
 
         import_data(db_map,
                     object_classes=object_c,
@@ -65,10 +65,10 @@ def import_data(db_map, object_classes=[], relationship_classes=[], object_param
             list of lists with object class name and object name
         relationships: (List[List[str,List(String)]]):
             list of lists with relationship class name and list of object names
-        object_parameter_values (List[List[str, str, 'json'|'value', str|numeric]]):
-            list of lists with object name, parameter name, field name, parameter value
-        relationship_parameter_values (List[List[str, List(str), str, 'json'|'value', str|numeric]]):
-            list of lists with relationship class name, list of object names, parameter name, field name,
+        object_parameter_values (List[List[str, str, str|numeric]]):
+            list of lists with object name, parameter name, parameter value
+        relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
+            list of lists with relationship class name, list of object names, parameter name,
             parameter value
 
     Returns:
@@ -359,10 +359,8 @@ def import_relationships(db_map, relationship_data):
 def import_object_parameter_values(db_map, data):
     """Imports list of object parameter values:
         ex:
-            data = [('object_class_name', 'object_name', 'parameter_name',
-                     'value', 123.4),
-                    ('object_class_name', 'object_name', 'parameter_name2',
-                     'json', '{"timeseries": [1,2,3]}')]
+            data = [('object_class_name', 'object_name', 'parameter_name', 123.4),
+                    ('object_class_name', 'object_name', 'parameter_name2', '{"timeseries": [1,2,3]}')]
             import_object_parameter_values(db_map, data)
 
     Args:
@@ -392,23 +390,12 @@ def import_object_parameter_values(db_map, data):
     new_values = []
     update_values = []
     checked_new_values = set()
-    for object_class, object_name, param_name, field_name, field_value in data:
-        field_name = field_name.lower()
-        if field_name not in ["value", "json"]:
-            # invalid field name
-            error_log.append(
-                    ImportErrorLogItem("Parameter value for '{}: {}' can't be "
-                                       "inserted; field name must be 'value' or"
-                                       " 'json'".format(object_name, param_name),
-                                       "parameter value"))
-            continue
-
+    for object_class, object_name, param_name, value in data:
         #get ids
         o_id = existing_objects.get(object_name, None)
         p_id = existing_parameters.get(param_name, None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        new_value = {'parameter_definition_id': p_id, 'object_id': o_id,
-                     field_name: field_value}
+        new_value = {'parameter_definition_id': p_id, 'object_id': o_id, 'value': value}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -425,7 +412,7 @@ def import_object_parameter_values(db_map, data):
             print(new_value)
             print(e.msg)
             continue
-        checked_key = (p_id, o_id, field_name)
+        checked_key = (p_id, o_id)
         if checked_key not in checked_new_values:
             # new values
             if pv_id is not None:
@@ -453,7 +440,7 @@ def import_object_parameter_values(db_map, data):
 def import_relationship_parameter_values(db_map, data):
     """Imports list of object parameter values:
         ex:
-            data = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 'value', 2.718]]
+            data = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
             import_relationship_parameter_values(db_map, data)
 
     Args:
@@ -489,27 +476,14 @@ def import_relationship_parameter_values(db_map, data):
     new_values = []
     update_values = []
     checked_new_values = set()
-    for class_name, object_names, param_name, field_name, field_value in data:
-        field_name = field_name.lower()
-        if field_name not in ["value", "json"]:
-            # invalid field name
-            error_log.append(
-                ImportErrorLogItem("Parameter value for '{0}: {1}: {2}' can't "
-                                   "be inserted; field name must be 'value' or "
-                                   "'json'".format(class_name,
-                                                   ','.join(object_names),
-                                                   param_name),
-                                   "parameter value"))
-            continue
-
+    for class_name, object_names, param_name, value in data:
         rc_id = existing_relationship_classes.get(class_name, None)
         o_ids = tuple(existing_objects.get(n, None) for n in object_names)
         rel_key = (rc_id, o_ids)
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get(param_name, None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id,
-                     field_name: field_value}
+        new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id, 'value': value}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -525,7 +499,7 @@ def import_relationship_parameter_values(db_map, data):
                                                 db_type="parameter value"))
             continue
 
-        checked_key = (p_id, r_id, field_name)
+        checked_key = (p_id, r_id)
         if checked_key not in checked_new_values:
             # new values
             if pv_id is not None:
