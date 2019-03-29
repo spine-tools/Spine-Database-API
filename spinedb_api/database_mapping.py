@@ -154,7 +154,6 @@ class DatabaseMapping(object):
             self.ParameterValueList = self.Base.classes.parameter_value_list
             self.Commit = self.Base.classes.commit
         except (NoSuchTableError, AttributeError) as table:
-            self.close()
             raise SpineTableNotFoundError(table, self.db_url)
 
     def create_triggers(self):
@@ -1117,11 +1116,3 @@ class DatabaseMapping(object):
         self.session.query(self.ParameterDefinitionTag).delete(synchronize_session=False)
         self.session.query(self.ParameterValueList).delete(synchronize_session=False)
         self.session.query(self.Commit).delete(synchronize_session=False)
-
-    # NOTE: Not needed anymore
-    def close(self):
-        if self.session:
-            self.session.rollback()  # Why, if temp tables are getting dissolved anyways
-            self.session.close()
-        if self.engine:
-            self.engine.dispose()  # This clears the engine,

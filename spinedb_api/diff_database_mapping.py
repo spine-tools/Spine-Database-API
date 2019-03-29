@@ -187,10 +187,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.DiffBase.classes, self.diff_prefix + "parameter_definition_tag")
             self.DiffParameterValueList = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value_list")
         except NoSuchTableError as table:
-            self.close()
             raise SpineTableNotFoundError(table, self.db_url)
         except AttributeError as table:
-            self.close()
             raise SpineTableNotFoundError(table, self.db_url)
 
     def init_next_id(self):
@@ -219,10 +217,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         try:
             self.NextId = Base.classes.next_id
         except NoSuchTableError as table:
-            self.close()
             raise SpineTableNotFoundError(table, self.db_url)
         except AttributeError as table:
-            self.close()
             raise SpineTableNotFoundError(table, self.db_url)
 
     def create_diff_triggers(self):
@@ -3278,13 +3274,3 @@ class DiffDatabaseMapping(DatabaseMapping):
         self.session.query(self.DiffParameterDefinitionTag).delete(synchronize_session=False)
         self.session.query(self.DiffParameterValueList).delete(synchronize_session=False)
         self.session.query(self.DiffCommit).delete(synchronize_session=False)
-
-    def close(self):
-        """Drop differences tables and close."""
-        if self.session:
-            self.session.rollback()
-            self.session.close()
-        if self.diff_metadata and self.engine:
-            self.diff_metadata.drop_all(self.engine)
-        if self.engine:
-            self.engine.dispose()
