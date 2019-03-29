@@ -27,7 +27,7 @@ General helper functions and classes.
 import warnings
 import os
 from textwrap import fill
-from sqlalchemy import create_engine, text, Table, MetaData, select, event
+from sqlalchemy import create_engine, text, Table, MetaData, select, event, inspect
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
@@ -91,8 +91,6 @@ def is_head(db_url, upgrade=False):
         current_rev = migration_context.get_current_revision()
         if current_rev == head:
             return True
-        if current_rev is None:
-            return False
         if not upgrade:
             return False
         # Upgrade function
@@ -115,77 +113,43 @@ def is_head(db_url, upgrade=False):
 def copy_database(dest_url, source_url, overwrite=True, upgrade=False,
                   only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
-    copy_alembic = False
-    if not is_head(dest_url, upgrade=upgrade):
-        if not upgrade:
-            raise SpineDBVersionError(url=dest_url)
-        # Couldn't upgrade, this means dest_url is empty
-        copy_alembic = True  # we'll upgrade when copying
     if not is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
-    # Copy db
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
+    insp = inspect(dest_engine)
     meta = MetaData()
     meta.reflect(source_engine)
-    if overwrite:
+    if insp.get_table_names():
+        if not overwrite:
+            raise SpineDBAPIError("The database at '{}' is not empty. "
+                                  "If you want to overwrite it, please pass the argument `overwrite=True` "
+                                  "to the function call.".format(dest_url))
         meta.drop_all(dest_engine)
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
     for t in meta.sorted_tables:
         # Create table in dest
         source_table = Table(t, source_meta, autoload=True)
-        source_table.create(dest_engine, checkfirst=True)
-        if t.name == "alembic_version":
-            if not copy_alembic:
-                continue
-        else:
+        source_table.create(dest_engine)
+        if t.name not in ("alembic_version", "next_id"):
             # Skip tables according to `only_tables` and `skip_tables`
             if only_tables and t.name not in only_tables:
                 continue
             if t.name in skip_tables:
                 continue
-        dest_table = Table(t, dest_meta, autoload=True)
+        dest_table = Table(source_table, dest_meta, autoload=True)
         sel = select([source_table])
         result = source_engine.execute(sel)
-        if t.name != 'next_id':
-            # Insert data from source into destination
-            data = result.fetchall()
-            if not data:
-                continue
-            ins = dest_table.insert()
-            try:
-                dest_engine.execute(ins, data)
-            except IntegrityError as e:
-                warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
-        else:
-            # Combine data from source *and* destination to get the highest id
-            data = result.fetchone()
-            dest_sel = select([dest_table])
-            dest_result = dest_engine.execute(dest_sel)
-            dest_data = dest_result.fetchone()
-            if not dest_data:
-                # No data in destination, just insert data from source
-                ins = dest_table.insert()
-                try:
-                    dest_engine.execute(ins, data)
-                except IntegrityError as e:
-                    warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
-            else:
-                # Some data in destination, update with the maximum id between source and destination
-                new_data = dict()
-                for key, value in data.items():
-                    dest_value = dest_data[key]
-                    try:
-                        assert key != "user"
-                        new_data[key] = max(value, dest_value)
-                    except (AssertionError, TypeError):
-                        new_data[key] = value
-                upd = dest_table.update()
-                try:
-                    dest_engine.execute(upd, new_data)
-                except IntegrityError as e:
-                    warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+        # Insert data from source into destination
+        data = result.fetchall()
+        if not data:
+            continue
+        ins = dest_table.insert()
+        try:
+            dest_engine.execute(ins, data)
+        except IntegrityError as e:
+            warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
