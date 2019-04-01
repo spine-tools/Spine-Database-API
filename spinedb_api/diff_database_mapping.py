@@ -992,7 +992,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         intgr_error_log = []
         checked_kwargs_list = list()
         object_list = self.object_list()
-        object_names = {(x.class_id, x.name) for x in object_list}  # To check for name uniqueness
+        object_names = {(x.class_id, x.name): x.id for x in self.object_list()}
         object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_list}
         object_class_id_list = [x.id for x in self.object_class_list()]
         for kwargs in kwargs_list:
@@ -1006,7 +1006,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_kwargs = object_dict.pop(id)
-                object_names.remove((updated_kwargs["class_id"], updated_kwargs["name"]))
+                del object_names[updated_kwargs["class_id"], updated_kwargs["name"]]
             except KeyError:
                 msg = "Object not found."
                 if strict:
@@ -1018,7 +1018,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.check_object(updated_kwargs, object_names, object_class_id_list)
                 checked_kwargs_list.append(kwargs)
                 object_dict[id] = updated_kwargs
-                object_names.add((updated_kwargs["class_id"], updated_kwargs["name"]))
+                object_names[updated_kwargs["class_id"], updated_kwargs["name"]] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1039,7 +1039,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         except KeyError:
             raise SpineIntegrityError("Missing object name.")
         if (class_id, name) in object_names:
-            raise SpineIntegrityError("There's already an one object called '{}' in the same class.".format(name),
+            raise SpineIntegrityError("There's already an object called '{}' in the same class.".format(name),
                                       id=object_names[class_id, name])
 
     def check_wide_relationship_classes_for_insert(self, *wide_kwargs_list, strict=False):
@@ -1064,7 +1064,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         intgr_error_log = []
         checked_wide_kwargs_list = list()
         wide_relationship_class_list = self.wide_relationship_class_list()
-        relationship_class_names = {x.name for x in wide_relationship_class_list}
+        relationship_class_names = {x.name: x.id for x in self.wide_relationship_class_list()}
         relationship_class_dict = {
             x.id: {
                 "name": x.name,
@@ -1082,7 +1082,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_wide_kwargs = relationship_class_dict.pop(id)
-                relationship_class_names.remove(updated_wide_kwargs["name"])
+                del relationship_class_names[updated_wide_kwargs["name"]]
             except KeyError:
                 msg = "Relationship class not found."
                 if strict:
@@ -1095,7 +1095,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                     updated_wide_kwargs, list(relationship_class_dict.values()), object_class_id_list)
                 checked_wide_kwargs_list.append(wide_kwargs)
                 relationship_class_dict[id] = updated_wide_kwargs
-                relationship_class_names.add(updated_wide_kwargs["name"])
+                relationship_class_names[updated_wide_kwargs["name"]] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1159,9 +1159,9 @@ class DiffDatabaseMapping(DatabaseMapping):
         intgr_error_log = []
         checked_wide_kwargs_list = list()
         wide_relationship_list = self.wide_relationship_list()
-        relationship_names = {(x.class_id, x.name) for x in wide_relationship_list}
+        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_list}
         relationship_objects = {
-            (x.class_id, x.object_id_list) for x in wide_relationship_list}
+            (x.class_id, x.object_id_list): x.id for x in wide_relationship_list}
         relationship_dict = {
             x.id: {
                 "class_id": x.class_id,
@@ -1190,9 +1190,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_wide_kwargs = relationship_dict.pop(id)
-                relationship_names.remove((updated_wide_kwargs['class_id'], updated_wide_kwargs['name']))
+                del relationship_names[updated_wide_kwargs['class_id'], updated_wide_kwargs['name']]
                 join_object_id_list = ",".join([str(x) for x in updated_wide_kwargs['object_id_list']])
-                relationship_objects.remove((updated_wide_kwargs['class_id'], join_object_id_list))
+                del relationship_objects[updated_wide_kwargs['class_id'], join_object_id_list]
             except KeyError:
                 msg = "Relationship not found."
                 if strict:
@@ -1206,9 +1206,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                     relationship_class_dict, object_dict)
                 checked_wide_kwargs_list.append(wide_kwargs)
                 relationship_dict[id] = updated_wide_kwargs
-                relationship_names.add((updated_wide_kwargs['class_id'], updated_wide_kwargs['name']))
+                relationship_names[updated_wide_kwargs['class_id'], updated_wide_kwargs['name']] = id
                 join_object_id_list = ",".join([str(x) for x in updated_wide_kwargs['object_id_list']])
-                relationship_objects.add((updated_wide_kwargs['class_id'], join_object_id_list))
+                relationship_objects[updated_wide_kwargs['class_id'], join_object_id_list] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1291,13 +1291,13 @@ class DiffDatabaseMapping(DatabaseMapping):
         intgr_error_log = []
         checked_kwargs_list = list()
         parameter_list = self.parameter_list()  # Query db only once
-        obj_parameter_definition_names = set()
-        rel_parameter_definition_names = set()
+        obj_parameter_definition_names = {}
+        rel_parameter_definition_names = {}
         for x in self.parameter_list():
             if x.object_class_id:
-                obj_parameter_definition_names.add((x.object_class_id, x.name))
+                obj_parameter_definition_names[x.object_class_id, x.name] = x.id
             elif x.relationship_class_id:
-                rel_parameter_definition_names.add((x.relationship_class_id, x.name))
+                rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
@@ -1321,9 +1321,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_class_id = updated_kwargs["object_class_id"]
                 relationship_class_id = updated_kwargs["relationship_class_id"]
                 if object_class_id:
-                    obj_parameter_definition_names.remove((object_class_id, updated_kwargs["name"]))
+                    del obj_parameter_definition_names[object_class_id, updated_kwargs["name"]]
                 elif relationship_class_id:
-                    rel_parameter_definition_names.remove((relationship_class_id, updated_kwargs["name"]))
+                    del rel_parameter_definition_names[relationship_class_id, updated_kwargs["name"]]
             except KeyError:
                 print("hey")
                 msg = "Parameter not found."
@@ -1345,9 +1345,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_class_id = kwargs.get("object_class_id", None)
                 relationship_class_id = kwargs.get("relationship_class_id", None)
                 if object_class_id:
-                    obj_parameter_definition_names.add((object_class_id, kwargs["name"]))
+                    obj_parameter_definition_names[object_class_id, kwargs["name"]] = id
                 elif relationship_class_id:
-                    rel_parameter_definition_names.add((relationship_class_id, kwargs["name"]))
+                    rel_parameter_definition_names[relationship_class_id, kwargs["name"]] = id
                 parameter_definition_dict[id] = updated_kwargs
             except SpineIntegrityError as e:
                 if strict:
@@ -1404,7 +1404,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             (x.object_id, x.parameter_definition_id): x.id for x in self.parameter_value_list() if x.object_id
         }
         relationship_parameter_values = {
-            (x.relationship_id, x.parameter_definition_id): x.id for x in self.parameter_value_list() if x.relationship_id
+            (x.relationship_id, x.parameter_definition_id): x.id
+            for x in self.parameter_value_list() if x.relationship_id
         }
         parameter_definition_dict = {
             x.id: {
@@ -1455,12 +1456,12 @@ class DiffDatabaseMapping(DatabaseMapping):
                 "object_id": x.object_id,
                 "relationship_id": x.relationship_id
             } for x in self.parameter_value_list()}
-        # Per's suggestions
         object_parameter_values = {
-            (x.object_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.object_id
+            (x.object_id, x.parameter_definition_id): x.id for x in self.parameter_value_list() if x.object_id
         }
         relationship_parameter_values = {
-            (x.relationship_id, x.parameter_definition_id) for x in self.parameter_value_list() if x.relationship_id
+            (x.relationship_id, x.parameter_definition_id): x.id
+            for x in self.parameter_value_list() if x.relationship_id
         }
         parameter_definition_dict = {
             x.id: {
@@ -1497,9 +1498,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
-                    object_parameter_values.remove((object_id, updated_kwargs['parameter_definition_id']))
+                    del object_parameter_values[object_id, updated_kwargs['parameter_definition_id']]
                 elif relationship_id:
-                    relationship_parameter_values.remove((relationship_id, updated_kwargs['parameter_definition_id']))
+                    del relationship_parameter_values[relationship_id, updated_kwargs['parameter_definition_id']]
             except KeyError:
                 msg = "Parameter value not found."
                 if strict:
@@ -1523,9 +1524,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
-                    object_parameter_values.add((object_id, updated_kwargs['parameter_definition_id']))
+                    object_parameter_values[object_id, updated_kwargs['parameter_definition_id']]
                 elif relationship_id:
-                    relationship_parameter_values.add((relationship_id, updated_kwargs['parameter_definition_id']))
+                    relationship_parameter_values[relationship_id, updated_kwargs['parameter_definition_id']]
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1624,7 +1625,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         intgr_error_log = []
         checked_kwargs_list = list()
         parameter_tag_dict = {x.id: {"tag": x.tag} for x in self.parameter_tag_list()}
-        parameter_tags = {x.tag for x in self.parameter_tag_list()}
+        parameter_tags = {x.tag: x.id for x in self.parameter_tag_list()}
         for kwargs in kwargs_list:
             try:
                 id = kwargs["id"]
@@ -1637,7 +1638,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 # 'Remove' current instance
                 updated_kwargs = parameter_tag_dict.pop(id)
-                parameter_tags.remove(updated_kwargs["tag"])
+                del parameter_tags[updated_kwargs["tag"]]
             except KeyError:
                 msg = "Parameter tag not found."
                 if strict:
@@ -1650,7 +1651,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.check_parameter_tag(updated_kwargs, parameter_tags)
                 checked_kwargs_list.append(kwargs)
                 parameter_tag_dict[id] = updated_kwargs
-                parameter_tags.add(updated_kwargs["tag"])
+                parameter_tags[updated_kwargs["tag"]] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1743,7 +1744,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 "value_list": x.value_list.split(",")
             } for x in self.wide_parameter_value_list_list()
         }
-        parameter_value_list_names = {x.name for x in self.wide_parameter_value_list_list()}
+        parameter_value_list_names = {x.name: x.id for x in self.wide_parameter_value_list_list()}
         for wide_kwargs in wide_kwargs_list:
             try:
                 id = wide_kwargs["id"]
@@ -1756,7 +1757,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             try:
                 # 'Remove' current instance
                 updated_wide_kwargs = parameter_value_list_dict.pop(id)
-                parameter_value_list_names.remove(updated_wide_kwargs['name'])
+                del parameter_value_list_names[updated_wide_kwargs['name']]
             except KeyError:
                 msg = "Parameter value list not found."
                 if strict:
@@ -1769,7 +1770,7 @@ class DiffDatabaseMapping(DatabaseMapping):
                 self.check_wide_parameter_value_list(updated_wide_kwargs, parameter_value_list_names)
                 checked_wide_kwargs_list.append(wide_kwargs)
                 parameter_value_list_dict[id] = updated_wide_kwargs
-                parameter_value_list_names.add(updated_wide_kwargs["name"])
+                parameter_value_list_names[updated_wide_kwargs["name"]] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
