@@ -1291,19 +1291,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         intgr_error_log = []
         checked_kwargs_list = list()
         parameter_list = self.parameter_list()  # Query db only once
-        obj_parameter_definition_names = {}
-        rel_parameter_definition_names = {}
+        obj_parameter_definition_names = set()
+        rel_parameter_definition_names = set()
         for x in self.parameter_list():
             if x.object_class_id:
-                obj_parameter_definition_names[x.object_class_id, x.name] = x.id
+                obj_parameter_definition_names.add((x.object_class_id, x.name))
             elif x.relationship_class_id:
-                rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
+                rel_parameter_definition_names.add((x.relationship_class_id, x.name))
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id
-            } for x in parameter_list}
+            } for x in parameter_list
+        }
         object_class_dict = {x.id: x.name for x in self.object_class_list()}
         relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
         for kwargs in kwargs_list:
@@ -1317,8 +1318,14 @@ class DiffDatabaseMapping(DatabaseMapping):
                 continue
             try:
                 updated_kwargs = parameter_definition_dict.pop(id)
-                parameter_definition_names.remove(updated_kwargs["name"])
+                object_class_id = updated_kwargs["object_class_id"]
+                relationship_class_id = updated_kwargs["relationship_class_id"]
+                if object_class_id:
+                    obj_parameter_definition_names.remove((object_class_id, updated_kwargs["name"]))
+                elif relationship_class_id:
+                    rel_parameter_definition_names.remove((relationship_class_id, updated_kwargs["name"]))
             except KeyError:
+                print("hey")
                 msg = "Parameter not found."
                 if strict:
                     raise SpineIntegrityError(msg)
