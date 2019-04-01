@@ -1524,9 +1524,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 object_id = updated_kwargs.get("object_id", None)
                 relationship_id = updated_kwargs.get("relationship_id", None)
                 if object_id:
-                    object_parameter_values[object_id, updated_kwargs['parameter_definition_id']]
+                    object_parameter_values[object_id, updated_kwargs['parameter_definition_id']] = id
                 elif relationship_id:
-                    relationship_parameter_values[relationship_id, updated_kwargs['parameter_definition_id']]
+                    relationship_parameter_values[relationship_id, updated_kwargs['parameter_definition_id']] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
