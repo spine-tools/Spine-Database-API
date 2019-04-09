@@ -391,6 +391,7 @@ def import_object_parameter_values(db_map, data):
         (Int, List) Number of succesfull inserted objects, list of errors
     """
 
+    object_class_dict = {x.name: x.id for x in db_map.object_class_list()}
     object_parameter_values = {(x.object_id, x.parameter_id): x.id
                                for x in db_map.object_parameter_value_list()}
     parameter_dict = {x.id: {"name": x.name,"object_class_id": x.object_class_id,
@@ -401,16 +402,17 @@ def import_object_parameter_values(db_map, data):
                    for x in db_map.object_list()}
     parameter_value_list_dict = {x.id: x.value_list
                                  for x in db_map.wide_parameter_value_list_list()}
-    existing_objects = {o['name']: o_id for o_id, o in object_dict.items()}
-    existing_parameters = {p['name']: p_id for p_id, p in parameter_dict.items()}
+    existing_objects = {(o['name'], o['class_id']): o_id for o_id, o in object_dict.items()}
+    existing_parameters = {(p['name'], p['object_class_id']): p_id for p_id, p in parameter_dict.items()}
     error_log = []
     new_values = []
     update_values = []
     checked_new_values = set()
     for object_class, object_name, param_name, value in data:
         #get ids
-        o_id = existing_objects.get(object_name, None)
-        p_id = existing_parameters.get(param_name, None)
+        oc_id = object_class_dict.get(object_class, None)
+        o_id = existing_objects.get((object_name, oc_id), None)
+        p_id = existing_parameters.get((param_name, oc_id), None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
         new_value = {'parameter_definition_id': p_id, 'object_id': o_id, 'value': str(value)}
         if pv_id is not None:
@@ -469,6 +471,12 @@ def import_relationship_parameter_values(db_map, data):
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
+    
+    relationship_class_dict = {
+        x.id: {
+            "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')],
+            "name": x.name
+        } for x in db_map.wide_relationship_class_list()}
 
     relationship_parameter_values = {(x.relationship_id, x.parameter_id): x.id
                                      for x in db_map.relationship_parameter_value_list()}
@@ -483,8 +491,8 @@ def import_relationship_parameter_values(db_map, data):
                          for x in db_map.wide_relationship_list()}
     parameter_value_list_dict = {x.id: x.value_list
                                  for x in db_map.wide_parameter_value_list_list()}
-    existing_objects = {o['name']: o_id for o_id, o in object_dict.items()}
-    existing_parameters = {p['name']: p_id for p_id, p in parameter_dict.items()}
+    existing_objects = {(o['name'], o['class_id']): o_id for o_id, o in object_dict.items()}
+    existing_parameters = {(p['name'], p['relationship_class_id']): p_id for p_id, p in parameter_dict.items()}
     existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
     existing_relationships = {(r['class_id'],tuple(r['object_id_list'])): r_id
                               for r_id, r in relationship_dict.items()}
@@ -495,10 +503,15 @@ def import_relationship_parameter_values(db_map, data):
     checked_new_values = set()
     for class_name, object_names, param_name, value in data:
         rc_id = existing_relationship_classes.get(class_name, None)
-        o_ids = tuple(existing_objects.get(n, None) for n in object_names)
+        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})["object_class_id_list"]
+        if len(object_names) == len(rc_oc_id):
+            o_ids = tuple(existing_objects.get((n, rc_oc_id[i]), None)
+                          for i, n in enumerate(object_names))
+        else:
+            o_ids = tuple(None for n in object_names)
         rel_key = (rc_id, o_ids)
         r_id = existing_relationships.get(rel_key, None)
-        p_id = existing_parameters.get(param_name, None)
+        p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
         new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id, 'value': str(value)}
         if pv_id is not None:

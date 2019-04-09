@@ -62,12 +62,17 @@ def create_mock_db_map():
     existing_parameter = [Parameter("existing_p1", 1, 1, None, None),
                           Parameter("existing_p2", 2, None, 1, None),
                           Parameter("existing_p3", 3, 1, None, None),
-                          Parameter("existing_p4", 4, None, 1, None)]
+                          Parameter("existing_p4", 4, None, 1, None),
+                          Parameter("duplicate_param_name", 5, 1, None, None),
+                          Parameter("duplicate_param_name", 6, 2, None, None),
+                          Parameter("duplicate_rel_param_name", 7, None, 1, None),
+                          Parameter("duplicate_rel_param_name", 8, None, 2, None),]
     existing_objects = [Object('existing_o1', 1, 1),
                         Object('existing_o2', 2, 2),
                         Object('duplicate_name', 3, 1),
                         Object('duplicate_name', 4, 2)]
-    existing_relationship = [Relationship("existing_r1", 1, "1,2", 1)]
+    existing_relationship = [Relationship("existing_r1", 1, "1,2", 1),
+                             Relationship("duplicate_object_name_rel", 2, "3,4", 1)]
     existing_parameter_value = [ParameterValue(1, 1, 1, None),
                                 ParameterValue(2, 2, None, 1)]
     existing_parameter_value_list = []
@@ -343,6 +348,34 @@ class TestImportParameterValue(unittest.TestCase):
             {'object_id': 1, 'parameter_definition_id': 3, 'value': '1'})
         self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
+    
+    def test_import_valid_object_parameter_value_with_duplicate_object_name(self):
+        ParameterValue = namedtuple("ParameterValue",
+                                    ["id", "parameter_id", "object_id", "relationship_id"])
+        added = MagicMock()
+        added.__iter__.return_value = {ParameterValue(3, 3, 3, None)}
+        added.count.return_value = 1
+        self.mock_db_map._add_parameter_values.return_value = added
+        num_imported, errors = import_object_parameter_values(
+            self.mock_db_map, [["existing_oc1", "duplicate_name", "existing_p3", 1]])
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'object_id': 3, 'parameter_definition_id': 3, 'value': '1'})
+        self.mock_db_map._update_parameter_values.assert_called_once()
+        self.assertEqual(len(errors), 0)
+        
+    def test_import_valid_object_parameter_value_with_duplicate_parameter_name(self):
+        ParameterValue = namedtuple("ParameterValue",
+                                    ["id", "parameter_id", "object_id", "relationship_id"])
+        added = MagicMock()
+        added.__iter__.return_value = {ParameterValue(3, 5, 1, None)}
+        added.count.return_value = 1
+        self.mock_db_map._add_parameter_values.return_value = added
+        num_imported, errors = import_object_parameter_values(
+            self.mock_db_map, [["existing_oc1", "existing_o1", "duplicate_param_name", 1]])
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'object_id': 1, 'parameter_definition_id': 5, 'value': '1'})
+        self.mock_db_map._update_parameter_values.assert_called_once()
+        self.assertEqual(len(errors), 0)
 
     def test_import_object_parameter_value_with_invalid_object(self):
         num_imported, errors = import_object_parameter_values(
@@ -396,6 +429,34 @@ class TestImportParameterValue(unittest.TestCase):
             self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"], "existing_p4", 1]])
         self.mock_db_map._add_parameter_values.assert_called_once_with(
             {'relationship_id': 1, 'parameter_definition_id': 4, 'value': '1'})
+        self.mock_db_map._update_parameter_values.assert_called_once()
+        self.assertEqual(len(errors), 0)
+    
+    def test_import_valid_relationship_parameter_value_with_duplicate_parameter_name(self):
+        ParameterValue = namedtuple("ParameterValue",
+                                    ["id", "parameter_id", "object_id", "relationship_id"])
+        added = MagicMock()
+        added.__iter__.return_value = {ParameterValue(3, 7, None, 1)}
+        added.count.return_value = 1
+        self.mock_db_map._add_parameter_values.return_value = added
+        num_imported, errors = import_relationship_parameter_values(
+            self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"], "duplicate_rel_param_name", 1]])
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'relationship_id': 1, 'parameter_definition_id': 7, 'value': '1'})
+        self.mock_db_map._update_parameter_values.assert_called_once()
+        self.assertEqual(len(errors), 0)
+    
+    def test_import_valid_relationship_parameter_value_with_duplicate_object_name(self):
+        ParameterValue = namedtuple("ParameterValue",
+                                    ["id", "parameter_id", "object_id", "relationship_id"])
+        added = MagicMock()
+        added.__iter__.return_value = {ParameterValue(3, 4, None, 2)}
+        added.count.return_value = 1
+        self.mock_db_map._add_parameter_values.return_value = added
+        num_imported, errors = import_relationship_parameter_values(
+            self.mock_db_map, [["existing_rc1", ["duplicate_name", "duplicate_name"], "existing_p4", 1]])
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {'relationship_id': 2, 'parameter_definition_id': 4, 'value': '1'})
         self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
 
