@@ -1438,9 +1438,8 @@ class DiffDatabaseMapping(DatabaseMapping):
                 raise SpineIntegrityError("Couldn't decode default value '{}' as JSON: {}".format(default_value, err))
             if default_value is not None and value_list is not None and default_value not in value_list:
                 raise SpineIntegrityError(
-                    "The value '{}' is not a valid default value for the associated list (valid values are: {})".format(
-                        default_value, name, ", ".join(value_list)
-                    )
+                    "The value '{}' is not a valid default value "
+                    "for the associated list (valid values are: {})".format(default_value, ", ".join(value_list))
                 )
 
     def check_parameter_values_for_insert(self, *kwargs_list, strict=False):
