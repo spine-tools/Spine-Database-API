@@ -1346,7 +1346,6 @@ class DiffDatabaseMapping(DatabaseMapping):
                 elif relationship_class_id:
                     del rel_parameter_definition_names[relationship_class_id, updated_kwargs["name"]]
             except KeyError:
-                print("hey")
                 msg = "Parameter not found."
                 if strict:
                     raise SpineIntegrityError(msg)
@@ -2751,8 +2750,10 @@ class DiffDatabaseMapping(DatabaseMapping):
             for tag_id in current_tag_id_list:
                 if tag_id not in target_tag_id_list:
                     ids_to_delete.add(definition_tag_id_dict[definition_id, tag_id])
+        deleted_items = self.parameter_definition_tag_list(id_list=ids_to_delete).all()
         self.remove_items(parameter_definition_tag_ids=ids_to_delete)
-        return self.add_parameter_definition_tags(*items_to_insert, strict=strict)
+        added_items, error_log = self.add_parameter_definition_tags(*items_to_insert, strict=strict)
+        return added_items.all() + deleted_items, error_log
 
     def update_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False):
         """Update parameter value_lists.
