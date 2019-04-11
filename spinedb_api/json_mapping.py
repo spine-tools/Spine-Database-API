@@ -965,7 +965,6 @@ def create_read_parameter_functions(mapping, pivoted_data,
     ParameterColumnCollectionMapping or ParameterMapping objects"""
     if mapping is None:
         return {'name': (None, None, None),
-                'field': (None, None, None),
                 'value': (None, None, None)}
     if type(mapping) not in (ParameterColumnCollectionMapping, ParameterMapping):
         raise ValueError(f'''mapping must be ParameterColumnCollectionMapping 
@@ -973,48 +972,42 @@ def create_read_parameter_functions(mapping, pivoted_data,
     if type(mapping) == ParameterColumnCollectionMapping:
         # parameter names from header or mapping name.
         p_n_reads = False
-        p_f_reads = False
         p_n_num = len(pivoted_cols)
-        p_f_num = len(pivoted_cols)
-        p_f = []
         p_n = []
         if mapping.parameters:
             for p, c in zip(mapping.parameters, pivoted_cols):
-                p_f.append(p.field)
                 if p.name is None:
                     p_n.append(data_header[c])
                 else:
                     p_n.append(p.name)
             if len(p_n) == 1:
                 p_n = p_n[0]
-                p_f = p_f[0]
             def p_n_getter(row):
                 return p_n
-            def p_f_getter(row):
-                return p_f
             p_v_num = len(pivoted_cols)
             p_v_getter = itemgetter(*pivoted_cols)
             p_v_reads = True
         else:
             # no data
             return {'name': (None, None, None),
-                    'field': (None, None, None),
                     'value': (None, None, None)}
     else:
         # general ParameterMapping type
         p_n_getter, p_n_num, p_n_reads = \
             create_pivot_getter_function(mapping.name, pivoted_data,
                                          pivoted_cols, data_header)
-        p_f_getter, p_f_num, p_f_reads = \
-            create_pivot_getter_function(mapping.field, pivoted_data,
-                                         pivoted_cols, data_header)
 
         if is_pivoted:
             # if mapping is pivoted values for parameters are read from 
             # pivoted columns
-            p_v_num = len(pivoted_cols)
-            p_v_getter = itemgetter(*pivoted_cols)
-            p_v_reads = True
+            if pivoted_cols:
+                p_v_num = len(pivoted_cols)
+                p_v_getter = itemgetter(*pivoted_cols)
+                p_v_reads = True
+            else:
+                p_v_num = None
+                p_v_getter = None
+                p_v_reads = None
         else:
             p_v_getter, p_v_num, p_v_reads = \
                 create_pivot_getter_function(mapping.value, pivoted_data,
@@ -1041,7 +1034,6 @@ def create_read_parameter_functions(mapping, pivoted_data,
         has_ed = False
     
     getters = {'name': (p_n_getter, p_n_num, p_n_reads),
-               'field': (p_f_getter, p_f_num, p_f_reads),
                'value': (p_v_getter, p_v_num, p_v_reads),
                'has_extra_dimensions': has_ed}
     return getters
@@ -1151,8 +1143,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
             new = []
             for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
                 packed_vals = [items[-1] for items in values]
-                if keys[-1] == 'json':
-                    packed_vals = json.dumps(packed_vals)
+                packed_vals = json.dumps(packed_vals)
                 new.append(keys + (packed_vals,))
             if k == 'object_parameter_values_ed':
                 if 'object_parameter_values' in new_data:  
@@ -1230,7 +1221,6 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
                                         pivoted_cols, data_header, 
                                         mapping.is_pivoted())
     p_n_getter, p_n_num, p_n_reads = parameter_getters['name']
-    p_f_getter, p_f_num, p_f_reads = parameter_getters['field']
     p_v_getter, p_v_num, p_v_reads = parameter_getters['value']
 
     
@@ -1266,9 +1256,9 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
                                                     [oc_reads, p_n_reads]))
 
         readers.append((pv_key,) + \
-                       create_final_getter_function([oc_getter, o_getter, p_n_getter, p_f_getter, p_v_getter],
-                                                    [oc_num, o_num, p_n_num, p_f_num, p_v_num],
-                                                    [oc_reads, o_reads, p_n_reads, p_f_reads, p_v_reads]))
+                       create_final_getter_function([oc_getter, o_getter, p_n_getter, p_v_getter],
+                                                    [oc_num, o_num, p_n_num, p_v_num],
+                                                    [oc_reads, o_reads, p_n_reads, p_v_reads]))
     else:
         # getters for relationship class and relationships
         rc_getter, rc_num, rc_reads = \
@@ -1297,9 +1287,9 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
                                                     [rc_num, p_n_num],
                                                     [rc_reads, p_n_reads]))
         readers.append((pv_r_key,) + \
-                       create_final_getter_function([rc_getter, r_getter, p_n_getter, p_f_getter, p_v_getter],
-                                                    [rc_num, r_num, p_n_num, p_f_num, p_v_num],
-                                                    [rc_reads, r_reads, p_n_reads, p_f_reads, p_v_reads]))
+                       create_final_getter_function([rc_getter, r_getter, p_n_getter, p_v_getter],
+                                                    [rc_num, r_num, p_n_num, p_v_num],
+                                                    [rc_reads, r_reads, p_n_reads, p_v_reads]))
         
         # add readers to object classes an objects
         if mapping.import_objects and mapping.object_classes and mapping.objects:
@@ -1415,6 +1405,8 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
         # since none of the functions are actually reading new data we
         # can simplify the function to just return the value.
         value = getter(None)
+        if return_len > 1:
+            value = list(value)
         def getter(row):
             return value
     reads_data = any(reads_data_list)
