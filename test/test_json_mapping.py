@@ -155,13 +155,23 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_flat_file_with_extra_value_dimensions(self):
+        #FIXME: right now the read_with_mapping only keeps the value for 
+        #mappings with extra dimensions until the data spec is final.
         input_data = [['object','time','parameter_name1'],
                       ['obj1','t1',1],
                       ['obj1','t2',2]]
+        # orginal test data
+#        self.empty_data.update({'object_classes': ['object'],
+#                                'objects': [('object','obj1'), ('object','obj1')],
+#                                'object_parameters': [('object','parameter_name1')],
+#                                'object_parameter_values': [('object','obj1','parameter_name1','[["scenario1", "t1", 1], ["scenario1", "t2", 2]]')]})
+
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj1')],
                                 'object_parameters': [('object','parameter_name1')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','[["scenario1", "t1", 1], ["scenario1", "t2", 2]]')]})
+                                'object_parameter_values': [('object','obj1','parameter_name1','[1, 2]')]})
+
+
 
         data = iter(input_data)
         data_header = next(data)
@@ -300,17 +310,28 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
     
     def test_read_relationships_parameter_values_with_extra_dimensions(self):
+        #FIXME: right now the read_with_mapping only keeps the value for 
+        #mappings with extra dimensions until the data spec is final.
         input_data = [['','a','b'],
                       ['','c','d'],
                       ['','e','f'],
                       [1,2,3],
                       [2,4,5]]
+        # original test
+#        self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
+#                                'relationship_parameters': [('unit__node', 'e'), ('unit__node', 'f')],
+#                                'relationships': [('unit__node',('a','c')),
+#                                                  ('unit__node',('b','d'))],
+#                                'relationship_parameter_values': [('unit__node',('a','c'), 'e', '[[1, 2], [2, 4]]'),
+#                                                                  ('unit__node',('b','d'), 'f', '[[1, 3], [2, 5]]')]    
+#                                })
+
         self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
                                 'relationship_parameters': [('unit__node', 'e'), ('unit__node', 'f')],
                                 'relationships': [('unit__node',('a','c')),
                                                   ('unit__node',('b','d'))],
-                                'relationship_parameter_values': [('unit__node',('a','c'), 'e', '[[1, 2], [2, 4]]'),
-                                                                  ('unit__node',('b','d'), 'f', '[[1, 3], [2, 5]]')]    
+                                'relationship_parameter_values': [('unit__node',('a','c'), 'e', '[2, 4]'),
+                                                                  ('unit__node',('b','d'), 'f', '[3, 5]')]    
                                 })
 
         data = iter(input_data)

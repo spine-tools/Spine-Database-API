@@ -1136,13 +1136,16 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
                 errors.append((row_number, e))
                 
     # pack extra dimensions into list of list
+    #FIXME: This should probably be moved somewhere else
     new_data = {}
     for k, v in data.items():
         if k in ('object_parameter_values_ed', 'relationship_parameter_values_ed') and v:
             v = sorted(v, key=lambda x: x[:-1])
             new = []
             for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                packed_vals = [items[-1] for items in values]
+                #FIXME: Temporary keep only the last value of values with multiple
+                #dimensions until data storing specs are specified.
+                packed_vals = [items[-1][-1] for items in values]
                 packed_vals = json.dumps(packed_vals)
                 new.append(keys + (packed_vals,))
             if k == 'object_parameter_values_ed':
