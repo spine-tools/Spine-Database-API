@@ -1429,8 +1429,9 @@ class DiffDatabaseMapping(DatabaseMapping):
                 if parameter_value_list_id not in parameter_value_list_dict:
                     raise SpineIntegrityError("Invalid parameter value list.")
                 value_list = parameter_value_list_dict[parameter_value_list_id].split(",")
-        if 'default_value' in kwargs:
-            default_value = kwargs['default_value']
+
+        default_value = kwargs.get("default_value")
+        if default_value is not None:
             try:
                 json.loads(default_value)
             except json.JSONDecodeError as err:
@@ -1590,8 +1591,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             parameter_definition = parameter_definition_dict[parameter_definition_id]
         except KeyError:
             raise SpineIntegrityError("Parameter not found.")
-        if 'value' in kwargs:
-            value = kwargs['value']
+        value = kwargs.get("value")
+        if value is not None:
             try:
                 json.loads(value)
             except json.JSONDecodeError as err:
@@ -1864,6 +1865,8 @@ class DiffDatabaseMapping(DatabaseMapping):
         if len(value_list) != len(set(value_list)):
             raise SpineIntegrityError("Values must be unique.")
         for value in value_list:
+            if value is None:
+                continue
             try:
                 json.loads(value)
             except json.JSONDecodeError as err:
