@@ -200,6 +200,11 @@ class TestImportObject(unittest.TestCase):
         self.mock_db_map._add_objects.assert_called_once_with(
             {'name': 'new_object', "class_id": 1}, {'name': 'new_object', "class_id": 2})
         self.assertEqual(len(errors), 0)
+    
+    def test_import_existing_object(self):
+        num_imported, errors = import_objects(self.mock_db_map, [["existing_oc1", "existing_o1"]])
+        self.mock_db_map._add_objects.assert_called_once_with()
+        self.assertEqual(len(errors), 0)
 
 
 class TestImportRelationshipClass(unittest.TestCase):
@@ -230,6 +235,12 @@ class TestImportRelationshipClass(unittest.TestCase):
         self.mock_db_map._add_wide_relationship_classes.assert_called_once_with(
             {'name': 'new_rc', 'object_class_id_list': (1, 2)})
         self.assertEqual(len(errors), 1)
+    
+    def test_import_existing_relationship_class(self):
+        num_imported, errors = import_relationship_classes(
+            self.mock_db_map, [["existing_rc1", ["existing_oc1", "existing_oc2"]]])
+        self.mock_db_map._add_wide_relationship_classes.assert_called_once_with()
+        self.assertEqual(len(errors), 0)
 
 class TestImportObjectClassParameter(unittest.TestCase):
 
@@ -257,6 +268,11 @@ class TestImportObjectClassParameter(unittest.TestCase):
                                                          ["existing_oc2", "new_parameter"]])
         self.mock_db_map._add_parameters.assert_called_once_with(
             {'name': 'new_parameter', 'object_class_id': 1}, {'name': 'new_parameter', 'object_class_id': 2})
+        self.assertEqual(len(errors), 0)
+    
+    def test_import_existing_object_class_parameter(self):
+        num_imported, errors = import_object_parameters(self.mock_db_map, [["existing_oc1", "existing_p1"]])
+        self.mock_db_map._add_parameters.assert_called_once_with()
         self.assertEqual(len(errors), 0)
 
 
@@ -288,6 +304,12 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         self.mock_db_map._add_parameters.assert_called_once_with(
             {'name': 'new_parameter', 'relationship_class_id': 1},
             {'name': 'new_parameter', 'relationship_class_id': 2})
+        self.assertEqual(len(errors), 0)
+    
+    def test_import_existing_relationship_class_parameter(self):
+        num_imported, errors = import_relationship_parameters(
+            self.mock_db_map, [["existing_rc1", "existing_p2"]])
+        self.mock_db_map._add_parameters.assert_called_once_with()
         self.assertEqual(len(errors), 0)
 
 class TestImportRelationship(unittest.TestCase):
@@ -325,6 +347,12 @@ class TestImportRelationship(unittest.TestCase):
             self.mock_db_map, [["existing_rc1", ["none_existing_object", "existing_o2"]]])
         self.mock_db_map._add_wide_relationships.assert_called_once()
         self.assertEqual(len(errors), 1)
+    
+    def test_import_existing_relationship(self):
+        num_imported, errors = import_relationships(
+            self.mock_db_map, [["existing_rc1", ["existing_o1", "existing_o2"]]])
+        self.mock_db_map._add_wide_relationships.assert_called_once_with()
+        self.assertEqual(len(errors), 0)
 
 
 class TestImportParameterValue(unittest.TestCase):
