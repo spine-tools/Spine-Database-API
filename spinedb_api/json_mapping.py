@@ -1168,6 +1168,11 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
 
     data.pop('object_parameter_values_ed', None)
     data.pop('relationship_parameter_values_ed', None)
+    
+    #remove None values from parameter_values
+    for k, v in data.items():
+        if k in ("object_parameter_values", "relationship_parameter_values"):
+            data[k] = [item for item in v if item[-1] != None]
  
  
     return data, errors
