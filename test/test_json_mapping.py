@@ -40,8 +40,8 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['oc1','oc2'],
                                 'objects': [('oc1','obj1'), ('oc2','obj2')],
                                 'object_parameters': [('oc1','parameter_name1'), ('oc2','parameter_name2')],
-                                'object_parameter_values': [('oc1','obj1','parameter_name1','value',1),
-                                                            ('oc2','obj2','parameter_name2','value',2)]})
+                                'object_parameter_values': [('oc1','obj1','parameter_name1',1),
+                                                            ('oc2','obj2','parameter_name2',2)]})
 
         data = iter(input_data)
         data_header = next(data)
@@ -84,10 +84,10 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj2')],
                                 'object_parameters': [('object','parameter_name1'), ('object','parameter_name2')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
-                                                            ('object','obj1','parameter_name2','value',1),
-                                                            ('object','obj2','parameter_name1','value',2),
-                                                            ('object','obj2','parameter_name2','value',3)]})
+                                'object_parameter_values': [('object','obj1','parameter_name1',0),
+                                                            ('object','obj1','parameter_name2',1),
+                                                            ('object','obj2','parameter_name1',2),
+                                                            ('object','obj2','parameter_name2',3)]})
 
         data = iter(input_data)
         data_header = next(data)
@@ -109,10 +109,10 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj2')],
                                 'object_parameters': [('object','parameter_name1'), ('object','parameter_name2')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
-                                                            ('object','obj1','parameter_name2','value',1),
-                                                            ('object','obj2','parameter_name1','value',2),
-                                                            ('object','obj2','parameter_name2','value',3)]})
+                                'object_parameter_values': [('object','obj1','parameter_name1',0),
+                                                            ('object','obj1','parameter_name2',1),
+                                                            ('object','obj2','parameter_name1',2),
+                                                            ('object','obj2','parameter_name2',3)]})
 
         data = iter(input_data)
         data_header = next(data)
@@ -135,10 +135,10 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj2')],
                                 'object_parameters': [('object','parameter_name1'), ('object','parameter_name2')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
-                                                            ('object','obj1','parameter_name2','value',1),
-                                                            ('object','obj2','parameter_name1','value',2),
-                                                            ('object','obj2','parameter_name2','value',3)]})
+                                'object_parameter_values': [('object','obj1','parameter_name1',0),
+                                                            ('object','obj1','parameter_name2',1),
+                                                            ('object','obj2','parameter_name1',2),
+                                                            ('object','obj2','parameter_name2',3)]})
 
         data = iter(input_data)
         #data_header = next(data)
@@ -155,14 +155,23 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_flat_file_with_extra_value_dimensions(self):
+        #FIXME: right now the read_with_mapping only keeps the value for 
+        #mappings with extra dimensions until the data spec is final.
         input_data = [['object','time','parameter_name1'],
                       ['obj1','t1',1],
                       ['obj1','t2',2]]
+        # orginal test data
+#        self.empty_data.update({'object_classes': ['object'],
+#                                'objects': [('object','obj1'), ('object','obj1')],
+#                                'object_parameters': [('object','parameter_name1')],
+#                                'object_parameter_values': [('object','obj1','parameter_name1','[["scenario1", "t1", 1], ["scenario1", "t2", 2]]')]})
+
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj1')],
                                 'object_parameters': [('object','parameter_name1')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',[('scenario1','t1',1),
-                                                                                                        ('scenario1','t2',2)])]})
+                                'object_parameter_values': [('object','obj1','parameter_name1','[1, 2]')]})
+
+
 
         data = iter(input_data)
         data_header = next(data)
@@ -209,8 +218,8 @@ class TestMappingIntegration(unittest.TestCase):
                                                   ('unit__node',('u1','n2'))],
                                 'relationship_parameters': [('unit__node', 'rel_parameter')],
                                 'relationship_parameter_values':
-                                    [('unit__node',('u1','n1'),'rel_parameter','value',0),
-                                     ('unit__node',('u1','n2'),'rel_parameter','value',1)]})
+                                    [('unit__node',('u1','n1'),'rel_parameter',0),
+                                     ('unit__node',('u1','n2'),'rel_parameter',1)]})
 
         data = iter(input_data)
         data_header = next(data)
@@ -233,8 +242,8 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj2')],
                                 'object_parameters': [('object','parameter_name1')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
-                                                            ('object','obj2','parameter_name1','value',2)]})
+                                'object_parameter_values': [('object','obj1','parameter_name1',0),
+                                                            ('object','obj2','parameter_name1',2)]})
 
         data = iter(input_data)
         data_header = next(data)
@@ -257,8 +266,8 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update({'object_classes': ['object'],
                                 'objects': [('object','obj1'), ('object','obj2')],
                                 'object_parameters': [('object','parameter_name1')],
-                                'object_parameter_values': [('object','obj1','parameter_name1','value',0),
-                                                            ('object','obj2','parameter_name1','value',2)]})
+                                'object_parameter_values': [('object','obj1','parameter_name1',0),
+                                                            ('object','obj2','parameter_name1',2)]})
 
         data = iter(input_data)
         #data_header = next(data)
@@ -295,6 +304,48 @@ class TestMappingIntegration(unittest.TestCase):
                    'object_classes': [0,1],
                    'objects': [0,1],
                    'import_objects': True}
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
+    
+    def test_read_relationships_parameter_values_with_extra_dimensions(self):
+        #FIXME: right now the read_with_mapping only keeps the value for 
+        #mappings with extra dimensions until the data spec is final.
+        input_data = [['','a','b'],
+                      ['','c','d'],
+                      ['','e','f'],
+                      [1,2,3],
+                      [2,4,5]]
+        # original test
+#        self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
+#                                'relationship_parameters': [('unit__node', 'e'), ('unit__node', 'f')],
+#                                'relationships': [('unit__node',('a','c')),
+#                                                  ('unit__node',('b','d'))],
+#                                'relationship_parameter_values': [('unit__node',('a','c'), 'e', '[[1, 2], [2, 4]]'),
+#                                                                  ('unit__node',('b','d'), 'f', '[[1, 3], [2, 5]]')]    
+#                                })
+
+        self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
+                                'relationship_parameters': [('unit__node', 'e'), ('unit__node', 'f')],
+                                'relationships': [('unit__node',('a','c')),
+                                                  ('unit__node',('b','d'))],
+                                'relationship_parameter_values': [('unit__node',('a','c'), 'e', '[2, 4]'),
+                                                                  ('unit__node',('b','d'), 'f', '[3, 5]')]    
+                                })
+
+        data = iter(input_data)
+        data_header = []
+        num_cols = 3
+
+        mapping = {"map_type": "RelationshipClass",
+                   "name": 'unit__node',
+                   "object_classes": ['unit','node'],
+                   "objects": [{'map_type': 'row', 'value_reference': i} for i in range(2)],
+                   "parameters": {'map_type': 'parameter',
+                                  'name': {'map_type': 'row', 'value_reference': 2},
+                                  'extra_dimensions': [0]}
+                   }
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)

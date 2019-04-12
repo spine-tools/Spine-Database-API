@@ -164,13 +164,13 @@ def import_objects(db_map, object_data):
     seen_objects = set()
     for oc_name, name in object_data:
         oc_id = existing_classes.get(oc_name, None)
-        if (name, oc_id) in seen_objects:
+        if (oc_id, name)  in seen_objects or (oc_id, name) in existing_objects:
             continue
         db_object = {'name': name, 'class_id': oc_id}
         try:
             db_map.check_object(db_object, existing_objects, existing_class_ids)
             new_objects.append(db_object)
-            seen_objects.add((name, oc_id))
+            seen_objects.add((oc_id, name))
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object"))
     added = db_map._add_objects(*new_objects)
@@ -193,6 +193,7 @@ def import_relationship_classes(db_map, relationship_classes):
     """
     existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
     existing_classes_ids = set(existing_classes.values())
+    existing_rel_classes = {x.name: x for x in db_map.wide_relationship_class_list()}
     relationship_class_names = {x.name: x.id for x in db_map.wide_relationship_class_list()}
     seen_classes = set()
     error_log = []
@@ -201,6 +202,9 @@ def import_relationship_classes(db_map, relationship_classes):
         oc_ids = tuple(existing_classes.get(oc, None) for oc in oc_names)
         if (name, oc_ids) in seen_classes:
             continue
+        if name in existing_rel_classes:
+            if ",".join(str(i) for i in oc_ids) == existing_rel_classes[name].object_class_id_list:
+                continue
         rel_class = {'name': name, 'object_class_id_list': oc_ids}
         try:
             db_map.check_wide_relationship_class(rel_class,
@@ -244,7 +248,7 @@ def import_object_parameters(db_map, parameter_data):
         oc_name = parameter[0]
         parameter_name = parameter[1]
         oc_id = existing_classes.get(oc_name, None)
-        if (oc_id, parameter_name) in seen_parameters:
+        if (oc_id, parameter_name) in seen_parameters or (oc_id, parameter_name) in obj_parameter_names:
             continue
         param = {'name': parameter_name,
                  'object_class_id': oc_id}
@@ -296,7 +300,7 @@ def import_relationship_parameters(db_map, parameter_data):
         rel_class_name = parameter[0]
         param_name = parameter[1]
         rc_id = existing_classes.get(rel_class_name, None)
-        if (rc_id, param_name) in seen_parameters:
+        if (rc_id, param_name) in seen_parameters or (rc_id, param_name) in rel_parameter_names:
             continue
         new_param = {'name': param_name, 'relationship_class_id': rc_id}
         if len(parameter) > 2:
@@ -357,6 +361,8 @@ def import_relationships(db_map, relationship_data):
         else:
             o_ids = tuple(None for n in object_names)
         if (rc_id, o_ids) in seen_relationships:
+            continue
+        if (rc_id, ",".join(str(o) for o in o_ids)) in relationship_objects:
             continue
         new_rel = {'name': rel_class_name + '_' + '__'.join(object_names),
                    'class_id': rc_id, 'object_id_list': o_ids}
