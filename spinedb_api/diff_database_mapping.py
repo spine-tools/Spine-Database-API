@@ -27,6 +27,7 @@ Classes to handle the Spine database object relational mapping.
 import time
 import logging
 import json
+import warnings
 from .database_mapping import DatabaseMapping
 from sqlalchemy import MetaData, Table, Column, Integer, String, func, or_, and_, event
 from sqlalchemy.ext.automap import automap_base
@@ -181,7 +182,6 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffRelationshipClass = getattr(self.DiffBase.classes, self.diff_prefix + "relationship_class")
             self.DiffRelationship = getattr(self.DiffBase.classes, self.diff_prefix + "relationship")
             self.DiffParameterDefinition = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_definition")
-            self.DiffParameter = self.DiffParameterDefinition  # FIXME
             self.DiffParameterValue = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_value")
             self.DiffParameterTag = getattr(self.DiffBase.classes, self.diff_prefix + "parameter_tag")
             self.DiffParameterDefinitionTag = getattr(
@@ -306,25 +306,46 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     # TODO: Try and make some sense into these single_ methods...
     # Why are the arguments and behavior so irregular?
-    def single_parameter(self, id=None, name=None):
-        """Return parameter corresponding to id."""
+    def single_parameter_definition(self, id=None, name=None):
+        """Return parameter definition corresponding to id."""
         if id:
-            return self.parameter_list().\
+            return self.parameter_definition_list().\
                 filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
         if name:
-            return self.parameter_list().\
+            return self.parameter_definition_list().\
                 filter(or_(self.ParameterDefinition.name == name, self.DiffParameterDefinition.name == name))
         return self.empty_list()
 
-    def single_object_parameter(self, id):
-        """Return object class and the parameter corresponding to id."""
-        return self.object_parameter_list().\
+    def single_object_parameter_definition(self, id):
+        """Return object class and the parameter definition corresponding to id."""
+        return self.object_parameter_definition_list().\
             filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
 
-    def single_relationship_parameter(self, id):
-        """Return relationship class and the parameter corresponding to id."""
-        return self.relationship_parameter_list().\
+    def single_relationship_parameter_definiton(self, id):
+        """Return relationship class and the parameter definition corresponding to id."""
+        return self.relationship_parameter_definition_list().\
             filter(or_(self.ParameterDefinition.id == id, self.DiffParameterDefinition.id == id))
+
+    def single_parameter(self, id=None, name=None):
+        warnings.warn(
+            "single_parameter is deprecated, use single_parameter_definition instead",
+            DeprecationWarning
+        )
+        return self.single_parameter_definition(id=id, name=name)
+
+    def single_object_parameter(self, id):
+        warnings.warn(
+            "single_object_parameter is deprecated, use single_object_parameter_definition instead",
+            DeprecationWarning
+        )
+        return self.single_object_parameter_definition(id)
+
+    def single_relationship_parameter(self, id):
+        warnings.warn(
+            "single_relationship_parameter is deprecated, use single_relationship_parameter_definition instead",
+            DeprecationWarning
+        )
+        return self.single_relationship_parameter_definition(id)
 
     def single_parameter_value(self, id=None):
         """Return parameter value corresponding to id."""
@@ -333,20 +354,26 @@ class DiffDatabaseMapping(DatabaseMapping):
                 filter(or_(self.ParameterValue.id == id, self.DiffParameterValue.id == id))
         return self.empty_list()
 
-    def single_object_parameter_value(self, id=None, parameter_id=None, object_id=None):
+    def single_object_parameter_value(self, id=None, parameter_id=None, parameter_definition_id=None, object_id=None):
         """Return object and the parameter value, either corresponding to id,
         or to parameter_id and object_id.
         """
+        if parameter_definition_id is None and parameter_id is not None:
+            parameter_definition_id = parameter_id
+            warnings.warn(
+                "the parameter_id argument is deprecated, use parameter_definition_id instead",
+                DeprecationWarning
+            )
         qry = self.object_parameter_value_list()
         if id:
             return qry.filter(or_(self.ParameterValue.id == id, self.DiffParameterValue.id == id))
-        if parameter_id and object_id:
+        if parameter_definition_id and object_id:
             return qry.filter(or_(
                 and_(
-                    self.ParameterValue.parameter_definition_id == parameter_id,
+                    self.ParameterValue.parameter_definition_id == parameter_definition_id,
                     self.ParameterValue.object_id == object_id),
                 and_(
-                    self.DiffParameterValue.parameter_definition_id == parameter_id,
+                    self.DiffParameterValue.parameter_definition_id == parameter_definition_id,
                     self.DiffParameterValue.object_id == object_id)))
         return self.empty_list()
 
@@ -483,9 +510,9 @@ class DiffDatabaseMapping(DatabaseMapping):
             subqry.c.name
         ).order_by(subqry.c.id, subqry.c.dimension).group_by(subqry.c.id)
 
-    def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
-        """Return parameters."""
-        qry = super().parameter_list(
+    def parameter_definition_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
+        """Return parameter definitions."""
+        qry = super().parameter_definition_list(
             id_list=id_list,
             object_class_id=object_class_id,
             relationship_class_id=relationship_class_id
@@ -505,8 +532,14 @@ class DiffDatabaseMapping(DatabaseMapping):
             diff_qry = diff_qry.filter_by(relationship_class_id=relationship_class_id)
         return qry.union_all(diff_qry)
 
-    def object_parameter_list(self, object_class_id=None, parameter_id=None):
+    def object_parameter_definition_list(self, object_class_id=None, parameter_id=None, parameter_definition_id=None):
         """Return object classes and their parameters."""
+        if parameter_definition_id is None and parameter_id is not None:
+            parameter_definition_id = parameter_id
+            warnings.warn(
+                "the parameter_id argument is deprecated, use parameter_definition_id instead",
+                DeprecationWarning
+            )
         object_class_list = self.object_class_list().subquery()
         wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
         wide_parameter_value_list_list = self.wide_parameter_value_list_list().subquery()
@@ -548,13 +581,20 @@ class DiffDatabaseMapping(DatabaseMapping):
         if object_class_id:
             qry = qry.filter(self.ParameterDefinition.object_class_id == object_class_id)
             diff_qry = diff_qry.filter(self.DiffParameterDefinition.object_class_id == object_class_id)
-        if parameter_id:
-            qry = qry.filter(self.ParameterDefinition.id == parameter_id)
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
+        if parameter_definition_id:
+            qry = qry.filter(self.ParameterDefinition.id == parameter_definition_id)
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_definition_id)
         return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
 
-    def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
+    def relationship_parameter_definition_list(
+            self, relationship_class_id=None, parameter_id=None, parameter_definition_id=None):
         """Return relationship classes and their parameters."""
+        if parameter_definition_id is None and parameter_id is not None:
+            parameter_definition_id = parameter_id
+            warnings.warn(
+                "the parameter_id argument is deprecated, use parameter_definition_id instead",
+                DeprecationWarning
+            )
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         wide_parameter_definition_tag_list = self.wide_parameter_definition_tag_list().subquery()
         wide_parameter_value_list_list = self.wide_parameter_value_list_list().subquery()
@@ -600,14 +640,37 @@ class DiffDatabaseMapping(DatabaseMapping):
         if relationship_class_id:
             qry = qry.filter(self.ParameterDefinition.relationship_class_id == relationship_class_id)
             diff_qry = diff_qry.filter(self.DiffParameterDefinition.relationship_class_id == relationship_class_id)
-        if parameter_id:
-            qry = qry.filter(self.ParameterDefinition.id == parameter_id)
-            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_id)
+        if parameter_definition_id:
+            qry = qry.filter(self.ParameterDefinition.id == parameter_definition_id)
+            diff_qry = diff_qry.filter(self.DiffParameterDefinition.id == parameter_definition_id)
         return qry.union_all(diff_qry).order_by(self.ParameterDefinition.id, self.DiffParameterDefinition.id)
+
+    def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
+        warnings.warn(
+            "parameter_list is deprecated, use parameter_definition_list instead",
+            DeprecationWarning
+        )
+        return self.parameter_definition_list(
+            id_list=id_list, object_class_id=object_class_id, relationship_class_id=relationship_class_id)
+
+    def object_parameter_list(self, object_class_id=None, parameter_id=None):
+        warnings.warn(
+            "object_parameter_list is deprecated, use object_parameter_definition_list instead",
+            DeprecationWarning
+        )
+        return self.object_parameter_definition_list(object_class_id=object_class_id, parameter_id=parameter_id)
+
+    def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
+        warnings.warn(
+            "relationship_parameter_list is deprecated, use relationship_parameter_definition_list instead",
+            DeprecationWarning
+        )
+        return self.relationship_parameter_definition_list(
+            relationship_class_id=relationship_class_id, parameter_id=parameter_id)
 
     def wide_object_parameter_definition_list(self, object_class_id_list=None, parameter_definition_id_list=None):
         """Return object classes and their parameter definitions in wide format."""
-        parameter_definition_list = self.parameter_list().subquery()
+        parameter_definition_list = self.parameter_definition_list().subquery()
         qry = self.session.query(
             self.ObjectClass.id.label('object_class_id'),
             self.ObjectClass.name.label('object_class_name'),
@@ -638,7 +701,7 @@ class DiffDatabaseMapping(DatabaseMapping):
     def wide_relationship_parameter_definition_list(
             self, relationship_class_id_list=None, parameter_definition_id_list=None):
         """Return relationship classes and their parameter definitions in wide format."""
-        parameter_definition_list = self.parameter_list().subquery()
+        parameter_definition_list = self.parameter_definition_list().subquery()
         qry = self.session.query(
             self.RelationshipClass.id.label('relationship_class_id'),
             self.RelationshipClass.name.label('relationship_class_name'),
@@ -689,7 +752,7 @@ class DiffDatabaseMapping(DatabaseMapping):
 
     def object_parameter_value_list(self, object_class_id=None, parameter_name=None):
         """Return objects and their parameter values."""
-        parameter_list = self.parameter_list().subquery()
+        parameter_definition_list = self.parameter_definition_list().subquery()
         object_class_list = self.object_class_list().subquery()
         object_list = self.object_list().subquery()
         qry = self.session.query(
@@ -698,12 +761,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_class_list.c.name.label('object_class_name'),
             object_list.c.id.label('object_id'),
             object_list.c.name.label('object_name'),
-            parameter_list.c.id.label('parameter_id'),
-            parameter_list.c.name.label('parameter_name'),
+            parameter_definition_list.c.id.label('parameter_id'),
+            parameter_definition_list.c.name.label('parameter_name'),
             self.ParameterValue.value
-        ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
+        ).filter(parameter_definition_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.object_id == object_list.c.id).\
-        filter(parameter_list.c.object_class_id == object_class_list.c.id).\
+        filter(parameter_definition_list.c.object_class_id == object_class_list.c.id).\
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
             self.DiffParameterValue.id.label('id'),
@@ -711,23 +774,23 @@ class DiffDatabaseMapping(DatabaseMapping):
             object_class_list.c.name.label('object_class_name'),
             object_list.c.id.label('object_id'),
             object_list.c.name.label('object_name'),
-            parameter_list.c.id.label('parameter_id'),
-            parameter_list.c.name.label('parameter_name'),
+            parameter_definition_list.c.id.label('parameter_id'),
+            parameter_definition_list.c.name.label('parameter_name'),
             self.DiffParameterValue.value
-        ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_definition_id).\
+        ).filter(parameter_definition_list.c.id == self.DiffParameterValue.parameter_definition_id).\
         filter(self.DiffParameterValue.object_id == object_list.c.id).\
-        filter(parameter_list.c.object_class_id == object_class_list.c.id)
+        filter(parameter_definition_list.c.object_class_id == object_class_list.c.id)
         if object_class_id:
             qry = qry.filter(object_class_list.c.id == object_class_id)
             diff_qry = diff_qry.filter(object_class_list.c.id == object_class_id)
         if parameter_name:
-            qry = qry.filter(parameter_list.c.name == parameter_name)
-            diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
+            qry = qry.filter(parameter_definition_list.c.name == parameter_name)
+            diff_qry = diff_qry.filter(parameter_definition_list.c.name == parameter_name)
         return qry.union_all(diff_qry)
 
     def relationship_parameter_value_list(self, relationship_class_id=None, parameter_name=None):
         """Return relationships and their parameter values."""
-        parameter_list = self.parameter_list().subquery()
+        parameter_definition_list = self.parameter_definition_list().subquery()
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
         wide_relationship_list = self.wide_relationship_list().subquery()
         qry = self.session.query(
@@ -739,12 +802,12 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_relationship_list.c.id.label('relationship_id'),
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
-            parameter_list.c.id.label('parameter_id'),
-            parameter_list.c.name.label('parameter_name'),
+            parameter_definition_list.c.id.label('parameter_id'),
+            parameter_definition_list.c.name.label('parameter_name'),
             self.ParameterValue.value
-        ).filter(parameter_list.c.id == self.ParameterValue.parameter_definition_id).\
+        ).filter(parameter_definition_list.c.id == self.ParameterValue.parameter_definition_id).\
         filter(self.ParameterValue.relationship_id == wide_relationship_list.c.id).\
-        filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id).\
+        filter(parameter_definition_list.c.relationship_class_id == wide_relationship_class_list.c.id).\
         filter(~self.ParameterValue.id.in_(self.touched_item_id["parameter_value"]))
         diff_qry = self.session.query(
             self.DiffParameterValue.id.label('id'),
@@ -755,18 +818,18 @@ class DiffDatabaseMapping(DatabaseMapping):
             wide_relationship_list.c.id.label('relationship_id'),
             wide_relationship_list.c.object_id_list,
             wide_relationship_list.c.object_name_list,
-            parameter_list.c.id.label('parameter_id'),
-            parameter_list.c.name.label('parameter_name'),
+            parameter_definition_list.c.id.label('parameter_id'),
+            parameter_definition_list.c.name.label('parameter_name'),
             self.DiffParameterValue.value
-        ).filter(parameter_list.c.id == self.DiffParameterValue.parameter_definition_id).\
+        ).filter(parameter_definition_list.c.id == self.DiffParameterValue.parameter_definition_id).\
         filter(self.DiffParameterValue.relationship_id == wide_relationship_list.c.id).\
-        filter(parameter_list.c.relationship_class_id == wide_relationship_class_list.c.id)
+        filter(parameter_definition_list.c.relationship_class_id == wide_relationship_class_list.c.id)
         if relationship_class_id:
             qry = qry.filter(wide_relationship_class_list.c.id == relationship_class_id)
             diff_qry = diff_qry.filter(wide_relationship_class_list.c.id == relationship_class_id)
         if parameter_name:
-            qry = qry.filter(parameter_list.c.name == parameter_name)
-            diff_qry = diff_qry.filter(parameter_list.c.name == parameter_name)
+            qry = qry.filter(parameter_definition_list.c.name == parameter_name)
+            diff_qry = diff_qry.filter(parameter_definition_list.c.name == parameter_name)
         return qry.union_all(diff_qry)
 
     # TODO: Find out why we don't need to say, e.g., ~self.DiffParameterDefinition.id.in_(valued_parameter_ids)
@@ -777,7 +840,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         if not object_:
             return self.empty_list()
         valued_parameters = self.parameter_value_list(object_id=object_id)
-        return self.parameter_list(object_class_id=object_.class_id).\
+        return self.parameter_definition_list(object_class_id=object_.class_id).\
             filter(~self.ParameterDefinition.id.in_([x.parameter_definition_id for x in valued_parameters]))
 
     def unvalued_object_list(self, parameter_id):
@@ -796,7 +859,7 @@ class DiffDatabaseMapping(DatabaseMapping):
         if not relationship:
             return self.empty_list()
         valued_parameters = self.parameter_value_list(relationship_id=relationship_id)
-        return self.parameter_list(relationship_class_id=relationship.class_id).\
+        return self.parameter_definition_list(relationship_class_id=relationship.class_id).\
             filter(~self.ParameterDefinition.id.in_([x.parameter_definition_id for x in valued_parameters]))
 
     def unvalued_relationship_list(self, parameter_id):
@@ -2148,7 +2211,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameters(self, *kwargs_list, strict=False, return_dups=False):
+    def add_parameter_definitions(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter to database.
 
         Args:
@@ -2200,6 +2263,13 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.session.rollback()
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def add_parameters(self, *kwargs_list, strict=False, return_dups=False):
+        warnings.warn(
+            "add_parameters is deprecated, use add_parameter_definitions instead",
+            DeprecationWarning
+        )
+        return self.add_parameter_definitions(*kwargs_list, strict=False, return_dups=False)
 
     def add_parameter_values(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter value to database.

@@ -321,45 +321,45 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 self.db_map.add_wide_relationships(
                     {'name': 'nemo__pluto', 'class_id': 1, 'object_id_list': [1, 3]}, strict=True)
 
-    def test_add_parameters(self):
-        """Test that adding parameters works."""
+    def test_add_parameter_definitions(self):
+        """Test that adding parameter definitions works."""
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
                 mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
             mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
             mock_wide_rel_cls_list.return_value = [
                 KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
             ]
-            self.db_map.add_parameters(
+            self.db_map.add_parameter_definitions(
                 {'name': 'color', 'object_class_id': 1},
                 {'name': 'relative_speed', 'relationship_class_id': 10})
-        parameters = self.db_map.session.query(self.db_map.DiffParameter).all()
-        self.assertEqual(len(parameters), 2)
-        self.assertEqual(parameters[0].name, 'color')
-        self.assertEqual(parameters[0].object_class_id, 1)
-        self.assertIsNone(parameters[0].relationship_class_id)
-        self.assertEqual(parameters[1].name, 'relative_speed')
-        self.assertIsNone(parameters[1].object_class_id)
-        self.assertEqual(parameters[1].relationship_class_id, 10)
+        parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
+        self.assertEqual(len(parameter_definitions), 2)
+        self.assertEqual(parameter_definitions[0].name, 'color')
+        self.assertEqual(parameter_definitions[0].object_class_id, 1)
+        self.assertIsNone(parameter_definitions[0].relationship_class_id)
+        self.assertEqual(parameter_definitions[1].name, 'relative_speed')
+        self.assertIsNone(parameter_definitions[1].object_class_id)
+        self.assertEqual(parameter_definitions[1].relationship_class_id, 10)
 
-    def test_add_parameters_with_same_name(self):
-        """Test that adding two parameters with the same name only adds one of them."""
+    def test_add_parameter_definitions_with_same_name(self):
+        """Test that adding two parameter_definitions with the same name only adds one of them."""
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
                 mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
             mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
             mock_wide_rel_cls_list.return_value = [
                 KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
             ]
-            self.db_map.add_parameters(
+            self.db_map.add_parameter_definitions(
                 {'name': 'color', 'object_class_id': 1},
                 {'name': 'color', 'relationship_class_id': 10})
-        parameters = self.db_map.session.query(self.db_map.DiffParameter).all()
-        self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].name, 'color')
-        self.assertEqual(parameters[0].object_class_id, 1)
-        self.assertIsNone(parameters[0].relationship_class_id)
+        parameter_definitions = self.db_map.session.query(self.db_map.DiffParameter).all()
+        self.assertEqual(len(parameter_definitions), 1)
+        self.assertEqual(parameter_definitions[0].name, 'color')
+        self.assertEqual(parameter_definitions[0].object_class_id, 1)
+        self.assertIsNone(parameter_definitions[0].relationship_class_id)
 
     def test_add_parameter_with_same_name_as_existing_one(self):
-        """Test that adding parameters with an already taken name raises and integrity error."""
+        """Test that adding parameter_definitions with an already taken name raises and integrity error."""
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
                 mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list"), \
                 mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
@@ -369,10 +369,10 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 labels=["id", "object_class_id", "name", "parameter_value_list_id"])
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameters({'name': 'color', 'object_class_id': 2}, strict=True)
+                self.db_map.add_parameter_definitions({'name': 'color', 'object_class_id': 2}, strict=True)
 
     def test_add_parameter_with_invalid_class(self):
-        """Test that adding parameters with an invalid (object or relationship) class raises and integrity error."""
+        """Test that adding parameter_definitions with an invalid (object or relationship) class raises and integrity error."""
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
                 mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
             mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
@@ -380,12 +380,12 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameters({'name': 'color', 'object_class_id': 2}, strict=True)
+                self.db_map.add_parameter_definitions({'name': 'color', 'object_class_id': 2}, strict=True)
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameters({'name': 'color', 'relationship_class_id': 9}, strict=True)
+                self.db_map.add_parameter_definitions({'name': 'color', 'relationship_class_id': 9}, strict=True)
 
     def test_add_parameter_for_both_object_and_relationship_class(self):
-        """Test that adding parameters associated to both and object and relationship class
+        """Test that adding parameter_definitions associated to both and object and relationship class
         raises and integrity error."""
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
                 mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
@@ -394,7 +394,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameters(
+                self.db_map.add_parameter_definitions(
                     {'name': 'color', 'object_class_id': 1, 'relationship_class_id': 10}, strict=True)
 
     def test_add_parameter_values(self):
