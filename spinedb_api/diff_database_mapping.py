@@ -390,6 +390,7 @@ class DiffDatabaseMapping(DatabaseMapping):
             self.DiffObjectClass.id.label("id"),
             self.DiffObjectClass.name.label("name"),
             self.DiffObjectClass.display_order.label("display_order"),
+            self.DiffObjectClass.display_order.label("display_icon"),
             self.DiffObjectClass.description.label("description"))
         if id_list is not None:
             diff_qry = diff_qry.filter(self.DiffObjectClass.id.in_(id_list))

@@ -355,6 +355,7 @@ class DatabaseMapping(object):
             self.ObjectClass.id.label("id"),
             self.ObjectClass.name.label("name"),
             self.ObjectClass.display_order.label("display_order"),
+            self.ObjectClass.display_order.label("display_icon"),
             self.ObjectClass.description.label("description"))
         if id_list is not None:
             qry = qry.filter(self.ObjectClass.id.in_(id_list))
