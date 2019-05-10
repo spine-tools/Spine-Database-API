@@ -411,9 +411,9 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (8, 1, 10, 'commodity_group__node_group', 0, NULL),
             (9, 0, 2, 'unit__commodity_group', 0, NULL),
             (9, 1, 9, 'unit__commodity_group', 0, NULL),
-            (10, 0, 1, 'unit__commodity_group__direction', 0, NULL),
-            (10, 1, 2, 'unit__commodity_group__direction', 0, NULL),
-            (10, 2, 9, 'unit__commodity_group__direction', 0, NULL),
+            (10, 0, 2, 'unit__commodity_group__direction', 0, NULL),
+            (10, 1, 9, 'unit__commodity_group__direction', 0, NULL),
+            (10, 2, 1, 'unit__commodity_group__direction', 0, NULL),
             (11, 0, 2, 'unit__commodity_group_out__commodity_group_in', 0, NULL),
             (11, 1, 9, 'unit__commodity_group_out__commodity_group_in', 0, NULL),
             (11, 2, 9, 'unit__commodity_group_out__commodity_group_in', 0, NULL),
@@ -421,7 +421,15 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (12, 1, 9, 'connection__commodity_group_out__commodity_group_in', 0, NULL),
             (12, 2, 9, 'connection__commodity_group_out__commodity_group_in', 0, NULL),
             (13, 0, 6, 'node__temporal_block', 0, NULL),
-            (13, 1, 7, 'node__temporal_block', 0, NULL);
+            (13, 1, 7, 'node__temporal_block', 0, NULL),
+            (14, 0, 4, 'storage__unit', 0, NULL),
+            (14, 1, 2, 'storage__unit', 0, NULL),
+            (15, 0, 4, 'storage__connection', 0, NULL),
+            (15, 1, 3, 'storage__connection', 0, NULL),
+            (16, 0, 4, 'storage__commodity', 0, NULL),
+            (16, 1, 5, 'storage__commodity', 0, NULL),
+            (17, 0, 4, 'storage__commodity_group', 0, NULL),
+            (17, 1, 9, 'storage__commodity_group', 0, NULL);
         """
         sql_list.append(sql)
         sql = """
@@ -431,31 +439,33 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (3, 'shut_down_cost', 2, 'null', NULL),
             (4, 'number_of_units', 2, 1, NULL),
             (5, 'avail_factor', 2, 1, NULL),
-            (6, 'min_down_time', 2, 'null', NULL),
-            (7, 'min_up_time', 2, 'null', NULL),
+            (6, 'min_down_time', 2, 0, NULL),
+            (7, 'min_up_time', 2, 0, NULL),
             (8, 'start_datetime', 7, 'null', NULL),
             (9, 'end_datetime', 7, 'null', NULL),
             (10, 'time_slice_duration', 7, 'null', NULL),
-            (11, 'demand', 4, 0, NULL);
+            (11, 'demand', 6, 0, NULL);
         """
         sql_list.append(sql)
         sql = """
             INSERT OR IGNORE INTO `parameter_definition` (`id`, `name`, `relationship_class_id`, `default_value`, `commit_id`) VALUES
-            (12, 'unit_conv_cap_to_flow', 9, 1, NULL),
-            (13, 'unit_capacity', 10, 'null', NULL),
-            (14, 'operating_cost', 10, 'null', NULL),
-            (15, 'vom_cost', 10, 'null', NULL),
-            (16, 'tax_net_flow', 8, 'null', NULL),
-            (17, 'tax_out_flow', 8, 'null', NULL),
-            (18, 'tax_in_flow', 8, 'null', NULL),
-            (19, 'fix_ratio_out_in', 11, 'null', NULL),
-            (20, 'fix_ratio_out_in', 12, 'null', NULL),
-            (21, 'max_ratio_out_in', 11, 'null', NULL),
-            (22, 'max_ratio_out_in', 12, 'null', NULL),
-            (23, 'min_ratio_out_in', 11, 'null', NULL),
-            (24, 'min_ratio_out_in', 12, 'null', NULL),
-            (25, 'minimum_operating_point', 9, 'null', NULL),
-            (26, 'max_cum_in_flow_bound', 7, 'null', NULL);
+            (1001, 'unit_conv_cap_to_flow', 9, 1, NULL),
+            (1002, 'unit_capacity', 10, 'null', NULL),
+            (1003, 'operating_cost', 10, 'null', NULL),
+            (1004, 'vom_cost', 10, 'null', NULL),
+            (1005, 'tax_net_flow', 8, 'null', NULL),
+            (1006, 'tax_out_flow', 8, 'null', NULL),
+            (1007, 'tax_in_flow', 8, 'null', NULL),
+            (1008, 'fix_ratio_out_in', 11, 'null', NULL),
+            (1009, 'fix_ratio_out_in', 12, 'null', NULL),
+            (1010, 'max_ratio_out_in', 11, 'null', NULL),
+            (1011, 'max_ratio_out_in', 12, 'null', NULL),
+            (1012, 'min_ratio_out_in', 11, 'null', NULL),
+            (1013, 'min_ratio_out_in', 12, 'null', NULL),
+            (1014, 'minimum_operating_point', 9, 'null', NULL),
+            (1015, 'stor_state_cap', 17, 'null', NULL),
+            (1016, 'stor_state_init', 16, 'null', NULL),
+            (1017, 'max_cum_in_flow_bound', 7, 'null', NULL);
         """
         sql_list.append(sql)
         sql = """
