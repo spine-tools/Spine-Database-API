@@ -1695,8 +1695,8 @@ class DiffDatabaseMapping(DatabaseMapping):
             if object_class_id != parameter_definition["object_class_id"]:
                 object_name = object_dict[object_id]['name']
                 parameter_name = parameter_definition['name']
-                raise SpineIntegrityError("Incorrect object '{}' for "
-                                          "parameter '{}'.".format(object_name, parameter_name))
+                raise SpineIntegrityError(
+                    "Incorrect object '{}' for parameter '{}'.".format(object_name, parameter_name))
             if (object_id, parameter_definition_id) in object_parameter_values:
                 object_name = object_dict[object_id]['name']
                 parameter_name = parameter_definition['name']
