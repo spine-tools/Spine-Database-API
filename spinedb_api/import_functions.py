@@ -440,7 +440,7 @@ def import_object_parameter_values(db_map, data):
             # new values
             if pv_id is not None:
                 #  update
-                update_values.append(new_value)
+                update_values.append({'id': pv_id, 'value': str(value)})
             else:
                 # add
                 new_values.append(new_value)
@@ -475,7 +475,7 @@ def import_relationship_parameter_values(db_map, data):
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
     """
-    
+
     relationship_class_dict = {
         x.id: {
             "object_class_id_list": [int(y) for y in x.object_class_id_list.split(',')],
@@ -538,7 +538,7 @@ def import_relationship_parameter_values(db_map, data):
             # new values
             if pv_id is not None:
                 #  update
-                update_values.append(new_value)
+                update_values.append({'id': pv_id, 'value': str(value)})
             else:
                 # add
                 new_values.append(new_value)
