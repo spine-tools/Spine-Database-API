@@ -26,9 +26,9 @@ class ImportErrorLogItem():
         self.imported_from = imported_from
         self.other = other
 
-def import_data(db_map, object_classes=[], relationship_classes=[], object_parameters=[],
-                relationship_parameters=[], objects=[], relationships=[],
-                object_parameter_values=[], relationship_parameter_values=[]):
+def import_data(db_map, object_classes=(), relationship_classes=(), object_parameters=(),
+                relationship_parameters=(), objects=(), relationships=(),
+                object_parameter_values=(), relationship_parameter_values=()):
     """Imports data into a Spine database using name references (rather than id references).
 
     Ex:
