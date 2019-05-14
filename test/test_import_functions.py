@@ -83,7 +83,7 @@ def create_mock_db_map():
     db_map.object_class_list.return_value = existing_object_classes
     db_map.object_list.return_value = existing_objects
     db_map.wide_relationship_class_list.return_value = existing_rel_class
-    db_map.parameter_list.return_value = existing_parameter
+    db_map.parameter_definition_list.return_value = existing_parameter
     db_map.wide_relationship_list.return_value = existing_relationship
     db_map.object_parameter_value_list.return_value = [
         p for p in existing_parameter_value if p.object_id != None]
