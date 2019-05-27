@@ -69,7 +69,7 @@ class DatabaseMapping(object):
         self.ParameterValueList = None
         self.Commit = None
         # Subqueries that select everything from each table
-        self.object_class_sq_sq = None
+        self.object_class_sq = None
         self.object_sq = None
         self.relationship_class_sq = None
         self.relationship_sq = None
@@ -195,7 +195,7 @@ class DatabaseMapping(object):
             class_ = getattr(self, classname)
             setattr(
                 self,
-                tablename,
+                tablename + "_sq",
                 self.session.query(
                     *[c.label(c.name) for c in inspect(class_).mapper.columns]
                 ).subquery(with_labels=False),
