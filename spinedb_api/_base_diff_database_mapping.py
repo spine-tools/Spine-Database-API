@@ -78,6 +78,7 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
             self.create_diff_tables_and_mapping()
             self.init_next_id()
             self.create_subqueries()
+            self.create_special_subqueries()
 
     def has_pending_changes(self):
         """Return True if there are uncommitted changes. Otherwise return False."""

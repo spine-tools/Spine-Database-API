@@ -40,7 +40,7 @@ class _UpdateDiffDatabaseMapping(_AddDiffDatabaseMapping):
             db_url, username=username, create_all=create_all, upgrade=upgrade
         )
 
-    # TODO: split all update_ methods like update_parameter_values...
+    # TODO: split all update_ methods into two, like `update_parameter_values`...
 
     def update_object_classes(self, *kwargs_list, strict=False):
         """Update object classes."""
