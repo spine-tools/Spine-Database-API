@@ -375,10 +375,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (4, 'storage', 'A storage', NULL, 4, 280376899531934, 0, NULL),
             (5, 'commodity', 'A commodity', NULL, 5, 281473533932880, 0, NULL),
             (6, 'node', 'An entity where an energy balance takes place', NULL, 6, 280740554077951, 0, NULL),
-            (7, 'temporal_block', 'A temporal block', NULL, 7, 280376891207703, 0, NULL),
-            (8, 'unit_group', 'A group of units', NULL, 8, 281105609585269, 0, NULL),
-            (9, 'commodity_group', 'A group of commodities', NULL, 9, 281472107869520, 0, NULL),
-            (10, 'node_group', 'A group of nodes', NULL, 10, 280375473469183, 0, NULL);
+            (7, 'temporal_block', 'A temporal block', NULL, 7, 280376891207703, 0, NULL);
         """
         sql_list.append(sql)
         sql = """
@@ -399,27 +396,27 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (2, 3, 7, 'connection__node__direction__temporal_block', 0, NULL),
             (3, 0, 6, 'node__commodity', 0, NULL),
             (3, 1, 5, 'node__commodity', 0, NULL),
-            (4, 0, 8, 'unit_group__unit', 0, NULL),
+            (4, 0, 2, 'unit_group__unit', 0, NULL),
             (4, 1, 2, 'unit_group__unit', 0, NULL),
-            (5, 0, 9, 'commodity_group__commodity', 0, NULL),
+            (5, 0, 5, 'commodity_group__commodity', 0, NULL),
             (5, 1, 5, 'commodity_group__commodity', 0, NULL),
-            (6, 0, 10, 'node_group__node', 0, NULL),
+            (6, 0, 6, 'node_group__node', 0, NULL),
             (6, 1, 6, 'node_group__node', 0, NULL),
-            (7, 0, 8, 'unit_group__commodity_group', 0, NULL),
-            (7, 1, 9, 'unit_group__commodity_group', 0, NULL),
-            (8, 0, 9, 'commodity_group__node_group', 0, NULL),
-            (8, 1, 10, 'commodity_group__node_group', 0, NULL),
-            (9, 0, 2, 'unit__commodity_group', 0, NULL),
-            (9, 1, 9, 'unit__commodity_group', 0, NULL),
-            (10, 0, 2, 'unit__commodity_group__direction', 0, NULL),
-            (10, 1, 9, 'unit__commodity_group__direction', 0, NULL),
-            (10, 2, 1, 'unit__commodity_group__direction', 0, NULL),
-            (11, 0, 2, 'unit__commodity_group__commodity_group', 0, NULL),
-            (11, 1, 9, 'unit__commodity_group__commodity_group', 0, NULL),
-            (11, 2, 9, 'unit__commodity_group__commodity_group', 0, NULL),
-            (12, 0, 3, 'connection__node_group__node_group', 0, NULL),
-            (12, 1, 10, 'connection__node_group__node_group', 0, NULL),
-            (12, 2, 10, 'connection__node_group__node_group', 0, NULL),
+            (7, 0, 2, 'unit_group__commodity_group', 0, NULL),
+            (7, 1, 5, 'unit_group__commodity_group', 0, NULL),
+            (8, 0, 5, 'commodity_group__node_group', 0, NULL),
+            (8, 1, 6, 'commodity_group__node_group', 0, NULL),
+            (9, 0, 2, 'unit__commodity', 0, NULL),
+            (9, 1, 5, 'unit__commodity', 0, NULL),
+            (10, 0, 2, 'unit__commodity__direction', 0, NULL),
+            (10, 1, 5, 'unit__commodity__direction', 0, NULL),
+            (10, 2, 1, 'unit__commodity__direction', 0, NULL),
+            (11, 0, 2, 'unit__commodity__commodity', 0, NULL),
+            (11, 1, 5, 'unit__commodity__commodity', 0, NULL),
+            (11, 2, 5, 'unit__commodity__commodity', 0, NULL),
+            (12, 0, 3, 'connection__node__node', 0, NULL),
+            (12, 1, 6, 'connection__node__node', 0, NULL),
+            (12, 2, 6, 'connection__node__node', 0, NULL),
             (13, 0, 6, 'node__temporal_block', 0, NULL),
             (13, 1, 7, 'node__temporal_block', 0, NULL),
             (14, 0, 4, 'storage__unit', 0, NULL),
@@ -427,9 +424,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (15, 0, 4, 'storage__connection', 0, NULL),
             (15, 1, 3, 'storage__connection', 0, NULL),
             (16, 0, 4, 'storage__commodity', 0, NULL),
-            (16, 1, 5, 'storage__commodity', 0, NULL),
-            (17, 0, 4, 'storage__commodity_group', 0, NULL),
-            (17, 1, 9, 'storage__commodity_group', 0, NULL);
+            (16, 1, 5, 'storage__commodity', 0, NULL);
         """
         sql_list.append(sql)
         sql = """
@@ -444,7 +439,11 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (8, 'start_datetime', 7, 'null', NULL),
             (9, 'end_datetime', 7, 'null', NULL),
             (10, 'time_slice_duration', 7, 'null', NULL),
-            (11, 'demand', 6, 0, NULL);
+            (11, 'demand', 6, 0, NULL),
+            (12, 'online_variable_type', 2, '"integer_online_variable"', NULL),
+            (13, 'fix_units_on', 2, 'null', NULL),
+            (14, 'stor_state_cap', 4, 0, NULL),
+            (15, 'frac_state_loss', 4, 0, NULL);
         """
         sql_list.append(sql)
         sql = """
@@ -463,9 +462,11 @@ def create_new_spine_database(db_url, for_spine_model=False):
             (1012, 'min_ratio_out_in', 11, 'null', NULL),
             (1013, 'min_ratio_out_in', 12, 'null', NULL),
             (1014, 'minimum_operating_point', 9, 'null', NULL),
-            (1015, 'stor_state_cap', 17, 'null', NULL),
-            (1016, 'stor_state_init', 16, 'null', NULL),
-            (1017, 'max_cum_in_flow_bound', 7, 'null', NULL);
+            (1017, 'stor_unit_discharg_eff', 15, 1, NULL),
+            (1018, 'stor_unit_charg_eff', 15, 1, NULL),
+            (1019, 'stor_conn_discharg_eff', 16, 1, NULL),
+            (1020, 'stor_conn_charg_eff', 16, 1, NULL),
+            (1021, 'max_cum_in_flow_bound', 7, 'null', NULL);
         """
         sql_list.append(sql)
         sql = """
