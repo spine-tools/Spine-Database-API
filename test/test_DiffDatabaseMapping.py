@@ -20,27 +20,31 @@ import os
 import unittest
 import logging
 import sys
+import json
 from spinedb_api.diff_database_mapping import DiffDatabaseMapping, SpineIntegrityError
 from spinedb_api.helpers import create_new_spine_database
 from sqlalchemy.util import KeyedTuple
 from unittest import mock
 from sqlalchemy.orm import Session
 
-class TestDiffDatabaseMapping(unittest.TestCase):
 
+class TestDiffDatabaseMapping(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Overridden method. Runs once before all tests in this class."""
-        logging.basicConfig(stream=sys.stderr, level=logging.DEBUG,
-                            format='%(asctime)s %(levelname)s: %(message)s',
-                            datefmt='%Y-%m-%d %H:%M:%S')
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=logging.DEBUG,
+            format="%(asctime)s %(levelname)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
         try:
             os.remove("temp.sqlite")
         except OSError:
             pass
-        db_url = 'sqlite:///temp.sqlite'
+        db_url = "sqlite:///temp.sqlite"
         engine = create_new_spine_database(db_url)
-        cls.db_map = DiffDatabaseMapping(db_url, username='UnitTest')
+        cls.db_map = DiffDatabaseMapping(db_url, username="UnitTest")
 
     @classmethod
     def tearDownClass(cls):
@@ -67,202 +71,277 @@ class TestDiffDatabaseMapping(unittest.TestCase):
 
     def test_insert_many_objects_and_commit(self):
         """Tests inserting many objects into db"""
-        c_id = self.db_map.add_object_classes({'name': 'testclass'})[0].first().id
-        self.db_map.add_objects(*[{'name': str(i), 'class_id': c_id} for i in range(1001)])
-        self.db_map.commit_session('test_commit')
+        c_id = self.db_map.add_object_classes({"name": "testclass"})[0].first().id
+        self.db_map.add_objects(
+            *[{"name": str(i), "class_id": c_id} for i in range(1001)]
+        )
+        self.db_map.commit_session("test_commit")
         self.assertEqual(self.db_map.session.query(self.db_map.Object).count(), 1001)
 
     def test_insert_and_retrieve_many_objects(self):
         """Tests inserting many objects into db and retrieving them."""
-        c_id = self.db_map.add_object_classes({'name': 'testclass'})[0].first().id
-        objects = self.db_map.add_objects(*[{'name': str(i), 'class_id': c_id} for i in range(1001)])[0]
+        c_id = self.db_map.add_object_classes({"name": "testclass"})[0].first().id
+        objects = self.db_map.add_objects(
+            *[{"name": str(i), "class_id": c_id} for i in range(1001)]
+        )[0]
         self.assertEqual(objects.count(), 1001)
 
     @unittest.skip("TODO")
     def test_check_wide_relationship_with_repeated_object(self):
         """Tests that checking valid relationship with one repeated object doesn't throw an error"""
-        check_rel = {"name": 'unique_name', 'object_id_list': [1, 1], 'class_id': 1}
-        self.db_map.check_wide_relationship(check_rel, [], {1: [1, 1]}, {1:1, 1:1})
+        check_rel = {"name": "unique_name", "object_id_list": [1, 1], "class_id": 1}
+        self.db_map.check_wide_relationship(check_rel, [], {1: [1, 1]}, {1: 1, 1: 1})
 
     def test_add_object_classes(self):
         """Test that adding object classes works."""
-        self.db_map.add_object_classes({'name': 'fish'}, {'name': 'dog'})
+        self.db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
         object_classes = self.db_map.session.query(self.db_map.DiffObjectClass).all()
         self.assertEqual(len(object_classes), 2)
-        self.assertEqual(object_classes[0].name, 'fish')
-        self.assertEqual(object_classes[1].name, 'dog')
+        self.assertEqual(object_classes[0].name, "fish")
+        self.assertEqual(object_classes[1].name, "dog")
 
     def test_add_object_classes_with_same_name(self):
         """Test that adding two object classes with the same name only adds one of them."""
-        self.db_map.add_object_classes({'name': 'fish'}, {'name': 'fish'})
+        self.db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
         object_classes = self.db_map.session.query(self.db_map.DiffObjectClass).all()
         self.assertEqual(len(object_classes), 1)
-        self.assertEqual(object_classes[0].name, 'fish')
+        self.assertEqual(object_classes[0].name, "fish")
 
     def test_add_object_class_with_same_name_as_existing_one(self):
         """Test that adding an object class with an already taken name raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_object_classes({'name': 'fish'}, strict=True)
+                self.db_map.add_object_classes({"name": "fish"}, strict=True)
 
     def test_add_objects(self):
         """Test that adding objects works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
-            self.db_map.add_objects({'name': 'nemo', 'class_id': 1}, {'name': 'dory', 'class_id': 1})
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
+            self.db_map.add_objects(
+                {"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1}
+            )
         objects = self.db_map.session.query(self.db_map.DiffObject).all()
         self.assertEqual(len(objects), 2)
-        self.assertEqual(objects[0].name, 'nemo')
+        self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
-        self.assertEqual(objects[1].name, 'dory')
+        self.assertEqual(objects[1].name, "dory")
         self.assertEqual(objects[1].class_id, 1)
 
     def test_add_objects_with_same_name(self):
         """Test that adding two objects with the same name only adds one of them."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
-            self.db_map.add_objects({'name': 'nemo', 'class_id': 1}, {'name': 'nemo', 'class_id': 1})
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
+            self.db_map.add_objects(
+                {"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1}
+            )
         objects = self.db_map.session.query(self.db_map.DiffObject).all()
         self.assertEqual(len(objects), 1)
-        self.assertEqual(objects[0].name, 'nemo')
+        self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
 
     def test_add_object_with_same_name_as_existing_one(self):
         """Test that adding an object with an already taken name raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
-            mock_object_list.return_value = [KeyedTuple([1, 1, 'nemo'], labels=["id", "class_id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
+            mock_object_list.return_value = [
+                KeyedTuple([1, 1, "nemo"], labels=["id", "class_id", "name"])
+            ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_objects({'name': 'nemo', 'class_id': 1}, strict=True)
+                self.db_map.add_objects({"name": "nemo", "class_id": 1}, strict=True)
 
     def test_add_object_with_invalid_class(self):
         """Test that adding an object with a non existing class raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_objects({'name': 'pluto', 'class_id': 2}, strict=True)
+                self.db_map.add_objects({"name": "pluto", "class_id": 2}, strict=True)
 
     def test_add_relationship_classes(self):
         """Test that adding relationship classes works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list"):
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ):
             mock_object_class_list.return_value = [
-                KeyedTuple([1, 'fish'], labels=["id", "name"]),
-                KeyedTuple([2, 'dog'], labels=["id", "name"])
+                KeyedTuple([1, "fish"], labels=["id", "name"]),
+                KeyedTuple([2, "dog"], labels=["id", "name"]),
             ]
             self.db_map.add_wide_relationship_classes(
-                {'name': 'fish__dog', 'object_class_id_list': [1, 2]},
-                {'name': 'fishy_doggy', 'object_class_id_list': [1, 2]})
-        relationship_classes = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
+                {"name": "fish__dog", "object_class_id_list": [1, 2]},
+                {"name": "fishy_doggy", "object_class_id_list": [1, 2]},
+            )
+        relationship_classes = self.db_map.session.query(
+            self.db_map.DiffRelationshipClass
+        ).all()
         self.assertEqual(len(relationship_classes), 4)
-        self.assertEqual(relationship_classes[0].name, 'fish__dog')
+        self.assertEqual(relationship_classes[0].name, "fish__dog")
         self.assertEqual(relationship_classes[0].object_class_id, 1)
-        self.assertEqual(relationship_classes[1].name, 'fish__dog')
+        self.assertEqual(relationship_classes[1].name, "fish__dog")
         self.assertEqual(relationship_classes[1].object_class_id, 2)
-        self.assertEqual(relationship_classes[2].name, 'fishy_doggy')
+        self.assertEqual(relationship_classes[2].name, "fishy_doggy")
         self.assertEqual(relationship_classes[2].object_class_id, 1)
-        self.assertEqual(relationship_classes[3].name, 'fishy_doggy')
+        self.assertEqual(relationship_classes[3].name, "fishy_doggy")
         self.assertEqual(relationship_classes[3].object_class_id, 2)
 
     def test_add_relationship_classes_with_same_name(self):
         """Test that adding two relationship classes with the same name only adds one of them."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list"):
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ):
             mock_object_class_list.return_value = [
-                KeyedTuple([1, 'fish'], labels=["id", "name"]),
-                KeyedTuple([2, 'dog'], labels=["id", "name"])
+                KeyedTuple([1, "fish"], labels=["id", "name"]),
+                KeyedTuple([2, "dog"], labels=["id", "name"]),
             ]
             self.db_map.add_wide_relationship_classes(
-                {'name': 'dog__fish', 'object_class_id_list': [1, 2]},
-                {'name': 'dog__fish', 'object_class_id_list': [1, 2]})
-        relationship_classes = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
+                {"name": "dog__fish", "object_class_id_list": [1, 2]},
+                {"name": "dog__fish", "object_class_id_list": [1, 2]},
+            )
+        relationship_classes = self.db_map.session.query(
+            self.db_map.DiffRelationshipClass
+        ).all()
         self.assertEqual(len(relationship_classes), 2)
-        self.assertEqual(relationship_classes[0].name, 'dog__fish')
+        self.assertEqual(relationship_classes[0].name, "dog__fish")
         self.assertEqual(relationship_classes[0].object_class_id, 1)
-        self.assertEqual(relationship_classes[1].name, 'dog__fish')
+        self.assertEqual(relationship_classes[1].name, "dog__fish")
         self.assertEqual(relationship_classes[1].object_class_id, 2)
 
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list:
             mock_object_class_list.return_value = [
-                KeyedTuple([1, 'fish'], labels=["id", "name"]),
-                KeyedTuple([2, 'dog'], labels=["id", "name"])
+                KeyedTuple([1, "fish"], labels=["id", "name"]),
+                KeyedTuple([2, "dog"], labels=["id", "name"]),
             ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [1, "1,2", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_wide_relationship_classes(
-                    {'name': 'fish__dog', 'object_class_id_list': [1, 2]}, strict=True)
+                    {"name": "fish__dog", "object_class_id_list": [1, 2]}, strict=True
+                )
 
     def test_add_relationship_class_with_invalid_object_class(self):
         """Test that adding a relationship class with a non existing object class raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list"):
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ):
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_wide_relationship_classes(
-                    {'name': 'fish__dog', 'object_class_id_list': [1, 2]}, strict=True)
+                    {"name": "fish__dog", "object_class_id_list": [1, 2]}, strict=True
+                )
 
     def test_add_relationships(self):
         """Test that adding relationships works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ):
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 10, 'dory'], labels=["id", "class_id", "name"]),
-                KeyedTuple([3, 20, 'pluto'], labels=["id", "class_id", "name"]),
-                KeyedTuple([4, 20, 'scooby'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 10, "dory"], labels=["id", "class_id", "name"]),
+                KeyedTuple([3, 20, "pluto"], labels=["id", "class_id", "name"]),
+                KeyedTuple([4, 20, "scooby"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, '10,20', 'fish__dog'], labels=["id", "object_class_id_list", "name"]),
-                KeyedTuple([2, '20,10', 'dog__fish'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [1, "10,20", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                ),
+                KeyedTuple(
+                    [2, "20,10", "dog__fish"],
+                    labels=["id", "object_class_id_list", "name"],
+                ),
             ]
             self.db_map.add_wide_relationships(
-                {'name': 'nemo__pluto', 'class_id': 1, 'object_id_list': [1, 3]},
-                {'name': 'scooby_dory', 'class_id': 2, 'object_id_list': [4, 2]})
+                {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 3]},
+                {"name": "scooby_dory", "class_id": 2, "object_id_list": [4, 2]},
+            )
         relationships = self.db_map.session.query(self.db_map.DiffRelationship).all()
         self.assertEqual(len(relationships), 4)
-        self.assertEqual(relationships[0].name, 'nemo__pluto')
+        self.assertEqual(relationships[0].name, "nemo__pluto")
         self.assertEqual(relationships[0].class_id, 1)
         self.assertEqual(relationships[0].object_id, 1)
-        self.assertEqual(relationships[1].name, 'nemo__pluto')
+        self.assertEqual(relationships[1].name, "nemo__pluto")
         self.assertEqual(relationships[1].class_id, 1)
         self.assertEqual(relationships[1].object_id, 3)
-        self.assertEqual(relationships[2].name, 'scooby_dory')
+        self.assertEqual(relationships[2].name, "scooby_dory")
         self.assertEqual(relationships[2].class_id, 2)
         self.assertEqual(relationships[2].object_id, 4)
-        self.assertEqual(relationships[3].name, 'scooby_dory')
+        self.assertEqual(relationships[3].name, "scooby_dory")
         self.assertEqual(relationships[3].class_id, 2)
         self.assertEqual(relationships[3].object_id, 2)
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ):
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, '10,20', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [1, "10,20", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             self.db_map.add_wide_relationships(
-                {'name': 'nemo__pluto', 'class_id': 1, 'object_id_list': [1, 2]},
-                {'name': 'nemoy__plutoy', 'class_id': 1, 'object_id_list': [1, 2]})
+                {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 2]},
+                {"name": "nemoy__plutoy", "class_id": 1, "object_id_list": [1, 2]},
+            )
         relationships = self.db_map.session.query(self.db_map.DiffRelationship).all()
         self.assertEqual(len(relationships), 2)
-        self.assertEqual(relationships[0].name, 'nemo__pluto')
+        self.assertEqual(relationships[0].name, "nemo__pluto")
         self.assertEqual(relationships[0].class_id, 1)
         self.assertEqual(relationships[0].object_id, 1)
-        self.assertEqual(relationships[1].name, 'nemo__pluto')
+        self.assertEqual(relationships[1].name, "nemo__pluto")
         self.assertEqual(relationships[1].class_id, 1)
         self.assertEqual(relationships[1].object_id, 2)
 
@@ -270,299 +349,534 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         """Test that adding a relationship with the same class and same objects as an existing one
         raises an integrity error.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, '10,20', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [1, "10,20", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 1, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 1, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_wide_relationships(
-                    {'name': 'nemoy__plutoy', 'class_id': 1, 'object_id_list': [1, 2]}, strict=True)
+                    {"name": "nemoy__plutoy", "class_id": 1, "object_id_list": [1, 2]},
+                    strict=True,
+                )
 
     def test_add_relationship_with_invalid_class(self):
         """Test that adding a relationship with an invalid class raises an integrity error.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ):
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, '10,20', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [1, "10,20", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_wide_relationships(
-                    {'name': 'nemo__pluto', 'class_id': 2, 'object_id_list': [1, 2]}, strict=True)
+                    {"name": "nemo__pluto", "class_id": 2, "object_id_list": [1, 2]},
+                    strict=True,
+                )
 
     def test_add_relationship_with_invalid_object(self):
         """Test that adding a relationship with an invalid object raises an integrity error.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ):
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, '10,20', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [1, "10,20", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_wide_relationships(
-                    {'name': 'nemo__pluto', 'class_id': 1, 'object_id_list': [1, 3]}, strict=True)
+                    {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 3]},
+                    strict=True,
+                )
 
     def test_add_parameter_definitions(self):
         """Test that adding parameter definitions works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [10, "1,2", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             self.db_map.add_parameter_definitions(
-                {'name': 'color', 'object_class_id': 1},
-                {'name': 'relative_speed', 'relationship_class_id': 10})
-        parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
+                {"name": "color", "object_class_id": 1},
+                {"name": "relative_speed", "relationship_class_id": 10},
+            )
+        parameter_definitions = self.db_map.session.query(
+            self.db_map.DiffParameterDefinition
+        ).all()
         self.assertEqual(len(parameter_definitions), 2)
-        self.assertEqual(parameter_definitions[0].name, 'color')
+        self.assertEqual(parameter_definitions[0].name, "color")
         self.assertEqual(parameter_definitions[0].object_class_id, 1)
         self.assertIsNone(parameter_definitions[0].relationship_class_id)
-        self.assertEqual(parameter_definitions[1].name, 'relative_speed')
+        self.assertEqual(parameter_definitions[1].name, "relative_speed")
         self.assertIsNone(parameter_definitions[1].object_class_id)
         self.assertEqual(parameter_definitions[1].relationship_class_id, 10)
 
     def test_add_parameter_definitions_with_same_name(self):
         """Test that adding two parameter_definitions with the same name only adds one of them."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [10, "1,2", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             self.db_map.add_parameter_definitions(
-                {'name': 'color', 'object_class_id': 1},
-                {'name': 'color', 'relationship_class_id': 10})
-        parameter_definitions = self.db_map.session.query(self.db_map.DiffParameter).all()
-        self.assertEqual(len(parameter_definitions), 1)
-        self.assertEqual(parameter_definitions[0].name, 'color')
+                {"name": "color", "object_class_id": 1},
+                {"name": "color", "relationship_class_id": 10},
+            )
+        parameter_definitions = self.db_map.session.query(
+            self.db_map.DiffParameterDefinition
+        ).all()
+        self.assertEqual(len(parameter_definitions), 2)
+        self.assertEqual(parameter_definitions[0].name, "color")
         self.assertEqual(parameter_definitions[0].object_class_id, 1)
         self.assertIsNone(parameter_definitions[0].relationship_class_id)
 
     def test_add_parameter_with_same_name_as_existing_one(self):
         """Test that adding parameter_definitions with an already taken name raises and integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list"), \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ), mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             mock_parameter_list.return_value = [
-                KeyedTuple([1, 1, 'color', None],
-                labels=["id", "object_class_id", "name", "parameter_value_list_id"])
+                KeyedTuple(
+                    [1, 1, "color", None],
+                    labels=["id", "object_class_id", "name", "parameter_value_list_id"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_definitions({'name': 'color', 'object_class_id': 2}, strict=True)
+                self.db_map.add_parameter_definitions(
+                    {"name": "color", "object_class_id": 2}, strict=True
+                )
 
     def test_add_parameter_with_invalid_class(self):
         """Test that adding parameter_definitions with an invalid (object or relationship) class raises and integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [10, "1,2", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_definitions({'name': 'color', 'object_class_id': 2}, strict=True)
+                self.db_map.add_parameter_definitions(
+                    {"name": "color", "object_class_id": 2}, strict=True
+                )
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_definitions({'name': 'color', 'relationship_class_id': 9}, strict=True)
+                self.db_map.add_parameter_definitions(
+                    {"name": "color", "relationship_class_id": 9}, strict=True
+                )
 
     def test_add_parameter_for_both_object_and_relationship_class(self):
         """Test that adding parameter_definitions associated to both and object and relationship class
         raises and integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_list") as mock_wide_rel_cls_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, 'fish'], labels=["id", "name"])]
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_class_list"
+        ) as mock_object_class_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_list"
+        ) as mock_wide_rel_cls_list:
+            mock_object_class_list.return_value = [
+                KeyedTuple([1, "fish"], labels=["id", "name"])
+            ]
             mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([10, '1,2', 'fish__dog'], labels=["id", "object_class_id_list", "name"])
+                KeyedTuple(
+                    [10, "1,2", "fish__dog"],
+                    labels=["id", "object_class_id_list", "name"],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_definitions(
-                    {'name': 'color', 'object_class_id': 1, 'relationship_class_id': 10}, strict=True)
+                    {
+                        "name": "color",
+                        "object_class_id": 1,
+                        "relationship_class_id": 10,
+                    },
+                    strict=True,
+                )
 
     def test_add_parameter_values(self):
         """Test that adding parameter values works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 100, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                )
             ]
             mock_parameter_list.return_value = [
                 KeyedTuple(
-                    [1, 10, None, 'color', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"]),
+                    [1, 10, None, "color", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
                 KeyedTuple(
-                    [2, None, 100, 'rel_speed', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"])
+                    [2, None, 100, "rel_speed", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
             ]
             self.db_map.add_parameter_values(
-                {'parameter_id': 1, 'object_id': 1, 'value': 'orange'},
-                {'parameter_id': 2, 'relationship_id': 1, 'value': 125})
-        parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
+                {"parameter_id": 1, "object_id": 1, "value": "orange"},
+                {"parameter_id": 2, "relationship_id": 1, "value": "125"},
+            )
+        parameter_values = self.db_map.session.query(
+            self.db_map.DiffParameterValue
+        ).all()
         self.assertEqual(len(parameter_values), 2)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].object_id, 1)
         self.assertIsNone(parameter_values[0].relationship_id)
-        self.assertEqual(parameter_values[0].value, 'orange')
+        self.assertEqual(parameter_values[0].value, "orange")
         self.assertEqual(parameter_values[1].parameter_definition_id, 2)
         self.assertIsNone(parameter_values[1].object_id)
         self.assertEqual(parameter_values[1].relationship_id, 1)
-        self.assertEqual(parameter_values[1].value, '125')
+        self.assertEqual(parameter_values[1].value, "125")
 
     def test_add_parameter_value_for_both_object_and_relationship(self):
         """Test that adding a parameter value for both an object and a relationship raises an
         integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 100, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                )
             ]
             mock_parameter_list.return_value = [
                 KeyedTuple(
-                    [1, 10, None, 'color', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"]),
+                    [1, 10, None, "color", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
                 KeyedTuple(
-                    [2, None, 100, 'rel_speed', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"])
+                    [2, None, 100, "rel_speed", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {'parameter_id': 1, 'object_id': 1, 'relationship_id': 1, 'value': 'orange'}, strict=True)
+                    {
+                        "parameter_id": 1,
+                        "object_id": 1,
+                        "relationship_id": 1,
+                        "value": "orange",
+                    },
+                    strict=True,
+                )
 
     def test_add_parameter_value_with_invalid_object_or_relationship(self):
         """Test that adding a parameter value with an invalid object or relationship raises an
         integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 100, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                )
             ]
             mock_parameter_list.return_value = [
                 KeyedTuple(
-                    [1, 10, None, 'color', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"]),
+                    [1, 10, None, "color", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
                 KeyedTuple(
-                    [2, None, 100, 'rel_speed', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"])
+                    [2, None, 100, "rel_speed", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_values({'parameter_id': 1, 'object_id': 3, 'value': 'orange'}, strict=True)
+                self.db_map.add_parameter_values(
+                    {"parameter_id": 1, "object_id": 3, "value": "orange"}, strict=True
+                )
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_values({'parameter_id': 2, 'relationship_id': 2, 'value': 125}, strict=True)
+                self.db_map.add_parameter_values(
+                    {"parameter_id": 2, "relationship_id": 2, "value": "125"},
+                    strict=True,
+                )
 
     def test_add_parameter_value_with_object_or_relationship_of_invalid_class(self):
         """Test that adding a parameter value with an object or relationship invalid for
         the parameter class raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"]),
-                KeyedTuple([2, 200, '2,1', 'pluto__nemo'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 100, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                ),
+                KeyedTuple(
+                    [2, 200, "2,1", "pluto__nemo"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                ),
             ]
             mock_parameter_list.return_value = [
                 KeyedTuple(
-                    [1, 10, None, 'color', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"]),
+                    [1, 10, None, "color", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
                 KeyedTuple(
-                    [2, None, 100, 'rel_speed', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"])
+                    [2, None, 100, "rel_speed", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                ),
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_values({'parameter_id': 1, 'object_id': 2, 'value': 'orange'}, strict=True)
+                self.db_map.add_parameter_values(
+                    {"parameter_id": 1, "object_id": 2, "value": "orange"}, strict=True
+                )
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_values({'parameter_id': 2, 'relationship_id': 2, 'value': 125}, strict=True)
+                self.db_map.add_parameter_values(
+                    {"parameter_id": 2, "relationship_id": 2, "value": "125"},
+                    strict=True,
+                )
 
     def test_add_same_parameter_value_twice(self):
         """Test that adding a parameter value twice only adds the first one."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 100, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                )
             ]
             mock_parameter_list.return_value = [
                 KeyedTuple(
-                    [1, 10, None, 'color', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"])
+                    [1, 10, None, "color", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                )
             ]
             self.db_map.add_parameter_values(
-                {'parameter_id': 1, 'object_id': 1, 'value': 'orange'},
-                {'parameter_id': 1, 'object_id': 1, 'value': 'blue'})
-        parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
+                {"parameter_id": 1, "object_id": 1, "value": "orange"},
+                {"parameter_id": 1, "object_id": 1, "value": "blue"},
+            )
+        parameter_values = self.db_map.session.query(
+            self.db_map.DiffParameterValue
+        ).all()
         self.assertEqual(len(parameter_values), 1)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].object_id, 1)
         self.assertIsNone(parameter_values[0].relationship_id)
-        self.assertEqual(parameter_values[0].value, 'orange')
+        self.assertEqual(parameter_values[0].value, "orange")
 
     def test_add_existing_parameter_value(self):
         """Test that adding an existing parameter value raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, \
-                mock.patch.object(DiffDatabaseMapping, "wide_relationship_list") as mock_wide_rel_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_list") as mock_parameter_list, \
-                mock.patch.object(DiffDatabaseMapping, "parameter_value_list") as mock_parameter_value_list:
+        with mock.patch.object(
+            DiffDatabaseMapping, "object_list"
+        ) as mock_object_list, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_list"
+        ) as mock_wide_rel_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_list"
+        ) as mock_parameter_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_value_list"
+        ) as mock_parameter_value_list:
             mock_object_list.return_value = [
-                KeyedTuple([1, 10, 'nemo'], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, 'pluto'], labels=["id", "class_id", "name"])
+                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
+                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, '1,2', 'nemo__pluto'], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple(
+                    [1, 100, "1,2", "nemo__pluto"],
+                    labels=["id", "class_id", "object_id_list", "name"],
+                )
             ]
             mock_parameter_list.return_value = [
                 KeyedTuple(
-                    [1, 10, None, 'color', None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"])
+                    [1, 10, None, "color", None],
+                    labels=[
+                        "id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "name",
+                        "parameter_value_list_id",
+                    ],
+                )
             ]
             mock_parameter_value_list.return_value = [
                 KeyedTuple(
-                    [1, 1, 1, None, 'orange'],
-                    labels=["id", "parameter_definition_id", "object_id", "relationship_id", "value"])
+                    [1, 1, 1, None, "orange"],
+                    labels=[
+                        "id",
+                        "parameter_definition_id",
+                        "object_id",
+                        "relationship_id",
+                        "value",
+                    ],
+                )
             ]
             with self.assertRaises(SpineIntegrityError):
-                self.db_map.add_parameter_values({'parameter_id': 1, 'object_id': 1, 'value': 'blue'}, strict=True)
+                self.db_map.add_parameter_values(
+                    {"parameter_id": 1, "object_id": 1, "value": "blue"}, strict=True
+                )
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
