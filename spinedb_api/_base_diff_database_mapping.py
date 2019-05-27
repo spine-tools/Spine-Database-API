@@ -24,33 +24,11 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-import time
-import logging
-import json
-import warnings
 from .database_mapping import DatabaseMapping
-from sqlalchemy import (
-    MetaData,
-    Table,
-    Column,
-    Integer,
-    String,
-    func,
-    or_,
-    and_,
-    event,
-    inspect,
-)
+from sqlalchemy import MetaData, Table, Column, Integer, String, inspect
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.exc import NoSuchTableError, DBAPIError
-from sqlalchemy.sql.schema import (
-    UniqueConstraint,
-    PrimaryKeyConstraint,
-    ForeignKeyConstraint,
-    CheckConstraint,
-)
-from .exception import SpineDBAPIError, SpineTableNotFoundError, SpineIntegrityError
-from .helpers import custom_generate_relationship, attr_dict
+from sqlalchemy.exc import NoSuchTableError
+from .exception import SpineTableNotFoundError
 from datetime import datetime, timezone
 
 
@@ -82,15 +60,15 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
         self.removed_item_id = {}
         self.touched_item_id = {}
         # Subqueries that combine orig and diff into one result set
-        self.object_class = None
-        self.object = None
-        self.relationship_class = None
-        self.relationship = None
-        self.parameter_definition = None
-        self.parameter_value = None
-        self.parameter_tag = None
-        self.parameter_definition_tag = None
-        self.parameter_value_list = None
+        self.object_class_sq_sq = None
+        self.object_sq = None
+        self.relationship_class_sq = None
+        self.relationship_sq = None
+        self.parameter_definition_sq = None
+        self.parameter_value_sq = None
+        self.parameter_tag_sq = None
+        self.parameter_definition_tag_sq = None
+        self.parameter_value_list_sq = None
         # Initialize stuff
         self.init_diff_dicts()
         if create_all:
@@ -185,7 +163,7 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
         )  # Using self.connection allows self.session to see the temp tables
         # Mapping...
         self.DiffBase = automap_base(metadata=self.diff_metadata)
-        self.DiffBase.prepare(generate_relationship=custom_generate_relationship)
+        self.DiffBase.prepare()
         try:
             self.DiffCommit = getattr(
                 self.DiffBase.classes, self.diff_prefix + "commit"
@@ -256,7 +234,7 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
     def create_subqueries(self):
         """Create subqueries that combine the original and difference tables.
         These subqueries should be used in all queries instead of the original classes,
-        e.g., `self.session.query(self.object_class.c.id)` rather than `self.session.query(self.ObjectClass.id)`
+        e.g., `self.session.query(self.object_class_sq.c.id)` rather than `self.session.query(self.ObjectClass.id)`
         """
         table_to_class = {
             "object_class": "ObjectClass",
@@ -274,7 +252,7 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
             diff_class = getattr(self, "Diff" + classname)
             setattr(
                 self,
-                tablename,
+                tablename + "_sq",
                 self.session.query(
                     *[c.label(c.name) for c in inspect(orig_class).mapper.columns]
                 )

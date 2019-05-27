@@ -24,33 +24,9 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-import time
-import logging
-import json
-import warnings
-from .database_mapping import DatabaseMapping
-from sqlalchemy import (
-    MetaData,
-    Table,
-    Column,
-    Integer,
-    String,
-    func,
-    or_,
-    and_,
-    event,
-    inspect,
-)
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.exc import NoSuchTableError, DBAPIError
-from sqlalchemy.sql.schema import (
-    UniqueConstraint,
-    PrimaryKeyConstraint,
-    ForeignKeyConstraint,
-    CheckConstraint,
-)
-from .exception import SpineDBAPIError, SpineTableNotFoundError, SpineIntegrityError
-from .helpers import custom_generate_relationship, attr_dict
+from sqlalchemy.exc import DBAPIError
+from .exception import SpineDBAPIError
+from .helpers import attr_dict
 from ._remove_diff_database_mapping import _RemoveDiffDatabaseMapping
 from datetime import datetime, timezone
 

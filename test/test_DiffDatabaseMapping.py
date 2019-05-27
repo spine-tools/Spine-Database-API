@@ -21,7 +21,8 @@ import unittest
 import logging
 import sys
 import json
-from spinedb_api.diff_database_mapping import DiffDatabaseMapping, SpineIntegrityError
+from spinedb_api.diff_database_mapping import DiffDatabaseMapping
+from spinedb_api.exception import SpineIntegrityError
 from spinedb_api.helpers import create_new_spine_database
 from sqlalchemy.util import KeyedTuple
 from unittest import mock
@@ -60,6 +61,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         # Set logging level to Error to silence "Logging level: All messages" print
         logging.disable(level=logging.ERROR)  # Disable logging
         self.db_map.reset_mapping()
+        self.db_map.reset_diff_mapping()
         self.db_map.session.query(self.db_map.NextId).delete(synchronize_session=False)
         logging.disable(level=logging.NOTSET)  # Enable logging
 
@@ -462,7 +464,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         self.assertEqual(parameter_definitions[1].relationship_class_id, 10)
 
     def test_add_parameter_definitions_with_same_name(self):
-        """Test that adding two parameter_definitions with the same name only adds one of them."""
+        """Test that adding two parameter_definitions with the same name adds both of them."""
         with mock.patch.object(
             DiffDatabaseMapping, "object_class_list"
         ) as mock_object_class_list, mock.patch.object(
