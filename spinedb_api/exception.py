@@ -27,6 +27,7 @@ Classes to handle exceptions while using the Spine database API.
 
 class SpineDBAPIError(Exception):
     """Basic exception for errors raised by the API."""
+
     def __init__(self, msg=None):
         super().__init__(msg)
         self.msg = msg
@@ -42,6 +43,7 @@ class SpineIntegrityError(SpineDBAPIError):
         msg (str): the message to be displayed
         id (int): the id the instance that caused a unique violation
     """
+
     def __init__(self, msg=None, id=None):
         super().__init__(msg)
         self.id = id
@@ -49,8 +51,11 @@ class SpineIntegrityError(SpineDBAPIError):
 
 class SpineDBVersionError(SpineDBAPIError):
     """Database version error."""
+
     def __init__(self, url=None, current=None, expected=None):
-        super().__init__(msg="The database at '{}' is not the expected version.".format(url))
+        super().__init__(
+            msg="The database at '{}' is not the expected version.".format(url)
+        )
         self.url = url
         self.current = current
         self.expected = expected
@@ -58,13 +63,19 @@ class SpineDBVersionError(SpineDBAPIError):
 
 class SpineTableNotFoundError(SpineDBAPIError):
     """Can't find one of the tables."""
+
     def __init__(self, table, url=None):
-        super().__init__(msg="Table '{}' couldn't be mapped from the database at '{}'.".format(table, url))
+        super().__init__(
+            msg="Table(s) '{}' couldn't be mapped from the database at '{}'.".format(
+                table, url
+            )
+        )
         self.table = table
 
 
 class RecordNotFoundError(SpineDBAPIError):
     """Can't find one record in one of the tables."""
+
     def __init__(self, table, name=None, id=None):
         super().__init__(msg="Unable to find item in table '{}'.".format(table))
         self.table = table
@@ -74,7 +85,10 @@ class RecordNotFoundError(SpineDBAPIError):
 
 class ParameterValueError(SpineDBAPIError):
     """The value given for a parameter does not fit the datatype."""
+
     def __init__(self, value, data_type):
-        super().__init__(msg="The value {} does not fit the datatype '{}'.".format(value, data_type))
+        super().__init__(
+            msg="The value {} does not fit the datatype '{}'.".format(value, data_type)
+        )
         self.value = value
         self.data_type = data_type

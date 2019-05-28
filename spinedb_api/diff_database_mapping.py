@@ -27,14 +27,14 @@ Classes to handle the Spine database object relational mapping.
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import attr_dict
-from ._remove_diff_database_mapping import _RemoveDiffDatabaseMapping
+from .diff_database_mapping_remove import _DiffDatabaseMappingRemove
 from datetime import datetime, timezone
 
 
 # TODO: improve docstrings
 
 
-class DiffDatabaseMapping(_RemoveDiffDatabaseMapping):
+class DiffDatabaseMapping(_DiffDatabaseMappingRemove):
     """A class to handle changes made to a db in a graceful way.
     In a nutshell, it works by creating a new bunch of tables to hold differences
     with respect to original tables.

@@ -26,13 +26,13 @@ Classes to handle the Spine database object relational mapping.
 
 import json
 from .exception import SpineIntegrityError
-from ._base_diff_database_mapping import _BaseDiffDatabaseMapping
+from .diff_database_mapping_base import _DiffDatabaseMappingBase
 
 
 # TODO: improve docstrings
 
 
-class _CheckDiffDatabaseMapping(_BaseDiffDatabaseMapping):
+class _DiffDatabaseMappingCheck(_DiffDatabaseMappingBase):
     def __init__(self, db_url, username=None, create_all=True, upgrade=False):
         """Initialize class."""
         super().__init__(

@@ -28,14 +28,14 @@ import warnings
 from sqlalchemy import func
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError, SpineIntegrityError
-from ._check_diff_database_mapping import _CheckDiffDatabaseMapping
+from .diff_database_mapping_check import _DiffDatabaseMappingCheck
 from datetime import datetime, timezone
 
 
 # TODO: improve docstrings
 
 
-class _AddDiffDatabaseMapping(_CheckDiffDatabaseMapping):
+class _DiffDatabaseMappingAdd(_DiffDatabaseMappingCheck):
     def __init__(self, db_url, username=None, create_all=True, upgrade=False):
         """Initialize class."""
         super().__init__(

@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 # TODO: improve docstrings
 
 
-class _BaseDiffDatabaseMapping(DatabaseMapping):
+class _DiffDatabaseMappingBase(DatabaseMapping):
     def __init__(self, db_url, username=None, create_all=True, upgrade=False):
         """Initialize class."""
         super().__init__(db_url, username=username, create_all=False, upgrade=upgrade)
@@ -90,62 +90,25 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
 
     def init_diff_dicts(self):
         """Initialize dictionaries holding the differences."""
-        self.new_item_id = {
-            "object_class": set(),
-            "object": set(),
-            "relationship_class": set(),
-            "relationship": set(),
-            "parameter_definition": set(),
-            "parameter_value": set(),
-            "parameter_tag": set(),
-            "parameter_definition_tag": set(),
-            "parameter_value_list": set(),
-        }
-        self.dirty_item_id = {
-            "object_class": set(),
-            "object": set(),
-            "relationship_class": set(),
-            "relationship": set(),
-            "parameter_definition": set(),
-            "parameter_value": set(),
-            "parameter_tag": set(),
-            "parameter_definition_tag": set(),
-            "parameter_value_list": set(),
-        }
-        self.removed_item_id = {
-            "object_class": set(),
-            "object": set(),
-            "relationship_class": set(),
-            "relationship": set(),
-            "parameter_definition": set(),
-            "parameter_value": set(),
-            "parameter_tag": set(),
-            "parameter_definition_tag": set(),
-            "parameter_value_list": set(),
-        }
-        # Items that we don't want to read from the original tables (either dirty, or removed)
+        self.new_item_id = {x: set() for x in self.table_to_class}
+        self.dirty_item_id = {x: set() for x in self.table_to_class}
+        self.removed_item_id = {x: set() for x in self.table_to_class}
         self.touched_item_id = {
-            "object_class": set(),
-            "object": set(),
-            "relationship_class": set(),
-            "relationship": set(),
-            "parameter_definition": set(),
-            "parameter_value": set(),
-            "parameter_tag": set(),
-            "parameter_definition_tag": set(),
-            "parameter_value_list": set(),
-        }
+            x: set() for x in self.table_to_class
+        }  # Either dirty, or removed
 
     def create_diff_tables_and_mapping(self):
         """Create tables to hold differences and the corresponding mapping using an automap_base."""
         # Tables...
-        self.diff_prefix = "diff_"
-        self.diff_prefix += self.username if self.username else "anon"
-        self.diff_prefix += datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
+        diff_name_prefix = "diff_"
+        diff_name_prefix += self.username if self.username else "anon"
+        self.diff_prefix = (
+            diff_name_prefix + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
+        )
         self.diff_metadata = MetaData()
         diff_tables = list()
         for t in self.Base.metadata.sorted_tables:
-            if t.name.startswith("diff_" + self.username):
+            if t.name.startswith(diff_name_prefix):
                 continue
             if t.name == "next_id":
                 continue
@@ -161,10 +124,22 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
         self.diff_metadata.drop_all(self.engine)
         self.diff_metadata.create_all(
             self.connection
-        )  # Using self.connection allows self.session to see the temp tables
+        )  # NOTE: Using `self.connection` here allows `self.session` to see the temp tables
         # Mapping...
         self.DiffBase = automap_base(metadata=self.diff_metadata)
         self.DiffBase.prepare()
+        not_found = []
+        for tablename, classname in self.table_to_class.items():
+            try:
+                setattr(
+                    self,
+                    classname,
+                    getattr(self.DiffBase.classes, self.diff_prefix + tablename),
+                )
+            except (NoSuchTableError, AttributeError):
+                not_found.append(tablename)
+        raise SpineTableNotFoundError(not_found, self.db_url)
+
         try:
             self.DiffCommit = getattr(
                 self.DiffBase.classes, self.diff_prefix + "commit"
@@ -237,18 +212,7 @@ class _BaseDiffDatabaseMapping(DatabaseMapping):
         These subqueries should be used in all queries instead of the original classes,
         e.g., `self.session.query(self.object_class_sq.c.id)` rather than `self.session.query(self.ObjectClass.id)`
         """
-        table_to_class = {
-            "object_class": "ObjectClass",
-            "object": "Object",
-            "relationship_class": "RelationshipClass",
-            "relationship": "Relationship",
-            "parameter_definition": "ParameterDefinition",
-            "parameter_value": "ParameterValue",
-            "parameter_tag": "ParameterTag",
-            "parameter_definition_tag": "ParameterDefinitionTag",
-            "parameter_value_list": "ParameterValueList",
-        }
-        for tablename, classname in table_to_class.items():
+        for tablename, classname in self.table_to_class.items():
             orig_class = getattr(self, classname)
             diff_class = getattr(self, "Diff" + classname)
             setattr(

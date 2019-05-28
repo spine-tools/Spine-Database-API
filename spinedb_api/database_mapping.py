@@ -58,6 +58,7 @@ class DatabaseMapping(object):
         self.connection = None
         self.session = None
         self.Base = None
+        self.Commit = None
         self.ObjectClass = None
         self.Object = None
         self.RelationshipClass = None
@@ -67,7 +68,6 @@ class DatabaseMapping(object):
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
-        self.Commit = None
         # Subqueries that select everything from each table
         self.object_class_sq = None
         self.object_sq = None
@@ -81,6 +81,19 @@ class DatabaseMapping(object):
         # Special subqueries
         self.ext_relationship_class_sq = None
         self.wide_relationship_class_sq = None
+        # Table to class dict
+        self.table_to_class = {
+            "commit": "Commit",
+            "object_class": "ObjectClass",
+            "object": "Object",
+            "relationship_class": "RelationshipClass",
+            "relationship": "Relationship",
+            "parameter_definition": "ParameterDefinition",
+            "parameter_value": "ParameterValue",
+            "parameter_tag": "ParameterTag",
+            "parameter_definition_tag": "ParameterDefinitionTag",
+            "parameter_value_list": "ParameterValueList",
+        }
         if create_all:
             self.create_engine_and_session()
             self.check_db_version(upgrade=upgrade)
@@ -99,12 +112,10 @@ class DatabaseMapping(object):
                 "Could not connect to '{}': {}".format(self.db_url, e.orig.args)
             )
         try:
-            # Quickly check if at least object_class is there...
-            self.engine.execute("SELECT * from object_class;")
+            # Quickly check if `commit` table is there...
+            self.engine.execute("SELECT * from 'commit';")
         except DBAPIError as e:
-            raise SpineDBAPIError(
-                "Table 'object_class' not found. Not a Spine database?"
-            )
+            raise SpineDBAPIError("Table 'commit' not found. Not a Spine database?")
         if self.db_url.startswith("sqlite"):
             try:
                 self.engine.execute("pragma quick_check;")
@@ -159,23 +170,16 @@ class DatabaseMapping(object):
 
     def create_mapping(self):
         """Create ORM."""
-        # NOTE: Should we include all missing tables in the error message, rather than only the first one?
-        try:
-            self.Base = automap_base()
-            self.Base.prepare(self.engine, reflect=True)
-            self.ObjectClass = self.Base.classes.object_class
-            self.Object = self.Base.classes.object
-            self.RelationshipClass = self.Base.classes.relationship_class
-            self.Relationship = self.Base.classes.relationship
-            self.ParameterDefinition = self.Base.classes.parameter_definition
-            self.Parameter = self.ParameterDefinition  # FIXME
-            self.ParameterValue = self.Base.classes.parameter_value
-            self.ParameterTag = self.Base.classes.parameter_tag
-            self.ParameterDefinitionTag = self.Base.classes.parameter_definition_tag
-            self.ParameterValueList = self.Base.classes.parameter_value_list
-            self.Commit = self.Base.classes.commit
-        except (NoSuchTableError, AttributeError) as table:
-            raise SpineTableNotFoundError(table, self.db_url)
+        self.Base = automap_base()
+        self.Base.prepare(self.engine, reflect=True)
+        not_found = []
+        for tablename, classname in self.table_to_class.items():
+            try:
+                setattr(self, classname, getattr(self.Base.classes, tablename))
+            except (NoSuchTableError, AttributeError):
+                not_found.append(tablename)
+        if not_found:
+            raise SpineTableNotFoundError(not_found, self.db_url)
 
     def create_subqueries(self):
         """Create subqueries that select everything from each table.
@@ -184,18 +188,7 @@ class DatabaseMapping(object):
         The idea is that subclasses can override the subquery attributes to provide custom functionality (see
         `DiffDatabaseMapping`)
         """
-        table_to_class = {
-            "object_class": "ObjectClass",
-            "object": "Object",
-            "relationship_class": "RelationshipClass",
-            "relationship": "Relationship",
-            "parameter_definition": "ParameterDefinition",
-            "parameter_value": "ParameterValue",
-            "parameter_tag": "ParameterTag",
-            "parameter_definition_tag": "ParameterDefinitionTag",
-            "parameter_value_list": "ParameterValueList",
-        }
-        for tablename, classname in table_to_class.items():
+        for tablename, classname in self.table_to_class.items():
             class_ = getattr(self, classname)
             setattr(
                 self,
@@ -746,7 +739,7 @@ class DatabaseMapping(object):
             qry = qry.filter(self.parameter_definition_sq.c.name == parameter_name)
         return qry
 
-    # TODO: This should be updated so it also brings value_list and tag_list
+    # TODO: Should this also bring `value_list` and `tag_list`?
     def relationship_parameter_value_list(self, parameter_name=None):
         """Return relationships and their parameter values."""
         wide_relationship_class_list = self.wide_relationship_class_list().subquery()
@@ -781,9 +774,9 @@ class DatabaseMapping(object):
             qry = qry.filter(self.parameter_definition_sq.c.name == parameter_name)
         return qry
 
+    # TODO: Is this needed?
     def all_object_parameter_value_list(self, parameter_id=None):
-        """TODO: Is this needed?
-        Return all object parameter values, even those that don't have a value."""
+        """Return all object parameter values, even those that don't have a value."""
         qry = (
             self.session.query(
                 self.parameter_definition_sq.c.id.label("parameter_id"),
