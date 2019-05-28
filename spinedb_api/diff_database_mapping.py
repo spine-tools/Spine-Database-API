@@ -42,7 +42,7 @@ class DiffDatabaseMapping(
     _DiffDatabaseMappingRemove,
     _DiffDatabaseMappingCommit,
 ):
-    """A class to create a 'diff' ORM from a Spine db, query it, make changes to it, and eventually
+    """A class to create a 'diff' ORM from a Spine db, query it, make changes to it, and
     commit those changes.
     """
 
