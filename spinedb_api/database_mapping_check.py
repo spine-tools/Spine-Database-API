@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+A class to perform integrity checks over a Spine db ORM.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -28,10 +28,12 @@ import json
 from .exception import SpineIntegrityError
 
 
-# TODO: improve docstrings
+class _DatabaseMappingCheck:
+    """A class to perform integrity checks for insert and update operations over a Spine db ORM.
+    NOTE: To check for an update we basically 'remove' the current instance
+    and then check for an insert of the updated instance.
+    """
 
-
-class _DiffDatabaseMappingCheck:
     def __init__(self):
         """Initialize class."""
         super().__init__()
@@ -57,8 +59,6 @@ class _DiffDatabaseMappingCheck:
 
     def check_object_classes_for_update(self, *kwargs_list, strict=False):
         """Check that object classes respect integrity constraints for an update operation.
-        NOTE: To check for an update we basically 'remove' the current instance
-        and then check for an insert of the updated instance.
         """
         intgr_error_log = []
         checked_kwargs_list = list()
@@ -98,7 +98,7 @@ class _DiffDatabaseMappingCheck:
         return checked_kwargs_list, intgr_error_log
 
     def check_object_class(self, kwargs, object_class_names):
-        """Raise a SpineIntegrityError if the object class given by `kwargs` violates any
+        """Raise a `SpineIntegrityError` if the object class given by `kwargs` violates any
         integrity constraints.
         """
         try:
@@ -169,7 +169,7 @@ class _DiffDatabaseMappingCheck:
         return checked_kwargs_list, intgr_error_log
 
     def check_object(self, kwargs, object_names, object_class_id_list):
-        """Raise a SpineIntegrityError if the object given by `kwargs` violates any
+        """Raise a `SpineIntegrityError` if the object given by `kwargs` violates any
         integrity constraints."""
         try:
             class_id = kwargs["class_id"]
@@ -267,7 +267,7 @@ class _DiffDatabaseMappingCheck:
     def check_wide_relationship_class(
         self, wide_kwargs, relationship_class_names, object_class_id_list
     ):
-        """Raise a SpineIntegrityError if the relationship class given by `kwargs` violates any
+        """Raise a `SpineIntegrityError` if the relationship class given by `kwargs` violates any
         integrity constraints."""
         try:
             given_object_class_id_list = wide_kwargs["object_class_id_list"]
@@ -426,7 +426,7 @@ class _DiffDatabaseMappingCheck:
         relationship_class_dict,
         object_dict,
     ):
-        """Raise a SpineIntegrityError if the relationship given by `kwargs` violates any integrity constraints."""
+        """Raise a `SpineIntegrityError` if the relationship given by `kwargs` violates any integrity constraints."""
         try:
             name = wide_kwargs["name"]
         except KeyError:
@@ -478,7 +478,7 @@ class _DiffDatabaseMappingCheck:
             )
 
     def check_parameter_definitions_for_insert(self, *kwargs_list, strict=False):
-        """Check that parameters respect integrity constraints for an insert operation."""
+        """Check that parameter definitions respect integrity constraints for an insert operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
         obj_parameter_definition_names = {}
@@ -523,7 +523,7 @@ class _DiffDatabaseMappingCheck:
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_definitions_for_update(self, *kwargs_list, strict=False):
-        """Check that parameters respect integrity constraints for an update operation."""
+        """Check that parameter definitions respect integrity constraints for an update operation."""
         intgr_error_log = []
         checked_kwargs_list = list()
         parameter_list = self.parameter_list()  # Query db only once
@@ -618,7 +618,7 @@ class _DiffDatabaseMappingCheck:
         relationship_class_dict,
         parameter_value_list_dict,
     ):
-        """Raise a SpineIntegrityError if the parameter definition given by `kwargs` violates any
+        """Raise a `SpineIntegrityError` if the parameter definition given by `kwargs` violates any
         integrity constraints."""
         object_class_id = kwargs.get("object_class_id", None)
         relationship_class_id = kwargs.get("relationship_class_id", None)
@@ -877,7 +877,7 @@ class _DiffDatabaseMappingCheck:
         relationship_dict,
         parameter_value_list_dict,
     ):
-        """Raise a SpineIntegrityError if the parameter value given by `kwargs` violates any integrity constraints."""
+        """Raise a `SpineIntegrityError` if the parameter value given by `kwargs` violates any integrity constraints."""
         try:
             parameter_definition_id = kwargs["parameter_definition_id"]
         except KeyError:
@@ -992,8 +992,6 @@ class _DiffDatabaseMappingCheck:
 
     def check_parameter_tags_for_update(self, *kwargs_list, strict=False):
         """Check that parameter tags respect integrity constraints for an update operation.
-        NOTE: To check for an update we basically 'remove' the current instance
-        and then check for an insert of the updated instance.
         """
         intgr_error_log = []
         checked_kwargs_list = list()
@@ -1032,7 +1030,7 @@ class _DiffDatabaseMappingCheck:
         return checked_kwargs_list, intgr_error_log
 
     def check_parameter_tag(self, kwargs, parameter_tags):
-        """Raise a SpineIntegrityError if the parameter tag given by `kwargs` violates any
+        """Raise a `SpineIntegrityError` if the parameter tag given by `kwargs` violates any
         integrity constraints.
         """
         try:
@@ -1076,7 +1074,7 @@ class _DiffDatabaseMappingCheck:
     def check_parameter_definition_tag(
         self, kwargs, parameter_definition_tags, parameter_name_dict, parameter_tag_dict
     ):
-        """Raise a SpineIntegrityError if the parameter definition tag given by `kwargs` violates any
+        """Raise a `SpineIntegrityError` if the parameter definition tag given by `kwargs` violates any
         integrity constraints.
         """
         try:
@@ -1129,8 +1127,6 @@ class _DiffDatabaseMappingCheck:
         self, *wide_kwargs_list, strict=False
     ):
         """Check that parameter value_lists respect integrity constraints for an update operation.
-        NOTE: To check for an update we basically 'remove' the current instance
-        and then check for an insert of the updated instance.
         """
         intgr_error_log = []
         checked_wide_kwargs_list = list()
@@ -1176,7 +1172,7 @@ class _DiffDatabaseMappingCheck:
         return checked_wide_kwargs_list, intgr_error_log
 
     def check_wide_parameter_value_list(self, wide_kwargs, parameter_value_list_names):
-        """Raise a SpineIntegrityError if the parameter value_list given by `wide_kwargs` violates any
+        """Raise a `SpineIntegrityError` if the parameter value_list given by `wide_kwargs` violates any
         integrity constraints.
         """
         try:
