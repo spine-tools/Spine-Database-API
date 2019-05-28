@@ -106,7 +106,7 @@ class _DiffDatabaseMappingRemove:
             raise SpineDBAPIError(msg)
         for key, value in removed_item_id.items():
             self.removed_item_id[key].update(value)
-            self.touched_item_id[key].update(value)
+            self.touch_items(key, value)
 
     def _removed_items(
         self,
