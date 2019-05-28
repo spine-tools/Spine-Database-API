@@ -26,18 +26,15 @@ Classes to handle the Spine database object relational mapping.
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .diff_database_mapping_update import _DiffDatabaseMappingUpdate
 
 
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingRemove(_DiffDatabaseMappingUpdate):
-    def __init__(self, db_url, username=None, create_all=True, upgrade=False):
+class _DiffDatabaseMappingRemove:
+    def __init__(self):
         """Initialize class."""
-        super().__init__(
-            db_url, username=username, create_all=create_all, upgrade=upgrade
-        )
+        super().__init__()
 
     def remove_items(
         self,

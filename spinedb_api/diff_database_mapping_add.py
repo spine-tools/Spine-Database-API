@@ -28,19 +28,16 @@ import warnings
 from sqlalchemy import func
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError, SpineIntegrityError
-from .diff_database_mapping_check import _DiffDatabaseMappingCheck
 from datetime import datetime, timezone
 
 
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingAdd(_DiffDatabaseMappingCheck):
-    def __init__(self, db_url, username=None, create_all=True, upgrade=False):
+class _DiffDatabaseMappingAdd:
+    def __init__(self):
         """Initialize class."""
-        super().__init__(
-            db_url, username=username, create_all=create_all, upgrade=upgrade
-        )
+        super().__init__()
 
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""

@@ -25,7 +25,16 @@ Classes to handle the Spine database object relational mapping.
 """
 
 import warnings
-from sqlalchemy import create_engine, false, distinct, func, MetaData, event, or_
+from sqlalchemy import (
+    create_engine,
+    false,
+    distinct,
+    func,
+    MetaData,
+    event,
+    or_,
+    inspect,
+)
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
@@ -42,7 +51,7 @@ from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundE
 # TODO: SELECT queries should also be checked for errors
 
 
-class DatabaseMapping(object):
+class _DatabaseMappingBase(object):
     """A class to query a Spine database using object relational mapping.
 
     Attributes:
@@ -50,14 +59,13 @@ class DatabaseMapping(object):
         username (str): The user name
     """
 
-    def __init__(self, db_url, username=None, create_all=True, upgrade=False):
+    def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
         self.db_url = db_url
         self.username = username
         self.engine = None
         self.connection = None
         self.session = None
-        self.Base = None
         self.Commit = None
         self.ObjectClass = None
         self.Object = None
@@ -94,12 +102,9 @@ class DatabaseMapping(object):
             "parameter_definition_tag": "ParameterDefinitionTag",
             "parameter_value_list": "ParameterValueList",
         }
-        if create_all:
-            self.create_engine_and_session()
-            self.check_db_version(upgrade=upgrade)
-            self.create_mapping()
-            self.create_subqueries()
-            self.create_special_subqueries()
+        self.create_engine_and_session()
+        self.check_db_version(upgrade=upgrade)
+        self.create_mapping()
 
     def create_engine_and_session(self):
         """Create engine connected to self.db_url and corresponding session."""
@@ -170,16 +175,31 @@ class DatabaseMapping(object):
 
     def create_mapping(self):
         """Create ORM."""
-        self.Base = automap_base()
-        self.Base.prepare(self.engine, reflect=True)
+        Base = automap_base()
+        Base.prepare(self.engine, reflect=True)
         not_found = []
         for tablename, classname in self.table_to_class.items():
             try:
-                setattr(self, classname, getattr(self.Base.classes, tablename))
+                setattr(self, classname, getattr(Base.classes, tablename))
             except (NoSuchTableError, AttributeError):
                 not_found.append(tablename)
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
+
+
+class DatabaseMapping(_DatabaseMappingBase):
+    """A class to query a Spine database using object relational mapping.
+
+    Attributes:
+        db_url (str): The database url formatted according to sqlalchemy rules
+        username (str): The user name
+    """
+
+    def __init__(self, db_url, username=None, upgrade=False):
+        """Initialize class."""
+        super().__init__(db_url, username=username, upgrade=upgrade)
+        self.create_subqueries()
+        self.create_special_subqueries()
 
     def create_subqueries(self):
         """Create subqueries that select everything from each table.
