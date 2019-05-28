@@ -25,6 +25,11 @@ Classes to handle the Spine database object relational mapping.
 """
 
 from .database_mapping import DatabaseMapping
+from .diff_database_mapping_check import _DiffDatabaseMappingCheck
+from .diff_database_mapping_add import _DiffDatabaseMappingAdd
+from .diff_database_mapping_update import _DiffDatabaseMappingUpdate
+from .diff_database_mapping_remove import _DiffDatabaseMappingRemove
+from .diff_database_mapping_commit import _DiffDatabaseMappingCommit
 from sqlalchemy import MetaData, Table, Column, Integer, String, inspect
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import NoSuchTableError
@@ -35,10 +40,22 @@ from datetime import datetime, timezone
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingBase(DatabaseMapping):
-    def __init__(self, db_url, username=None, create_all=True, upgrade=False):
+class DiffDatabaseMapping(
+    DatabaseMapping,
+    _DiffDatabaseMappingCheck,
+    _DiffDatabaseMappingAdd,
+    _DiffDatabaseMappingUpdate,
+    _DiffDatabaseMappingRemove,
+    _DiffDatabaseMappingCommit,
+):
+    """A class to handle changes made to a db in a graceful way.
+    In a nutshell, it works by creating a new bunch of tables to hold differences
+    with respect to original tables.
+    """
+
+    def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
-        super().__init__(db_url, username=username, create_all=False, upgrade=upgrade)
+        super().__init__(db_url, username=username, upgrade=upgrade)
         # Diff meta, Base and tables
         self.diff_prefix = None
         self.DiffCommit = None
@@ -69,14 +86,9 @@ class _DiffDatabaseMappingBase(DatabaseMapping):
         self.parameter_value_list_sq = None
         # Initialize stuff
         self.init_diff_dicts()
-        if create_all:
-            self.create_engine_and_session()
-            self.check_db_version(upgrade=upgrade)
-            self.create_mapping()
-            self.create_diff_tables_and_mapping()
-            self.init_next_id()
-            self.create_subqueries()
-            self.create_special_subqueries()
+        self.create_diff_tables_and_mapping()
+        self.init_next_id()
+        self.override_subqueries()
 
     def has_pending_changes(self):
         """Return True if there are uncommitted changes. Otherwise return False."""
@@ -103,9 +115,11 @@ class _DiffDatabaseMappingBase(DatabaseMapping):
         self.diff_prefix = (
             diff_name_prefix + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
         )
+        metadata = MetaData(self.engine)
+        metadata.reflect()
         diff_metadata = MetaData()
         diff_tables = list()
-        for t in self.Base.metadata.sorted_tables:
+        for t in metadata.sorted_tables:
             if t.name.startswith(diff_name_prefix) or t.name == "next_id":
                 continue
             # Copy columns
@@ -165,7 +179,7 @@ class _DiffDatabaseMappingBase(DatabaseMapping):
         except (AttributeError, NoSuchTableError):
             raise SpineTableNotFoundError("next_id", self.db_url)
 
-    def create_subqueries(self):
+    def override_subqueries(self):
         """Create subqueries that combine the original and difference tables.
         These subqueries should be used in all queries instead of the original classes,
         e.g., `self.session.query(self.object_class_sq.c.id)` rather than `self.session.query(self.ObjectClass.id)`
