@@ -29,7 +29,7 @@ from sqlalchemy import false, distinct, func, or_
 
 # TODO: Consider returning lists of dict (with _asdict()) rather than queries,
 # to better support platforms that cannot handle queries efficiently (such as Julia)
-# TODO: SELECT queries should also be checked for errors
+# TODO: check errors
 
 
 class _DatabaseMappingQuery:
@@ -75,18 +75,18 @@ class _DatabaseMappingQuery:
         """Return a single object class given the id or name."""
         qry = self.object_class_list()
         if id:
-            return qry.filter(self.object_class_sq.id == id)
+            return qry.filter(self.object_class_sq.c.id == id)
         if name:
-            return qry.filter(self.object_class_sq.name == name)
+            return qry.filter(self.object_class_sq.c.name == name)
         return self.empty_list()
 
     def single_object(self, id=None, name=None):
         """Return a single object given the id or name."""
         qry = self.object_list()
         if id:
-            return qry.filter(self.object_sq.id == id)
+            return qry.filter(self.object_sq.c.id == id)
         if name:
-            return qry.filter(self.object_sq.name == name)
+            return qry.filter(self.object_sq.c.name == name)
         return self.empty_list()
 
     def single_wide_relationship_class(self, id=None, name=None):
@@ -266,14 +266,13 @@ class _DatabaseMappingQuery:
 
     def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
-        object_list = self.object_list().subquery()
         qry = self.session.query(
             self.relationship_sq.c.id.label("id"),
             self.relationship_sq.c.class_id.label("class_id"),
             self.relationship_sq.c.object_id.label("object_id"),
-            object_list.c.name.label("object_name"),
+            self.object_sq.c.name.label("object_name"),
             self.relationship_sq.c.name.label("name"),
-        ).filter(self.relationship_sq.c.object_id == object_list.c.id)
+        ).filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
         if id_list is not None:
             qry = qry.filter(self.relationship_sq.c.id.in_(id_list))
         if class_id:

@@ -30,7 +30,7 @@ from .exception import SpineIntegrityError
 
 class _DatabaseMappingCheck:
     """A class to perform integrity checks for insert and update operations over a Spine db ORM.
-    NOTE: To check for an update we basically 'remove' the current instance
+    NOTE: To check for an update we simulate the removal of the current instance,
     and then check for an insert of the updated instance.
     """
 
@@ -74,7 +74,7 @@ class _DatabaseMappingCheck:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                # 'Remove' current instance
+                # Simulate removal of current instance
                 updated_kwargs = object_class_dict.pop(id)
                 object_class_names.remove(updated_kwargs["name"])
             except KeyError:

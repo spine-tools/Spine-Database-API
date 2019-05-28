@@ -34,12 +34,6 @@ from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
 
-# TODO: Consider returning lists of dict (with _asdict()) rather than queries,
-# to better support platforms that cannot handle queries efficiently (such as Julia)
-# TODO: At some point DatabaseMapping attributes such as session, engine, and all the tables should be made 'private'
-# so as to prevent hacking into the database.
-# TODO: SELECT queries should also be checked for errors
-
 
 class _DatabaseMappingBase(object):
     """A class to create an object relational mapping from a Spine db.

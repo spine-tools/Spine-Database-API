@@ -24,33 +24,8 @@ A class to create an object relational mapping from a Spine database and query i
 :date:   11.8.2018
 """
 
-import warnings
 from .database_mapping_base import _DatabaseMappingBase
 from .database_mapping_query import _DatabaseMappingQuery
-from sqlalchemy import (
-    create_engine,
-    false,
-    distinct,
-    func,
-    MetaData,
-    event,
-    or_,
-    inspect,
-)
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
-from alembic.migration import MigrationContext
-from alembic.environment import EnvironmentContext
-from alembic.script import ScriptDirectory
-from alembic.config import Config
-from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
-
-# TODO: Consider returning lists of dict (with _asdict()) rather than queries,
-# to better support platforms that cannot handle queries efficiently (such as Julia)
-# TODO: At some point DatabaseMapping attributes such as session, engine, and all the tables should be made 'private'
-# so as to prevent hacking into the database.
-# TODO: SELECT queries should also be checked for errors
 
 
 class DatabaseMapping(_DatabaseMappingBase, _DatabaseMappingQuery):
