@@ -35,7 +35,7 @@ from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
 
 
-class _DatabaseMappingBase(object):
+class DatabaseMappingBase:
     """A class to create an object relational mapping from a Spine db.
 
     Attributes:

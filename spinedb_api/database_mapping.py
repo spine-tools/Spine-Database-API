@@ -24,11 +24,11 @@ A class to create an object relational mapping from a Spine database and query i
 :date:   11.8.2018
 """
 
-from .database_mapping_base import _DatabaseMappingBase
-from .database_mapping_query import _DatabaseMappingQuery
+from .database_mapping_query_mixin import DatabaseMappingQueryMixin
+from .database_mapping_base import DatabaseMappingBase
 
 
-class DatabaseMapping(_DatabaseMappingBase, _DatabaseMappingQuery):
+class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingBase):
     """A class to create an object relational mapping from a Spine database and query it.
 
     Attributes:
@@ -40,5 +40,3 @@ class DatabaseMapping(_DatabaseMappingBase, _DatabaseMappingQuery):
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
         super().__init__(db_url, username=username, upgrade=upgrade)
-        self.create_subqueries()
-        self.create_special_subqueries()

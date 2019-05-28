@@ -24,7 +24,7 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-from .database_mapping_base import _DatabaseMappingBase
+from .database_mapping_base import DatabaseMappingBase
 from sqlalchemy import MetaData, Table, Column, Integer, String, inspect
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import NoSuchTableError
@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingBase(_DatabaseMappingBase):
+class DiffDatabaseMappingBase(DatabaseMappingBase):
     """A class to create a 'diff' ORM from a Spine db. It works by creating and mapping a set of
     temporary 'diff' tables, where changes made by the user can be staged until committed.
     """
@@ -90,7 +90,7 @@ class _DiffDatabaseMappingBase(_DatabaseMappingBase):
 
     def create_diff_tables_and_mapping(self):
         """Create tables to hold differences and the corresponding mapping."""
-        # Tables...
+        # Create tables...
         diff_name_prefix = "diff_"
         diff_name_prefix += self.username if self.username else "anon"
         self.diff_prefix = (
@@ -115,7 +115,7 @@ class _DiffDatabaseMappingBase(_DatabaseMappingBase):
         diff_metadata.drop_all(self.engine)
         # NOTE: Using `self.connection` below allows `self.session` to see the temp tables
         diff_metadata.create_all(self.connection)
-        # Mapping...
+        # Create mapping...
         DiffBase = automap_base(metadata=diff_metadata)
         DiffBase.prepare()
         not_found = []
@@ -134,7 +134,7 @@ class _DiffDatabaseMappingBase(_DatabaseMappingBase):
     def init_next_id(self):
         """Create `next_id` table if not exists and map it."""
         # TODO: Does this work? What happens if there's already a next_id table with a different definition?
-        # Next id table
+        # Create table
         metadata = MetaData()
         next_id_table = Table(
             "next_id",
@@ -152,7 +152,7 @@ class _DiffDatabaseMappingBase(_DatabaseMappingBase):
             Column("parameter_definition_tag_id", Integer),
         )
         next_id_table.create(self.engine, checkfirst=True)
-        # Mapping...
+        # Create mapping...
         Base = automap_base(metadata=metadata)
         Base.prepare()
         try:

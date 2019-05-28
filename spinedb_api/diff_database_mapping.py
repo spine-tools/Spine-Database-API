@@ -24,23 +24,23 @@ Classes to handle the Spine database object relational mapping.
 :date:   11.8.2018
 """
 
-from .database_mapping_query import _DatabaseMappingQuery
-from .database_mapping_check import _DatabaseMappingCheck
-from .diff_database_mapping_base import _DiffDatabaseMappingBase
-from .diff_database_mapping_add import _DiffDatabaseMappingAdd
-from .diff_database_mapping_update import _DiffDatabaseMappingUpdate
-from .diff_database_mapping_remove import _DiffDatabaseMappingRemove
-from .diff_database_mapping_commit import _DiffDatabaseMappingCommit
+from .database_mapping_query_mixin import DatabaseMappingQueryMixin
+from .database_mapping_check_mixin import DatabaseMappingCheckMixin
+from .diff_database_mapping_add_mixin import DiffDatabaseMappingAddMixin
+from .diff_database_mapping_update_mixin import DiffDatabaseMappingUpdateMixin
+from .diff_database_mapping_remove_mixin import DiffDatabaseMappingRemoveMixin
+from .diff_database_mapping_commit_mixin import DiffDatabaseMappingCommitMixin
+from .diff_database_mapping_base import DiffDatabaseMappingBase
 
 
 class DiffDatabaseMapping(
-    _DiffDatabaseMappingBase,
-    _DatabaseMappingQuery,
-    _DatabaseMappingCheck,
-    _DiffDatabaseMappingAdd,
-    _DiffDatabaseMappingUpdate,
-    _DiffDatabaseMappingRemove,
-    _DiffDatabaseMappingCommit,
+    DatabaseMappingQueryMixin,
+    DatabaseMappingCheckMixin,
+    DiffDatabaseMappingAddMixin,
+    DiffDatabaseMappingUpdateMixin,
+    DiffDatabaseMappingRemoveMixin,
+    DiffDatabaseMappingCommitMixin,
+    DiffDatabaseMappingBase,
 ):
     """A class to create a 'diff' ORM from a Spine db, query it, make changes to it, and
     commit those changes.
@@ -49,5 +49,3 @@ class DiffDatabaseMapping(
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
         super().__init__(db_url, username=username, upgrade=upgrade)
-        self.create_subqueries()
-        self.create_special_subqueries()
