@@ -67,6 +67,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.init_next_id()
 
     def touch_items(self, tablename, ids):
+        """Mark items as touched, which means the corresponding records from the original tables are not valid,
+        and they should always be queried from the diff tables."""
         self.touched_item_id[tablename].update(ids)
         self.refresh_subquery(tablename)
         self.create_special_subqueries()

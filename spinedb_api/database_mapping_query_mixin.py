@@ -32,13 +32,15 @@ from sqlalchemy import false, distinct, func, or_
 # TODO: check errors
 
 
-class _DatabaseMappingQuery:
-    """A class to perform SELECT queries over a Spine database ORM.
+class DatabaseMappingQueryMixin:
+    """A mixin to perform SELECT queries over a Spine database ORM.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__()
+        super().__init__(*args, **kwargs)
+        self.create_subqueries()
+        self.create_special_subqueries()
 
     def create_special_subqueries(self):
         """Create special helper subqueries to act as 'views', e.g., wide_relationship_class...

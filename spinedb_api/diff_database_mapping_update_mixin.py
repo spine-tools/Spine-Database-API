@@ -33,12 +33,12 @@ from .helpers import attr_dict
 # TODO: split all update_ methods into two, like `update_parameter_values`...
 
 
-class _DiffDatabaseMappingUpdate:
-    """A class to handle UPDATE operations onto a Spine db 'diff' ORM."""
+class DiffDatabaseMappingUpdateMixin:
+    """A mixin to handle UPDATE operations onto a Spine db 'diff' ORM."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
     def handle_items(
         self,

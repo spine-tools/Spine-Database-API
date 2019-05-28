@@ -33,12 +33,12 @@ from datetime import datetime, timezone
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingCommit:
-    """A class to handle COMMIT and ROLLBACK operations onto a Spine db 'diff' ORM."""
+class DiffDatabaseMappingCommitMixin:
+    """A mixin to handle COMMIT and ROLLBACK operations onto a Spine db 'diff' ORM."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
     def commit_session(self, comment):
         """Make differences into original tables and commit."""

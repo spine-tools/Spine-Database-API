@@ -31,12 +31,12 @@ from .exception import SpineDBAPIError
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingRemove:
-    """A class to handle DELETE operations onto a Spine db 'diff' ORM."""
+class DiffDatabaseMappingRemoveMixin:
+    """A mixin to handle DELETE operations onto a Spine db 'diff' ORM."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
     def remove_items(
         self,

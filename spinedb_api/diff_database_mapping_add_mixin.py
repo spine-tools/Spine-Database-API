@@ -34,13 +34,13 @@ from datetime import datetime, timezone
 # TODO: improve docstrings
 
 
-class _DiffDatabaseMappingAdd:
-    """A class to handle INSERT operations onto a Spine db 'diff' ORM.
+class DiffDatabaseMappingAddMixin:
+    """A mixin to handle INSERT operations onto a Spine db 'diff' ORM.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""

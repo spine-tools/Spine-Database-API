@@ -28,15 +28,15 @@ import json
 from .exception import SpineIntegrityError
 
 
-class _DatabaseMappingCheck:
-    """A class to perform integrity checks for insert and update operations over a Spine db ORM.
+class DatabaseMappingCheckMixin:
+    """A mixin to perform integrity checks for insert and update operations over a Spine db ORM.
     NOTE: To check for an update we simulate the removal of the current instance,
     and then check for an insert of the updated instance.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
     def check_object_classes_for_insert(self, *kwargs_list, strict=False):
         """Check that object classes respect integrity constraints for an insert operation."""
