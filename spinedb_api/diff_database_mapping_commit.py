@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+A class to handle COMMIT and ROLLBACK operations onto a Spine db 'diff' ORM.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -34,6 +34,8 @@ from datetime import datetime, timezone
 
 
 class _DiffDatabaseMappingCommit:
+    """A class to handle COMMIT and ROLLBACK operations onto a Spine db 'diff' ORM."""
+
     def __init__(self):
         """Initialize class."""
         super().__init__()

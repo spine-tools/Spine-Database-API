@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+A class to handle INSERT operations onto a Spine db 'diff' ORM.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -35,6 +35,9 @@ from datetime import datetime, timezone
 
 
 class _DiffDatabaseMappingAdd:
+    """A class to handle INSERT operations onto a Spine db 'diff' ORM.
+    """
+
     def __init__(self):
         """Initialize class."""
         super().__init__()
@@ -108,7 +111,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_object_classes(self, *kwargs_list):
-        """Add object classes to database without testing classes for integrity
+        """Add object classes to database without checking integrity.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
@@ -164,7 +167,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_objects(self, *kwargs_list):
-        """Add objects to database without checking integrity
+        """Add objects to database without checking integrity.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
@@ -220,7 +223,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_wide_relationship_classes(self, *wide_kwargs_list):
-        """Add relationship classes to database without integrity check
+        """Add relationship classes to database without checking integrity.
 
         Args:
             wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
@@ -288,7 +291,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_wide_relationships(self, *wide_kwargs_list):
-        """Add relationships to database without integrity
+        """Add relationships to database without checking integrity.
 
         Args:
             wide_kwargs_list (iter): list of dictionaries which correspond to the instances to add
@@ -349,7 +352,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_parameters(self, *kwargs_list):
-        """Add parameter to database without integrity check
+        """Add parameters to database without checking integrity.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
@@ -390,7 +393,7 @@ class _DiffDatabaseMappingAdd:
         )
 
     def add_parameter_values(self, *kwargs_list, strict=False, return_dups=False):
-        """Add parameter value to database.
+        """Add parameter values to database.
 
         Args:
             kwargs_list (iter): list of dictionaries which correspond to the instances to add
@@ -415,7 +418,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_parameter_values(self, *kwargs_list):
-        """Add parameter value to database.
+        """Add parameter values to database without checking integrity.
 
         Returns:
             id_list (set): added instances' ids
@@ -466,7 +469,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_parameter_tags(self, *kwargs_list):
-        """Add parameter tags to database.
+        """Add parameter tags to database without checking integrity.
 
         Returns:
             id_list (set): added instances' ids
@@ -519,7 +522,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_parameter_definition_tags(self, *kwargs_list):
-        """Add parameter definition tags to database.
+        """Add parameter definition tags to database without checking integrity.
 
         Returns:
             id_list (set): added instances' ids
@@ -578,7 +581,7 @@ class _DiffDatabaseMappingAdd:
         return new_item_list, intgr_error_log
 
     def _add_wide_parameter_value_lists(self, *wide_kwargs_list):
-        """Add wide parameter value_lists to database.
+        """Add wide parameter value_lists to database without checking integrity.
 
         Returns:
             id_list (set): added instances' ids

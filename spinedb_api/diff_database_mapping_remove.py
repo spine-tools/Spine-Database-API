@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+A class to handle DELETE operations onto a Spine db 'diff' ORM.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -32,6 +32,8 @@ from .exception import SpineDBAPIError
 
 
 class _DiffDatabaseMappingRemove:
+    """A class to handle DELETE operations onto a Spine db 'diff' ORM."""
+
     def __init__(self):
         """Initialize class."""
         super().__init__()
@@ -48,7 +50,7 @@ class _DiffDatabaseMappingRemove:
         parameter_definition_tag_ids=set(),
         parameter_value_list_ids=set(),
     ):
-        """Remove items."""
+        """Remove items by id."""
         removed_item_id, removed_diff_item_id = self._removed_items(
             object_class_ids=object_class_ids,
             object_ids=object_ids,

@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+A class to handle UPDATE operations onto a Spine db 'diff' ORM.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -30,14 +30,15 @@ from .helpers import attr_dict
 
 
 # TODO: improve docstrings
+# TODO: split all update_ methods into two, like `update_parameter_values`...
 
 
 class _DiffDatabaseMappingUpdate:
+    """A class to handle UPDATE operations onto a Spine db 'diff' ORM."""
+
     def __init__(self):
         """Initialize class."""
         super().__init__()
-
-    # TODO: split all update_ methods into two, like `update_parameter_values`...
 
     def update_object_classes(self, *kwargs_list, strict=False):
         """Update object classes."""
