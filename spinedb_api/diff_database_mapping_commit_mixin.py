@@ -41,7 +41,7 @@ class DiffDatabaseMappingCommitMixin:
         super().__init__(*args, **kwargs)
 
     def commit_session(self, comment):
-        """Make differences into original tables and commit."""
+        """Realize differences into original tables and commit."""
         try:
             user = self.username
             date = datetime.now(timezone.utc)
@@ -58,7 +58,7 @@ class DiffDatabaseMappingCommitMixin:
                     self.session.query(orig_class).filter(
                         orig_class.id.in_(removed_ids[i : i + n])
                     ).delete(synchronize_session=False)
-            # Merge dirty
+            # Merge updated
             for tablename, ids in self.dirty_item_id.items():
                 classname = self.table_to_class[tablename]
                 orig_class = getattr(self, classname)

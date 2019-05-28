@@ -39,6 +39,14 @@ class DatabaseMappingQueryMixin:
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
+        # Special subqueries
+        self.ext_relationship_class_sq = None
+        self.wide_relationship_class_sq = None
+        self.ext_relationship_sq = None
+        self.wide_relationship_sq = None
+        self.ext_parameter_definition_tag_sq = None
+        self.wide_parameter_definition_tag_sq = None
+        self.wide_parameter_value_list_sq = None
         self.create_subqueries()
         self.create_special_subqueries()
 
@@ -56,6 +64,9 @@ class DatabaseMappingQueryMixin:
                 self.relationship_class_sq.c.object_class_id
                 == self.object_class_sq.c.id
             )
+            .order_by(
+                self.relationship_class_sq.c.id, self.relationship_class_sq.c.dimension
+            )
             .subquery()
         )
         self.wide_relationship_class_sq = (
@@ -72,10 +83,80 @@ class DatabaseMappingQueryMixin:
             .group_by(self.ext_relationship_class_sq.c.id)
             .subquery()
         )
+        self.ext_relationship_sq = (
+            self.session.query(
+                self.relationship_sq.c.id.label("id"),
+                self.relationship_sq.c.class_id.label("class_id"),
+                self.relationship_sq.c.object_id.label("object_id"),
+                self.object_sq.c.name.label("object_name"),
+                self.relationship_sq.c.name.label("name"),
+            )
+            .filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
+            .order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
+            .subquery()
+        )
+        self.wide_relationship_sq = (
+            self.session.query(
+                self.ext_relationship_sq.c.id,
+                self.ext_relationship_sq.c.class_id,
+                func.group_concat(self.ext_relationship_sq.c.object_id).label(
+                    "object_id_list"
+                ),
+                func.group_concat(self.ext_relationship_sq.c.object_name).label(
+                    "object_name_list"
+                ),
+                self.ext_relationship_sq.c.name,
+            )
+            .group_by(self.ext_relationship_sq.c.id)
+            .subquery()
+        )
+        self.ext_parameter_definition_tag_sq = (
+            self.session.query(
+                self.parameter_definition_tag_sq.c.parameter_definition_id.label(
+                    "parameter_definition_id"
+                ),
+                self.parameter_definition_tag_sq.c.parameter_tag_id.label(
+                    "parameter_tag_id"
+                ),
+                self.parameter_tag_sq.c.tag.label("parameter_tag"),
+            )
+            .filter(
+                self.parameter_definition_tag_sq.c.parameter_tag_id
+                == self.parameter_tag_sq.c.id
+            )
+            .subquery()
+        )
+        self.wide_parameter_definition_tag_sq = (
+            self.session.query(
+                self.ext_parameter_definition_tag_sq.c.parameter_definition_id,
+                func.group_concat(
+                    self.ext_parameter_definition_tag_sq.c.parameter_tag_id
+                ).label("parameter_tag_id_list"),
+                func.group_concat(
+                    self.ext_parameter_definition_tag_sq.c.parameter_tag
+                ).label("parameter_tag_list"),
+            )
+            .group_by(self.ext_parameter_definition_tag_sq.c.parameter_definition_id)
+            .subquery()
+        )
+        self.wide_parameter_value_list_sq = (
+            self.session.query(
+                self.parameter_value_list_sq.c.id,
+                self.parameter_value_list_sq.c.name,
+                func.group_concat(self.parameter_value_list_sq.c.value).label(
+                    "value_list"
+                ),
+            )
+            .order_by(
+                self.parameter_value_list_sq.c.id,
+                self.parameter_value_list_sq.c.value_index,
+            )
+            .group_by(self.parameter_value_list_sq.c.id)
+        ).subquery()
 
     def single_object_class(self, id=None, name=None):
         """Return a single object class given the id or name."""
-        qry = self.object_class_list()
+        qry = self.session.query(self.object_class_sq)
         if id:
             return qry.filter(self.object_class_sq.c.id == id)
         if name:
@@ -84,7 +165,7 @@ class DatabaseMappingQueryMixin:
 
     def single_object(self, id=None, name=None):
         """Return a single object given the id or name."""
-        qry = self.object_list()
+        qry = self.session.query(self.object_sq)
         if id:
             return qry.filter(self.object_sq.c.id == id)
         if name:
@@ -109,24 +190,21 @@ class DatabaseMappingQueryMixin:
         object_name_list=None,
     ):
         """Return a single relationship in wide format given the id or name."""
-        subqry = self.wide_relationship_list().subquery()
-        qry = self.session.query(
-            subqry.c.id,
-            subqry.c.class_id,
-            subqry.c.object_id_list,
-            subqry.c.object_name_list,
-            subqry.c.name,
-        )
+        qry = self.session.query(self.wide_relationship_sq)
         if id:
-            return qry.filter(subqry.c.id == id)
+            return qry.filter(self.wide_relationship_sq.c.id == id)
         if name:
-            return qry.filter(subqry.c.name == name)
+            return qry.filter(self.wide_relationship_sq.c.name == name)
         if class_id:
-            qry = qry.filter(subqry.c.class_id == class_id)
+            qry = qry.filter(self.wide_relationship_sq.c.class_id == class_id)
             if object_id_list:
-                return qry.filter(subqry.c.object_id_list == object_id_list)
+                return qry.filter(
+                    self.wide_relationship_sq.c.object_id_list == object_id_list
+                )
             if object_name_list:
-                return qry.filter(subqry.c.object_name_list == object_name_list)
+                return qry.filter(
+                    self.wide_relationship_sq.c.object_name_list == object_name_list
+                )
         return self.empty_list()
 
     def single_parameter_definition(self, id=None, name=None):
@@ -221,14 +299,14 @@ class DatabaseMappingQueryMixin:
         qry = self.session.query(self.object_sq)
         if id_list is not None:
             qry = qry.filter(self.object_sq.c.id.in_(id_list))
-        if class_id:
+        if class_id is not None:
             qry = qry.filter(self.object_sq.c.class_id == class_id)
         return qry
 
     def relationship_class_list(self, id=None, ordered=True):
         """Return all relationship classes optionally filtered by id."""
         qry = self.session.query(self.relationship_class_sq)
-        if id:
+        if id is not None:
             qry = qry.filter(self.relationship_class_sq.c.id == id)
         if ordered:
             qry = qry.order_by(
@@ -241,7 +319,7 @@ class DatabaseMappingQueryMixin:
         qry = self.session.query(self.wide_relationship_class_sq)
         if id_list is not None:
             qry = qry.filter(self.wide_relationship_class_sq.c.id.in_(id_list))
-        if object_class_id:
+        if object_class_id is not None:
             qry = qry.filter(
                 or_(
                     self.wide_relationship_class_sq.c.object_class_id_list.like(
@@ -257,74 +335,46 @@ class DatabaseMappingQueryMixin:
             )
         return qry
 
-    def relationship_list(self, id=None):
+    def relationship_list(self, id=None, ordered=True):
         """Return relationships, optionally filtered by id."""
-        qry = self.session.query(self.relationship_sq).order_by(
-            self.relationship_sq.c.id, self.relationship_sq.c.dimension
-        )
-        if id:
+        qry = self.session.query(self.relationship_sq)
+        if id is not None:
             qry = qry.filter(self.relationship_sq.c.id == id)
+        if ordered:
+            qry = qry.order_by(
+                self.relationship_sq.c.id, self.relationship_sq.c.dimension
+            )
         return qry
 
     def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
         """Return list of relationships in wide format involving a given relationship class and object."""
-        qry = self.session.query(
-            self.relationship_sq.c.id.label("id"),
-            self.relationship_sq.c.class_id.label("class_id"),
-            self.relationship_sq.c.object_id.label("object_id"),
-            self.object_sq.c.name.label("object_name"),
-            self.relationship_sq.c.name.label("name"),
-        ).filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
+        qry = self.session.query(self.wide_relationship_sq)
         if id_list is not None:
-            qry = qry.filter(self.relationship_sq.c.id.in_(id_list))
-        if class_id:
+            qry = qry.filter(self.wide_relationship_sq.c.id.in_(id_list))
+        if class_id is not None:
+            qry = qry.filter(self.wide_relationship_sq.c.class_id == class_id)
+        if object_id is not None:
             qry = qry.filter(
-                self.relationship_sq.c.id.in_(
-                    self.session.query(self.relationship_sq.c.id)
-                    .filter(self.relationship_sq.c.class_id == class_id)
-                    .distinct()
+                or_(
+                    self.wide_relationship_sq.c.object_id_list.like(f"%,{object_id},%"),
+                    self.wide_relationship_sq.c.object_id_list.like(f"{object_id},%"),
+                    self.wide_relationship_sq.c.object_id_list.like(f"%,{object_id}"),
                 )
             )
-        if object_id:
-            qry = qry.filter(
-                self.relationship_sq.c.id.in_(
-                    self.session.query(self.relationship_sq.c.id)
-                    .filter(self.relationship_sq.c.object_id == object_id)
-                    .distinct()
-                )
-            )
-        subqry = qry.subquery()
-        return self.session.query(
-            subqry.c.id,
-            subqry.c.class_id,
-            func.group_concat(subqry.c.object_id).label("object_id_list"),
-            func.group_concat(subqry.c.object_name).label("object_name_list"),
-            subqry.c.name,
-        ).group_by(subqry.c.id)
+        return qry
 
     def parameter_definition_list(
         self, id_list=None, object_class_id=None, relationship_class_id=None
     ):
         """Return parameter definitions."""
-        qry = self.session.query(
-            self.parameter_definition_sq.c.id.label("id"),
-            self.parameter_definition_sq.c.name.label("name"),
-            self.parameter_definition_sq.c.relationship_class_id.label(
-                "relationship_class_id"
-            ),
-            self.parameter_definition_sq.c.object_class_id.label("object_class_id"),
-            self.parameter_definition_sq.c.parameter_value_list_id.label(
-                "parameter_value_list_id"
-            ),
-            self.parameter_definition_sq.c.default_value.label("default_value"),
-        )
+        qry = self.session.query(self.parameter_definition_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_definition_sq.c.id.in_(id_list))
-        if object_class_id:
+        if object_class_id is not None:
             qry = qry.filter(
                 self.parameter_definition_sq.c.object_class_id == object_class_id
             )
-        if relationship_class_id:
+        if relationship_class_id is not None:
             qry = qry.filter(
                 self.parameter_definition_sq.c.relationship_class_id
                 == relationship_class_id
@@ -341,12 +391,6 @@ class DatabaseMappingQueryMixin:
                 "the parameter_id argument is deprecated, use parameter_definition_id instead",
                 DeprecationWarning,
             )
-        wide_parameter_definition_tag_list = (
-            self.wide_parameter_definition_tag_list().subquery()
-        )
-        wide_parameter_value_list_list = (
-            self.wide_parameter_value_list_list().subquery()
-        )
         qry = (
             self.session.query(
                 self.parameter_definition_sq.c.id.label("id"),
@@ -356,9 +400,9 @@ class DatabaseMappingQueryMixin:
                 self.parameter_definition_sq.c.parameter_value_list_id.label(
                     "value_list_id"
                 ),
-                wide_parameter_value_list_list.c.name.label("value_list_name"),
-                wide_parameter_definition_tag_list.c.parameter_tag_id_list,
-                wide_parameter_definition_tag_list.c.parameter_tag_list,
+                self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
+                self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                 self.parameter_definition_sq.c.default_value,
             )
             .filter(
@@ -366,13 +410,13 @@ class DatabaseMappingQueryMixin:
                 == self.parameter_definition_sq.c.object_class_id
             )
             .outerjoin(
-                wide_parameter_definition_tag_list,
-                wide_parameter_definition_tag_list.c.parameter_definition_id
+                self.wide_parameter_definition_tag_sq,
+                self.wide_parameter_definition_tag_sq.c.parameter_definition_id
                 == self.parameter_definition_sq.c.id,
             )
             .outerjoin(
-                wide_parameter_value_list_list,
-                wide_parameter_value_list_list.c.id
+                self.wide_parameter_value_list_sq,
+                self.wide_parameter_value_list_sq.c.id
                 == self.parameter_definition_sq.c.parameter_value_list_id,
             )
         )
@@ -397,41 +441,34 @@ class DatabaseMappingQueryMixin:
                 "the parameter_id argument is deprecated, use parameter_definition_id instead",
                 DeprecationWarning,
             )
-        wide_relationship_class_list = self.wide_relationship_class_list().subquery()
-        wide_parameter_definition_tag_list = (
-            self.wide_parameter_definition_tag_list().subquery()
-        )
-        wide_parameter_value_list_list = (
-            self.wide_parameter_value_list_list().subquery()
-        )
         qry = (
             self.session.query(
                 self.parameter_definition_sq.c.id.label("id"),
-                wide_relationship_class_list.c.id.label("relationship_class_id"),
-                wide_relationship_class_list.c.name.label("relationship_class_name"),
-                wide_relationship_class_list.c.object_class_id_list,
-                wide_relationship_class_list.c.object_class_name_list,
+                self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
+                self.wide_relationship_class_sq.c.name.label("relationship_class_name"),
+                self.wide_relationship_class_sq.c.object_class_id_list,
+                self.wide_relationship_class_sq.c.object_class_name_list,
                 self.parameter_definition_sq.c.name.label("parameter_name"),
                 self.parameter_definition_sq.c.parameter_value_list_id.label(
                     "value_list_id"
                 ),
-                wide_parameter_value_list_list.c.name.label("value_list_name"),
-                wide_parameter_definition_tag_list.c.parameter_tag_id_list,
-                wide_parameter_definition_tag_list.c.parameter_tag_list,
+                self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
+                self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                 self.parameter_definition_sq.c.default_value,
             )
             .filter(
                 self.parameter_definition_sq.c.relationship_class_id
-                == wide_relationship_class_list.c.id
+                == self.wide_relationship_class_sq.c.id
             )
             .outerjoin(
-                wide_parameter_definition_tag_list,
-                wide_parameter_definition_tag_list.c.parameter_definition_id
+                self.wide_parameter_definition_tag_sq,
+                self.wide_parameter_definition_tag_sq.c.parameter_definition_id
                 == self.parameter_definition_sq.c.id,
             )
             .outerjoin(
-                wide_parameter_value_list_list,
-                wide_parameter_value_list_list.c.id
+                self.wide_parameter_value_list_sq,
+                self.wide_parameter_value_list_sq.c.id
                 == self.parameter_definition_sq.c.parameter_value_list_id,
             )
         )
@@ -536,13 +573,7 @@ class DatabaseMappingQueryMixin:
 
     def parameter_value_list(self, id_list=None, object_id=None, relationship_id=None):
         """Return parameter values."""
-        qry = self.session.query(
-            self.parameter_value_sq.c.id,
-            self.parameter_value_sq.c.parameter_definition_id,
-            self.parameter_value_sq.c.object_id,
-            self.parameter_value_sq.c.relationship_id,
-            self.parameter_value_sq.c.value,
-        )
+        qry = self.session.query(self.parameter_value_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_value_sq.c.id.in_(id_list))
         if object_id:
@@ -553,17 +584,16 @@ class DatabaseMappingQueryMixin:
             )
         return qry
 
-    # TODO: This should be updated so it also brings value_list and tag_list
+    # TODO: Should this also bring `value_list` and `tag_list`?
     def object_parameter_value_list(self, parameter_name=None):
         """Return objects and their parameter values."""
-        object_list = self.object_list().subquery()
         qry = (
             self.session.query(
                 self.parameter_value_sq.c.id.label("id"),
                 self.object_class_sq.c.id.label("object_class_id"),
                 self.object_class_sq.c.name.label("object_class_name"),
-                object_list.c.id.label("object_id"),
-                object_list.c.name.label("object_name"),
+                self.object_sq.c.id.label("object_id"),
+                self.object_sq.c.name.label("object_name"),
                 self.parameter_definition_sq.c.id.label("parameter_id"),
                 self.parameter_definition_sq.c.name.label("parameter_name"),
                 self.parameter_value_sq.c.value,
@@ -572,7 +602,7 @@ class DatabaseMappingQueryMixin:
                 self.parameter_definition_sq.c.id
                 == self.parameter_value_sq.c.parameter_definition_id
             )
-            .filter(self.parameter_value_sq.c.object_id == object_list.c.id)
+            .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
             .filter(
                 self.parameter_definition_sq.c.object_class_id
                 == self.object_class_sq.c.id
@@ -585,18 +615,16 @@ class DatabaseMappingQueryMixin:
     # TODO: Should this also bring `value_list` and `tag_list`?
     def relationship_parameter_value_list(self, parameter_name=None):
         """Return relationships and their parameter values."""
-        wide_relationship_class_list = self.wide_relationship_class_list().subquery()
-        wide_relationship_list = self.wide_relationship_list().subquery()
         qry = (
             self.session.query(
                 self.parameter_value_sq.c.id.label("id"),
-                wide_relationship_class_list.c.id.label("relationship_class_id"),
-                wide_relationship_class_list.c.name.label("relationship_class_name"),
-                wide_relationship_class_list.c.object_class_id_list,
-                wide_relationship_class_list.c.object_class_name_list,
-                wide_relationship_list.c.id.label("relationship_id"),
-                wide_relationship_list.c.object_id_list,
-                wide_relationship_list.c.object_name_list,
+                self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
+                self.wide_relationship_class_sq.c.name.label("relationship_class_name"),
+                self.wide_relationship_class_sq.c.object_class_id_list,
+                self.wide_relationship_class_sq.c.object_class_name_list,
+                self.wide_relationship_sq.c.id.label("relationship_id"),
+                self.wide_relationship_sq.c.object_id_list,
+                self.wide_relationship_sq.c.object_name_list,
                 self.parameter_definition_sq.c.id.label("parameter_id"),
                 self.parameter_definition_sq.c.name.label("parameter_name"),
                 self.parameter_value_sq.c.value,
@@ -606,11 +634,12 @@ class DatabaseMappingQueryMixin:
                 == self.parameter_value_sq.c.parameter_definition_id
             )
             .filter(
-                self.parameter_value_sq.c.relationship_id == wide_relationship_list.c.id
+                self.parameter_value_sq.c.relationship_id
+                == self.wide_relationship_sq.c.id
             )
             .filter(
                 self.parameter_definition_sq.c.relationship_class_id
-                == wide_relationship_class_list.c.id
+                == self.wide_relationship_class_sq.c.id
             )
         )
         if parameter_name:
@@ -629,7 +658,7 @@ class DatabaseMappingQueryMixin:
                 self.parameter_value_sq.c.value,
             )
             .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
-            .outerjoin(self.ParameterValue)
+            .outerjoin(self.parameter_value_sq)
             .filter(
                 self.parameter_definition_sq.c.id
                 == self.parameter_value_sq.c.parameter_definition_id
@@ -639,7 +668,7 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.parameter_definition_sq.c.id == parameter_id)
         return qry
 
-    # NOTE: maybe these unvalued... are obsolete
+    # NOTE: Aren't all unvalued_ methods obsolete?
     def unvalued_object_parameter_list(self, object_id):
         """Return parameters that do not have a value for given object."""
         object_ = self.single_object(id=object_id).one_or_none()
@@ -694,11 +723,7 @@ class DatabaseMappingQueryMixin:
 
     def parameter_tag_list(self, id_list=None, tag_list=None):
         """Return list of parameter tags."""
-        qry = self.session.query(
-            self.parameter_tag_sq.c.id.label("id"),
-            self.parameter_tag_sq.c.tag.label("tag"),
-            self.parameter_tag_sq.c.description.label("description"),
-        )
+        qry = self.session.query(self.parameter_tag_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_tag_sq.c.id.in_(id_list))
         if tag_list is not None:
@@ -707,44 +732,20 @@ class DatabaseMappingQueryMixin:
 
     def parameter_definition_tag_list(self, id_list=None):
         """Return list of parameter definition tags."""
-        qry = self.session.query(
-            self.parameter_definition_tag_sq.c.id.label("id"),
-            self.parameter_definition_tag_sq.c.parameter_definition_id.label(
-                "parameter_definition_id"
-            ),
-            self.parameter_definition_tag_sq.c.parameter_tag_id.label(
-                "parameter_tag_id"
-            ),
-        )
+        qry = self.session.query(self.parameter_definition_tag_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_definition_tag_sq.c.id.in_(id_list))
         return qry
 
     def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
         """Return list of parameter tags in wide format for a given parameter definition."""
-        qry = self.session.query(
-            self.parameter_definition_tag_sq.c.parameter_definition_id.label(
-                "parameter_definition_id"
-            ),
-            self.parameter_definition_tag_sq.c.parameter_tag_id.label(
-                "parameter_tag_id"
-            ),
-            self.parameter_tag_sq.c.tag.label("parameter_tag"),
-        ).filter(
-            self.parameter_definition_tag_sq.c.parameter_tag_id
-            == self.parameter_tag_sq.c.id
-        )
+        qry = self.session.query(self.wide_parameter_definition_tag_sq)
         if parameter_definition_id:
             qry = qry.filter(
-                self.parameter_definition_tag_sq.c.parameter_definition_id
+                self.wide_parameter_definition_tag_sq.c.parameter_definition_id
                 == parameter_definition_id
             )
-        subqry = qry.subquery()
-        return self.session.query(
-            subqry.c.parameter_definition_id,
-            func.group_concat(subqry.c.parameter_tag_id).label("parameter_tag_id_list"),
-            func.group_concat(subqry.c.parameter_tag).label("parameter_tag_list"),
-        ).group_by(subqry.c.parameter_definition_id)
+        return qry
 
     def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
         """Return list of parameter tags (including the NULL tag) and their definitions in wide format.
@@ -772,28 +773,17 @@ class DatabaseMappingQueryMixin:
 
     def parameter_value_list_list(self, id_list=None):
         """Return list of parameter value_lists."""
-        qry = self.session.query(
-            self.parameter_value_list_sq.c.id.label("id"),
-            self.parameter_value_list_sq.c.name.label("name"),
-            self.parameter_value_list_sq.c.value_index.label("value_index"),
-            self.parameter_value_list_sq.c.value.label("value"),
-        )
+        qry = self.session.query(self.parameter_value_list_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_value_list_sq.c.id.in_(id_list))
         return qry
 
     def wide_parameter_value_list_list(self, id_list=None):
         """Return list of parameter value_lists and their elements in wide format."""
-        subqry = self.parameter_value_list_list(id_list=id_list).subquery()
-        return (
-            self.session.query(
-                subqry.c.id,
-                subqry.c.name,
-                func.group_concat(subqry.c.value).label("value_list"),
-            )
-            .order_by(subqry.c.id, subqry.c.value_index)
-            .group_by(subqry.c.id)
-        )
+        qry = self.session.query(self.wide_parameter_value_list_sq)
+        if id_list is not None:
+            qry = qry.filter(self.wide_parameter_value_list_sq.c.id.in_(id_list))
+        return qry
 
     def object_parameter_fields(self):
         """Return object parameter fields."""

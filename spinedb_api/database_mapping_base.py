@@ -70,9 +70,6 @@ class DatabaseMappingBase:
         self.parameter_tag_sq = None
         self.parameter_definition_tag_sq = None
         self.parameter_value_list_sq = None
-        # Special subqueries
-        self.ext_relationship_class_sq = None
-        self.wide_relationship_class_sq = None
         # Table to class dict
         self.table_to_class = {
             "commit": "Commit",

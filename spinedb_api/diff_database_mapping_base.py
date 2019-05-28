@@ -74,7 +74,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.create_special_subqueries()
 
     def has_pending_changes(self):
-        """Return True if there are uncommitted changes. Otherwise return False."""
+        """Return `True` if there are uncommitted changes. Otherwise return `False`."""
         if any([v for v in self.new_item_id.values()]):
             return True
         if any([v for v in self.touched_item_id.values()]):
@@ -180,7 +180,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         )
 
     def create_subqueries(self):
-        """Create subqueries that combine the original and difference tables into
+        """Overriden method to create subqueries that combine the original and difference tables into
         one result dataset using `UNION ALL`.
         These subqueries are used to query the database through `_DatabaseMappingQuery`.
         """
