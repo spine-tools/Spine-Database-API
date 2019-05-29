@@ -24,6 +24,7 @@ A class to handle UPDATE operations onto a Spine db 'diff' ORM.
 :date:   11.8.2018
 """
 
+import warnings
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import attr_dict

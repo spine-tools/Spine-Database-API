@@ -34,6 +34,8 @@ from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
 
+# TODO: Finish documenting special subqueries
+
 
 class DatabaseMappingBase(object):
     """A class to create an object relational mapping from a Spine db.
@@ -76,8 +78,14 @@ class DatabaseMappingBase(object):
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
+        self._object_parameter_definition_sq = None
+        self._relationship_parameter_definition_sq = None
+        self._object_parameter_value_sq = None
+        self._relationship_parameter_value_sq = None
         self._ext_parameter_definition_tag_sq = None
         self._wide_parameter_definition_tag_sq = None
+        self._ext_parameter_tag_definition_sq = None
+        self._wide_parameter_tag_definition_sq = None
         self._wide_parameter_value_list_sq = None
         # Table to class dict for convenience
         self.table_to_class = {
@@ -248,9 +256,9 @@ class DatabaseMappingBase(object):
     @property
     def ext_relationship_class_sq(self):
         """
-        SELECT rc.id, rc.name, oc.id, oc.name FROM relationship_class as rc
-        JOIN object_class as oc
-        ON rc.object_class_id == oc.id
+        SELECT rc.id, rc.name, oc.id, oc.name
+        FROM relationship_class AS rc, object_class AS oc
+        WHERE rc.object_class_id = oc.id
         """
         if self._ext_relationship_class_sq is None:
             self._ext_relationship_class_sq = (
@@ -274,17 +282,25 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_relationship_class_sq(self):
+        """
+        SELECT rc_id, rc_name, GROUP_CONCAT(oc_id), GROUP_CONCAT(oc_name) FROM (
+            SELECT rc.id AS rc_id, rc.name AS rc_name, oc.id AS oc_id, oc.name AS oc_name
+            FROM relationship_class AS rc, object_class AS oc
+            WHERE rc.object_class_id = oc.id
+        )
+        GROUP BY rc_id
+        """
         if self._wide_relationship_class_sq is None:
             self._wide_relationship_class_sq = (
                 self.query(
                     self.ext_relationship_class_sq.c.id,
+                    self.ext_relationship_class_sq.c.name,
                     func.group_concat(
                         self.ext_relationship_class_sq.c.object_class_id
                     ).label("object_class_id_list"),
                     func.group_concat(
                         self.ext_relationship_class_sq.c.object_class_name
                     ).label("object_class_name_list"),
-                    self.ext_relationship_class_sq.c.name,
                 )
                 .group_by(self.ext_relationship_class_sq.c.id)
                 .subquery()
@@ -293,6 +309,11 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_relationship_sq(self):
+        """
+        SELECT r.id, r.class_id, r.name, o.id, o.name
+        FROM relationship as r, object AS o
+        WHERE r.object_id = o.id
+        """
         if self._ext_relationship_sq is None:
             self._ext_relationship_sq = (
                 self.query(
@@ -310,18 +331,26 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_relationship_sq(self):
+        """
+        SELECT r_id, rc_id, r_name, GROUP_CONCAT(o_id), GROUP_CONCAT(o_name) FROM (
+            SELECT r.id AS r_id, r.class_id AS rc_id, r.name AS r_name, o.id AS o_id, o.name AS o_name
+            FROM relationship AS r, object AS o
+            WHERE r.object_id == o.id
+        )
+        GROUP BY r_id
+        """
         if self._wide_relationship_sq is None:
             self._wide_relationship_sq = (
                 self.query(
                     self.ext_relationship_sq.c.id,
                     self.ext_relationship_sq.c.class_id,
+                    self.ext_relationship_sq.c.name,
                     func.group_concat(self.ext_relationship_sq.c.object_id).label(
                         "object_id_list"
                     ),
                     func.group_concat(self.ext_relationship_sq.c.object_name).label(
                         "object_name_list"
                     ),
-                    self.ext_relationship_sq.c.name,
                 )
                 .group_by(self.ext_relationship_sq.c.id)
                 .subquery()
@@ -329,7 +358,158 @@ class DatabaseMappingBase(object):
         return self._wide_relationship_sq
 
     @property
+    def object_parameter_definition_sq(self):
+        """
+        """
+        if self._object_parameter_definition_sq is None:
+            self._object_parameter_definition_sq = (
+                self.query(
+                    self.parameter_definition_sq.c.id.label("id"),
+                    self.object_class_sq.c.id.label("object_class_id"),
+                    self.object_class_sq.c.name.label("object_class_name"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_definition_sq.c.parameter_value_list_id.label(
+                        "value_list_id"
+                    ),
+                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
+                    self.parameter_definition_sq.c.default_value,
+                )
+                .filter(
+                    self.object_class_sq.c.id
+                    == self.parameter_definition_sq.c.object_class_id
+                )
+                .outerjoin(
+                    self.wide_parameter_definition_tag_sq,
+                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id
+                    == self.parameter_definition_sq.c.id,
+                )
+                .outerjoin(
+                    self.wide_parameter_value_list_sq,
+                    self.wide_parameter_value_list_sq.c.id
+                    == self.parameter_definition_sq.c.parameter_value_list_id,
+                )
+                .subquery()
+            )
+        return self._object_parameter_definition_sq
+
+    @property
+    def relationship_parameter_definition_sq(self):
+        """
+        """
+        if self._relationship_parameter_definition_sq is None:
+            self._relationship_parameter_definition_sq = (
+                self.query(
+                    self.parameter_definition_sq.c.id.label("id"),
+                    self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
+                    self.wide_relationship_class_sq.c.name.label(
+                        "relationship_class_name"
+                    ),
+                    self.wide_relationship_class_sq.c.object_class_id_list,
+                    self.wide_relationship_class_sq.c.object_class_name_list,
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_definition_sq.c.parameter_value_list_id.label(
+                        "value_list_id"
+                    ),
+                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
+                    self.parameter_definition_sq.c.default_value,
+                )
+                .filter(
+                    self.parameter_definition_sq.c.relationship_class_id
+                    == self.wide_relationship_class_sq.c.id
+                )
+                .outerjoin(
+                    self.wide_parameter_definition_tag_sq,
+                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id
+                    == self.parameter_definition_sq.c.id,
+                )
+                .outerjoin(
+                    self.wide_parameter_value_list_sq,
+                    self.wide_parameter_value_list_sq.c.id
+                    == self.parameter_definition_sq.c.parameter_value_list_id,
+                )
+                .subquery()
+            )
+        return self._relationship_parameter_definition_sq
+
+    @property
+    def object_parameter_value_sq(self):
+        """
+        """
+        # TODO: Should this also bring `value_list` and `tag_list`?
+        if self._object_parameter_value_sq is None:
+            self._object_parameter_value_sq = (
+                self.query(
+                    self.parameter_value_sq.c.id.label("id"),
+                    self.object_class_sq.c.id.label("object_class_id"),
+                    self.object_class_sq.c.name.label("object_class_name"),
+                    self.object_sq.c.id.label("object_id"),
+                    self.object_sq.c.name.label("object_name"),
+                    self.parameter_definition_sq.c.id.label("parameter_id"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_value_sq.c.value,
+                )
+                .filter(
+                    self.parameter_definition_sq.c.id
+                    == self.parameter_value_sq.c.parameter_definition_id
+                )
+                .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
+                .filter(
+                    self.parameter_definition_sq.c.object_class_id
+                    == self.object_class_sq.c.id
+                )
+                .subquery()
+            )
+        return self._object_parameter_value_sq
+
+    @property
+    def relationship_parameter_value_sq(self):
+        """
+        """
+        # TODO: Should this also bring `value_list` and `tag_list`?
+        if self._relationship_parameter_value_sq is None:
+            self._relationship_parameter_value_sq = (
+                self.query(
+                    self.parameter_value_sq.c.id.label("id"),
+                    self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
+                    self.wide_relationship_class_sq.c.name.label(
+                        "relationship_class_name"
+                    ),
+                    self.wide_relationship_class_sq.c.object_class_id_list,
+                    self.wide_relationship_class_sq.c.object_class_name_list,
+                    self.wide_relationship_sq.c.id.label("relationship_id"),
+                    self.wide_relationship_sq.c.object_id_list,
+                    self.wide_relationship_sq.c.object_name_list,
+                    self.parameter_definition_sq.c.id.label("parameter_id"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_value_sq.c.value,
+                )
+                .filter(
+                    self.parameter_definition_sq.c.id
+                    == self.parameter_value_sq.c.parameter_definition_id
+                )
+                .filter(
+                    self.parameter_value_sq.c.relationship_id
+                    == self.wide_relationship_sq.c.id
+                )
+                .filter(
+                    self.parameter_definition_sq.c.relationship_class_id
+                    == self.wide_relationship_class_sq.c.id
+                )
+                .subquery()
+            )
+        return self._relationship_parameter_value_sq
+
+    @property
     def ext_parameter_definition_tag_sq(self):
+        """
+        SELECT pdt.parameter_definition_id, pt.id, pt.tag
+        FROM parameter_definiton_tag as pdt, parameter_tag AS pt
+        WHERE pdt.parameter_tag_id = pt.id
+        """
         if self._ext_parameter_definition_tag_sq is None:
             self._ext_parameter_definition_tag_sq = (
                 self.query(
@@ -351,6 +531,14 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_definition_tag_sq(self):
+        """
+        SELECT pd_id, GROUP_CONCAT(pt_id), GROUP_CONCAT(pt_tag) FROM (
+            SELECT pdt.parameter_definition_id AS pd_id, pt.id AS pt_id, pt.tag AS pt_tag
+            FROM parameter_definiton_tag as pdt, parameter_tag AS pt
+            WHERE pdt.parameter_tag_id = pt.id
+        )
+        GROUP BY pd_id
+        """
         if self._wide_parameter_definition_tag_sq is None:
             self._wide_parameter_definition_tag_sq = (
                 self.query(
@@ -368,6 +556,40 @@ class DatabaseMappingBase(object):
                 .subquery()
             )
         return self._wide_parameter_definition_tag_sq
+
+    @property
+    def ext_parameter_tag_definition_sq(self):
+        if self._ext_parameter_tag_definition_sq is None:
+            self._ext_parameter_tag_definition_sq = (
+                self.query(
+                    self.parameter_definition_sq.c.id.label("parameter_definition_id"),
+                    self.parameter_definition_tag_sq.c.parameter_tag_id.label(
+                        "parameter_tag_id"
+                    ),
+                )
+                .outerjoin(
+                    self.parameter_definition_tag_sq,
+                    self.parameter_definition_sq.c.id
+                    == self.parameter_definition_tag_sq.c.parameter_definition_id,
+                )
+                .subquery()
+            )
+        return self._ext_parameter_tag_definition_sq
+
+    @property
+    def wide_parameter_tag_definition_sq(self):
+        if self._wide_parameter_tag_definition_sq is None:
+            self._wide_parameter_tag_definition_sq = (
+                self.query(
+                    self.ext_parameter_tag_definition_sq.c.parameter_tag_id,
+                    func.group_concat(
+                        self.ext_parameter_tag_definition_sq.c.parameter_definition_id
+                    ).label("parameter_definition_id_list"),
+                )
+                .group_by(self.ext_parameter_tag_definition_sq.c.parameter_tag_id)
+                .subquery()
+            )
+        return self._wide_parameter_tag_definition_sq
 
     @property
     def wide_parameter_value_list_sq(self):

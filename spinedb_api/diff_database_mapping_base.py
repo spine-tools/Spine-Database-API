@@ -124,14 +124,20 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
+        self._object_parameter_definition_sq = None
+        self._relationship_parameter_definition_sq = None
+        self._object_parameter_value_sq = None
+        self._relationship_parameter_value_sq = None
         self._ext_parameter_definition_tag_sq = None
         self._wide_parameter_definition_tag_sq = None
+        self._ext_parameter_tag_definition_sq = None
+        self._wide_parameter_tag_definition_sq = None
         self._wide_parameter_value_list_sq = None
 
     def subquery(self, tablename):
         """
         Overriden method to (i) filter dirty items from original tables, and
-        (ii) also bring new data from diff tables:
+        (ii) also bring data from diff tables:
         while filtering dirty items from the former:
             SELECT * FROM orig_table WHERE id NOT IN dirty_ids
             UNION ALL
