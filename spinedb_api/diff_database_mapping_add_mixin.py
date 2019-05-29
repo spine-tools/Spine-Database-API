@@ -407,7 +407,8 @@ class DiffDatabaseMappingAddMixin:
         """
         # FIXME: this should be removed once the 'parameter_definition_id' comes in the kwargs
         for kwargs in kwargs_list:
-            kwargs["parameter_definition_id"] = kwargs.pop("parameter_id")
+            if "parameter_id" in kwargs:
+                kwargs["parameter_definition_id"] = kwargs["parameter_id"]
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(
             *kwargs_list, strict=strict
         )
