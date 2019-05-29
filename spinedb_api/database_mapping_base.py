@@ -119,11 +119,6 @@ class DatabaseMappingBase(object):
                     self.db_url, e.orig.args
                 )
                 raise SpineDBAPIError(msg)
-            # try:
-            #     self.engine.execute('BEGIN IMMEDIATE')
-            # except DatabaseError as e:
-            #     msg = "Could not open '{}', seems to be locked: {}".format(self.db_url, e.orig.args)
-            #     raise SpineDBAPIError(msg)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
         self.query = self.session.query
@@ -394,7 +389,9 @@ class DatabaseMappingBase(object):
         return self._wide_parameter_value_list_sq
 
     def reset_mapping(self):
-        """Delete all records from all tables (but don't drop the tables)."""
+        """Delete all records from all tables (but don't drop the tables).
+        This is useful for writing tests I guess...
+        """
         self.query(self.ObjectClass).delete(synchronize_session=False)
         self.query(self.Object).delete(synchronize_session=False)
         self.query(self.RelationshipClass).delete(synchronize_session=False)

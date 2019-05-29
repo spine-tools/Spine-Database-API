@@ -25,7 +25,7 @@ Classes to handle the Spine database object relational mapping.
 """
 
 from .database_mapping_base import DatabaseMappingBase
-from sqlalchemy import MetaData, Table, Column, Integer, String, inspect
+from sqlalchemy import MetaData, Table, inspect
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import NoSuchTableError
 from .exception import SpineTableNotFoundError
@@ -64,7 +64,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Initialize stuff
         self.init_diff_dicts()
         self.create_diff_tables_and_mapping()
-        self.init_next_id()
 
     def init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
@@ -74,7 +73,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.dirty_item_id = {x: set() for x in self.table_to_class}
 
     def create_diff_tables_and_mapping(self):
-        """Create diff tables the ORM."""
+        """Create diff tables and ORM."""
         # Create tables...
         diff_name_prefix = "diff_"
         diff_name_prefix += self.username if self.username else "anon"
@@ -114,35 +113,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
-    def init_next_id(self):
-        """Create `next_id` table if not exists and map it."""
-        # TODO: Does this work? What happens if there's already a next_id table with a different definition?
-        # Create table
-        metadata = MetaData()
-        next_id_table = Table(
-            "next_id",
-            metadata,
-            Column("user", String, primary_key=True),
-            Column("date", String, primary_key=True),
-            Column("object_class_id", Integer),
-            Column("object_id", Integer),
-            Column("relationship_class_id", Integer),
-            Column("relationship_id", Integer),
-            Column("parameter_definition_id", Integer),
-            Column("parameter_value_id", Integer),
-            Column("parameter_tag_id", Integer),
-            Column("parameter_value_list_id", Integer),
-            Column("parameter_definition_tag_id", Integer),
-        )
-        next_id_table.create(self.engine, checkfirst=True)
-        # Create mapping...
-        Base = automap_base(metadata=metadata)
-        Base.prepare()
-        try:
-            self.NextId = Base.classes.next_id
-        except (AttributeError, NoSuchTableError):
-            raise SpineTableNotFoundError("next_id", self.db_url)
-
     def mark_as_dirty(self, tablename, ids):
         """Mark items as dirty, which means the corresponding records from the original tables
         are no longer valid, and they should be queried from the diff tables instead."""
@@ -160,7 +130,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
 
     def subquery(self, tablename):
         """
-        Overriden method to bring items from both original and diff tables,
+        Overriden method to (i) filter dirty items from original tables, and
+        (ii) also bring new data from diff tables:
         while filtering dirty items from the former:
             SELECT * FROM orig_table WHERE id NOT IN dirty_ids
             UNION ALL

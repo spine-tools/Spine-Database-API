@@ -25,7 +25,8 @@ A class to handle INSERT operations onto a Spine db 'diff' ORM.
 """
 
 import warnings
-from sqlalchemy import func
+from sqlalchemy import func, MetaData, Table, Column, Integer, String
+from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError, SpineIntegrityError
 from datetime import datetime, timezone
@@ -41,6 +42,36 @@ class DiffDatabaseMappingAddMixin:
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
+        self.init_next_id()
+
+    def init_next_id(self):
+        """Create `next_id` table if not exists and map it."""
+        # TODO: Does this work? What happens if there's already a next_id table with a different definition?
+        # Create table
+        metadata = MetaData()
+        next_id_table = Table(
+            "next_id",
+            metadata,
+            Column("user", String, primary_key=True),
+            Column("date", String, primary_key=True),
+            Column("object_class_id", Integer),
+            Column("object_id", Integer),
+            Column("relationship_class_id", Integer),
+            Column("relationship_id", Integer),
+            Column("parameter_definition_id", Integer),
+            Column("parameter_value_id", Integer),
+            Column("parameter_tag_id", Integer),
+            Column("parameter_value_list_id", Integer),
+            Column("parameter_definition_tag_id", Integer),
+        )
+        next_id_table.create(self.engine, checkfirst=True)
+        # Create mapping...
+        Base = automap_base(metadata=metadata)
+        Base.prepare()
+        try:
+            self.NextId = Base.classes.next_id
+        except (AttributeError, NoSuchTableError):
+            raise SpineTableNotFoundError("next_id", self.db_url)
 
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""
