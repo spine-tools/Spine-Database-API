@@ -59,7 +59,7 @@ class DiffDatabaseMappingCommitMixin:
                         orig_class.id.in_(removed_ids[i : i + n])
                     ).delete(synchronize_session=False)
             # Merge updated
-            for tablename, ids in self.dirty_item_id.items():
+            for tablename, ids in self.updated_item_id.items():
                 classname = self.table_to_class[tablename]
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
@@ -73,8 +73,8 @@ class DiffDatabaseMappingCommitMixin:
                         kwargs["commit_id"] = commit.id
                         updated_items.append(kwargs)
                 self.session.bulk_update_mappings(orig_class, updated_items)
-            # Add new
-            for tablename, ids in self.new_item_id.items():
+            # Add added
+            for tablename, ids in self.added_item_id.items():
                 classname = self.table_to_class[tablename]
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)

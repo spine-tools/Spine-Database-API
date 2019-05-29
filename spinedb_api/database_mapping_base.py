@@ -79,7 +79,7 @@ class DatabaseMappingBase(object):
         self._ext_parameter_definition_tag_sq = None
         self._wide_parameter_definition_tag_sq = None
         self._wide_parameter_value_list_sq = None
-        # Table to class dict
+        # Table to class dict for convenience
         self.table_to_class = {
             "commit": "Commit",
             "object_class": "ObjectClass",
@@ -130,7 +130,7 @@ class DatabaseMappingBase(object):
 
     def check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a `SpineDBVersionError` if not.
-        If upgrade is True, then don't raise the error and upgrade the database instead.
+        If upgrade is `True`, then don't raise the error and upgrade the database instead.
         """
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
@@ -252,16 +252,18 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_relationship_class_sq(self):
-        """."""
+        """
+        SELECT rc.id, rc.name, oc.id, oc.name FROM relationship_class as rc
+        JOIN object_class as oc
+        ON rc.object_class_id == oc.id
+        """
         if self._ext_relationship_class_sq is None:
             self._ext_relationship_class_sq = (
                 self.query(
                     self.relationship_class_sq.c.id.label("id"),
-                    self.relationship_class_sq.c.object_class_id.label(
-                        "object_class_id"
-                    ),
-                    self.object_class_sq.c.name.label("object_class_name"),
                     self.relationship_class_sq.c.name.label("name"),
+                    self.object_class_sq.c.id.label("object_class_id"),
+                    self.object_class_sq.c.name.label("object_class_name"),
                 )
                 .filter(
                     self.relationship_class_sq.c.object_class_id

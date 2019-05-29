@@ -61,33 +61,6 @@ class DiffDatabaseMappingAddMixin:
             self.session.rollback()
             raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
 
-    def add_object_class(self, **kwargs):
-        return self.add_object_classes(kwargs, strict=True)[0].one_or_none()
-
-    def add_object(self, **kwargs):
-        return self.add_objects(kwargs, strict=True)[0].one_or_none()
-
-    def add_wide_relationship_class(self, **kwargs):
-        return self.add_wide_relationship_classes(kwargs, strict=True)[0].one_or_none()
-
-    def add_wide_relationship(self, **kwargs):
-        return self.add_wide_relationships(kwargs, strict=True)[0].one_or_none()
-
-    def add_parameter(self, **kwargs):
-        return self.add_parameters(kwargs, strict=True)[0].one_or_none()
-
-    def add_parameter_value(self, **kwargs):
-        return self.add_parameter_values(kwargs, strict=True)[0].one_or_none()
-
-    def get_or_add_object_class(self, **kwargs):
-        return self.add_object_classes(kwargs, return_dups=True)[0].one_or_none()
-
-    def get_or_add_object(self, **kwargs):
-        return self.add_objects(kwargs, return_dups=True)[0].one_or_none()
-
-    def get_or_add_parameter(self, **kwargs):
-        return self.add_parameters(kwargs, return_dups=True)[0].one_or_none()
-
     def add_object_classes(self, *kwargs_list, strict=False, return_dups=False):
         """Add object classes to database.
 
@@ -137,7 +110,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffObjectClass, item_list)
             next_id.object_class_id = id
             self.session.commit()
-            self.new_item_id["object_class"].update(id_list)
+            self.added_item_id["object_class"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -191,7 +164,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffObject, item_list)
             next_id.object_id = id
             self.session.commit()
-            self.new_item_id["object"].update(id_list)
+            self.added_item_id["object"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -257,7 +230,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffRelationshipClass, item_list)
             next_id.relationship_class_id = id
             self.session.commit()
-            self.new_item_id["relationship_class"].update(id_list)
+            self.added_item_id["relationship_class"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -322,7 +295,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffRelationship, item_list)
             next_id.relationship_id = id
             self.session.commit()
-            self.new_item_id["relationship"].update(id_list)
+            self.added_item_id["relationship"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -376,7 +349,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffParameterDefinition, item_list)
             next_id.parameter_definition_id = id
             self.session.commit()
-            self.new_item_id["parameter_definition"].update(id_list)
+            self.added_item_id["parameter_definition"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -440,7 +413,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffParameterValue, item_list)
             next_id.parameter_value_id = id
             self.session.commit()
-            self.new_item_id["parameter_value"].update(id_list)
+            self.added_item_id["parameter_value"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -491,7 +464,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffParameterTag, item_list)
             next_id.parameter_tag_id = id
             self.session.commit()
-            self.new_item_id["parameter_tag"].update(id_list)
+            self.added_item_id["parameter_tag"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -546,7 +519,7 @@ class DiffDatabaseMappingAddMixin:
             )
             next_id.parameter_definition_tag_id = id
             self.session.commit()
-            self.new_item_id["parameter_definition_tag"].update(id_list)
+            self.added_item_id["parameter_definition_tag"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -607,7 +580,7 @@ class DiffDatabaseMappingAddMixin:
             self.session.bulk_insert_mappings(self.DiffParameterValueList, item_list)
             next_id.parameter_value_list_id = id
             self.session.commit()
-            self.new_item_id["parameter_value_list"].update(id_list)
+            self.added_item_id["parameter_value_list"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -615,3 +588,30 @@ class DiffDatabaseMappingAddMixin:
                 e.orig.args
             )
             raise SpineDBAPIError(msg)
+
+    def add_object_class(self, **kwargs):
+        return self.add_object_classes(kwargs, strict=True)[0].one_or_none()
+
+    def add_object(self, **kwargs):
+        return self.add_objects(kwargs, strict=True)[0].one_or_none()
+
+    def add_wide_relationship_class(self, **kwargs):
+        return self.add_wide_relationship_classes(kwargs, strict=True)[0].one_or_none()
+
+    def add_wide_relationship(self, **kwargs):
+        return self.add_wide_relationships(kwargs, strict=True)[0].one_or_none()
+
+    def add_parameter(self, **kwargs):
+        return self.add_parameters(kwargs, strict=True)[0].one_or_none()
+
+    def add_parameter_value(self, **kwargs):
+        return self.add_parameter_values(kwargs, strict=True)[0].one_or_none()
+
+    def get_or_add_object_class(self, **kwargs):
+        return self.add_object_classes(kwargs, return_dups=True)[0].one_or_none()
+
+    def get_or_add_object(self, **kwargs):
+        return self.add_objects(kwargs, return_dups=True)[0].one_or_none()
+
+    def get_or_add_parameter(self, **kwargs):
+        return self.add_parameters(kwargs, return_dups=True)[0].one_or_none()

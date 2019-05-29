@@ -43,8 +43,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
         super().__init__(db_url, username=username, upgrade=upgrade)
-        # Diff meta, Base and tables
         self.diff_prefix = None
+        # Diff classes
         self.DiffCommit = None
         self.DiffObjectClass = None
         self.DiffObject = None
@@ -57,49 +57,24 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffParameterValueList = None
         self.NextId = None
         # Diff dictionaries
-        self.new_item_id = {}
-        self.dirty_item_id = {}
+        self.added_item_id = {}
+        self.updated_item_id = {}
         self.removed_item_id = {}
-        self.touched_item_id = {}
+        self.dirty_item_id = {}
         # Initialize stuff
         self.init_diff_dicts()
         self.create_diff_tables_and_mapping()
         self.init_next_id()
 
-    def touch_items(self, tablename, ids):
-        """Mark items as touched, which means the corresponding records from the original tables are not valid,
-        and they should always be queried from the diff tables."""
-        self.touched_item_id[tablename].update(ids)
-        # Force subquery to be refreshed
-        setattr(self, "_" + tablename + "_sq", None)
-        # Force special subqueries to be refreshed
-        self._ext_relationship_class_sq = None
-        self._wide_relationship_class_sq = None
-        self._ext_relationship_sq = None
-        self._wide_relationship_sq = None
-        self._ext_parameter_definition_tag_sq = None
-        self._wide_parameter_definition_tag_sq = None
-        self._wide_parameter_value_list_sq = None
-
-    def has_pending_changes(self):
-        """Return `True` if there are uncommitted changes. Otherwise return `False`."""
-        if any([v for v in self.new_item_id.values()]):
-            return True
-        if any([v for v in self.touched_item_id.values()]):
-            return True
-        return False
-
     def init_diff_dicts(self):
-        """Initialize dictionaries holding the difference ids."""
-        self.new_item_id = {x: set() for x in self.table_to_class}
-        self.dirty_item_id = {x: set() for x in self.table_to_class}
+        """Initialize dictionaries that help keeping track of the differences."""
+        self.added_item_id = {x: set() for x in self.table_to_class}
+        self.updated_item_id = {x: set() for x in self.table_to_class}
         self.removed_item_id = {x: set() for x in self.table_to_class}
-        self.touched_item_id = {
-            x: set() for x in self.table_to_class
-        }  # Either dirty, or removed
+        self.dirty_item_id = {x: set() for x in self.table_to_class}
 
     def create_diff_tables_and_mapping(self):
-        """Create tables to hold differences and the corresponding mapping."""
+        """Create diff tables the ORM."""
         # Create tables...
         diff_name_prefix = "diff_"
         diff_name_prefix += self.username if self.username else "anon"
@@ -113,9 +88,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         for t in metadata.sorted_tables:
             if t.name.startswith(diff_name_prefix) or t.name == "next_id":
                 continue
-            # Copy columns
             diff_columns = [c.copy() for c in t.columns]
-            # Create table
             diff_table = Table(
                 self.diff_prefix + t.name,
                 diff_metadata,
@@ -170,11 +143,26 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         except (AttributeError, NoSuchTableError):
             raise SpineTableNotFoundError("next_id", self.db_url)
 
+    def mark_as_dirty(self, tablename, ids):
+        """Mark items as dirty, which means the corresponding records from the original tables
+        are no longer valid, and they should be queried from the diff tables instead."""
+        self.dirty_item_id[tablename].update(ids)
+        # Force subquery for the affected table to be refreshed
+        setattr(self, "_" + tablename + "_sq", None)
+        # Force special subqueries to be refreshed
+        self._ext_relationship_class_sq = None
+        self._wide_relationship_class_sq = None
+        self._ext_relationship_sq = None
+        self._wide_relationship_sq = None
+        self._ext_parameter_definition_tag_sq = None
+        self._wide_parameter_definition_tag_sq = None
+        self._wide_parameter_value_list_sq = None
+
     def subquery(self, tablename):
         """
         Overriden method to bring items from both original and diff tables,
-        while filtering touched items from the former:
-            SELECT * FROM orig_table WHERE id NOT IN touched_ids
+        while filtering dirty items from the former:
+            SELECT * FROM orig_table WHERE id NOT IN dirty_ids
             UNION ALL
             SELECT * FROM diff_table
         """
@@ -183,10 +171,18 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         diff_class = getattr(self, "Diff" + classname)
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(~orig_class.id.in_(self.touched_item_id[tablename]))
+            .filter(~orig_class.id.in_(self.dirty_item_id[tablename]))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )
+
+    def has_pending_changes(self):
+        """Return `True` if there are uncommitted changes. Otherwise return `False`."""
+        if any([v for v in self.added_item_id.values()]):
+            return True
+        if any([v for v in self.dirty_item_id.values()]):
+            return True
+        return False
 
     def reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
