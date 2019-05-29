@@ -256,9 +256,14 @@ class DatabaseMappingBase(object):
     @property
     def ext_relationship_class_sq(self):
         """
-        SELECT rc.id, rc.name, oc.id, oc.name
+        SELECT
+            rc.id,
+            rc.name,
+            oc.id AS object_class_id,
+            oc.name AS object_class_name
         FROM relationship_class AS rc, object_class AS oc
         WHERE rc.object_class_id = oc.id
+        ORDER BY rc.id, rc.dimension
         """
         if self._ext_relationship_class_sq is None:
             self._ext_relationship_class_sq = (
@@ -283,12 +288,22 @@ class DatabaseMappingBase(object):
     @property
     def wide_relationship_class_sq(self):
         """
-        SELECT rc_id, rc_name, GROUP_CONCAT(oc_id), GROUP_CONCAT(oc_name) FROM (
-            SELECT rc.id AS rc_id, rc.name AS rc_name, oc.id AS oc_id, oc.name AS oc_name
+        SELECT
+            id,
+            name,
+            GROUP_CONCAT(object_class_id) AS object_class_id_list,
+            GROUP_CONCAT(object_class_name) AS object_class_name_list
+        FROM (
+            SELECT
+                rc.id,
+                rc.name,
+                oc.id AS object_class_id,
+                oc.name AS object_class_name
             FROM relationship_class AS rc, object_class AS oc
             WHERE rc.object_class_id = oc.id
+            ORDER BY rc.id, rc.dimension
         )
-        GROUP BY rc_id
+        GROUP BY id
         """
         if self._wide_relationship_class_sq is None:
             self._wide_relationship_class_sq = (
@@ -310,18 +325,24 @@ class DatabaseMappingBase(object):
     @property
     def ext_relationship_sq(self):
         """
-        SELECT r.id, r.class_id, r.name, o.id, o.name
+        SELECT
+            r.id,
+            r.class_id,
+            r.name,
+            o.id AS object_id,
+            o.name AS object_name
         FROM relationship as r, object AS o
         WHERE r.object_id = o.id
+        ORDER BY r.id, r.dimension
         """
         if self._ext_relationship_sq is None:
             self._ext_relationship_sq = (
                 self.query(
                     self.relationship_sq.c.id.label("id"),
                     self.relationship_sq.c.class_id.label("class_id"),
-                    self.relationship_sq.c.object_id.label("object_id"),
-                    self.object_sq.c.name.label("object_name"),
                     self.relationship_sq.c.name.label("name"),
+                    self.object_sq.c.id.label("object_id"),
+                    self.object_sq.c.name.label("object_name"),
                 )
                 .filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
                 .order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
@@ -332,12 +353,24 @@ class DatabaseMappingBase(object):
     @property
     def wide_relationship_sq(self):
         """
-        SELECT r_id, rc_id, r_name, GROUP_CONCAT(o_id), GROUP_CONCAT(o_name) FROM (
-            SELECT r.id AS r_id, r.class_id AS rc_id, r.name AS r_name, o.id AS o_id, o.name AS o_name
-            FROM relationship AS r, object AS o
-            WHERE r.object_id == o.id
+        SELECT
+            id,
+            class_id,
+            name,
+            GROUP_CONCAT(object_id) AS object_id_list,
+            GROUP_CONCAT(object_name) AS object_name_list
+        FROM (
+            SELECT
+                r.id,
+                r.class_id,
+                r.name,
+                o.id AS object_id,
+                o.name AS object_name
+            FROM relationship as r, object AS o
+            WHERE r.object_id = o.id
+            ORDER BY r.id, r.dimension
         )
-        GROUP BY r_id
+        GROUP BY id
         """
         if self._wide_relationship_sq is None:
             self._wide_relationship_sq = (
@@ -360,6 +393,47 @@ class DatabaseMappingBase(object):
     @property
     def object_parameter_definition_sq(self):
         """
+        SELECT
+            pd.id,
+            oc.id AS object_class_id,
+            oc.name AS object_class_name,
+            pd.name AS parameter_name,
+            wpvl.id AS value_list_id,
+            wpvl.name AS value_list_name,
+            wpdt.parameter_tag_id_list,
+            wpdt.parameter_tag_list,
+            pd.default_value
+        FROM parameter_definition AS pd, object_class AS oc
+        LEFT JOIN (
+            SELECT
+                parameter_definition_id,
+                GROUP_CONCAT(parameter_tag_id) AS parameter_tag_id_list,
+                GROUP_CONCAT(parameter_tag) AS parameter_tag_list
+            FROM (
+                SELECT
+                    pdt.parameter_definition_id,
+                    pt.id AS parameter_tag_id,
+                    pt.tag AS parameter_tag
+                FROM parameter_definition_tag as pdt, parameter_tag AS pt
+                WHERE pdt.parameter_tag_id = pt.id
+            )
+            GROUP BY parameter_definition_id
+        ) AS wpdt
+        ON wpdt.parameter_definition_id = pd.id
+        LEFT JOIN (
+            SELECT
+                id,
+                name,
+                GROUP_CONCAT(value) AS value_list
+            FROM (
+                SELECT id, name, value
+                FROM parameter_value_list
+                ORDER BY id, value_index
+            )
+            GROUP BY id
+        ) AS wpvl
+        ON wpvl.id = pd.parameter_value_list_id
+        WHERE pd.object_class_id = oc.id        
         """
         if self._object_parameter_definition_sq is None:
             self._object_parameter_definition_sq = (
@@ -506,8 +580,11 @@ class DatabaseMappingBase(object):
     @property
     def ext_parameter_definition_tag_sq(self):
         """
-        SELECT pdt.parameter_definition_id, pt.id, pt.tag
-        FROM parameter_definiton_tag as pdt, parameter_tag AS pt
+        SELECT
+            pdt.parameter_definition_id,
+            pt.id AS parameter_tag_id,
+            pt.tag AS parameter_tag
+        FROM parameter_definition_tag as pdt, parameter_tag AS pt
         WHERE pdt.parameter_tag_id = pt.id
         """
         if self._ext_parameter_definition_tag_sq is None:
@@ -532,12 +609,19 @@ class DatabaseMappingBase(object):
     @property
     def wide_parameter_definition_tag_sq(self):
         """
-        SELECT pd_id, GROUP_CONCAT(pt_id), GROUP_CONCAT(pt_tag) FROM (
-            SELECT pdt.parameter_definition_id AS pd_id, pt.id AS pt_id, pt.tag AS pt_tag
-            FROM parameter_definiton_tag as pdt, parameter_tag AS pt
+        SELECT
+            parameter_definition_id,
+            GROUP_CONCAT(parameter_tag_id) AS parameter_tag_id_list,
+            GROUP_CONCAT(parameter_tag) AS parameter_tag_list
+        FROM (
+            SELECT
+                pdt.parameter_definition_id,
+                pt.id AS parameter_tag_id,
+                pt.tag AS parameter_tag
+            FROM parameter_definition_tag as pdt, parameter_tag AS pt
             WHERE pdt.parameter_tag_id = pt.id
         )
-        GROUP BY pd_id
+        GROUP BY parameter_definition_id
         """
         if self._wide_parameter_definition_tag_sq is None:
             self._wide_parameter_definition_tag_sq = (
@@ -593,6 +677,18 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_value_list_sq(self):
+        """
+        SELECT
+            id,
+            name,
+            GROUP_CONCAT(value) AS value_list
+        FROM (
+            SELECT id, name, value
+            FROM parameter_value_list
+            ORDER BY id, value_index
+        )
+        GROUP BY id
+        """
         if self._wide_parameter_value_list_sq is None:
             self._wide_parameter_value_list_sq = (
                 self.query(

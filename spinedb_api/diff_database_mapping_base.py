@@ -55,7 +55,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffParameterTag = None
         self.DiffParameterDefinitionTag = None
         self.DiffParameterValueList = None
-        self.NextId = None
         # Diff dictionaries
         self.added_item_id = {}
         self.updated_item_id = {}
@@ -138,7 +137,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """
         Overriden method to (i) filter dirty items from original tables, and
         (ii) also bring data from diff tables:
-        while filtering dirty items from the former:
             SELECT * FROM orig_table WHERE id NOT IN dirty_ids
             UNION ALL
             SELECT * FROM diff_table

@@ -29,7 +29,6 @@ from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import attr_dict
 
-
 # TODO: improve docstrings
 
 
@@ -49,8 +48,9 @@ class DiffDatabaseMappingUpdateMixin:
         unhandled_fields=(),
     ):
         """Return lists of items for update and insert.
-        Items that are found in the diff classes should be updated,
-        whereas items found in the orig classes should be inserted into the corresponding diff class."""
+        Items found in the diff classes should be updated,
+        whereas items found in the orig classes should be marked as dirty and
+        inserted into the corresponding diff class."""
         items_for_update = list()
         items_for_insert = list()
         dirty_ids = set()

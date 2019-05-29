@@ -42,6 +42,7 @@ class DiffDatabaseMappingAddMixin:
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
+        self.NextId = None
         self.init_next_id()
 
     def init_next_id(self):

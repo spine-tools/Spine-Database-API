@@ -44,6 +44,11 @@ class DiffDatabaseMapping(
 ):
     """A class to create a 'diff' ORM from a Spine db, query it, make changes to it, and
     commit those changes.
+
+    Attributes:
+        db_url (str): The database url formatted according to sqlalchemy rules
+        username (str): The user name
+        upgrade (Bool): Whether or not the given url should be automatically upgraded to the latest version
     """
 
     def __init__(self, db_url, username=None, upgrade=False):

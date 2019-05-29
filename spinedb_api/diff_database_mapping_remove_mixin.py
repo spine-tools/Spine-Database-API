@@ -27,7 +27,6 @@ A class to handle DELETE operations onto a Spine db 'diff' ORM.
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 
-
 # TODO: improve docstrings
 
 
@@ -90,7 +89,7 @@ class DiffDatabaseMappingRemoveMixin:
         parameter_definition_tag_ids=set(),
         parameter_value_list_ids=set(),
     ):
-        """Find out which items need to be removed by the removal of items corresponding to given ids.
+        """Return ids of items that need to be removed due to the removal of items corresponding to given ids.
 
         Returns:
             removed_item_id (dict): removed items in the original tables
@@ -218,7 +217,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_object_classes(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of object classes
+        """Find out which items need to be removed due to the removal of object classes
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         # Touch
@@ -265,7 +264,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_objects(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of objects
+        """Find out which items need to be removed due to the removal of objects
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         # Touch
@@ -301,7 +300,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_relationship_classes(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of relationship classes
+        """Find out which items need to be removed due to the removal of relationship classes
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         # Touch
@@ -337,7 +336,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_relationships(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of relationships
+        """Find out which items need to be removed due to the removal of relationships
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         # Touch
@@ -360,7 +359,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_parameter_definitions(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of parameter definitions
+        """Find out which items need to be removed due to the removal of parameter definitions
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         # Touch
@@ -396,7 +395,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_parameter_values(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of parameter values
+        """Find out which items need to be removed due to the removal of parameter values
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         removed_item_id.setdefault("parameter_value", set()).update(ids)
@@ -405,7 +404,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_parameter_tags(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of parameter tags
+        """Find out which items need to be removed due to the removal of parameter tags
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         # Touch
@@ -428,7 +427,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_parameter_definition_tags(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of parameter definition tag pairs
+        """Find out which items need to be removed due to the removal of parameter definition tag pairs
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`."""
         removed_item_id.setdefault("parameter_definition_tag", set()).update(ids)
@@ -439,7 +438,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _remove_cascade_parameter_value_lists(
         self, ids, diff_ids, removed_item_id, removed_diff_item_id
     ):
-        """Find out which items need to be removed by the removal of parameter value lists
+        """Find out which items need to be removed due to the removal of parameter value lists
         given by `ids` and `diff_ids`,
         and add their ids to `removed_item_id` and `removed_diff_item_id`.
         TODO: Should we remove parameter definitions here? Set their parameter_value_list_id to NULL?
