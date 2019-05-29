@@ -73,7 +73,7 @@ class DatabaseMappingBase(object):
         self._parameter_tag_sq = None
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
-        # Special convenience subqueries that join different tables
+        # Special convenience subqueries that join two or more tables
         self._ext_relationship_class_sq = None
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
@@ -612,7 +612,7 @@ class DatabaseMappingBase(object):
 
     def reset_mapping(self):
         """Delete all records from all tables (but don't drop the tables).
-        This is useful for writing tests I guess...
+        I guess this is useful for writing tests...?
         """
         self.query(self.ObjectClass).delete(synchronize_session=False)
         self.query(self.Object).delete(synchronize_session=False)

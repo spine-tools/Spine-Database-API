@@ -23,7 +23,7 @@ import sys
 import json
 from spinedb_api.diff_database_mapping import DiffDatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
-from spinedb_api.helpers import create_new_spine_database
+from spinedb_api.helpers import create_new_spine_database, attr_dict
 from sqlalchemy.util import KeyedTuple
 from unittest import mock
 from sqlalchemy.orm import Session
@@ -498,12 +498,12 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_class_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_class_list"
         ), mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list:
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list:
             mock_object_class_list.return_value = [
                 KeyedTuple([1, "fish"], labels=["id", "name"])
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 1, "color", None],
                     labels=["id", "object_class_id", "name", "parameter_value_list_id"],
@@ -573,8 +573,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_list"
         ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list:
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list:
             mock_object_list.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
@@ -585,7 +585,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                     labels=["id", "class_id", "object_id_list", "name"],
                 )
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=[
@@ -608,8 +608,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 ),
             ]
             self.db_map.add_parameter_values(
-                {"parameter_id": 1, "object_id": 1, "value": "orange"},
-                {"parameter_id": 2, "relationship_id": 1, "value": "125"},
+                {"parameter_definition_id": 1, "object_id": 1, "value": '"orange"'},
+                {"parameter_definition_id": 2, "relationship_id": 1, "value": "125"},
             )
         parameter_values = self.db_map.session.query(
             self.db_map.DiffParameterValue
@@ -618,7 +618,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].object_id, 1)
         self.assertIsNone(parameter_values[0].relationship_id)
-        self.assertEqual(parameter_values[0].value, "orange")
+        self.assertEqual(parameter_values[0].value, '"orange"')
         self.assertEqual(parameter_values[1].parameter_definition_id, 2)
         self.assertIsNone(parameter_values[1].object_id)
         self.assertEqual(parameter_values[1].relationship_id, 1)
@@ -632,8 +632,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_list"
         ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list:
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list:
             mock_object_list.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
@@ -644,7 +644,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                     labels=["id", "class_id", "object_id_list", "name"],
                 )
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=[
@@ -669,7 +669,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
                     {
-                        "parameter_id": 1,
+                        "parameter_definition_id": 1,
                         "object_id": 1,
                         "relationship_id": 1,
                         "value": "orange",
@@ -685,8 +685,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_list"
         ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list:
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list:
             mock_object_list.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
@@ -697,7 +697,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                     labels=["id", "class_id", "object_id_list", "name"],
                 )
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=[
@@ -721,11 +721,16 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_id": 1, "object_id": 3, "value": "orange"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 3, "value": "orange"},
+                    strict=True,
                 )
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_id": 2, "relationship_id": 2, "value": "125"},
+                    {
+                        "parameter_definition_id": 2,
+                        "relationship_id": 2,
+                        "value": "125",
+                    },
                     strict=True,
                 )
 
@@ -737,8 +742,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_list"
         ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list:
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list:
             mock_object_list.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
@@ -753,7 +758,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                     labels=["id", "class_id", "object_id_list", "name"],
                 ),
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=[
@@ -777,11 +782,16 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_id": 1, "object_id": 2, "value": "orange"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 2, "value": "orange"},
+                    strict=True,
                 )
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_id": 2, "relationship_id": 2, "value": "125"},
+                    {
+                        "parameter_definition_id": 2,
+                        "relationship_id": 2,
+                        "value": "125",
+                    },
                     strict=True,
                 )
 
@@ -792,8 +802,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_list"
         ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list:
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list:
             mock_object_list.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
@@ -804,7 +814,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                     labels=["id", "class_id", "object_id_list", "name"],
                 )
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=[
@@ -817,8 +827,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 )
             ]
             self.db_map.add_parameter_values(
-                {"parameter_id": 1, "object_id": 1, "value": "orange"},
-                {"parameter_id": 1, "object_id": 1, "value": "blue"},
+                {"parameter_definition_id": 1, "object_id": 1, "value": '"orange"'},
+                {"parameter_definition_id": 1, "object_id": 1, "value": '"blue"'},
             )
         parameter_values = self.db_map.session.query(
             self.db_map.DiffParameterValue
@@ -827,7 +837,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].object_id, 1)
         self.assertIsNone(parameter_values[0].relationship_id)
-        self.assertEqual(parameter_values[0].value, "orange")
+        self.assertEqual(parameter_values[0].value, '"orange"')
 
     def test_add_existing_parameter_value(self):
         """Test that adding an existing parameter value raises an integrity error."""
@@ -836,8 +846,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         ) as mock_object_list, mock.patch.object(
             DiffDatabaseMapping, "wide_relationship_list"
         ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_list"
-        ) as mock_parameter_list, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_list"
+        ) as mock_parameter_definition_list, mock.patch.object(
             DiffDatabaseMapping, "parameter_value_list"
         ) as mock_parameter_value_list:
             mock_object_list.return_value = [
@@ -850,7 +860,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                     labels=["id", "class_id", "object_id_list", "name"],
                 )
             ]
-            mock_parameter_list.return_value = [
+            mock_parameter_definition_list.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=[
@@ -876,7 +886,8 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_id": 1, "object_id": 1, "value": "blue"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 1, "value": "blue"},
+                    strict=True,
                 )
 
 

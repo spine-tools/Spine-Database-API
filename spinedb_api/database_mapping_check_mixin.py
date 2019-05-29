@@ -750,10 +750,12 @@ class DatabaseMappingCheckMixin:
                 object_id = kwargs.get("object_id", None)
                 relationship_id = kwargs.get("relationship_id", None)
                 if object_id:
-                    object_parameter_values[object_id, kwargs["parameter_id"]] = None
+                    object_parameter_values[
+                        object_id, kwargs["parameter_definition_id"]
+                    ] = None
                 elif relationship_id:
                     relationship_parameter_values[
-                        relationship_id, kwargs["parameter_id"]
+                        relationship_id, kwargs["parameter_definition_id"]
                     ] = None
             except SpineIntegrityError as e:
                 if strict:
