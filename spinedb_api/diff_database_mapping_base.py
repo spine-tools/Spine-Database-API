@@ -70,8 +70,16 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """Mark items as touched, which means the corresponding records from the original tables are not valid,
         and they should always be queried from the diff tables."""
         self.touched_item_id[tablename].update(ids)
-        self.refresh_subquery(tablename)
-        self.create_special_subqueries()
+        # Force subquery to be refreshed
+        setattr(self, "_" + tablename + "_sq", None)
+        # Force special subqueries to be refreshed
+        self._ext_relationship_class_sq = None
+        self._wide_relationship_class_sq = None
+        self._ext_relationship_sq = None
+        self._wide_relationship_sq = None
+        self._ext_parameter_definition_tag_sq = None
+        self._wide_parameter_definition_tag_sq = None
+        self._wide_parameter_value_list_sq = None
 
     def has_pending_changes(self):
         """Return `True` if there are uncommitted changes. Otherwise return `False`."""
@@ -162,39 +170,32 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         except (AttributeError, NoSuchTableError):
             raise SpineTableNotFoundError("next_id", self.db_url)
 
-    def refresh_subquery(self, tablename):
-        """Refresh the subquery for `tablename`.
+    def subquery(self, tablename):
+        """
+        Overriden method to bring items from both original and diff tables,
+        while filtering touched items from the former:
+            SELECT * FROM orig_table WHERE id NOT IN touched_ids
+            UNION ALL
+            SELECT * FROM diff_table
         """
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
-        setattr(
-            self,
-            tablename + "_sq",
-            self.session.query(
-                *[c.label(c.name) for c in inspect(orig_class).mapper.columns]
-            )
+        return (
+            self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
             .filter(~orig_class.id.in_(self.touched_item_id[tablename]))
-            .union_all(self.session.query(*inspect(diff_class).mapper.columns))
-            .subquery(with_labels=False),
+            .union_all(self.query(*inspect(diff_class).mapper.columns))
+            .subquery()
         )
-
-    def create_subqueries(self):
-        """Overriden method to create subqueries that combine the original and difference tables into
-        one result dataset using `UNION ALL`.
-        These subqueries are used to query the database through `_DatabaseMappingQuery`.
-        """
-        for tablename in self.table_to_class:
-            self.refresh_subquery(tablename)
 
     def reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
-        self.session.query(self.DiffObjectClass).delete()
-        self.session.query(self.DiffObject).delete()
-        self.session.query(self.DiffRelationshipClass).delete()
-        self.session.query(self.DiffRelationship).delete()
-        self.session.query(self.DiffParameterDefinition).delete()
-        self.session.query(self.DiffParameterValue).delete()
-        self.session.query(self.DiffParameterTag).delete()
-        self.session.query(self.DiffParameterDefinitionTag).delete()
-        self.session.query(self.DiffParameterValueList).delete()
+        self.query(self.DiffObjectClass).delete()
+        self.query(self.DiffObject).delete()
+        self.query(self.DiffRelationshipClass).delete()
+        self.query(self.DiffRelationship).delete()
+        self.query(self.DiffParameterDefinition).delete()
+        self.query(self.DiffParameterValue).delete()
+        self.query(self.DiffParameterTag).delete()
+        self.query(self.DiffParameterDefinitionTag).delete()
+        self.query(self.DiffParameterValueList).delete()

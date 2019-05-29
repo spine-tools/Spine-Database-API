@@ -55,7 +55,7 @@ class DiffDatabaseMappingCommitMixin:
                 orig_class = getattr(self, classname)
                 removed_ids = list(ids)
                 for i in range(0, len(removed_ids), n):
-                    self.session.query(orig_class).filter(
+                    self.query(orig_class).filter(
                         orig_class.id.in_(removed_ids[i : i + n])
                     ).delete(synchronize_session=False)
             # Merge updated
@@ -66,7 +66,7 @@ class DiffDatabaseMappingCommitMixin:
                 dirty_ids = list(ids)
                 updated_items = []
                 for i in range(0, len(dirty_ids), n):
-                    for item in self.session.query(diff_class).filter(
+                    for item in self.query(diff_class).filter(
                         diff_class.id.in_(dirty_ids[i : i + n])
                     ):
                         kwargs = attr_dict(item)
@@ -81,7 +81,7 @@ class DiffDatabaseMappingCommitMixin:
                 new_ids = list(ids)
                 new_items = []
                 for i in range(0, len(new_ids), n):
-                    for item in self.session.query(diff_class).filter(
+                    for item in self.query(diff_class).filter(
                         diff_class.id.in_(new_ids[i : i + n])
                     ):
                         kwargs = attr_dict(item)

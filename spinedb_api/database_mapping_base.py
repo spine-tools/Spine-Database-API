@@ -24,7 +24,7 @@ Class to create an object relational mapping from a Spine db.
 :date:   11.8.2018
 """
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, func
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
@@ -35,7 +35,7 @@ from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
 
 
-class DatabaseMappingBase:
+class DatabaseMappingBase(object):
     """A class to create an object relational mapping from a Spine db.
 
     Attributes:
@@ -50,6 +50,7 @@ class DatabaseMappingBase:
         self.engine = None
         self.connection = None
         self.session = None
+        self.query = None
         self.Commit = None
         self.ObjectClass = None
         self.Object = None
@@ -61,15 +62,23 @@ class DatabaseMappingBase:
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
         # Subqueries that select everything from each table
-        self.object_class_sq = None
-        self.object_sq = None
-        self.relationship_class_sq = None
-        self.relationship_sq = None
-        self.parameter_definition_sq = None
-        self.parameter_value_sq = None
-        self.parameter_tag_sq = None
-        self.parameter_definition_tag_sq = None
-        self.parameter_value_list_sq = None
+        self._object_class_sq = None
+        self._object_sq = None
+        self._relationship_class_sq = None
+        self._relationship_sq = None
+        self._parameter_definition_sq = None
+        self._parameter_value_sq = None
+        self._parameter_tag_sq = None
+        self._parameter_definition_tag_sq = None
+        self._parameter_value_list_sq = None
+        # Special convenience subqueries that join different tables
+        self._ext_relationship_class_sq = None
+        self._wide_relationship_class_sq = None
+        self._ext_relationship_sq = None
+        self._wide_relationship_sq = None
+        self._ext_parameter_definition_tag_sq = None
+        self._wide_parameter_definition_tag_sq = None
+        self._wide_parameter_value_list_sq = None
         # Table to class dict
         self.table_to_class = {
             "commit": "Commit",
@@ -117,6 +126,7 @@ class DatabaseMappingBase:
             #     raise SpineDBAPIError(msg)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
+        self.query = self.session.query
 
     def check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a `SpineDBVersionError` if not.
@@ -167,33 +177,229 @@ class DatabaseMappingBase:
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
-    def create_subqueries(self):
-        """Create subqueries that select everything from each table.
-        These subqueries are used to query the database through `_DatabaseMappingQuery`,
-        and can be overriden by subclasses to provide specialized behaviour
-        (see, notably, `DiffDatabaseMapping`)
-        """
-        for tablename, classname in self.table_to_class.items():
-            class_ = getattr(self, classname)
-            setattr(
-                self,
-                tablename + "_sq",
-                self.session.query(
-                    *[c.label(c.name) for c in inspect(class_).mapper.columns]
-                ).subquery(with_labels=False),
+    def subquery(self, tablename):
+        """SELECT * FROM table"""
+        classname = self.table_to_class[tablename]
+        class_ = getattr(self, classname)
+        return self.query(
+            *[c.label(c.name) for c in inspect(class_).mapper.columns]
+        ).subquery()
+
+    @property
+    def object_class_sq(self):
+        """SELECT * FROM object_class"""
+        if self._object_class_sq is None:
+            self._object_class_sq = self.subquery("object_class")
+        return self._object_class_sq
+
+    @property
+    def object_sq(self):
+        """SELECT * FROM object"""
+        if self._object_sq is None:
+            self._object_sq = self.subquery("object")
+        return self._object_sq
+
+    @property
+    def relationship_class_sq(self):
+        """SELECT * FROM relationship_class"""
+        if self._relationship_class_sq is None:
+            self._relationship_class_sq = self.subquery("relationship_class")
+        return self._relationship_class_sq
+
+    @property
+    def relationship_sq(self):
+        """SELECT * FROM relationship"""
+        if self._relationship_sq is None:
+            self._relationship_sq = self.subquery("relationship")
+        return self._relationship_sq
+
+    @property
+    def parameter_definition_sq(self):
+        """SELECT * FROM parameter_definition"""
+        if self._parameter_definition_sq is None:
+            self._parameter_definition_sq = self.subquery("parameter_definition")
+        return self._parameter_definition_sq
+
+    @property
+    def parameter_value_sq(self):
+        """SELECT * FROM parameter_value"""
+        if self._parameter_value_sq is None:
+            self._parameter_value_sq = self.subquery("parameter_value")
+        return self._parameter_value_sq
+
+    @property
+    def parameter_tag_sq(self):
+        """SELECT * FROM parameter_tag"""
+        if self._parameter_tag_sq is None:
+            self._parameter_tag_sq = self.subquery("parameter_tag")
+        return self._parameter_tag_sq
+
+    @property
+    def parameter_definition_tag_sq(self):
+        """SELECT * FROM parameter_definition_tag"""
+        if self._parameter_definition_tag_sq is None:
+            self._parameter_definition_tag_sq = self.subquery(
+                "parameter_definition_tag"
             )
+        return self._parameter_definition_tag_sq
+
+    @property
+    def parameter_value_list_sq(self):
+        """SELECT * FROM parameter_value_list"""
+        if self._parameter_value_list_sq is None:
+            self._parameter_value_list_sq = self.subquery("parameter_value_list")
+        return self._parameter_value_list_sq
+
+    @property
+    def ext_relationship_class_sq(self):
+        """."""
+        if self._ext_relationship_class_sq is None:
+            self._ext_relationship_class_sq = (
+                self.query(
+                    self.relationship_class_sq.c.id.label("id"),
+                    self.relationship_class_sq.c.object_class_id.label(
+                        "object_class_id"
+                    ),
+                    self.object_class_sq.c.name.label("object_class_name"),
+                    self.relationship_class_sq.c.name.label("name"),
+                )
+                .filter(
+                    self.relationship_class_sq.c.object_class_id
+                    == self.object_class_sq.c.id
+                )
+                .order_by(
+                    self.relationship_class_sq.c.id,
+                    self.relationship_class_sq.c.dimension,
+                )
+                .subquery()
+            )
+        return self._ext_relationship_class_sq
+
+    @property
+    def wide_relationship_class_sq(self):
+        if self._wide_relationship_class_sq is None:
+            self._wide_relationship_class_sq = (
+                self.query(
+                    self.ext_relationship_class_sq.c.id,
+                    func.group_concat(
+                        self.ext_relationship_class_sq.c.object_class_id
+                    ).label("object_class_id_list"),
+                    func.group_concat(
+                        self.ext_relationship_class_sq.c.object_class_name
+                    ).label("object_class_name_list"),
+                    self.ext_relationship_class_sq.c.name,
+                )
+                .group_by(self.ext_relationship_class_sq.c.id)
+                .subquery()
+            )
+        return self._wide_relationship_class_sq
+
+    @property
+    def ext_relationship_sq(self):
+        if self._ext_relationship_sq is None:
+            self._ext_relationship_sq = (
+                self.query(
+                    self.relationship_sq.c.id.label("id"),
+                    self.relationship_sq.c.class_id.label("class_id"),
+                    self.relationship_sq.c.object_id.label("object_id"),
+                    self.object_sq.c.name.label("object_name"),
+                    self.relationship_sq.c.name.label("name"),
+                )
+                .filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
+                .order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
+                .subquery()
+            )
+        return self._ext_relationship_sq
+
+    @property
+    def wide_relationship_sq(self):
+        if self._wide_relationship_sq is None:
+            self._wide_relationship_sq = (
+                self.query(
+                    self.ext_relationship_sq.c.id,
+                    self.ext_relationship_sq.c.class_id,
+                    func.group_concat(self.ext_relationship_sq.c.object_id).label(
+                        "object_id_list"
+                    ),
+                    func.group_concat(self.ext_relationship_sq.c.object_name).label(
+                        "object_name_list"
+                    ),
+                    self.ext_relationship_sq.c.name,
+                )
+                .group_by(self.ext_relationship_sq.c.id)
+                .subquery()
+            )
+        return self._wide_relationship_sq
+
+    @property
+    def ext_parameter_definition_tag_sq(self):
+        if self._ext_parameter_definition_tag_sq is None:
+            self._ext_parameter_definition_tag_sq = (
+                self.query(
+                    self.parameter_definition_tag_sq.c.parameter_definition_id.label(
+                        "parameter_definition_id"
+                    ),
+                    self.parameter_definition_tag_sq.c.parameter_tag_id.label(
+                        "parameter_tag_id"
+                    ),
+                    self.parameter_tag_sq.c.tag.label("parameter_tag"),
+                )
+                .filter(
+                    self.parameter_definition_tag_sq.c.parameter_tag_id
+                    == self.parameter_tag_sq.c.id
+                )
+                .subquery()
+            )
+        return self._ext_parameter_definition_tag_sq
+
+    @property
+    def wide_parameter_definition_tag_sq(self):
+        if self._wide_parameter_definition_tag_sq is None:
+            self._wide_parameter_definition_tag_sq = (
+                self.query(
+                    self.ext_parameter_definition_tag_sq.c.parameter_definition_id,
+                    func.group_concat(
+                        self.ext_parameter_definition_tag_sq.c.parameter_tag_id
+                    ).label("parameter_tag_id_list"),
+                    func.group_concat(
+                        self.ext_parameter_definition_tag_sq.c.parameter_tag
+                    ).label("parameter_tag_list"),
+                )
+                .group_by(
+                    self.ext_parameter_definition_tag_sq.c.parameter_definition_id
+                )
+                .subquery()
+            )
+        return self._wide_parameter_definition_tag_sq
+
+    @property
+    def wide_parameter_value_list_sq(self):
+        if self._wide_parameter_value_list_sq is None:
+            self._wide_parameter_value_list_sq = (
+                self.query(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.name,
+                    func.group_concat(self.parameter_value_list_sq.c.value).label(
+                        "value_list"
+                    ),
+                )
+                .order_by(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.value_index,
+                )
+                .group_by(self.parameter_value_list_sq.c.id)
+            ).subquery()
+        return self._wide_parameter_value_list_sq
 
     def reset_mapping(self):
         """Delete all records from all tables (but don't drop the tables)."""
-        self.session.query(self.ObjectClass).delete(synchronize_session=False)
-        self.session.query(self.Object).delete(synchronize_session=False)
-        self.session.query(self.RelationshipClass).delete(synchronize_session=False)
-        self.session.query(self.Relationship).delete(synchronize_session=False)
-        self.session.query(self.ParameterDefinition).delete(synchronize_session=False)
-        self.session.query(self.ParameterValue).delete(synchronize_session=False)
-        self.session.query(self.ParameterTag).delete(synchronize_session=False)
-        self.session.query(self.ParameterDefinitionTag).delete(
-            synchronize_session=False
-        )
-        self.session.query(self.ParameterValueList).delete(synchronize_session=False)
-        self.session.query(self.Commit).delete(synchronize_session=False)
+        self.query(self.ObjectClass).delete(synchronize_session=False)
+        self.query(self.Object).delete(synchronize_session=False)
+        self.query(self.RelationshipClass).delete(synchronize_session=False)
+        self.query(self.Relationship).delete(synchronize_session=False)
+        self.query(self.ParameterDefinition).delete(synchronize_session=False)
+        self.query(self.ParameterValue).delete(synchronize_session=False)
+        self.query(self.ParameterTag).delete(synchronize_session=False)
+        self.query(self.ParameterDefinitionTag).delete(synchronize_session=False)
+        self.query(self.ParameterValueList).delete(synchronize_session=False)
+        self.query(self.Commit).delete(synchronize_session=False)

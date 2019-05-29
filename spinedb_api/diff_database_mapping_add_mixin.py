@@ -44,7 +44,7 @@ class DiffDatabaseMappingAddMixin:
 
     def next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""
-        next_id = self.session.query(self.NextId).one_or_none()
+        next_id = self.query(self.NextId).one_or_none()
         if next_id:
             next_id.user = self.username
             next_id.date = datetime.now(timezone.utc)
@@ -52,11 +52,11 @@ class DiffDatabaseMappingAddMixin:
             next_id = self.NextId(user=self.username, date=datetime.now(timezone.utc))
             self.session.add(next_id)
         try:
-            # TODO: This flush is supposed to lock the database, so no one can steal our ids.... does it work?
+            # TODO: This flush is supposed to lock the record, so no one can steal our ids.... does it work?
             self.session.flush()
             return next_id
         except DBAPIError as e:
-            # TODO: Find a way to try this again, or wait till the database is unlocked
+            # TODO: Find a way to try this again, or wait till unlocked
             # Maybe listen for an event?
             self.session.rollback()
             raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
@@ -125,7 +125,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.object_class_id:
             id = next_id.object_class_id
         else:
-            max_id = self.session.query(func.max(self.ObjectClass.id)).scalar()
+            max_id = self.query(func.max(self.ObjectClass.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -179,7 +179,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.object_id:
             id = next_id.object_id
         else:
-            max_id = self.session.query(func.max(self.Object.id)).scalar()
+            max_id = self.query(func.max(self.Object.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -237,7 +237,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.relationship_class_id:
             id = next_id.relationship_class_id
         else:
-            max_id = self.session.query(func.max(self.RelationshipClass.id)).scalar()
+            max_id = self.query(func.max(self.RelationshipClass.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -303,7 +303,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.relationship_id:
             id = next_id.relationship_id
         else:
-            max_id = self.session.query(func.max(self.Relationship.id)).scalar()
+            max_id = self.query(func.max(self.Relationship.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -364,7 +364,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.parameter_definition_id:
             id = next_id.parameter_definition_id
         else:
-            max_id = self.session.query(func.max(self.ParameterDefinition.id)).scalar()
+            max_id = self.query(func.max(self.ParameterDefinition.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -389,7 +389,7 @@ class DiffDatabaseMappingAddMixin:
             DeprecationWarning,
         )
         return self.add_parameter_definitions(
-            *kwargs_list, strict=False, return_dups=False
+            *kwargs_list, strict=strict, return_dups=return_dups
         )
 
     def add_parameter_values(self, *kwargs_list, strict=False, return_dups=False):
@@ -407,7 +407,7 @@ class DiffDatabaseMappingAddMixin:
         """
         # FIXME: this should be removed once the 'parameter_definition_id' comes in the kwargs
         for kwargs in kwargs_list:
-            kwargs["parameter_definition_id"] = kwargs["parameter_id"]
+            kwargs["parameter_definition_id"] = kwargs.pop("parameter_id")
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(
             *kwargs_list, strict=strict
         )
@@ -427,7 +427,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.parameter_value_id:
             id = next_id.parameter_value_id
         else:
-            max_id = self.session.query(func.max(self.ParameterValue.id)).scalar()
+            max_id = self.query(func.max(self.ParameterValue.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -478,7 +478,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.parameter_tag_id:
             id = next_id.parameter_tag_id
         else:
-            max_id = self.session.query(func.max(self.ParameterTag.id)).scalar()
+            max_id = self.query(func.max(self.ParameterTag.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -531,9 +531,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.parameter_definition_tag_id:
             id = next_id.parameter_definition_tag_id
         else:
-            max_id = self.session.query(
-                func.max(self.ParameterDefinitionTag.id)
-            ).scalar()
+            max_id = self.query(func.max(self.ParameterDefinitionTag.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
@@ -590,7 +588,7 @@ class DiffDatabaseMappingAddMixin:
         if next_id.parameter_value_list_id:
             id = next_id.parameter_value_list_id
         else:
-            max_id = self.session.query(func.max(self.ParameterValueList.id)).scalar()
+            max_id = self.query(func.max(self.ParameterValueList.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             item_list = list()
