@@ -49,7 +49,7 @@ class DiffDatabaseMappingCommitMixin:
             self.session.add(commit)
             self.session.flush()
             n = 499  # Maximum number of sql variables
-            # Remove removed
+            # Remove
             for tablename, ids in self.removed_item_id.items():
                 classname = self.table_to_class[tablename]
                 orig_class = getattr(self, classname)
@@ -58,7 +58,7 @@ class DiffDatabaseMappingCommitMixin:
                     self.query(orig_class).filter(
                         orig_class.id.in_(removed_ids[i : i + n])
                     ).delete(synchronize_session=False)
-            # Merge updated
+            # Update
             for tablename, ids in self.updated_item_id.items():
                 classname = self.table_to_class[tablename]
                 orig_class = getattr(self, classname)
@@ -73,7 +73,7 @@ class DiffDatabaseMappingCommitMixin:
                         kwargs["commit_id"] = commit.id
                         updated_items.append(kwargs)
                 self.session.bulk_update_mappings(orig_class, updated_items)
-            # Add added
+            # Add
             for tablename, ids in self.added_item_id.items():
                 classname = self.table_to_class[tablename]
                 orig_class = getattr(self, classname)

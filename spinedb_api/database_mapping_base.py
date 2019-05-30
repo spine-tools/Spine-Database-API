@@ -52,7 +52,6 @@ class DatabaseMappingBase(object):
         self.engine = None
         self.connection = None
         self.session = None
-        self.query = None
         self.Commit = None
         self.ObjectClass = None
         self.Object = None
@@ -129,7 +128,6 @@ class DatabaseMappingBase(object):
                 raise SpineDBAPIError(msg)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
-        self.query = self.session.query
 
     def check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a `SpineDBVersionError` if not.
@@ -187,6 +185,10 @@ class DatabaseMappingBase(object):
         return self.query(
             *[c.label(c.name) for c in inspect(class_).mapper.columns]
         ).subquery()
+
+    def query(self, *args, **kwargs):
+        """Query the ORM."""
+        return self.session.query(*args, **kwargs)
 
     @property
     def object_class_sq(self):
@@ -433,7 +435,7 @@ class DatabaseMappingBase(object):
             GROUP BY id
         ) AS wpvl
         ON wpvl.id = pd.parameter_value_list_id
-        WHERE pd.object_class_id = oc.id        
+        WHERE pd.object_class_id = oc.id
         """
         if self._object_parameter_definition_sq is None:
             self._object_parameter_definition_sq = (

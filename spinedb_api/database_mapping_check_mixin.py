@@ -48,9 +48,7 @@ class DatabaseMappingCheckMixin:
                 self.check_object_class(kwargs, object_class_names)
                 checked_kwargs_list.append(kwargs)
                 # If the check passes, append kwargs to `object_class_names` for next iteration.
-                object_class_names[
-                    kwargs["name"]
-                ] = None  # TODO: check if this is problematic?
+                object_class_names[kwargs["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e

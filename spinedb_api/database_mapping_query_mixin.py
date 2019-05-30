@@ -28,7 +28,7 @@ import warnings
 from sqlalchemy import false, distinct, func, or_
 
 # TODO: Consider returning lists (by callling `all()` on the resulting query)
-# TODO: check errors
+# TODO: Maybe handle errors in queries
 
 
 class DatabaseMappingQueryMixin:
