@@ -24,6 +24,7 @@ Class to create an object relational mapping from a Spine db.
 :date:   11.8.2018
 """
 
+import logging
 from sqlalchemy import create_engine, inspect, func
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
@@ -33,6 +34,8 @@ from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
+
+logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 # TODO: Finish documenting special subqueries
 
