@@ -26,11 +26,13 @@ Classes to handle the Spine database object relational mapping.
 
 from .database_mapping_base import DatabaseMappingBase
 from sqlalchemy import MetaData, Table, inspect
-from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import NoSuchTableError
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.sql.expression import Alias
 from .exception import SpineTableNotFoundError
+from .helpers import forward_sweep
 from datetime import datetime, timezone
-
+from sqlalchemy.orm.util import AliasedInsp
 
 # TODO: improve docstrings
 
@@ -116,22 +118,16 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """Mark items as dirty, which means the corresponding records from the original tables
         are no longer valid, and they should be queried from the diff tables instead."""
         self.dirty_item_id[tablename].update(ids)
-        # Force subquery for the affected table to be refreshed
-        setattr(self, "_" + tablename + "_sq", None)
-        # Force special subqueries to be refreshed
-        self._ext_relationship_class_sq = None
-        self._wide_relationship_class_sq = None
-        self._ext_relationship_sq = None
-        self._wide_relationship_sq = None
-        self._object_parameter_definition_sq = None
-        self._relationship_parameter_definition_sq = None
-        self._object_parameter_value_sq = None
-        self._relationship_parameter_value_sq = None
-        self._ext_parameter_definition_tag_sq = None
-        self._wide_parameter_definition_tag_sq = None
-        self._ext_parameter_tag_definition_sq = None
-        self._wide_parameter_tag_definition_sq = None
-        self._wide_parameter_value_list_sq = None
+        # Set subquery attributes involving the affected table to `None`
+        # (This forces the subqueries to be refreshed when accessing the corresponding property)
+        for attr, val in self.__dict__.items():
+            if not isinstance(val, Alias):
+                continue
+            tables = []
+            func = lambda x: isinstance(x, Table) and tables.append(x.name)
+            forward_sweep(val, func)
+            if tablename in tables:
+                setattr(self, attr, None)
 
     def subquery(self, tablename):
         """

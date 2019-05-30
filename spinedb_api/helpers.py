@@ -30,7 +30,13 @@ from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event, inspect
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
+from sqlalchemy.exc import (
+    DatabaseError,
+    DBAPIError,
+    IntegrityError,
+    OperationalError,
+    NoSuchTableError,
+)
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
@@ -50,20 +56,20 @@ from alembic import command
 # @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     module_name = dbapi_connection.__class__.__module__
-    if not module_name.lower().startswith('sqlite'):
+    if not module_name.lower().startswith("sqlite"):
         return
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 
-@compiles(TINYINT, 'sqlite')
+@compiles(TINYINT, "sqlite")
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql TINYINT datatype as INTEGER in sqlite """
     return compiler.visit_INTEGER(element, **kw)
 
 
-@compiles(DOUBLE, 'sqlite')
+@compiles(DOUBLE, "sqlite")
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
@@ -96,22 +102,30 @@ def is_head(db_url, upgrade=False):
         # Upgrade function
         def fn(rev, context):
             return script._upgrade_revs("head", rev)
+
         with EnvironmentContext(
-                config,
-                script,
-                fn=fn,
-                as_sql=False,
-                starting_rev=None,
-                destination_rev="head",
-                tag=None) as environment_context:
+            config,
+            script,
+            fn=fn,
+            as_sql=False,
+            starting_rev=None,
+            destination_rev="head",
+            tag=None,
+        ) as environment_context:
             environment_context.configure(connection=connection, target_metadata=None)
             with environment_context.begin_transaction():
                 environment_context.run_migrations()
     return True
 
 
-def copy_database(dest_url, source_url, overwrite=True, upgrade=False,
-                  only_tables=set(), skip_tables=set()):
+def copy_database(
+    dest_url,
+    source_url,
+    overwrite=True,
+    upgrade=False,
+    only_tables=set(),
+    skip_tables=set(),
+):
     """Copy the database from source_url into dest_url."""
     if not is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
@@ -122,9 +136,11 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False,
     meta.reflect(source_engine)
     if insp.get_table_names():
         if not overwrite:
-            raise SpineDBAPIError("The database at '{}' is not empty. "
-                                  "If you want to overwrite it, please pass the argument `overwrite=True` "
-                                  "to the function call.".format(dest_url))
+            raise SpineDBAPIError(
+                "The database at '{}' is not empty. "
+                "If you want to overwrite it, please pass the argument `overwrite=True` "
+                "to the function call.".format(dest_url)
+            )
         meta.drop_all(dest_engine)
     source_meta = MetaData(bind=source_engine)
     dest_meta = MetaData(bind=dest_engine)
@@ -149,14 +165,18 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False,
         try:
             dest_engine.execute(ins, data)
         except IntegrityError as e:
-            warnings.warn('Skipping table {0}: {1}'.format(t.name, e.orig.args))
+            warnings.warn("Skipping table {0}: {1}".format(t.name, e.orig.args))
 
 
-def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
+def custom_generate_relationship(
+    base, direction, return_fn, attrname, local_cls, referred_cls, **kw
+):
     if direction is interfaces.ONETOMANY:
-        kw['cascade'] = 'all, delete-orphan'
-        kw['passive_deletes'] = True
-    return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
+        kw["cascade"] = "all, delete-orphan"
+        kw["passive_deletes"] = True
+    return generate_relationship(
+        base, direction, return_fn, attrname, local_cls, referred_cls, **kw
+    )
 
 
 def is_unlocked(db_url, timeout=0):
@@ -165,8 +185,8 @@ def is_unlocked(db_url, timeout=0):
     if not db_url.startswith("sqlite"):
         return False
     try:
-        engine = create_engine(db_url, connect_args={'timeout': timeout})
-        engine.execute('BEGIN IMMEDIATE')
+        engine = create_engine(db_url, connect_args={"timeout": timeout})
+        engine.execute("BEGIN IMMEDIATE")
         return True
     except OperationalError:
         return False
@@ -177,7 +197,9 @@ def create_new_spine_database(db_url, for_spine_model=False):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+        raise SpineDBAPIError(
+            "Could not connect to '{}': {}".format(db_url, e.orig.args)
+        )
     sql_list = list()
     sql = """
         CREATE TABLE IF NOT EXISTS "commit" (
@@ -364,7 +386,11 @@ def create_new_spine_database(db_url, for_spine_model=False):
         for sql in sql_list:
             engine.execute(text(sql))
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+        raise SpineDBAPIError(
+            "Unable to create Spine database. Creation script failed: {}".format(
+                e.orig.args
+            )
+        )
     is_head(db_url, upgrade=True)
     if for_spine_model:
         sql = """
@@ -489,5 +515,38 @@ def create_new_spine_database(db_url, for_spine_model=False):
             for sql in sql_list:
                 engine.execute(text(sql))
         except DatabaseError as e:
-            raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+            raise SpineDBAPIError(
+                "Unable to create Spine database. Creation script failed: {}".format(
+                    e.orig.args
+                )
+            )
     return engine
+
+
+def forward_sweep(root, func):
+    """Recursively visit, using `get_children()`, the given sqlalchemy object.
+    Apply `func` on every visited node."""
+    current = root
+    parent = {}
+    children = {current: iter(current.get_children(column_collections=False))}
+    while True:
+        func(current)
+        # Try and visit next children
+        next_ = next(children[current], None)
+        if next_ is not None:
+            parent[next_] = current
+            children[next_] = iter(next_.get_children(column_collections=False))
+            current = next_
+            continue
+        # No (more) children, try and visit next sibling
+        current_parent = parent[current]
+        next_ = next(children[current_parent], None)
+        if next_ is not None:
+            parent[next_] = current_parent
+            children[next_] = iter(next_.get_children(column_collections=False))
+            current = next_
+            continue
+        # No (more) siblings, go back to parent
+        current = current_parent
+        if current == root:
+            break
