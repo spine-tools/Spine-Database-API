@@ -8,13 +8,7 @@ from .exception import (
     RecordNotFoundError,
     ParameterValueError,
 )
-from .helpers import (
-    create_new_spine_database,
-    copy_database,
-    is_unlocked,
-    is_head,
-    forward_sweep,
-)
+from .helpers import create_new_spine_database, copy_database, is_unlocked, is_head, is_empty, forward_sweep
 from .import_functions import (
     import_data,
     import_object_classes,

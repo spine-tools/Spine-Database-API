@@ -30,13 +30,7 @@ from textwrap import fill
 from sqlalchemy import create_engine, text, Table, MetaData, select, event, inspect
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import (
-    DatabaseError,
-    DBAPIError,
-    IntegrityError,
-    OperationalError,
-    NoSuchTableError,
-)
+from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
@@ -104,13 +98,7 @@ def is_head(db_url, upgrade=False):
             return script._upgrade_revs("head", rev)
 
         with EnvironmentContext(
-            config,
-            script,
-            fn=fn,
-            as_sql=False,
-            starting_rev=None,
-            destination_rev="head",
-            tag=None,
+            config, script, fn=fn, as_sql=False, starting_rev=None, destination_rev="head", tag=None
         ) as environment_context:
             environment_context.configure(connection=connection, target_metadata=None)
             with environment_context.begin_transaction():
@@ -118,14 +106,7 @@ def is_head(db_url, upgrade=False):
     return True
 
 
-def copy_database(
-    dest_url,
-    source_url,
-    overwrite=True,
-    upgrade=False,
-    only_tables=set(),
-    skip_tables=set(),
-):
+def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
     if not is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
@@ -168,15 +149,11 @@ def copy_database(
             warnings.warn("Skipping table {0}: {1}".format(t.name, e.orig.args))
 
 
-def custom_generate_relationship(
-    base, direction, return_fn, attrname, local_cls, referred_cls, **kw
-):
+def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
     if direction is interfaces.ONETOMANY:
         kw["cascade"] = "all, delete-orphan"
         kw["passive_deletes"] = True
-    return generate_relationship(
-        base, direction, return_fn, attrname, local_cls, referred_cls, **kw
-    )
+    return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 
 def is_unlocked(db_url, timeout=0):
@@ -192,17 +169,30 @@ def is_unlocked(db_url, timeout=0):
         return False
 
 
-def create_new_spine_database(db_url, for_spine_model=False):
+def is_empty(db_url):
+    try:
+        engine = create_engine(db_url)
+    except DatabaseError as e:
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+    insp = inspect(engine)
+    if insp.get_table_names():
+        return False
+    return True
+
+
+def create_new_spine_database(db_url, overwrite=False, for_spine_model=False):
     """Create a new Spine database at the given database url."""
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError(
-            "Could not connect to '{}': {}".format(db_url, e.orig.args)
-        )
-    sql_list = list()
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+    # Drop all tables!
+    meta = MetaData()
+    meta.reflect(engine)
+    meta.drop_all(engine)
+    sql_list = []
     sql = """
-        CREATE TABLE IF NOT EXISTS "commit" (
+        CREATE TABLE `commit` (
             id INTEGER NOT NULL,
             comment VARCHAR(255) NOT NULL,
             date DATETIME NOT NULL,
@@ -213,7 +203,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS object_class_category (
+        CREATE TABLE object_class_category (
             id INTEGER NOT NULL,
             name VARCHAR(255) NOT NULL,
             description VARCHAR(255) DEFAULT NULL,
@@ -225,7 +215,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS object_class (
+        CREATE TABLE object_class (
             id INTEGER NOT NULL,
             name VARCHAR(255) NOT NULL,
             description VARCHAR(255) DEFAULT NULL,
@@ -242,7 +232,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS object_category (
+        CREATE TABLE object_category (
             id INTEGER NOT NULL,
             object_class_id INTEGER NOT NULL,
             name VARCHAR(255) NOT NULL,
@@ -256,7 +246,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS object (
+        CREATE TABLE object (
             id INTEGER NOT NULL,
             class_id INTEGER NOT NULL,
             name VARCHAR(255) NOT NULL,
@@ -272,7 +262,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS relationship_class (
+        CREATE TABLE relationship_class (
             id INTEGER NOT NULL,
             dimension INTEGER NOT NULL,
             object_class_id INTEGER NOT NULL,
@@ -287,7 +277,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS relationship (
+        CREATE TABLE relationship (
             id INTEGER NOT NULL,
             dimension INTEGER NOT NULL,
             object_id INTEGER NOT NULL,
@@ -303,7 +293,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS parameter (
+        CREATE TABLE parameter (
             id INTEGER NOT NULL,
             name VARCHAR(155) NOT NULL,
             description VARCHAR(155) DEFAULT NULL,
@@ -329,7 +319,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
     """
     sql_list.append(sql)
     sql = """
-        CREATE TABLE IF NOT EXISTS parameter_value (
+        CREATE TABLE parameter_value (
             id INTEGER NOT NULL,
             parameter_id INTEGER NOT NULL,
             relationship_id INTEGER DEFAULT NULL,
@@ -386,12 +376,9 @@ def create_new_spine_database(db_url, for_spine_model=False):
         for sql in sql_list:
             engine.execute(text(sql))
     except DatabaseError as e:
-        raise SpineDBAPIError(
-            "Unable to create Spine database. Creation script failed: {}".format(
-                e.orig.args
-            )
-        )
+        raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
     is_head(db_url, upgrade=True)
+    sql_list = []
     if for_spine_model:
         sql = """
             INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
@@ -515,12 +502,7 @@ def create_new_spine_database(db_url, for_spine_model=False):
             for sql in sql_list:
                 engine.execute(text(sql))
         except DatabaseError as e:
-            raise SpineDBAPIError(
-                "Unable to create Spine database. Creation script failed: {}".format(
-                    e.orig.args
-                )
-            )
-    return engine
+            raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
 
 
 def forward_sweep(root, func):

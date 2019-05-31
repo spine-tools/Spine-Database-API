@@ -27,8 +27,9 @@ Class to create an object relational mapping from a Spine db.
 import logging
 from sqlalchemy import create_engine, inspect, func, MetaData
 from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError
+from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError, ArgumentError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
@@ -102,9 +103,16 @@ class DatabaseMappingBase(object):
             "parameter_definition_tag": "ParameterDefinitionTag",
             "parameter_value_list": "ParameterValueList",
         }
+        self.check_url()
         self.create_engine_and_session()
         self.check_db_version(upgrade=upgrade)
         self.create_mapping()
+
+    def check_url(self):
+        try:
+            make_url(self.db_url)
+        except (ArgumentError, ValueError) as err:
+            raise SpineDBAPIError(f"Invalid URL {self.db_url}: {err}")
 
     def create_engine_and_session(self):
         """Create engine, session and connection."""
@@ -113,7 +121,10 @@ class DatabaseMappingBase(object):
             with self.engine.connect():
                 MetaData(bind=self.engine, reflect=True)
         except DatabaseError as e:
-            raise SpineDBAPIError("Could not connect to '{}': {}".format(self.db_url, e.orig.args))
+            raise SpineDBAPIError(
+                "Could not connect to '{0}': {1}. Please make sure that '{0}' is the URL "
+                "of a Spine database and try again.".format(self.db_url, e.orig.args)
+            )
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
 
