@@ -174,23 +174,19 @@ class ParameterMapping:
             map_type: 'parameter'
             name: Mapping | str
             value: Mapping | None
-            field: 'value' | 'json' | Mapping | None
             extra_dimensions: [Mapping] | None
     }
     """
     def __init__(self,
                  name=None,
                  value=None,
-                 field=None,
                  extra_dimensions=None):
 
         self._name = None
         self._value = None
-        self._field = None
         self._extra_dimensions = None
         self.name = name
         self.value = value
-        self.field = field
         self.extra_dimensions = extra_dimensions
         self._map_type = PARAMETER
 
@@ -202,9 +198,6 @@ class ParameterMapping:
         if self.value is not None and not self.is_pivoted():
             if isinstance(self.value, Mapping) and self.value.map_type == COLUMN:
                 non_pivoted_columns.append(self.value.value_reference)
-        if self.field is not None:
-            if isinstance(self.field, Mapping) and self.field.map_type == COLUMN:
-                non_pivoted_columns.append(self.field.value_reference)
         if self.extra_dimensions is not None:
             for ed in self.extra_dimensions:
                 if isinstance(ed, Mapping) and ed.map_type == COLUMN:
@@ -215,8 +208,6 @@ class ParameterMapping:
         last_pivot_row = None
         if isinstance(self.name, Mapping):
             last_pivot_row = self.name.last_pivot_row()
-        if isinstance(self.field, Mapping):
-            last_pivot_row = no_nones(max)(last_pivot_row, self.field.last_pivot_row())
         if self.extra_dimensions is not None:
             for m in self.extra_dimensions:
                 if isinstance(m, Mapping):
@@ -242,10 +233,6 @@ class ParameterMapping:
         return self._value
 
     @property
-    def field(self):
-        return self._field
-
-    @property
     def extra_dimensions(self):
         return self._extra_dimensions
 
@@ -263,18 +250,6 @@ class ParameterMapping:
                              instead got {type(value)}""")
         self._value = value
 
-    @field.setter
-    def field(self, field=None):
-        if isinstance(field, str):
-            field = field.lower()
-            if field not in ('value','json'):
-                raise ValueError(f"""field string must be 'value' or 'json',
-                                 instead got '{field}'""")
-        elif not isinstance(field, Mapping):
-            raise TypeError(f'''field must be str or Mapping,
-                            instead got {type(field)}''')
-        self._field = field
-
     @extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions=None):
         if (extra_dimensions is not None
@@ -290,12 +265,11 @@ class ParameterMapping:
             raise ValueError('map_dict must be a dict')
         name = mapping_from_dict_int_str(map_dict.get('name', None))
         value = mapping_from_dict_int_str(map_dict.get('value', None))
-        field = mapping_from_dict_int_str(map_dict.get('field', 'value'))
         extra_dimensions = map_dict.get('extra_dimensions', None)
         if isinstance(extra_dimensions, list):
             extra_dimensions = [mapping_from_dict_int_str(ed)
                                 for ed in extra_dimensions]
-        return ParameterMapping(name, value, field, extra_dimensions)
+        return ParameterMapping(name, value, extra_dimensions)
 
     def to_dict(self):
         map_dict = {'map_type': self._map_type}
@@ -309,10 +283,6 @@ class ParameterMapping:
                 map_dict.update({'value', self.value.to_dict()})
             else:
                 map_dict.update({'value', self.value})
-        if isinstance(self.field, Mapping):
-            map_dict.update({'field', self.field.to_dict()})
-        else:
-            map_dict.update({'field', self.field})
         if self.extra_dimensions is not None:
             ed = [ed.to_dict() for ed in self.extra_dimensions]
             map_dict.update({'extra_dimensions': ed})
@@ -424,22 +394,19 @@ class ParameterColumnMapping:
         map_type: 'parameter_column'
         name: str | None #overrides column name
         column: str | int
-        field: 'value' | 'json'
         append_str: str | None
         prepend_str: str | None]
     }
     """
     def __init__(self, name=None, column=None,
-                 field='value', append_str=None, prepend_str=None):
+                 append_str=None, prepend_str=None):
         self._name = None
         self._column = None
-        self._field = None
         self._append_str = None
         self._prepend_str = None
 
         self.name = name
         self.column = column
-        self.field = field
         self.append_str = append_str
         self.prepend_str = prepend_str
         self._map_type = PARAMETERCOLUMN
@@ -459,10 +426,6 @@ class ParameterColumnMapping:
     @property
     def name(self):
         return self._name
-
-    @property
-    def field(self):
-        return self._field
 
     @property
     def column(self):
@@ -490,17 +453,6 @@ class ParameterColumnMapping:
                              instead got {type(column)}""")
         self._column = column
 
-    @field.setter
-    def field(self, field=None):
-        if type(field) == str:
-            field = field.lower()
-            if field not in ('value','json'):
-                raise ValueError(f"""field string must be 'value' or 'json',
-                                 instead got '{field}'""")
-        else:
-            raise ValueError(f'field must be str, instead got {type(field)}')
-        self._field = field
-
     @append_str.setter
     def append_str(self, append_str=None):
         if append_str is not None and type(append_str) not in (str,):
@@ -520,11 +472,10 @@ class ParameterColumnMapping:
         if type(map_dict) != dict:
             raise ValueError('map_dict must be a dict')
         name = map_dict.get('name', None)
-        field = map_dict.get('field', 'value')
         column = map_dict.get('column', None)
         append_str = map_dict.get('append_str', None)
         prepend_str = map_dict.get('prepend_str', None)
-        return ParameterColumnMapping(name, column, field,
+        return ParameterColumnMapping(name, column,
                                       append_str, prepend_str)
 
     def to_dict(self):
@@ -533,8 +484,6 @@ class ParameterColumnMapping:
             map_dict.update({'name', self.name})
         if self.column is not None:
             map_dict.update({'column', self.column})
-        if self.field is not None:
-            map_dict.update({'field', self.field})
         if self.append_str is not None:
             map_dict.update({'append_str', self.append_str})
         if self.prepend_str is not None:
