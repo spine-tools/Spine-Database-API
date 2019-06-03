@@ -35,6 +35,7 @@ from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
+from .helpers import create_new_spine_database, schemas_are_equal
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
@@ -103,23 +104,16 @@ class DatabaseMappingBase(object):
             "parameter_definition_tag": "ParameterDefinitionTag",
             "parameter_value_list": "ParameterValueList",
         }
-        self.check_url()
         self.create_engine_and_session()
         self.check_db_version(upgrade=upgrade)
         self.create_mapping()
-
-    def check_url(self):
-        try:
-            make_url(self.db_url)
-        except (ArgumentError, ValueError) as err:
-            raise SpineDBAPIError(f"Invalid URL {self.db_url}: {err}")
 
     def create_engine_and_session(self):
         """Create engine, session and connection."""
         try:
             self.engine = create_engine(self.db_url)
             with self.engine.connect():
-                MetaData(bind=self.engine, reflect=True)
+                pass
         except DatabaseError as e:
             raise SpineDBAPIError(
                 "Could not connect to '{0}': {1}. Please make sure that '{0}' is the URL "
@@ -139,6 +133,12 @@ class DatabaseMappingBase(object):
         with self.engine.connect() as connection:
             migration_context = MigrationContext.configure(connection)
             current = migration_context.get_current_revision()
+            if current is None:
+                # No revision information. Check if the schema of the given url corresponds to 
+                # a non-upgraded new Spine db --otherwise we can't go on.
+                ref_engine = create_new_spine_database("sqlite://", upgrade=False)
+                if not schemas_are_equal(self.engine, ref_engine):
+                    raise SpineDBAPIError("The db at '{0}' doesn't seem like a valid Spine db.".format(self.db_url))
             if current == head:
                 return
             if not upgrade:
