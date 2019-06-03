@@ -43,6 +43,16 @@ from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic import command
 
+# Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
+# - sqlite works
+# - mysql is trying to work
+SUPPORTED_DIALECTS = {
+    "mysql": "pymysql",
+    "sqlite": "sqlite3",
+    # "mssql": "pyodbc",
+    # "postgresql": "psycopg2",
+    # "oracle": "cx_oracle",
+}
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -180,7 +190,7 @@ def is_empty(db_url):
     return True
 
 
-def create_new_spine_database(db_url, overwrite=False, for_spine_model=False):
+def create_new_spine_database(db_url, for_spine_model=False):
     """Create a new Spine database at the given database url."""
     try:
         engine = create_engine(db_url)
