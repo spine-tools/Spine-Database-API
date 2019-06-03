@@ -52,7 +52,7 @@ class DatabaseMappingBase(object):
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
         self.db_url = db_url
-        self.username = username
+        self.username = username if username else "anon"
         self.engine = None
         self.connection = None
         self.session = None
