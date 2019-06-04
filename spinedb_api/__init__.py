@@ -9,6 +9,7 @@ from .exception import (
     ParameterValueError,
 )
 from .helpers import (
+    naming_convention,
     SUPPORTED_DIALECTS,
     create_new_spine_database,
     copy_database,

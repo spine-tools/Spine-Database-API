@@ -25,7 +25,7 @@ A class to handle INSERT operations onto a Spine db 'diff' ORM.
 """
 
 import warnings
-from sqlalchemy import func, MetaData, Table, Column, Integer, String
+from sqlalchemy import func, MetaData, Table, Column, Integer, String, DateTime, null
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError, SpineIntegrityError
@@ -53,17 +53,17 @@ class DiffDatabaseMappingAddMixin:
         next_id_table = Table(
             "next_id",
             metadata,
-            Column("user", String, primary_key=True),
-            Column("date", String, primary_key=True),
-            Column("object_class_id", Integer),
-            Column("object_id", Integer),
-            Column("relationship_class_id", Integer),
-            Column("relationship_id", Integer),
-            Column("parameter_definition_id", Integer),
-            Column("parameter_value_id", Integer),
-            Column("parameter_tag_id", Integer),
-            Column("parameter_value_list_id", Integer),
-            Column("parameter_definition_tag_id", Integer),
+            Column("user", String(155), primary_key=True),
+            Column("date", String(155), primary_key=True),
+            Column("object_class_id", Integer, server_default=null()),
+            Column("object_id", Integer, server_default=null()),
+            Column("relationship_class_id", Integer, server_default=null()),
+            Column("relationship_id", Integer, server_default=null()),
+            Column("parameter_definition_id", Integer, server_default=null()),
+            Column("parameter_value_id", Integer, server_default=null()),
+            Column("parameter_tag_id", Integer, server_default=null()),
+            Column("parameter_value_list_id", Integer, server_default=null()),
+            Column("parameter_definition_tag_id", Integer, server_default=null()),
         )
         next_id_table.create(self.engine, checkfirst=True)
         # Create mapping...
@@ -79,19 +79,19 @@ class DiffDatabaseMappingAddMixin:
         next_id = self.query(self.NextId).one_or_none()
         if next_id:
             next_id.user = self.username
-            next_id.date = datetime.now(timezone.utc)
+            next_id.date = datetime.utcnow()
         else:
-            next_id = self.NextId(user=self.username, date=datetime.now(timezone.utc))
+            next_id = self.NextId(user=self.username, date=datetime.utcnow())
             self.session.add(next_id)
         try:
             # TODO: This flush is supposed to lock the record, so no one can steal our ids.... does it work?
             self.session.flush()
-            return next_id
         except DBAPIError as e:
             # TODO: Find a way to try this again, or wait till unlocked
             # Maybe listen for an event?
             self.session.rollback()
             raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
+        return self.query(self.NextId).one_or_none()
 
     def add_object_classes(self, *kwargs_list, strict=False, return_dups=False):
         """Add object classes to database.
@@ -106,9 +106,7 @@ class DiffDatabaseMappingAddMixin:
             object_classes (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
-        checked_kwargs_list, intgr_error_log = self.check_object_classes_for_insert(
-            *kwargs_list, strict=strict
-        )
+        checked_kwargs_list, intgr_error_log = self.check_object_classes_for_insert(*kwargs_list, strict=strict)
         id_list = self._add_object_classes(*checked_kwargs_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -162,9 +160,7 @@ class DiffDatabaseMappingAddMixin:
             objects (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
-        checked_kwargs_list, intgr_error_log = self.check_objects_for_insert(
-            *kwargs_list, strict=strict
-        )
+        checked_kwargs_list, intgr_error_log = self.check_objects_for_insert(*kwargs_list, strict=strict)
         id_list = self._add_objects(*checked_kwargs_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -203,9 +199,7 @@ class DiffDatabaseMappingAddMixin:
             msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(
-        self, *wide_kwargs_list, strict=False, return_dups=False
-    ):
+    def add_wide_relationship_classes(self, *wide_kwargs_list, strict=False, return_dups=False):
         """Add relationship classes to database.
 
         Args:
@@ -248,9 +242,7 @@ class DiffDatabaseMappingAddMixin:
             item_list = list()
             id_list = set(range(id, id + len(wide_kwargs_list)))
             for wide_kwargs in wide_kwargs_list:
-                for dimension, object_class_id in enumerate(
-                    wide_kwargs["object_class_id_list"]
-                ):
+                for dimension, object_class_id in enumerate(wide_kwargs["object_class_id_list"]):
                     narrow_kwargs = {
                         "id": id,
                         "dimension": dimension,
@@ -266,14 +258,10 @@ class DiffDatabaseMappingAddMixin:
             return id_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship classes: {}".format(
-                e.orig.args
-            )
+            msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationships(
-        self, *wide_kwargs_list, strict=False, return_dups=False
-    ):
+    def add_wide_relationships(self, *wide_kwargs_list, strict=False, return_dups=False):
         """Add relationships to database.
 
         Args:
@@ -347,9 +335,7 @@ class DiffDatabaseMappingAddMixin:
             parameters (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
-        checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_insert(
-            *kwargs_list, strict=strict
-        )
+        checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_insert(*kwargs_list, strict=strict)
         id_list = self._add_parameters(*checked_kwargs_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -389,13 +375,8 @@ class DiffDatabaseMappingAddMixin:
             raise SpineDBAPIError(msg)
 
     def add_parameters(self, *kwargs_list, strict=False, return_dups=False):
-        warnings.warn(
-            "add_parameters is deprecated, use add_parameter_definitions instead",
-            DeprecationWarning,
-        )
-        return self.add_parameter_definitions(
-            *kwargs_list, strict=strict, return_dups=return_dups
-        )
+        warnings.warn("add_parameters is deprecated, use add_parameter_definitions instead", DeprecationWarning)
+        return self.add_parameter_definitions(*kwargs_list, strict=strict, return_dups=return_dups)
 
     def add_parameter_values(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter values to database.
@@ -414,9 +395,7 @@ class DiffDatabaseMappingAddMixin:
         for kwargs in kwargs_list:
             if "parameter_id" in kwargs:
                 kwargs["parameter_definition_id"] = kwargs["parameter_id"]
-        checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(
-            *kwargs_list, strict=strict
-        )
+        checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(*kwargs_list, strict=strict)
         id_list = self._add_parameter_values(*checked_kwargs_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -465,9 +444,7 @@ class DiffDatabaseMappingAddMixin:
             parameter_tags (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
-        checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_insert(
-            *kwargs_list, strict=strict
-        )
+        checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_insert(*kwargs_list, strict=strict)
         id_list = self._add_parameter_tags(*checked_kwargs_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -503,9 +480,7 @@ class DiffDatabaseMappingAddMixin:
             msg = "DBAPIError while inserting parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_definition_tags(
-        self, *kwargs_list, strict=False, return_dups=False
-    ):
+    def add_parameter_definition_tags(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter definition tags to database.
 
         Args:
@@ -546,23 +521,17 @@ class DiffDatabaseMappingAddMixin:
                 kwargs["id"] = id
                 item_list.append(kwargs)
                 id += 1
-            self.session.bulk_insert_mappings(
-                self.DiffParameterDefinitionTag, item_list
-            )
+            self.session.bulk_insert_mappings(self.DiffParameterDefinitionTag, item_list)
             next_id.parameter_definition_tag_id = id
             self.session.commit()
             self.added_item_id["parameter_definition_tag"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter definition tags: {}".format(
-                e.orig.args
-            )
+            msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_parameter_value_lists(
-        self, *wide_kwargs_list, strict=False, return_dups=False
-    ):
+    def add_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False, return_dups=False):
         """Add wide parameter value_lists to database.
 
         Args:
@@ -601,12 +570,7 @@ class DiffDatabaseMappingAddMixin:
             id_list = set(range(id, id + len(wide_kwargs_list)))
             for wide_kwargs in wide_kwargs_list:
                 for k, value in enumerate(wide_kwargs["value_list"]):
-                    narrow_kwargs = {
-                        "id": id,
-                        "name": wide_kwargs["name"],
-                        "value_index": k,
-                        "value": value,
-                    }
+                    narrow_kwargs = {"id": id, "name": wide_kwargs["name"], "value_index": k, "value": value}
                     item_list.append(narrow_kwargs)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffParameterValueList, item_list)
@@ -616,9 +580,7 @@ class DiffDatabaseMappingAddMixin:
             return id_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter value lists: {}".format(
-                e.orig.args
-            )
+            msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def add_object_class(self, **kwargs):

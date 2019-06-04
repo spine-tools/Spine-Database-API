@@ -27,7 +27,26 @@ General helper functions and classes.
 import warnings
 import os
 from textwrap import fill
-from sqlalchemy import create_engine, text, Table, MetaData, select, event, inspect
+from sqlalchemy import (
+    create_engine,
+    text,
+    Table,
+    Column,
+    MetaData,
+    select,
+    event,
+    inspect,
+    String,
+    Integer,
+    BigInteger,
+    Float,
+    null,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
+    CheckConstraint,
+    ForeignKeyConstraint,
+)
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.engine import reflection
 from sqlalchemy.pool import StaticPool
@@ -53,6 +72,12 @@ SUPPORTED_DIALECTS = {
     # "mssql": "pyodbc",
     # "postgresql": "psycopg2",
     # "oracle": "cx_oracle",
+}
+
+
+naming_convention = {
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "uq": "uq_%(table_name)s_%(column_0N_name)s",
 }
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -161,6 +186,7 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
+    # NOTE: Not in use at the moment
     if direction is interfaces.ONETOMANY:
         kw["cascade"] = "all, delete-orphan"
         kw["passive_deletes"] = True
@@ -202,304 +228,292 @@ def is_empty(db_url):
 
 
 def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
-    """Create a new Spine database at the given database url."""
+    """Create a new Spine database at the given url."""
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
-    # Drop all tables!
-    meta = MetaData()
-    meta.reflect(engine)
+    # Drop existing tables. This is a Spine db now...
+    meta = MetaData(engine, reflect=True)
     meta.drop_all(engine)
-    sql_list = []
-    sql = """
-        CREATE TABLE `commit` (
-            id INTEGER NOT NULL,
-            comment VARCHAR(255) NOT NULL,
-            date DATETIME NOT NULL,
-            user VARCHAR(45),
-            PRIMARY KEY (id),
-            UNIQUE (id)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE object_class_category (
-            id INTEGER NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            description VARCHAR(255) DEFAULT NULL,
-            commit_id INTEGER,
-            PRIMARY KEY (id),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            UNIQUE(name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE object_class (
-            id INTEGER NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            description VARCHAR(255) DEFAULT NULL,
-            category_id INTEGER DEFAULT NULL,
-            display_order INTEGER DEFAULT '99',
-            display_icon INTEGER DEFAULT NULL,
-            hidden INTEGER DEFAULT '0',
-            commit_id INTEGER,
-            PRIMARY KEY (id),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(category_id) REFERENCES object_class_category (id),
-            UNIQUE(name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE object_category (
-            id INTEGER NOT NULL,
-            object_class_id INTEGER NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            description VARCHAR(255) DEFAULT NULL,
-            commit_id INTEGER,
-            PRIMARY KEY (id),
-            FOREIGN KEY(object_class_id) REFERENCES object_class (id),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            UNIQUE(name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE object (
-            id INTEGER NOT NULL,
-            class_id INTEGER NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            description VARCHAR(255) DEFAULT NULL,
-            category_id INTEGER DEFAULT NULL,
-            commit_id INTEGER,
-            PRIMARY KEY (id),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(class_id) REFERENCES object_class (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(category_id) REFERENCES object_category (id),
-            UNIQUE(name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE relationship_class (
-            id INTEGER NOT NULL,
-            dimension INTEGER NOT NULL,
-            object_class_id INTEGER NOT NULL,
-            name VARCHAR(155) NOT NULL,
-            hidden INTEGER DEFAULT '0',
-            commit_id INTEGER,
-            PRIMARY KEY (id, dimension),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON UPDATE CASCADE
-            CONSTRAINT relationship_class_unique_dimension_name UNIQUE (dimension, name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE relationship (
-            id INTEGER NOT NULL,
-            dimension INTEGER NOT NULL,
-            object_id INTEGER NOT NULL,
-            class_id INTEGER NOT NULL,
-            name VARCHAR(155) NOT NULL,
-            commit_id INTEGER,
-            PRIMARY KEY (id, dimension),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(class_id, dimension) REFERENCES relationship_class (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(object_id) REFERENCES object (id) ON UPDATE CASCADE
-            CONSTRAINT relationship_unique_dimension_name UNIQUE (dimension, name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE parameter (
-            id INTEGER NOT NULL,
-            name VARCHAR(155) NOT NULL,
-            description VARCHAR(155) DEFAULT NULL,
-            data_type VARCHAR(155) DEFAULT 'NUMERIC',
-            relationship_class_id INTEGER DEFAULT NULL,
-            object_class_id INTEGER DEFAULT NULL,
-            can_have_time_series INTEGER DEFAULT '0',
-            can_have_time_pattern INTEGER DEFAULT '1',
-            can_be_stochastic INTEGER DEFAULT '0',
-            default_value VARCHAR(155) DEFAULT '0',
-            is_mandatory INTEGER DEFAULT '0',
-            precision INTEGER DEFAULT '2',
-            unit VARCHAR(155) DEFAULT NULL,
-            minimum_value FLOAT DEFAULT NULL,
-            maximum_value FLOAT DEFAULT NULL,
-            commit_id INTEGER,
-            PRIMARY KEY (id),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(object_class_id) REFERENCES object_class (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            CHECK (`relationship_class_id` IS NOT NULL OR `object_class_id` IS NOT NULL),
-            UNIQUE(name)
-        );
-    """
-    sql_list.append(sql)
-    sql = """
-        CREATE TABLE parameter_value (
-            id INTEGER NOT NULL,
-            parameter_id INTEGER NOT NULL,
-            relationship_id INTEGER DEFAULT NULL,
-            dummy_relationship_dimension INTEGER DEFAULT '1',
-            object_id INTEGER DEFAULT NULL,
-            "index" INTEGER DEFAULT '1',
-            value VARCHAR(155) DEFAULT NULL,
-            json VARCHAR(255) DEFAULT NULL,
-            expression VARCHAR(255) DEFAULT NULL,
-            time_pattern VARCHAR(155) DEFAULT NULL,
-            time_series_id VARCHAR(155) DEFAULT NULL,
-            stochastic_model_id VARCHAR(155) DEFAULT NULL,
-            commit_id INTEGER,
-            PRIMARY KEY (id),
-            FOREIGN KEY(commit_id) REFERENCES "commit" (id),
-            FOREIGN KEY(object_id) REFERENCES object (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(relationship_id, dummy_relationship_dimension)
-                REFERENCES relationship (id, dimension) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(parameter_id) REFERENCES parameter (id) ON DELETE CASCADE ON UPDATE CASCADE,
-            CHECK (`relationship_id` IS NOT NULL OR `object_id` IS NOT NULL),
-            UNIQUE (parameter_id, object_id),
-            UNIQUE (parameter_id, relationship_id)
-        );
-    """
-    sql_list.append(sql)
+    # Create new tables
+    meta = MetaData(naming_convention=naming_convention)
+    Table(
+        "commit",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("comment", String(255), nullable=False),
+        Column("date", DateTime, nullable=False),
+        Column("user", String(45)),
+    )
+    object_class_category = Table(
+        "object_class_category",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(255), nullable=False, unique=True),
+        Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    object_class = Table(
+        "object_class",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(255), nullable=False, unique=True),
+        Column("description", String(255), server_default=null()),
+        Column("category_id", Integer, ForeignKey("object_class_category.id"), server_default=null()),
+        Column("display_order", Integer, server_default="99"),
+        Column("display_icon", BigInteger, server_default=null()),
+        Column("hidden", Integer, server_default="0"),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "object_category",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("object_class_id", Integer, ForeignKey("object_class.id")),
+        Column("name", String(255), nullable=False, unique=True),
+        Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "object",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("class_id", Integer, ForeignKey("object_class.id", onupdate="CASCADE", ondelete="CASCADE")),
+        Column("name", String(255), nullable=False, unique=True),
+        Column("description", String(255), server_default=null()),
+        Column("category_id", Integer, ForeignKey("object_category.id")),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "relationship_class",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("dimension", Integer, primary_key=True),
+        Column("object_class_id", Integer, ForeignKey("object_class.id")),
+        Column("name", String(255), nullable=False),
+        Column("hidden", Integer, server_default="0"),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("dimension", "name"),
+    )
+    Table(
+        "relationship",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("dimension", Integer, primary_key=True),
+        Column("object_id", Integer, ForeignKey("object.id")),
+        Column("class_id", Integer, nullable=False),
+        Column("name", String(255), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("dimension", "name"),
+        ForeignKeyConstraint(
+            ("class_id", "dimension"),
+            ("relationship_class.id", "relationship_class.dimension"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+    )
+    Table(
+        "parameter",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(155), nullable=False, unique=True),
+        Column("description", String(155), server_default=null()),
+        Column("data_type", String(155), server_default="NUMERIC"),
+        Column("relationship_class_id", Integer, default=null()),
+        Column(
+            "object_class_id",
+            Integer,
+            ForeignKey("object_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            server_default=null(),
+        ),
+        Column("can_have_time_series", Integer, server_default="0"),
+        Column("can_have_time_pattern", Integer, server_default="1"),
+        Column("can_be_stochastic", Integer, server_default="0"),
+        Column("default_value", String(155), server_default="0"),
+        Column("is_mandatory", Integer, server_default="0"),
+        Column("precision", Integer, server_default="2"),
+        Column("unit", String(155), server_default=null()),
+        Column("minimum_value", Float, server_default=null()),
+        Column("maximum_value", Float, server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        CheckConstraint("`relationship_class_id` IS NOT NULL OR `object_class_id` IS NOT NULL"),
+    )
+    Table(
+        "parameter_value",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("parameter_id", Integer, ForeignKey("parameter.id", onupdate="CASCADE", ondelete="CASCADE")),
+        Column("relationship_id", Integer, server_default=null()),
+        Column("dummy_relationship_dimension", Integer, server_default="0"),
+        Column(
+            "object_id", Integer, ForeignKey("object.id", onupdate="CASCADE", ondelete="CASCADE"), server_default=null()
+        ),
+        Column("index", Integer, server_default="1"),
+        Column("value", String(155), server_default=null()),
+        Column("json", String(255), server_default=null()),
+        Column("expression", String(155), server_default=null()),
+        Column("time_pattern", String(155), server_default=null()),
+        Column("time_series_id", String(155), server_default=null()),
+        Column("stochastic_model_id", String(155), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        CheckConstraint("`relationship_id` IS NOT NULL OR `object_id` IS NOT NULL"),
+        UniqueConstraint("parameter_id", "object_id"),
+        UniqueConstraint("parameter_id", "relationship_id"),
+        ForeignKeyConstraint(
+            ("relationship_id", "dummy_relationship_dimension"),
+            ("relationship.id", "relationship.dimension"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+    )
     try:
-        for sql in sql_list:
-            engine.execute(text(sql))
+        meta.create_all(engine)
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+        raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
     if not upgrade:
         return engine
     is_head(db_url, upgrade=True)
     if not for_spine_model:
         return engine
-    sql_list = []
-    sql = """
-        INSERT OR IGNORE INTO `object_class` (`id`, `name`, `description`, `category_id`, `display_order`, `display_icon`, `hidden`, `commit_id`) VALUES
-        (1, 'direction', 'A flow direction', NULL, 1, 281105626296654, 0, NULL),
-        (2, 'unit', 'An entity where an energy conversion process takes place', NULL, 2, 281470681805429, 0, NULL),
-        (3, 'connection', 'An entity where an energy transfer takes place', NULL, 3, 280378317271233, 0, NULL),
-        (4, 'storage', 'A storage', NULL, 4, 280376899531934, 0, NULL),
-        (5, 'commodity', 'A commodity', NULL, 5, 281473533932880, 0, NULL),
-        (6, 'node', 'An entity where an energy balance takes place', NULL, 6, 280740554077951, 0, NULL),
-        (7, 'temporal_block', 'A temporal block', NULL, 7, 280376891207703, 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `object` (`class_id`, `name`, `description`, `category_id`, `commit_id`) VALUES
-        (1, 'from_node', 'From a node, into something else', NULL, NULL),
-        (1, 'to_node', 'Into a node, from something else', NULL, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `relationship_class` (`id`, `dimension`, `object_class_id`, `name`, `hidden`, `commit_id`) VALUES
-        (1, 0, 2, 'unit__node__direction__temporal_block', 0, NULL),
-        (1, 1, 6, 'unit__node__direction__temporal_block', 0, NULL),
-        (1, 2, 1, 'unit__node__direction__temporal_block', 0, NULL),
-        (1, 3, 7, 'unit__node__direction__temporal_block', 0, NULL),
-        (2, 0, 3, 'connection__node__direction__temporal_block', 0, NULL),
-        (2, 1, 6, 'connection__node__direction__temporal_block', 0, NULL),
-        (2, 2, 1, 'connection__node__direction__temporal_block', 0, NULL),
-        (2, 3, 7, 'connection__node__direction__temporal_block', 0, NULL),
-        (3, 0, 6, 'node__commodity', 0, NULL),
-        (3, 1, 5, 'node__commodity', 0, NULL),
-        (4, 0, 2, 'unit_group__unit', 0, NULL),
-        (4, 1, 2, 'unit_group__unit', 0, NULL),
-        (5, 0, 5, 'commodity_group__commodity', 0, NULL),
-        (5, 1, 5, 'commodity_group__commodity', 0, NULL),
-        (6, 0, 6, 'node_group__node', 0, NULL),
-        (6, 1, 6, 'node_group__node', 0, NULL),
-        (7, 0, 2, 'unit_group__commodity_group', 0, NULL),
-        (7, 1, 5, 'unit_group__commodity_group', 0, NULL),
-        (8, 0, 5, 'commodity_group__node_group', 0, NULL),
-        (8, 1, 6, 'commodity_group__node_group', 0, NULL),
-        (9, 0, 2, 'unit__commodity', 0, NULL),
-        (9, 1, 5, 'unit__commodity', 0, NULL),
-        (10, 0, 2, 'unit__commodity__direction', 0, NULL),
-        (10, 1, 5, 'unit__commodity__direction', 0, NULL),
-        (10, 2, 1, 'unit__commodity__direction', 0, NULL),
-        (11, 0, 2, 'unit__commodity__commodity', 0, NULL),
-        (11, 1, 5, 'unit__commodity__commodity', 0, NULL),
-        (11, 2, 5, 'unit__commodity__commodity', 0, NULL),
-        (12, 0, 3, 'connection__node__node', 0, NULL),
-        (12, 1, 6, 'connection__node__node', 0, NULL),
-        (12, 2, 6, 'connection__node__node', 0, NULL),
-        (13, 0, 6, 'node__temporal_block', 0, NULL),
-        (13, 1, 7, 'node__temporal_block', 0, NULL),
-        (14, 0, 4, 'storage__unit', 0, NULL),
-        (14, 1, 2, 'storage__unit', 0, NULL),
-        (15, 0, 4, 'storage__connection', 0, NULL),
-        (15, 1, 3, 'storage__connection', 0, NULL),
-        (16, 0, 4, 'storage__commodity', 0, NULL),
-        (16, 1, 5, 'storage__commodity', 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter_definition` (`id`, `name`, `object_class_id`, `default_value`, `commit_id`) VALUES
-        (1, 'fom_cost', 2, 'null', NULL),
-        (2, 'start_up_cost', 2, 'null', NULL),
-        (3, 'shut_down_cost', 2, 'null', NULL),
-        (4, 'number_of_units', 2, 1, NULL),
-        (5, 'avail_factor', 2, 1, NULL),
-        (6, 'min_down_time', 2, 0, NULL),
-        (7, 'min_up_time', 2, 0, NULL),
-        (8, 'start_datetime', 7, 'null', NULL),
-        (9, 'end_datetime', 7, 'null', NULL),
-        (10, 'time_slice_duration', 7, 'null', NULL),
-        (11, 'demand', 6, 0, NULL),
-        (12, 'online_variable_type', 2, '"integer_online_variable"', NULL),
-        (13, 'fix_units_on', 2, 'null', NULL),
-        (14, 'stor_state_cap', 4, 0, NULL),
-        (15, 'frac_state_loss', 4, 0, NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter_definition` (`id`, `name`, `relationship_class_id`, `default_value`, `commit_id`) VALUES
-        (1001, 'unit_conv_cap_to_flow', 9, 1, NULL),
-        (1002, 'unit_capacity', 10, 'null', NULL),
-        (1003, 'operating_cost', 10, 'null', NULL),
-        (1004, 'vom_cost', 10, 'null', NULL),
-        (1005, 'tax_net_flow', 8, 'null', NULL),
-        (1006, 'tax_out_flow', 8, 'null', NULL),
-        (1007, 'tax_in_flow', 8, 'null', NULL),
-        (1008, 'fix_ratio_out_in', 11, 'null', NULL),
-        (1009, 'fix_ratio_out_in', 12, 'null', NULL),
-        (1010, 'max_ratio_out_in', 11, 'null', NULL),
-        (1011, 'max_ratio_out_in', 12, 'null', NULL),
-        (1012, 'min_ratio_out_in', 11, 'null', NULL),
-        (1013, 'min_ratio_out_in', 12, 'null', NULL),
-        (1014, 'minimum_operating_point', 9, 'null', NULL),
-        (1017, 'stor_unit_discharg_eff', 15, 1, NULL),
-        (1018, 'stor_unit_charg_eff', 15, 1, NULL),
-        (1019, 'stor_conn_discharg_eff', 16, 1, NULL),
-        (1020, 'stor_conn_charg_eff', 16, 1, NULL),
-        (1021, 'max_cum_in_flow_bound', 7, 'null', NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter_tag` (`id`, `tag`, `description`, `commit_id`) VALUES
-        (1, 'duration', 'duration in time', NULL),
-        (2, 'date_time', 'a specific point in time', NULL),
-        (3, 'time_series', 'time series data', NULL),
-        (4, 'time_pattern', 'time patterned data', NULL);
-    """
-    sql_list.append(sql)
-    sql = """
-        INSERT OR IGNORE INTO `parameter_definition_tag` (`parameter_definition_id`, `parameter_tag_id`, `commit_id`) VALUES
-        (11, 3, NULL),
-        (10, 1, NULL),
-        (8, 2, NULL),
-        (9, 2, NULL);
-    """
-    sql_list.append(sql)
+    # Add specific data structure for Spine Model
+    meta = MetaData(engine, reflect=True)
+    object_class = meta.tables["object_class"]
+    object_ = meta.tables["object"]
+    relationship_class = meta.tables["relationship_class"]
+    parameter_definition = meta.tables["parameter_definition"]
+    parameter_tag = meta.tables["parameter_tag"]
+    parameter_definition_tag = meta.tables["parameter_definition_tag"]
+    obj_cls = lambda *x: dict(zip(("id", "name", "description", "display_order", "display_icon"), x))
+    obj = lambda *x: dict(zip(("class_id", "name", "description"), x))
+    rel_cls = lambda *x: dict(zip(("id", "dimension", "object_class_id", "name"), x))
+    obj_par_def = lambda *x: dict(zip(("id", "name", "object_class_id", "default_value"), x))
+    rel_par_def = lambda *x: dict(zip(("id", "name", "relationship_class_id", "default_value"), x))
+    par_tag = lambda *x: dict(zip(("id", "tag", "description"), x))
+    par_def_tag = lambda *x: dict(zip(("parameter_definition_id", "parameter_tag_id"), x))
     try:
-        for sql in sql_list:
-            engine.execute(text(sql))
+        engine.execute(
+            object_class.insert(),
+            [
+                obj_cls(1, "direction", "A flow direction", 1, 281105626296654, 0),
+                obj_cls(2, "unit", "An entity where an energy conversion process takes place", 2, 281470681805429, 0),
+                obj_cls(3, "connection", "An entity where an energy transfer takes place", 3, 280378317271233, 0),
+                obj_cls(4, "storage", "A storage", 4, 280376899531934, 0),
+                obj_cls(5, "commodity", "A commodity", 5, 281473533932880, 0),
+                obj_cls(6, "node", "An entity where an energy balance takes place", 6, 280740554077951, 0),
+                obj_cls(7, "temporal_block", "A temporal block", 7, 280376891207703, 0),
+            ],
+        )
+        engine.execute(
+            object_.insert(),
+            [
+                obj(1, "from_node", "From a node, into something else"),
+                obj(1, "to_node", "Into a node, from something else"),
+            ],
+        )
+        engine.execute(
+            relationship_class.insert(),
+            [
+                rel_cls(1, 0, 2, "unit__node__direction__temporal_block"),
+                rel_cls(1, 1, 6, "unit__node__direction__temporal_block"),
+                rel_cls(1, 2, 1, "unit__node__direction__temporal_block"),
+                rel_cls(1, 3, 7, "unit__node__direction__temporal_block"),
+                rel_cls(2, 0, 3, "connection__node__direction__temporal_block"),
+                rel_cls(2, 1, 6, "connection__node__direction__temporal_block"),
+                rel_cls(2, 2, 1, "connection__node__direction__temporal_block"),
+                rel_cls(2, 3, 7, "connection__node__direction__temporal_block"),
+                rel_cls(3, 0, 6, "node__commodity"),
+                rel_cls(3, 1, 5, "node__commodity"),
+                rel_cls(4, 0, 2, "unit_group__unit"),
+                rel_cls(4, 1, 2, "unit_group__unit"),
+                rel_cls(5, 0, 5, "commodity_group__commodity"),
+                rel_cls(5, 1, 5, "commodity_group__commodity"),
+                rel_cls(6, 0, 6, "node_group__node"),
+                rel_cls(6, 1, 6, "node_group__node"),
+                rel_cls(7, 0, 2, "unit_group__commodity_group"),
+                rel_cls(7, 1, 5, "unit_group__commodity_group"),
+                rel_cls(8, 0, 5, "commodity_group__node_group"),
+                rel_cls(8, 1, 6, "commodity_group__node_group"),
+                rel_cls(9, 0, 2, "unit__commodity"),
+                rel_cls(9, 1, 5, "unit__commodity"),
+                rel_cls(10, 0, 2, "unit__commodity__direction"),
+                rel_cls(10, 1, 5, "unit__commodity__direction"),
+                rel_cls(10, 2, 1, "unit__commodity__direction"),
+                rel_cls(11, 0, 2, "unit__commodity__commodity"),
+                rel_cls(11, 1, 5, "unit__commodity__commodity"),
+                rel_cls(11, 2, 5, "unit__commodity__commodity"),
+                rel_cls(12, 0, 3, "connection__node__node"),
+                rel_cls(12, 1, 6, "connection__node__node"),
+                rel_cls(12, 2, 6, "connection__node__node"),
+                rel_cls(13, 0, 6, "node__temporal_block"),
+                rel_cls(13, 1, 7, "node__temporal_block"),
+                rel_cls(14, 0, 4, "storage__unit"),
+                rel_cls(14, 1, 2, "storage__unit"),
+                rel_cls(15, 0, 4, "storage__connection"),
+                rel_cls(15, 1, 3, "storage__connection"),
+                rel_cls(16, 0, 4, "storage__commodity"),
+                rel_cls(16, 1, 5, "storage__commodity"),
+            ],
+        )
+        engine.execute(
+            parameter_definition.insert(),
+            [
+                obj_par_def(1, "fom_cost", 2, "null"),
+                obj_par_def(2, "start_up_cost", 2, "null"),
+                obj_par_def(3, "shut_down_cost", 2, "null"),
+                obj_par_def(4, "number_of_units", 2, 1),
+                obj_par_def(5, "avail_factor", 2, 1),
+                obj_par_def(6, "min_down_time", 2, 0),
+                obj_par_def(7, "min_up_time", 2, 0),
+                obj_par_def(8, "start_datetime", 7, "null"),
+                obj_par_def(9, "end_datetime", 7, "null"),
+                obj_par_def(10, "time_slice_duration", 7, "null"),
+                obj_par_def(11, "demand", 6, 0),
+                obj_par_def(12, "online_variable_type", 2, '"integer_online_variable"'),
+                obj_par_def(13, "fix_units_on", 2, "null"),
+                obj_par_def(14, "stor_state_cap", 4, 0),
+                obj_par_def(15, "frac_state_loss", 4, 0),
+            ],
+        )
+        engine.execute(
+            parameter_definition.insert(),
+            [
+                rel_par_def(1001, "unit_conv_cap_to_flow", 9, 1),
+                rel_par_def(1002, "unit_capacity", 10, "null"),
+                rel_par_def(1003, "operating_cost", 10, "null"),
+                rel_par_def(1004, "vom_cost", 10, "null"),
+                rel_par_def(1005, "tax_net_flow", 8, "null"),
+                rel_par_def(1006, "tax_out_flow", 8, "null"),
+                rel_par_def(1007, "tax_in_flow", 8, "null"),
+                rel_par_def(1008, "fix_ratio_out_in", 11, "null"),
+                rel_par_def(1009, "fix_ratio_out_in", 12, "null"),
+                rel_par_def(1010, "max_ratio_out_in", 11, "null"),
+                rel_par_def(1011, "max_ratio_out_in", 12, "null"),
+                rel_par_def(1012, "min_ratio_out_in", 11, "null"),
+                rel_par_def(1013, "min_ratio_out_in", 12, "null"),
+                rel_par_def(1014, "minimum_operating_point", 9, "null"),
+                rel_par_def(1017, "stor_unit_discharg_eff", 15, 1),
+                rel_par_def(1018, "stor_unit_charg_eff", 15, 1),
+                rel_par_def(1019, "stor_conn_discharg_eff", 16, 1),
+                rel_par_def(1020, "stor_conn_charg_eff", 16, 1),
+                rel_par_def(1021, "max_cum_in_flow_bound", 7, "null"),
+            ],
+        )
+        engine.execute(
+            parameter_tag.insert(),
+            [
+                par_tag(1, "duration", "duration in time"),
+                par_tag(2, "date_time", "a specific point in time"),
+                par_tag(3, "time_series", "time series data"),
+                par_tag(4, "time_pattern", "time patterned data"),
+            ],
+        )
+        engine.execute(
+            parameter_definition_tag.insert(),
+            [par_def_tag(11, 3), par_def_tag(10, 1), par_def_tag(8, 2), par_def_tag(9, 2)],
+        )
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database. Creation script failed: {}".format(e.orig.args))
+        raise SpineDBAPIError("Unable to add specific data structure for Spine Model: {}".format(e.orig.args))
     return engine
 
 

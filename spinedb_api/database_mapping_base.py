@@ -134,7 +134,7 @@ class DatabaseMappingBase(object):
             migration_context = MigrationContext.configure(connection)
             current = migration_context.get_current_revision()
             if current is None:
-                # No revision information. Check if the schema of the given url corresponds to 
+                # No revision information. Check if the schema of the given url corresponds to
                 # a non-upgraded new Spine db --otherwise we can't go on.
                 ref_engine = create_new_spine_database("sqlite://", upgrade=False)
                 if not schemas_are_equal(self.engine, ref_engine):
@@ -297,7 +297,7 @@ class DatabaseMappingBase(object):
                         "object_class_name_list"
                     ),
                 )
-                .group_by(self.ext_relationship_class_sq.c.id)
+                .group_by(self.ext_relationship_class_sq.c.id, self.ext_relationship_class_sq.c.name)
                 .subquery()
             )
         return self._wide_relationship_class_sq
@@ -361,7 +361,9 @@ class DatabaseMappingBase(object):
                     func.group_concat(self.ext_relationship_sq.c.object_id).label("object_id_list"),
                     func.group_concat(self.ext_relationship_sq.c.object_name).label("object_name_list"),
                 )
-                .group_by(self.ext_relationship_sq.c.id)
+                .group_by(
+                    self.ext_relationship_sq.c.id, self.ext_relationship_sq.c.class_id, self.ext_relationship_sq.c.name
+                )
                 .subquery()
             )
         return self._wide_relationship_sq
@@ -628,7 +630,11 @@ class DatabaseMappingBase(object):
                     func.group_concat(self.parameter_value_list_sq.c.value).label("value_list"),
                 )
                 .order_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.value_index)
-                .group_by(self.parameter_value_list_sq.c.id)
+                .group_by(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.name,
+                    self.parameter_value_list_sq.c.value_index,
+                )
             ).subquery()
         return self._wide_parameter_value_list_sq
 
