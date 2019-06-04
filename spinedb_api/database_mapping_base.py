@@ -114,7 +114,7 @@ class DatabaseMappingBase(object):
             self.engine = create_engine(self.db_url)
             with self.engine.connect():
                 pass
-        except DatabaseError as e:
+        except Exception as e:
             raise SpineDBAPIError(
                 "Could not connect to '{0}': {1}. Please make sure that '{0}' is the URL "
                 "of a Spine database and try again.".format(self.db_url, e.orig.args)
