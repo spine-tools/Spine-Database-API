@@ -248,11 +248,11 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.wide_parameter_value_list_sq.c.id.in_(id_list))
         return qry
 
-    def object_parameter_fields(self):
+    def object_parameter_definition_fields(self):
         """Return object parameter fields."""
         return [x["name"] for x in self.object_parameter_definition_list().column_descriptions]
 
-    def relationship_parameter_fields(self):
+    def relationship_parameter_definition_fields(self):
         """Return relationship parameter fields."""
         return [x["name"] for x in self.relationship_parameter_definition_list().column_descriptions]
 
