@@ -38,48 +38,6 @@ class DatabaseMappingQueryMixin:
         """Initialize class."""
         super().__init__(*args, **kwargs)
 
-    def single_object_class(self, id=None, name=None):
-        """Return a single object class given the id or name."""
-        qry = self.query(self.object_class_sq)
-        if id:
-            return qry.filter(self.object_class_sq.c.id == id)
-        if name:
-            return qry.filter(self.object_class_sq.c.name == name)
-        return self._empty_list()
-
-    def single_object(self, id=None, name=None):
-        """Return a single object given the id or name."""
-        qry = self.query(self.object_sq)
-        if id:
-            return qry.filter(self.object_sq.c.id == id)
-        if name:
-            return qry.filter(self.object_sq.c.name == name)
-        return self._empty_list()
-
-    def single_wide_relationship_class(self, id=None, name=None):
-        """Return a single relationship class in wide format given the id or name."""
-        qry = self.query(self.wide_relationship_class_sq)
-        if id:
-            return qry.filter(self.wide_relationship_class_sq.c.id == id)
-        if name:
-            return qry.filter(self.wide_relationship_class_sq.c.name == name)
-        return self._empty_list()
-
-    def single_wide_relationship(self, id=None, name=None, class_id=None, object_id_list=None, object_name_list=None):
-        """Return a single relationship in wide format given the id or name."""
-        qry = self.query(self.wide_relationship_sq)
-        if id:
-            return qry.filter(self.wide_relationship_sq.c.id == id)
-        if name:
-            return qry.filter(self.wide_relationship_sq.c.name == name)
-        if class_id:
-            qry = qry.filter(self.wide_relationship_sq.c.class_id == class_id)
-            if object_id_list:
-                return qry.filter(self.wide_relationship_sq.c.object_id_list == object_id_list)
-            if object_name_list:
-                return qry.filter(self.wide_relationship_sq.c.object_name_list == object_name_list)
-        return self._empty_list()
-
     def single_parameter_definition(self, id=None, name=None):
         """Return parameter corresponding to id."""
         qry = self.query(self.parameter_definition_sq)

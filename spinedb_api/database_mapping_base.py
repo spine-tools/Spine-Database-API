@@ -42,7 +42,7 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 class DatabaseMappingBase(object):
     """Base class for all database mappings.
-    It provides the :meth:`query` method and a bunch of properties holding sqlalchemy 'subqueries'
+    It provides the :meth:`query` method and a bunch of properties holding ad-hoc sqlalchemy 'subqueries'
     (:class:`~sqlalchemy.sql.expression.Alias` objects). The idea is to use :meth:`query`
     in combination with these properties to perform arbitrary SELECT statements.
 
@@ -91,6 +91,7 @@ class DatabaseMappingBase(object):
         self._wide_parameter_definition_tag_sq = None
         self._ext_parameter_tag_definition_sq = None
         self._wide_parameter_tag_definition_sq = None
+        self._ord_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
         # Table to class dict for convenience
         self.table_to_class = {
@@ -170,8 +171,10 @@ class DatabaseMappingBase(object):
             raise SpineTableNotFoundError(not_found, self.db_url)
 
     def subquery(self, tablename):
-        """Select all records from the given table. Equivalent to:
-            ``SELECT * FROM tablename``
+        """Return an (:class:`~sqlalchemy.sql.expression.Alias` object) derived from:
+        .. code-block:: sql
+
+            SELECT * FROM tablename
         """
         classname = self.table_to_class[tablename]
         class_ = getattr(self, classname)
@@ -737,6 +740,30 @@ class DatabaseMappingBase(object):
         return self._wide_parameter_tag_definition_sq
 
     @property
+    def ord_parameter_value_list_sq(self):
+        """
+        .. code-block:: sql
+
+            SELECT
+                id,
+                name,
+                GROUP_CONCAT(value) AS value_list
+            FROM (
+                SELECT id, name, value
+                FROM parameter_value_list
+                ORDER BY id, value_index
+            )
+            GROUP BY id
+        """
+        if self._ord_parameter_value_list_sq is None:
+            self._ord_parameter_value_list_sq = (
+                self.query(self.parameter_value_list_sq)
+                .order_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.value_index)
+                .subquery()
+            )
+        return self._ord_parameter_value_list_sq
+
+    @property
     def wide_parameter_value_list_sq(self):
         """
         .. code-block:: sql
@@ -757,14 +784,11 @@ class DatabaseMappingBase(object):
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
-                    func.group_concat(self.parameter_value_list_sq.c.value).label("value_list"),
-                )
-                .order_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.value_index)
-                .group_by(
-                    self.parameter_value_list_sq.c.id,
-                    self.parameter_value_list_sq.c.name,
-                    self.parameter_value_list_sq.c.value_index,
-                )
+                    func.group_concat(
+                        # self.parameter_value_list_sq.c.value.op("ORDER BY")(self.parameter_value_list_sq.c.value_index)
+                        self.parameter_value_list_sq.c.value
+                    ).label("value_list"),
+                ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq
 

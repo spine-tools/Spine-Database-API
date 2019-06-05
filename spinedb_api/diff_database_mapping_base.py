@@ -38,11 +38,11 @@ from sqlalchemy.orm.util import AliasedInsp
 
 
 class DiffDatabaseMappingBase(DatabaseMappingBase):
-    """Base class for the 'difference' database mapping.
+    """Base class for the *difference* database mapping.
 
-    This is a special mapping designed to stage temporary changes to the database
-    so they can be committed in batch. All queries to this mapping return the status
-    'as if' the changes were already committed.
+    This is a special mapping designed to *stage* temporary changes to the database
+    so they can be committed in batch. All subquery properties return results
+    *as if* the changes were already committed.
     """
 
     # NOTE: It works by creating and mapping a set of
@@ -124,9 +124,12 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
                 setattr(self, attr, None)
 
     def subquery(self, tablename):
-        """Select all records from the given table 'as if' the staged changes were
-        already committed. Equivalent to:
-            ``SELECT * FROM tablename``
+        """Return an (:class:`~sqlalchemy.sql.expression.Alias` object) derived from:: sql
+
+            SELECT * FROM tablename
+
+        If this mapping has staged changes, the result includes those changes 'as if'
+        they were already committed.
         """
         # NOTE: Overriden method to (i) filter dirty items from original tables, and
         # (ii) also bring data from diff tables:

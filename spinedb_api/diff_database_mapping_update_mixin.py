@@ -49,16 +49,22 @@ class DiffDatabaseMappingUpdateMixin:
         dirty_ids = set()
         updated_ids = set()
         for kwargs in checked_kwargs_list:
+            if any(k not in kwargs for k in filter_key):
+                continue
             filter_ = {k: kwargs.pop(k) for k in filter_key}
-            if len(filter_) != len(filter_key) or not kwargs:
+            if not kwargs:
                 continue
             if any(x in kwargs for x in unhandled_fields):
                 continue
-            for diff_item in self.query(diff_class).filter_by(**filter_):
+            diff_query = self.query(diff_class).filter_by(**filter_)
+            for diff_item in diff_query:
                 updated_kwargs = attr_dict(diff_item)
                 updated_kwargs.update(kwargs)
                 items_for_update.append(updated_kwargs)
                 updated_ids.add(updated_kwargs["id"])
+            if diff_query.count() > 0:
+                # Don't look in orig_class if found in diff_class
+                continue
             for orig_item in self.query(orig_class).filter_by(**filter_):
                 updated_kwargs = attr_dict(orig_item)
                 updated_kwargs.update(kwargs)
@@ -223,7 +229,7 @@ class DiffDatabaseMappingUpdateMixin:
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while updating parameters: {}".format(e.orig.args)
+            msg = "DBAPIError while updating parameter definitions: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def update_parameters(self, *kwargs_list, strict=False):
