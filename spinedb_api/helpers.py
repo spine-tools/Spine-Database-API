@@ -234,7 +234,8 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
     except DatabaseError as e:
         raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
     # Drop existing tables. This is a Spine db now...
-    meta = MetaData(engine, reflect=True)
+    meta = MetaData(engine)
+    meta.reflect()
     meta.drop_all(engine)
     # Create new tables
     meta = MetaData(naming_convention=naming_convention)

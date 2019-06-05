@@ -17,22 +17,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-"""
-A class to perform SELECT queries over a Spine database ORM.
+"""Provides :class:`.DatabaseMappingQueryMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
 """
+# TODO: Consider returning lists (by callling `all()` on the resulting query)
+# TODO: Maybe handle errors in queries
+# TODO: Improve docstrings
 
 import warnings
 from sqlalchemy import false, distinct, func, or_
 
-# TODO: Consider returning lists (by callling `all()` on the resulting query)
-# TODO: Maybe handle errors in queries
-
 
 class DatabaseMappingQueryMixin:
-    """A mixin to perform SELECT queries over a Spine database ORM.
+    """Provides methods to perform standard queries (SELECT statements) on a Spine db.
     """
 
     def __init__(self, *args, **kwargs):
@@ -46,7 +45,7 @@ class DatabaseMappingQueryMixin:
             return qry.filter(self.object_class_sq.c.id == id)
         if name:
             return qry.filter(self.object_class_sq.c.name == name)
-        return self.empty_list()
+        return self._empty_list()
 
     def single_object(self, id=None, name=None):
         """Return a single object given the id or name."""
@@ -55,7 +54,7 @@ class DatabaseMappingQueryMixin:
             return qry.filter(self.object_sq.c.id == id)
         if name:
             return qry.filter(self.object_sq.c.name == name)
-        return self.empty_list()
+        return self._empty_list()
 
     def single_wide_relationship_class(self, id=None, name=None):
         """Return a single relationship class in wide format given the id or name."""
@@ -64,7 +63,7 @@ class DatabaseMappingQueryMixin:
             return qry.filter(self.wide_relationship_class_sq.c.id == id)
         if name:
             return qry.filter(self.wide_relationship_class_sq.c.name == name)
-        return self.empty_list()
+        return self._empty_list()
 
     def single_wide_relationship(self, id=None, name=None, class_id=None, object_id_list=None, object_name_list=None):
         """Return a single relationship in wide format given the id or name."""
@@ -79,7 +78,7 @@ class DatabaseMappingQueryMixin:
                 return qry.filter(self.wide_relationship_sq.c.object_id_list == object_id_list)
             if object_name_list:
                 return qry.filter(self.wide_relationship_sq.c.object_name_list == object_name_list)
-        return self.empty_list()
+        return self._empty_list()
 
     def single_parameter_definition(self, id=None, name=None):
         """Return parameter corresponding to id."""
@@ -88,7 +87,7 @@ class DatabaseMappingQueryMixin:
             return qry.filter(self.parameter_definition_sq.c.id == id)
         if name:
             return qry.filter(self.parameter_definition_sq.c.name == name)
-        return self.empty_list()
+        return self._empty_list()
 
     def single_object_parameter_definition(self, id):
         """Return object class and the parameter corresponding to id."""
@@ -119,7 +118,7 @@ class DatabaseMappingQueryMixin:
         """Return parameter value corresponding to id."""
         if id:
             return self.parameter_value_list().filter(self.parameter_value_sq.c.id == id)
-        return self.empty_list()
+        return self._empty_list()
 
     def single_object_parameter_value(self, id=None, parameter_id=None, parameter_definition_id=None, object_id=None):
         """Return object and the parameter value, either corresponding to id,
@@ -137,7 +136,7 @@ class DatabaseMappingQueryMixin:
             return qry.filter(self.parameter_value_sq.c.parameter_definition_id == parameter_definition_id).filter(
                 self.parameter_value_sq.c.object_id == object_id
             )
-        return self.empty_list()
+        return self._empty_list()
 
     def single_relationship_parameter_value(self, id):
         """Return relationship and the parameter value corresponding to id."""
@@ -367,7 +366,7 @@ class DatabaseMappingQueryMixin:
         """Return parameters that do not have a value for given object."""
         object_ = self.single_object(id=object_id).one_or_none()
         if not object_:
-            return self.empty_list()
+            return self._empty_list()
         valued_parameter_ids = self.query(self.parameter_value_sq.c.parameter_definition_id).filter(
             self.parameter_value_sq.c.object_id == object_id
         )
@@ -379,7 +378,7 @@ class DatabaseMappingQueryMixin:
         """Return objects for which given parameter does not have a value."""
         parameter = self.single_parameter(parameter_id).one_or_none()
         if not parameter:
-            return self.empty_list()
+            return self._empty_list()
         valued_object_ids = self.query(self.parameter_value_sq.c.object_id).filter(
             self.parameter_value_sq.c.parameter_definition_id == parameter_id
         )
@@ -393,7 +392,7 @@ class DatabaseMappingQueryMixin:
         """Return parameters that do not have a value for given relationship."""
         relationship = self.single_wide_relationship(id=relationship_id).one_or_none()
         if not relationship:
-            return self.empty_list()
+            return self._empty_list()
         valued_parameter_ids = self.query(self.parameter_value_sq.c.parameter_definition_id).filter(
             self.parameter_value_sq.relationship_id == relationship_id
         )
@@ -405,7 +404,7 @@ class DatabaseMappingQueryMixin:
         """Return relationships for which given parameter does not have a value."""
         parameter = self.single_parameter(parameter_id).one_or_none()
         if not parameter:
-            return self.empty_list()
+            return self._empty_list()
         valued_relationship_ids = self.query(self.parameter_value_sq.c.relationship_id).filter(
             self.parameter_value_sq.c.parameter_definition_id == parameter_id
         )
@@ -476,5 +475,5 @@ class DatabaseMappingQueryMixin:
         """Return relationship parameter value fields."""
         return [x["name"] for x in self.relationship_parameter_value_list().column_descriptions]
 
-    def empty_list(self):
+    def _empty_list(self):
         return self.query(false()).filter(false())

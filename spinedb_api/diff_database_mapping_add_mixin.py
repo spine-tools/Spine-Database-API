@@ -17,12 +17,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-"""
-A class to handle INSERT operations onto a Spine db 'diff' ORM.
+"""Provides :class:`.DiffDatabaseMappingAddMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
 """
+# TODO: improve docstrings
 
 import warnings
 from sqlalchemy import func, MetaData, Table, Column, Integer, String, DateTime, null
@@ -32,20 +32,17 @@ from .exception import SpineDBAPIError, SpineIntegrityError
 from datetime import datetime, timezone
 
 
-# TODO: improve docstrings
-
-
 class DiffDatabaseMappingAddMixin:
-    """A mixin to handle INSERT operations onto a Spine db 'diff' ORM.
+    """Provides methods to add items into a Spine db.
     """
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
         self.NextId = None
-        self.init_next_id()
+        self._init_next_id()
 
-    def init_next_id(self):
+    def _init_next_id(self):
         """Create `next_id` table if not exists and map it."""
         # TODO: Does this work? What happens if there's already a next_id table with a different definition?
         # Create table
@@ -74,7 +71,7 @@ class DiffDatabaseMappingAddMixin:
         except (AttributeError, NoSuchTableError):
             raise SpineTableNotFoundError("next_id", self.db_url)
 
-    def next_id_with_lock(self):
+    def _next_id_with_lock(self):
         """A 'next_id' item to use for adding new items."""
         next_id = self.query(self.NextId).one_or_none()
         if next_id:
@@ -124,7 +121,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.object_class_id:
             id = next_id.object_class_id
         else:
@@ -176,7 +173,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.object_id:
             id = next_id.object_id
         else:
@@ -232,7 +229,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.relationship_class_id:
             id = next_id.relationship_class_id
         else:
@@ -292,7 +289,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.relationship_id:
             id = next_id.relationship_id
         else:
@@ -351,7 +348,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.parameter_definition_id:
             id = next_id.parameter_definition_id
         else:
@@ -408,7 +405,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.parameter_value_id:
             id = next_id.parameter_value_id
         else:
@@ -457,7 +454,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.parameter_tag_id:
             id = next_id.parameter_tag_id
         else:
@@ -508,7 +505,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.parameter_definition_tag_id:
             id = next_id.parameter_definition_tag_id
         else:
@@ -559,7 +556,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             id_list (set): added instances' ids
         """
-        next_id = self.next_id_with_lock()
+        next_id = self._next_id_with_lock()
         if next_id.parameter_value_list_id:
             id = next_id.parameter_value_list_id
         else:

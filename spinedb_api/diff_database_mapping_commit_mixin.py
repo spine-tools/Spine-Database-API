@@ -41,7 +41,10 @@ class DiffDatabaseMappingCommitMixin:
         super().__init__(*args, **kwargs)
 
     def commit_session(self, comment):
-        """Realize differences into original tables and commit."""
+        """Commit staged changes to the database.
+
+        :param str comment: An informative comment explaining the nature of the commit.
+        """
         try:
             user = self.username
             date = datetime.now(timezone.utc)
@@ -55,9 +58,9 @@ class DiffDatabaseMappingCommitMixin:
                 orig_class = getattr(self, classname)
                 removed_ids = list(ids)
                 for i in range(0, len(removed_ids), n):
-                    self.query(orig_class).filter(
-                        orig_class.id.in_(removed_ids[i : i + n])
-                    ).delete(synchronize_session=False)
+                    self.query(orig_class).filter(orig_class.id.in_(removed_ids[i : i + n])).delete(
+                        synchronize_session=False
+                    )
             # Update
             for tablename, ids in self.updated_item_id.items():
                 classname = self.table_to_class[tablename]
@@ -66,9 +69,7 @@ class DiffDatabaseMappingCommitMixin:
                 dirty_ids = list(ids)
                 updated_items = []
                 for i in range(0, len(dirty_ids), n):
-                    for item in self.query(diff_class).filter(
-                        diff_class.id.in_(dirty_ids[i : i + n])
-                    ):
+                    for item in self.query(diff_class).filter(diff_class.id.in_(dirty_ids[i : i + n])):
                         kwargs = attr_dict(item)
                         kwargs["commit_id"] = commit.id
                         updated_items.append(kwargs)
@@ -81,27 +82,26 @@ class DiffDatabaseMappingCommitMixin:
                 new_ids = list(ids)
                 new_items = []
                 for i in range(0, len(new_ids), n):
-                    for item in self.query(diff_class).filter(
-                        diff_class.id.in_(new_ids[i : i + n])
-                    ):
+                    for item in self.query(diff_class).filter(diff_class.id.in_(new_ids[i : i + n])):
                         kwargs = attr_dict(item)
                         kwargs["commit_id"] = commit.id
                         new_items.append(kwargs)
                 self.session.bulk_insert_mappings(orig_class, new_items)
-            self.reset_diff_mapping()
+            self._reset_diff_mapping()
             self.session.commit()
-            self.init_diff_dicts()
+            self._init_diff_dicts()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def rollback_session(self):
-        """Clear all differences."""
+        """Discard all staged changes.
+        """
         try:
-            self.reset_diff_mapping()
+            self._reset_diff_mapping()
             self.session.commit()
-            self.init_diff_dicts()
+            self._init_diff_dicts()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)

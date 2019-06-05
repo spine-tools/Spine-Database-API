@@ -18,6 +18,17 @@ from .helpers import (
     is_empty,
     forward_sweep,
 )
+from .check_functions import (
+    check_object_class,
+    check_object,
+    check_wide_relationship_class,
+    check_wide_relationship,
+    check_parameter_definition,
+    check_parameter_value,
+    check_parameter_tag,
+    check_parameter_definition_tag,
+    check_wide_parameter_value_list,
+)
 from .import_functions import (
     import_data,
     import_object_classes,

@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+Provides :class:`.DiffDatabaseMappingBase`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -38,9 +38,15 @@ from sqlalchemy.orm.util import AliasedInsp
 
 
 class DiffDatabaseMappingBase(DatabaseMappingBase):
-    """A class to create a 'diff' ORM from a Spine db. It works by creating and mapping a set of
-    temporary 'diff' tables, where changes made by the user can be staged until committed.
+    """Base class for the 'difference' database mapping.
+
+    This is a special mapping designed to stage temporary changes to the database
+    so they can be committed in batch. All queries to this mapping return the status
+    'as if' the changes were already committed.
     """
+
+    # NOTE: It works by creating and mapping a set of
+    # temporary 'diff' tables to hold staged changes until the moment of commit.
 
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
@@ -63,17 +69,17 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.removed_item_id = {}
         self.dirty_item_id = {}
         # Initialize stuff
-        self.init_diff_dicts()
-        self.create_diff_tables_and_mapping()
+        self._init_diff_dicts()
+        self._create_diff_tables_and_mapping()
 
-    def init_diff_dicts(self):
+    def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
         self.added_item_id = {x: set() for x in self.table_to_class}
         self.updated_item_id = {x: set() for x in self.table_to_class}
         self.removed_item_id = {x: set() for x in self.table_to_class}
         self.dirty_item_id = {x: set() for x in self.table_to_class}
 
-    def create_diff_tables_and_mapping(self):
+    def _create_diff_tables_and_mapping(self):
         """Create diff tables and ORM."""
         # Create tables...
         diff_name_prefix = "diff_" + self.username
@@ -102,7 +108,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
-    def mark_as_dirty(self, tablename, ids):
+    def _mark_as_dirty(self, tablename, ids):
         """Mark items as dirty, which means the corresponding records from the original tables
         are no longer valid, and they should be queried from the diff tables instead."""
         self.dirty_item_id[tablename].update(ids)
@@ -118,13 +124,15 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
                 setattr(self, attr, None)
 
     def subquery(self, tablename):
+        """Select all records from the given table 'as if' the staged changes were
+        already committed. Equivalent to:
+            ``SELECT * FROM tablename``
         """
-        Overriden method to (i) filter dirty items from original tables, and
-        (ii) also bring data from diff tables:
-            SELECT * FROM orig_table WHERE id NOT IN dirty_ids
-            UNION ALL
-            SELECT * FROM diff_table
-        """
+        # NOTE: Overriden method to (i) filter dirty items from original tables, and
+        # (ii) also bring data from diff tables:
+        #     SELECT * FROM orig_table WHERE id NOT IN dirty_ids
+        #     UNION ALL
+        #     SELECT * FROM diff_table
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
@@ -136,14 +144,14 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         )
 
     def has_pending_changes(self):
-        """Return `True` if there are uncommitted changes. Otherwise return `False`."""
+        """True if this mapping has uncommitted changes."""
         if any([v for v in self.added_item_id.values()]):
             return True
         if any([v for v in self.dirty_item_id.values()]):
             return True
         return False
 
-    def reset_diff_mapping(self):
+    def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
         self.query(self.DiffObjectClass).delete()
         self.query(self.DiffObject).delete()
