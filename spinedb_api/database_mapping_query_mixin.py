@@ -26,7 +26,6 @@
 # TODO: Maybe handle errors in queries
 # TODO: Improve docstrings
 
-import warnings
 from sqlalchemy import false, distinct, func, or_
 
 
@@ -37,68 +36,6 @@ class DatabaseMappingQueryMixin:
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
-
-    def single_parameter_definition(self, id=None, name=None):
-        """Return parameter corresponding to id."""
-        qry = self.query(self.parameter_definition_sq)
-        if id:
-            return qry.filter(self.parameter_definition_sq.c.id == id)
-        if name:
-            return qry.filter(self.parameter_definition_sq.c.name == name)
-        return self._empty_list()
-
-    def single_object_parameter_definition(self, id):
-        """Return object class and the parameter corresponding to id."""
-        return self.object_parameter_definition_list().filter(self.parameter_definition_sq.c.id == id)
-
-    def single_relationship_parameter_definition(self, id):
-        """Return relationship class and the parameter corresponding to id."""
-        return self.relationship_parameter_definition_list().filter(self.parameter_definition_sq.c.id == id)
-
-    def single_parameter(self, id=None, name=None):
-        warnings.warn("single_parameter is deprecated, use single_parameter_definition instead", DeprecationWarning)
-        return self.single_parameter_definition(id=id, name=name)
-
-    def single_object_parameter(self, id):
-        warnings.warn(
-            "single_object_parameter is deprecated, use single_object_parameter_definition instead", DeprecationWarning
-        )
-        return self.single_object_parameter_definition(id)
-
-    def single_relationship_parameter(self, id):
-        warnings.warn(
-            "single_relationship_parameter is deprecated, use single_relationship_parameter_definition instead",
-            DeprecationWarning,
-        )
-        return self.single_relationship_parameter_definition(id)
-
-    def single_parameter_value(self, id=None):
-        """Return parameter value corresponding to id."""
-        if id:
-            return self.parameter_value_list().filter(self.parameter_value_sq.c.id == id)
-        return self._empty_list()
-
-    def single_object_parameter_value(self, id=None, parameter_id=None, parameter_definition_id=None, object_id=None):
-        """Return object and the parameter value, either corresponding to id,
-        or to parameter_id and object_id.
-        """
-        if parameter_definition_id is None and parameter_id is not None:
-            parameter_definition_id = parameter_id
-            warnings.warn(
-                "the parameter_id argument is deprecated, use parameter_definition_id instead", DeprecationWarning
-            )
-        qry = self.object_parameter_value_list()
-        if id:
-            return qry.filter(self.parameter_value_sq.c.id == id)
-        if parameter_definition_id and object_id:
-            return qry.filter(self.parameter_value_sq.c.parameter_definition_id == parameter_definition_id).filter(
-                self.parameter_value_sq.c.object_id == object_id
-            )
-        return self._empty_list()
-
-    def single_relationship_parameter_value(self, id):
-        """Return relationship and the parameter value corresponding to id."""
-        return self.relationship_parameter_value_list().filter(self.parameter_value_sq.c.id == id)
 
     def object_class_list(self, id_list=None, ordered=True):
         """Return object classes ordered by display order."""
@@ -141,7 +78,6 @@ class DatabaseMappingQueryMixin:
                     self.wide_relationship_class_sq.c.object_class_id_list == object_class_id,
                 )
             )
-
         return qry
 
     def relationship_list(self, id=None, ordered=True):
@@ -182,56 +118,23 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.parameter_definition_sq.c.relationship_class_id == relationship_class_id)
         return qry
 
-    def object_parameter_definition_list(self, object_class_id=None, parameter_id=None, parameter_definition_id=None):
+    def object_parameter_definition_list(self, object_class_id=None, parameter_definition_id=None):
         """Return object classes and their parameters."""
-        if parameter_definition_id is None and parameter_id is not None:
-            parameter_definition_id = parameter_id
-            warnings.warn(
-                "the parameter_id argument is deprecated, use parameter_definition_id instead", DeprecationWarning
-            )
         qry = self.query(self.object_parameter_definition_sq)
         if object_class_id:
             qry = qry.filter(self.object_parameter_definition_sq.c.object_class_id == object_class_id)
-        if parameter_id:
+        if parameter_definition_id:
             qry = qry.filter(self.object_parameter_definition_sq.c.id == parameter_id)
         return qry
 
-    def relationship_parameter_definition_list(
-        self, relationship_class_id=None, parameter_id=None, parameter_definition_id=None
-    ):
+    def relationship_parameter_definition_list(self, relationship_class_id=None, parameter_definition_id=None):
         """Return relationship classes and their parameters."""
-        if parameter_definition_id is None and parameter_id is not None:
-            parameter_definition_id = parameter_id
-            warnings.warn(
-                "the parameter_id argument is deprecated, use parameter_definition_id instead", DeprecationWarning
-            )
         qry = self.query(self.relationship_parameter_definition_sq)
         if relationship_class_id:
             qry = qry.filter(self.relationship_parameter_definition_sq.c.relationship_class_id == relationship_class_id)
-        if parameter_id:
+        if parameter_definition_id:
             qry = qry.filter(self.relationship_parameter_definition_sq.c.id == parameter_id)
         return qry
-
-    def parameter_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
-        warnings.warn("parameter_list is deprecated, use parameter_definition_list instead", DeprecationWarning)
-        return self.parameter_definition_list(
-            id_list=id_list, object_class_id=object_class_id, relationship_class_id=relationship_class_id
-        )
-
-    def object_parameter_list(self, object_class_id=None, parameter_id=None):
-        warnings.warn(
-            "object_parameter_list is deprecated, use object_parameter_definition_list instead", DeprecationWarning
-        )
-        return self.object_parameter_definition_list(object_class_id=object_class_id, parameter_id=parameter_id)
-
-    def relationship_parameter_list(self, relationship_class_id=None, parameter_id=None):
-        warnings.warn(
-            "relationship_parameter_list is deprecated, use relationship_parameter_definition_list instead",
-            DeprecationWarning,
-        )
-        return self.relationship_parameter_definition_list(
-            relationship_class_id=relationship_class_id, parameter_id=parameter_id
-        )
 
     def wide_object_parameter_definition_list(self, object_class_id_list=None, parameter_definition_id_list=None):
         """Return object classes and their parameter definitions in wide format."""
@@ -300,78 +203,6 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.relationship_parameter_value_sq.c.parameter_name == parameter_name)
         return qry
 
-    # TODO: Is this one needed?
-    def all_object_parameter_value_list(self, parameter_id=None):
-        """Return all object parameter values, even those that don't have a value."""
-        qry = (
-            self.query(
-                self.parameter_definition_sq.c.id.label("parameter_id"),
-                self.object_sq.c.name.label("object_name"),
-                self.parameter_value_sq.c.id.label("parameter_value_id"),
-                self.parameter_definition_sq.c.name.label("parameter_name"),
-                self.parameter_value_sq.c.value,
-            )
-            .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
-            .outerjoin(self.parameter_value_sq)
-            .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
-        )
-        if parameter_id:
-            qry = qry.filter(self.parameter_definition_sq.c.id == parameter_id)
-        return qry
-
-    # TODO: Aren't all these unvalued_ methods obsolete?
-    def unvalued_object_parameter_list(self, object_id):
-        """Return parameters that do not have a value for given object."""
-        object_ = self.single_object(id=object_id).one_or_none()
-        if not object_:
-            return self._empty_list()
-        valued_parameter_ids = self.query(self.parameter_value_sq.c.parameter_definition_id).filter(
-            self.parameter_value_sq.c.object_id == object_id
-        )
-        return self.parameter_definition_list(object_class_id=object_.class_id).filter(
-            ~self.parameter_definition_sq.c.id.in_(valued_parameter_ids)
-        )
-
-    def unvalued_object_list(self, parameter_id):
-        """Return objects for which given parameter does not have a value."""
-        parameter = self.single_parameter(parameter_id).one_or_none()
-        if not parameter:
-            return self._empty_list()
-        valued_object_ids = self.query(self.parameter_value_sq.c.object_id).filter(
-            self.parameter_value_sq.c.parameter_definition_id == parameter_id
-        )
-        return (
-            self.object_list()
-            .filter(self.object_sq.c.class_id == parameter.object_class_id)
-            .filter(~self.object_sq.c.id.in_(valued_object_ids))
-        )
-
-    def unvalued_relationship_parameter_list(self, relationship_id):
-        """Return parameters that do not have a value for given relationship."""
-        relationship = self.single_wide_relationship(id=relationship_id).one_or_none()
-        if not relationship:
-            return self._empty_list()
-        valued_parameter_ids = self.query(self.parameter_value_sq.c.parameter_definition_id).filter(
-            self.parameter_value_sq.relationship_id == relationship_id
-        )
-        return self.parameter_definition_list(relationship_class_id=relationship.class_id).filter(
-            ~self.parameter_definition_sq.c.id.in_(valued_parameter_ids)
-        )
-
-    def unvalued_relationship_list(self, parameter_id):
-        """Return relationships for which given parameter does not have a value."""
-        parameter = self.single_parameter(parameter_id).one_or_none()
-        if not parameter:
-            return self._empty_list()
-        valued_relationship_ids = self.query(self.parameter_value_sq.c.relationship_id).filter(
-            self.parameter_value_sq.c.parameter_definition_id == parameter_id
-        )
-        return (
-            self.wide_relationship_list()
-            .filter(self.relationship_sq.c.class_id == parameter.relationship_class_id)
-            .filter(~self.relationship_sq.c.id.in_(valued_relationship_ids))
-        )
-
     def parameter_tag_list(self, id_list=None, tag_list=None):
         """Return list of parameter tags."""
         qry = self.query(self.parameter_tag_sq)
@@ -419,11 +250,11 @@ class DatabaseMappingQueryMixin:
 
     def object_parameter_fields(self):
         """Return object parameter fields."""
-        return [x["name"] for x in self.object_parameter_list().column_descriptions]
+        return [x["name"] for x in self.object_parameter_definition_list().column_descriptions]
 
     def relationship_parameter_fields(self):
         """Return relationship parameter fields."""
-        return [x["name"] for x in self.relationship_parameter_list().column_descriptions]
+        return [x["name"] for x in self.relationship_parameter_definition_list().column_descriptions]
 
     def object_parameter_value_fields(self):
         """Return object parameter value fields."""

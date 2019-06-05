@@ -282,7 +282,7 @@ def import_object_parameters(db_map, parameter_data):
         except SpineIntegrityError as e:
             # Object class doesn't exists
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
-    added = db_map._add_parameters(*new_parameters)
+    added = db_map._add_parameter_definitions(*new_parameters)
     return len(added), error_log
 
 
@@ -331,7 +331,7 @@ def import_relationship_parameters(db_map, parameter_data):
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
-    added = db_map._add_parameters(*new_parameters)
+    added = db_map._add_parameter_definitions(*new_parameters)
     return len(added), error_log
 
 

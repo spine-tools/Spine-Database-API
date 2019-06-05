@@ -254,7 +254,7 @@ class DiffDatabaseMappingUpdateMixin:
                 self.ParameterValue,
                 self.DiffParameterValue,
                 checked_kwargs_list,
-                unhandled_fields=("object_id", "relationship_id", "parameter_id"),
+                unhandled_fields=("object_id", "relationship_id", "parameter_definition_id"),
             )
             self.session.bulk_update_mappings(self.DiffParameterValue, items_for_update)
             self.session.bulk_insert_mappings(self.DiffParameterValue, items_for_insert)

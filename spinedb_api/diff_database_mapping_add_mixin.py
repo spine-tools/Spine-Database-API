@@ -333,13 +333,13 @@ class DiffDatabaseMappingAddMixin:
             intgr_error_log (list): list of integrity error messages
         """
         checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_insert(*kwargs_list, strict=strict)
-        id_list = self._add_parameters(*checked_kwargs_list)
+        id_list = self._add_parameter_definitions(*checked_kwargs_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.parameter_list(id_list=id_list)
+        new_item_list = self.parameter_definition_list(id_list=id_list)
         return new_item_list, intgr_error_log
 
-    def _add_parameters(self, *kwargs_list):
+    def _add_parameter_definitions(self, *kwargs_list):
         """Add parameters to database without checking integrity.
 
         Args:
@@ -371,10 +371,6 @@ class DiffDatabaseMappingAddMixin:
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameters(self, *kwargs_list, strict=False, return_dups=False):
-        warnings.warn("add_parameters is deprecated, use add_parameter_definitions instead", DeprecationWarning)
-        return self.add_parameter_definitions(*kwargs_list, strict=strict, return_dups=return_dups)
-
     def add_parameter_values(self, *kwargs_list, strict=False, return_dups=False):
         """Add parameter values to database.
 
@@ -388,10 +384,6 @@ class DiffDatabaseMappingAddMixin:
             parameter_values (list): added instances
             intgr_error_log (list): list of integrity error messages
         """
-        # FIXME: this should be removed once the 'parameter_definition_id' comes in the kwargs
-        for kwargs in kwargs_list:
-            if "parameter_id" in kwargs:
-                kwargs["parameter_definition_id"] = kwargs["parameter_id"]
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_insert(*kwargs_list, strict=strict)
         id_list = self._add_parameter_values(*checked_kwargs_list)
         if return_dups:
@@ -592,8 +584,8 @@ class DiffDatabaseMappingAddMixin:
     def add_wide_relationship(self, **kwargs):
         return self.add_wide_relationships(kwargs, strict=True)[0].one_or_none()
 
-    def add_parameter(self, **kwargs):
-        return self.add_parameters(kwargs, strict=True)[0].one_or_none()
+    def add_parameter_definition(self, **kwargs):
+        return self.add_parameter_definitions(kwargs, strict=True)[0].one_or_none()
 
     def add_parameter_value(self, **kwargs):
         return self.add_parameter_values(kwargs, strict=True)[0].one_or_none()
@@ -604,5 +596,5 @@ class DiffDatabaseMappingAddMixin:
     def get_or_add_object(self, **kwargs):
         return self.add_objects(kwargs, return_dups=True)[0].one_or_none()
 
-    def get_or_add_parameter(self, **kwargs):
-        return self.add_parameters(kwargs, return_dups=True)[0].one_or_none()
+    def get_or_add_parameter_definition(self, **kwargs):
+        return self.add_parameter_definitions(kwargs, return_dups=True)[0].one_or_none()

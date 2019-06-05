@@ -425,7 +425,7 @@ class DatabaseMappingCheckMixin:
         checked_items = list()
         obj_parameter_definition_names = {}
         rel_parameter_definition_names = {}
-        for x in self.parameter_list():
+        for x in self.parameter_definition_list():
             if x.object_class_id:
                 obj_parameter_definition_names[x.object_class_id, x.name] = x.id
             elif x.relationship_class_id:
@@ -473,10 +473,10 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_list = self.parameter_list()  # Query db only once
+        parameter_definition_list = self.parameter_definition_list()  # Query db only once
         obj_parameter_definition_names = {}
         rel_parameter_definition_names = {}
-        for x in parameter_list:
+        for x in parameter_definition_list:
             if x.object_class_id:
                 obj_parameter_definition_names[x.object_class_id, x.name] = x.id
             elif x.relationship_class_id:
@@ -489,7 +489,7 @@ class DatabaseMappingCheckMixin:
                 "parameter_value_list_id": x.parameter_value_list_id,
                 "default_value": x.default_value,
             }
-            for x in parameter_list
+            for x in parameter_definition_list
         }
         object_class_dict = {x.id: x.name for x in self.object_class_list()}
         relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
@@ -578,7 +578,7 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in self.parameter_list()
+            for x in self.parameter_definition_list()
         }
         object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.object_list()}
         relationship_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.wide_relationship_list()}
@@ -649,7 +649,7 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in self.parameter_list()
+            for x in self.parameter_definition_list()
         }
         object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.object_list()}
         relationship_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.wide_relationship_list()}
@@ -811,7 +811,7 @@ class DatabaseMappingCheckMixin:
         parameter_definition_tags = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.parameter_definition_tag_list()
         }
-        parameter_name_dict = {x.id: x.name for x in self.parameter_list()}
+        parameter_name_dict = {x.id: x.name for x in self.parameter_definition_list()}
         parameter_tag_dict = {x.id: x.tag for x in self.parameter_tag_list()}
         for item in items:
             try:
