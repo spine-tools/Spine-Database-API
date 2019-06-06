@@ -9,6 +9,10 @@ install:
 script:
   - cd docs
   - make html
+  - openssl aes-256-cbc -K $encrypted_1d262b48bc9b_key -iv $encrypted_1d262b48bc9b_iv -in deploy-key.enc -out deploy-key -d
+  - chmod 600 deploy-key
+  - eval `ssh-agent -s`
+  - ssh-add deploy-key
 deploy:
   - provider: script
     skip_cleanup: true # do not delete the built assets
