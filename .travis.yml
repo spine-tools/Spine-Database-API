@@ -16,6 +16,7 @@ script:
   - make html
   - cd ..
   - pwd
+  - ./node_modules/.bin/gh-pages -d docs/build/ -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
 deploy:
   - provider: script
     skip_cleanup: true # do not delete the built assets
