@@ -8,4 +8,4 @@ chmod 600 deploy-key
 ssh-add deploy-key
 
 # commit the assets in docs/build/ to the gh-pages branch and push to GitHub using SSH
-./node_modules/.bin/gh-pages -d docs/build/ -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
+# ./node_modules/.bin/gh-pages -d docs/build/ -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
