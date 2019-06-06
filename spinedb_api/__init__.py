@@ -48,6 +48,7 @@ from .json_mapping import (
     DataMapping,
     read_with_mapping,
 )
+from .parameter_value import dumps, ParameterType, ParameterValue, ValueDecodeError
 from .version import __version__
 
 name = "spinedb_api"
