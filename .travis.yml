@@ -1,13 +1,15 @@
 language: node_js
 
 node_js:
-  - cd docs
-  - make html
+  - node
+
+install:
+  - pip install -U pip
+  - pip install sphinx sphinx_rtd_theme
 
 script:
-  # test/lint and build the project
-  - npm run lint
-  - npm run build
+  - cd docs
+  - make html
 
 deploy:
   - provider: script
