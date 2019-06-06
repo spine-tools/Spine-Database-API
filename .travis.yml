@@ -3,6 +3,7 @@ language: python
 python:
   - "3.7"
 install:
+  - npm install gh-pages
   - pip install -U pip
   - pip install sphinx sphinx_rtd_theme
 script:
