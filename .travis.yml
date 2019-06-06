@@ -11,9 +11,7 @@ script:
   - chmod 600 deploy-key
   - eval `ssh-agent -s`
   - ssh-add deploy-key
-  - pwd
   - cd docs
   - make html
   - cd ..
-  - pwd
   - ./node_modules/.bin/gh-pages -d docs/build/html -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
