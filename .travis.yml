@@ -1,0 +1,19 @@
+dist: xenial   # required for Python >= 3.7
+language: python
+python:
+  - "3.7"
+  - "3.7-dev"  # 3.7 development branch
+  - "3.8-dev"  # 3.8 development branch
+  - "nightly"  # nightly build
+install:
+  - pip install -U pip
+  - pip install sphinx
+script:
+  - cd docs
+  - make html
+deploy:
+  - provider: script
+    skip_cleanup: true # do not delete the built assets
+    script: ./.travis-deploy.sh
+    on:
+      branch: dev
