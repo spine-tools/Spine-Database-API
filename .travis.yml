@@ -5,7 +5,6 @@ python:
 install:
   - pip install -U pip
   - pip install sphinx sphinx_rtd_theme
-  - npm install gh-pages --save-dev
 script:
   - cd docs
   - make html
