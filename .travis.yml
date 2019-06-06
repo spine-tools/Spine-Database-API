@@ -16,7 +16,6 @@ script:
   - make html
   - cd ..
   - pwd
-  - ./node_modules/.bin/gh-pages
 deploy:
   - provider: script
     skip_cleanup: true # do not delete the built assets
