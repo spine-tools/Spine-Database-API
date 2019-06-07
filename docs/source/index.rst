@@ -10,6 +10,8 @@ Welcome to Spine Database API's documentation!
    :maxdepth: 4
    :caption: Contents:
 
+   front_matter
+   tutorial
    autogen_apidocs/modules
 
 Indices and tables
