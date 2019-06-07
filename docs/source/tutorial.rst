@@ -15,11 +15,6 @@ This tutorial will provide a full introduction to the usage of this package.
 To begin, make sure Spine database API is installed as described at :ref:`installation`.
 
 
-
-.. contents::
-   :local:
-
-
 Mapping
 -------
 
@@ -65,16 +60,14 @@ Standard querying
 To perform standard querying, we chose among the methods of the :class:`~.DatabaseMappingQueryMixin` class,
 the one that bets suits our purpose. E.g.::
 
-
+TODO
 
 Custom querying
 ===============
 
-
+TODO
 
 Inserting
 ---------
 
-  operate on the mapping, and subsequently on the
-  database: query it, add to it, update it, remove from it, commit and rollback the changes.
-  To create mapping to a Spine database, you just need to know the URL
+TODO
