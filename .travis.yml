@@ -17,5 +17,4 @@ after_success:
   - make html
   - cd ..
   - touch docs/build/html/.nojekyll
-  - git add docs/build/html/.nojekyll
-  - ./node_modules/.bin/gh-pages -d docs/build/html -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
+  - ./node_modules/.bin/gh-pages -t -d docs/build/html -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
