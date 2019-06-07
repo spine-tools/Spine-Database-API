@@ -30,7 +30,7 @@ from sqlalchemy import false, distinct, func, or_
 
 
 class DatabaseMappingQueryMixin:
-    """Provides methods to perform standard queries (SELECT statements) on a Spine db.
+    """Provides methods to perform standard queries (``SELECT`` statements) on a Spine db mapping.
     """
 
     def __init__(self, *args, **kwargs):
@@ -38,7 +38,14 @@ class DatabaseMappingQueryMixin:
         super().__init__(*args, **kwargs)
 
     def object_class_list(self, id_list=None, ordered=True):
-        """Return object classes ordered by display order."""
+        """Return all records from the ``object_class`` table
+        (see :attr:`~.DatabaseMappingBase.object_class_sq` for the exact ``SELECT`` statement).
+
+        :param id_list: A sequence of object class ids to filter the result by.
+        :param bool ordered: if True, the result is ordered by the ``display_order`` field.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.object_class_sq)
         if id_list is not None:
             qry = qry.filter(self.object_class_sq.c.id.in_(id_list))
@@ -47,7 +54,14 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def object_list(self, id_list=None, class_id=None):
-        """Return objects, optionally filtered by class id."""
+        """Return all records from the ``object`` table
+        (see :attr:`~.DatabaseMappingBase.object_sq` for the exact ``SELECT`` statement).
+
+        :param id_list: A sequence of object ids to filter the result by.
+        :param int class_id: An object class id to filter the result by.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.object_sq)
         if id_list is not None:
             qry = qry.filter(self.object_sq.c.id.in_(id_list))
@@ -55,17 +69,15 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.object_sq.c.class_id == class_id)
         return qry
 
-    def relationship_class_list(self, id=None, ordered=True):
-        """Return all relationship classes optionally filtered by id."""
-        qry = self.query(self.relationship_class_sq)
-        if id is not None:
-            qry = qry.filter(self.relationship_class_sq.c.id == id)
-        if ordered:
-            qry = qry.order_by(self.relationship_class_sq.c.id, self.relationship_class_sq.c.dimension)
-        return qry
-
     def wide_relationship_class_list(self, id_list=None, object_class_id=None):
-        """Return list of relationship classes in wide format involving a given object class."""
+        """Return all records from the ``relationship_class`` table grouped by id and name
+        (see :attr:`~.DatabaseMappingBase.wide_relationship_class_sq` for the exact ``SELECT`` statement).
+
+        :param id_list: A sequence of object ids to filter the result by.
+        :param int class_id: An object class id to filter the result by.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.wide_relationship_class_sq)
         if id_list is not None:
             qry = qry.filter(self.wide_relationship_class_sq.c.id.in_(id_list))
@@ -80,17 +92,16 @@ class DatabaseMappingQueryMixin:
             )
         return qry
 
-    def relationship_list(self, id=None, ordered=True):
-        """Return relationships, optionally filtered by id."""
-        qry = self.query(self.relationship_sq)
-        if id is not None:
-            qry = qry.filter(self.relationship_sq.c.id == id)
-        if ordered:
-            qry = qry.order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
-        return qry
-
     def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
-        """Return list of relationships in wide format involving a given relationship class and object."""
+        """Return all records from the ``relationship`` table grouped by id, class_id and name
+        (see :attr:`~.DatabaseMappingBase.wide_relationship_sq` for the exact ``SELECT`` statement).
+
+        :param id_list: A sequence of object ids to filter the result by.
+        :param int class_id: A relationship class id to filter the result by.
+        :param int object_id: An object id to filter the result by.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.wide_relationship_sq)
         if id_list is not None:
             qry = qry.filter(self.wide_relationship_sq.c.id.in_(id_list))
@@ -108,7 +119,15 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def parameter_definition_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
-        """Return parameter definitions."""
+        """Return all records from the ``parameter_definition`` table
+        (see :attr:`~.DatabaseMappingBase.parameter_definition_sq` for the exact ``SELECT`` statement).
+
+        :param id_list: A sequence of parameter definition ids to filter the result by.
+        :param int object_class_id: An object class id to filter the result by.
+        :param int relationship_class_id: A relationship class id to filter the result by.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.parameter_definition_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_definition_sq.c.id.in_(id_list))
@@ -263,6 +282,3 @@ class DatabaseMappingQueryMixin:
     def relationship_parameter_value_fields(self):
         """Return relationship parameter value fields."""
         return [x["name"] for x in self.relationship_parameter_value_list().column_descriptions]
-
-    def _empty_list(self):
-        return self.query(false()).filter(false())

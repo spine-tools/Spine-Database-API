@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 
 
 class DiffDatabaseMappingAddMixin:
-    """Provides methods to add items into a Spine db.
+    """Provides methods to add items into a Spine db mapping.
     """
 
     def __init__(self, *args, **kwargs):

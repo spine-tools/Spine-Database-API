@@ -42,11 +42,10 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 class DatabaseMappingBase(object):
     """Base class for all database mappings.
-    It provides the :meth:`query` method and a bunch of properties holding ad-hoc sqlalchemy 'subqueries'
-    (:class:`~sqlalchemy.sql.expression.Alias` objects). The idea is to use :meth:`query`
-    in combination with these properties to perform arbitrary SELECT statements.
 
-    :param str db_url: A database URL in RFC-1738 format, used for creating the Spine object relational mapping.
+    It provides a system to run custom ``SELECT`` statements through the :meth:`query` method.
+
+    :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
     :param str username: A user name. If omitted, the string ``"anon"`` is used.
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
@@ -170,133 +169,164 @@ class DatabaseMappingBase(object):
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
-    def subquery(self, tablename):
-        """Return an (:class:`~sqlalchemy.sql.expression.Alias` object) derived from:
+    def query(self, *args, **kwargs):
+        """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
+        to this :class:`.DatabaseMappingBase`.
+
+        The idea is to call this method with one or more of the documented
+        class :class:`~sqlalchemy.sql.expression.Alias`
+        properties to perform custom ``SELECT`` statements. For example, the snippet below
+        shows how to perform, ``SELECT * FROM object_class where id = 1``::
+
+            from spinedb_api import DatabaseMapping
+            url = 'sqlite:///spine.db'
+            ...
+            db_map = DatabaseMapping(url)
+            db_map.query(db_map.object_class_sq).filter_by(id=1).all()
+
+        For a more complex example,
+        the snippet below shows a way to select all object class names and their objects' names
+        concatenated::
+
+            from sqlalchemy import func
+
+            db_map.query(
+                db_map.object_class_sq.c.name, func.group_concat(db_map.object_sq.c.name)
+            ).filter(
+                db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
+            ).group_by(db_map.object_class_sq.c.name).all()
+        """
+        return self.session.query(*args, **kwargs)
+
+        db_map.query(db_map.object_class_sq.c.name, func.group_concat(db_map.object_sq.c.name)).filter(
+            db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
+        ).group_by(db_map.object_class_sq.c.name).all()
+
+    def _subquery(self, tablename):
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
-            SELECT * FROM tablename
+            SELECT * FROM {tablename}
+
+        :param str tablename: A string indicating the table to be queried.
         """
         classname = self.table_to_class[tablename]
         class_ = getattr(self, classname)
         return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
 
-    def query(self, *args, **kwargs):
-        """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object that corresponds
-        to this :class:`.DatabaseMappingBase`.
-        Typically one would use this method in combination with one or more of the class properties
-        to perform arbitrary SELECT statements. E.g.::
-
-            from spinedb_api import DatabaseMappingBase
-            url = 'sqlite:///spine.db'
-            ...
-            db_map = DatabaseMappingBase(url)
-            db_map.query(db_map.object_class_sq).filter(db_map.object_class_sq.c.id == 1)
-            # Roughly equivalent to SELECT * FROM object_class where id = 1
-        """
-        return self.session.query(*args, **kwargs)
-
     @property
     def object_class_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM object_class
         """
         if self._object_class_sq is None:
-            self._object_class_sq = self.subquery("object_class")
+            self._object_class_sq = self._subquery("object_class")
         return self._object_class_sq
 
     @property
     def object_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM object
         """
         if self._object_sq is None:
-            self._object_sq = self.subquery("object")
+            self._object_sq = self._subquery("object")
         return self._object_sq
 
     @property
     def relationship_class_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM relationship_class
         """
         if self._relationship_class_sq is None:
-            self._relationship_class_sq = self.subquery("relationship_class")
+            self._relationship_class_sq = self._subquery("relationship_class")
         return self._relationship_class_sq
 
     @property
     def relationship_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM relationship
         """
         if self._relationship_sq is None:
-            self._relationship_sq = self.subquery("relationship")
+            self._relationship_sq = self._subquery("relationship")
         return self._relationship_sq
 
     @property
     def parameter_definition_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM parameter_definition
         """
         if self._parameter_definition_sq is None:
-            self._parameter_definition_sq = self.subquery("parameter_definition")
+            self._parameter_definition_sq = self._subquery("parameter_definition")
         return self._parameter_definition_sq
 
     @property
     def parameter_value_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM parameter_value
         """
         if self._parameter_value_sq is None:
-            self._parameter_value_sq = self.subquery("parameter_value")
+            self._parameter_value_sq = self._subquery("parameter_value")
         return self._parameter_value_sq
 
     @property
     def parameter_tag_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM parameter_tag
         """
         if self._parameter_tag_sq is None:
-            self._parameter_tag_sq = self.subquery("parameter_tag")
+            self._parameter_tag_sq = self._subquery("parameter_tag")
         return self._parameter_tag_sq
 
     @property
     def parameter_definition_tag_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM parameter_definition_tag
         """
         if self._parameter_definition_tag_sq is None:
-            self._parameter_definition_tag_sq = self.subquery("parameter_definition_tag")
+            self._parameter_definition_tag_sq = self._subquery("parameter_definition_tag")
         return self._parameter_definition_tag_sq
 
     @property
     def parameter_value_list_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT * FROM parameter_value_list
         """
         if self._parameter_value_list_sq is None:
-            self._parameter_value_list_sq = self.subquery("parameter_value_list")
+            self._parameter_value_list_sq = self._subquery("parameter_value_list")
         return self._parameter_value_list_sq
 
     @property
     def ext_relationship_class_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -324,7 +354,8 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_relationship_class_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -361,7 +392,8 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_relationship_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -391,7 +423,8 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_relationship_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -431,7 +464,8 @@ class DatabaseMappingBase(object):
 
     @property
     def object_parameter_definition_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -505,7 +539,8 @@ class DatabaseMappingBase(object):
 
     @property
     def relationship_parameter_definition_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -602,7 +637,8 @@ class DatabaseMappingBase(object):
 
     @property
     def object_parameter_value_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         """
         # TODO: Should this also bring `value_list` and `tag_list`?
         if self._object_parameter_value_sq is None:
@@ -626,7 +662,8 @@ class DatabaseMappingBase(object):
 
     @property
     def relationship_parameter_value_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         """
         # TODO: Should this also bring `value_list` and `tag_list`?
         if self._relationship_parameter_value_sq is None:
@@ -653,7 +690,8 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_parameter_definition_tag_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -677,7 +715,8 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_definition_tag_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -710,6 +749,9 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_parameter_tag_definition_sq(self):
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
+        """
         if self._ext_parameter_tag_definition_sq is None:
             self._ext_parameter_tag_definition_sq = (
                 self.query(
@@ -726,6 +768,9 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_tag_definition_sq(self):
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
+        """
         if self._wide_parameter_tag_definition_sq is None:
             self._wide_parameter_tag_definition_sq = (
                 self.query(
@@ -741,7 +786,8 @@ class DatabaseMappingBase(object):
 
     @property
     def ord_parameter_value_list_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
@@ -765,7 +811,8 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_value_list_sq(self):
-        """
+        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+
         .. code-block:: sql
 
             SELECT
