@@ -1,5 +1,7 @@
 # Spine Database API
 
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://spine-project.github.io/Spine-Database-API/index.html)
+
 A Python package to access and manipulate Spine databases in a customary, unified way.
 
 ## License
