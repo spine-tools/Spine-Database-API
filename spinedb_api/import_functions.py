@@ -29,6 +29,7 @@ from .check_functions import (
     check_wide_parameter_value_list,
 )
 
+import json
 
 class ImportErrorLogItem:
     """Class to hold log data for import errors"""
@@ -431,7 +432,10 @@ def import_object_parameter_values(db_map, data):
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": str(value)}
+        if isinstance(value, str):
+            # FIXME: Can't import strings that are not encapsulated by ""
+            value = json.dumps(value)
+        new_value = {'parameter_definition_id': p_id, 'object_id': o_id, 'value': str(value)}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -535,7 +539,10 @@ def import_relationship_parameter_values(db_map, data):
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": str(value)}
+        if isinstance(value, str):
+            # FIXME: Can't import strings that are not encapsulated by ""
+            value = json.dumps(value)
+        new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id, 'value': str(value)}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})

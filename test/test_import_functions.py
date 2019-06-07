@@ -376,6 +376,23 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.mock_db_map._update_parameter_values.assert_called_once()
         self.assertEqual(len(errors), 0)
+    
+    def test_import_valid_object_parameter_value_string(self):
+        ParameterValue = namedtuple(
+            "ParameterValue", ["id", "parameter_id", "object_id", "relationship_id"]
+        )
+        added = MagicMock()
+        added.__iter__.return_value = {ParameterValue(3, 3, 1, None)}
+        added.count.return_value = 1
+        self.mock_db_map._add_parameter_values.return_value = added
+        num_imported, errors = import_object_parameter_values(
+            self.mock_db_map, [["existing_oc1", "existing_o1", "existing_p3", "test_string"]]
+        )
+        self.mock_db_map._add_parameter_values.assert_called_once_with(
+            {"object_id": 1, "parameter_definition_id": 3, "value": '"test_string"'}
+        )
+        self.mock_db_map._update_parameter_values.assert_called_once()
+        self.assertEqual(len(errors), 0)
 
     def test_import_valid_object_parameter_value_with_duplicate_object_name(self):
         ParameterValue = namedtuple("ParameterValue", ["id", "parameter_id", "object_id", "relationship_id"])
