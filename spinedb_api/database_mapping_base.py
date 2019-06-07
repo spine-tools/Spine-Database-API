@@ -43,10 +43,10 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 class DatabaseMappingBase(object):
     """Base class for all database mappings.
 
-    It provides a system to run custom ``SELECT`` statements through the :meth:`query` method.
+    It provides the :meth:`query` method for custom db querying.
 
     :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
-    :param str username: A user name. If omitted, the string ``"anon"`` is used.
+    :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 
@@ -173,20 +173,18 @@ class DatabaseMappingBase(object):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
         to this :class:`.DatabaseMappingBase`.
 
-        The idea is to call this method with one or more of the documented
-        class :class:`~sqlalchemy.sql.expression.Alias`
-        properties to perform custom ``SELECT`` statements. For example, the snippet below
-        shows how to perform, ``SELECT * FROM object_class where id = 1``::
+        To perform custom ``SELECT`` statements, call this method with one or more of the class documented
+        :class:`~sqlalchemy.sql.expression.Alias` properties. For example, to select the object class with
+        ``id`` equal to 1::
 
             from spinedb_api import DatabaseMapping
             url = 'sqlite:///spine.db'
             ...
             db_map = DatabaseMapping(url)
-            db_map.query(db_map.object_class_sq).filter_by(id=1).all()
+            db_map.query(db_map.object_class_sq).filter_by(id=1).one_or_none()
 
-        For a more complex example,
-        the snippet below shows a way to select all object class names and their objects' names
-        concatenated::
+        To perform more complex queries, just use this method in combination with the SQLAlchemy API.
+        For example, to select all object class names and the names of their objects concatenated in a string::
 
             from sqlalchemy import func
 
@@ -203,13 +201,14 @@ class DatabaseMappingBase(object):
         ).group_by(db_map.object_class_sq.c.name).all()
 
     def _subquery(self, tablename):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM {tablename}
 
         :param str tablename: A string indicating the table to be queried.
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         classname = self.table_to_class[tablename]
         class_ = getattr(self, classname)
@@ -217,11 +216,13 @@ class DatabaseMappingBase(object):
 
     @property
     def object_class_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM object_class
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_class_sq is None:
             self._object_class_sq = self._subquery("object_class")
@@ -229,11 +230,13 @@ class DatabaseMappingBase(object):
 
     @property
     def object_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM object
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_sq is None:
             self._object_sq = self._subquery("object")
@@ -241,11 +244,13 @@ class DatabaseMappingBase(object):
 
     @property
     def relationship_class_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM relationship_class
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_class_sq is None:
             self._relationship_class_sq = self._subquery("relationship_class")
@@ -253,11 +258,13 @@ class DatabaseMappingBase(object):
 
     @property
     def relationship_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM relationship
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_sq is None:
             self._relationship_sq = self._subquery("relationship")
@@ -265,11 +272,13 @@ class DatabaseMappingBase(object):
 
     @property
     def parameter_definition_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM parameter_definition
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_definition_sq is None:
             self._parameter_definition_sq = self._subquery("parameter_definition")
@@ -277,11 +286,13 @@ class DatabaseMappingBase(object):
 
     @property
     def parameter_value_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM parameter_value
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_sq is None:
             self._parameter_value_sq = self._subquery("parameter_value")
@@ -289,11 +300,13 @@ class DatabaseMappingBase(object):
 
     @property
     def parameter_tag_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM parameter_tag
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_tag_sq is None:
             self._parameter_tag_sq = self._subquery("parameter_tag")
@@ -301,11 +314,13 @@ class DatabaseMappingBase(object):
 
     @property
     def parameter_definition_tag_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM parameter_definition_tag
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_definition_tag_sq is None:
             self._parameter_definition_tag_sq = self._subquery("parameter_definition_tag")
@@ -313,11 +328,13 @@ class DatabaseMappingBase(object):
 
     @property
     def parameter_value_list_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
             SELECT * FROM parameter_value_list
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_list_sq is None:
             self._parameter_value_list_sq = self._subquery("parameter_value_list")
@@ -325,7 +342,7 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_relationship_class_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -337,6 +354,8 @@ class DatabaseMappingBase(object):
             FROM relationship_class AS rc, object_class AS oc
             WHERE rc.object_class_id = oc.id
             ORDER BY rc.id, rc.dimension
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._ext_relationship_class_sq is None:
             self._ext_relationship_class_sq = (
@@ -354,7 +373,7 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_relationship_class_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -374,6 +393,8 @@ class DatabaseMappingBase(object):
                 ORDER BY rc.id, rc.dimension
             )
             GROUP BY id, name
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_relationship_class_sq is None:
             self._wide_relationship_class_sq = (
@@ -392,7 +413,7 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_relationship_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -405,6 +426,8 @@ class DatabaseMappingBase(object):
             FROM relationship as r, object AS o
             WHERE r.object_id = o.id
             ORDER BY r.id, r.dimension
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._ext_relationship_sq is None:
             self._ext_relationship_sq = (
@@ -423,7 +446,7 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_relationship_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -445,6 +468,8 @@ class DatabaseMappingBase(object):
                 ORDER BY r.id, r.dimension
             )
             GROUP BY id, class_id, name
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_relationship_sq is None:
             self._wide_relationship_sq = (
@@ -464,7 +489,7 @@ class DatabaseMappingBase(object):
 
     @property
     def object_parameter_definition_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -509,6 +534,8 @@ class DatabaseMappingBase(object):
             ) AS wpvl
             ON wpvl.id = pd.parameter_value_list_id
             WHERE pd.object_class_id = oc.id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_parameter_definition_sq is None:
             self._object_parameter_definition_sq = (
@@ -539,7 +566,7 @@ class DatabaseMappingBase(object):
 
     @property
     def relationship_parameter_definition_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -605,6 +632,8 @@ class DatabaseMappingBase(object):
             ) AS wpvl
             ON wpvl.id = pd.parameter_value_list_id
             WHERE pd.relationship_class_id = wrc.id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_parameter_definition_sq is None:
             self._relationship_parameter_definition_sq = (
@@ -637,8 +666,9 @@ class DatabaseMappingBase(object):
 
     @property
     def object_parameter_value_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         # TODO: Should this also bring `value_list` and `tag_list`?
         if self._object_parameter_value_sq is None:
@@ -662,8 +692,10 @@ class DatabaseMappingBase(object):
 
     @property
     def relationship_parameter_value_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         # TODO: Should this also bring `value_list` and `tag_list`?
         if self._relationship_parameter_value_sq is None:
@@ -690,7 +722,7 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_parameter_definition_tag_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -700,6 +732,8 @@ class DatabaseMappingBase(object):
                 pt.tag AS parameter_tag
             FROM parameter_definition_tag as pdt, parameter_tag AS pt
             WHERE pdt.parameter_tag_id = pt.id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._ext_parameter_definition_tag_sq is None:
             self._ext_parameter_definition_tag_sq = (
@@ -715,7 +749,7 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_definition_tag_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -732,6 +766,8 @@ class DatabaseMappingBase(object):
                 WHERE pdt.parameter_tag_id = pt.id
             )
             GROUP BY parameter_definition_id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_parameter_definition_tag_sq is None:
             self._wide_parameter_definition_tag_sq = (
@@ -749,8 +785,9 @@ class DatabaseMappingBase(object):
 
     @property
     def ext_parameter_tag_definition_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._ext_parameter_tag_definition_sq is None:
             self._ext_parameter_tag_definition_sq = (
@@ -768,8 +805,9 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_tag_definition_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_parameter_tag_definition_sq is None:
             self._wide_parameter_tag_definition_sq = (
@@ -786,7 +824,7 @@ class DatabaseMappingBase(object):
 
     @property
     def ord_parameter_value_list_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -800,6 +838,8 @@ class DatabaseMappingBase(object):
                 ORDER BY id, value_index
             )
             GROUP BY id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._ord_parameter_value_list_sq is None:
             self._ord_parameter_value_list_sq = (
@@ -811,7 +851,7 @@ class DatabaseMappingBase(object):
 
     @property
     def wide_parameter_value_list_sq(self):
-        """An :class:`~sqlalchemy.sql.expression.Alias` object derived from:
+        """A subquery of the form:
 
         .. code-block:: sql
 
@@ -825,6 +865,8 @@ class DatabaseMappingBase(object):
                 ORDER BY id, value_index
             )
             GROUP BY id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_parameter_value_list_sq is None:
             self._wide_parameter_value_list_sq = (

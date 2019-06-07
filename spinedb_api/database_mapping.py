@@ -32,7 +32,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingBase):
     """The standard database mapping class.
 
     :param str db_url: A database URL in RFC-1738 format, used for creating the Spine object relational mapping.
-    :param str username: A user name. If omitted, the string ``"anon"`` is used.
+    :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 

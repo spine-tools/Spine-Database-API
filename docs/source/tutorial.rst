@@ -20,11 +20,10 @@ Mapping
 
 Usage of Spine database API starts with the creation of a *Database Mapping*. This is
 a Python object that provides simple access to a Spine database.
-Depending on your purpose, you may chose between two classes of mapping:
+Spine database API provides two classes of mapping:
 
-- If you just want to *query* the database (i.e., run ``SELECT`` statements) but don't do any
-  modifications, you should use the :class:`.DatabaseMapping` class.
-- If you want to query the database but also *modify* it, you should use the :class:`.DiffDatabaseMapping` class.
+- :class:`.DatabaseMapping`, just for *querying* the database (i.e., run ``SELECT`` statements).
+- :class:`.DiffDatabaseMapping`, for both querying and *modifying* the database. 
 
 The differences between these two will become more apparent as we go through this tutorial.
 However, it is important to note that everything you can do with a :class:`.DatabaseMapping`,

@@ -54,7 +54,7 @@ def check_object(item, current_items, object_class_ids):
     :param dict item: An object item to be checked.
     :param dict current_items: A dictionary mapping tuples (class_id, name) to ids of objects
         already in the database.
-    :param list object_class_ids: A sequence of object class ids in the database.
+    :param list object_class_ids: A list of object class ids in the database.
 
     :raises SpineIntegrityError: if the item violates an integrity constraint.
     """
@@ -81,7 +81,7 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids):
     :param dict wide_item: A wide relationship class item to be checked.
     :param dict current_items: A dictionary mapping names to ids of relationship classes
         already in the database.
-    :param list object_class_ids: A sequence of object class ids in the database.
+    :param list object_class_ids: A list of object class ids in the database.
 
     :raises SpineIntegrityError: if the item violates an integrity constraint.
     """
@@ -396,7 +396,7 @@ def check_wide_parameter_value_list(wide_item, current_items):
     results in the violation of an integrity constraint.
 
     :param dict wide_item: A wide parameter value-list item to be checked.
-    :param dict current_items: A dictionary mapping names to ids of parameter value-list
+    :param dict current_items: A dictionary mapping names to ids of parameter value-lists
         already in the database.
 
     :raises SpineIntegrityError: if the item violates an integrity constraint.

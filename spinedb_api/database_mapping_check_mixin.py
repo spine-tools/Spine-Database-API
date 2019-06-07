@@ -41,7 +41,7 @@ from .check_functions import (
 # NOTE: To check for an update we simulate the removal of the current instance,
 # and then check for an insert of the updated instance.
 class DatabaseMappingCheckMixin:
-    """Provides methods to check whether insert and update operations violate db integrity constraints.
+    """Provides methods to check whether insert and update operations violate Spine db integrity constraints.
     """
 
     def __init__(self, *args, **kwargs):

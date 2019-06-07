@@ -30,7 +30,7 @@ from sqlalchemy import false, distinct, func, or_
 
 
 class DatabaseMappingQueryMixin:
-    """Provides methods to perform standard queries (``SELECT`` statements) on a Spine db mapping.
+    """Provides methods to perform standard queries (``SELECT`` statements) on a Spine db.
     """
 
     def __init__(self, *args, **kwargs):
@@ -38,11 +38,10 @@ class DatabaseMappingQueryMixin:
         super().__init__(*args, **kwargs)
 
     def object_class_list(self, id_list=None, ordered=True):
-        """Return all records from the ``object_class`` table
-        (see :attr:`~.DatabaseMappingBase.object_class_sq` for the exact ``SELECT`` statement).
+        """Return all records from the :meth:`object_class_sq <.DatabaseMappingBase.object_class_sq>` subquery.
 
-        :param id_list: A sequence of object class ids to filter the result by.
-        :param bool ordered: if True, the result is ordered by the ``display_order`` field.
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param bool ordered: if True, order the result by the ``display_order`` field.
 
         :rtype: :class:`~sqlalchemy.orm.query.Query`
         """
@@ -54,11 +53,10 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def object_list(self, id_list=None, class_id=None):
-        """Return all records from the ``object`` table
-        (see :attr:`~.DatabaseMappingBase.object_sq` for the exact ``SELECT`` statement).
+        """Return all records from the :meth:`object_sq <.DatabaseMappingBase.object_sq>` subquery.
 
-        :param id_list: A sequence of object ids to filter the result by.
-        :param int class_id: An object class id to filter the result by.
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param int class_id: If present, only return records where ``class_id`` is equal to this.
 
         :rtype: :class:`~sqlalchemy.orm.query.Query`
         """
@@ -70,11 +68,11 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def wide_relationship_class_list(self, id_list=None, object_class_id=None):
-        """Return all records from the ``relationship_class`` table grouped by id and name
-        (see :attr:`~.DatabaseMappingBase.wide_relationship_class_sq` for the exact ``SELECT`` statement).
+        """Return all records from the
+        :meth:`wide_relationship_class_sq <.DatabaseMappingBase.wide_relationship_class_sq>` subquery.
 
-        :param id_list: A sequence of object ids to filter the result by.
-        :param int class_id: An object class id to filter the result by.
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param int object_class_id: If present, only return records where ``object_class_id`` is equal to this.
 
         :rtype: :class:`~sqlalchemy.orm.query.Query`
         """
@@ -93,12 +91,12 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def wide_relationship_list(self, id_list=None, class_id=None, object_id=None):
-        """Return all records from the ``relationship`` table grouped by id, class_id and name
-        (see :attr:`~.DatabaseMappingBase.wide_relationship_sq` for the exact ``SELECT`` statement).
+        """Return all records from the
+        :meth:`wide_relationship_sq <.DatabaseMappingBase.wide_relationship_sq>` subquery.
 
-        :param id_list: A sequence of object ids to filter the result by.
-        :param int class_id: A relationship class id to filter the result by.
-        :param int object_id: An object id to filter the result by.
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param int class_id: If present, only return records where ``class_id`` is equal to this.
+        :param int object_id: If present, only return records where ``object_id`` is equal to this.
 
         :rtype: :class:`~sqlalchemy.orm.query.Query`
         """
@@ -119,12 +117,13 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def parameter_definition_list(self, id_list=None, object_class_id=None, relationship_class_id=None):
-        """Return all records from the ``parameter_definition`` table
-        (see :attr:`~.DatabaseMappingBase.parameter_definition_sq` for the exact ``SELECT`` statement).
+        """Return all records from the
+        :meth:`parameter_definition_sq <.DatabaseMappingBase.parameter_definition_sq>` subquery.
 
-        :param id_list: A sequence of parameter definition ids to filter the result by.
-        :param int object_class_id: An object class id to filter the result by.
-        :param int relationship_class_id: A relationship class id to filter the result by.
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param int object_class_id: If present, only return records where ``object_class_id`` is equal to this.
+        :param int relationship_class_id: If present, only return records where ``relationship_class_id``
+            is equal to this.
 
         :rtype: :class:`~sqlalchemy.orm.query.Query`
         """
@@ -138,7 +137,14 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def object_parameter_definition_list(self, object_class_id=None, parameter_definition_id=None):
-        """Return object classes and their parameters."""
+        """Return all records from the
+        :meth:`object_parameter_definition_sq <.DatabaseMappingBase.object_parameter_definition_sq>` subquery.
+
+        :param int object_class_id: If present, only return records where ``object_class_id`` is equal to this.
+        :param int parameter_definition_id: If present, only return records where ``id`` is in this list.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.object_parameter_definition_sq)
         if object_class_id:
             qry = qry.filter(self.object_parameter_definition_sq.c.object_class_id == object_class_id)
@@ -147,7 +153,16 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def relationship_parameter_definition_list(self, relationship_class_id=None, parameter_definition_id=None):
-        """Return relationship classes and their parameters."""
+        """Return all records from the
+        :meth:`relationship_parameter_definition_sq <.DatabaseMappingBase.relationship_parameter_definition_sq>`
+        subquery.
+
+        :param int relationship_class_id: If present, only return records where ``relationship_class_id``
+            is equal to this.
+        :param int parameter_definition_id: If present, only return records where ``id`` is in this list.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.relationship_parameter_definition_sq)
         if relationship_class_id:
             qry = qry.filter(self.relationship_parameter_definition_sq.c.relationship_class_id == relationship_class_id)
@@ -198,7 +213,15 @@ class DatabaseMappingQueryMixin:
         ).group_by(subqry.c.relationship_class_id, subqry.c.relationship_class_name)
 
     def parameter_value_list(self, id_list=None, object_id=None, relationship_id=None):
-        """Return parameter values."""
+        """Return all records from the
+        :meth:`parameter_value_sq <.DatabaseMappingBase.parameter_value_sq>` subquery.
+
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param int object_id: If present, only return records where ``object_id`` is equal to this.
+        :param int relationship_id: If present, only return records where ``relationship_id`` is equal to this.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.parameter_value_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_value_sq.c.id.in_(id_list))
@@ -209,21 +232,40 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def object_parameter_value_list(self, parameter_name=None):
-        """Return objects and their parameter values."""
+        """Return all records from the
+        :meth:`object_parameter_value_sq <.DatabaseMappingBase.object_parameter_value_sq>` subquery.
+
+        :param str parameter_name: If present, only return records where ``parameter_name`` is equal to this.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.object_parameter_value_sq)
         if parameter_name:
             qry = qry.filter(self.object_parameter_value_sq.c.parameter_name == parameter_name)
         return qry
 
     def relationship_parameter_value_list(self, parameter_name=None):
-        """Return relationships and their parameter values."""
+        """Return all records from the
+        :meth:`relationship_parameter_value_sq <.DatabaseMappingBase.relationship_parameter_value_sq>` subquery.
+
+        :param str parameter_name: If present, only return records where ``parameter_name`` is equal to this.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.relationship_parameter_value_sq)
         if parameter_name:
             qry = qry.filter(self.relationship_parameter_value_sq.c.parameter_name == parameter_name)
         return qry
 
     def parameter_tag_list(self, id_list=None, tag_list=None):
-        """Return list of parameter tags."""
+        """Return all records from the
+        :meth:`parameter_tag_list <.DatabaseMappingBase.parameter_tag_list>` subquery.
+
+        :param id_list: If present, only return records where ``id`` is in this list.
+        :param tag_list: If present, only return records where ``tag`` is in this list.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.parameter_tag_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_tag_sq.c.id.in_(id_list))
@@ -232,21 +274,40 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def parameter_definition_tag_list(self, id_list=None):
-        """Return list of parameter definition tags."""
+        """Return all records from the
+        :meth:`parameter_definition_tag_sq <.DatabaseMappingBase.parameter_definition_tag_sq>` subquery.
+
+        :param id_list: If present, only return records where ``id`` is in this list.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.parameter_definition_tag_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_definition_tag_sq.c.id.in_(id_list))
         return qry
 
     def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
-        """Return list of parameter tags in wide format for a given parameter definition."""
+        """Return all records from the
+        :meth:`wide_parameter_definition_tag_sq <.DatabaseMappingBase.wide_parameter_definition_tag_sq>` subquery.
+
+        :param int parameter_definition_id: If present, only return records where ``parameter_definition_id``
+            is equal to this.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.wide_parameter_definition_tag_sq)
         if parameter_definition_id:
             qry = qry.filter(self.wide_parameter_definition_tag_sq.c.parameter_definition_id == parameter_definition_id)
         return qry
 
     def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
-        """Return list of parameter tags (including the NULL tag) and their definitions in wide format.
+        """Return all records from the
+        :meth:`wide_parameter_tag_definition_sq <.DatabaseMappingBase.wide_parameter_tag_definition_sq>` subquery.
+
+        :param int parameter_tag_id: If present, only return records where ``parameter_tag_id``
+            is equal to this.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
         """
         qry = self.query(self.wide_parameter_tag_definition_sq)
         if parameter_tag_id:
@@ -254,31 +315,43 @@ class DatabaseMappingQueryMixin:
         return qry
 
     def parameter_value_list_list(self, id_list=None):
-        """Return list of parameter value lists."""
+        """Return all records from the
+        :meth:`parameter_value_list_sq <.DatabaseMappingBase.parameter_value_list_sq>` subquery.
+
+        :param id_list: If present, only return records where ``id`` is in this list.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.parameter_value_list_sq)
         if id_list is not None:
             qry = qry.filter(self.parameter_value_list_sq.c.id.in_(id_list))
         return qry
 
     def wide_parameter_value_list_list(self, id_list=None):
-        """Return list of parameter value lists and their elements in wide format."""
+        """Return all records from the
+        :meth:`wide_parameter_value_list_sq <.DatabaseMappingBase.wide_parameter_value_list_sq>` subquery.
+
+        :param id_list: If present, only return records where ``id`` is in this list.
+
+        :rtype: :class:`~sqlalchemy.orm.query.Query`
+        """
         qry = self.query(self.wide_parameter_value_list_sq)
         if id_list is not None:
             qry = qry.filter(self.wide_parameter_value_list_sq.c.id.in_(id_list))
         return qry
 
     def object_parameter_definition_fields(self):
-        """Return object parameter fields."""
+        """Return names of columns that would be returned by :meth:`object_parameter_definition_list`."""
         return [x["name"] for x in self.object_parameter_definition_list().column_descriptions]
 
     def relationship_parameter_definition_fields(self):
-        """Return relationship parameter fields."""
+        """Return names of columns that would be returned by :meth:`relationship_parameter_definition_list`."""
         return [x["name"] for x in self.relationship_parameter_definition_list().column_descriptions]
 
     def object_parameter_value_fields(self):
-        """Return object parameter value fields."""
+        """Return names of columns that would be returned by :meth:`object_parameter_value_list`."""
         return [x["name"] for x in self.object_parameter_value_list().column_descriptions]
 
     def relationship_parameter_value_fields(self):
-        """Return relationship parameter value fields."""
+        """Return names of columns that would be returned by :meth:`relationship_parameter_value_list`."""
         return [x["name"] for x in self.relationship_parameter_value_list().column_descriptions]
