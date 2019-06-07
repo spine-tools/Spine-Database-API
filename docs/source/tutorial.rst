@@ -9,21 +9,26 @@ Tutorial
 ********
 
 Spine database API provides for the creation and management of
-Spine database object relational mappings, using SQLAlchemy_ as the underlying engine.
+Spine databases, using SQLAlchemy_ as the underlying engine.
 This tutorial will provide a full introduction to the usage of this package.
 
 To begin, make sure Spine database API is installed as described at :ref:`installation`.
 
 
+Creation
+--------
+
+Usage of Spine database API starts with the creation of a Spine database.
+
 Mapping
 -------
 
-Usage of Spine database API starts with the creation of a *Database Mapping*. This is
-a Python object that provides simple access to a Spine database.
+Next step is the creation of a *Database Mapping*,
+a Python object that provides means of interacting with the database.
 Spine database API provides two classes of mapping:
 
 - :class:`.DatabaseMapping`, just for *querying* the database (i.e., run ``SELECT`` statements).
-- :class:`.DiffDatabaseMapping`, for both querying and *modifying* the database. 
+- :class:`.DiffDatabaseMapping`, for both querying and *modifying* the database.
 
 The differences between these two will become more apparent as we go through this tutorial.
 However, it is important to note that everything you can do with a :class:`.DatabaseMapping`,

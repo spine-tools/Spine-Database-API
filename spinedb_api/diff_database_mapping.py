@@ -45,7 +45,7 @@ class DiffDatabaseMapping(
     """A read-write database mapping.
 
     Provides methods to *stage* any number of changes (namely, ``INSERT``, ``UPDATE`` and ``REMOVE`` operations)
-    over a Spine database, as well as to commit or rollback those changes.
+    over a Spine database, as well as to commit or rollback the batch of changes.
 
     For convenience, querying this mapping return results *as if* all the staged changes were already committed.
 

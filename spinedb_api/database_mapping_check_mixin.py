@@ -52,7 +52,7 @@ class DatabaseMappingCheckMixin:
         """Check whether object classes passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -61,7 +61,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -82,7 +82,7 @@ class DatabaseMappingCheckMixin:
         """Check whether object classes passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -91,7 +91,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -134,7 +134,7 @@ class DatabaseMappingCheckMixin:
         """Check whether objects passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -143,7 +143,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -164,7 +164,7 @@ class DatabaseMappingCheckMixin:
         """Check whether objects passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -173,7 +173,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -215,7 +215,7 @@ class DatabaseMappingCheckMixin:
         """Check whether relationship classes passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable wide_items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable wide_items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -224,7 +224,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_wide_items = list()
@@ -245,7 +245,7 @@ class DatabaseMappingCheckMixin:
         """Check whether relationship classes passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable wide_items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable wide_items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -254,7 +254,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_wide_items = list()
@@ -301,7 +301,7 @@ class DatabaseMappingCheckMixin:
         """Check whether relationships passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable wide_items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable wide_items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -310,7 +310,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_wide_items = list()
@@ -341,7 +341,7 @@ class DatabaseMappingCheckMixin:
         """Check whether relationships passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable wide_items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable wide_items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -350,7 +350,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_wide_items = list()
@@ -410,7 +410,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter definitions passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -419,7 +419,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -460,7 +460,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter definitions passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -469,7 +469,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -550,7 +550,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter values passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -559,7 +559,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -613,7 +613,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter values passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -622,7 +622,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -715,7 +715,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter tags passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -724,7 +724,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -744,7 +744,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter tags passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -753,7 +753,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -795,7 +795,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter definition tag items passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -804,7 +804,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_items = list()
@@ -828,7 +828,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter value-lists passed as argument respect integrity constraints
         for an insert operation.
 
-        :param Iterable wide_items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable wide_items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -837,7 +837,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_wide_items = list()
@@ -857,7 +857,7 @@ class DatabaseMappingCheckMixin:
         """Check whether parameter value-lists passed as argument respect integrity constraints
         for an update operation.
 
-        :param Iterable wide_items: One or more Pythong :class:`dict` objects representing the items to be checked.
+        :param Iterable wide_items: One or more Python :class:`dict` objects representing the items to be checked.
 
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if one of the items violates an integrity constraint.
@@ -866,7 +866,7 @@ class DatabaseMappingCheckMixin:
             - **checked_items** -- A list of items that passed the check.
 
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to the found violations.
+              to found violations.
         """
         intgr_error_log = []
         checked_wide_items = list()
