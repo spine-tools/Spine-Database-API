@@ -38,15 +38,11 @@ from sqlalchemy.orm.util import AliasedInsp
 
 
 class DiffDatabaseMappingBase(DatabaseMappingBase):
-    """Base class for the *difference* database mapping.
-
-    This is a special mapping designed to *stage* temporary changes
-    so they can be committed to the database in batch. All subquery properties return results
-    *as if* the changes were already committed.
+    """Base class for the read-write database mapping.
     """
 
     # NOTE: It works by creating and mapping a set of
-    # temporary 'diff' tables to hold staged changes until the moment of commit.
+    # temporary 'diff' tables, where temporary changes are staged until the moment of commit.
 
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
@@ -141,14 +137,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )
-
-    def has_pending_changes(self):
-        """True if this mapping has uncommitted changes."""
-        if any([v for v in self.added_item_id.values()]):
-            return True
-        if any([v for v in self.dirty_item_id.values()]):
-            return True
-        return False
 
     def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""

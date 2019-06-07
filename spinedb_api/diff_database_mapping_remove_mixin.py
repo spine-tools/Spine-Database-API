@@ -17,8 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-"""
-A class to handle DELETE operations onto a Spine db 'diff' ORM.
+"""Provides :class:`.DiffDatabaseMappingRemoveMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -31,7 +30,8 @@ from .exception import SpineDBAPIError
 
 
 class DiffDatabaseMappingRemoveMixin:
-    """A mixin to handle DELETE operations onto a Spine db 'diff' ORM."""
+    """Provides the :meth:`remove_items` method to stage ``REMOVE`` operations over a Spine db.
+    """
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""

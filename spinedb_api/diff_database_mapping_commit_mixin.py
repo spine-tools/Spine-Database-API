@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-A class to handle COMMIT and ROLLBACK operations onto a Spine db 'diff' ORM.
+Provides :class:`DiffDatabaseMappingCommitMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 
 
 class DiffDatabaseMappingCommitMixin:
-    """A mixin to handle COMMIT and ROLLBACK operations onto a Spine db 'diff' ORM."""
+    """Provides methods to commit or rollback staged changes onto a Spine database."""
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""
@@ -106,3 +106,11 @@ class DiffDatabaseMappingCommitMixin:
             self.session.rollback()
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def has_pending_changes(self):
+        """True if this mapping has any staged changes."""
+        if any([v for v in self.added_item_id.values()]):
+            return True
+        if any([v for v in self.dirty_item_id.values()]):
+            return True
+        return False
