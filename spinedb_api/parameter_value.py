@@ -16,37 +16,18 @@ Spine Toolbox application main file.
 :date:   3.6.2019
 """
 
-from collections import Iterable
-from enum import auto, Enum, unique
 import json
-from json.decoder import JSONDecodeError
 import numpy
 import re
 
 
-def time_series_as_numpy(data):
-    """
-    Converts a Spine time series into numpy arrays.
-
-    Args:
-        data (dict): A dict representation of the time series
-
-    Returns:
-        A tuple of (timestamps, values)
-    """
-    stamps = list()
-    values = list()
-    for key, value in data.items():
-        stamps.append(numpy.datetime64(key))
-        values.append(value)
-    return numpy.array(stamps), numpy.array(values)
-
-
-def timedelta(resolution):
+def resolution_to_timedelta(resolution):
     """Converts a duration into numpy.timedelta64 object."""
     if "S" in resolution or "second" in resolution:
         duration_type = "s"
-    elif "H" in resolution or "hour":
+    elif "M" in resolution or "minute" in resolution:
+        duration_type = "m"
+    elif "H" in resolution or "hour" in resolution:
         duration_type = "h"
     elif "d" in resolution or "day" in resolution:
         duration_type = "D"
@@ -55,139 +36,120 @@ def timedelta(resolution):
     elif "y" in resolution or "Y" in resolution or "year" in resolution:
         duration_type = "Y"
     else:
-        # Everything else is minutes.
-        duration_type = "m"
-    number = int(re.split("\\s|[a-zA-Z]]", resolution, maxsplit=1)[0])
-    print(number)
-    print(duration_type)
+        raise RuntimeError("Unrecognized time duration format: {}".format(resolution))
+    number = int(re.split("\\s|[a-z]|[A-Z]", resolution, maxsplit=1)[0])
     return numpy.timedelta64(number, duration_type)
 
 
-
-def dumps(s):
+def from_json(value):
     """
-    Convert numpy arrays into Spine time series.
+    Converts a (relationship) parameter value JSON string to a Python object.
+
+    Single values are converted to floats,
+    time series into VariableTimeSeries or FixedTimeSteps objects.
 
     Args:
-        s (iterable): an iterable of two numpy arrays
+        value (str): a JSON string to decode
 
     Returns:
-        A string representetation of the time series
+        the encoded (relationship) parameter value
     """
-    data = dict()
-    for stamp, value in zip(s[0], s[1]):
-        data[str(stamp)] = value
-    return json.dumps(data)
+    value = json.loads(value)
+    if isinstance(value, dict):
+        if "metadata" in value:
+            metadata = value["metadata"]
+            start = metadata["start"]
+            resolution = metadata["resolution"]
+            values = value["data"]
+            return FixedTimeSteps(start, len(values), resolution, values)
+        stamps = list()
+        values = list()
+        for key, value in value.items():
+            stamps.append(numpy.datetime64(key))
+            values.append(value)
+        return VariableTimeSteps(stamps, values)
+    return value
 
 
-class ParameterType(Enum):
-    """An enumeration for different value types."""
-    SINGLE_VALUE = auto()
-    TIME_PATTERN = auto()
-    TIME_SERIES = auto()
-
-
-class ValueDecodeError(Exception):
+class VariableTimeSteps:
     """
-    An exception raised when decoding a value fails.
+    Holds variable time step time series information.
 
     Attributes:
-        expression (str): the string that could not be decoded
+        stamps (numpy.array): time stamps as a numpy.datetime64 array
+        values (numpy.array): values as a numpy array
     """
 
-    def __init__(self, expression):
-        super().__init__()
-        self._message = "Failed to decode expression {}".format(expression)
+    def __init__(self, stamps, values):
+        self._stamps = stamps
+        self._values = values
+
+    def as_json(self):
+        """Returns the value as a JSON string"""
+        data = dict()
+        for stamp, value in zip(self._stamps, self._values):
+            data[str(stamp)] = value
+        return json.dumps(data)
 
     @property
-    def message(self):
-        """Returns a message explaining the error."""
-        return self._message
+    def stamps(self):
+        return self._stamps
+
+    @property
+    def values(self):
+        return self._values
 
 
-class ParameterValue:
+class FixedTimeSteps:
     """
-    A class to convert the JSON representation of (relationship) parameter values into other types.
-
-    Currently supports conversion to numpy.
+    Holds fixed time step time series information.
 
     Attributes:
-        raw_value (str): Parameter's value as a JSON string
+        start (numpy.datetime64): start time for the series
+        length (int): number of steps in the series
+        resolution (numpy.timedelta64): time difference between two time steps
+        values (numpy.array): data values for each time step
     """
 
-    def __init__(self, raw_value):
-        self._raw = raw_value
-        value = json.loads(raw_value)
-        if isinstance(value, dict):
-            self._type = ParameterType.TIME_SERIES
-            if "metadata" in value:
-                metadata = value["metadata"]
-                time = numpy.datetime64(metadata["start"])
-                resolution = timedelta(metadata["resolution"])
-                data = value["data"]
-                times = list()
-                for _ in range(len(data)):
-                    times.append(numpy.datetime64(time))
-                    time += resolution
-                self._value = (numpy.array(times), numpy.array(data))
-            else:
-                self._value = time_series_as_numpy(value)
-        else:
-            self._type = ParameterType.SINGLE_VALUE
-            self._value = value
+    def __init__(self, start, length, resolution, values):
+        self._start = start
+        self._length = length
+        self._resolution = resolution
+        self._values = values
 
-    def __str__(self):
-        """"Returns the JSON representation of the value."""
-        return str(self._raw)
-
-    def is_single_value(self):
-        """Returns True if the value is a single value, False otherwise."""
-        return self._type == ParameterType.SINGLE_VALUE
-
-    def is_time_series(self):
-        """Returns True if the value is a time series, False otherwise."""
-        return self._type == ParameterType.TIME_SERIES
-
-    def is_time_pattern(self):
-        """Returns True if the value is a time pattern, False otherwise."""
-        return self._type == ParameterType.TIME_PATTERN
-
-    def as_numpy(self):
-        """
-        Returns the value as a numpy object.
-
-        The return type depends on the value type:
-            singe value: a number
-            time series: a tuple (numpy.array(dtype=numpy.datetime64), numpy.array())
-            time pattern: not yet implemented
-        """
-        return self._value
+    def as_json(self):
+        """Returns the value as a JSON string."""
+        return json.dumps(
+            {
+                "metadata": {
+                    "start": self.start,
+                    "resolution": self.resolution,
+                    "length": self.length,
+                },
+                "data": self.values.tolist(),
+            }
+        )
 
     @property
-    def raw(self):
-        """Gets the JSON string."""
-        return self._raw
+    def start(self):
+        return self._start
 
-    @raw.setter
-    def raw(self, raw_value):
-        """Sets the JSON string"""
-        self._value = None
-        self._raw = raw_value
+    @property
+    def length(self):
+        return self._length
 
-    def set(self, value):
-        """
-        Sets the value.
+    @property
+    def resolution(self):
+        return self._resolution
 
-        Accepted inputs types:
-            single value: a number
-            time series: a tuple (numpy.array(dtype=numpy.datetime64), numpy.array())
-            time patter: not yet implemented
-        """
-        try:
-            if isinstance(value, Iterable) and len(value) == 2:
-                self._raw = dumps(value)
-            else:
-                self._raw = json.dumps(value)
-            self._value = value
-        except JSONDecodeError:
-            raise ValueDecodeError(value)
+    @property
+    def stamps(self):
+        """"Returns the time stamps as numpy.array of numpy.datetime64 values."""
+        start = numpy.datetime64(self._start)
+        resolution = resolution_to_timedelta(self._resolution)
+        end = start + (self._length + 0.5) * resolution
+        return numpy.arange(start, end, resolution)
+
+    @property
+    def values(self):
+        return self._values
