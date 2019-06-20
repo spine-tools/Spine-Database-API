@@ -52,6 +52,8 @@ from .parameter_value import (
     from_json,
     FixedTimeSteps,
     resolution_to_timedelta,
+    ValueEncodeError,
+    ValueDecodeError,
     VariableTimeSteps,
 )
 from .version import __version__

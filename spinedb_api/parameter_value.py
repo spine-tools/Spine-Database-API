@@ -19,6 +19,7 @@ Spine Toolbox application main file.
 import json
 import numpy
 import re
+from json.decoder import JSONDecodeError
 
 
 def resolution_to_timedelta(resolution):
@@ -54,19 +55,23 @@ def from_json(value):
     Returns:
         the encoded (relationship) parameter value
     """
-    value = json.loads(value)
+    try:
+        value = json.loads(value)
+    except JSONDecodeError:
+        raise ValueDecodeError(value)
     if isinstance(value, dict):
         if "metadata" in value:
             metadata = value["metadata"]
             start = metadata["start"]
             resolution = metadata["resolution"]
-            values = value["data"]
+            values = numpy.array(value["data"])
             return FixedTimeSteps(start, len(values), resolution, values)
         stamps = list()
         values = list()
         for key, value in value.items():
             stamps.append(numpy.datetime64(key))
             values.append(value)
+        values = numpy.array(values)
         return VariableTimeSteps(stamps, values)
     return value
 
@@ -88,6 +93,10 @@ class VariableTimeSteps:
         """Returns the value as a JSON string"""
         data = dict()
         for stamp, value in zip(self._stamps, self._values):
+            try:
+                value = float(value)
+            except ValueError:
+                raise ValueEncodeError()
             data[str(stamp)] = value
         return json.dumps(data)
 
@@ -153,3 +162,23 @@ class FixedTimeSteps:
     @property
     def values(self):
         return self._values
+
+class ValueDecodeError(Exception):
+    """
+    An exception raised when decoding a value fails.
+
+    Attributes:
+        expression (str): the string that could not be decoded
+    """
+
+    def __init__(self, expression):
+        super().__init__()
+        self._message = "Failed to decode expression {}".format(expression)
+
+    @property
+    def message(self):
+        """Returns a message explaining the error."""
+        return self._message
+
+class ValueEncodeError(Exception):
+    """An exception raised when encoding a value fails."""
