@@ -47,11 +47,17 @@ _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 
 
 # TODO:
-# - Consider renaming ...FixedStep and ...VariableStep to something else,
-#   because ...FixedStep can also be variable if `resolution` is an array with different values
-# - Try and use `ParameterValueError` from `exception.py` for consistency
-# - Documentation style, how does it work with sphinx?
-# - Sometimes it looks like we could use `d.get(key, default)` instead of `d[key] if key in d else default`
+# - Handle *variable* resolution in `IndexedValueFixedStep` or see if we can get rid of it...
+#   (but I kinda remember people wanted to have it)
+# - Because of variable resolution the names `...FixedStep` and `...VariableStep` are a bit misleading,
+#   maybe something like `...CompactIndex` and `...ExplicitIndex` can work?
+# - See if we can use `ParameterValueError` from `exception.py` for consistency
+# - Documentation style, newbie question, does it work nicely with sphinx?
+# - Sometimes it looks like we could use `d.get(key, default)` instead of `d[key] if key in d else default`?
+# - Should `from_database` just return the `dict` rather than raising a `ParameterValueError`
+#   in case of unknown `type` or `KeyError`?
+# - Rookie question: Why the choice of `numpy.array` of `numpy.datetime64` for indices?
+#   What is wrong with a list of `datetime`?
 
 
 def duration_to_relativedelta(duration):
