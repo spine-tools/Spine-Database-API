@@ -18,7 +18,7 @@
 #############################################################################
 
 """
-Classes to handle the Spine database object relational mapping.
+Provides :class:`DiffDatabaseMapping`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -42,13 +42,16 @@ class DiffDatabaseMapping(
     DiffDatabaseMappingCommitMixin,
     DiffDatabaseMappingBase,
 ):
-    """A class to create a 'diff' ORM from a Spine db, query it, make changes to it, and
-    commit those changes.
+    """A read-write database mapping.
 
-    Attributes:
-        db_url (str): The database url formatted according to sqlalchemy rules
-        username (str): The user name
-        upgrade (Bool): Whether or not the given url should be automatically upgraded to the latest version
+    Provides methods to *stage* any number of changes (namely, ``INSERT``, ``UPDATE`` and ``REMOVE`` operations)
+    over a Spine database, as well as to commit or rollback the batch of changes.
+
+    For convenience, querying this mapping return results *as if* all the staged changes were already committed.
+
+    :param str db_url: A database URL in RFC-1738 format pointing to the database to be mapped.
+    :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
+    :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 
     def __init__(self, db_url, username=None, upgrade=False):

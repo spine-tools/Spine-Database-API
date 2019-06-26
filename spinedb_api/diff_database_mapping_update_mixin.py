@@ -17,8 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #############################################################################
 
-"""
-A class to handle UPDATE operations onto a Spine db 'diff' ORM.
+"""Provides :class:`.DiffDatabaseMappingUpdateMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -33,13 +32,14 @@ from .helpers import attr_dict
 
 
 class DiffDatabaseMappingUpdateMixin:
-    """A mixin to handle UPDATE operations onto a Spine db 'diff' ORM."""
+    """Provides methods to stage ``UPDATE`` operations over a Spine db.
+    """
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
 
-    def handle_items(self, orig_class, diff_class, checked_kwargs_list, filter_key=("id",), unhandled_fields=()):
+    def _handle_items(self, orig_class, diff_class, checked_kwargs_list, filter_key=("id",), unhandled_fields=()):
         """Return lists of items for update and insert.
         Items found in the diff classes should be updated,
         whereas items found in the orig classes should be marked as dirty and
@@ -83,7 +83,7 @@ class DiffDatabaseMappingUpdateMixin:
     def _update_object_classes(self, *checked_kwargs_list, strict=False):
         """Update object classes without checking integrity."""
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.ObjectClass, self.DiffObjectClass, checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffObjectClass, items_for_update)
@@ -107,7 +107,7 @@ class DiffDatabaseMappingUpdateMixin:
     def _update_objects(self, *checked_kwargs_list):
         """Update objects without checking integrity."""
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.Object, self.DiffObject, checked_kwargs_list, unhandled_fields=("class_id",)
             )
             self.session.bulk_update_mappings(self.DiffObject, items_for_update)
@@ -135,7 +135,7 @@ class DiffDatabaseMappingUpdateMixin:
     def _update_wide_relationship_classes(self, *checked_wide_kwargs_list):
         """Update relationship classes without checking integrity."""
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.RelationshipClass,
                 self.DiffRelationshipClass,
                 checked_wide_kwargs_list,
@@ -178,14 +178,14 @@ class DiffDatabaseMappingUpdateMixin:
                 narrow_kwargs["object_id"] = object_id
                 id_dim_kwargs_list.append(narrow_kwargs)
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.Relationship,
                 self.DiffRelationship,
                 id_kwargs_list,
                 filter_key=("id",),
                 unhandled_fields=("class_id",),
             )
-            items_for_update_, items_for_insert_, dirty_ids_, updated_ids_ = self.handle_items(
+            items_for_update_, items_for_insert_, dirty_ids_, updated_ids_ = self._handle_items(
                 self.Relationship,
                 self.DiffRelationship,
                 id_dim_kwargs_list,
@@ -215,7 +215,7 @@ class DiffDatabaseMappingUpdateMixin:
     def _update_parameters(self, *checked_kwargs_list):
         """Update parameter definitions without checking integrity."""
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.ParameterDefinition,
                 self.DiffParameterDefinition,
                 checked_kwargs_list,
@@ -250,7 +250,7 @@ class DiffDatabaseMappingUpdateMixin:
             updated_ids (set): updated instances' ids
         """
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.ParameterValue,
                 self.DiffParameterValue,
                 checked_kwargs_list,
@@ -277,7 +277,7 @@ class DiffDatabaseMappingUpdateMixin:
     def _update_parameter_tags(self, *checked_kwargs_list):
         """Update parameter tags without checking integrity."""
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self.handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
                 self.ParameterTag, self.DiffParameterTag, checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffParameterTag, items_for_update)

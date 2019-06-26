@@ -38,15 +38,11 @@ from sqlalchemy.orm.util import AliasedInsp
 
 
 class DiffDatabaseMappingBase(DatabaseMappingBase):
-    """Base class for the *difference* database mapping.
-
-    This is a special mapping designed to *stage* temporary changes to the database
-    so they can be committed in batch. All subquery properties return results
-    *as if* the changes were already committed.
+    """Base class for the read-write database mapping.
     """
 
     # NOTE: It works by creating and mapping a set of
-    # temporary 'diff' tables to hold staged changes until the moment of commit.
+    # temporary 'diff' tables, where temporary changes are staged until the moment of commit.
 
     def __init__(self, db_url, username=None, upgrade=False):
         """Initialize class."""
@@ -123,19 +119,15 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             if tablename in tables:
                 setattr(self, attr, None)
 
-    def subquery(self, tablename):
-        """Return an (:class:`~sqlalchemy.sql.expression.Alias` object) derived from:: sql
-
-            SELECT * FROM tablename
-
-        If this mapping has staged changes, the result includes those changes 'as if'
-        they were already committed.
+    def _subquery(self, tablename):
+        """Overriden method to
+            (i) filter dirty items from original tables, and
+            (ii) also bring data from diff tables:
+        Roughly equivalent to:
+            SELECT * FROM orig_table WHERE id NOT IN dirty_ids
+            UNION ALL
+            SELECT * FROM diff_table
         """
-        # NOTE: Overriden method to (i) filter dirty items from original tables, and
-        # (ii) also bring data from diff tables:
-        #     SELECT * FROM orig_table WHERE id NOT IN dirty_ids
-        #     UNION ALL
-        #     SELECT * FROM diff_table
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
@@ -145,14 +137,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )
-
-    def has_pending_changes(self):
-        """True if this mapping has uncommitted changes."""
-        if any([v for v in self.added_item_id.values()]):
-            return True
-        if any([v for v in self.dirty_item_id.values()]):
-            return True
-        return False
 
     def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""

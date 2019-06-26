@@ -44,7 +44,7 @@ def upgrade():
     with op.batch_alter_table("relationship", naming_convention=naming_convention) as batch_op:
         batch_op.create_unique_constraint("uq_relationship_name_class_id_dimension", ["name", "class_id", "dimension"])
     with op.batch_alter_table("parameter_definition", naming_convention=naming_convention) as batch_op:
-        batch_op.drop_constraint("uq_parameter_name", type_="unique")
+        batch_op.drop_constraint("uq_parameter_definition_name", type_="unique")
         batch_op.create_unique_constraint(
             "uq_parameter_definition_name_class_id", ["name", "object_class_id", "relationship_class_id"]
         )

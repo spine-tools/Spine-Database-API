@@ -2,10 +2,14 @@ dist: xenial   # required for Python >= 3.7
 language: python
 python:
   - "3.7"
+notifications:
+  email: false
 install:
   - npm install gh-pages
   - pip install -U pip
   - pip install sphinx sphinx_rtd_theme
+script:
+  - pip install .
 after_success:
   - openssl aes-256-cbc -K $encrypted_151fbad3b0ea_key -iv $encrypted_151fbad3b0ea_iv -in deploy-key.enc -out deploy-key -d
   - chmod 600 deploy-key
@@ -14,4 +18,5 @@ after_success:
   - cd docs
   - make html
   - cd ..
-  - ./node_modules/.bin/gh-pages -d docs/build/html -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
+  - touch docs/build/html/.nojekyll
+  - ./node_modules/.bin/gh-pages -t -d docs/build/html -b gh-pages -r git@github.com:${TRAVIS_REPO_SLUG}.git
