@@ -39,6 +39,7 @@ import json
 from json.decoder import JSONDecodeError
 import re
 from dateutil.relativedelta import relativedelta
+import dateutil.parser
 import numpy as np
 
 # Defaulting to seconds precision in numpy.
@@ -168,7 +169,7 @@ def _break_dictionary(data):
 def _datetime_from_database(value):
     """Converts a datetime database value into a DateTime object."""
     try:
-        stamp = datetime.fromisoformat(value)
+        stamp = dateutil.parser.parse(value)
     except ValueError:
         raise ParameterValueError('Could not parse datetime from "{}"'.format(value))
     return DateTime(stamp)
@@ -224,7 +225,7 @@ def _time_series_from_database(value):
             value_index = value.get("index", {})
             start = value_index["start"] if "start" in value_index else "0001-01-01T00:00:00"
             try:
-                start = datetime.fromisoformat(start)
+                start = dateutil.parser.parse(start)
             except ValueError:
                 raise ParameterValueError("Could not decode start value {}".format(start))
             resolution = value_index["resolution"] if "resolution" in value_index else "1 hour"
