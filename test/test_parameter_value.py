@@ -16,6 +16,7 @@ Tests for the parameter_value module.
 :date:   7.6.2019
 """
 
+from datetime import datetime
 import json
 import unittest
 from dateutil.relativedelta import relativedelta
@@ -23,6 +24,8 @@ import numpy.testing
 from spinedb_api.parameter_value import (
     duration_to_relativedelta,
     from_database,
+    DateTime,
+    Duration,
     TimeSeriesFixedStep,
     TimeSeriesVariableStep,
 )
@@ -81,15 +84,37 @@ class TestParameterValue(unittest.TestCase):
         delta = duration_to_relativedelta("7 years")
         self.assertEqual(delta, relativedelta(years=7))
 
+    def test_from_database_DateTime(self):
+        database_value = '{"type": "date_time", "data": "2019-06-01T22:15:00+01:00"}'
+        value = from_database(database_value)
+        self.assertEqual(value.value, datetime.fromisoformat("2019-06-01T22:15:00+01:00"))
+
+    def test_DateTime_to_database(self):
+        value = DateTime(datetime(year=2019, month=6, day=26, hour=10, minute=50, second=34))
+        database_value = value.to_database()
+        value_dict = json.loads(database_value)
+        self.assertEqual(value_dict, {"type": "date_time", "data": "2019-06-26T10:50:34"})
+
+    def test_from_database_Duration(self):
+        database_value = '{"type": "duration", "data": "4 seconds"}'
+        value = from_database(database_value)
+        self.assertEqual(value.value, relativedelta(seconds=4))
+
+    def test_Duration_to_database(self):
+        value = Duration(duration_to_relativedelta("8 years"))
+        database_value = value.to_database()
+        value_as_dict = json.loads(database_value)
+        self.assertEqual(value_as_dict, {"type": "duration", "data": "8Y"})
+
     def test_from_database_TimeSeriesVariableStep(self):
-        releases = '''{
+        releases = """{
                           "type": "time_series",
                           "data": {
                               "1977-05-25": 4,
                               "1980-05-21": 5,
                               "1983-05-25": 6
                           }
-                      }'''
+                      }"""
         time_series = from_database(releases)
         numpy.testing.assert_equal(
             time_series.indexes,
@@ -138,8 +163,8 @@ class TestParameterValue(unittest.TestCase):
             ),
         )
         numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1]))
-        self.assertEqual(time_series.start, "2019-03-23")
-        self.assertEqual(time_series.step, "1 day")
+        self.assertEqual(time_series.start, datetime.fromisoformat("2019-03-23"))
+        self.assertEqual(time_series.step, relativedelta(days=1))
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
@@ -152,7 +177,12 @@ class TestParameterValue(unittest.TestCase):
             releases,
             {
                 "type": "time_series",
-                "index": {"start": "2007-06", "resolution": "1 months", "ignore_year": True, "repeat": True},
+                "index": {
+                    "start": "2007-06",
+                    "resolution": "1 months",
+                    "ignore_year": True,
+                    "repeat": True,
+                },
                 "data": [3, 2, 4],
             },
         )

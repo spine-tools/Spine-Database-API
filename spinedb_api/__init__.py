@@ -50,6 +50,7 @@ from .json_mapping import (
 )
 from .parameter_value import (
     duration_to_relativedelta,
+    relativedelta_to_duration,
     from_database,
     DateTime,
     Duration,

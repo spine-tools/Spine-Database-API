@@ -18,7 +18,16 @@
 #############################################################################
 
 """
-Spine Toolbox application main file.
+Support utilities and classes to deal with Spine data (relationship)
+parameter values.
+
+Individual datetimes are represented as datetime objects from the standard Python library.
+Individual time steps are represented as relativedelta objects from the dateutils package.
+Lists of datetimes (as time series time stamps or indices) are represented as
+numpy.array arrays holding numpy.datetime64 objects.
+
+This module is currently missing proper handling of time patterns
+which are represented as strings in the database format.
 
 :author: A. Soininen (VTT)
 :date:   3.6.2019
@@ -36,7 +45,15 @@ _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 
 
 def duration_to_relativedelta(duration):
-    """Converts a duration to a relativedelta object."""
+    """
+    Converts a duration to a relativedelta object.
+
+    Args:
+        duration (str): a duration specification
+
+    Returns:
+        a relativedelta object corresponding to the given duration
+    """
     count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
     try:
         count = int(count)
@@ -58,6 +75,30 @@ def duration_to_relativedelta(duration):
     raise ParameterValueError('Could not parse duration "{}"'.format(duration))
 
 
+def relativedelta_to_duration(delta):
+    """
+    Converts a relativedelta to duration.
+
+    Args:
+        delta (relativedelta): the relativedelta to convert
+
+    Returns:
+        a duration string
+    """
+    if delta.seconds > 0:
+        return "{}s".format(delta.seconds)
+    if delta.minutes > 0:
+        return "{}m".format(delta.minutes)
+    if delta.hours > 0:
+        return "{}h".format(delta.hours)
+    if delta.days > 0:
+        return "{}D".format(delta.days)
+    if delta.months > 0:
+        return "{}M".format(delta.months)
+    if delta.years > 0:
+        return "{}Y".format(delta.years)
+    raise ParameterValueError("Zero relativedelta")
+
 def from_database(database_value):
     """
     Converts a (relationship) parameter value from its database representation to a Python object.
@@ -76,9 +117,9 @@ def from_database(database_value):
         try:
             value_type = value["type"]
             if value_type == "date_time":
-                return DateTime(value["data"])
+                return _datetime_from_database(value["data"])
             if value_type == "duration":
-                return Duration(value["data"])
+                return _duration_from_database(value["data"])
             if value_type == "time_pattern":
                 return _time_pattern_from_database(value)
             if value_type == "time_series":
@@ -94,6 +135,7 @@ def from_database(database_value):
 
 
 def _break_dictionary(data):
+    """Converts {"index": value} style dictionary into (list(indexes), list(values)) tuple."""
     indexes = list()
     values = list()
     for key, value in data.items():
@@ -103,25 +145,37 @@ def _break_dictionary(data):
 
 
 def _datetime_from_database(value):
+    """Converts a datetime database value into a DateTime object."""
     try:
-        stamp = datetime.fromisoformat(value["data"])
+        stamp = datetime.fromisoformat(value)
     except ValueError:
         raise ParameterValueError(
-            'Could not parse datetime from "{}"'.format(value["data"])
+            'Could not parse datetime from "{}"'.format(value)
         )
     return DateTime(stamp)
 
 
+def _duration_from_database(value):
+    value = duration_to_relativedelta(value)
+    return Duration(value)
+
+
 def _time_series_from_database(value):
+    """Converts a time series database value into a time series object."""
     data = value["data"]
     if "index" in value:
         value_index = value["index"]
         start = (
             value_index["start"] if "start" in value_index else "0001-01-01T00:00:00"
         )
+        try:
+            start = datetime.fromisoformat(start)
+        except ValueError:
+            raise ParameterValueError("Could not decode start value {}".format(start))
         resolution = (
             value_index["resolution"] if "resolution" in value_index else "1 hour"
         )
+        resolution = duration_to_relativedelta(resolution)
         if "ignore_year" in value_index:
             ignore_year = value_index["ignore_year"]
         else:
@@ -135,7 +189,9 @@ def _time_series_from_database(value):
             try:
                 stamp = np.datetime64(key)
             except ValueError:
-                raise ParameterValueError('Could not decode time stamp "{}"'.format(stamp))
+                raise ParameterValueError(
+                    'Could not decode time stamp "{}"'.format(stamp)
+                )
             stamps.append(stamp)
             values.append(value)
         values = np.array(values)
@@ -146,6 +202,7 @@ def _time_series_from_database(value):
 
 
 def _time_pattern_from_database(value):
+    """Converts a time pattern database value into a TimePattern object."""
     patterns, values = _break_dictionary(value["data"])
     return TimePattern(patterns, values)
 
@@ -162,10 +219,12 @@ class DateTime:
         self._value = value
 
     def to_database(self):
+        """Returns the database representation of this object."""
         return json.dumps({"type": "date_time", "data": self._value.isoformat()})
 
     @property
     def value(self):
+        """Returns the value as a datetime object."""
         return self._value
 
 
@@ -182,7 +241,8 @@ class Duration:
 
     def to_database(self):
         """Returns the database representation of the duration."""
-        return json.dumps({"type": "duration", "data": self._value})
+        value = relativedelta_to_duration(self._value)
+        return json.dumps({"type": "duration", "data": value})
 
     @property
     def value(self):
@@ -239,24 +299,22 @@ class IndexedValueFixedStep(IndexedValue):
 
     @property
     def start(self):
-        return self._start
-
-    @start.setter
-    def start(self, new_start):
+        """Returns the start index."""
         return self._start
 
     @property
     def length(self):
+        """Returns the length of the data array."""
         return len(self._values)
 
     @property
     def step(self):
+        """Returns the step size."""
         return self._step
 
     @property
     def indexes(self):
         """"Returns the time stamps as numpy.array of numpy.datetime64 values."""
-        # Does not handle months and years as timedelta at all.
         end = self._start + self.length * self._step
         return np.arange(self._start, end, self._step)
 
@@ -290,6 +348,7 @@ class IndexedValueVariableStep(IndexedValue):
 
     @property
     def indexes(self):
+        """Returns the indexes."""
         return self._indexes
 
 
@@ -335,18 +394,18 @@ class TimeSeriesFixedStep(IndexedValueFixedStep):
 
     @property
     def ignore_year(self):
+        """Returns True if the year should be ignored."""
         return self._ignore_year
 
     @property
     def indexes(self):
         """Returns the time stamps as a numpy.array of numpy.datetime64 objects."""
-        delta = duration_to_relativedelta(self._step)
-        start = datetime.fromisoformat(self._start)
-        stamps = [start + i * delta for i in range(self.length)]
+        stamps = [self._start + i * self._step for i in range(self.length)]
         return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
 
     @property
     def repeat(self):
+        """Returns True if this time series should be repeated."""
         return self._repeat
 
     def to_database(self):
@@ -363,7 +422,6 @@ class TimeSeriesFixedStep(IndexedValueFixedStep):
                 "data": self._values.tolist(),
             }
         )
-
 
 
 class TimeSeriesVariableStep(IndexedValueVariableStep):
