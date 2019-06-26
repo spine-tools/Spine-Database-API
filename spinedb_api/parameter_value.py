@@ -1,13 +1,21 @@
-######################################################################################################################
-# Copyright (C) 2019 Spine project consortium
-# This file is part of Spine Toolbox.
-# Spine Toolbox is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
-# Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
-# any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
-# Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
-# this program. If not, see <http://www.gnu.org/licenses/>.
-######################################################################################################################
+#############################################################################
+# Copyright (C) 2017 - 2019 VTT Technical Research Centre of Finland
+#
+# This file is part of Spine Database API.
+#
+# Spine Spine Database API is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#############################################################################
 
 """
 Spine Toolbox application main file.
@@ -16,169 +24,382 @@ Spine Toolbox application main file.
 :date:   3.6.2019
 """
 
+from datetime import datetime
 import json
-import numpy
-import re
 from json.decoder import JSONDecodeError
+import re
+from dateutil.relativedelta import relativedelta
+import numpy as np
+
+# Defaulting to seconds precision in numpy.
+_NUMPY_DATETIME_DTYPE = "datetime64[s]"
 
 
-def resolution_to_timedelta(resolution):
-    """Converts a duration into numpy.timedelta64 object."""
-    if "S" in resolution or "second" in resolution:
-        duration_type = "s"
-    elif "M" in resolution or "minute" in resolution:
-        duration_type = "m"
-    elif "H" in resolution or "hour" in resolution:
-        duration_type = "h"
-    elif "d" in resolution or "day" in resolution:
-        duration_type = "D"
-    elif "m" in resolution or "month" in resolution:
-        duration_type = "M"
-    elif "y" in resolution or "Y" in resolution or "year" in resolution:
-        duration_type = "Y"
-    else:
-        raise RuntimeError("Unrecognized time duration format: {}".format(resolution))
-    number = int(re.split("\\s|[a-z]|[A-Z]", resolution, maxsplit=1)[0])
-    return numpy.timedelta64(number, duration_type)
+def duration_to_relativedelta(duration):
+    """Converts a duration to a relativedelta object."""
+    count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
+    try:
+        count = int(count)
+    except ValueError:
+        raise ParameterValueError('Could not parse duration "{}"'.format(duration))
+    unit = abbreviation if abbreviation is not None else full_unit
+    if unit in ["s", "second", "seconds"]:
+        return relativedelta(seconds=count)
+    if unit in ["m", "minute", "minutes"]:
+        return relativedelta(minutes=count)
+    if unit in ["h", "hour", "hours"]:
+        return relativedelta(hours=count)
+    if unit in ["D", "day", "days"]:
+        return relativedelta(days=count)
+    if unit in ["M", "month", "months"]:
+        return relativedelta(months=count)
+    if unit in ["Y", "year", "years"]:
+        return relativedelta(years=count)
+    raise ParameterValueError('Could not parse duration "{}"'.format(duration))
 
 
-def from_json(value):
+def from_database(database_value):
     """
-    Converts a (relationship) parameter value JSON string to a Python object.
-
-    Single values are converted to floats,
-    time series into VariableTimeSeries or FixedTimeSteps objects.
+    Converts a (relationship) parameter value from its database representation to a Python object.
 
     Args:
-        value (str): a JSON string to decode
+        database_value (str): a value in the database
 
     Returns:
         the encoded (relationship) parameter value
     """
     try:
-        value = json.loads(value)
+        value = json.loads(database_value)
     except JSONDecodeError:
-        raise ValueDecodeError(value)
+        raise ParameterValueError("Could not decode the value")
     if isinstance(value, dict):
-        if "metadata" in value:
-            metadata = value["metadata"]
-            start = metadata["start"]
-            resolution = metadata["resolution"]
-            values = numpy.array(value["data"])
-            return FixedTimeSteps(start, len(values), resolution, values)
-        stamps = list()
-        values = list()
-        for key, value in value.items():
-            stamps.append(numpy.datetime64(key))
-            values.append(value)
-        values = numpy.array(values)
-        return VariableTimeSteps(stamps, values)
+        try:
+            value_type = value["type"]
+            if value_type == "date_time":
+                return DateTime(value["data"])
+            if value_type == "duration":
+                return Duration(value["data"])
+            if value_type == "time_pattern":
+                return _time_pattern_from_database(value)
+            if value_type == "time_series":
+                return _time_series_from_database(value)
+            raise ParameterValueError(
+                'Unknown parameter value type "{}"'.format(value_type)
+            )
+        except KeyError as error:
+            raise ParameterValueError(
+                "{} is missing in the parameter value description".format(error.args[0])
+            )
     return value
 
 
-class VariableTimeSteps:
+def _break_dictionary(data):
+    indexes = list()
+    values = list()
+    for key, value in data.items():
+        indexes.append(key)
+        values.append(value)
+    return indexes, values
+
+
+def _datetime_from_database(value):
+    try:
+        stamp = datetime.fromisoformat(value["data"])
+    except ValueError:
+        raise ParameterValueError(
+            'Could not parse datetime from "{}"'.format(value["data"])
+        )
+    return DateTime(stamp)
+
+
+def _time_series_from_database(value):
+    data = value["data"]
+    if "index" in value:
+        value_index = value["index"]
+        start = (
+            value_index["start"] if "start" in value_index else "0001-01-01T00:00:00"
+        )
+        resolution = (
+            value_index["resolution"] if "resolution" in value_index else "1 hour"
+        )
+        if "ignore_year" in value_index:
+            ignore_year = value_index["ignore_year"]
+        else:
+            ignore_year = not "start" in value_index
+        repeat = value_index["repeat"]
+        return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
+    if isinstance(data, dict):
+        stamps = list()
+        values = list()
+        for key, value in data.items():
+            try:
+                stamp = np.datetime64(key)
+            except ValueError:
+                raise ParameterValueError('Could not decode time stamp "{}"'.format(stamp))
+            stamps.append(stamp)
+            values.append(value)
+        values = np.array(values)
+        return TimeSeriesVariableStep(stamps, values)
+    if isinstance(data[0], list):
+        # Generalized index
+        pass
+
+
+def _time_pattern_from_database(value):
+    patterns, values = _break_dictionary(value["data"])
+    return TimePattern(patterns, values)
+
+
+class DateTime:
     """
-    Holds variable time step time series information.
+    A single datetime value.
 
     Attributes:
-        stamps (numpy.array): time stamps as a numpy.datetime64 array
-        values (numpy.array): values as a numpy array
+        value (datetime.datetime): a timestamp
     """
 
-    def __init__(self, stamps, values):
-        self._stamps = stamps
-        self._values = values
+    def __init__(self, value):
+        self._value = value
 
-    def as_json(self):
-        """Returns the value as a JSON string"""
-        data = dict()
-        for stamp, value in zip(self._stamps, self._values):
-            try:
-                value = float(value)
-            except ValueError:
-                raise ValueEncodeError()
-            data[str(stamp)] = value
-        return json.dumps(data)
+    def to_database(self):
+        return json.dumps({"type": "date_time", "data": self._value.isoformat()})
 
     @property
-    def stamps(self):
-        return self._stamps
+    def value(self):
+        return self._value
+
+
+class Duration:
+    """
+    This class represents a duration in time.
+
+    Attributes:
+        value (step, list): a time step as a single string or as list of strings
+    """
+
+    def __init__(self, value):
+        self._value = value
+
+    def to_database(self):
+        """Returns the database representation of the duration."""
+        return json.dumps({"type": "duration", "data": self._value})
+
+    @property
+    def value(self):
+        """Returns the duration as a string."""
+        return self._value
+
+
+class IndexedValue:
+    """
+    An abstract base class for indexed values.
+
+    Attributes:
+        values (numpy.array): the data array
+    """
+
+    def __init__(self, values):
+        self._values = values
+
+    @property
+    def indexes(self):
+        """Returns the indexes as a numpy.array."""
+        raise NotImplementedError()
+
+    def to_database(self):
+        """Return the database representation of the value."""
+        raise NotImplementedError()
 
     @property
     def values(self):
+        """Returns the data values as numpy.array."""
         return self._values
 
 
-class FixedTimeSteps:
+class IndexedValueFixedStep(IndexedValue):
     """
-    Holds fixed time step time series information.
+    Holds data with fixed step index.
 
     Attributes:
-        start (numpy.datetime64): start time for the series
-        length (int): number of steps in the series
-        resolution (numpy.timedelta64): time difference between two time steps
+        start: the first index
+        step: the difference between consecutive indexes
         values (numpy.array): data values for each time step
     """
 
-    def __init__(self, start, length, resolution, values):
+    def __init__(self, start, step, values):
+        super().__init__(values)
         self._start = start
-        self._length = length
-        self._resolution = resolution
-        self._values = values
+        self._step = step
 
-    def as_json(self):
-        """Returns the value as a JSON string."""
-        return json.dumps(
-            {
-                "metadata": {
-                    "start": self.start,
-                    "resolution": self.resolution,
-                    "length": self.length,
-                },
-                "data": self.values.tolist(),
-            }
+    def to_database(self):
+        """Returns the value as in its database representation."""
+        raise NotImplementedError(
+            "Database format for generalized indexes does not exist yet."
         )
 
     @property
     def start(self):
         return self._start
 
+    @start.setter
+    def start(self, new_start):
+        return self._start
+
     @property
     def length(self):
-        return self._length
+        return len(self._values)
 
     @property
-    def resolution(self):
-        return self._resolution
+    def step(self):
+        return self._step
 
     @property
-    def stamps(self):
+    def indexes(self):
         """"Returns the time stamps as numpy.array of numpy.datetime64 values."""
-        start = numpy.datetime64(self._start)
-        resolution = resolution_to_timedelta(self._resolution)
-        end = start + (self._length + 0.5) * resolution
-        return numpy.arange(start, end, resolution)
+        # Does not handle months and years as timedelta at all.
+        end = self._start + self.length * self._step
+        return np.arange(self._start, end, self._step)
 
-    @property
-    def values(self):
-        return self._values
 
-class ValueDecodeError(Exception):
+class IndexedValueVariableStep(IndexedValue):
     """
-    An exception raised when decoding a value fails.
+    Holds data with generalized index.
 
     Attributes:
-        expression (str): the string that could not be decoded
+        indexes (numpy.array): time stamps as a numpy.datetime64 array
+        values (numpy.array): values as a numpy array
     """
 
-    def __init__(self, expression):
+    def __init__(self, indexes, values):
+        if len(indexes) != len(values):
+            raise RuntimeError("Length of values does not match length of indexes")
+        super().__init__(values)
+        self._indexes = indexes
+
+    def to_database(self):
+        """Returns the value in its database representation"""
+        data = dict()
+        for index, value in zip(self._indexes, self._values):
+            try:
+                data[str(index)] = float(value)
+            except ValueError:
+                raise ParameterValueError(
+                    'Failed to convert "{}" to a float'.format(value)
+                )
+        return json.dumps(data)
+
+    @property
+    def indexes(self):
+        return self._indexes
+
+
+class TimePattern(IndexedValueVariableStep):
+    """
+    Represents a time pattern (relationship) parameter value.
+
+    Attributes:
+        indexes (list): a list of time pattern strings
+        values (list): a list of values corresponding to the time patterns
+    """
+
+    def __init__(self, indexes, values):
+        super().__init__(indexes, values)
+
+    def to_database(self):
+        """Returns the database representation of this time pattern."""
+        data = dict()
+        for index, value in zip(self._indexes, self._values):
+            data[index] = value
+        return json.dumps({"type": "time_pattern", "data": data})
+
+
+class TimeSeriesFixedStep(IndexedValueFixedStep):
+    """
+    A time series with fixed durations between the time stamps.
+
+    Currently, there is no support for the `ignore_year` and `repeat` options
+    other than having getters for their values.
+
+    Attributes:
+        start (str): the first time stamp as an ISO8601 string
+        step (str, list): duration(s) between the time time stamps
+        values (numpy.array): data values at each time stamp
+        ignore_year (bool): whether or not the time-series should apply to any year
+        repeat (bool): whether or not the time series should repeat cyclically
+    """
+
+    def __init__(self, start, step, values, ignore_year, repeat):
+        super().__init__(start, step, values)
+        self._ignore_year = ignore_year
+        self._repeat = repeat
+
+    @property
+    def ignore_year(self):
+        return self._ignore_year
+
+    @property
+    def indexes(self):
+        """Returns the time stamps as a numpy.array of numpy.datetime64 objects."""
+        delta = duration_to_relativedelta(self._step)
+        start = datetime.fromisoformat(self._start)
+        stamps = [start + i * delta for i in range(self.length)]
+        return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+
+    @property
+    def repeat(self):
+        return self._repeat
+
+    def to_database(self):
+        """Returns the value in its database representation."""
+        return json.dumps(
+            {
+                "type": "time_series",
+                "index": {
+                    "start": str(self._start),
+                    "resolution": self._step,
+                    "ignore_year": self._ignore_year,
+                    "repeat": self._repeat,
+                },
+                "data": self._values.tolist(),
+            }
+        )
+
+
+
+class TimeSeriesVariableStep(IndexedValueVariableStep):
+    """
+    A class representing time series data with variable time step.
+    """
+
+    def __init__(self, indexes, values):
+        super().__init__(indexes, values)
+
+    def to_database(self):
+        """Returns the value in its database representation"""
+        data = dict()
+        for index, value in zip(self._indexes, self._values):
+            try:
+                data[str(index)] = float(value)
+            except ValueError:
+                raise ParameterValueError(
+                    'Failed to convert "{}" to a float'.format(value)
+                )
+        return json.dumps(data)
+
+
+class ParameterValueError(Exception):
+    """
+    An exception raised when encoding/decoding a value fails.
+
+    Attributes:
+        message (str): an error message
+    """
+
+    def __init__(self, message):
         super().__init__()
-        self._message = "Failed to decode expression {}".format(expression)
+        self._message = message
 
     @property
     def message(self):
         """Returns a message explaining the error."""
         return self._message
-
-class ValueEncodeError(Exception):
-    """An exception raised when encoding a value fails."""

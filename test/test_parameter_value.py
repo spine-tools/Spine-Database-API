@@ -18,73 +18,81 @@ Tests for the parameter_value module.
 
 import json
 import unittest
+from dateutil.relativedelta import relativedelta
 import numpy.testing
 from spinedb_api.parameter_value import (
-    FixedTimeSteps,
-    from_json,
-    resolution_to_timedelta,
-    VariableTimeSteps,
+    duration_to_relativedelta,
+    from_database,
+    TimeSeriesFixedStep,
+    TimeSeriesVariableStep,
 )
 
 
 class TestParameterValue(unittest.TestCase):
     """Test for the free functions and classes in parameter_value."""
 
-    def test_resolution_to_timedelta_seconds(self):
-        delta = resolution_to_timedelta("7S")
-        self.assertEqual(delta, numpy.timedelta64(7, "s"))
-        delta = resolution_to_timedelta("1 second")
-        self.assertEqual(delta, numpy.timedelta64(1, "s"))
-        delta = resolution_to_timedelta("7 seconds")
-        self.assertEqual(delta, numpy.timedelta64(7, "s"))
+    def test_duration_to_relativedelta_seconds(self):
+        delta = duration_to_relativedelta("7s")
+        self.assertEqual(delta, relativedelta(seconds=7))
+        delta = duration_to_relativedelta("1 second")
+        self.assertEqual(delta, relativedelta(seconds=1))
+        delta = duration_to_relativedelta("7 seconds")
+        self.assertEqual(delta, relativedelta(seconds=7))
 
-    def test_resolution_to_timedelta_minutes(self):
-        delta = resolution_to_timedelta("7M")
-        self.assertEqual(delta, numpy.timedelta64(7, "m"))
-        delta = resolution_to_timedelta("1 minute")
-        self.assertEqual(delta, numpy.timedelta64(1, "m"))
-        delta = resolution_to_timedelta("7 minutes")
-        self.assertEqual(delta, numpy.timedelta64(7, "m"))
+    def test_duration_to_relativedelta_minutes(self):
+        delta = duration_to_relativedelta("7m")
+        self.assertEqual(delta, relativedelta(minutes=7))
+        delta = duration_to_relativedelta("1 minute")
+        self.assertEqual(delta, relativedelta(minutes=1))
+        delta = duration_to_relativedelta("7 minutes")
+        self.assertEqual(delta, relativedelta(minutes=7))
 
-    def test_resolution_to_timedelta_hours(self):
-        delta = resolution_to_timedelta("7H")
-        self.assertEqual(delta, numpy.timedelta64(7, "h"))
-        delta = resolution_to_timedelta("1 hour")
-        self.assertEqual(delta, numpy.timedelta64(1, "h"))
-        delta = resolution_to_timedelta("7 hours")
-        self.assertEqual(delta, numpy.timedelta64(7, "h"))
+    def test_duration_to_relativedelta_hours(self):
+        delta = duration_to_relativedelta("7h")
+        self.assertEqual(delta, relativedelta(hours=7))
+        delta = duration_to_relativedelta("1 hour")
+        self.assertEqual(delta, relativedelta(hours=1))
+        delta = duration_to_relativedelta("7 hours")
+        self.assertEqual(delta, relativedelta(hours=7))
 
-    def test_resolution_to_timedelta_days(self):
-        delta = resolution_to_timedelta("7d")
-        self.assertEqual(delta, numpy.timedelta64(7, "D"))
-        delta = resolution_to_timedelta("1 day")
-        self.assertEqual(delta, numpy.timedelta64(1, "D"))
-        delta = resolution_to_timedelta("7 days")
-        self.assertEqual(delta, numpy.timedelta64(7, "D"))
+    def test_duration_to_relativedelta_days(self):
+        delta = duration_to_relativedelta("7D")
+        self.assertEqual(delta, relativedelta(days=7))
+        delta = duration_to_relativedelta("1 day")
+        self.assertEqual(delta, relativedelta(days=1))
+        delta = duration_to_relativedelta("7 days")
+        self.assertEqual(delta, relativedelta(days=7))
 
-    def test_resolution_to_timedelta_months(self):
-        delta = resolution_to_timedelta("7m")
-        self.assertEqual(delta, numpy.timedelta64(7, "M"))
-        delta = resolution_to_timedelta("1 month")
-        self.assertEqual(delta, numpy.timedelta64(1, "M"))
-        delta = resolution_to_timedelta("7 months")
-        self.assertEqual(delta, numpy.timedelta64(7, "M"))
+    def test_duration_to_relativedelta_months(self):
+        delta = duration_to_relativedelta("7M")
+        self.assertEqual(delta, relativedelta(months=7))
+        delta = duration_to_relativedelta("1 month")
+        self.assertEqual(delta, relativedelta(months=1))
+        delta = duration_to_relativedelta("7 months")
+        self.assertEqual(delta, relativedelta(months=7))
 
-    def test_resolution_to_timedelta_years(self):
-        delta = resolution_to_timedelta("7y")
-        self.assertEqual(delta, numpy.timedelta64(7, "Y"))
-        delta = resolution_to_timedelta("7Y")
-        self.assertEqual(delta, numpy.timedelta64(7, "Y"))
-        delta = resolution_to_timedelta("1 year")
-        self.assertEqual(delta, numpy.timedelta64(1, "Y"))
-        delta = resolution_to_timedelta("7 years")
-        self.assertEqual(delta, numpy.timedelta64(7, "Y"))
+    def test_duration_to_relativedelta_years(self):
+        delta = duration_to_relativedelta("7Y")
+        self.assertEqual(delta, relativedelta(years=7))
+        delta = duration_to_relativedelta("7Y")
+        self.assertEqual(delta, relativedelta(years=7))
+        delta = duration_to_relativedelta("1 year")
+        self.assertEqual(delta, relativedelta(years=1))
+        delta = duration_to_relativedelta("7 years")
+        self.assertEqual(delta, relativedelta(years=7))
 
-    def test_from_json_VariableTimeSeries(self):
-        releases = '{"1977-05-25": 4, "1980-05-21": 5, "1983-05-25": 6}'
-        time_series = from_json(releases)
+    def test_from_database_TimeSeriesVariableStep(self):
+        releases = '''{
+                          "type": "time_series",
+                          "data": {
+                              "1977-05-25": 4,
+                              "1980-05-21": 5,
+                              "1983-05-25": 6
+                          }
+                      }'''
+        time_series = from_database(releases)
         numpy.testing.assert_equal(
-            time_series.stamps,
+            time_series.indexes,
             numpy.array(
                 [
                     numpy.datetime64("1977-05-25"),
@@ -96,41 +104,55 @@ class TestParameterValue(unittest.TestCase):
         )
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
-    def test_VariableTimeSteps_to_json(self):
+    def test_TimeSeriesVariableStep_to_database(self):
         dates = numpy.array(
             ["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]"
         )
         episodes = numpy.array([1, 2, 3], dtype=float)
-        value = VariableTimeSteps(dates, episodes)
-        as_json = value.as_json()
+        value = TimeSeriesVariableStep(dates, episodes)
+        as_json = value.to_database()
         releases = json.loads(as_json)
         self.assertEqual(releases, {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3})
 
-    def test_from_json_FixedTimeSteps(self):
-        days_of_our_lives = '{"metadata": {"start": "2019-03-23", "length": 3, "resolution": "1 day"}, "data": [7.0, 5.0, 8.1]}'
-        time_series = from_json(days_of_our_lives)
+    def test_from_database_TimeSeriesFixedStep(self):
+        days_of_our_lives = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "start": "2019-03-23",
+                                       "resolution": "1 day",
+                                       "ignore_year": false,
+                                       "repeat": false
+                                   },
+                                   "data": [7.0, 5.0, 8.1]
+                               }"""
+        time_series = from_database(days_of_our_lives)
         numpy.testing.assert_equal(
-            time_series.stamps,
+            time_series.indexes,
             numpy.array(
                 [
                     numpy.datetime64("2019-03-23"),
                     numpy.datetime64("2019-03-24"),
                     numpy.datetime64("2019-03-25"),
                 ],
-                dtype="datetime64[D]",
+                dtype="datetime64[s]",
             ),
         )
         numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1]))
+        self.assertEqual(time_series.start, "2019-03-23")
+        self.assertEqual(time_series.step, "1 day")
+        self.assertFalse(time_series.ignore_year)
+        self.assertFalse(time_series.repeat)
 
-    def test_FixedTimeSteps_to_json(self):
+    def test_TimeSeriesFixedStep_to_database(self):
         values = numpy.array([3, 2, 4], dtype=float)
-        value = FixedTimeSteps("2007-06", 3, "1 months", values)
-        as_json = value.as_json()
+        value = TimeSeriesFixedStep("2007-06", "1 months", values, True, True)
+        as_json = value.to_database()
         releases = json.loads(as_json)
         self.assertEqual(
             releases,
             {
-                "metadata": {"start": "2007-06", "length": 3, "resolution": "1 months"},
+                "type": "time_series",
+                "index": {"start": "2007-06", "resolution": "1 months", "ignore_year": True, "repeat": True},
                 "data": [3, 2, 4],
             },
         )
