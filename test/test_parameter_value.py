@@ -99,10 +99,14 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_as_float, value)
 
     def test_to_database_DateTime(self):
-        value = DateTime(datetime(year=2019, month=6, day=26, hour=12, minute=50, second=13))
+        value = DateTime(
+            datetime(year=2019, month=6, day=26, hour=12, minute=50, second=13)
+        )
         database_value = to_database(value)
         value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"type": "date_time", "data": "2019-06-26T12:50:13"})
+        self.assertEqual(
+            value_as_dict, {"type": "date_time", "data": "2019-06-26T12:50:13"}
+        )
 
     def test_from_database_DateTime(self):
         database_value = '{"type": "date_time", "data": "2019-06-01T22:15:00+01:00"}'
@@ -169,10 +173,15 @@ class TestParameterValue(unittest.TestCase):
         numpy.testing.assert_equal(value.values, numpy.array([300.0, 221.5]))
 
     def test_TimePattern_to_database(self):
-        value = TimePattern(numpy.array(["m1-4,m9-12", "m5-8"]), numpy.array([300., 221.5]))
+        value = TimePattern(
+            numpy.array(["m1-4,m9-12", "m5-8"]), numpy.array([300.0, 221.5])
+        )
         database_value = value.to_database()
         value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"type": "time_pattern", "data": {"m1-4,m9-12": 300., "m5-8": 221.5}})
+        self.assertEqual(
+            value_as_dict,
+            {"type": "time_pattern", "data": {"m1-4,m9-12": 300.0, "m5-8": 221.5}},
+        )
 
     def test_from_database_TimeSeriesVariableStep_as_dictionary(self):
         releases = """{
@@ -225,10 +234,16 @@ class TestParameterValue(unittest.TestCase):
             ["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]"
         )
         episodes = numpy.array([1, 2, 3], dtype=float)
-        value = TimeSeriesVariableStep(dates, episodes)
+        value = TimeSeriesVariableStep(dates, episodes, False, False)
         as_json = value.to_database()
         releases = json.loads(as_json)
-        self.assertEqual(releases, {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3})
+        self.assertEqual(
+            releases,
+            {
+                "type": "time_series",
+                "data": {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3},
+            },
+        )
 
     def test_from_database_TimeSeriesFixedStep(self):
         days_of_our_lives = """{
@@ -258,6 +273,44 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(time_series.step, relativedelta(days=1))
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
+
+    def test_from_database_TimeSeriesFixedStep_default_resolution_is_1hour(self):
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "start": "2019-03-23",
+                                       "ignore_year": false,
+                                       "repeat": false
+                                   },
+                                   "data": [7.0, 5.0, 8.1]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertEqual(time_series.step, relativedelta(hours=1))
+
+    def test_from_database_TimeSeriesFixedStep_default_ignore_year(self):
+        # Should be false if start is given
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "start": "2019-03-23",
+                                       "resolution": "1 day",
+                                       "repeat": false
+                                   },
+                                   "data": [7.0, 5.0, 8.1]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertFalse(time_series.ignore_year)
+        # Should be true if start is omitted
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "resolution": "1 day",
+                                       "repeat": false
+                                   },
+                                   "data": [7.0, 5.0, 8.1]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertTrue(time_series.ignore_year)
 
     def test_TimeSeriesFixedStep_to_database(self):
         values = numpy.array([3, 2, 4], dtype=float)

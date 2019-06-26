@@ -33,7 +33,7 @@ which are represented as strings in the database format.
 :date:   3.6.2019
 """
 
-from collections import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 import json
 from json.decoder import JSONDecodeError
@@ -43,6 +43,9 @@ import numpy as np
 
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
+# Default start time guess, actual value not currently given in the JSON specification.
+_TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
+_TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 
 
 def duration_to_relativedelta(duration):
@@ -99,6 +102,7 @@ def relativedelta_to_duration(delta):
     if delta.years > 0:
         return "{}Y".format(delta.years)
     raise ParameterValueError("Zero relativedelta")
+
 
 def from_database(database_value):
     """
@@ -165,9 +169,7 @@ def _datetime_from_database(value):
     try:
         stamp = datetime.fromisoformat(value)
     except ValueError:
-        raise ParameterValueError(
-            'Could not parse datetime from "{}"'.format(value)
-        )
+        raise ParameterValueError('Could not parse datetime from "{}"'.format(value))
     return DateTime(stamp)
 
 
@@ -178,7 +180,7 @@ def _duration_from_database(value):
         if not isinstance(value, str):
             value = "{}m".format(value)
         value = duration_to_relativedelta(value)
-    elif isinstance(value, Iterable):  # It is a list of durations.
+    elif isinstance(value, Sequence):  # It is a list of durations.
         # Set default unit to minutes for plain numbers in value.
         value = [v if isinstance(v, str) else "{}m".format(v) for v in value]
         value = [duration_to_relativedelta(v) for v in value]
@@ -190,54 +192,122 @@ def _duration_from_database(value):
 def _time_series_from_database(value):
     """Converts a time series database value into a time series object."""
     data = value["data"]
+    if isinstance(data, dict):
+        return _time_series_from_dictionary(value)
+    if isinstance(data, list):
+        if isinstance(data[0], Sequence):
+            return _time_series_from_two_columns(value)
+        else:
+            return _time_series_from_single_column(value)
+    raise ParameterValueError("Unrecognized time series format")
+
+
+def _variable_step_time_series_info_from_index(value):
+    if "index" in value:
+        data_index = value["index"]
+        try:
+            ignore_year = bool(data_index["ignore_year"])
+        except ValueError:
+            raise ParameterValueError(
+                'Could not decode ignore_year from "{}"'.format(
+                    data_index["ignore_year"]
+                )
+            )
+        try:
+            repeat = bool(data_index["repeat"])
+        except ValueError:
+            raise ParameterValueError(
+                'Could not decode repeat from "{}"'.format(data_index["repeat"])
+            )
+    else:
+        ignore_year = False
+        repeat = False
+    return ignore_year, repeat
+
+
+def _time_series_from_dictionary(value):
+    data = value["data"]
+    stamps = list()
+    values = np.empty(len(data))
+    for index, (stamp, series_value) in enumerate(data.items()):
+        try:
+            stamp = np.datetime64(stamp)
+        except ValueError:
+            raise ParameterValueError('Could not decode time stamp "{}"'.format(stamp))
+        stamps.append(stamp)
+        values[index] = series_value
+    stamps = np.array(stamps)
+    ignore_year, repeat = _variable_step_time_series_info_from_index(value)
+    return TimeSeriesVariableStep(stamps, values, ignore_year, repeat)
+
+
+def _time_series_from_single_column(value):
+    data = value["data"]
     if "index" in value:
         value_index = value["index"]
         start = (
-            value_index["start"] if "start" in value_index else "0001-01-01T00:00:00"
+            value_index["start"]
+            if "start" in value_index
+            else _TIME_SERIES_DEFAULT_START
         )
-        try:
-            start = datetime.fromisoformat(start)
-        except ValueError:
-            raise ParameterValueError("Could not decode start value {}".format(start))
         resolution = (
-            value_index["resolution"] if "resolution" in value_index else "1 hour"
+            value_index["resolution"]
+            if "resolution" in value_index
+            else _TIME_SERIES_DEFAULT_RESOLUTION
         )
-        resolution = duration_to_relativedelta(resolution)
         if "ignore_year" in value_index:
-            ignore_year = value_index["ignore_year"]
+            try:
+                ignore_year = bool(value_index["ignore_year"])
+            except ValueError:
+                raise ParameterValueError(
+                    'Could not decode ignore_year value "{}"'.format(
+                        value_index["ignore_year"]
+                    )
+                )
         else:
-            ignore_year = not "start" in value_index
-        repeat = value_index["repeat"]
-        return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
-    if isinstance(data, dict):
-        stamps = list()
-        values = np.empty(len(data))
-        for index, (key, value) in enumerate(data.items()):
+            ignore_year = "start" not in value_index
+        if "repeat" in value_index:
             try:
-                stamp = np.datetime64(key)
+                repeat = bool(value_index["repeat"])
             except ValueError:
                 raise ParameterValueError(
-                    'Could not decode time stamp "{}"'.format(stamp)
+                    'Could not decode repeat value "{}"'.format(
+                        value_index["ignore_year"]
+                    )
                 )
-            stamps.append(stamp)
-            values[index] = value
-        stamps = np.array(stamps)
-        return TimeSeriesVariableStep(stamps, values)
-    if isinstance(data, list):
-        stamps = list()
-        values = np.empty(len(data))
-        for index, element in enumerate(data):
-            try:
-                stamp = np.datetime64(element[0])
-            except ValueError:
-                raise ParameterValueError(
-                    'Could not decode time stamp "{}"'.format(stamp)
-                )
-            stamps.append(stamp)
-            values[index] = element[1]
-        stamps = np.array(stamps)
-        return TimeSeriesVariableStep(stamps, values)
+        else:
+            repeat = "start" not in value_index
+    else:
+        start = _TIME_SERIES_DEFAULT_START
+        resolution = _TIME_SERIES_DEFAULT_RESOLUTION
+        ignore_year = True
+        repeat = True
+    resolution = duration_to_relativedelta(resolution)
+    try:
+        start = datetime.fromisoformat(start)
+    except ValueError:
+        raise ParameterValueError('Could not decode start value "{}"'.format(start))
+    return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
 
+
+def _time_series_from_two_columns(value):
+    data = value["data"]
+    stamps = list()
+    values = np.empty(len(data))
+    for index, element in enumerate(data):
+        if not isinstance(element, Sequence) or len(element) != 2:
+            raise ParameterValueError("Invalid value in time series array")
+        try:
+            stamp = np.datetime64(element[0])
+        except ValueError:
+            raise ParameterValueError(
+                'Could not decode time stamp "{}"'.format(element[0])
+            )
+        stamps.append(stamp)
+        values[index] = element[1]
+    stamps = np.array(stamps)
+    ignore_year, repeat = _variable_step_time_series_info_from_index(value)
+    return TimeSeriesVariableStep(stamps, values, ignore_year, repeat)
 
 
 def _time_pattern_from_database(value):
@@ -318,83 +388,42 @@ class IndexedValue:
         return self._values
 
 
-class IndexedValueFixedStep(IndexedValue):
+class TimeSeries(IndexedValue):
     """
-    Holds data with fixed step index.
+    An abstract base class for time series.
 
     Attributes:
-        start: the first index
-        step: the difference between consecutive indexes
-        values (numpy.array): data values for each time step
+        values (numpy.array): an array of values
+        ignore_year (bool): True if the year should be ignored in the time stamps
+        repeat (bool): True if the series should be repeated from the beginning
     """
 
-    def __init__(self, start, step, values):
+    def __init__(self, values, ignore_year, repeat):
         super().__init__(values)
-        self._start = start
-        self._step = step
-
-    def to_database(self):
-        """Returns the value as in its database representation."""
-        raise NotImplementedError(
-            "Database format for generalized indexes does not exist yet."
-        )
-
-    @property
-    def start(self):
-        """Returns the start index."""
-        return self._start
-
-    @property
-    def length(self):
-        """Returns the length of the data array."""
-        return len(self._values)
-
-    @property
-    def step(self):
-        """Returns the step size."""
-        return self._step
+        self._ignore_year = ignore_year
+        self._repeat = repeat
 
     @property
     def indexes(self):
-        """"Returns the time stamps as numpy.array of numpy.datetime64 values."""
-        end = self._start + self.length * self._step
-        return np.arange(self._start, end, self._step)
-
-
-class IndexedValueVariableStep(IndexedValue):
-    """
-    Holds data with generalized index.
-
-    Attributes:
-        indexes (numpy.array): time stamps as a numpy.datetime64 array
-        values (numpy.array): values as a numpy array
-    """
-
-    def __init__(self, indexes, values):
-        if len(indexes) != len(values):
-            raise RuntimeError("Length of values does not match length of indexes")
-        super().__init__(values)
-        self._indexes = indexes
-
-    def to_database(self):
-        """Returns the value in its database representation"""
-        data = dict()
-        for index, value in zip(self._indexes, self._values):
-            try:
-                data[str(index)] = float(value)
-            except ValueError:
-                raise ParameterValueError(
-                    'Failed to convert "{}" to a float'.format(value)
-                )
-        return json.dumps(data)
+        """Returns the indexes as a numpy.array."""
+        raise NotImplementedError()
 
     @property
-    def indexes(self):
-        """Returns the indexes."""
-        return self._indexes
+    def ignore_year(self):
+        """Returns True if the year should be ignored."""
+        return self._ignore_year
+
+    @property
+    def repeat(self):
+        """Returns True if the series should be repeated."""
+        return self._repeat
+
+    def to_database(self):
+        """Return the database representation of the value."""
+        raise NotImplementedError()
 
 
-class TimePattern(IndexedValueVariableStep):
+class TimePattern(IndexedValue):
     """
     Represents a time pattern (relationship) parameter value.
 
@@ -404,7 +433,10 @@ class TimePattern(IndexedValueVariableStep):
     """
 
     def __init__(self, indexes, values):
-        super().__init__(indexes, values)
+        super().__init__(values)
+        if len(indexes) != len(values):
+            raise RuntimeError("Length of values does not match length of indexes")
+        self._indexes = indexes
 
     def to_database(self):
         """Returns the database representation of this time pattern."""
@@ -413,8 +445,13 @@ class TimePattern(IndexedValueVariableStep):
             data[index] = value
         return json.dumps({"type": "time_pattern", "data": data})
 
+    @property
+    def indexes(self):
+        """Returns the indexes."""
+        return self._indexes
 
-class TimeSeriesFixedStep(IndexedValueFixedStep):
+
+class TimeSeriesFixedStep(TimeSeries):
     """
     A time series with fixed durations between the time stamps.
 
@@ -430,25 +467,25 @@ class TimeSeriesFixedStep(IndexedValueFixedStep):
     """
 
     def __init__(self, start, step, values, ignore_year, repeat):
-        super().__init__(start, step, values)
-        self._ignore_year = ignore_year
-        self._repeat = repeat
-
-    @property
-    def ignore_year(self):
-        """Returns True if the year should be ignored."""
-        return self._ignore_year
+        super().__init__(values, ignore_year, repeat)
+        self._start = start
+        self._step = step
 
     @property
     def indexes(self):
         """Returns the time stamps as a numpy.array of numpy.datetime64 objects."""
-        stamps = [self._start + i * self._step for i in range(self.length)]
+        stamps = [self._start + i * self._step for i in range(len(self._values))]
         return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
 
     @property
-    def repeat(self):
-        """Returns True if this time series should be repeated."""
-        return self._repeat
+    def start(self):
+        """Returns the start index."""
+        return self._start
+
+    @property
+    def step(self):
+        """Returns the step size."""
+        return self._step
 
     def to_database(self):
         """Returns the value in its database representation."""
@@ -466,16 +503,31 @@ class TimeSeriesFixedStep(IndexedValueFixedStep):
         )
 
 
-class TimeSeriesVariableStep(IndexedValueVariableStep):
+class TimeSeriesVariableStep(TimeSeries):
     """
     A class representing time series data with variable time step.
+
+    Attributes:
+        indexes (numpy.array): time stamps as numpy.datetime64 objects
+        values (numpy.array): the values corresponding to the time stamps
+        ignore_year (bool): True if the stamp year should be ignored
+        repeat (bool): True if the series should be repeated from the beginning
     """
 
-    def __init__(self, indexes, values):
-        super().__init__(indexes, values)
+    def __init__(self, indexes, values, ignore_year, repeat):
+        super().__init__(values, ignore_year, repeat)
+        if len(indexes) != len(values):
+            raise RuntimeError("Length of values does not match length of indexes")
+        self._indexes = indexes
+
+    @property
+    def indexes(self):
+        """Returns the indexes."""
+        return self._indexes
 
     def to_database(self):
         """Returns the value in its database representation"""
+        database_value = {"type": "time_series"}
         data = dict()
         for index, value in zip(self._indexes, self._values):
             try:
@@ -484,7 +536,17 @@ class TimeSeriesVariableStep(IndexedValueVariableStep):
                 raise ParameterValueError(
                     'Failed to convert "{}" to a float'.format(value)
                 )
-        return json.dumps(data)
+        database_value["data"] = data
+        # Add "index" entry only if its contents are not set to their default values.
+        if self._ignore_year:
+            if "index" not in database_value:
+                database_value["index"] = dict()
+            database_value["index"]["ignore_year"] = self._ignore_year
+        if self._repeat:
+            if "index" not in database_value:
+                database_value["index"] = dict()
+            database_value["index"]["repeat"] = self._repeat()
+        return json.dumps(database_value)
 
 
 class ParameterValueError(Exception):

@@ -56,9 +56,8 @@ from .parameter_value import (
     DateTime,
     Duration,
     IndexedValue,
-    IndexedValueFixedStep,
-    IndexedValueVariableStep,
     TimePattern,
+    TimeSeries,
     TimeSeriesFixedStep,
     TimeSeriesVariableStep,
     ParameterValueError
