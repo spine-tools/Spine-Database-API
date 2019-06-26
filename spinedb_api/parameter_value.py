@@ -33,6 +33,7 @@ which are represented as strings in the database format.
 :date:   3.6.2019
 """
 
+from collections import Iterable
 from datetime import datetime
 import json
 from json.decoder import JSONDecodeError
@@ -156,7 +157,18 @@ def _datetime_from_database(value):
 
 
 def _duration_from_database(value):
-    value = duration_to_relativedelta(value)
+    """Converts a duration database value into a Duration object."""
+    if isinstance(value, str) or isinstance(value, int):
+        # Set default unit to minutes if value is a plain number.
+        if not isinstance(value, str):
+            value = "{}m".format(value)
+        value = duration_to_relativedelta(value)
+    elif isinstance(value, Iterable):  # It is a list of durations.
+        # Set default unit to minutes for plain numbers in value.
+        value = [v if isinstance(v, str) else "{}m".format(v) for v in value]
+        value = [duration_to_relativedelta(v) for v in value]
+    else:
+        raise ParameterValueError("Duration value is of unsupported type")
     return Duration(value)
 
 
@@ -241,7 +253,10 @@ class Duration:
 
     def to_database(self):
         """Returns the database representation of the duration."""
-        value = relativedelta_to_duration(self._value)
+        if isinstance(self._value, Iterable):
+            value = [relativedelta_to_duration(v) for v in self._value]
+        else:
+            value = relativedelta_to_duration(self._value)
         return json.dumps({"type": "duration", "data": value})
 
     @property

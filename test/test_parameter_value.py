@@ -26,6 +26,7 @@ from spinedb_api.parameter_value import (
     from_database,
     DateTime,
     Duration,
+    TimePattern,
     TimeSeriesFixedStep,
     TimeSeriesVariableStep,
 )
@@ -87,24 +88,72 @@ class TestParameterValue(unittest.TestCase):
     def test_from_database_DateTime(self):
         database_value = '{"type": "date_time", "data": "2019-06-01T22:15:00+01:00"}'
         value = from_database(database_value)
-        self.assertEqual(value.value, datetime.fromisoformat("2019-06-01T22:15:00+01:00"))
+        self.assertEqual(
+            value.value, datetime.fromisoformat("2019-06-01T22:15:00+01:00")
+        )
 
     def test_DateTime_to_database(self):
-        value = DateTime(datetime(year=2019, month=6, day=26, hour=10, minute=50, second=34))
+        value = DateTime(
+            datetime(year=2019, month=6, day=26, hour=10, minute=50, second=34)
+        )
         database_value = value.to_database()
         value_dict = json.loads(database_value)
-        self.assertEqual(value_dict, {"type": "date_time", "data": "2019-06-26T10:50:34"})
+        self.assertEqual(
+            value_dict, {"type": "date_time", "data": "2019-06-26T10:50:34"}
+        )
 
     def test_from_database_Duration(self):
         database_value = '{"type": "duration", "data": "4 seconds"}'
         value = from_database(database_value)
         self.assertEqual(value.value, relativedelta(seconds=4))
 
+    def test_from_database_Duration_default_units(self):
+        database_value = '{"type": "duration", "data": 23}'
+        value = from_database(database_value)
+        self.assertEqual(value.value, relativedelta(minutes=23))
+
+    def test_from_database_Duration_as_list(self):
+        database_value = '{"type": "duration", "data": ["1 hour", "1h", 60, "2 hours"]}'
+        value = from_database(database_value)
+        expected = [
+            relativedelta(hours=1),
+            relativedelta(hours=1),
+            relativedelta(minutes=60),
+            relativedelta(hours=2),
+        ]
+        self.assertEqual(value.value, expected)
+
     def test_Duration_to_database(self):
         value = Duration(duration_to_relativedelta("8 years"))
         database_value = value.to_database()
         value_as_dict = json.loads(database_value)
         self.assertEqual(value_as_dict, {"type": "duration", "data": "8Y"})
+
+    def test_Duration_to_database_as_list(self):
+        value = Duration([relativedelta(years=1), relativedelta(minutes=3)])
+        database_value = value.to_database()
+        value_as_dict = json.loads(database_value)
+        self.assertEqual(value_as_dict, {"type": "duration", "data": ["1Y", "3m"]})
+
+    def test_from_database_TimePattern(self):
+        database_value = """
+        {
+          "type": "time_pattern",
+          "data": {  
+            "m1-4,m9-12": 300,
+            "m5-8": 221.5
+          }
+        }
+        """
+        value = from_database(database_value)
+        numpy.testing.assert_equal(value.indexes, numpy.array(["m1-4,m9-12", "m5-8"]))
+        numpy.testing.assert_equal(value.values, numpy.array([300.0, 221.5]))
+
+    def test_TimePattern_to_database(self):
+        value = TimePattern(numpy.array(["m1-4,m9-12", "m5-8"]), numpy.array([300., 221.5]))
+        database_value = value.to_database()
+        value_as_dict = json.loads(database_value)
+        self.assertEqual(value_as_dict, {"type": "time_pattern", "data": {"m1-4,m9-12": 300., "m5-8": 221.5}})
 
     def test_from_database_TimeSeriesVariableStep(self):
         releases = """{
