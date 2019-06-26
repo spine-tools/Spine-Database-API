@@ -45,6 +45,14 @@ import numpy as np
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 
 
+# TODO:
+# - Consider renaming ...FixedStep and ...VariableStep to something else,
+#   because ...FixedStep can also be variable if `resolution` is an array with different values
+# - Try and use `ParameterValueError` from `exception.py` for consistency
+# - Documentation style, how does it work with sphinx?
+# - Sometimes it looks like we could use `d.get(key, default)` instead of `d[key] if key in d else default`
+
+
 def duration_to_relativedelta(duration):
     """
     Converts a duration to a relativedelta object.
@@ -100,6 +108,7 @@ def relativedelta_to_duration(delta):
         return "{}Y".format(delta.years)
     raise ParameterValueError("Zero relativedelta")
 
+
 def from_database(database_value):
     """
     Converts a (relationship) parameter value from its database representation to a Python object.
@@ -125,13 +134,9 @@ def from_database(database_value):
                 return _time_pattern_from_database(value)
             if value_type == "time_series":
                 return _time_series_from_database(value)
-            raise ParameterValueError(
-                'Unknown parameter value type "{}"'.format(value_type)
-            )
+            raise ParameterValueError('Unknown parameter value type "{}"'.format(value_type))
         except KeyError as error:
-            raise ParameterValueError(
-                "{} is missing in the parameter value description".format(error.args[0])
-            )
+            raise ParameterValueError("{} is missing in the parameter value description".format(error.args[0]))
     return value
 
 
@@ -165,9 +170,7 @@ def _datetime_from_database(value):
     try:
         stamp = datetime.fromisoformat(value)
     except ValueError:
-        raise ParameterValueError(
-            'Could not parse datetime from "{}"'.format(value)
-        )
+        raise ParameterValueError('Could not parse datetime from "{}"'.format(value))
     return DateTime(stamp)
 
 
@@ -190,25 +193,6 @@ def _duration_from_database(value):
 def _time_series_from_database(value):
     """Converts a time series database value into a time series object."""
     data = value["data"]
-    if "index" in value:
-        value_index = value["index"]
-        start = (
-            value_index["start"] if "start" in value_index else "0001-01-01T00:00:00"
-        )
-        try:
-            start = datetime.fromisoformat(start)
-        except ValueError:
-            raise ParameterValueError("Could not decode start value {}".format(start))
-        resolution = (
-            value_index["resolution"] if "resolution" in value_index else "1 hour"
-        )
-        resolution = duration_to_relativedelta(resolution)
-        if "ignore_year" in value_index:
-            ignore_year = value_index["ignore_year"]
-        else:
-            ignore_year = not "start" in value_index
-        repeat = value_index["repeat"]
-        return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
     if isinstance(data, dict):
         stamps = list()
         values = np.empty(len(data))
@@ -216,28 +200,44 @@ def _time_series_from_database(value):
             try:
                 stamp = np.datetime64(key)
             except ValueError:
-                raise ParameterValueError(
-                    'Could not decode time stamp "{}"'.format(stamp)
-                )
+                raise ParameterValueError('Could not decode time stamp "{}"'.format(stamp))
             stamps.append(stamp)
             values[index] = value
         stamps = np.array(stamps)
         return TimeSeriesVariableStep(stamps, values)
     if isinstance(data, list):
-        stamps = list()
-        values = np.empty(len(data))
-        for index, element in enumerate(data):
+        if isinstance(data[0], list):
+            # Assume two-column array
+            stamps = list()
+            values = np.empty(len(data))
+            for index, element in enumerate(data):
+                try:
+                    stamp = np.datetime64(element[0])
+                except ValueError:
+                    raise ParameterValueError('Could not decode time stamp "{}"'.format(stamp))
+                stamps.append(stamp)
+                values[index] = element[1]
+            stamps = np.array(stamps)
+            return TimeSeriesVariableStep(stamps, values)
+        else:
+            # Assume one-column array
+            value_index = value.get("index", {})
+            start = value_index["start"] if "start" in value_index else "0001-01-01T00:00:00"
             try:
-                stamp = np.datetime64(element[0])
+                start = datetime.fromisoformat(start)
             except ValueError:
-                raise ParameterValueError(
-                    'Could not decode time stamp "{}"'.format(stamp)
-                )
-            stamps.append(stamp)
-            values[index] = element[1]
-        stamps = np.array(stamps)
-        return TimeSeriesVariableStep(stamps, values)
-
+                raise ParameterValueError("Could not decode start value {}".format(start))
+            resolution = value_index["resolution"] if "resolution" in value_index else "1 hour"
+            resolution = duration_to_relativedelta(resolution)
+            if "ignore_year" in value_index:
+                ignore_year = value_index["ignore_year"]
+            else:
+                ignore_year = not "start" in value_index
+            if "repeat" in value_index:
+                repeat = value_index["repeat"]
+            else:
+                repeat = not "start" in value_index
+            return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
 
 
 def _time_pattern_from_database(value):
@@ -335,9 +335,7 @@ class IndexedValueFixedStep(IndexedValue):
 
     def to_database(self):
         """Returns the value as in its database representation."""
-        raise NotImplementedError(
-            "Database format for generalized indexes does not exist yet."
-        )
+        raise NotImplementedError("Database format for generalized indexes does not exist yet.")
 
     @property
     def start(self):
@@ -383,9 +381,7 @@ class IndexedValueVariableStep(IndexedValue):
             try:
                 data[str(index)] = float(value)
             except ValueError:
-                raise ParameterValueError(
-                    'Failed to convert "{}" to a float'.format(value)
-                )
+                raise ParameterValueError('Failed to convert "{}" to a float'.format(value))
         return json.dumps(data)
 
     @property
@@ -481,9 +477,7 @@ class TimeSeriesVariableStep(IndexedValueVariableStep):
             try:
                 data[str(index)] = float(value)
             except ValueError:
-                raise ParameterValueError(
-                    'Failed to convert "{}" to a float'.format(value)
-                )
+                raise ParameterValueError('Failed to convert "{}" to a float'.format(value))
         return json.dumps(data)
 
 
