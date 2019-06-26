@@ -211,8 +211,8 @@ def _time_series_from_database(value):
         return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
     if isinstance(data, dict):
         stamps = list()
-        values = list()
-        for key, value in data.items():
+        values = np.empty(len(data))
+        for index, (key, value) in enumerate(data.items()):
             try:
                 stamp = np.datetime64(key)
             except ValueError:
@@ -220,12 +220,24 @@ def _time_series_from_database(value):
                     'Could not decode time stamp "{}"'.format(stamp)
                 )
             stamps.append(stamp)
-            values.append(value)
-        values = np.array(values)
+            values[index] = value
+        stamps = np.array(stamps)
         return TimeSeriesVariableStep(stamps, values)
-    if isinstance(data[0], list):
-        # Generalized index
-        pass
+    if isinstance(data, list):
+        stamps = list()
+        values = np.empty(len(data))
+        for index, element in enumerate(data):
+            try:
+                stamp = np.datetime64(element[0])
+            except ValueError:
+                raise ParameterValueError(
+                    'Could not decode time stamp "{}"'.format(stamp)
+                )
+            stamps.append(stamp)
+            values[index] = element[1]
+        stamps = np.array(stamps)
+        return TimeSeriesVariableStep(stamps, values)
+
 
 
 def _time_pattern_from_database(value):

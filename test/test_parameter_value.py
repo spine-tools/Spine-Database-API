@@ -174,7 +174,7 @@ class TestParameterValue(unittest.TestCase):
         value_as_dict = json.loads(database_value)
         self.assertEqual(value_as_dict, {"type": "time_pattern", "data": {"m1-4,m9-12": 300., "m5-8": 221.5}})
 
-    def test_from_database_TimeSeriesVariableStep(self):
+    def test_from_database_TimeSeriesVariableStep_as_dictionary(self):
         releases = """{
                           "type": "time_series",
                           "data": {
@@ -182,6 +182,29 @@ class TestParameterValue(unittest.TestCase):
                               "1980-05-21": 5,
                               "1983-05-25": 6
                           }
+                      }"""
+        time_series = from_database(releases)
+        numpy.testing.assert_equal(
+            time_series.indexes,
+            numpy.array(
+                [
+                    numpy.datetime64("1977-05-25"),
+                    numpy.datetime64("1980-05-21"),
+                    numpy.datetime64("1983-05-25"),
+                ],
+                dtype="datetime64[D]",
+            ),
+        )
+        numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
+
+    def test_from_database_TimeSeriesVariableStep_as_two_column_array(self):
+        releases = """{
+                          "type": "time_series",
+                          "data": [
+                              ["1977-05-25", 4],
+                              ["1980-05-21", 5],
+                              ["1983-05-25", 6]
+                          ]
                       }"""
         time_series = from_database(releases)
         numpy.testing.assert_equal(
