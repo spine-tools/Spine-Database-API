@@ -26,6 +26,9 @@ def upgrade():
     with op.batch_alter_table("parameter_value", naming_convention=naming_convention) as batch_op:
         batch_op.alter_column("parameter_id", new_column_name="parameter_definition_id", type_=sa.Integer)
         batch_op.drop_constraint("fk_parameter_value_parameter_id_parameter", type_="foreignkey")
+    with op.batch_alter_table("parameter", naming_convention=naming_convention) as batch_op:
+        batch_op.drop_constraint("uq_parameter_name", type_="unique")
+        batch_op.create_unique_constraint("uq_parameter_definition_name", ["name"])
     op.rename_table("parameter", "parameter_definition")
     with op.batch_alter_table("parameter_value", naming_convention=naming_convention) as batch_op:
         batch_op.create_foreign_key(
