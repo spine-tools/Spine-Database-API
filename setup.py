@@ -13,7 +13,7 @@ setup(
     author_email="manuelma@kth.se",
     license="LGPL",
     packages=find_packages(),
-    install_requires=["sqlalchemy>=1.3", "alembic", "faker"],
+    install_requires=["sqlalchemy>=1.3", "alembic", "faker", "python-dateutil", "numpy>=1.8.0"],
     include_package_data=True,
     zip_safe=False,
 )
