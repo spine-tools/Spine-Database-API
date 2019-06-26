@@ -52,6 +52,7 @@ from .parameter_value import (
     duration_to_relativedelta,
     relativedelta_to_duration,
     from_database,
+    to_database,
     DateTime,
     Duration,
     IndexedValue,

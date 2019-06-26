@@ -24,6 +24,7 @@ import numpy.testing
 from spinedb_api.parameter_value import (
     duration_to_relativedelta,
     from_database,
+    to_database,
     DateTime,
     Duration,
     TimePattern,
@@ -84,6 +85,24 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(delta, relativedelta(years=1))
         delta = duration_to_relativedelta("7 years")
         self.assertEqual(delta, relativedelta(years=7))
+
+    def test_from_database_plain_number(self):
+        database_value = "23.0"
+        value = from_database(database_value)
+        self.assertTrue(isinstance(value, float))
+        self.assertEqual(value, 23.0)
+
+    def test_to_database_plain_number(self):
+        value = 23.0
+        database_value = to_database(value)
+        value_as_float = json.loads(database_value)
+        self.assertEqual(value_as_float, value)
+
+    def test_to_database_DateTime(self):
+        value = DateTime(datetime(year=2019, month=6, day=26, hour=12, minute=50, second=13))
+        database_value = to_database(value)
+        value_as_dict = json.loads(database_value)
+        self.assertEqual(value_as_dict, {"type": "date_time", "data": "2019-06-26T12:50:13"})
 
     def test_from_database_DateTime(self):
         database_value = '{"type": "date_time", "data": "2019-06-01T22:15:00+01:00"}'

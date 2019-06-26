@@ -135,6 +135,21 @@ def from_database(database_value):
     return value
 
 
+def to_database(value):
+    """
+    Converts a value object into its database representation.
+
+    Args:
+        value: a value to convert
+
+    Returns:
+        value's database representation as a string
+    """
+    if hasattr(value, "to_database"):
+        return value.to_database()
+    return json.dumps(value)
+
+
 def _break_dictionary(data):
     """Converts {"index": value} style dictionary into (list(indexes), list(values)) tuple."""
     indexes = list()
