@@ -21,20 +21,17 @@
 Support utilities and classes to deal with Spine data (relationship)
 parameter values.
 
-The `from_database` functions reads the database's value format returning
+The `from_database` function reads the database's value format returning
 a float, Datatime, Duration, TimePattern, TimeSeriesFixedResolution
 or TimeSeriesVariableResolution objects.
 
 The above objects can be converted back to the database format by the `to_database` free function
-of by the `to_database` member functions.
+or by their `to_database` member functions.
 
 Individual datetimes are represented as datetime objects from the standard Python library.
 Individual time steps are represented as relativedelta objects from the dateutil package.
 Datetime indexes (as returned by TimeSeries.indexes()) are represented as
 numpy.array arrays holding numpy.datetime64 objects.
-
-This module is currently missing proper handling of time patterns
-which are represented as strings in the database format.
 
 :author: A. Soininen (VTT)
 :date:   3.6.2019
