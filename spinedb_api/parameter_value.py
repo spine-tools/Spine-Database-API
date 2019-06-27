@@ -391,7 +391,7 @@ class IndexedValue:
     An abstract base class for indexed values.
 
     Attributes:
-        values (numpy.array): the data array
+        values (numpy.ndarray): the data array
     """
 
     def __init__(self, values):
@@ -421,7 +421,7 @@ class TimeSeries(IndexedValue):
     An abstract base class for time series.
 
     Attributes:
-        values (numpy.array): an array of values
+        values (numpy.ndarray): an array of values
         ignore_year (bool): True if the year should be ignored in the time stamps
         repeat (bool): True if the series should be repeated from the beginning
     """
@@ -489,9 +489,9 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
 
     Attributes:
-        start (str): the first time stamp as an ISO8601 string
-        resolution (list): duration(s) between the time time stamps as a list of relativedeltas
-        values (numpy.array): data values at each time stamp
+        start (datetime): the first time stamp
+        resolution (list): duration(s) between the time stamps as a list of relativedeltas
+        values (numpy.ndarray): data values at each time stamp
         ignore_year (bool): whether or not the time-series should apply to any year
         repeat (bool): whether or not the time series should repeat cyclically
     """
