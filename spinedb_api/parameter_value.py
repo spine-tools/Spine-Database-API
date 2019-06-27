@@ -41,6 +41,19 @@ import re
 from dateutil.relativedelta import relativedelta
 import numpy as np
 
+# TODO:
+# - Handle *variable* resolution in `IndexedValueFixedStep` or see if we can get rid of it...
+#   (but I kinda remember people wanted to have it)
+# - Because of variable resolution the names `...FixedStep` and `...VariableStep` are a bit misleading,
+#   maybe something like `...CompactIndex` and `...ExplicitIndex` can work?
+# - See if we can use `ParameterValueError` from `exception.py` for consistency
+# - Documentation style, newbie question, does it work nicely with sphinx?
+# - Sometimes it looks like we could use `d.get(key, default)` instead of `d[key] if key in d else default`?
+# - Should `from_database` just return the `dict` rather than raising a `ParameterValueError`
+#   in case of unknown `type` or `KeyError`?
+# - Rookie question: Why the choice of `numpy.array` of `numpy.datetime64` for indices?
+#   What is wrong with a list of `datetime`?
+
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 # Default start time guess, actual value not currently given in the JSON specification.
@@ -167,7 +180,7 @@ def _break_dictionary(data):
 def _datetime_from_database(value):
     """Converts a datetime database value into a DateTime object."""
     try:
-        stamp = datetime.fromisoformat(value)
+        stamp = dateutil.parser.parse(value)
     except ValueError:
         raise ParameterValueError('Could not parse datetime from "{}"'.format(value))
     return DateTime(stamp)
@@ -433,9 +446,9 @@ class TimePattern(IndexedValue):
     """
 
     def __init__(self, indexes, values):
-        super().__init__(values)
         if len(indexes) != len(values):
             raise RuntimeError("Length of values does not match length of indexes")
+        super().__init__(values)
         self._indexes = indexes
 
     def to_database(self):
