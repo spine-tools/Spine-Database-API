@@ -92,3 +92,14 @@ class ParameterValueError(SpineDBAPIError):
         )
         self.value = value
         self.data_type = data_type
+
+class ParameterValueFormatError(SpineDBAPIError):
+    """
+    Failure in encoding/decoding a parameter value.
+
+    Attributes:
+        msg (str): an error message
+    """
+
+    def __init__(self, msg):
+        super().__init__(msg)

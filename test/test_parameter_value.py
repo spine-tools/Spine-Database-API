@@ -279,7 +279,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
-    def  test_from_database_TimeSeriesFixedResolution_cyclic_resolutions(self):
+    def  test_from_database_TimeSeriesFixedResolution_resolution_list(self):
         database_value = """{
                                    "type": "time_series",
                                    "index": {
@@ -352,7 +352,9 @@ class TestParameterValue(unittest.TestCase):
 
     def test_TimeSeriesFixedResolution_to_database(self):
         values = numpy.array([3, 2, 4], dtype=float)
-        value = TimeSeriesFixedResolution("2007-06", [duration_to_relativedelta("1 months")], values, True, True)
+        resolution = [duration_to_relativedelta("1 months")]
+        start = datetime(year=2007, month=6, day=1)
+        value = TimeSeriesFixedResolution(start, resolution, values, True, True)
         as_json = value.to_database()
         releases = json.loads(as_json)
         self.assertEqual(
@@ -360,12 +362,34 @@ class TestParameterValue(unittest.TestCase):
             {
                 "type": "time_series",
                 "index": {
-                    "start": "2007-06",
+                    "start": "2007-06-01 00:00:00",
                     "resolution": "1M",
                     "ignore_year": True,
                     "repeat": True,
                 },
                 "data": [3, 2, 4],
+            },
+        )
+
+    def test_TimeSeriesFixedResolution_resolution_list_to_database(self):
+        start = datetime(year=2007, month=1, day=1)
+        resolutions = ['1 month', '1 year']
+        resolutions = [duration_to_relativedelta(r) for r in resolutions]
+        values = numpy.array([3.0, 2.0, 4.0])
+        value = TimeSeriesFixedResolution(start, resolutions, values, True, True)
+        as_json = value.to_database()
+        releases = json.loads(as_json)
+        self.assertEqual(
+            releases,
+            {
+                "type": "time_series",
+                "index": {
+                    "start": "2007-01-01 00:00:00",
+                    "resolution": ["1M", "1Y"],
+                    "ignore_year": True,
+                    "repeat": True,
+                },
+                "data": [3.0, 2.0, 4.0],
             },
         )
 

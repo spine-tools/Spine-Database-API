@@ -7,6 +7,7 @@ from .exception import (
     SpineTableNotFoundError,
     RecordNotFoundError,
     ParameterValueError,
+    ParameterValueFormatError
 )
 from .helpers import (
     naming_convention,
@@ -60,7 +61,6 @@ from .parameter_value import (
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    ParameterValueError
 )
 from .version import __version__
 

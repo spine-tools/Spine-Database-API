@@ -40,19 +40,8 @@ import re
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
+from exception import ParameterValueFormatError
 
-# TODO:
-# - Handle *variable* resolution in `IndexedValueFixedStep` or see if we can get rid of it...
-#   (but I kinda remember people wanted to have it)
-# - Because of variable resolution the names `...FixedStep` and `...VariableStep` are a bit misleading,
-#   maybe something like `...CompactIndex` and `...ExplicitIndex` can work?
-# - See if we can use `ParameterValueError` from `exception.py` for consistency
-# - Documentation style, newbie question, does it work nicely with sphinx?
-# - Sometimes it looks like we could use `d.get(key, default)` instead of `d[key] if key in d else default`?
-# - Should `from_database` just return the `dict` rather than raising a `ParameterValueError`
-#   in case of unknown `type` or `KeyError`?
-# - Rookie question: Why the choice of `numpy.array` of `numpy.datetime64` for indices?
-#   What is wrong with a list of `datetime`?
 
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
@@ -75,7 +64,9 @@ def duration_to_relativedelta(duration):
     try:
         count = int(count)
     except ValueError:
-        raise ParameterValueError('Could not parse duration "{}"'.format(duration))
+        raise ParameterValueFormatError(
+            'Could not parse duration "{}"'.format(duration)
+        )
     unit = abbreviation if abbreviation is not None else full_unit
     if unit in ["s", "second", "seconds"]:
         return relativedelta(seconds=count)
@@ -89,7 +80,7 @@ def duration_to_relativedelta(duration):
         return relativedelta(months=count)
     if unit in ["Y", "year", "years"]:
         return relativedelta(years=count)
-    raise ParameterValueError('Could not parse duration "{}"'.format(duration))
+    raise ParameterValueFormatError('Could not parse duration "{}"'.format(duration))
 
 
 def relativedelta_to_duration(delta):
@@ -114,7 +105,7 @@ def relativedelta_to_duration(delta):
         return "{}M".format(delta.months)
     if delta.years > 0:
         return "{}Y".format(delta.years)
-    raise ParameterValueError("Zero relativedelta")
+    raise ParameterValueFormatError("Zero relativedelta")
 
 
 def from_database(database_value):
@@ -130,7 +121,7 @@ def from_database(database_value):
     try:
         value = json.loads(database_value)
     except JSONDecodeError:
-        raise ParameterValueError("Could not decode the value")
+        raise ParameterValueFormatError("Could not decode the value")
     if isinstance(value, dict):
         try:
             value_type = value["type"]
@@ -142,11 +133,11 @@ def from_database(database_value):
                 return _time_pattern_from_database(value)
             if value_type == "time_series":
                 return _time_series_from_database(value)
-            raise ParameterValueError(
+            raise ParameterValueFormatError(
                 'Unknown parameter value type "{}"'.format(value_type)
             )
         except KeyError as error:
-            raise ParameterValueError(
+            raise ParameterValueFormatError(
                 "{} is missing in the parameter value description".format(error.args[0])
             )
     return value
@@ -182,7 +173,9 @@ def _datetime_from_database(value):
     try:
         stamp = dateutil.parser.parse(value)
     except ValueError:
-        raise ParameterValueError('Could not parse datetime from "{}"'.format(value))
+        raise ParameterValueFormatError(
+            'Could not parse datetime from "{}"'.format(value)
+        )
     return DateTime(stamp)
 
 
@@ -198,7 +191,7 @@ def _duration_from_database(value):
         value = [v if isinstance(v, str) else "{}m".format(v) for v in value]
         value = [duration_to_relativedelta(v) for v in value]
     else:
-        raise ParameterValueError("Duration value is of unsupported type")
+        raise ParameterValueFormatError("Duration value is of unsupported type")
     return Duration(value)
 
 
@@ -212,7 +205,7 @@ def _time_series_from_database(value):
             return _time_series_from_two_columns(value)
         else:
             return _time_series_from_single_column(value)
-    raise ParameterValueError("Unrecognized time series format")
+    raise ParameterValueFormatError("Unrecognized time series format")
 
 
 def _variable_resolution_time_series_info_from_index(value):
@@ -222,7 +215,7 @@ def _variable_resolution_time_series_info_from_index(value):
         try:
             ignore_year = bool(data_index["ignore_year"])
         except ValueError:
-            raise ParameterValueError(
+            raise ParameterValueFormatError(
                 'Could not decode ignore_year from "{}"'.format(
                     data_index["ignore_year"]
                 )
@@ -230,7 +223,7 @@ def _variable_resolution_time_series_info_from_index(value):
         try:
             repeat = bool(data_index["repeat"])
         except ValueError:
-            raise ParameterValueError(
+            raise ParameterValueFormatError(
                 'Could not decode repeat from "{}"'.format(data_index["repeat"])
             )
     else:
@@ -248,7 +241,9 @@ def _time_series_from_dictionary(value):
         try:
             stamp = np.datetime64(stamp)
         except ValueError:
-            raise ParameterValueError('Could not decode time stamp "{}"'.format(stamp))
+            raise ParameterValueFormatError(
+                'Could not decode time stamp "{}"'.format(stamp)
+            )
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
@@ -275,7 +270,7 @@ def _time_series_from_single_column(value):
             try:
                 ignore_year = bool(value_index["ignore_year"])
             except ValueError:
-                raise ParameterValueError(
+                raise ParameterValueFormatError(
                     'Could not decode ignore_year value "{}"'.format(
                         value_index["ignore_year"]
                     )
@@ -286,7 +281,7 @@ def _time_series_from_single_column(value):
             try:
                 repeat = bool(value_index["repeat"])
             except ValueError:
-                raise ParameterValueError(
+                raise ParameterValueFormatError(
                     'Could not decode repeat value "{}"'.format(
                         value_index["ignore_year"]
                     )
@@ -303,11 +298,15 @@ def _time_series_from_single_column(value):
     elif isinstance(resolution, Iterable):
         resolution = [duration_to_relativedelta(step) for step in resolution]
     else:
-        raise ParameterValueError('Could not decode resolution "{}"'.format(resolution))
+        raise ParameterValueFormatError(
+            'Could not decode resolution "{}"'.format(resolution)
+        )
     try:
         start = dateutil.parser.parse(start)
     except ValueError:
-        raise ParameterValueError('Could not decode start value "{}"'.format(start))
+        raise ParameterValueFormatError(
+            'Could not decode start value "{}"'.format(start)
+        )
     return TimeSeriesFixedResolution(start, resolution, data, ignore_year, repeat)
 
 
@@ -318,11 +317,11 @@ def _time_series_from_two_columns(value):
     values = np.empty(len(data))
     for index, element in enumerate(data):
         if not isinstance(element, Sequence) or len(element) != 2:
-            raise ParameterValueError("Invalid value in time series array")
+            raise ParameterValueFormatError("Invalid value in time series array")
         try:
             stamp = np.datetime64(element[0])
         except ValueError:
-            raise ParameterValueError(
+            raise ParameterValueFormatError(
                 'Could not decode time stamp "{}"'.format(element[0])
             )
         stamps.append(stamp)
@@ -512,7 +511,7 @@ class TimeSeriesFixedResolution(TimeSeries):
                 step_index = 0
                 step_cycle_index += 1
             current_cycle_duration = sum(
-                self._resolution[:step_index + 1], relativedelta()
+                self._resolution[: step_index + 1], relativedelta()
             )
             duration_from_start = (
                 step_cycle_index * full_cycle_duration + current_cycle_duration
@@ -583,7 +582,7 @@ class TimeSeriesVariableResolution(TimeSeries):
             try:
                 data[str(index)] = float(value)
             except ValueError:
-                raise ParameterValueError(
+                raise ParameterValueFormatError(
                     'Failed to convert "{}" to a float'.format(value)
                 )
         database_value["data"] = data
@@ -597,21 +596,3 @@ class TimeSeriesVariableResolution(TimeSeries):
                 database_value["index"] = dict()
             database_value["index"]["repeat"] = self._repeat()
         return json.dumps(database_value)
-
-
-class ParameterValueError(Exception):
-    """
-    An exception raised when encoding/decoding a value fails.
-
-    Attributes:
-        message (str): an error message
-    """
-
-    def __init__(self, message):
-        super().__init__()
-        self._message = message
-
-    @property
-    def message(self):
-        """Returns a message explaining the error."""
-        return self._message
