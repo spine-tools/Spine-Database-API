@@ -22,8 +22,8 @@ Support utilities and classes to deal with Spine data (relationship)
 parameter values.
 
 Individual datetimes are represented as datetime objects from the standard Python library.
-Individual time steps are represented as relativedelta objects from the dateutils package.
-Lists of datetimes (as time series time stamps or indices) are represented as
+Individual time steps are represented as relativedelta objects from the dateutil package.
+Datetime indexes (as returned by TimeSeries.indexes()) are represented as
 numpy.array arrays holding numpy.datetime64 objects.
 
 This module is currently missing proper handling of time patterns
@@ -34,10 +34,10 @@ which are represented as strings in the database format.
 """
 
 from collections.abc import Iterable, Sequence
-from datetime import datetime
 import json
 from json.decoder import JSONDecodeError
 import re
+import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
 
@@ -215,7 +215,8 @@ def _time_series_from_database(value):
     raise ParameterValueError("Unrecognized time series format")
 
 
-def _variable_step_time_series_info_from_index(value):
+def _variable_resolution_time_series_info_from_index(value):
+    """Returns ignore_year and repeat from index if present or their default values."""
     if "index" in value:
         data_index = value["index"]
         try:
@@ -239,6 +240,7 @@ def _variable_step_time_series_info_from_index(value):
 
 
 def _time_series_from_dictionary(value):
+    """Converts a dictionary style time series into a TimeSeriesVariableResolution object."""
     data = value["data"]
     stamps = list()
     values = np.empty(len(data))
@@ -250,11 +252,12 @@ def _time_series_from_dictionary(value):
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
-    ignore_year, repeat = _variable_step_time_series_info_from_index(value)
-    return TimeSeriesVariableStep(stamps, values, ignore_year, repeat)
+    ignore_year, repeat = _variable_resolution_time_series_info_from_index(value)
+    return TimeSeriesVariableResolution(stamps, values, ignore_year, repeat)
 
 
 def _time_series_from_single_column(value):
+    """Converts a compact JSON formatted time series into a TimeSeriesFixedResolution object."""
     data = value["data"]
     if "index" in value:
         value_index = value["index"]
@@ -295,15 +298,16 @@ def _time_series_from_single_column(value):
         resolution = _TIME_SERIES_DEFAULT_RESOLUTION
         ignore_year = True
         repeat = True
-    resolution = duration_to_relativedelta(resolution)
+    resolution = [duration_to_relativedelta(resolution)]
     try:
-        start = datetime.fromisoformat(start)
+        start = dateutil.parser.parse(start)
     except ValueError:
         raise ParameterValueError('Could not decode start value "{}"'.format(start))
-    return TimeSeriesFixedStep(start, resolution, data, ignore_year, repeat)
+    return TimeSeriesFixedResolution(start, resolution, data, ignore_year, repeat)
 
 
 def _time_series_from_two_columns(value):
+    """Converts a two column style time series into a TimeSeriesVariableResolution object."""
     data = value["data"]
     stamps = list()
     values = np.empty(len(data))
@@ -319,8 +323,8 @@ def _time_series_from_two_columns(value):
         stamps.append(stamp)
         values[index] = element[1]
     stamps = np.array(stamps)
-    ignore_year, repeat = _variable_step_time_series_info_from_index(value)
-    return TimeSeriesVariableStep(stamps, values, ignore_year, repeat)
+    ignore_year, repeat = _variable_resolution_time_series_info_from_index(value)
+    return TimeSeriesVariableResolution(stamps, values, ignore_year, repeat)
 
 
 def _time_pattern_from_database(value):
@@ -355,7 +359,7 @@ class Duration:
     This class represents a duration in time.
 
     Attributes:
-        value (step, list): a time step as a single string or as list of strings
+        value (relativedelta, list): a time step as a relativedelta or as list thereof
     """
 
     def __init__(self, value):
@@ -371,7 +375,7 @@ class Duration:
 
     @property
     def value(self):
-        """Returns the duration as a string."""
+        """Returns the duration as a relativedelta."""
         return self._value
 
 
@@ -385,6 +389,10 @@ class IndexedValue:
 
     def __init__(self, values):
         self._values = values
+
+    def __len__(self):
+        """Returns the length of the index"""
+        return len(self.values)
 
     @property
     def indexes(self):
@@ -464,30 +472,48 @@ class TimePattern(IndexedValue):
         return self._indexes
 
 
-class TimeSeriesFixedStep(TimeSeries):
+class TimeSeriesFixedResolution(TimeSeries):
     """
     A time series with fixed durations between the time stamps.
+
+    When getting the indexes the durations are applied cyclically.
 
     Currently, there is no support for the `ignore_year` and `repeat` options
     other than having getters for their values.
 
     Attributes:
         start (str): the first time stamp as an ISO8601 string
-        step (str, list): duration(s) between the time time stamps
+        resolution (list): duration(s) between the time time stamps as a list of relativedeltas
         values (numpy.array): data values at each time stamp
         ignore_year (bool): whether or not the time-series should apply to any year
         repeat (bool): whether or not the time series should repeat cyclically
     """
 
-    def __init__(self, start, step, values, ignore_year, repeat):
+    def __init__(self, start, resolution, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
         self._start = start
-        self._step = step
+        self._resolution = resolution
 
     @property
     def indexes(self):
         """Returns the time stamps as a numpy.array of numpy.datetime64 objects."""
-        stamps = [self._start + i * self._step for i in range(len(self._values))]
+        step_index = 0
+        step_cycle_index = 0
+        full_cycle_duration = sum(self._resolution, relativedelta())
+        stamps = np.empty(len(self), dtype=_NUMPY_DATETIME_DTYPE)
+        stamps[0] = self._start
+        for stamp_index in range(1, len(self._values)):
+            if step_index >= len(self._resolution):
+                step_index = 0
+                step_cycle_index += 1
+            current_cycle_duration = sum(
+                self._resolution[: len(self._resolution) - step_index], relativedelta()
+            )
+            duration_from_start = (
+                step_cycle_index * full_cycle_duration + current_cycle_duration
+            )
+            stamps[stamp_index] = self._start + duration_from_start
+            step_index += 1
         return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
 
     @property
@@ -496,18 +522,24 @@ class TimeSeriesFixedStep(TimeSeries):
         return self._start
 
     @property
-    def step(self):
-        """Returns the step size."""
-        return self._step
+    def resolution(self):
+        """Returns the resolution as list of durations."""
+        return self._resolution
 
     def to_database(self):
         """Returns the value in its database representation."""
+        if len(self._resolution) > 1:
+            resolution_as_json = [
+                relativedelta_to_duration(step) for step in self._resolution
+            ]
+        else:
+            resolution_as_json = relativedelta_to_duration(self._resolution[0])
         return json.dumps(
             {
                 "type": "time_series",
                 "index": {
                     "start": str(self._start),
-                    "resolution": self._step,
+                    "resolution": resolution_as_json,
                     "ignore_year": self._ignore_year,
                     "repeat": self._repeat,
                 },
@@ -516,7 +548,7 @@ class TimeSeriesFixedStep(TimeSeries):
         )
 
 
-class TimeSeriesVariableStep(TimeSeries):
+class TimeSeriesVariableResolution(TimeSeries):
     """
     A class representing time series data with variable time step.
 

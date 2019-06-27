@@ -28,8 +28,8 @@ from spinedb_api.parameter_value import (
     DateTime,
     Duration,
     TimePattern,
-    TimeSeriesFixedStep,
-    TimeSeriesVariableStep,
+    TimeSeriesFixedResolution,
+    TimeSeriesVariableResolution,
 )
 
 
@@ -183,7 +183,7 @@ class TestParameterValue(unittest.TestCase):
             {"type": "time_pattern", "data": {"m1-4,m9-12": 300.0, "m5-8": 221.5}},
         )
 
-    def test_from_database_TimeSeriesVariableStep_as_dictionary(self):
+    def test_from_database_TimeSeriesVariableResolution_as_dictionary(self):
         releases = """{
                           "type": "time_series",
                           "data": {
@@ -206,7 +206,7 @@ class TestParameterValue(unittest.TestCase):
         )
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
-    def test_from_database_TimeSeriesVariableStep_as_two_column_array(self):
+    def test_from_database_TimeSeriesVariableResolution_as_two_column_array(self):
         releases = """{
                           "type": "time_series",
                           "data": [
@@ -229,12 +229,12 @@ class TestParameterValue(unittest.TestCase):
         )
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
-    def test_TimeSeriesVariableStep_to_database(self):
+    def test_TimeSeriesVariableResolution_to_database(self):
         dates = numpy.array(
             ["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]"
         )
         episodes = numpy.array([1, 2, 3], dtype=float)
-        value = TimeSeriesVariableStep(dates, episodes, False, False)
+        value = TimeSeriesVariableResolution(dates, episodes, False, False)
         as_json = value.to_database()
         releases = json.loads(as_json)
         self.assertEqual(
@@ -245,7 +245,7 @@ class TestParameterValue(unittest.TestCase):
             },
         )
 
-    def test_from_database_TimeSeriesFixedStep(self):
+    def test_from_database_TimeSeriesFixedResolution(self):
         days_of_our_lives = """{
                                    "type": "time_series",
                                    "index": {
@@ -270,11 +270,12 @@ class TestParameterValue(unittest.TestCase):
         )
         numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1]))
         self.assertEqual(time_series.start, datetime.fromisoformat("2019-03-23"))
-        self.assertEqual(time_series.step, relativedelta(days=1))
+        self.assertEqual(len(time_series.resolution), 1)
+        self.assertEqual(time_series.resolution[0], relativedelta(days=1))
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
-    def test_from_database_TimeSeriesFixedStep_default_resolution_is_1hour(self):
+    def test_from_database_TimeSeriesFixedResolution_default_resolution_is_1hour(self):
         database_value = """{
                                    "type": "time_series",
                                    "index": {
@@ -285,9 +286,10 @@ class TestParameterValue(unittest.TestCase):
                                    "data": [7.0, 5.0, 8.1]
                                }"""
         time_series = from_database(database_value)
-        self.assertEqual(time_series.step, relativedelta(hours=1))
+        self.assertEqual(len(time_series.resolution), 1)
+        self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
 
-    def test_from_database_TimeSeriesFixedStep_default_ignore_year(self):
+    def test_from_database_TimeSeriesFixedResolution_default_ignore_year(self):
         # Should be false if start is given
         database_value = """{
                                    "type": "time_series",
@@ -312,9 +314,9 @@ class TestParameterValue(unittest.TestCase):
         time_series = from_database(database_value)
         self.assertTrue(time_series.ignore_year)
 
-    def test_TimeSeriesFixedStep_to_database(self):
+    def test_TimeSeriesFixedResolution_to_database(self):
         values = numpy.array([3, 2, 4], dtype=float)
-        value = TimeSeriesFixedStep("2007-06", "1 months", values, True, True)
+        value = TimeSeriesFixedResolution("2007-06", [duration_to_relativedelta("1 months")], values, True, True)
         as_json = value.to_database()
         releases = json.loads(as_json)
         self.assertEqual(
@@ -323,7 +325,7 @@ class TestParameterValue(unittest.TestCase):
                 "type": "time_series",
                 "index": {
                     "start": "2007-06",
-                    "resolution": "1 months",
+                    "resolution": "1M",
                     "ignore_year": True,
                     "repeat": True,
                 },
