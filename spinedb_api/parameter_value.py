@@ -185,7 +185,7 @@ def _datetime_from_database(value):
 
 def _duration_from_database(value):
     """Converts a duration database value into a Duration object."""
-    if isinstance(value, [str, int]):
+    if isinstance(value, (str, int)):
         # Set default unit to minutes if value is a plain number.
         if not isinstance(value, str):
             value = "{}m".format(value)
