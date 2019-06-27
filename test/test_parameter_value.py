@@ -169,6 +169,7 @@ class TestParameterValue(unittest.TestCase):
         }
         """
         value = from_database(database_value)
+        self.assertEqual(len(value), 2)
         numpy.testing.assert_equal(value.indexes, numpy.array(["m1-4,m9-12", "m5-8"]))
         numpy.testing.assert_equal(value.values, numpy.array([300.0, 221.5]))
 
@@ -204,6 +205,7 @@ class TestParameterValue(unittest.TestCase):
                 dtype="datetime64[D]",
             ),
         )
+        self.assertEqual(len(time_series), 3)
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
     def test_from_database_TimeSeriesVariableResolution_as_two_column_array(self):
@@ -227,6 +229,7 @@ class TestParameterValue(unittest.TestCase):
                 dtype="datetime64[D]",
             ),
         )
+        self.assertEqual(len(time_series), 3)
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
     def test_TimeSeriesVariableResolution_to_database(self):
@@ -257,6 +260,7 @@ class TestParameterValue(unittest.TestCase):
                                    "data": [7.0, 5.0, 8.1]
                                }"""
         time_series = from_database(days_of_our_lives)
+        self.assertEqual(len(time_series), 3)
         numpy.testing.assert_equal(
             time_series.indexes,
             numpy.array(
@@ -275,6 +279,37 @@ class TestParameterValue(unittest.TestCase):
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
+    def  test_from_database_TimeSeriesFixedResolution_cyclic_resolutions(self):
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "start": "2019-01-31",
+                                       "resolution": ["1 day", "1M"],
+                                       "ignore_year": false,
+                                       "repeat": false
+                                   },
+                                   "data": [7.0, 5.0, 8.1, -4.1]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertEqual(len(time_series), 4)
+        numpy.testing.assert_equal(
+            time_series.indexes,
+            numpy.array(
+                [
+                    numpy.datetime64("2019-01-31"),
+                    numpy.datetime64("2019-02-01"),
+                    numpy.datetime64("2019-03-01"),
+                    numpy.datetime64("2019-03-02"),
+                ],
+                dtype="datetime64[s]",
+            ),
+        )
+        numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1, -4.1]))
+        self.assertEqual(time_series.start, datetime.fromisoformat("2019-01-31"))
+        self.assertEqual(len(time_series.resolution), 2)
+        self.assertFalse(time_series.ignore_year)
+        self.assertFalse(time_series.repeat)
+
     def test_from_database_TimeSeriesFixedResolution_default_resolution_is_1hour(self):
         database_value = """{
                                    "type": "time_series",
@@ -286,6 +321,7 @@ class TestParameterValue(unittest.TestCase):
                                    "data": [7.0, 5.0, 8.1]
                                }"""
         time_series = from_database(database_value)
+        self.assertEqual(len(time_series), 3)
         self.assertEqual(len(time_series.resolution), 1)
         self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
 

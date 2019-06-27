@@ -298,7 +298,12 @@ def _time_series_from_single_column(value):
         resolution = _TIME_SERIES_DEFAULT_RESOLUTION
         ignore_year = True
         repeat = True
-    resolution = [duration_to_relativedelta(resolution)]
+    if isinstance(resolution, str):
+        resolution = [duration_to_relativedelta(resolution)]
+    elif isinstance(resolution, Iterable):
+        resolution = [duration_to_relativedelta(step) for step in resolution]
+    else:
+        raise ParameterValueError('Could not decode resolution "{}"'.format(resolution))
     try:
         start = dateutil.parser.parse(start)
     except ValueError:
@@ -507,7 +512,7 @@ class TimeSeriesFixedResolution(TimeSeries):
                 step_index = 0
                 step_cycle_index += 1
             current_cycle_duration = sum(
-                self._resolution[: len(self._resolution) - step_index], relativedelta()
+                self._resolution[:step_index + 1], relativedelta()
             )
             duration_from_start = (
                 step_cycle_index * full_cycle_duration + current_cycle_duration
