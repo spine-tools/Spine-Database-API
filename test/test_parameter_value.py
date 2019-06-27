@@ -206,6 +206,7 @@ class TestParameterValue(unittest.TestCase):
             ),
         )
         self.assertEqual(len(time_series), 3)
+        self.assertTrue(isinstance(time_series.values, numpy.ndarray))
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
     def test_from_database_TimeSeriesVariableResolution_as_two_column_array(self):
@@ -230,6 +231,7 @@ class TestParameterValue(unittest.TestCase):
             ),
         )
         self.assertEqual(len(time_series), 3)
+        self.assertTrue(isinstance(time_series.values, numpy.ndarray))
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
     def test_TimeSeriesVariableResolution_to_database(self):
@@ -272,6 +274,7 @@ class TestParameterValue(unittest.TestCase):
                 dtype="datetime64[s]",
             ),
         )
+        self.assertTrue(isinstance(time_series.values, numpy.ndarray))
         numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1]))
         self.assertEqual(time_series.start, datetime.fromisoformat("2019-03-23"))
         self.assertEqual(len(time_series.resolution), 1)

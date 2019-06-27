@@ -256,7 +256,6 @@ def _time_series_from_dictionary(value):
 
 def _time_series_from_single_column(value):
     """Converts a compact JSON formatted time series into a TimeSeriesFixedResolution object."""
-    data = value["data"]
     if "index" in value:
         value_index = value["index"]
         start = (
@@ -310,7 +309,8 @@ def _time_series_from_single_column(value):
         raise ParameterValueFormatError(
             'Could not decode start value "{}"'.format(start)
         )
-    return TimeSeriesFixedResolution(start, resolution, data, ignore_year, repeat)
+    values = np.array(value["data"])
+    return TimeSeriesFixedResolution(start, resolution, values, ignore_year, repeat)
 
 
 def _time_series_from_two_columns(value):
