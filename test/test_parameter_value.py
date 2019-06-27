@@ -279,17 +279,48 @@ class TestParameterValue(unittest.TestCase):
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
-    def  test_from_database_TimeSeriesFixedResolution_resolution_list(self):
+    def test_from_database_TimeSeriesFixedResolution_no_index(self):
         database_value = """{
-                                   "type": "time_series",
-                                   "index": {
-                                       "start": "2019-01-31",
-                                       "resolution": ["1 day", "1M"],
-                                       "ignore_year": false,
-                                       "repeat": false
-                                   },
-                                   "data": [7.0, 5.0, 8.1, -4.1]
-                               }"""
+                                "type": "time_series",
+                                "data": [1, 2, 3, 4, 5, 8]
+                            }
+        """
+        time_series = from_database(database_value)
+        self.assertEqual(len(time_series), 6)
+        numpy.testing.assert_equal(
+            time_series.indexes,
+            numpy.array(
+                [
+                    numpy.datetime64("0001-01-01T00:00:00"),
+                    numpy.datetime64("0001-01-01T01:00:00"),
+                    numpy.datetime64("0001-01-01T02:00:00"),
+                    numpy.datetime64("0001-01-01T03:00:00"),
+                    numpy.datetime64("0001-01-01T04:00:00"),
+                    numpy.datetime64("0001-01-01T05:00:00"),
+                ],
+                dtype="datetime64[s]",
+            ),
+        )
+        numpy.testing.assert_equal(
+            time_series.values, numpy.array([1.0, 2.0, 3.0, 4.0, 5.0, 8.0])
+        )
+        self.assertEqual(time_series.start, datetime.fromisoformat("0001-01-01T00:00:00"))
+        self.assertEqual(len(time_series.resolution), 1)
+        self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
+        self.assertTrue(time_series.ignore_year)
+        self.assertTrue(time_series.repeat)
+
+    def test_from_database_TimeSeriesFixedResolution_resolution_list(self):
+        database_value = """{
+                                "type": "time_series",
+                                "index": {
+                                    "start": "2019-01-31",
+                                    "resolution": ["1 day", "1M"],
+                                    "ignore_year": false,
+                                    "repeat": false
+                                },
+                                "data": [7.0, 5.0, 8.1, -4.1]
+                            }"""
         time_series = from_database(database_value)
         self.assertEqual(len(time_series), 4)
         numpy.testing.assert_equal(
@@ -304,9 +335,12 @@ class TestParameterValue(unittest.TestCase):
                 dtype="datetime64[s]",
             ),
         )
-        numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1, -4.1]))
+        numpy.testing.assert_equal(
+            time_series.values, numpy.array([7.0, 5.0, 8.1, -4.1])
+        )
         self.assertEqual(time_series.start, datetime.fromisoformat("2019-01-31"))
         self.assertEqual(len(time_series.resolution), 2)
+        self.assertEqual(time_series.resolution, [relativedelta(days=1), relativedelta(months=1)])
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
@@ -373,7 +407,7 @@ class TestParameterValue(unittest.TestCase):
 
     def test_TimeSeriesFixedResolution_resolution_list_to_database(self):
         start = datetime(year=2007, month=1, day=1)
-        resolutions = ['1 month', '1 year']
+        resolutions = ["1 month", "1 year"]
         resolutions = [duration_to_relativedelta(r) for r in resolutions]
         values = numpy.array([3.0, 2.0, 4.0])
         value = TimeSeriesFixedResolution(start, resolutions, values, True, True)
