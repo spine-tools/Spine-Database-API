@@ -31,7 +31,7 @@ or by their `to_database` member functions.
 Individual datetimes are represented as datetime objects from the standard Python library.
 Individual time steps are represented as relativedelta objects from the dateutil package.
 Datetime indexes (as returned by TimeSeries.indexes()) are represented as
-numpy.array arrays holding numpy.datetime64 objects.
+numpy.ndarray arrays holding numpy.datetime64 objects.
 
 :author: A. Soininen (VTT)
 :date:   3.6.2019
@@ -51,7 +51,10 @@ from .exception import ParameterValueFormatError
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 # Default start time guess, actual value not currently given in the JSON specification.
 _TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
+# Default resolution if it is omitted from the index entry.
 _TIME_SERIES_DEFAULT_RESOLUTION = "1h"
+# Default unit if resolution is given as a number instead of a string.
+_TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 
 
 def duration_to_relativedelta(duration):
@@ -64,8 +67,8 @@ def duration_to_relativedelta(duration):
     Returns:
         a relativedelta object corresponding to the given duration
     """
-    count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
     try:
+        count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
         count = int(count)
     except ValueError:
         raise ParameterValueFormatError('Could not parse duration "{}"'.format(duration))
@@ -265,23 +268,20 @@ def _time_series_from_single_column(value):
         resolution = _TIME_SERIES_DEFAULT_RESOLUTION
         ignore_year = True
         repeat = True
-    if isinstance(resolution, (str, int)):
-        # Set default unit to minutes if value is a plain number.
-        if not isinstance(resolution, str):
-            resolution = "{}m".format(resolution)
-        resolution = [duration_to_relativedelta(resolution)]
-    elif isinstance(resolution, Sequence):  # It is a list of resolution.
-        # Set default unit to minutes for plain numbers in value.
-        resolution = [v if isinstance(v, str) else "{}m".format(v) for v in resolution]
-        resolution = [duration_to_relativedelta(v) for v in resolution]
-    else:
-        raise ParameterValueFormatError('Could not decode resolution "{}"'.format(resolution))
+    if isinstance (resolution, str) or not isinstance(resolution, Sequence):
+        # Always work with lists to simplify the code.
+        resolution = [resolution]
+    relativedeltas = list()
+    for duration in resolution:
+        if not isinstance(duration, str):
+            duration = str(duration) + _TIME_SERIES_PLAIN_INDEX_UNIT
+        relativedeltas.append(duration_to_relativedelta(duration))
     try:
         start = dateutil.parser.parse(start)
     except ValueError:
         raise ParameterValueFormatError('Could not decode start value "{}"'.format(start))
     values = np.array(value["data"])
-    return TimeSeriesFixedResolution(start, resolution, values, ignore_year, repeat)
+    return TimeSeriesFixedResolution(start, relativedeltas, values, ignore_year, repeat)
 
 
 def _time_series_from_two_columns(value):
@@ -372,7 +372,7 @@ class IndexedValue:
 
     @property
     def indexes(self):
-        """Returns the indexes as a numpy.array."""
+        """Returns the indexes as a numpy.ndarray."""
         raise NotImplementedError()
 
     def to_database(self):
@@ -381,7 +381,7 @@ class IndexedValue:
 
     @property
     def values(self):
-        """Returns the data values as numpy.array."""
+        """Returns the data values as numpy.ndarray."""
         return self._values
 
 
@@ -402,7 +402,7 @@ class TimeSeries(IndexedValue):
 
     @property
     def indexes(self):
-        """Returns the indexes as a numpy.array."""
+        """Returns the indexes as a numpy.ndarray."""
         raise NotImplementedError()
 
     @property
@@ -472,7 +472,7 @@ class TimeSeriesFixedResolution(TimeSeries):
 
     @property
     def indexes(self):
-        """Returns the time stamps as a numpy.array of numpy.datetime64 objects."""
+        """Returns the time stamps as a numpy.ndarray of numpy.datetime64 objects."""
         step_index = 0
         step_cycle_index = 0
         full_cycle_duration = sum(self._resolution, relativedelta())
@@ -523,8 +523,8 @@ class TimeSeriesVariableResolution(TimeSeries):
     A class representing time series data with variable time step.
 
     Attributes:
-        indexes (numpy.array): time stamps as numpy.datetime64 objects
-        values (numpy.array): the values corresponding to the time stamps
+        indexes (numpy.ndarray): time stamps as numpy.datetime64 objects
+        values (numpy.ndarray): the values corresponding to the time stamps
         ignore_year (bool): True if the stamp year should be ignored
         repeat (bool): True if the series should be repeated from the beginning
     """

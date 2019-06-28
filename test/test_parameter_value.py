@@ -362,6 +362,33 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(len(time_series.resolution), 1)
         self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
 
+    def test_from_database_TimeSeriesFixedResolution_default_resolution_unit_is_minutes(self):
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "start": "2019-03-23",
+                                       "resolution": 30
+                                   },
+                                   "data": [7.0, 5.0, 8.1]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertEqual(len(time_series), 3)
+        self.assertEqual(len(time_series.resolution), 1)
+        self.assertEqual(time_series.resolution[0], relativedelta(minutes=30))
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "start": "2019-03-23",
+                                       "resolution": [30, 45]
+                                   },
+                                   "data": [7.0, 5.0, 8.1]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertEqual(len(time_series), 3)
+        self.assertEqual(len(time_series.resolution), 2)
+        self.assertEqual(time_series.resolution[0], relativedelta(minutes=30))
+        self.assertEqual(time_series.resolution[1], relativedelta(minutes=45))
+
     def test_from_database_TimeSeriesFixedResolution_default_ignore_year(self):
         # Should be false if start is given
         database_value = """{
