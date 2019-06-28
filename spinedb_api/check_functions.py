@@ -220,25 +220,15 @@ def check_parameter_definition(
             )
     else:
         raise SpineIntegrityError("Missing object class or relationship class identifier.")
-    value_list = None
-    if "parameter_value_list_id" in item:
-        parameter_value_list_id = item["parameter_value_list_id"]
-        if parameter_value_list_id:
-            if parameter_value_list_id not in parameter_value_lists:
-                raise SpineIntegrityError("Invalid parameter value list.")
-            value_list = parameter_value_lists[parameter_value_list_id].split(",")
-
+    parameter_value_list_id = item.get("parameter_value_list_id")
+    if parameter_value_list_id is not None and parameter_value_list_id not in parameter_value_lists:
+        raise SpineIntegrityError("Invalid parameter value list.")
     default_value = item.get("default_value")
     if default_value is not None:
         try:
             json.loads(default_value)
         except json.JSONDecodeError as err:
             raise SpineIntegrityError("Couldn't decode default value '{}' as JSON: {}".format(default_value, err))
-        if default_value is not None and value_list is not None and default_value not in value_list:
-            raise SpineIntegrityError(
-                "The value '{}' is not a valid default value "
-                "for the associated list (valid values are: {})".format(default_value, ", ".join(value_list))
-            )
 
 
 def check_parameter_value(
