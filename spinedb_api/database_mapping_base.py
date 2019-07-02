@@ -54,6 +54,7 @@ class DatabaseMappingBase(object):
         """Initialize class."""
         self.db_url = db_url
         self.username = username if username else "anon"
+        self.sa_url = None
         self.engine = None
         self.connection = None
         self.session = None
@@ -122,6 +123,7 @@ class DatabaseMappingBase(object):
             )
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
+        self.sa_url = make_url(self.db_url)
 
     def _check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a `SpineDBVersionError` if not.
