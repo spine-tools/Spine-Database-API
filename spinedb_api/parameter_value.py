@@ -160,12 +160,12 @@ def to_database(value):
 
 
 def _break_dictionary(data):
-    """Converts {"index": value} style dictionary into (list(indexes), list(values)) tuple."""
+    """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
     indexes = list()
-    values = list()
-    for key, value in data.items():
+    values = np.empty(len(data))
+    for index, (key, value) in enumerate(data.items()):
         indexes.append(key)
-        values.append(value)
+        values[index] = value
     return indexes, values
 
 
@@ -211,11 +211,11 @@ def _variable_resolution_time_series_info_from_index(value):
     if "index" in value:
         data_index = value["index"]
         try:
-            ignore_year = bool(data_index["ignore_year"])
+            ignore_year = bool(data_index.get("ignore_year", False))
         except ValueError:
             raise ParameterValueFormatError('Could not decode ignore_year from "{}"'.format(data_index["ignore_year"]))
         try:
-            repeat = bool(data_index["repeat"])
+            repeat = bool(data_index.get("repeat", False))
         except ValueError:
             raise ParameterValueFormatError('Could not decode repeat from "{}"'.format(data_index["repeat"]))
     else:
@@ -231,7 +231,7 @@ def _time_series_from_dictionary(value):
     values = np.empty(len(data))
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
-            stamp = np.datetime64(stamp)
+            stamp = np.datetime64(dateutil.parser.parse(stamp))
         except ValueError:
             raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(stamp))
         stamps.append(stamp)
@@ -293,7 +293,7 @@ def _time_series_from_two_columns(value):
         if not isinstance(element, Sequence) or len(element) != 2:
             raise ParameterValueFormatError("Invalid value in time series array")
         try:
-            stamp = np.datetime64(element[0])
+            stamp = np.datetime64(dateutil.parser.parse(element[0]))
         except ValueError:
             raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(element[0]))
         stamps.append(stamp)
@@ -426,7 +426,7 @@ class TimePattern(IndexedValue):
 
     Attributes:
         indexes (list): a list of time pattern strings
-        values (list): a list of values corresponding to the time patterns
+        values (numpy.ndarray): an array of values corresponding to the time patterns
     """
 
     def __init__(self, indexes, values):
@@ -558,5 +558,5 @@ class TimeSeriesVariableResolution(TimeSeries):
         if self._repeat:
             if "index" not in database_value:
                 database_value["index"] = dict()
-            database_value["index"]["repeat"] = self._repeat()
+            database_value["index"]["repeat"] = self._repeat
         return json.dumps(database_value)
