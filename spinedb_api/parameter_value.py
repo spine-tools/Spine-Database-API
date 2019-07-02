@@ -160,12 +160,12 @@ def to_database(value):
 
 
 def _break_dictionary(data):
-    """Converts {"index": value} style dictionary into (list(indexes), list(values)) tuple."""
+    """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
     indexes = list()
-    values = list()
-    for key, value in data.items():
+    values = np.empty(len(data))
+    for index, (key, value) in enumerate(data.items()):
         indexes.append(key)
-        values.append(value)
+        values[index] = value
     return indexes, values
 
 
@@ -426,7 +426,7 @@ class TimePattern(IndexedValue):
 
     Attributes:
         indexes (list): a list of time pattern strings
-        values (list): a list of values corresponding to the time patterns
+        values (numpy.ndarray): an array of values corresponding to the time patterns
     """
 
     def __init__(self, indexes, values):
