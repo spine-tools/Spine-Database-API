@@ -211,11 +211,11 @@ def _variable_resolution_time_series_info_from_index(value):
     if "index" in value:
         data_index = value["index"]
         try:
-            ignore_year = bool(data_index["ignore_year"])
+            ignore_year = bool(data_index.get("ignore_year", False))
         except ValueError:
             raise ParameterValueFormatError('Could not decode ignore_year from "{}"'.format(data_index["ignore_year"]))
         try:
-            repeat = bool(data_index["repeat"])
+            repeat = bool(data_index.get("repeat", False))
         except ValueError:
             raise ParameterValueFormatError('Could not decode repeat from "{}"'.format(data_index["repeat"]))
     else:

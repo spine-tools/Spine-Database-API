@@ -234,6 +234,19 @@ class TestParameterValue(unittest.TestCase):
         self.assertTrue(isinstance(time_series.values, numpy.ndarray))
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
+    def test_from_database_TimeSeriesFixedResolution_default_repeat(self):
+        database_value = """{
+                                   "type": "time_series",
+                                   "index": {
+                                       "ignore_year": true
+                                   },
+                                   "data": [["2019-07-02T10:00:00", 7.0],
+                                            ["2019-07-02T10:00:01", 4.0]]
+                               }"""
+        time_series = from_database(database_value)
+        self.assertTrue(time_series.ignore_year)
+        self.assertFalse(time_series.repeat)
+
     def test_TimeSeriesVariableResolution_to_database(self):
         dates = numpy.array(
             ["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]"
