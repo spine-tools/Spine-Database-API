@@ -558,5 +558,5 @@ class TimeSeriesVariableResolution(TimeSeries):
         if self._repeat:
             if "index" not in database_value:
                 database_value["index"] = dict()
-            database_value["index"]["repeat"] = self._repeat()
+            database_value["index"]["repeat"] = self._repeat
         return json.dumps(database_value)

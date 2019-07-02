@@ -263,6 +263,23 @@ class TestParameterValue(unittest.TestCase):
             },
         )
 
+    def test_TimeSeriesVariableResolution_to_database_with_ignore_year_and_repeat(self):
+        dates = numpy.array(
+            ["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]"
+        )
+        episodes = numpy.array([1, 2, 3], dtype=float)
+        value = TimeSeriesVariableResolution(dates, episodes, True, True)
+        as_json = value.to_database()
+        releases = json.loads(as_json)
+        self.assertEqual(
+            releases,
+            {
+                "type": "time_series",
+                "data": {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3},
+                "index": {"ignore_year": True, "repeat": True}
+            },
+        )
+
     def test_from_database_TimeSeriesFixedResolution(self):
         days_of_our_lives = """{
                                    "type": "time_series",
