@@ -19,7 +19,9 @@ Tests for the parameter_value module.
 from datetime import datetime
 import json
 import unittest
+import dateutil.parser
 from dateutil.relativedelta import relativedelta
+import numpy as np
 import numpy.testing
 from spinedb_api.parameter_value import (
     duration_to_relativedelta,
@@ -170,13 +172,11 @@ class TestParameterValue(unittest.TestCase):
         """
         value = from_database(database_value)
         self.assertEqual(len(value), 2)
-        numpy.testing.assert_equal(value.indexes, numpy.array(["m1-4,m9-12", "m5-8"]))
+        numpy.testing.assert_equal(value.indexes, ["m1-4,m9-12", "m5-8"])
         numpy.testing.assert_equal(value.values, numpy.array([300.0, 221.5]))
 
     def test_TimePattern_to_database(self):
-        value = TimePattern(
-            numpy.array(["m1-4,m9-12", "m5-8"]), numpy.array([300.0, 221.5])
-        )
+        value = TimePattern(["m1-4,m9-12", "m5-8"], numpy.array([300.0, 221.5]))
         database_value = value.to_database()
         value_as_dict = json.loads(database_value)
         self.assertEqual(
@@ -276,7 +276,7 @@ class TestParameterValue(unittest.TestCase):
             {
                 "type": "time_series",
                 "data": {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3},
-                "index": {"ignore_year": True, "repeat": True}
+                "index": {"ignore_year": True, "repeat": True},
             },
         )
 
@@ -337,7 +337,9 @@ class TestParameterValue(unittest.TestCase):
         numpy.testing.assert_equal(
             time_series.values, numpy.array([1.0, 2.0, 3.0, 4.0, 5.0, 8.0])
         )
-        self.assertEqual(time_series.start, datetime.fromisoformat("0001-01-01T00:00:00"))
+        self.assertEqual(
+            time_series.start, datetime.fromisoformat("0001-01-01T00:00:00")
+        )
         self.assertEqual(len(time_series.resolution), 1)
         self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
         self.assertTrue(time_series.ignore_year)
@@ -373,7 +375,9 @@ class TestParameterValue(unittest.TestCase):
         )
         self.assertEqual(time_series.start, datetime.fromisoformat("2019-01-31"))
         self.assertEqual(len(time_series.resolution), 2)
-        self.assertEqual(time_series.resolution, [relativedelta(days=1), relativedelta(months=1)])
+        self.assertEqual(
+            time_series.resolution, [relativedelta(days=1), relativedelta(months=1)]
+        )
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
@@ -392,7 +396,9 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(len(time_series.resolution), 1)
         self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
 
-    def test_from_database_TimeSeriesFixedResolution_default_resolution_unit_is_minutes(self):
+    def test_from_database_TimeSeriesFixedResolution_default_resolution_unit_is_minutes(
+        self
+    ):
         database_value = """{
                                    "type": "time_series",
                                    "index": {
@@ -486,6 +492,83 @@ class TestParameterValue(unittest.TestCase):
                 "data": [3.0, 2.0, 4.0],
             },
         )
+
+    def test_TimeSeriesFixedResolution_init_conversions(self):
+        series = TimeSeriesFixedResolution(
+            "2019-01-03T00:30:33", "1D", [3.0, 2.0, 1.0], False, False
+        )
+        self.assertTrue(isinstance(series.start, datetime))
+        self.assertTrue(isinstance(series.resolution, list))
+        for element in series.resolution:
+            self.assertTrue(isinstance(element, relativedelta))
+        self.assertTrue(isinstance(series.values, numpy.ndarray))
+        series = TimeSeriesFixedResolution(
+            "2019-01-03T00:30:33", ["2h", "4h"], [3.0, 2.0, 1.0], False, False
+        )
+        self.assertTrue(isinstance(series.resolution, list))
+        for element in series.resolution:
+            self.assertTrue(isinstance(element, relativedelta))
+
+    def test_TimeSeriesVariableResolution_init_conversion(self):
+        series = TimeSeriesVariableResolution(
+            ["2008-07-08T03:00", "2008-08-08T13:30"], [3.3, 4.4], True, True
+        )
+        self.assertTrue(isinstance(series.indexes, np.ndarray))
+        for index in series.indexes:
+            self.assertTrue(isinstance(index, np.datetime64))
+        self.assertTrue(isinstance(series.values, np.ndarray))
+
+    def test_DateTime_equality(self):
+        date_time = DateTime(dateutil.parser.parse("2019-07-03T09:09:09"))
+        self.assertEqual(date_time, date_time)
+        equal_date_time = DateTime(dateutil.parser.parse("2019-07-03T09:09:09"))
+        self.assertEqual(date_time, equal_date_time)
+        inequal_date_time = DateTime(dateutil.parser.parse("2018-07-03T09:09:09"))
+        self.assertNotEqual(date_time, inequal_date_time)
+
+    def test_Duration_equality(self):
+        duration = Duration(duration_to_relativedelta("3 minutes"))
+        self.assertEqual(duration, duration)
+        equal_duration = Duration(duration_to_relativedelta("3m"))
+        self.assertEqual(duration, equal_duration)
+        inequal_duration = Duration(duration_to_relativedelta("3 seconds"))
+        self.assertNotEqual(duration, inequal_duration)
+
+    def test_TimePattern_equality(self):
+        pattern = TimePattern(["1d", "2-7d"], np.array([-2.3, -5.0]))
+        self.assertEqual(pattern, pattern)
+        equal_pattern = TimePattern(["1d", "2-7d"], np.array([-2.3, -5.0]))
+        self.assertEqual(pattern, equal_pattern)
+        inequal_pattern = TimePattern(["1-3m", "4-12m"], np.array([-5.0, 23.0]))
+        self.assertNotEqual(pattern, inequal_pattern)
+
+    def test_TimeSeriesFixedResolution_equality(self):
+        series = TimeSeriesFixedResolution(
+            "2019-01-03T00:30:33", "1D", [3.0, 2.0, 1.0], False, False
+        )
+        self.assertEqual(series, series)
+        equal_series = TimeSeriesFixedResolution(
+            "2019-01-03T00:30:33", "1D", [3.0, 2.0, 1.0], False, False
+        )
+        self.assertEqual(series, equal_series)
+        inequal_series = TimeSeriesFixedResolution(
+            "2019-01-03T00:30:33", "1D", [3.0, 2.0, 1.0], True, False
+        )
+        self.assertNotEqual(series, inequal_series)
+
+    def test_TimeSeriesVariableResolution_equality(self):
+        series = TimeSeriesVariableResolution(
+            ["2000-01-01T00:00", "2001-01-01T00:00"], [4.2, 2.4], True, True
+        )
+        self.assertEqual(series, series)
+        equal_series = TimeSeriesVariableResolution(
+            ["2000-01-01T00:00", "2001-01-01T00:00"], [4.2, 2.4], True, True
+        )
+        self.assertEqual(series, equal_series)
+        inequal_series = TimeSeriesVariableResolution(
+            ["2000-01-01T00:00", "2002-01-01T00:00"], [4.2, 2.4], True, True
+        )
+        self.assertNotEqual(series, inequal_series)
 
 
 if __name__ == "__main__":

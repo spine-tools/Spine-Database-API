@@ -68,10 +68,14 @@ def duration_to_relativedelta(duration):
         a relativedelta object corresponding to the given duration
     """
     try:
-        count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
+        count, abbreviation, full_unit = re.split(
+            "\\s|([a-z]|[A-Z])", duration, maxsplit=1
+        )
         count = int(count)
     except ValueError:
-        raise ParameterValueFormatError('Could not parse duration "{}"'.format(duration))
+        raise ParameterValueFormatError(
+            'Could not parse duration "{}"'.format(duration)
+        )
     unit = abbreviation if abbreviation is not None else full_unit
     if unit in ["s", "second", "seconds"]:
         return relativedelta(seconds=count)
@@ -138,9 +142,13 @@ def from_database(database_value):
                 return _time_pattern_from_database(value)
             if value_type == "time_series":
                 return _time_series_from_database(value)
-            raise ParameterValueFormatError('Unknown parameter value type "{}"'.format(value_type))
+            raise ParameterValueFormatError(
+                'Unknown parameter value type "{}"'.format(value_type)
+            )
         except KeyError as error:
-            raise ParameterValueFormatError("{} is missing in the parameter value description".format(error.args[0]))
+            raise ParameterValueFormatError(
+                "{} is missing in the parameter value description".format(error.args[0])
+            )
     return value
 
 
@@ -174,7 +182,9 @@ def _datetime_from_database(value):
     try:
         stamp = dateutil.parser.parse(value)
     except ValueError:
-        raise ParameterValueFormatError('Could not parse datetime from "{}"'.format(value))
+        raise ParameterValueFormatError(
+            'Could not parse datetime from "{}"'.format(value)
+        )
     return DateTime(stamp)
 
 
@@ -213,11 +223,17 @@ def _variable_resolution_time_series_info_from_index(value):
         try:
             ignore_year = bool(data_index.get("ignore_year", False))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode ignore_year from "{}"'.format(data_index["ignore_year"]))
+            raise ParameterValueFormatError(
+                'Could not decode ignore_year from "{}"'.format(
+                    data_index["ignore_year"]
+                )
+            )
         try:
             repeat = bool(data_index.get("repeat", False))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode repeat from "{}"'.format(data_index["repeat"]))
+            raise ParameterValueFormatError(
+                'Could not decode repeat from "{}"'.format(data_index["repeat"])
+            )
     else:
         ignore_year = False
         repeat = False
@@ -233,7 +249,9 @@ def _time_series_from_dictionary(value):
         try:
             stamp = np.datetime64(dateutil.parser.parse(stamp))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(stamp))
+            raise ParameterValueFormatError(
+                'Could not decode time stamp "{}"'.format(stamp)
+            )
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
@@ -245,14 +263,24 @@ def _time_series_from_single_column(value):
     """Converts a compact JSON formatted time series into a TimeSeriesFixedResolution object."""
     if "index" in value:
         value_index = value["index"]
-        start = value_index["start"] if "start" in value_index else _TIME_SERIES_DEFAULT_START
-        resolution = value_index["resolution"] if "resolution" in value_index else _TIME_SERIES_DEFAULT_RESOLUTION
+        start = (
+            value_index["start"]
+            if "start" in value_index
+            else _TIME_SERIES_DEFAULT_START
+        )
+        resolution = (
+            value_index["resolution"]
+            if "resolution" in value_index
+            else _TIME_SERIES_DEFAULT_RESOLUTION
+        )
         if "ignore_year" in value_index:
             try:
                 ignore_year = bool(value_index["ignore_year"])
             except ValueError:
                 raise ParameterValueFormatError(
-                    'Could not decode ignore_year value "{}"'.format(value_index["ignore_year"])
+                    'Could not decode ignore_year value "{}"'.format(
+                        value_index["ignore_year"]
+                    )
                 )
         else:
             ignore_year = "start" not in value_index
@@ -260,7 +288,11 @@ def _time_series_from_single_column(value):
             try:
                 repeat = bool(value_index["repeat"])
             except ValueError:
-                raise ParameterValueFormatError('Could not decode repeat value "{}"'.format(value_index["ignore_year"]))
+                raise ParameterValueFormatError(
+                    'Could not decode repeat value "{}"'.format(
+                        value_index["ignore_year"]
+                    )
+                )
         else:
             repeat = "start" not in value_index
     else:
@@ -268,7 +300,7 @@ def _time_series_from_single_column(value):
         resolution = _TIME_SERIES_DEFAULT_RESOLUTION
         ignore_year = True
         repeat = True
-    if isinstance (resolution, str) or not isinstance(resolution, Sequence):
+    if isinstance(resolution, str) or not isinstance(resolution, Sequence):
         # Always work with lists to simplify the code.
         resolution = [resolution]
     relativedeltas = list()
@@ -279,7 +311,9 @@ def _time_series_from_single_column(value):
     try:
         start = dateutil.parser.parse(start)
     except ValueError:
-        raise ParameterValueFormatError('Could not decode start value "{}"'.format(start))
+        raise ParameterValueFormatError(
+            'Could not decode start value "{}"'.format(start)
+        )
     values = np.array(value["data"])
     return TimeSeriesFixedResolution(start, relativedeltas, values, ignore_year, repeat)
 
@@ -295,7 +329,9 @@ def _time_series_from_two_columns(value):
         try:
             stamp = np.datetime64(dateutil.parser.parse(element[0]))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(element[0]))
+            raise ParameterValueFormatError(
+                'Could not decode time stamp "{}"'.format(element[0])
+            )
         stamps.append(stamp)
         values[index] = element[1]
     stamps = np.array(stamps)
@@ -314,11 +350,23 @@ class DateTime:
     A single datetime value.
 
     Attributes:
-        value (datetime.datetime): a timestamp
+        value (str, datetime.datetime): a timestamp
     """
 
     def __init__(self, value):
+        if isinstance(value, str):
+            value = dateutil.parser.parse(value)
         self._value = value
+
+    def __eq__(self, other):
+        """Returns True if other is equal to this object."""
+        if not isinstance(other, DateTime):
+            return NotImplemented
+        return self._value == other._value
+
+    def __hash__(self):
+        """Returns the hash of this object."""
+        return hash(self._value)
 
     def to_database(self):
         """Returns the database representation of this object."""
@@ -335,11 +383,23 @@ class Duration:
     This class represents a duration in time.
 
     Attributes:
-        value (relativedelta, list): a time step as a relativedelta or as list thereof
+        value (str, relativedelta, list): the time step(s)
     """
 
     def __init__(self, value):
+        if isinstance(value, str):
+            value = duration_to_relativedelta(value)
         self._value = value
+
+    def __eq__(self, other):
+        """Returns True if other is equal to this object."""
+        if not isinstance(other, Duration):
+            return NotImplemented
+        return self._value == other._value
+
+    def __hash__(self):
+        """Returns the hash of this object."""
+        return hash(self._value)
 
     def to_database(self):
         """Returns the database representation of the duration."""
@@ -360,10 +420,12 @@ class IndexedValue:
     An abstract base class for indexed values.
 
     Attributes:
-        values (numpy.ndarray): the data array
+        values (Sequence): the data array
     """
 
     def __init__(self, values):
+        if not isinstance(values, np.ndarray):
+            values = np.array(values)
         self._values = values
 
     def __len__(self):
@@ -390,12 +452,14 @@ class TimeSeries(IndexedValue):
     An abstract base class for time series.
 
     Attributes:
-        values (numpy.ndarray): an array of values
+        values (Sequence): an array of values
         ignore_year (bool): True if the year should be ignored in the time stamps
         repeat (bool): True if the series should be repeated from the beginning
     """
 
     def __init__(self, values, ignore_year, repeat):
+        if len(values) < 2:
+            raise RuntimeError("Time series too short. Must have two or more values")
         super().__init__(values)
         self._ignore_year = ignore_year
         self._repeat = repeat
@@ -426,14 +490,26 @@ class TimePattern(IndexedValue):
 
     Attributes:
         indexes (list): a list of time pattern strings
-        values (numpy.ndarray): an array of values corresponding to the time patterns
+        values (Sequence): an array of values corresponding to the time patterns
     """
 
     def __init__(self, indexes, values):
         if len(indexes) != len(values):
             raise RuntimeError("Length of values does not match length of indexes")
+        if not indexes:
+            raise RuntimeError("Empty time pattern not allowed")
         super().__init__(values)
         self._indexes = indexes
+
+    def __eq__(self, other):
+        """Returns True if other is equal to this object."""
+        if not isinstance(other, TimePattern):
+            return NotImplemented
+        return self._indexes == other._indexes and np.all(self._values == other._values)
+
+    def __hash__(self):
+        """Returns the hash of this object."""
+        return hash((self.indexes, self._values))
 
     def to_database(self):
         """Returns the database representation of this time pattern."""
@@ -458,17 +534,43 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
 
     Attributes:
-        start (datetime): the first time stamp
-        resolution (list): duration(s) between the time stamps as a list of relativedeltas
-        values (numpy.ndarray): data values at each time stamp
+        start (str, datetime): the first time stamp
+        resolution (str, relativedelta, list): duration(s) between the time stamps
+        values (Sequence): data values at each time stamp
         ignore_year (bool): whether or not the time-series should apply to any year
         repeat (bool): whether or not the time series should repeat cyclically
     """
 
     def __init__(self, start, resolution, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
+        if isinstance(start, str):
+            start = dateutil.parser.parse(start)
         self._start = start
+        if isinstance(resolution, str):
+            resolution = [duration_to_relativedelta(resolution)]
+        elif not isinstance(resolution, Sequence):
+            resolution = [resolution]
+        else:
+            for i in range(len(resolution)):
+                if isinstance(resolution[i], str):
+                    resolution[i] = duration_to_relativedelta(resolution[i])
         self._resolution = resolution
+
+    def __eq__(self, other):
+        """Returns True if other is equal to this object."""
+        if not isinstance(other, TimeSeriesFixedResolution):
+            return NotImplemented
+        return (
+            self._start == other._start
+            and self._resolution == other._resolution
+            and np.all(self._values == other._values)
+            and self._ignore_year == other._ignore_year
+            and self._repeat == other._repeat
+        )
+
+    def __hash__(self):
+        """Returns the hash of this object."""
+        return hash((self._start, self._resolution, self._values, self._ignore_year, self._repeat))
 
     @property
     def indexes(self):
@@ -482,8 +584,12 @@ class TimeSeriesFixedResolution(TimeSeries):
             if step_index >= len(self._resolution):
                 step_index = 0
                 step_cycle_index += 1
-            current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
-            duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
+            current_cycle_duration = sum(
+                self._resolution[: step_index + 1], relativedelta()
+            )
+            duration_from_start = (
+                step_cycle_index * full_cycle_duration + current_cycle_duration
+            )
             stamps[stamp_index] = self._start + duration_from_start
             step_index += 1
         return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
@@ -501,7 +607,9 @@ class TimeSeriesFixedResolution(TimeSeries):
     def to_database(self):
         """Returns the value in its database representation."""
         if len(self._resolution) > 1:
-            resolution_as_json = [relativedelta_to_duration(step) for step in self._resolution]
+            resolution_as_json = [
+                relativedelta_to_duration(step) for step in self._resolution
+            ]
         else:
             resolution_as_json = relativedelta_to_duration(self._resolution[0])
         return json.dumps(
@@ -523,8 +631,8 @@ class TimeSeriesVariableResolution(TimeSeries):
     A class representing time series data with variable time step.
 
     Attributes:
-        indexes (numpy.ndarray): time stamps as numpy.datetime64 objects
-        values (numpy.ndarray): the values corresponding to the time stamps
+        indexes (Sequence): time stamps as numpy.datetime64 objects
+        values (Sequence): the values corresponding to the time stamps
         ignore_year (bool): True if the stamp year should be ignored
         repeat (bool): True if the series should be repeated from the beginning
     """
@@ -533,7 +641,27 @@ class TimeSeriesVariableResolution(TimeSeries):
         super().__init__(values, ignore_year, repeat)
         if len(indexes) != len(values):
             raise RuntimeError("Length of values does not match length of indexes")
+        if not isinstance(indexes, np.ndarray):
+            date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
+            for i in range(len(indexes)):
+                date_times[i] = np.datetime64(indexes[i])
+            indexes = date_times
         self._indexes = indexes
+
+    def __eq__(self, other):
+        """Returns True if other is equal to this object."""
+        if not isinstance(other, TimeSeriesVariableResolution):
+            return NotImplemented
+        return (
+            np.all(self._indexes == other._indexes)
+            and np.all(self._values == other._values)
+            and self._ignore_year == other._ignore_year
+            and self._repeat == other._repeat
+        )
+
+    def __hash__(self):
+        """Returns the hash of this object."""
+        return hash((self._indexes, self._values, self._ignore_year, self._repeat))
 
     @property
     def indexes(self):
@@ -548,7 +676,9 @@ class TimeSeriesVariableResolution(TimeSeries):
             try:
                 data[str(index)] = float(value)
             except ValueError:
-                raise ParameterValueFormatError('Failed to convert "{}" to a float'.format(value))
+                raise ParameterValueFormatError(
+                    'Failed to convert "{}" to a float'.format(value)
+                )
         database_value["data"] = data
         # Add "index" entry only if its contents are not set to their default values.
         if self._ignore_year:
