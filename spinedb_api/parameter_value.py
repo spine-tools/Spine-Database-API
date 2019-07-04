@@ -364,10 +364,6 @@ class DateTime:
             return NotImplemented
         return self._value == other._value
 
-    def __hash__(self):
-        """Returns the hash of this object."""
-        return hash(self._value)
-
     def to_database(self):
         """Returns the database representation of this object."""
         return json.dumps({"type": "date_time", "data": self._value.isoformat()})
@@ -396,10 +392,6 @@ class Duration:
         if not isinstance(other, Duration):
             return NotImplemented
         return self._value == other._value
-
-    def __hash__(self):
-        """Returns the hash of this object."""
-        return hash(self._value)
 
     def to_database(self):
         """Returns the database representation of the duration."""
@@ -507,10 +499,6 @@ class TimePattern(IndexedValue):
             return NotImplemented
         return self._indexes == other._indexes and np.all(self._values == other._values)
 
-    def __hash__(self):
-        """Returns the hash of this object."""
-        return hash((self.indexes, self._values))
-
     def to_database(self):
         """Returns the database representation of this time pattern."""
         data = dict()
@@ -567,10 +555,6 @@ class TimeSeriesFixedResolution(TimeSeries):
             and self._ignore_year == other._ignore_year
             and self._repeat == other._repeat
         )
-
-    def __hash__(self):
-        """Returns the hash of this object."""
-        return hash((self._start, self._resolution, self._values, self._ignore_year, self._repeat))
 
     @property
     def indexes(self):
@@ -658,10 +642,6 @@ class TimeSeriesVariableResolution(TimeSeries):
             and self._ignore_year == other._ignore_year
             and self._repeat == other._repeat
         )
-
-    def __hash__(self):
-        """Returns the hash of this object."""
-        return hash((self._indexes, self._values, self._ignore_year, self._repeat))
 
     @property
     def indexes(self):
