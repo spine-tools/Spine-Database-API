@@ -466,10 +466,18 @@ class TimeSeries(IndexedValue):
         """Returns True if the year should be ignored."""
         return self._ignore_year
 
+    @ignore_year.setter
+    def ignore_year(self, ignore_year):
+        self._ignore_year = bool(ignore_year)
+
     @property
     def repeat(self):
         """Returns True if the series should be repeated."""
         return self._repeat
+
+    @repeat.setter
+    def repeat(self, repeat):
+        self._repeat = bool(repeat)
 
     def to_database(self):
         """Return the database representation of the value."""
@@ -531,18 +539,8 @@ class TimeSeriesFixedResolution(TimeSeries):
 
     def __init__(self, start, resolution, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
-        if isinstance(start, str):
-            start = dateutil.parser.parse(start)
-        self._start = start
-        if isinstance(resolution, str):
-            resolution = [duration_to_relativedelta(resolution)]
-        elif not isinstance(resolution, Sequence):
-            resolution = [resolution]
-        else:
-            for i in range(len(resolution)):
-                if isinstance(resolution[i], str):
-                    resolution[i] = duration_to_relativedelta(resolution[i])
-        self._resolution = resolution
+        self.start = start
+        self.resolution = resolution
 
     def __eq__(self, other):
         """Returns True if other is equal to this object."""
@@ -583,10 +581,41 @@ class TimeSeriesFixedResolution(TimeSeries):
         """Returns the start index."""
         return self._start
 
+    @start.setter
+    def start(self, start):
+        """
+        Sets the start datetime.
+
+        Args:
+            start (datetime, str): the start of the series
+        """
+        if isinstance(start, str):
+            self._start = dateutil.parser.parse(start)
+        else:
+            self._start = start
+
     @property
     def resolution(self):
         """Returns the resolution as list of durations."""
         return self._resolution
+
+    @resolution.setter
+    def resolution(self, resolution):
+        """
+        Sets the resolution.
+
+        Args:
+            resolution (str, relativedelta, list): resolution or a list thereof
+        """
+        if isinstance(resolution, str):
+            resolution = [duration_to_relativedelta(resolution)]
+        elif not isinstance(resolution, Sequence):
+            resolution = [resolution]
+        else:
+            for i in range(len(resolution)):
+                if isinstance(resolution[i], str):
+                    resolution[i] = duration_to_relativedelta(resolution[i])
+        self._resolution = resolution
 
     def to_database(self):
         """Returns the value in its database representation."""
