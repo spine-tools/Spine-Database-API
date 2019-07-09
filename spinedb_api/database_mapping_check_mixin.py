@@ -96,7 +96,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         object_class_dict = {x.id: {"name": x.name} for x in self.object_class_list()}
-        object_class_names = {x.name for x in self.object_class_list()}
+        object_class_names = {x.name: x.id for x in self.object_class_list()}
         for item in items:
             try:
                 id = item["id"]
@@ -109,7 +109,7 @@ class DatabaseMappingCheckMixin:
             try:
                 # Simulate removal of current instance
                 updated_item = object_class_dict.pop(id)
-                object_class_names.remove(updated_item["name"])
+                del object_class_names[updated_item["name"]]
             except KeyError:
                 msg = "Object class not found."
                 if strict:
@@ -123,7 +123,7 @@ class DatabaseMappingCheckMixin:
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 object_class_dict[id] = updated_item
-                object_class_names.add(updated_item["name"])
+                object_class_names[updated_item["name"]] = id
             except SpineIntegrityError as e:
                 if strict:
                     raise e
