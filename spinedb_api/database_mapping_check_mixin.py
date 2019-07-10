@@ -259,7 +259,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         wide_relationship_class_list = self.wide_relationship_class_list()
-        relationship_class_names = {x.name: x.id for x in self.wide_relationship_class_list()}
+        relationship_class_names = {x.name: x.id for x in wide_relationship_class_list}
         relationship_class_dict = {
             x.id: {"name": x.name, "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")]}
             for x in wide_relationship_class_list
@@ -285,9 +285,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 updated_wide_item.update(wide_item)
-                check_wide_relationship_class(
-                    updated_wide_item, list(relationship_class_dict.values()), object_class_id_list
-                )
+                check_wide_relationship_class(updated_wide_item, relationship_class_names, object_class_id_list)
                 checked_wide_items.append(wide_item)
                 relationship_class_dict[id] = updated_wide_item
                 relationship_class_names[updated_wide_item["name"]] = id

@@ -74,6 +74,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.updated_item_id = {x: set() for x in self.table_to_class}
         self.removed_item_id = {x: set() for x in self.table_to_class}
         self.dirty_item_id = {x: set() for x in self.table_to_class}
+        self._clear_subqueries(*self.table_to_class)
 
     def _create_diff_tables_and_mapping(self):
         """Create diff tables and ORM."""
@@ -108,15 +109,19 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """Mark items as dirty, which means the corresponding records from the original tables
         are no longer valid, and they should be queried from the diff tables instead."""
         self.dirty_item_id[tablename].update(ids)
-        # Set subquery attributes involving the affected table to `None`
-        # (This forces the subqueries to be refreshed when accessing the corresponding property)
+        self._clear_subqueries(tablename)
+
+    def _clear_subqueries(self, *tablenames):
+        """Set to `None` subquery attributes involving the affected tables.
+        This forces the subqueries to be refreshed when accessing the corresponding property.
+        """
         for attr, val in self.__dict__.items():
             if not isinstance(val, Alias):
                 continue
             tables = []
             func = lambda x: isinstance(x, Table) and tables.append(x.name)
             forward_sweep(val, func)
-            if tablename in tables:
+            if any(t in tables for t in tablenames):
                 setattr(self, attr, None)
 
     def _subquery(self, tablename):
