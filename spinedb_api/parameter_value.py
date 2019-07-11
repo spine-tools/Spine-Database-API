@@ -139,7 +139,7 @@ def from_database(database_value):
             )
         except KeyError as error:
             raise ParameterValueFormatError(
-                "{} is missing in the parameter value description".format(error.args[0])
+                '"{}" is missing in the parameter value description'.format(error.args[0])
             )
     return value
 
