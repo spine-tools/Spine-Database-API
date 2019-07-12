@@ -1,9 +1,9 @@
 ######################################################################################################################
-# Copyright (C) 2017 - 2019 Spine project consortium
-# This file is part of Spine Database API.
-# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
-# General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
-# option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# Copyright (C) 2017 - 2018 Spine project consortium
+# This file is part of Spine Toolbox.
+# Spine Toolbox is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
+# Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
+# any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
@@ -30,6 +30,7 @@ from .check_functions import (
 )
 
 import json
+
 
 class ImportErrorLogItem:
     """Class to hold log data for import errors"""
@@ -393,7 +394,7 @@ def import_object_parameter_values(db_map, data):
     """Imports list of object parameter values:
         ex:
             data = [('object_class_name', 'object_name', 'parameter_name', 123.4),
-                    ('object_class_name', 'object_name', 'parameter_name2', '{"timeseries": [1,2,3]}')]
+                    ('object_class_name', 'object_name', 'parameter_name2', '{"type":"time_series", "data": [1,2,3]}')]
             import_object_parameter_values(db_map, data)
 
     Args:
@@ -432,10 +433,11 @@ def import_object_parameter_values(db_map, data):
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        if isinstance(value, str):
-            # FIXME: Can't import strings that are not encapsulated by ""
-            value = json.dumps(value)
-        new_value = {'parameter_definition_id': p_id, 'object_id': o_id, 'value': str(value)}
+        # if isinstance(value, str):
+        #    # FIXME: Can't import strings that are not encapsulated by ""
+        #    value = json.dumps(value)
+        # new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": str(value)}
+        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": value}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -539,10 +541,11 @@ def import_relationship_parameter_values(db_map, data):
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        if isinstance(value, str):
-            # FIXME: Can't import strings that are not encapsulated by ""
-            value = json.dumps(value)
-        new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id, 'value': str(value)}
+        # if isinstance(value, str):
+        #    # FIXME: Can't import strings that are not encapsulated by ""
+        #    value = json.dumps(value)
+        # new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id, 'value': str(value)}
+        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": value}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
