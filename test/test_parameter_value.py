@@ -155,7 +155,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_as_dict, {"type": "duration", "data": "8Y"})
 
     def test_Duration_to_database_as_list(self):
-        value = Duration([relativedelta(years=1), relativedelta(minutes=3)])
+        value = Duration([relativedelta(years=1), "3 minutes"])
         database_value = value.to_database()
         value_as_dict = json.loads(database_value)
         self.assertEqual(value_as_dict, {"type": "duration", "data": ["1Y", "3m"]})

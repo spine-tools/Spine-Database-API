@@ -370,6 +370,9 @@ class Duration:
     """
     This class represents a duration in time.
 
+    Single durations are handles as single relativedelta values
+    while variable durations are lists of relativedeltas.
+
     Attributes:
         value (str, relativedelta, list): the time step(s)
     """
@@ -377,6 +380,10 @@ class Duration:
     def __init__(self, value):
         if isinstance(value, str):
             value = duration_to_relativedelta(value)
+        if isinstance(value, Sequence):
+            for index, element in enumerate(value):
+                if isinstance(element, str):
+                    value[index] = duration_to_relativedelta(element)
         self._value = value
 
     def __eq__(self, other):
