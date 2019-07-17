@@ -186,7 +186,7 @@ def _duration_from_database(value):
         # Set default unit to minutes if value is a plain number.
         if not isinstance(value, str):
             value = "{}m".format(value)
-        value = duration_to_relativedelta(value)
+        value = [duration_to_relativedelta(value)]
     elif isinstance(value, Sequence):  # It is a list of durations.
         # Set default unit to minutes for plain numbers in value.
         value = [v if isinstance(v, str) else "{}m".format(v) for v in value]
@@ -370,8 +370,7 @@ class Duration:
     """
     This class represents a duration in time.
 
-    Single durations are handles as single relativedelta values
-    while variable durations are lists of relativedeltas.
+    Durations are always handled as variable durations, that is, as lists of relativedeltas.
 
     Attributes:
         value (str, relativedelta, list): the time step(s)
@@ -379,8 +378,10 @@ class Duration:
 
     def __init__(self, value):
         if isinstance(value, str):
-            value = duration_to_relativedelta(value)
-        if isinstance(value, Sequence):
+            value = [duration_to_relativedelta(value)]
+        elif isinstance(value, relativedelta):
+            value = [value]
+        else:
             for index, element in enumerate(value):
                 if isinstance(element, str):
                     value[index] = duration_to_relativedelta(element)
@@ -394,15 +395,15 @@ class Duration:
 
     def to_database(self):
         """Returns the database representation of the duration."""
-        if isinstance(self._value, Iterable):
-            value = [relativedelta_to_duration(v) for v in self._value]
+        if len(self._value) == 1:
+            value = relativedelta_to_duration(self._value[0])
         else:
-            value = relativedelta_to_duration(self._value)
+            value = [relativedelta_to_duration(v) for v in self._value]
         return json.dumps({"type": "duration", "data": value})
 
     @property
     def value(self):
-        """Returns the duration as a relativedelta."""
+        """Returns the duration as a list of relativedeltas."""
         return self._value
 
 

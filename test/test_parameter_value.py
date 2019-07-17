@@ -130,12 +130,12 @@ class TestParameterValue(unittest.TestCase):
     def test_from_database_Duration(self):
         database_value = '{"type": "duration", "data": "4 seconds"}'
         value = from_database(database_value)
-        self.assertEqual(value.value, relativedelta(seconds=4))
+        self.assertEqual(value.value, [relativedelta(seconds=4)])
 
     def test_from_database_Duration_default_units(self):
         database_value = '{"type": "duration", "data": 23}'
         value = from_database(database_value)
-        self.assertEqual(value.value, relativedelta(minutes=23))
+        self.assertEqual(value.value, [relativedelta(minutes=23)])
 
     def test_from_database_Duration_as_list(self):
         database_value = '{"type": "duration", "data": ["1 hour", "1h", 60, "2 hours"]}'
