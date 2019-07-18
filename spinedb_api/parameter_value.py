@@ -603,7 +603,10 @@ class TimeSeriesFixedResolution(TimeSeries):
             start (datetime, str): the start of the series
         """
         if isinstance(start, str):
-            self._start = dateutil.parser.parse(start)
+            try:
+                self._start = dateutil.parser.parse(start)
+            except ValueError:
+                raise ParameterValueFormatError('Cannot parse start time "{}"'.format(start))
         else:
             self._start = start
 
