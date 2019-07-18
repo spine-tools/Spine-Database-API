@@ -95,15 +95,28 @@ def relativedelta_to_duration(delta):
         a duration string
     """
     if delta.seconds > 0:
-        return "{}s".format(delta.seconds)
+        seconds = delta.seconds
+        seconds += 60 * delta.minutes
+        seconds += 60 * 60 * delta.hours
+        seconds += 60 * 60 * 24 * delta.days
+        # Skipping months and years since dateutil does not use them here
+        # and they wouldn't make much sense anyway.
+        return "{}s".format(seconds)
     if delta.minutes > 0:
-        return "{}m".format(delta.minutes)
+        minutes = delta.minutes
+        minutes += 60 * delta.hours
+        minutes += 60 * 24 * delta.days
+        return "{}m".format(minutes)
     if delta.hours > 0:
-        return "{}h".format(delta.hours)
+        hours = delta.hours
+        hours += 24 * delta.days
+        return "{}h".format(hours)
     if delta.days > 0:
         return "{}D".format(delta.days)
     if delta.months > 0:
-        return "{}M".format(delta.months)
+        months = delta.months
+        months += 12 * delta.years
+        return "{}M".format(months)
     if delta.years > 0:
         return "{}Y".format(delta.years)
     raise ParameterValueFormatError("Zero relativedelta")

@@ -25,6 +25,7 @@ import numpy as np
 import numpy.testing
 from spinedb_api.parameter_value import (
     duration_to_relativedelta,
+    relativedelta_to_duration,
     from_database,
     to_database,
     DateTime,
@@ -45,6 +46,16 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(delta, relativedelta(seconds=1))
         delta = duration_to_relativedelta("7 seconds")
         self.assertEqual(delta, relativedelta(seconds=7))
+        delta = duration_to_relativedelta("99 seconds")
+        self.assertEqual(delta, relativedelta(minutes=1, seconds=39))
+
+    def test_relativedelta_to_duration_seconds(self):
+        delta = duration_to_relativedelta("7s")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "7s")
+        delta = duration_to_relativedelta("9999999s")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "9999999s")
 
     def test_duration_to_relativedelta_minutes(self):
         delta = duration_to_relativedelta("7m")
@@ -54,6 +65,14 @@ class TestParameterValue(unittest.TestCase):
         delta = duration_to_relativedelta("7 minutes")
         self.assertEqual(delta, relativedelta(minutes=7))
 
+    def test_relativedelta_to_duration_minutes(self):
+        delta = duration_to_relativedelta("7m")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "7m")
+        delta = duration_to_relativedelta("999999m")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "999999m")
+
     def test_duration_to_relativedelta_hours(self):
         delta = duration_to_relativedelta("7h")
         self.assertEqual(delta, relativedelta(hours=7))
@@ -61,6 +80,14 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(delta, relativedelta(hours=1))
         delta = duration_to_relativedelta("7 hours")
         self.assertEqual(delta, relativedelta(hours=7))
+
+    def test_relativedelta_to_duration_hours(self):
+        delta = duration_to_relativedelta("7h")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "7h")
+        delta = duration_to_relativedelta("99999h")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "99999h")
 
     def test_duration_to_relativedelta_days(self):
         delta = duration_to_relativedelta("7D")
@@ -70,6 +97,14 @@ class TestParameterValue(unittest.TestCase):
         delta = duration_to_relativedelta("7 days")
         self.assertEqual(delta, relativedelta(days=7))
 
+    def test_relativedelta_to_duration_days(self):
+        delta = duration_to_relativedelta("7D")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "7D")
+        delta = duration_to_relativedelta("9999D")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "9999D")
+
     def test_duration_to_relativedelta_months(self):
         delta = duration_to_relativedelta("7M")
         self.assertEqual(delta, relativedelta(months=7))
@@ -77,6 +112,14 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(delta, relativedelta(months=1))
         delta = duration_to_relativedelta("7 months")
         self.assertEqual(delta, relativedelta(months=7))
+
+    def test_relativedelta_to_duration_months(self):
+        delta = duration_to_relativedelta("7M")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "7M")
+        delta = duration_to_relativedelta("99M")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "99M")
 
     def test_duration_to_relativedelta_years(self):
         delta = duration_to_relativedelta("7Y")
@@ -87,6 +130,11 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(delta, relativedelta(years=1))
         delta = duration_to_relativedelta("7 years")
         self.assertEqual(delta, relativedelta(years=7))
+
+    def test_relativedelta_to_duration_years(self):
+        delta = duration_to_relativedelta("7Y")
+        duration = relativedelta_to_duration(delta)
+        self.assertEqual(duration, "7Y")
 
     def test_from_database_plain_number(self):
         database_value = "23.0"
