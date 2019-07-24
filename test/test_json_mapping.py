@@ -18,7 +18,29 @@ Unit tests for import_functions.py.
 
 import unittest
 from unittest.mock import MagicMock
-from spinedb_api.json_mapping import read_with_mapping
+from spinedb_api.json_mapping import read_with_mapping, ObjectClassMapping
+
+
+class TestMappingIO(unittest.TestCase):
+    def test_ObjectClass_to_dict_from_dict(self):
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": 0,
+            "object": 1,
+            "parameters": {"map_type": "parameter", "name": 2, "value": 3},
+        }
+
+        map_obj = ObjectClassMapping.from_dict(mapping)
+        out = map_obj.to_dict()
+
+        expected  = {'map_type': 'ObjectClass',
+            'name': {'value_reference': 0,
+            'map_type': 'column'},
+            'object': {'value_reference': 1, 'map_type': 'column'},
+            'parameters': {'map_type': 'parameter',
+                'name': {'value_reference': 2, 'map_type': 'column'},
+                'value': {'value_reference': 3, 'map_type': 'column'}}}
+        self.assertEqual(out, expected)
 
 
 class TestMappingIntegration(unittest.TestCase):

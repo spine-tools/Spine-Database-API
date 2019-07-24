@@ -275,14 +275,14 @@ class ParameterMapping:
         map_dict = {'map_type': self._map_type}
         if self.name is not None:
             if isinstance(self.name, Mapping):
-                map_dict.update({'name', self.name.to_dict()})
+                map_dict.update({'name': self.name.to_dict()})
             else:
-                map_dict.update({'name', self.name})
+                map_dict.update({'name': self.name})
         if self.value is not None:
             if isinstance(self.value, Mapping):
-                map_dict.update({'value', self.value.to_dict()})
+                map_dict.update({'value': self.value.to_dict()})
             else:
-                map_dict.update({'value', self.value})
+                map_dict.update({'value': self.value})
         if self.extra_dimensions is not None:
             ed = [ed.to_dict() for ed in self.extra_dimensions]
             map_dict.update({'extra_dimensions': ed})
@@ -634,9 +634,9 @@ class ObjectClassMapping:
             else:
                 map_dict.update(name = self.name)
         if self.object is not None:
-            map_dict.update(object = self.object.to_dict)
+            map_dict.update(object = self.object.to_dict())
         if self.parameters is not None:
-            map_dict.update(parameters = [p.to_dict() for p in self.parameters])
+            map_dict.update(parameters = self.parameters.to_dict())
         if self.skip_columns:
             map_dict.update(skip_columns = self.skip_columns)
         return map_dict
@@ -843,7 +843,7 @@ class RelationshipClassMapping:
         if self.objects is not None:
             map_dict.update(objects = [o.to_dict() for o in self.objects])
         if self.parameters is not None:
-            map_dict.update(parameters = [p.to_dict() for p in self.parameters])
+            map_dict.update(parameters = self.parameters.to_dict())
         if self.skip_columns:
             map_dict.update(skip_columns = self.skip_columns)
         return map_dict
