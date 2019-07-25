@@ -284,8 +284,13 @@ class ParameterMapping:
             else:
                 map_dict.update({'value': self.value})
         if self.extra_dimensions is not None:
-            ed = [ed.to_dict() for ed in self.extra_dimensions]
-            map_dict.update({'extra_dimensions': ed})
+            ed_list = []
+            for ed in self.extra_dimensions:
+                if ed is None:
+                    ed = Mapping()
+                ed = ed if isinstance(ed, str) else ed.to_dict()
+                ed_list.append(ed)
+            map_dict.update({'extra_dimensions': ed_list})
         return map_dict
 
 
@@ -380,10 +385,10 @@ class ParameterColumnCollectionMapping:
     def to_dict(self):
         map_dict = {'map_type': self._map_type}
         if self.parameters is not None:
-            p = [p.to_dict() for p in self.parameters]
+            p = [p if isinstance(p, str) else p.to_dict() for p in self.parameters]
             map_dict.update({'parameters': p})
         if self.extra_dimensions is not None:
-            ed = [ed.to_dict() for ed in self.extra_dimensions]
+            ed = [ed if isinstance(ed, str) else ed.to_dict() for ed in self.extra_dimensions]
             map_dict.update({'extra_dimensions': ed})
         return map_dict
 
@@ -481,13 +486,13 @@ class ParameterColumnMapping:
     def to_dict(self):
         map_dict = {'map_type': self._map_type}
         if self.name is not None:
-            map_dict.update({'name', self.name})
+            map_dict.update({'name': self.name})
         if self.column is not None:
-            map_dict.update({'column', self.column})
+            map_dict.update({'column': self.column})
         if self.append_str is not None:
-            map_dict.update({'append_str', self.append_str})
+            map_dict.update({'append_str': self.append_str})
         if self.prepend_str is not None:
-            map_dict.update({'prepend_str', self.prepend_str})
+            map_dict.update({'prepend_str': self.prepend_str})
         return map_dict
 
 
@@ -634,7 +639,7 @@ class ObjectClassMapping:
             else:
                 map_dict.update(name = self.name)
         if self.object is not None:
-            map_dict.update(object = self.object.to_dict())
+            map_dict.update(object = self.object if isinstance(self.object, str) else self.object.to_dict())
         if self.parameters is not None:
             map_dict.update(parameters = self.parameters.to_dict())
         if self.skip_columns:
@@ -839,9 +844,9 @@ class RelationshipClassMapping:
             else:
                 map_dict.update(name = self.name)
         if self.object_classes is not None:
-            map_dict.update(objects = [o.to_dict() for o in self.object_classes])
+            map_dict.update(object_classes = [o if isinstance(o, str) else o.to_dict() for o in self.object_classes])
         if self.objects is not None:
-            map_dict.update(objects = [o.to_dict() for o in self.objects])
+            map_dict.update(objects = [o if isinstance(o, str) else o.to_dict() for o in self.objects])
         if self.parameters is not None:
             map_dict.update(parameters = self.parameters.to_dict())
         if self.skip_columns:
@@ -1055,6 +1060,8 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
     that can be translated into a Mapping object"""
 
     # create a list of ObjectClassMappings or RelationshipClassMappings
+    if isinstance(mapping, list) and all(isinstance(m, dict) for m in mapping):
+        mapping = [dict_to_map(m) for m in mapping]
     if isinstance(mapping, dict):
         mapping = dict_to_map(mapping)
     elif isinstance(mapping, list) and all(isinstance(m, (ObjectClassMapping, RelationshipClassMapping)) for m in mapping):
@@ -1116,9 +1123,9 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
             v = sorted(v, key=lambda x: x[:-1])
             new = []
             for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                #FIXME: Temporary keep only the last value of values with multiple
+                #FIXME: Temporary keep only the two last value of values with multiple
                 #dimensions until data storing specs are specified.
-                packed_vals = [items[-1][-1] for items in values]
+                packed_vals = [{items[-1][-2]: items[-1][-1]} for items in values]
                 packed_vals = json.dumps(packed_vals)
                 new.append(keys + (packed_vals,))
             if k == 'object_parameter_values_ed':
@@ -1245,19 +1252,20 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
         rc_getter, rc_num, rc_reads = \
             create_pivot_getter_function(mapping.name, pivoted_data,
                                          pivoted_cols, data_header)
+        list_wrap = True if len(mapping.object_classes) == 1 else False
         rc_oc_getter, rc_oc_num, rc_oc_reads = \
             create_getter_function_from_function_list(
                     *create_getter_list(mapping.object_classes, pivoted_data,
-                                        pivoted_cols, data_header))
+                                        pivoted_cols, data_header), list_wrap=list_wrap)
         readers.append(('relationship_classes',) + \
                        create_final_getter_function([rc_getter, rc_oc_getter],
                                                     [rc_num, rc_oc_num],
                                                     [rc_reads, rc_oc_reads]))
-
+        list_wrap = True if len(mapping.objects) == 1 else False
         r_getter, r_num, r_reads = \
             create_getter_function_from_function_list(
                     *create_getter_list(mapping.objects, pivoted_data,
-                                        pivoted_cols, data_header))
+                                        pivoted_cols, data_header), list_wrap=list_wrap)
         readers.append(('relationships',) + \
                        create_final_getter_function([rc_getter, r_getter],
                                                     [rc_num, r_num],
