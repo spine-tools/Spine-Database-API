@@ -59,6 +59,7 @@ from .json_mapping import (
     RelationshipClassMapping,
     DataMapping,
     read_with_mapping,
+    dict_to_map
 )
 from .parameter_value import (
     duration_to_relativedelta,
