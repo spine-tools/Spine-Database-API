@@ -28,7 +28,6 @@ from .check_functions import (
     check_parameter_definition_tag,
     check_wide_parameter_value_list,
 )
-
 import json
 
 

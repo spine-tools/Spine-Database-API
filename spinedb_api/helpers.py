@@ -47,8 +47,9 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
 from sqlalchemy.engine import Engine
-from .exception import SpineDBAPIError, SpineDBVersionError
 from sqlalchemy import inspect
+from .exception import SpineDBAPIError, SpineDBVersionError
+from .import_functions import import_data
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
@@ -367,152 +368,127 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
     if not upgrade:
         return engine
     is_head(db_url, upgrade=True)
-    if not for_spine_model:
-        return engine
-    # Add specific data structure for Spine Model
-    meta = MetaData(engine, reflect=True)
-    object_class = meta.tables["object_class"]
-    object_ = meta.tables["object"]
-    relationship_class = meta.tables["relationship_class"]
-    parameter_definition = meta.tables["parameter_definition"]
-    parameter_tag = meta.tables["parameter_tag"]
-    parameter_definition_tag = meta.tables["parameter_definition_tag"]
-    obj_cls = lambda *x: dict(zip(("id", "name", "description", "display_order", "display_icon"), x))
-    obj = lambda *x: dict(zip(("class_id", "name", "description"), x))
-    rel_cls = lambda *x: dict(zip(("id", "dimension", "object_class_id", "name"), x))
-    obj_par_def = lambda *x: dict(zip(("id", "name", "object_class_id", "default_value"), x))
-    rel_par_def = lambda *x: dict(zip(("id", "name", "relationship_class_id", "default_value"), x))
-    par_tag = lambda *x: dict(zip(("id", "tag", "description"), x))
-    par_def_tag = lambda *x: dict(zip(("parameter_definition_id", "parameter_tag_id"), x))
-    try:
-        engine.execute(
-            object_class.insert(),
-            [
-                obj_cls(1, "direction", "A flow direction", 1, 281105626296654, 0),
-                obj_cls(2, "unit", "An entity where an energy conversion process takes place", 2, 281470681805429, 0),
-                obj_cls(3, "connection", "An entity where an energy transfer takes place", 3, 280378317271233, 0),
-                obj_cls(4, "storage", "A storage", 4, 280376899531934, 0),
-                obj_cls(5, "commodity", "A commodity", 5, 281473533932880, 0),
-                obj_cls(6, "node", "An entity where an energy balance takes place", 6, 280740554077951, 0),
-                obj_cls(7, "temporal_block", "A temporal block", 7, 280376891207703, 0),
-            ],
-        )
-        engine.execute(
-            object_.insert(),
-            [
-                obj(1, "from_node", "From a node, into something else"),
-                obj(1, "to_node", "Into a node, from something else"),
-            ],
-        )
-        engine.execute(
-            relationship_class.insert(),
-            [
-                rel_cls(1, 0, 2, "unit__node__direction__temporal_block"),
-                rel_cls(1, 1, 6, "unit__node__direction__temporal_block"),
-                rel_cls(1, 2, 1, "unit__node__direction__temporal_block"),
-                rel_cls(1, 3, 7, "unit__node__direction__temporal_block"),
-                rel_cls(2, 0, 3, "connection__node__direction__temporal_block"),
-                rel_cls(2, 1, 6, "connection__node__direction__temporal_block"),
-                rel_cls(2, 2, 1, "connection__node__direction__temporal_block"),
-                rel_cls(2, 3, 7, "connection__node__direction__temporal_block"),
-                rel_cls(3, 0, 6, "node__commodity"),
-                rel_cls(3, 1, 5, "node__commodity"),
-                rel_cls(4, 0, 2, "unit_group__unit"),
-                rel_cls(4, 1, 2, "unit_group__unit"),
-                rel_cls(5, 0, 5, "commodity_group__commodity"),
-                rel_cls(5, 1, 5, "commodity_group__commodity"),
-                rel_cls(6, 0, 6, "node_group__node"),
-                rel_cls(6, 1, 6, "node_group__node"),
-                rel_cls(7, 0, 2, "unit_group__commodity_group"),
-                rel_cls(7, 1, 5, "unit_group__commodity_group"),
-                rel_cls(8, 0, 5, "commodity_group__node_group"),
-                rel_cls(8, 1, 6, "commodity_group__node_group"),
-                rel_cls(9, 0, 2, "unit__commodity"),
-                rel_cls(9, 1, 5, "unit__commodity"),
-                rel_cls(10, 0, 2, "unit__commodity__direction"),
-                rel_cls(10, 1, 5, "unit__commodity__direction"),
-                rel_cls(10, 2, 1, "unit__commodity__direction"),
-                rel_cls(11, 0, 2, "unit__commodity__commodity"),
-                rel_cls(11, 1, 5, "unit__commodity__commodity"),
-                rel_cls(11, 2, 5, "unit__commodity__commodity"),
-                rel_cls(12, 0, 3, "connection__node__direction"),
-                rel_cls(12, 1, 6, "connection__node__direction"),
-                rel_cls(12, 2, 1, "connection__node__direction"),
-                rel_cls(13, 0, 3, "connection__node__node"),
-                rel_cls(13, 1, 6, "connection__node__node"),
-                rel_cls(13, 2, 6, "connection__node__node"),
-                rel_cls(14, 0, 6, "node__temporal_block"),
-                rel_cls(14, 1, 7, "node__temporal_block"),
-                rel_cls(15, 0, 4, "storage__unit"),
-                rel_cls(15, 1, 2, "storage__unit"),
-                rel_cls(16, 0, 4, "storage__connection"),
-                rel_cls(16, 1, 3, "storage__connection"),
-                rel_cls(17, 0, 4, "storage__commodity"),
-                rel_cls(17, 1, 5, "storage__commodity"),
-            ],
-        )
-        engine.execute(
-            parameter_definition.insert(),
-            [
-                obj_par_def(1, "fom_cost", 2, "null"),
-                obj_par_def(2, "start_up_cost", 2, "null"),
-                obj_par_def(3, "shut_down_cost", 2, "null"),
-                obj_par_def(4, "number_of_units", 2, 1),
-                obj_par_def(5, "avail_factor", 2, 1),
-                obj_par_def(6, "min_down_time", 2, 0),
-                obj_par_def(7, "min_up_time", 2, 0),
-                obj_par_def(8, "start_datetime", 7, "null"),
-                obj_par_def(9, "end_datetime", 7, "null"),
-                obj_par_def(10, "time_slice_duration", 7, "null"),
-                obj_par_def(11, "demand", 6, 0),
-                obj_par_def(12, "online_variable_type", 2, '"integer_online_variable"'),
-                obj_par_def(13, "fix_units_on", 2, "null"),
-                obj_par_def(14, "stor_state_cap", 4, 0),
-                obj_par_def(15, "frac_state_loss", 4, 0),
-            ],
-        )
-        engine.execute(
-            parameter_definition.insert(),
-            [
-                rel_par_def(1001, "unit_conv_cap_to_flow", 9, 1),
-                rel_par_def(1002, "unit_capacity", 10, "null"),
-                rel_par_def(1003, "operating_cost", 10, "null"),
-                rel_par_def(1004, "vom_cost", 10, "null"),
-                rel_par_def(1005, "tax_net_flow", 8, "null"),
-                rel_par_def(1006, "tax_out_flow", 8, "null"),
-                rel_par_def(1007, "tax_in_flow", 8, "null"),
-                rel_par_def(1008, "fix_ratio_out_in", 11, "null"),
-                rel_par_def(1009, "fix_ratio_out_in", 12, "null"),
-                rel_par_def(1010, "max_ratio_out_in", 11, "null"),
-                rel_par_def(1011, "max_ratio_out_in", 12, "null"),
-                rel_par_def(1012, "min_ratio_out_in", 11, "null"),
-                rel_par_def(1013, "min_ratio_out_in", 12, "null"),
-                rel_par_def(1014, "minimum_operating_point", 9, "null"),
-                rel_par_def(1017, "stor_unit_discharg_eff", 15, 1),
-                rel_par_def(1018, "stor_unit_charg_eff", 15, 1),
-                rel_par_def(1019, "stor_conn_discharg_eff", 16, 1),
-                rel_par_def(1020, "stor_conn_charg_eff", 16, 1),
-                rel_par_def(1021, "max_cum_in_flow_bound", 7, "null"),
-                rel_par_def(1022, "fix_flow", 10, "null"),
-                rel_par_def(1023, "fix_trans", 12, "null"),
-            ],
-        )
-        engine.execute(
-            parameter_tag.insert(),
-            [
-                par_tag(1, "duration", "duration in time"),
-                par_tag(2, "date_time", "a specific point in time"),
-                par_tag(3, "time_series", "time series data"),
-                par_tag(4, "time_pattern", "time patterned data"),
-            ],
-        )
-        engine.execute(
-            parameter_definition_tag.insert(),
-            [par_def_tag(11, 3), par_def_tag(10, 1), par_def_tag(8, 2), par_def_tag(9, 2)],
-        )
-    except DatabaseError as e:
-        raise SpineDBAPIError("Unable to add specific data structure for Spine Model: {}".format(e.orig.args))
+    if for_spine_model:
+        add_specifc_data_structure_for_spine_model(db_url)
     return engine
+
+
+def add_specifc_data_structure_for_spine_model(db_url):
+    """Add as much of the specific data structure for spine model as possible.
+    If called on a database which already has some content, it will add what's missing.
+    This can be useful for eg updating a db to the latest version of spine model, in case
+    we added stuff on the go (which we'll probably do).
+    """
+    from .diff_database_mapping import DiffDatabaseMapping
+
+    db_map = DiffDatabaseMapping(db_url)
+    object_classes = (
+        ("direction", "A flow direction", 1, 281105626296654),
+        ("unit", "An entity where an energy conversion process takes place", 2, 281470681805429),
+        ("connection", "An entity where an energy transfer takes place", 3, 280378317271233),
+        ("storage", "A storage", 4, 280376899531934),
+        ("commodity", "A commodity", 5, 281473533932880),
+        ("node", "An entity where an energy balance takes place", 6, 280740554077951),
+        ("temporal_block", "A temporal block", 7, 280376891207703),
+        ("rolling", "A rolling horizon", 9, 281107043971546),
+    )
+    db_map.add_object_classes(
+        *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
+    )
+    import_data(
+        db_map,
+        objects=(("direction", "from_node"), ("direction", "to_node")),
+        relationship_classes=(
+            ("unit__node__direction__temporal_block", ("unit", "node", "direction", "temporal_block")),
+            ("connection__node__direction__temporal_block", ("connection", "node", "direction", "temporal_block")),
+            ("node__commodity", ("node", "commodity")),
+            ("unit_group__unit", ("unit", "unit")),
+            ("commodity_group__commodity", ("commodity", "commodity")),
+            ("node_group__node", ("node", "node")),
+            ("unit_group__commodity_group", ("unit", "commodity")),
+            ("commodity_group__node_group", ("commodity", "node")),
+            ("unit__commodity", ("unit", "commodity")),
+            ("unit__commodity__direction", ("unit", "commodity", "direction")),
+            ("unit__commodity__commodity", ("unit", "commodity", "commodity")),
+            ("unit__node__direction", ("unit", "node", "direction")),
+            ("connection__node__node", ("connection", "node", "node")),
+            ("connection__node__direction", ("connection", "node", "direction")),
+            ("node__temporal_block", ("node", "temporal_block")),
+            ("storage__unit", ("storage", "unit")),
+            ("storage__connection", ("storage", "connection")),
+            ("storage__commodity", ("storage", "commodity")),
+        ),
+        object_parameters=(
+            ("unit", "fom_cost", "null"),
+            ("unit", "start_up_cost", "null"),
+            ("unit", "shut_down_cost", "null"),
+            ("unit", "number_of_units", "0"),
+            ("unit", "avail_factor", "1"),
+            ("unit", "min_down_time", "0"),
+            ("unit", "min_up_time", "0"),
+            ("unit", "online_variable_type", '"integer_online_variable"'),
+            ("unit", "fix_units_on", "null"),
+            ("temporal_block", "start_datetime", "null"),
+            ("temporal_block", "end_datetime", "null"),
+            ("temporal_block", "time_slice_duration", "null"),
+            ("node", "demand", "0"),
+            ("storage", "stor_state_cap", "0"),
+            ("storage", "frac_state_loss", "0"),
+        ),
+        relationship_parameters=(
+            ("unit__commodity", "unit_conv_cap_to_flow", "1"),
+            ("unit__commodity", "minimum_operating_point", "null"),
+            ("unit__commodity__direction", "unit_capacity", "null"),
+            ("unit__commodity__direction", "operating_cost", "null"),
+            ("unit__commodity__direction", "vom_cost", "null"),
+            ("commodity_group__node_group", "tax_net_flow", "null"),
+            ("commodity_group__node_group", "tax_out_flow", "null"),
+            ("commodity_group__node_group", "tax_in_flow", "null"),
+            ("unit__commodity__commodity", "fix_ratio_out_in_flow", "null"),
+            ("unit__commodity__commodity", "max_ratio_out_in_flow", "null"),
+            ("unit__commodity__commodity", "min_ratio_out_in_flow", "null"),
+            ("connection__node__direction", "fix_ratio_out_in_trans", "null"),
+            ("connection__node__direction", "max_ratio_out_in_trans", "null"),
+            ("connection__node__direction", "min_ratio_out_in_trans", "null"),
+            ("storage__unit", "stor_unit_discharg_eff", "1"),
+            ("storage__unit", "stor_unit_charg_eff", "1"),
+            ("storage__connection", "stor_conn_discharg_eff", "1"),
+            ("storage__connection", "stor_conn_charg_eff", "1"),
+            ("unit_group__commodity_group", "max_cum_in_flow_bound", "null"),
+            ("unit__node__direction", "fix_flow", "null"),
+            ("connection__node__direction", "fix_trans", "null"),
+        ),
+    )
+    db_map.commit_session("Add specific data structure for Spine Model.")
+
+
+def forward_sweep(root, func):
+    """Recursively visit, using `get_children()`, the given sqlalchemy object.
+    Apply `func` on every visited node."""
+    current = root
+    parent = {}
+    children = {current: iter(current.get_children(column_collections=False))}
+    while True:
+        func(current)
+        # Try and visit next children
+        next_ = next(children[current], None)
+        if next_ is not None:
+            parent[next_] = current
+            children[next_] = iter(next_.get_children(column_collections=False))
+            current = next_
+            continue
+        # No (more) children, try and visit next sibling
+        current_parent = parent[current]
+        next_ = next(children[current_parent], None)
+        if next_ is not None:
+            parent[next_] = current_parent
+            children[next_] = iter(next_.get_children(column_collections=False))
+            current = next_
+            continue
+        # No (more) siblings, go back to parent
+        current = current_parent
+        if current == root:
+            break
 
 
 def forward_sweep(root, func):
