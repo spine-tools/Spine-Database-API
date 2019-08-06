@@ -196,24 +196,19 @@ class ParameterMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_row = None
+        last_pivot_rows = []
         if isinstance(self.name, Mapping):
-            last_pivot_row = self.name.last_pivot_row()
+            last_pivot_rows.append(self.name.last_pivot_row())
         if self.extra_dimensions is not None:
-            for m in self.extra_dimensions:
-                if isinstance(m, Mapping):
-                    last_pivot_row = max(last_pivot_row, m.last_pivot_row(), key=none_to_minus_inf)
-        return last_pivot_row
+            last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
+        return max(last_pivot_rows, key=none_to_minus_inf, default=None)
 
     def is_pivoted(self):
-        pivoted = False
-        if isinstance(self.name, Mapping):
-            pivoted = self.name.is_pivoted()
+        if isinstance(self.name, Mapping) and self.name.is_pivoted():
+            return True
         if self.extra_dimensions is not None:
-            for ed in self.extra_dimensions:
-                if isinstance(ed, Mapping):
-                    pivoted = pivoted | ed.is_pivoted()
-        return pivoted
+            return any(ed.is_pivoted() for ed in self.extra_dimensions if isinstance(ed, Mapping))
+        return False
 
     @property
     def name(self):
@@ -230,31 +225,22 @@ class ParameterMapping:
     @name.setter
     def name(self, name=None):
         if name is not None and not isinstance(name, (str, Mapping)):
-            raise ValueError(
-                f"""name must be a None, str or Mapping,
-                             instead got {type(name)}"""
-            )
+            raise ValueError(f"""name must be a None, str or Mapping, instead got {type(name)}""")
         self._name = name
 
     @value.setter
     def value(self, value=None):
         if value is not None and not isinstance(value, (str, Mapping)):
-            raise ValueError(
-                f"""value must be a None, Mapping or string,
-                             instead got {type(value)}"""
-            )
+            raise ValueError(f"""value must be a None, Mapping or string, instead got {type(value)}""")
         self._value = value
 
     @extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions=None):
         if extra_dimensions is not None and not all(
-            isinstance(ex, (Mapping, str)) or ex is None for ex in extra_dimensions
+            isinstance(ed, (Mapping, str)) or ed is None for ed in extra_dimensions
         ):
             ed_types = [type(ed) for ed in extra_dimensions]
-            raise TypeError(
-                f"""extra_dimensions must be a list of Mapping
-                            or str, instead got {ed_types}"""
-            )
+            raise TypeError(f"""extra_dimensions must be a list of Mapping or str, instead got {ed_types}""")
         self._extra_dimensions = extra_dimensions
 
     @classmethod
@@ -319,20 +305,15 @@ class ParameterColumnCollectionMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_row = None
+        last_pivot_row = []
         if self.extra_dimensions is not None:
-            for m in self.extra_dimensions:
-                if isinstance(m, Mapping):
-                    last_pivot_row = max(last_pivot_row, m.last_pivot_row(), key=none_to_minus_inf)
-        return last_pivot_row
+            last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
+        return max(last_pivot_rows, key=none_to_minus_inf, default=None)
 
     def is_pivoted(self):
-        pivoted = False
         if self.extra_dimensions is not None:
-            for ed in self.extra_dimensions:
-                if isinstance(ed, Mapping):
-                    pivoted = pivoted | ed.is_pivoted()
-        return pivoted
+            return any(ed.is_pivoted() for ed in self.extra_dimensions if isinstance(ed, Mapping))
+        return False
 
     @property
     def parameters(self):
@@ -345,16 +326,11 @@ class ParameterColumnCollectionMapping:
     @parameters.setter
     def parameters(self, parameters=None):
         if parameters is not None and not isinstance(parameters, list):
-            raise ValueError(
-                f"""parameters must be a None or list,
-                             instead got {type(parameters)}"""
-            )
+            raise ValueError(f"""parameters must be a None or list, instead got {type(parameters)}""")
         for i, p in enumerate(parameters):
             if not isinstance(p, ParameterColumnMapping):
                 raise ValueError(
-                    f"""parameters must be a list with all
-                                 ParameterColumnMapping, instead got
-                                 {type(p)} on index {i}"""
+                    f"""parameters must be a list with all ParameterColumnMapping, instead got {type(p)} on index {i}"""
                 )
         self._parameters = parameters
 
@@ -362,10 +338,7 @@ class ParameterColumnCollectionMapping:
     def extra_dimensions(self, extra_dimensions=None):
         if extra_dimensions is not None and not all(isinstance(ex, (Mapping, str)) for ex in extra_dimensions):
             ed_types = [type(ed) for ed in extra_dimensions]
-            raise TypeError(
-                f"""extra_dimensions must be a list of
-                            Mapping or str, instead got {ed_types}"""
-            )
+            raise TypeError(f"""extra_dimensions must be a list of Mapping or str, instead got {ed_types}""")
         self._extra_dimensions = extra_dimensions
 
     @classmethod
@@ -449,37 +422,25 @@ class ParameterColumnMapping:
     @name.setter
     def name(self, name=None):
         if name is not None and type(name) not in (str,):
-            raise ValueError(
-                f"""name must be a None or str,
-                             instead got {type(name)}"""
-            )
+            raise ValueError(f"""name must be a None or str, instead got {type(name)}""")
         self._name = name
 
     @column.setter
     def column(self, column=None):
         if column is not None and type(column) not in (str, int):
-            raise ValueError(
-                f"""column must be a None, str or int,
-                             instead got {type(column)}"""
-            )
+            raise ValueError(f"""column must be a None, str or int, instead got {type(column)}""")
         self._column = column
 
     @append_str.setter
     def append_str(self, append_str=None):
         if append_str is not None and type(append_str) not in (str,):
-            raise TypeError(
-                f"""append_str must be a None or str, instead
-                            got {type(append_str)}"""
-            )
+            raise TypeError(f"""append_str must be a None or str, instead got {type(append_str)}""")
         self._append_str = append_str
 
     @prepend_str.setter
     def prepend_str(self, prepend_str=None):
         if prepend_str is not None and type(prepend_str) not in (str,):
-            raise TypeError(
-                f"""prepend_str must be a None or str, instead
-                            got {type(prepend_str)}"""
-            )
+            raise TypeError(f"""prepend_str must be a None or str, instead got {type(prepend_str)}""")
         self._prepend_str = prepend_str
 
     @classmethod
@@ -550,13 +511,13 @@ class ObjectClassMapping:
 
     def is_pivoted(self):
         pivoted = False
-        if type(self.name) == Mapping:
-            pivoted = self.name.is_pivoted()
-        if type(self.object) == Mapping:
-            pivoted = pivoted | self.object.is_pivoted()
+        if type(self.name) == Mapping and self.name.is_pivoted():
+            return True
+        if type(self.object) == Mapping and self.object.is_pivoted():
+            return True
         if type(self.parameters) in (ParameterMapping, ParameterColumnCollectionMapping):
-            pivoted = pivoted | self.parameters.is_pivoted()
-        return pivoted
+            return self.parameters.is_pivoted()
+        return False
 
     @property
     def skip_columns(self):
@@ -728,19 +689,17 @@ class RelationshipClassMapping:
 
     def is_pivoted(self):
         pivoted = False
-        if type(self.name) == Mapping:
-            pivoted = self.name.is_pivoted()
-        if self.object_classes is not None:
-            for oc in self.object_classes:
-                if type(oc) == Mapping:
-                    pivoted = pivoted | oc.is_pivoted()
-        if self.objects is not None:
-            for o in self.objects:
-                if type(o) == Mapping:
-                    pivoted = pivoted | o.is_pivoted()
+        if type(self.name) == Mapping and self.name.is_pivoted():
+            return True
+        if self.object_classes is not None and any(
+            oc.is_pivoted() for oc in self.object_classes if type(oc) == Mapping
+        ):
+            return True
+        if self.objects is not None and any(o.is_pivoted() for o in self.objects if type(o) == Mapping):
+            return True
         if self.parameters is not None:
-            pivoted = pivoted | self.parameters.is_pivoted()
-        return pivoted
+            return self.parameters.is_pivoted()
+        return False
 
     @property
     def import_objects(self):
@@ -898,12 +857,9 @@ class DataMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_row = None
         if self.mappings is not None:
-            for m in self.mappings:
-                if m is not None:
-                    last_pivot_row = max(m.last_pivot_row(), last_pivot_row, key=none_to_minus_inf)
-        return last_pivot_row
+            return max([m.last_pivot_row() for m in self.mappings if m is not None], key=none_to_minus_inf)
+        return None
 
     def is_pivoted(self):
         if self.mappings is not None:
