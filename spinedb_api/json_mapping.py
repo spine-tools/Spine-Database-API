@@ -857,9 +857,10 @@ class DataMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
+        last_pivot_rows = []
         if self.mappings is not None:
-            return max([m.last_pivot_row() for m in self.mappings if m is not None], key=none_to_minus_inf)
-        return None
+            last_pivot_rows += [m.last_pivot_row() for m in self.mappings if m is not None]
+        return max(last_pivot_rows, default=None, key=none_to_minus_inf)
 
     def is_pivoted(self):
         if self.mappings is not None:
