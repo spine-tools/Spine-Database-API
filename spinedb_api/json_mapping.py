@@ -33,9 +33,9 @@ PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
 MAPPINGCOLLECTION = "collection"
 
 
-def none_to_minus_inf(value):
+def none_is_minus_inf(value):
     """Returns minus infinity if value is None, otherwise returns the value.
-    Used by `max(some_list, key=none_to_minus_inf)`.
+    Used in the `key` argument to the `max` function.
     """
     if value is None:
         return float("-inf")
@@ -201,7 +201,7 @@ class ParameterMapping:
             last_pivot_rows.append(self.name.last_pivot_row())
         if self.extra_dimensions is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
-        return max(last_pivot_rows, key=none_to_minus_inf, default=None)
+        return max(last_pivot_rows, key=none_is_minus_inf, default=None)
 
     def is_pivoted(self):
         if isinstance(self.name, Mapping) and self.name.is_pivoted():
@@ -308,7 +308,7 @@ class ParameterColumnCollectionMapping:
         last_pivot_row = []
         if self.extra_dimensions is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
-        return max(last_pivot_rows, key=none_to_minus_inf, default=None)
+        return max(last_pivot_rows, key=none_is_minus_inf, default=None)
 
     def is_pivoted(self):
         if self.extra_dimensions is not None:
@@ -504,9 +504,9 @@ class ObjectClassMapping:
         if type(self.name) == Mapping:
             last_pivot_row = self.name.last_pivot_row()
         if type(self.object) == Mapping:
-            last_pivot_row = max(last_pivot_row, self.object.last_pivot_row(), key=none_to_minus_inf)
+            last_pivot_row = max(last_pivot_row, self.object.last_pivot_row(), key=none_is_minus_inf)
         if type(self.parameters) in (ParameterMapping, ParameterColumnCollectionMapping):
-            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row(), key=none_to_minus_inf)
+            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row(), key=none_is_minus_inf)
         return last_pivot_row
 
     def is_pivoted(self):
@@ -678,13 +678,13 @@ class RelationshipClassMapping:
         if self.object_classes is not None:
             for oc in self.object_classes:
                 if type(oc) == Mapping:
-                    last_pivot_row = max(last_pivot_row, oc.last_pivot_row(), key=none_to_minus_inf)
+                    last_pivot_row = max(last_pivot_row, oc.last_pivot_row(), key=none_is_minus_inf)
         if self.objects is not None:
             for o in self.objects:
                 if type(o) == Mapping:
-                    last_pivot_row = max(last_pivot_row, o.last_pivot_row(), key=none_to_minus_inf)
+                    last_pivot_row = max(last_pivot_row, o.last_pivot_row(), key=none_is_minus_inf)
         if self.parameters is not None:
-            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row(), key=none_to_minus_inf)
+            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row(), key=none_is_minus_inf)
         return last_pivot_row
 
     def is_pivoted(self):
@@ -860,7 +860,7 @@ class DataMapping:
         last_pivot_rows = []
         if self.mappings is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.mappings if m is not None]
-        return max(last_pivot_rows, default=None, key=none_to_minus_inf)
+        return max(last_pivot_rows, default=None, key=none_is_minus_inf)
 
     def is_pivoted(self):
         if self.mappings is not None:
@@ -908,9 +908,8 @@ class DataMapping:
                 parsed_mappings.append(RelationshipClassMapping.from_dict(m))
             else:
                 raise TypeError(
-                    """All mappings in field mappings must be a
-                                RelationshipClassMapping or ObjectClassMapping
-                                compatible dictionary"""
+                    """Invalid 'map_type', expected RelationshipClassMapping, ObjectClassMapping, or
+                    compatible dictionary, got {map_type}"""
                 )
         return DataMapping(parsed_mappings, has_header)
 
@@ -922,8 +921,7 @@ def create_read_parameter_functions(mapping, pivoted_data, pivoted_cols, data_he
         return {"name": (None, None, None), "value": (None, None, None)}
     if type(mapping) not in (ParameterColumnCollectionMapping, ParameterMapping):
         raise ValueError(
-            f"""mapping must be ParameterColumnCollectionMapping
-                         or ParameterMapping, instead got {type(mapping)}"""
+            f"""mapping must be ParameterColumnCollectionMapping or ParameterMapping, instead got {type(mapping)}"""
         )
     if type(mapping) == ParameterColumnCollectionMapping:
         # parameter names from header or mapping name.
@@ -1024,9 +1022,8 @@ def dict_to_map(map_dict):
             mapping = ObjectClassMapping.from_dict(map_dict)
         else:
             raise ValueError(
-                f'''map_dict must contain field: "map_type" with
-                              value "{MAPPINGCOLLECTION}", "{RELATIONSHIPCLASS}"
-                              or "{OBJECTCLASS}"'''
+                f"""invalid "map_type" value, expected "{MAPPINGCOLLECTION}", "{RELATIONSHIPCLASS}"
+                or "{OBJECTCLASS}", got {map_type}"""
             )
     else:
         raise TypeError(f"map_dict must be a dict, instead it was: {type(map_dict)}")
@@ -1061,7 +1058,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
         r = create_mapping_readers(m, num_cols, pivoted_data, data_header)
         readers.extend(r)
 
-    # run funcitons that read from header or pivoted area first
+    # run functions that read from header or pivoted area first
     # select only readers that actually need to read row data
     data = {
         "object_classes": [],
@@ -1136,7 +1133,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
 
 
 def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
-    """Creates a list of functions that returns data from a row of a data source
+    """Creates a list of functions that return data from a row of a data source
     from ObjectClassMapping or RelationshipClassMapping objects."""
     if data_header is None:
         data_header = []
@@ -1148,21 +1145,17 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
         if type(pc) == str:
             if pc not in data_header:
                 raise IndexError(
-                    f"""mapping contains string
-                                 refrence to data header but reference
-                                 "{pc}" could not be found in header."""
+                    f"""mapping contains string reference to data header but reference "{pc}"
+                    could not be found in header."""
                 )
             pc = data_header.index(pc)
         if pc >= num_cols:
-            raise IndexError(
-                f"""mapping contains invalid index: {pc},
-                             data column number: {num_cols}"""
-            )
+            raise IndexError(f"""mapping contains invalid index: {pc}, data column number: {num_cols}""")
         int_non_piv_cols.append(pc)
 
     if type(mapping.parameters) == ParameterColumnCollectionMapping and mapping.parameters.parameters:
         # if we are using a parameter column collection and we have column
-        # references then only use thoose columns for pivoting
+        # references then only use those columns for pivoting
         pivoted_cols = []
         for p in mapping.parameters.parameters:
             pc = p.column
