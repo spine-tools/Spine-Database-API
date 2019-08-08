@@ -28,7 +28,7 @@ from .check_functions import (
     check_parameter_definition_tag,
     check_wide_parameter_value_list,
 )
-import json
+from .parameter_value import to_database
 
 
 class ImportErrorLogItem:
@@ -401,7 +401,7 @@ def import_object_parameter_values(db_map, data):
             insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
             object_class_name, object name, parameter name, field name,
-            parameter value
+            (deserialized) parameter value
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
@@ -432,9 +432,7 @@ def import_object_parameter_values(db_map, data):
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        # FIXME: Can't import strings that are not encapsulated by ""
-        value = json.dumps(value)
-        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": value}
+        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": to_database(value)}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -487,7 +485,7 @@ def import_relationship_parameter_values(db_map, data):
         db (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
                                  relationship class name, list of object names, parameter name, field name,
-                                 parameter value
+                                 (deserialized) parameter value
 
     Returns:
         (Int, List) Number of succesfull inserted objects, list of errors
@@ -538,9 +536,7 @@ def import_relationship_parameter_values(db_map, data):
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        # FIXME: Can't import strings that are not encapsulated by ""
-        value = json.dumps(value)
-        new_value = {'parameter_definition_id': p_id, 'relationship_id': r_id, 'value': value}
+        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": to_database(value)}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
