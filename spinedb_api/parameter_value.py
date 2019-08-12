@@ -431,7 +431,7 @@ class TimeSeries(IndexedValue):
 
     def __init__(self, values, ignore_year, repeat):
         if len(values) < 2:
-            raise RuntimeError("Time series too short. Must have two or more values")
+            raise ParameterValueFormatError("Time series too short. Must have two or more values")
         super().__init__(values)
         self._ignore_year = ignore_year
         self._repeat = repeat
@@ -475,9 +475,9 @@ class TimePattern(IndexedValue):
 
     def __init__(self, indexes, values):
         if len(indexes) != len(values):
-            raise RuntimeError("Length of values does not match length of indexes")
+            raise ParameterValueFormatError("Length of values does not match length of indexes")
         if not indexes:
-            raise RuntimeError("Empty time pattern not allowed")
+            raise ParameterValueFormatError("Empty time pattern not allowed")
         super().__init__(values)
         self._indexes = indexes
 
@@ -594,6 +594,8 @@ class TimeSeriesFixedResolution(TimeSeries):
             for i in range(len(resolution)):
                 if isinstance(resolution[i], str):
                     resolution[i] = duration_to_relativedelta(resolution[i])
+        if not resolution:
+            raise ParameterValueFormatError("Resolution cannot be zero.")
         self._resolution = resolution
 
     def to_database(self):
@@ -630,7 +632,7 @@ class TimeSeriesVariableResolution(TimeSeries):
     def __init__(self, indexes, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
         if len(indexes) != len(values):
-            raise RuntimeError("Length of values does not match length of indexes")
+            raise ParameterValueFormatError("Length of values does not match length of indexes")
         if not isinstance(indexes, np.ndarray):
             date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
             for i in range(len(indexes)):
