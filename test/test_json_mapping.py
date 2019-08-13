@@ -33,43 +33,39 @@ class TestMappingIO(unittest.TestCase):
         map_obj = ObjectClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {'map_type': 'ObjectClass',
-            'name': {'value_reference': 0, 'map_type': 'column'},
-            'object': {'value_reference': 1, 'map_type': 'column'},
-            'parameters': {'map_type': 'parameter',
-                'name': {'value_reference': 2, 'map_type': 'column'},
-                'value': {'value_reference': 3, 'map_type': 'column'}}}
+        expected = {
+            "map_type": "ObjectClass",
+            "name": {"value_reference": 0, "map_type": "column"},
+            "object": {"value_reference": 1, "map_type": "column"},
+            "parameters": {
+                "map_type": "parameter",
+                "name": {"value_reference": 2, "map_type": "column"},
+                "value": {"value_reference": 3, "map_type": "column"},
+            },
+        }
         self.assertEqual(out, expected)
 
     def test_ObjectClass_object_from_dict_to_dict(self):
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": 0,
-            "object": 1,
-        }
+        mapping = {"map_type": "ObjectClass", "name": 0, "object": 1}
 
         map_obj = ObjectClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {'map_type': 'ObjectClass',
-            'name': {'value_reference': 0, 'map_type': 'column'},
-            'object': {'value_reference': 1, 'map_type': 'column'}}
+        expected = {
+            "map_type": "ObjectClass",
+            "name": {"value_reference": 0, "map_type": "column"},
+            "object": {"value_reference": 1, "map_type": "column"},
+        }
         self.assertEqual(out, expected)
 
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": "str",
-            "object": "str",
-        }
+        mapping = {"map_type": "ObjectClass", "name": "str", "object": "str"}
 
         map_obj = ObjectClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {'map_type': 'ObjectClass',
-            'name': "str",
-            'object': "str"}
+        expected = {"map_type": "ObjectClass", "name": "str", "object": "str"}
         self.assertEqual(out, expected)
-    
+
     def test_RelationshipClassMapping_from_dict_to_dict(self):
         mapping = {
             "map_type": "RelationshipClass",
@@ -81,13 +77,23 @@ class TestMappingIO(unittest.TestCase):
         map_obj = RelationshipClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {'map_type': 'RelationshipClass',
-        'import_objects': False,
-        'name': 'unit__node', 'object_classes': [{'value_reference': 0, 'map_type': 'column_name'}, {'value_reference': 1, 'map_type': 'column_name'}],
-        'objects': [{'value_reference': 0, 'map_type': 'column'}, {'value_reference': 1, 'map_type': 'column'}],
-        'parameters': {'map_type': 'parameter', 'name': 'test', 'value': {'value_reference': 2, 'map_type': 'column'}}}
+        expected = {
+            "map_type": "RelationshipClass",
+            "import_objects": False,
+            "name": "unit__node",
+            "object_classes": [
+                {"value_reference": 0, "map_type": "column_name"},
+                {"value_reference": 1, "map_type": "column_name"},
+            ],
+            "objects": [{"value_reference": 0, "map_type": "column"}, {"value_reference": 1, "map_type": "column"}],
+            "parameters": {
+                "map_type": "parameter",
+                "name": "test",
+                "value": {"value_reference": 2, "map_type": "column"},
+            },
+        }
         self.assertEqual(out, expected)
-    
+
     def test_RelationshipClassMapping_from_dict_to_dict2(self):
         mapping = {
             "map_type": "RelationshipClass",
@@ -98,27 +104,35 @@ class TestMappingIO(unittest.TestCase):
         map_obj = RelationshipClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {'map_type': 'RelationshipClass',
-        'import_objects': False,
-        'name': 'unit__node', 'object_classes': ["test", {'value_reference': 0, 'map_type': 'column_name'}],
-        'objects': ["test", {'value_reference': 0, 'map_type': 'column'}]}
+        expected = {
+            "map_type": "RelationshipClass",
+            "import_objects": False,
+            "name": "unit__node",
+            "object_classes": ["test", {"value_reference": 0, "map_type": "column_name"}],
+            "objects": ["test", {"value_reference": 0, "map_type": "column"}],
+        }
         self.assertEqual(out, expected)
-    
+
     def test_RelationshipClassMapping_from_dict_to_dict3(self):
         mapping = mapping = {
             "map_type": "RelationshipClass",
-            "name": "unit__node", 
-            "parameters": {"map_type": "parameter", "name": "test", "value": 2, "extra_dimensions": ["test", 0]}}
+            "name": "unit__node",
+            "parameters": {"map_type": "parameter", "name": "test", "value": 2, "extra_dimensions": ["test", 0]},
+        }
         map_obj = RelationshipClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {'map_type': 'RelationshipClass',
-        'import_objects': False,
-        'name': 'unit__node',
-        'parameters': {'map_type': 'parameter',
-            'name': 'test',
-            'value': {'value_reference': 2, 'map_type': 'column'},
-            'extra_dimensions': ['test', {'value_reference': 0, 'map_type': 'column'}]}}
+        expected = {
+            "map_type": "RelationshipClass",
+            "import_objects": False,
+            "name": "unit__node",
+            "parameters": {
+                "map_type": "parameter",
+                "name": "test",
+                "value": {"value_reference": 2, "map_type": "column"},
+                "extra_dimensions": ["test", {"value_reference": 0, "map_type": "column"}],
+            },
+        }
         self.assertEqual(out, expected)
 
 
@@ -136,6 +150,22 @@ class TestMappingIntegration(unittest.TestCase):
             "relationship_parameter_values": [],
         }
 
+    def test_bad_mapping_type(self):
+        """Tests that passing any other than a `dict` or a `mapping` to `read_with_mapping` raises `TypeError`.
+        """
+        input_data = [["object_class"], ["oc1"]]
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        with self.assertRaises(TypeError):
+            mapping = [1, 2, 3]
+            out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+
+        with self.assertRaises(TypeError):
+            mapping = [{"map_type": "ObjectClass", "name": 0}, [1, 2, 3]]
+            out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+
     def test_read_flat_file(self):
         input_data = [
             ["object_class", "object", "parameter", "value"],
@@ -146,10 +176,7 @@ class TestMappingIntegration(unittest.TestCase):
             {
                 "object_classes": ["oc1", "oc2"],
                 "objects": [("oc1", "obj1"), ("oc2", "obj2")],
-                "object_parameters": [
-                    ("oc1", "parameter_name1"),
-                    ("oc2", "parameter_name2"),
-                ],
+                "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
                 "object_parameter_values": [
                     ("oc1", "obj1", "parameter_name1", 1),
                     ("oc2", "obj2", "parameter_name2", 2),
@@ -173,73 +200,40 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_flat_file_with_column_name_reference(self):
-        input_data = [
-            ["object", "parameter", "value"],
-            ["obj1", "parameter_name1", 1],
-            ["obj2", "parameter_name2", 2],
-        ]
-        self.empty_data.update(
-            {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-            }
-        )
+        input_data = [["object", "parameter", "value"], ["obj1", "parameter_name1", 1], ["obj2", "parameter_name2", 2]]
+        self.empty_data.update({"object_classes": ["object"], "objects": [("object", "obj1"), ("object", "obj2")]})
 
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
 
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": {"map_type": "column_name", "value_reference": 0},
-            "object": 0,
-        }
+        mapping = {"map_type": "ObjectClass", "name": {"map_type": "column_name", "value_reference": 0}, "object": 0}
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_with_list_of_mappings(self):
-        input_data = [
-            ["object", "parameter", "value"],
-            ["obj1", "parameter_name1", 1],
-            ["obj2", "parameter_name2", 2],
-        ]
-        self.empty_data.update(
-            {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-            }
-        )
+        input_data = [["object", "parameter", "value"], ["obj1", "parameter_name1", 1], ["obj2", "parameter_name2", 2]]
+        self.empty_data.update({"object_classes": ["object"], "objects": [("object", "obj1"), ("object", "obj2")]})
 
         data = iter(input_data)
         data_header = next(data)
         num_cols = len(data_header)
 
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": {"map_type": "column_name", "value_reference": 0},
-            "object": 0,
-        }
+        mapping = {"map_type": "ObjectClass", "name": {"map_type": "column_name", "value_reference": 0}, "object": 0}
 
-        out, errors = read_with_mapping(data, [mapping], num_cols, data_header)
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
     def test_read_columncollection_parameters(self):
-        input_data = [
-            ["object", "parameter_name1", "parameter_name2"],
-            ["obj1", 0, 1],
-            ["obj2", 2, 3],
-        ]
+        input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         self.empty_data.update(
             {
                 "object_classes": ["object"],
                 "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [
-                    ("object", "parameter_name1"),
-                    ("object", "parameter_name2"),
-                ],
+                "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
                 "object_parameter_values": [
                     ("object", "obj1", "parameter_name1", 0),
                     ("object", "obj1", "parameter_name2", 1),
@@ -265,19 +259,12 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_pivoted_parameters_from_header(self):
-        input_data = [
-            ["object", "parameter_name1", "parameter_name2"],
-            ["obj1", 0, 1],
-            ["obj2", 2, 3],
-        ]
+        input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         self.empty_data.update(
             {
                 "object_classes": ["object"],
                 "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [
-                    ("object", "parameter_name1"),
-                    ("object", "parameter_name2"),
-                ],
+                "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
                 "object_parameter_values": [
                     ("object", "obj1", "parameter_name1", 0),
                     ("object", "obj1", "parameter_name2", 1),
@@ -295,10 +282,7 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": {"map_type": "column_name", "value_reference": 0},
             "object": 0,
-            "parameters": {
-                "map_type": "parameter",
-                "name": {"map_type": "row", "value_reference": -1},
-            },
+            "parameters": {"map_type": "parameter", "name": {"map_type": "row", "value_reference": -1}},
         }  # -1 to read pivot from header
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
@@ -306,19 +290,12 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_pivoted_parameters_from_data(self):
-        input_data = [
-            ["object", "parameter_name1", "parameter_name2"],
-            ["obj1", 0, 1],
-            ["obj2", 2, 3],
-        ]
+        input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         self.empty_data.update(
             {
                 "object_classes": ["object"],
                 "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [
-                    ("object", "parameter_name1"),
-                    ("object", "parameter_name2"),
-                ],
+                "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
                 "object_parameter_values": [
                     ("object", "obj1", "parameter_name1", 0),
                     ("object", "obj1", "parameter_name2", 1),
@@ -336,10 +313,7 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object",
             "object": 0,
-            "parameters": {
-                "map_type": "parameter",
-                "name": {"map_type": "row", "value_reference": 0},
-            },
+            "parameters": {"map_type": "parameter", "name": {"map_type": "row", "value_reference": 0}},
         }  # -1 to read pivot from header
 
         out, errors = read_with_mapping(data, mapping, num_cols)
@@ -349,25 +323,25 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_flat_file_with_extra_value_dimensions(self):
         # FIXME: right now the read_with_mapping only keeps the value for
         # mappings with extra dimensions until the data spec is final.
-        input_data = [
-            ["object", "time", "parameter_name1"],
-            ["obj1", "t1", 1],
-            ["obj1", "t2", 2],
-        ]
-        # orginal test data
-        #        self.empty_data.update({'object_classes': ['object'],
-        #                                'objects': [('object','obj1'), ('object','obj1')],
-        #                                'object_parameters': [('object','parameter_name1')],
-        #                                'object_parameter_values': [('object','obj1','parameter_name1','[["scenario1", "t1", 1], ["scenario1", "t2", 2]]')]})
+        input_data = [["object", "time", "parameter_name1"], ["obj1", "t1", 1], ["obj1", "t2", 2]]
+        # original test data
+        # self.empty_data.update(
+        #    {
+        #        "object_classes": ["object"],
+        #        "objects": [("object", "obj1"), ("object", "obj1")],
+        #        "object_parameters": [("object", "parameter_name1")],
+        #        "object_parameter_values": [
+        #            ("object", "obj1", "parameter_name1", '[["scenario1", "t1", 1], ["scenario1", "t2", 2]]')
+        #        ],
+        #    }
+        # )
 
         self.empty_data.update(
             {
                 "object_classes": ["object"],
                 "objects": [("object", "obj1"), ("object", "obj1")],
                 "object_parameters": [("object", "parameter_name1")],
-                "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", '[{"t1": 1}, {"t2": 2}]')
-                ],
+                "object_parameter_values": [("object", "obj1", "parameter_name1", '[{"t1": 1}, {"t2": 2}]')],
             }
         )
 
@@ -395,10 +369,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update(
             {
                 "relationship_classes": [("node_group", ["node"])],
-                "relationships": [
-                    ("node_group", ["n1"]),
-                    ("node_group", ["n2"]),
-                ],
+                "relationships": [("node_group", ["n1"]), ("node_group", ["n2"])],
             }
         )
 
@@ -406,26 +377,18 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         num_cols = len(data_header)
 
-        mapping = {
-            "map_type": "RelationshipClass",
-            "name": "node_group",
-            "object_classes": [1],
-            "objects": [1],
-        }
+        mapping = {"map_type": "RelationshipClass", "name": "node_group", "object_classes": [1], "objects": [1]}
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
-    
+
     def test_read_relationships(self):
         input_data = [["unit", "node"], ["u1", "n1"], ["u1", "n2"]]
         self.empty_data.update(
             {
                 "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationships": [
-                    ("unit__node", ("u1", "n1")),
-                    ("unit__node", ("u1", "n2")),
-                ],
+                "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
             }
         )
 
@@ -433,30 +396,18 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         num_cols = len(data_header)
 
-        mapping = {
-            "map_type": "RelationshipClass",
-            "name": "unit__node",
-            "object_classes": [0, 1],
-            "objects": [0, 1],
-        }
+        mapping = {"map_type": "RelationshipClass", "name": "unit__node", "object_classes": [0, 1], "objects": [0, 1]}
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
     def test_read_relationships_with_parameters(self):
-        input_data = [
-            ["unit", "node", "rel_parameter"],
-            ["u1", "n1", 0],
-            ["u1", "n2", 1],
-        ]
+        input_data = [["unit", "node", "rel_parameter"], ["u1", "n1", 0], ["u1", "n2", 1]]
         self.empty_data.update(
             {
                 "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationships": [
-                    ("unit__node", ("u1", "n1")),
-                    ("unit__node", ("u1", "n2")),
-                ],
+                "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
                 "relationship_parameters": [("unit__node", "rel_parameter")],
                 "relationship_parameter_values": [
                     ("unit__node", ("u1", "n1"), "rel_parameter", 0),
@@ -503,10 +454,7 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object",
             "object": 0,
-            "parameters": {
-                "map_type": "parameter",
-                "name": {"map_type": "row", "value_reference": -1},
-            },
+            "parameters": {"map_type": "parameter", "name": {"map_type": "row", "value_reference": -1}},
         }  # -1 to read pivot from header
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
@@ -514,11 +462,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_pivoted_parameters_from_data_with_skipped_column(self):
-        input_data = [
-            ["object", "parameter_name1", "parameter_name2"],
-            ["obj1", 0, 1],
-            ["obj2", 2, 3],
-        ]
+        input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         self.empty_data.update(
             {
                 "object_classes": ["object"],
@@ -540,10 +484,7 @@ class TestMappingIntegration(unittest.TestCase):
             "name": "object",
             "object": 0,
             "skip_columns": [2],
-            "parameters": {
-                "map_type": "parameter",
-                "name": {"map_type": "row", "value_reference": 0},
-            },
+            "parameters": {"map_type": "parameter", "name": {"map_type": "row", "value_reference": 0}},
         }  # -1 to read pivot from header
 
         out, errors = read_with_mapping(data, mapping, num_cols)
@@ -555,17 +496,9 @@ class TestMappingIntegration(unittest.TestCase):
         self.empty_data.update(
             {
                 "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationships": [
-                    ("unit__node", ("u1", "n1")),
-                    ("unit__node", ("u2", "n2")),
-                ],
+                "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u2", "n2"))],
                 "object_classes": ["unit", "node"],
-                "objects": [
-                    ("unit", "u1"),
-                    ("node", "n1"),
-                    ("unit", "u2"),
-                    ("node", "n2"),
-                ],
+                "objects": [("unit", "u1"), ("node", "n1"), ("unit", "u2"), ("node", "n2")],
             }
         )
 
@@ -588,30 +521,25 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_relationships_parameter_values_with_extra_dimensions(self):
         # FIXME: right now the read_with_mapping only keeps the value for
         # mappings with extra dimensions until the data spec is final.
-        input_data = [
-            ["", "a", "b"],
-            ["", "c", "d"],
-            ["", "e", "f"],
-            [1, 2, 3],
-            [2, 4, 5],
-        ]
+        input_data = [["", "a", "b"], ["", "c", "d"], ["", "e", "f"], [1, 2, 3], [2, 4, 5]]
         # original test
-        #        self.empty_data.update({'relationship_classes': [('unit__node',('unit','node'))],
-        #                                'relationship_parameters': [('unit__node', 'e'), ('unit__node', 'f')],
-        #                                'relationships': [('unit__node',('a','c')),
-        #                                                  ('unit__node',('b','d'))],
-        #                                'relationship_parameter_values': [('unit__node',('a','c'), 'e', '[[1, 2], [2, 4]]'),
-        #                                                                  ('unit__node',('b','d'), 'f', '[[1, 3], [2, 5]]')]
-        #                                })
+        # self.empty_data.update(
+        #    {
+        #        "relationship_classes": [("unit__node", ("unit", "node"))],
+        #        "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
+        #        "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
+        #        "relationship_parameter_values": [
+        #            ("unit__node", ("a", "c"), "e", "[[1, 2], [2, 4]]"),
+        #            ("unit__node", ("b", "d"), "f", "[[1, 3], [2, 5]]"),
+        #        ],
+        #    }
+        # )
 
         self.empty_data.update(
             {
                 "relationship_classes": [("unit__node", ("unit", "node"))],
                 "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
-                "relationships": [
-                    ("unit__node", ("a", "c")),
-                    ("unit__node", ("b", "d")),
-                ],
+                "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
                 "relationship_parameter_values": [
                     ("unit__node", ("a", "c"), "e", '[{"1": 2}, {"2": 4}]'),
                     ("unit__node", ("b", "d"), "f", '[{"1": 3}, {"2": 5}]'),
