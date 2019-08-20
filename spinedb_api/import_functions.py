@@ -129,7 +129,9 @@ def import_data(
         num_imports = num_imports + new
         error_log.extend(errors)
     if relationship_parameter_values:
-        new, errors = import_relationship_parameter_values(db_map, relationship_parameter_values)
+        new, errors = import_relationship_parameter_values(
+            db_map, relationship_parameter_values
+        )
         num_imports = num_imports + new
         error_log.extend(errors)
     return num_imports, error_log
@@ -217,7 +219,9 @@ def import_relationship_classes(db_map, relationship_classes):
     existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
     existing_classes_ids = set(existing_classes.values())
     existing_rel_classes = {x.name: x for x in db_map.wide_relationship_class_list()}
-    relationship_class_names = {x.name: x.id for x in db_map.wide_relationship_class_list()}
+    relationship_class_names = {
+        x.name: x.id for x in db_map.wide_relationship_class_list()
+    }
     seen_classes = set()
     error_log = []
     new_rc = []
@@ -226,16 +230,23 @@ def import_relationship_classes(db_map, relationship_classes):
         if (name, oc_ids) in seen_classes:
             continue
         if name in existing_rel_classes:
-            if ",".join(str(i) for i in oc_ids) == existing_rel_classes[name].object_class_id_list:
+            if (
+                ",".join(str(i) for i in oc_ids)
+                == existing_rel_classes[name].object_class_id_list
+            ):
                 continue
         rel_class = {"name": name, "object_class_id_list": oc_ids}
         try:
-            check_wide_relationship_class(rel_class, relationship_class_names, existing_classes_ids)
+            check_wide_relationship_class(
+                rel_class, relationship_class_names, existing_classes_ids
+            )
             new_rc.append(rel_class)
             relationship_class_names[name] = None
             seen_classes.add((name, oc_ids))
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship class"))
+            error_log.append(
+                ImportErrorLogItem(msg=e.msg, db_type="relationship class")
+            )
     added = db_map._add_wide_relationship_classes(*new_rc)
     return len(added), error_log
 
@@ -259,11 +270,15 @@ def import_object_parameters(db_map, parameter_data):
     """
 
     obj_parameter_names = {
-        (x.object_class_id, x.name): x.id for x in db_map.parameter_definition_list() if x.object_class_id
+        (x.object_class_id, x.name): x.id
+        for x in db_map.parameter_definition_list()
+        if x.object_class_id
     }
     object_class_dict = {x.id: x.name for x in db_map.object_class_list()}
     existing_classes = {oc_name: oc_id for oc_id, oc_name in object_class_dict.items()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    parameter_value_list_dict = {
+        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
+    }
     seen_parameters = set()
     error_log = []
     new_parameters = []
@@ -271,13 +286,23 @@ def import_object_parameters(db_map, parameter_data):
         oc_name = parameter[0]
         parameter_name = parameter[1]
         oc_id = existing_classes.get(oc_name, None)
-        if (oc_id, parameter_name) in seen_parameters or (oc_id, parameter_name) in obj_parameter_names:
+        if (oc_id, parameter_name) in seen_parameters or (
+            oc_id,
+            parameter_name,
+        ) in obj_parameter_names:
             continue
         param = {"name": parameter_name, "object_class_id": oc_id}
         if len(parameter) > 2:
             param["default_value"] = parameter[2]
         try:
-            check_parameter_definition(param, obj_parameter_names, {}, object_class_dict, {}, parameter_value_list_dict)
+            check_parameter_definition(
+                param,
+                obj_parameter_names,
+                {},
+                object_class_dict,
+                {},
+                parameter_value_list_dict,
+            )
             new_parameters.append(param)
             seen_parameters.add((oc_id, parameter_name))
         except SpineIntegrityError as e:
@@ -305,11 +330,19 @@ def import_relationship_parameters(db_map, parameter_data):
         (Int, List) Number of succesfull inserted objects, list of errors
     """
     rel_parameter_names = {
-        (x.relationship_class_id, x.name): x.id for x in db_map.parameter_definition_list() if x.relationship_class_id
+        (x.relationship_class_id, x.name): x.id
+        for x in db_map.parameter_definition_list()
+        if x.relationship_class_id
     }
-    relationship_class_dict = {x.id: x.name for x in db_map.wide_relationship_class_list()}
-    existing_classes = {rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    relationship_class_dict = {
+        x.id: x.name for x in db_map.wide_relationship_class_list()
+    }
+    existing_classes = {
+        rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()
+    }
+    parameter_value_list_dict = {
+        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
+    }
     seen_parameters = set()
 
     error_log = []
@@ -318,14 +351,22 @@ def import_relationship_parameters(db_map, parameter_data):
         rel_class_name = parameter[0]
         param_name = parameter[1]
         rc_id = existing_classes.get(rel_class_name, None)
-        if (rc_id, param_name) in seen_parameters or (rc_id, param_name) in rel_parameter_names:
+        if (rc_id, param_name) in seen_parameters or (
+            rc_id,
+            param_name,
+        ) in rel_parameter_names:
             continue
         new_param = {"name": param_name, "relationship_class_id": rc_id}
         if len(parameter) > 2:
             new_param["default_value"] = parameter[2]
         try:
             check_parameter_definition(
-                new_param, {}, rel_parameter_names, {}, relationship_class_dict, parameter_value_list_dict
+                new_param,
+                {},
+                rel_parameter_names,
+                {},
+                relationship_class_dict,
+                parameter_value_list_dict,
             )
             new_parameters.append(new_param)
             seen_parameters.add((rc_id, param_name))
@@ -353,32 +394,56 @@ def import_relationships(db_map, relationship_data):
 
     relationships = {x.name: x for x in db_map.wide_relationship_list()}
     relationship_names = {(x.class_id, x.name): x.id for x in relationships.values()}
-    relationship_objects = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
+    relationship_objects = {
+        (x.class_id, x.object_id_list): x.id for x in relationships.values()
+    }
     relationship_class_dict = {
-        x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
+        x.id: {
+            "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")],
+            "name": x.name,
+        }
         for x in db_map.wide_relationship_class_list()
     }
-    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
-    existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
-    existing_relationship_classes = {rc["name"]: rc_id for rc_id, rc in relationship_class_dict.items()}
+    object_dict = {
+        x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()
+    }
+    existing_objects = {
+        (o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()
+    }
+    existing_relationship_classes = {
+        rc["name"]: rc_id for rc_id, rc in relationship_class_dict.items()
+    }
     error_log = []
     new_relationships = []
     seen_relationships = set()
     for rel_class_name, object_names in relationship_data:
         rc_id = existing_relationship_classes.get(rel_class_name, None)
-        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})["object_class_id_list"]
+        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})[
+            "object_class_id_list"
+        ]
         if len(object_names) == len(rc_oc_id):
-            o_ids = tuple(existing_objects.get((n, rc_oc_id[i]), None) for i, n in enumerate(object_names))
+            o_ids = tuple(
+                existing_objects.get((n, rc_oc_id[i]), None)
+                for i, n in enumerate(object_names)
+            )
         else:
             o_ids = tuple(None for n in object_names)
         if (rc_id, o_ids) in seen_relationships:
             continue
         if (rc_id, ",".join(str(o) for o in o_ids)) in relationship_objects:
             continue
-        new_rel = {"name": rel_class_name + "_" + "__".join(object_names), "class_id": rc_id, "object_id_list": o_ids}
+        new_rel = {
+            "name": rel_class_name + "_" + "__".join(object_names),
+            "class_id": rc_id,
+            "object_id_list": o_ids,
+        }
         try:
             check_wide_relationship(
-                new_rel, relationship_names, relationship_objects, relationship_class_dict, object_dict
+                new_rel,
+                relationship_names,
+                relationship_objects,
+                relationship_class_dict,
+                object_dict,
             )
             new_relationships.append(new_rel)
             seen_relationships.add((rc_id, o_ids))
@@ -408,7 +473,10 @@ def import_object_parameter_values(db_map, data):
     """
 
     object_class_dict = {x.name: x.id for x in db_map.object_class_list()}
-    object_parameter_values = {(x.object_id, x.parameter_id): x.id for x in db_map.object_parameter_value_list()}
+    object_parameter_values = {
+        (x.object_id, x.parameter_id): x.id
+        for x in db_map.object_parameter_value_list()
+    }
     parameter_dict = {
         x.id: {
             "name": x.name,
@@ -418,10 +486,18 @@ def import_object_parameter_values(db_map, data):
         }
         for x in db_map.parameter_definition_list()
     }
-    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
-    existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
-    existing_parameters = {(p["name"], p["object_class_id"]): p_id for p_id, p in parameter_dict.items()}
+    object_dict = {
+        x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()
+    }
+    parameter_value_list_dict = {
+        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
+    }
+    existing_objects = {
+        (o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()
+    }
+    existing_parameters = {
+        (p["name"], p["object_class_id"]): p_id for p_id, p in parameter_dict.items()
+    }
     error_log = []
     new_values = []
     update_values = []
@@ -446,7 +522,13 @@ def import_object_parameter_values(db_map, data):
             if (o_id, p_id) in object_parameter_values:
                 object_parameter_values.pop((o_id, p_id))
             check_parameter_value(
-                new_value, object_parameter_values, {}, parameter_dict, object_dict, {}, parameter_value_list_dict
+                new_value,
+                object_parameter_values,
+                {},
+                parameter_dict,
+                object_dict,
+                {},
+                parameter_value_list_dict,
             )
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
@@ -496,12 +578,16 @@ def import_relationship_parameter_values(db_map, data):
     """
 
     relationship_class_dict = {
-        x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
+        x.id: {
+            "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")],
+            "name": x.name,
+        }
         for x in db_map.wide_relationship_class_list()
     }
 
     relationship_parameter_values = {
-        (x.relationship_id, x.parameter_id): x.id for x in db_map.relationship_parameter_value_list()
+        (x.relationship_id, x.parameter_id): x.id
+        for x in db_map.relationship_parameter_value_list()
     }
     parameter_dict = {
         x.id: {
@@ -512,17 +598,33 @@ def import_relationship_parameter_values(db_map, data):
         }
         for x in db_map.parameter_definition_list()
     }
-    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
+    object_dict = {
+        x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()
+    }
     relationship_dict = {
-        x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": [int(i) for i in x.object_id_list.split(",")]}
+        x.id: {
+            "class_id": x.class_id,
+            "name": x.name,
+            "object_id_list": [int(i) for i in x.object_id_list.split(",")],
+        }
         for x in db_map.wide_relationship_list()
     }
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
-    existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
-    existing_parameters = {(p["name"], p["relationship_class_id"]): p_id for p_id, p in parameter_dict.items()}
-    existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
+    parameter_value_list_dict = {
+        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
+    }
+    existing_objects = {
+        (o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()
+    }
+    existing_parameters = {
+        (p["name"], p["relationship_class_id"]): p_id
+        for p_id, p in parameter_dict.items()
+    }
+    existing_relationship_classes = {
+        oc.name: oc.id for oc in db_map.wide_relationship_class_list()
+    }
     existing_relationships = {
-        (r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationship_dict.items()
+        (r["class_id"], tuple(r["object_id_list"])): r_id
+        for r_id, r in relationship_dict.items()
     }
 
     error_log = []
@@ -531,9 +633,14 @@ def import_relationship_parameter_values(db_map, data):
     checked_new_values = set()
     for class_name, object_names, param_name, value in data:
         rc_id = existing_relationship_classes.get(class_name, None)
-        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})["object_class_id_list"]
+        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})[
+            "object_class_id_list"
+        ]
         if len(object_names) == len(rc_oc_id):
-            o_ids = tuple(existing_objects.get((n, rc_oc_id[i]), None) for i, n in enumerate(object_names))
+            o_ids = tuple(
+                existing_objects.get((n, rc_oc_id[i]), None)
+                for i, n in enumerate(object_names)
+            )
         else:
             o_ids = tuple(None for n in object_names)
         rel_key = (rc_id, o_ids)
