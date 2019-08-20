@@ -432,7 +432,11 @@ def import_object_parameter_values(db_map, data):
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": to_database(value)}
+        new_value = {
+            "parameter_definition_id": p_id,
+            "object_id": o_id,
+            "value": to_database(value),
+        }
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -452,7 +456,7 @@ def import_object_parameter_values(db_map, data):
             # new values
             if pv_id is not None:
                 #  update
-                update_values.append({"id": pv_id, "value": str(value)})
+                update_values.append({"id": pv_id, "value": to_database(value)})
             else:
                 # add
                 new_values.append(new_value)
@@ -536,7 +540,11 @@ def import_relationship_parameter_values(db_map, data):
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": to_database(value)}
+        new_value = {
+            "parameter_definition_id": p_id,
+            "relationship_id": r_id,
+            "value": to_database(value),
+        }
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -563,7 +571,7 @@ def import_relationship_parameter_values(db_map, data):
             # new values
             if pv_id is not None:
                 #  update
-                update_values.append({"id": pv_id, "value": str(value)})
+                update_values.append({"id": pv_id, "value": to_database(value)})
             else:
                 # add
                 new_values.append(new_value)
