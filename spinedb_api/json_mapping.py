@@ -305,7 +305,7 @@ class ParameterColumnCollectionMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_row = []
+        last_pivot_rows = []
         if self.extra_dimensions is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
         return max(last_pivot_rows, key=none_is_minus_inf, default=None)
@@ -1086,7 +1086,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
             try:
                 # read the row with each reader
                 for key, reader in row_readers:
-                    data[key].extend(reader(row_data))
+                    data[key].extend([row_value for row_value in reader(row_data) if all(v is not None for v in row_value)])
             except IndexError as e:
                 errors.append((row_number, e))
 
@@ -1123,12 +1123,6 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
 
     data.pop("object_parameter_values_ed", None)
     data.pop("relationship_parameter_values_ed", None)
-
-    # remove None values from parameter_values
-    for k, v in data.items():
-        if k in ("object_parameter_values", "relationship_parameter_values"):
-            data[k] = [item for item in v if item[-1] != None]
-
     return data, errors
 
 
