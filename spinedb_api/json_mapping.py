@@ -31,6 +31,16 @@ PARAMETER = "parameter"
 PARAMETERCOLUMN = "parameter_column"
 PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
 MAPPINGCOLLECTION = "collection"
+VALID_PARAMETER_TYPES = ['time series', 'time pattern', '1d array', 'single value', 'definition']
+
+def valid_mapping_or_value(mapping):
+    if isinstance(mapping, Mapping):
+        valid, msg = mapping.is_valid()
+        if not valid:
+            return False, msg
+    if mapping is None:
+        return False, "No mapping specified."
+    return True, ""
 
 
 def none_is_minus_inf(value):
@@ -159,6 +169,11 @@ class Mapping:
         prepend_str = map_dict.get("prepend_str", None)
         value_reference = map_dict.get("value_reference", None)
         return Mapping(map_type, value_reference, append_str, prepend_str)
+    
+    def is_valid(self):
+        if self.value_reference is None:
+            return False, "Mapping is missing a reference"
+        return True, ""
 
 
 class ParameterMapping:
@@ -168,17 +183,20 @@ class ParameterMapping:
             name: Mapping | str
             value: Mapping | None
             extra_dimensions: [Mapping] | None
+            parameter_type: 'time series' | 'time pattern' | '1d array' | 'single value'
     }
     """
 
-    def __init__(self, name=None, value=None, extra_dimensions=None):
+    def __init__(self, name=None, value=None, extra_dimensions=None, parameter_type='single value'):
 
         self._name = None
         self._value = None
         self._extra_dimensions = None
+        self._parameter_type = None
         self.name = name
         self.value = value
         self.extra_dimensions = extra_dimensions
+        self.parameter_type = parameter_type
         self._map_type = PARAMETER
 
     def non_pivoted_columns(self):
@@ -221,6 +239,18 @@ class ParameterMapping:
     @property
     def extra_dimensions(self):
         return self._extra_dimensions
+    
+    @property
+    def parameter_type(self):
+        return self._parameter_type
+    
+    @parameter_type.setter
+    def parameter_type(self, parameter_type):
+        if not isinstance(parameter_type, str):
+            raise TypeError(f"parameter_type must be str, instead got: {type(parameter_type)}")
+        if parameter_type.lower() not in VALID_PARAMETER_TYPES:
+            raise ValueError(f"parameter_type must be one of the following: {VALID_PARAMETER_TYPES}, instead got {parameter_type}")
+        self._parameter_type = parameter_type
 
     @name.setter
     def name(self, name=None):
@@ -250,9 +280,10 @@ class ParameterMapping:
         name = mapping_from_dict_int_str(map_dict.get("name", None))
         value = mapping_from_dict_int_str(map_dict.get("value", None))
         extra_dimensions = map_dict.get("extra_dimensions", None)
+        parameter_type = map_dict.get("parameter_type", 'single value')
         if isinstance(extra_dimensions, list):
             extra_dimensions = [mapping_from_dict_int_str(ed) for ed in extra_dimensions]
-        return ParameterMapping(name, value, extra_dimensions)
+        return ParameterMapping(name, value, extra_dimensions, parameter_type)
 
     def to_dict(self):
         map_dict = {"map_type": self._map_type}
@@ -274,7 +305,32 @@ class ParameterMapping:
                 extra_dim = extra_dim if isinstance(extra_dim, str) else extra_dim.to_dict()
                 extra_dim_list.append(extra_dim)
             map_dict.update({"extra_dimensions": extra_dim_list})
+        map_dict.update({"parameter_type": self.parameter_type})
         return map_dict
+    
+    def is_valid(self, parent_pivot: bool):
+        # check that parameter mapping has a valid name mapping
+        name_valid, msg = valid_mapping_or_value(self.name)
+        if not name_valid:
+            return False, "Parameter mapping must have a valid name mapping, current name mapping is not valid: " + msg
+        if self.parameter_type != 'definition':
+            # check if value mapping exists
+            if not (self.is_pivoted() or parent_pivot):
+                value_valid, msg = valid_mapping_or_value(self.value)
+                if not value_valid:
+                    return False, "Parameter mapping must have a valid value mapping, current name mapping is not valid: " + msg
+            # check that "single value" and "1d array" doesn't have any extra dimensions
+            if self.parameter_type in ["single value", "1d array"] and self.extra_dimensions:
+                return False, "Parameter mapping of type 'single value' or '1d array' cannot have any extra dimension mappings specified."
+            # check that extra dimension exists if needed
+            if self.parameter_type in ["time series", "time pattern"]:
+                if self.extra_dimensions is None or len(self.extra_dimensions) != 1:
+                    return False, "Parameter mapping of type 'time series' or 'time pattern' must have 1 extra dimensions mapping specified."
+                for extra_dim in self.extra_dimensions:
+                    extra_dim_valid, msg = valid_mapping_or_value(extra_dim)
+                    if not extra_dim_valid:
+                        return False, "Parameter mapping of type 'time series' or 'time pattern' must have valid extra dimensions mapping, current is not valid: " + msg
+        return True, ""
 
 
 class ParameterColumnCollectionMapping:
@@ -623,7 +679,31 @@ class ObjectClassMapping:
         if self.skip_columns:
             map_dict.update(skip_columns=self.skip_columns)
         return map_dict
+    
+    def is_valid(self):
+        # check that parameter mapping has a valid name mapping
+        name_valid, msg = valid_mapping_or_value(self.name)
+        if not name_valid:
+            return False, "Object class mapping must have a valid name mapping, current name mapping is not valid: " + msg
+        
+        #check that object mapping is valid if it exists:
+        if isinstance(self.object, Mapping):
+            object_valid, msg = self.object.is_valid()
+            if not object_valid:
+                return False, "Object class mapping has an invalid object mapping: " + msg
 
+        if self.parameters is not None:
+            # check if parameter mapping is valid if of definition type:
+            param_valid, msg = self.parameters.is_valid(self.is_pivoted())
+            if not param_valid:
+                return False, "Object class mapping has an invalid parameters mapping: " + msg
+
+            # check that object is valid if we have a parameter mapping that has a value mapping
+            if self.parameters.parameter_type != 'definition':
+                object_valid, msg = valid_mapping_or_value(self.object)
+                if not object_valid:
+                    return False, "Object class mapping has a parameter mapping but object mapping is not valid: " + msg
+        return True, ""
 
 class RelationshipClassMapping:
     """Class for holding and validating Mapping specification:
@@ -837,6 +917,48 @@ class RelationshipClassMapping:
         if self.skip_columns:
             map_dict.update(skip_columns=self.skip_columns)
         return map_dict
+    
+    def is_valid(self):
+        # check that parameter mapping has a valid name mapping
+        name_valid, msg = valid_mapping_or_value(self.name)
+        if not name_valid:
+            return False, "Relationship class mapping must have a valid name mapping, current name mapping is not valid: " + msg
+        
+        #check that object class mapping is valid:
+        if not self.object_classes:
+            return False, "Relationship class mapping must have object class mappings."
+        for i, obj_class in enumerate(self.object_classes):
+            oc_valid, msg = valid_mapping_or_value(obj_class)
+            if not oc_valid:
+                return False, "Relationship class mapping must have valid object class mappings. Object class mapping {i} is not valid: " + msg
+
+        has_objects = False
+        all_objects_valid = True
+        if self.objects:
+            has_objects = True
+            all_objects_valid = True
+            for i, obj in enumerate(self.objects):
+                obj_valid, msg = valid_mapping_or_value(obj)
+                if not obj_valid:
+                    all_objects_valid = False
+                    obj_msg = "Object mapping {i} is not valid: " + msg
+            
+        if self.objects:
+            if len(self.object_classes) != len(self.objects):
+                return False, "Relationship class mapping must have same number of object class mappings as object mappings."
+            if not all_objects_valid:
+                return False, "Relationship class mapping must have all valid object mappings. " + obj_msg
+
+        if self.parameters is not None:
+            # check if parameter mapping is valid if of definition type:
+            param_valid, msg = self.parameters.is_valid(self.is_pivoted())
+            if not param_valid:
+                return False, "Relationship class mapping has an invalid parameters mapping: " + msg
+
+            # check that object is valid if we have a parameter mapping that has a value mapping
+            if self.parameters.parameter_type != 'definition' and not all_objects_valid:
+                return False, "Relationship class mapping has a parameter mapping but all object mappings are not valid: " + msg
+        return True, ""
 
 
 class DataMapping:
@@ -918,6 +1040,15 @@ class DataMapping:
                     compatible dictionary, got {map_type}"""
                 )
         return DataMapping(parsed_mappings, has_header)
+    
+    def is_valid(self):
+        msg = ""
+        is_valid = True
+        for mapping in self.mappings:
+            mapping_valid, mapping_msg = mapping.is_valid()
+            msg = msg + mapping_msg
+            is_valid = is_valid and mapping_valid
+        return is_valid, msg
 
 
 def create_read_parameter_functions(mapping, pivoted_data, pivoted_cols, data_header, is_pivoted):
