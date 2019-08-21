@@ -25,6 +25,7 @@ from spinedb_api.json_mapping import (
     Mapping,
     ParameterMapping
 )
+from spinedb_api.parameter_value import TimeSeriesVariableResolution, TimePattern
 
 
 class TestMappingIO(unittest.TestCase):
@@ -567,6 +568,44 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
+    
+    def test_read_flat_file_1d_array(self):
+        input_data = [
+            ["object_class", "object", "parameter", "value"],
+            ["oc1", "obj1", "parameter_name1", 1],
+            ["oc1", "obj1", "parameter_name1", 2],
+        ]
+        self.empty_data.update(
+            {
+                "object_classes": ["oc1", "oc1"],
+                "objects": [("oc1", "obj1"), ("oc1", "obj1")],
+                "object_parameters": [
+                    ("oc1", "parameter_name1"),("oc1", "parameter_name1")
+                ],
+                "object_parameter_values": [
+                    ("oc1", "obj1", "parameter_name1", [1, 2]),
+                ],
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": 0,
+            "object": 1,
+            "parameters": {
+                "map_type": "parameter",
+                "name": "parameter_name1",
+                "value": 3,
+                "parameter_type": "1d array"},
+        }
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
 
     def test_read_flat_file_with_column_name_reference(self):
         input_data = [
@@ -622,6 +661,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
+    @unittest.skip("ColumnMapping will be removed")
     def test_read_columncollection_parameters(self):
         input_data = [
             ["object", "parameter_name1", "parameter_name2"],
@@ -747,8 +787,8 @@ class TestMappingIntegration(unittest.TestCase):
         # mappings with extra dimensions until the data spec is final.
         input_data = [
             ["object", "time", "parameter_name1"],
-            ["obj1", "t1", 1],
-            ["obj1", "t2", 2],
+            ["obj1", "2018-01-01", 1],
+            ["obj1", "2018-01-02", 2],
         ]
         # original test data
         # self.empty_data.update(
@@ -768,7 +808,7 @@ class TestMappingIntegration(unittest.TestCase):
                 "objects": [("object", "obj1"), ("object", "obj1")],
                 "object_parameters": [("object", "parameter_name1")],
                 "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", '[{"t1": 1}, {"t2": 2}]')
+                    ("object", "obj1", "parameter_name1", TimeSeriesVariableResolution(["2018-01-01", "2018-01-02"], [1, 2], False, False))
                 ],
             }
         )
@@ -782,9 +822,11 @@ class TestMappingIntegration(unittest.TestCase):
             "name": "object",
             "object": 0,
             "parameters": {
-                "map_type": "parameter_column_collection",
-                "parameters": [2],
-                "extra_dimensions": ["scenario1", 1],
+                "map_type": "parameter",
+                "name": {"map_type": "column_name", "value_reference": 2},
+                "value": 2,
+                "parameter_type": "time series",
+                "extra_dimensions": [1],
             },
         }
 
@@ -873,7 +915,11 @@ class TestMappingIntegration(unittest.TestCase):
             "name": "unit__node",
             "object_classes": [0, 1],
             "objects": [0, 1],
-            "parameters": [2],
+            "parameters": {
+                "map_type": "parameter",
+                "name": {"map_type": "column_name", "value_reference": 2},
+                "value": 2
+            },
         }
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
@@ -991,8 +1037,8 @@ class TestMappingIntegration(unittest.TestCase):
             ["", "a", "b"],
             ["", "c", "d"],
             ["", "e", "f"],
-            [1, 2, 3],
-            [2, 4, 5],
+            ["a", 2, 3],
+            ["b", 4, 5],
         ]
         # original test
         # self.empty_data.update(
@@ -1007,6 +1053,8 @@ class TestMappingIntegration(unittest.TestCase):
         #    }
         # )
 
+        
+
         self.empty_data.update(
             {
                 "relationship_classes": [("unit__node", ("unit", "node"))],
@@ -1016,8 +1064,8 @@ class TestMappingIntegration(unittest.TestCase):
                     ("unit__node", ("b", "d")),
                 ],
                 "relationship_parameter_values": [
-                    ("unit__node", ("a", "c"), "e", '[{"1": 2}, {"2": 4}]'),
-                    ("unit__node", ("b", "d"), "f", '[{"1": 3}, {"2": 5}]'),
+                    ("unit__node", ("a", "c"), "e", TimePattern(["a", "b"], [2, 4])),
+                    ("unit__node", ("b", "d"), "f", TimePattern(["a", "b"], [3, 5])),
                 ],
             }
         )
@@ -1033,6 +1081,7 @@ class TestMappingIntegration(unittest.TestCase):
             "objects": [{"map_type": "row", "value_reference": i} for i in range(2)],
             "parameters": {
                 "map_type": "parameter",
+                "parameter_type": "time pattern",
                 "name": {"map_type": "row", "value_reference": 2},
                 "extra_dimensions": [0],
             },

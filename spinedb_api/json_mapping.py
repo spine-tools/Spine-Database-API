@@ -20,6 +20,8 @@ from operator import itemgetter
 import itertools
 import json
 
+from .parameter_value import TimeSeriesVariableResolution, TimePattern
+
 
 # Constants for json spec
 ROW = "row"
@@ -705,6 +707,7 @@ class ObjectClassMapping:
                     return False, "Object class mapping has a parameter mapping but object mapping is not valid: " + msg
         return True, ""
 
+
 class RelationshipClassMapping:
     """Class for holding and validating Mapping specification:
     RelationshipClassMapping {
@@ -1231,16 +1234,26 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
     # FIXME: This should probably be moved somewhere else
     new_data = {}
     for k, v in data.items():
-        if k in ("object_parameter_values_ed", "relationship_parameter_values_ed") and v:
+        if any(parameter_type in k for parameter_type in ("time series", "time pattern", "1d array", "2d array")) and v:
             v = sorted(v, key=lambda x: x[:-1])
             new = []
-            for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                # FIXME: Temporary keep only the two last value of values with multiple
-                # dimensions until data storing specs are specified.
-                packed_vals = [{items[-1][-2]: items[-1][-1]} for items in values]
-                packed_vals = json.dumps(packed_vals)
-                new.append(keys + (packed_vals,))
-            if k == "object_parameter_values_ed":
+            if "time series" in k:
+                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
+                    values = list(values)
+                    indexes = [items[-1][0] for items in values]
+                    values = [items[-1][1] for items in values]
+                    new.append(keys + (TimeSeriesVariableResolution(indexes, values, False, False),))
+            if "time pattern" in k:
+                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
+                    values = list(values)
+                    indexes = [items[-1][0] for items in values]
+                    values = [items[-1][1] for items in values]
+                    new.append(keys + (TimePattern(indexes, values),))
+            if "1d array" in k or "2d array" in k:
+                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
+                    new.append(keys + ([items[-1] for items in values],))
+
+            if "object_parameter_values" in k:
                 if "object_parameter_values" in new_data:
                     new_data["object_parameter_values"] = new_data["object_parameter_values"].extend(new)
                 else:
@@ -1258,8 +1271,12 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
     data["object_parameter_values"].extend(new_data.get("object_parameter_values", []))
     data["relationship_parameter_values"].extend(new_data.get("relationship_parameter_values", []))
 
-    data.pop("object_parameter_values_ed", None)
-    data.pop("relationship_parameter_values_ed", None)
+    # remove time series and time pattern raw data
+    existing_keys = list(data.keys())
+    for key in ["time series", "time pattern", "2d array", "1d array"]:
+        for existing_key in existing_keys:
+            if key in existing_key:
+                data.pop(existing_key, None)
     return data, errors
 
 
@@ -1315,9 +1332,10 @@ def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
     p_v_getter, p_v_num, p_v_reads = parameter_getters["value"]
 
     readers = []
-    if parameter_getters.get("has_extra_dimensions", False):
-        pv_key = "object_parameter_values_ed"
-        pv_r_key = "relationship_parameter_values_ed"
+
+    if mapping.parameters is not None and mapping.parameters.parameter_type in ["time series", "time pattern", "1d array", "2d array"]:
+        pv_key = "object_parameter_values" + mapping.parameters.parameter_type
+        pv_r_key = "relationship_parameter_values" + mapping.parameters.parameter_type
     else:
         pv_key = "object_parameter_values"
         pv_r_key = "relationship_parameter_values"
