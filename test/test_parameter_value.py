@@ -30,6 +30,7 @@ from spinedb_api.parameter_value import (
     to_database,
     DateTime,
     Duration,
+    IndexedValue,
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
@@ -230,6 +231,15 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(
             value_as_dict,
             {"type": "time_pattern", "data": {"m1-4,m9-12": 300.0, "m5-8": 221.5}},
+        )
+
+    def test_TimePattern_to_database_with_integer_values(self):
+        value = TimePattern(["m1-4,m9-12", "m5-8"], [300, 221])
+        database_value = value.to_database()
+        value_as_dict = json.loads(database_value)
+        self.assertEqual(
+            value_as_dict,
+            {"type": "time_pattern", "data": {"m1-4,m9-12": 300.0, "m5-8": 221.0}},
         )
 
     def test_from_database_TimeSeriesVariableResolution_as_dictionary(self):
@@ -617,6 +627,14 @@ class TestParameterValue(unittest.TestCase):
             ["2000-01-01T00:00", "2002-01-01T00:00"], [4.2, 2.4], True, True
         )
         self.assertNotEqual(series, inequal_series)
+
+    def test_IndexedValue_constructor_converts_values_to_floats(self):
+        value = IndexedValue([4, -9, 11])
+        self.assertEqual(value.values.dtype, np.dtype(float))
+        numpy.testing.assert_equal(value.values, numpy.array([4.0, -9.0, 11.0]))
+        value = IndexedValue(numpy.array([16, -251, 99]))
+        self.assertEqual(value.values.dtype, np.dtype(float))
+        numpy.testing.assert_equal(value.values, numpy.array([16.0, -251.0, 99.0]))
 
 
 if __name__ == "__main__":

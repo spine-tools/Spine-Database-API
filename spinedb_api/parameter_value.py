@@ -396,8 +396,8 @@ class IndexedValue:
     """
 
     def __init__(self, values):
-        if not isinstance(values, np.ndarray):
-            values = np.array(values)
+        if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
+            values = np.array(values, dtype=float)
         self._values = values
 
     def __len__(self):
