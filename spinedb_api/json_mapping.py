@@ -1107,6 +1107,10 @@ def create_read_parameter_functions(mapping, pivoted_data, pivoted_cols, data_he
             p_v_getter, p_v_num, p_v_reads = create_pivot_getter_function(
                 mapping.value, pivoted_data, pivoted_cols, data_header
             )
+        if mapping.parameter_type == "definition":
+            p_v_num = None
+            p_v_getter = None
+            p_v_reads = None
 
     # extra dimensions for parameter
     if mapping.extra_dimensions and p_v_getter is not None:
