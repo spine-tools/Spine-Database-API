@@ -44,10 +44,8 @@ class DiffDatabaseMappingAddMixin:
             metadata,
             Column("user", String(155), primary_key=True),
             Column("date", String(155), primary_key=True),
-            Column("object_class_id", Integer, server_default=null()),
-            Column("object_id", Integer, server_default=null()),
-            Column("relationship_class_id", Integer, server_default=null()),
-            Column("relationship_id", Integer, server_default=null()),
+            Column("entity_id", Integer, server_default=null()),
+            Column("class_id", Integer, server_default=null()),
             Column("parameter_definition_id", Integer, server_default=null()),
             Column("parameter_value_id", Integer, server_default=null()),
             Column("parameter_tag_id", Integer, server_default=null()),
@@ -95,7 +93,9 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_object_classes_for_insert(*item_list, strict=strict)
+        checked_item_list, intgr_error_log = self.check_object_classes_for_insert(
+            *item_list, strict=strict
+        )
         id_list = self._add_object_classes(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -114,10 +114,10 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.object_class_id:
-            id = next_id.object_class_id
+        if next_id.class_id:
+            id = next_id.class_id
         else:
-            max_id = self.query(func.max(self.ObjectClass.id)).scalar()
+            max_id = self.query(func.max(self.Class.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
@@ -126,10 +126,10 @@ class DiffDatabaseMappingAddMixin:
                 item["id"] = id
                 items_to_add.append(item)
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffObjectClass, items_to_add)
-            next_id.object_class_id = id
+            self.session.bulk_insert_mappings(self.DiffClass, items_to_add)
+            next_id.class_id = id
             self.session.commit()
-            self.added_item_id["object_class"].update(id_list)
+            self.added_item_id["class"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -149,7 +149,9 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_objects_for_insert(*item_list, strict=strict)
+        checked_item_list, intgr_error_log = self.check_objects_for_insert(
+            *item_list, strict=strict
+        )
         id_list = self._add_objects(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -166,29 +168,32 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.object_id:
-            id = next_id.object_id
+        if next_id.entity_id:
+            id = next_id.entity_id
         else:
-            max_id = self.query(func.max(self.Object.id)).scalar()
+            max_id = self.query(func.max(self.Entity.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
             id_list = set(range(id, id + len(item_list)))
             for item in item_list:
                 item["id"] = id
+                item["type_id"] = self.object_entity_type
                 items_to_add.append(item)
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffObject, items_to_add)
-            next_id.object_id = id
+            self.session.bulk_insert_mappings(self.DiffEntity, items_to_add)
+            next_id.entity_id = id
             self.session.commit()
-            self.added_item_id["object"].update(id_list)
+            self.added_item_id["entity"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(self, *wide_item_list, strict=False, return_dups=False):
+    def add_wide_relationship_classes(
+        self, *wide_item_list, strict=False, return_dups=False
+    ):
         """Stage relationship class items for insertion.
 
         :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
@@ -222,32 +227,47 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.relationship_class_id:
-            id = next_id.relationship_class_id
+        if next_id.class_id:
+            id = next_id.class_id
         else:
-            max_id = self.query(func.max(self.RelationshipClass.id)).scalar()
+            max_id = self.query(func.max(self.Class.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
+            entities_to_add = list()
             id_list = set(range(id, id + len(wide_item_list)))
             for wide_item in wide_item_list:
-                for dimension, object_class_id in enumerate(wide_item["object_class_id_list"]):
+                entities_to_add.append(
+                    {
+                        "id": id,
+                        "name": wide_item["name"],
+                        "type_id": self.relationship_class_type,
+                    }
+                )
+                for dimension, object_class_id in enumerate(
+                    wide_item["object_class_id_list"]
+                ):
                     narrow_item = {
                         "id": id,
+                        "type_id": self.relationship_class_type,
                         "dimension": dimension,
-                        "object_class_id": object_class_id,
-                        "name": wide_item["name"],
+                        "member_id": object_class_id,
+                        "member_type_id": self.object_class_type,
                     }
                     items_to_add.append(narrow_item)
                 id += 1
+            self.session.bulk_insert_mappings(self.DiffClass, entities_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationshipClass, items_to_add)
-            next_id.relationship_class_id = id
+            next_id.class_id = id
             self.session.commit()
+            self.added_item_id["class"].update(id_list)
             self.added_item_id["relationship_class"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting relationship classes: {}".format(
+                e.orig.args
+            )
             raise SpineDBAPIError(msg)
 
     def add_wide_relationships(self, *wide_item_list, strict=False, return_dups=False):
@@ -282,28 +302,43 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.relationship_id:
-            id = next_id.relationship_id
+        if next_id.entity_id:
+            id = next_id.entity_id
         else:
-            max_id = self.query(func.max(self.Relationship.id)).scalar()
+            max_id = self.query(func.max(self.Entity.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
+            entities_to_add = list()
             id_list = set(range(id, id + len(wide_item_list)))
             for wide_item in wide_item_list:
-                for dimension, object_id in enumerate(wide_item["object_id_list"]):
+                entities_to_add.append(
+                    {
+                        "id": id,
+                        "type_id": self.relationship_entity_type,
+                        "class_id": wide_item["class_id"],
+                        "name": wide_item["name"],
+                    }
+                )
+                for dimension, (object_id, object_class_id) in enumerate(
+                    zip(wide_item["object_id_list"], wide_item["object_class_id_list"])
+                ):
                     narrow_item = {
                         "id": id,
+                        "type_id": self.relationship_entity_type,
                         "class_id": wide_item["class_id"],
                         "dimension": dimension,
-                        "object_id": object_id,
-                        "name": wide_item["name"],
+                        "member_id": object_id,
+                        "member_type_id": self.object_entity_type,
+                        "member_class_id": object_class_id,
                     }
                     items_to_add.append(narrow_item)
                 id += 1
+            self.session.bulk_insert_mappings(self.DiffEntity, entities_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationship, items_to_add)
-            next_id.relationship_id = id
+            next_id.entity_id = id
             self.session.commit()
+            self.added_item_id["entity"].update(id_list)
             self.added_item_id["relationship"].update(id_list)
             return id_list
         except DBAPIError as e:
@@ -324,7 +359,9 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_definitions_for_insert(*item_list, strict=strict)
+        checked_item_list, intgr_error_log = self.check_parameter_definitions_for_insert(
+            *item_list, strict=strict
+        )
         id_list = self._add_parameter_definitions(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -353,7 +390,9 @@ class DiffDatabaseMappingAddMixin:
                 item["id"] = id
                 items_to_add.append(item)
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffParameterDefinition, items_to_add)
+            self.session.bulk_insert_mappings(
+                self.DiffParameterDefinition, items_to_add
+            )
             next_id.parameter_definition_id = id
             self.session.commit()
             self.added_item_id["parameter_definition"].update(id_list)
@@ -376,7 +415,9 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_values_for_insert(*item_list, strict=strict)
+        checked_item_list, intgr_error_log = self.check_parameter_values_for_insert(
+            *item_list, strict=strict
+        )
         id_list = self._add_parameter_values(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -425,7 +466,9 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_tags_for_insert(*item_list, strict=strict)
+        checked_item_list, intgr_error_log = self.check_parameter_tags_for_insert(
+            *item_list, strict=strict
+        )
         id_list = self._add_parameter_tags(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -461,7 +504,9 @@ class DiffDatabaseMappingAddMixin:
             msg = "DBAPIError while inserting parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_definition_tags(self, *item_list, strict=False, return_dups=False):
+    def add_parameter_definition_tags(
+        self, *item_list, strict=False, return_dups=False
+    ):
         """Stage parameter definition tag items for insertion.
 
         :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
@@ -474,7 +519,9 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_definition_tags_for_insert(*item_list, strict=strict)
+        checked_item_list, intgr_error_log = self.check_parameter_definition_tags_for_insert(
+            *item_list, strict=strict
+        )
         id_list = self._add_parameter_definition_tags(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
@@ -500,17 +547,23 @@ class DiffDatabaseMappingAddMixin:
                 item["id"] = id
                 items_to_add.append(item)
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffParameterDefinitionTag, items_to_add)
+            self.session.bulk_insert_mappings(
+                self.DiffParameterDefinitionTag, items_to_add
+            )
             next_id.parameter_definition_tag_id = id
             self.session.commit()
             self.added_item_id["parameter_definition_tag"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting parameter definition tags: {}".format(
+                e.orig.args
+            )
             raise SpineDBAPIError(msg)
 
-    def add_wide_parameter_value_lists(self, *wide_item_list, strict=False, return_dups=False):
+    def add_wide_parameter_value_lists(
+        self, *wide_item_list, strict=False, return_dups=False
+    ):
         """Stage parameter value-list items for insertion.
 
         :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
@@ -549,7 +602,12 @@ class DiffDatabaseMappingAddMixin:
             id_list = set(range(id, id + len(wide_item_list)))
             for wide_item in wide_item_list:
                 for k, value in enumerate(wide_item["value_list"]):
-                    narrow_item = {"id": id, "name": wide_item["name"], "value_index": k, "value": value}
+                    narrow_item = {
+                        "id": id,
+                        "name": wide_item["name"],
+                        "value_index": k,
+                        "value": value,
+                    }
                     items_to_add.append(narrow_item)
                 id += 1
             self.session.bulk_insert_mappings(self.DiffParameterValueList, items_to_add)
@@ -559,7 +617,9 @@ class DiffDatabaseMappingAddMixin:
             return id_list
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting parameter value lists: {}".format(
+                e.orig.args
+            )
             raise SpineDBAPIError(msg)
 
     def add_object_class(self, **kwargs):

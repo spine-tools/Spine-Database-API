@@ -42,8 +42,10 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.diff_prefix = None
         # Diff classes
         self.DiffCommit = None
-        self.DiffObjectClass = None
-        self.DiffObject = None
+        self.DiffClass = None
+        self.DiffClassType = None
+        self.DiffEntity = None
+        self.DiffEntityType = None
         self.DiffRelationshipClass = None
         self.DiffRelationship = None
         self.DiffParameterDefinition = None
@@ -72,7 +74,9 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """Create diff tables and ORM."""
         # Create tables...
         diff_name_prefix = "diff_" + self.username
-        self.diff_prefix = diff_name_prefix + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
+        self.diff_prefix = (
+            diff_name_prefix + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
+        )
         metadata = MetaData(self.engine)
         metadata.reflect()
         diff_metadata = MetaData()
@@ -81,7 +85,12 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             if t.name.startswith(diff_name_prefix) or t.name == "next_id":
                 continue
             diff_columns = [c.copy() for c in t.columns]
-            diff_table = Table(self.diff_prefix + t.name, diff_metadata, *diff_columns, prefixes=["TEMPORARY"])
+            diff_table = Table(
+                self.diff_prefix + t.name,
+                diff_metadata,
+                *diff_columns,
+                prefixes=["TEMPORARY"]
+            )
         diff_metadata.drop_all(self.engine)
         # NOTE: Using `self.connection` below allows `self.session` to see the temp tables
         diff_metadata.create_all(self.connection)
@@ -91,7 +100,11 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         not_found = []
         for tablename, classname in self.table_to_class.items():
             try:
-                setattr(self, "Diff" + classname, getattr(DiffBase.classes, self.diff_prefix + tablename))
+                setattr(
+                    self,
+                    "Diff" + classname,
+                    getattr(DiffBase.classes, self.diff_prefix + tablename),
+                )
             except (NoSuchTableError, AttributeError):
                 not_found.append(tablename)
         if not_found:
@@ -137,8 +150,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
 
     def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
-        self.query(self.DiffObjectClass).delete()
-        self.query(self.DiffObject).delete()
+        self.query(self.DiffClass).delete()
+        self.query(self.DiffEntity).delete()
         self.query(self.DiffRelationshipClass).delete()
         self.query(self.DiffRelationship).delete()
         self.query(self.DiffParameterDefinition).delete()

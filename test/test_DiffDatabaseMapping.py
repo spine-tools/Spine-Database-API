@@ -44,7 +44,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         except OSError:
             pass
         db_url = "sqlite:///temp.sqlite"
-        engine = create_new_spine_database(db_url)
+        engine = create_new_spine_database(db_url, upgrade=False)
         cls.db_map = DiffDatabaseMapping(db_url, username="UnitTest")
 
     @classmethod
@@ -73,10 +73,12 @@ class TestDiffDatabaseMapping(unittest.TestCase):
 
     def test_insert_many_objects_and_commit(self):
         """Tests inserting many objects into db"""
-        c_id = self.db_map.add_object_classes({"name": "testclass"})[0].first().id
-        self.db_map.add_objects(*[{"name": str(i), "class_id": c_id} for i in range(1001)])
+
+        new_item_list, intgr_error_log = self.db_map.add_object_classes({"name": "testclass"})
+        c_id = new_item_list.first()
+        self.db_map.add_objects(*[{"name": str(i), "class_id": c_id.id} for i in range(1001)])
         self.db_map.commit_session("test_commit")
-        self.assertEqual(self.db_map.session.query(self.db_map.Object).count(), 1001)
+        self.assertEqual(self.db_map.session.query(self.db_map.Entity).count(), 1001)
 
     def test_insert_and_retrieve_many_objects(self):
         """Tests inserting many objects into db and retrieving them."""
@@ -93,7 +95,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_object_classes(self):
         """Test that adding object classes works."""
         self.db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
-        object_classes = self.db_map.session.query(self.db_map.DiffObjectClass).all()
+        object_classes = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.object_class_type).all()
         self.assertEqual(len(object_classes), 2)
         self.assertEqual(object_classes[0].name, "fish")
         self.assertEqual(object_classes[1].name, "dog")
@@ -101,7 +103,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_object_classes_with_same_name(self):
         """Test that adding two object classes with the same name only adds one of them."""
         self.db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
-        object_classes = self.db_map.session.query(self.db_map.DiffObjectClass).all()
+        object_classes = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.object_class_type).all()
         self.assertEqual(len(object_classes), 1)
         self.assertEqual(object_classes[0].name, "fish")
 
@@ -117,7 +119,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
             mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
-        objects = self.db_map.session.query(self.db_map.DiffObject).all()
+        objects = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.object_entity_type).all()
         self.assertEqual(len(objects), 2)
         self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
@@ -129,7 +131,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
             mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
-        objects = self.db_map.session.query(self.db_map.DiffObject).all()
+        objects = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.object_entity_type).all()
         self.assertEqual(len(objects), 1)
         self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
@@ -164,16 +166,15 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 {"name": "fish__dog", "object_class_id_list": [1, 2]},
                 {"name": "fishy_doggy", "object_class_id_list": [1, 2]},
             )
-        relationship_classes = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
-        self.assertEqual(len(relationship_classes), 4)
-        self.assertEqual(relationship_classes[0].name, "fish__dog")
-        self.assertEqual(relationship_classes[0].object_class_id, 1)
-        self.assertEqual(relationship_classes[1].name, "fish__dog")
-        self.assertEqual(relationship_classes[1].object_class_id, 2)
-        self.assertEqual(relationship_classes[2].name, "fishy_doggy")
-        self.assertEqual(relationship_classes[2].object_class_id, 1)
-        self.assertEqual(relationship_classes[3].name, "fishy_doggy")
-        self.assertEqual(relationship_classes[3].object_class_id, 2)
+        relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
+        relationships = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.relationship_class_type).all()
+        self.assertEqual(len(relationship_members), 4)
+        self.assertEqual(relationships[0].name, "fish__dog")
+        self.assertEqual(relationship_members[0].member_id, 1)
+        self.assertEqual(relationship_members[1].member_id, 2)
+        self.assertEqual(relationships[1].name, "fishy_doggy")
+        self.assertEqual(relationship_members[2].member_id, 1)
+        self.assertEqual(relationship_members[3].member_id, 2)
 
     def test_add_relationship_classes_with_same_name(self):
         """Test that adding two relationship classes with the same name only adds one of them."""
@@ -188,12 +189,13 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 {"name": "dog__fish", "object_class_id_list": [1, 2]},
                 {"name": "dog__fish", "object_class_id_list": [1, 2]},
             )
-        relationship_classes = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
-        self.assertEqual(len(relationship_classes), 2)
-        self.assertEqual(relationship_classes[0].name, "dog__fish")
-        self.assertEqual(relationship_classes[0].object_class_id, 1)
-        self.assertEqual(relationship_classes[1].name, "dog__fish")
-        self.assertEqual(relationship_classes[1].object_class_id, 2)
+        relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
+        relationships = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.relationship_class_type).all()
+        self.assertEqual(len(relationship_members), 2)
+        self.assertEqual(len(relationships), 1)
+        self.assertEqual(relationships[0].name, "dog__fish")
+        self.assertEqual(relationship_members[0].member_id, 1)
+        self.assertEqual(relationship_members[1].member_id, 2)
 
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
@@ -242,20 +244,20 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 3]},
                 {"name": "scooby_dory", "class_id": 2, "object_id_list": [4, 2]},
             )
-        relationships = self.db_map.session.query(self.db_map.DiffRelationship).all()
-        self.assertEqual(len(relationships), 4)
+        relationships_member = self.db_map.session.query(self.db_map.DiffRelationship).all()
+        relationships = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.relationship_entity_type).all()
+        self.assertEqual(len(relationships_member), 4)
+        self.assertEqual(len(relationships), 2)
         self.assertEqual(relationships[0].name, "nemo__pluto")
-        self.assertEqual(relationships[0].class_id, 1)
-        self.assertEqual(relationships[0].object_id, 1)
-        self.assertEqual(relationships[1].name, "nemo__pluto")
-        self.assertEqual(relationships[1].class_id, 1)
-        self.assertEqual(relationships[1].object_id, 3)
-        self.assertEqual(relationships[2].name, "scooby_dory")
-        self.assertEqual(relationships[2].class_id, 2)
-        self.assertEqual(relationships[2].object_id, 4)
-        self.assertEqual(relationships[3].name, "scooby_dory")
-        self.assertEqual(relationships[3].class_id, 2)
-        self.assertEqual(relationships[3].object_id, 2)
+        self.assertEqual(relationships_member[0].class_id, 1)
+        self.assertEqual(relationships_member[0].member_id, 1)
+        self.assertEqual(relationships_member[1].class_id, 1)
+        self.assertEqual(relationships_member[1].member_id, 3)
+        self.assertEqual(relationships[1].name, "scooby_dory")
+        self.assertEqual(relationships_member[2].class_id, 2)
+        self.assertEqual(relationships_member[2].member_id, 4)
+        self.assertEqual(relationships_member[3].class_id, 2)
+        self.assertEqual(relationships_member[3].member_id, 2)
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one.
@@ -276,12 +278,10 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             )
         relationships = self.db_map.session.query(self.db_map.DiffRelationship).all()
         self.assertEqual(len(relationships), 2)
-        self.assertEqual(relationships[0].name, "nemo__pluto")
         self.assertEqual(relationships[0].class_id, 1)
-        self.assertEqual(relationships[0].object_id, 1)
-        self.assertEqual(relationships[1].name, "nemo__pluto")
+        self.assertEqual(relationships[0].member_id, 1)
         self.assertEqual(relationships[1].class_id, 1)
-        self.assertEqual(relationships[1].object_id, 2)
+        self.assertEqual(relationships[1].member_id, 2)
 
     def test_add_relationship_identical_to_existing_one(self):
         """Test that adding a relationship with the same class and same objects as an existing one
@@ -358,11 +358,9 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
-        self.assertEqual(parameter_definitions[0].object_class_id, 1)
-        self.assertIsNone(parameter_definitions[0].relationship_class_id)
+        self.assertEqual(parameter_definitions[0].class_id, 1)
         self.assertEqual(parameter_definitions[1].name, "relative_speed")
-        self.assertIsNone(parameter_definitions[1].object_class_id)
-        self.assertEqual(parameter_definitions[1].relationship_class_id, 10)
+        self.assertEqual(parameter_definitions[1].class_id, 10)
 
     def test_add_parameter_definitions_with_same_name(self):
         """Test that adding two parameter_definitions with the same name adds both of them."""
@@ -379,8 +377,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
-        self.assertEqual(parameter_definitions[0].object_class_id, 1)
-        self.assertIsNone(parameter_definitions[0].relationship_class_id)
+        self.assertEqual(parameter_definitions[0].class_id, 1)
 
     def test_add_parameter_with_same_name_as_existing_one(self):
         """Test that adding parameter_definitions with an already taken name raises and integrity error."""
@@ -435,7 +432,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_wide_rel_list.return_value = [
-                KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple([2, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
             mock_parameter_definition_list.return_value = [
                 KeyedTuple(
@@ -449,17 +446,15 @@ class TestDiffDatabaseMapping(unittest.TestCase):
             ]
             self.db_map.add_parameter_values(
                 {"parameter_definition_id": 1, "object_id": 1, "value": '"orange"'},
-                {"parameter_definition_id": 2, "relationship_id": 1, "value": "125"},
+                {"parameter_definition_id": 2, "relationship_id": 2, "value": "125"},
             )
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 2)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
-        self.assertEqual(parameter_values[0].object_id, 1)
-        self.assertIsNone(parameter_values[0].relationship_id)
+        self.assertEqual(parameter_values[0].entity_id, 1)
         self.assertEqual(parameter_values[0].value, '"orange"')
         self.assertEqual(parameter_values[1].parameter_definition_id, 2)
-        self.assertIsNone(parameter_values[1].object_id)
-        self.assertEqual(parameter_values[1].relationship_id, 1)
+        self.assertEqual(parameter_values[1].entity_id, 2)
         self.assertEqual(parameter_values[1].value, "125")
 
     def test_add_parameter_value_for_both_object_and_relationship(self):
@@ -588,8 +583,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 1)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
-        self.assertEqual(parameter_values[0].object_id, 1)
-        self.assertIsNone(parameter_values[0].relationship_id)
+        self.assertEqual(parameter_values[0].entity_id, 1)
         self.assertEqual(parameter_values[0].value, '"orange"')
 
     def test_add_existing_parameter_value(self):

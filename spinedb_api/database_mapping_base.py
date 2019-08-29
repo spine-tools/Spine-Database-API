@@ -17,7 +17,8 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, MetaData
+from sqlalchemy import create_engine, inspect, func, MetaData, case
+from sqlalchemy.sql.expression import label, bindparam
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
@@ -51,8 +52,10 @@ class DatabaseMappingBase(object):
         self.connection = None
         self.session = None
         self.Commit = None
-        self.ObjectClass = None
-        self.Object = None
+        self.ClassType = None
+        self.Class = None
+        self.EntityType = None
+        self.Entity = None
         self.RelationshipClass = None
         self.Relationship = None
         self.ParameterDefinition = None
@@ -60,7 +63,17 @@ class DatabaseMappingBase(object):
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
+        # class and entity type id
+        self._object_class_type = None
+        self._relationship_class_type = None
+        self._object_entity_type = None
+        self._relationship_entity_type = None
         # Subqueries that select everything from each table
+        self._class_sq = None
+        self._entity_sq = None
+        self._class_type_sq = None
+        self._entity_type_sq = None
+        self._object_sq = None
         self._object_class_sq = None
         self._object_sq = None
         self._relationship_class_sq = None
@@ -88,8 +101,10 @@ class DatabaseMappingBase(object):
         # Table to class dict for convenience
         self.table_to_class = {
             "commit": "Commit",
-            "object_class": "ObjectClass",
-            "object": "Object",
+            "class": "Class",
+            "class_type": "ClassType",
+            "entity": "Entity",
+            "entity_type": "EntityType",
             "relationship_class": "RelationshipClass",
             "relationship": "Relationship",
             "parameter_definition": "ParameterDefinition",
@@ -99,7 +114,7 @@ class DatabaseMappingBase(object):
             "parameter_value_list": "ParameterValueList",
         }
         self._create_engine_and_session()
-        self._check_db_version(upgrade=upgrade)
+        # self._check_db_version(upgrade=upgrade)
         self._create_mapping()
 
     def _create_engine_and_session(self):
@@ -133,20 +148,34 @@ class DatabaseMappingBase(object):
                 # a non-upgraded new Spine db --otherwise we can't go on.
                 ref_engine = create_new_spine_database("sqlite://", upgrade=False)
                 if not schemas_are_equal(self.engine, ref_engine):
-                    raise SpineDBAPIError("The db at '{0}' doesn't seem like a valid Spine db.".format(self.db_url))
+                    raise SpineDBAPIError(
+                        "The db at '{0}' doesn't seem like a valid Spine db.".format(
+                            self.db_url
+                        )
+                    )
             if current == head:
                 return
             if not upgrade:
-                raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
+                raise SpineDBVersionError(
+                    url=self.db_url, current=current, expected=head
+                )
 
             # Upgrade function
             def upgrade_to_head(rev, context):
                 return script._upgrade_revs("head", rev)
 
             with EnvironmentContext(
-                config, script, fn=upgrade_to_head, as_sql=False, starting_rev=None, destination_rev="head", tag=None
+                config,
+                script,
+                fn=upgrade_to_head,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="head",
+                tag=None,
             ) as environment_context:
-                environment_context.configure(connection=connection, target_metadata=None)
+                environment_context.configure(
+                    connection=connection, target_metadata=None
+                )
                 with environment_context.begin_transaction():
                     environment_context.run_migrations()
 
@@ -190,10 +219,6 @@ class DatabaseMappingBase(object):
         """
         return self.session.query(*args, **kwargs)
 
-        db_map.query(db_map.object_class_sq.c.name, func.group_concat(db_map.object_sq.c.name)).filter(
-            db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
-        ).group_by(db_map.object_class_sq.c.name).all()
-
     def _subquery(self, tablename):
         """A subquery of the form:
 
@@ -206,7 +231,109 @@ class DatabaseMappingBase(object):
         """
         classname = self.table_to_class[tablename]
         class_ = getattr(self, classname)
-        return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+        return self.query(
+            *[c.label(c.name) for c in inspect(class_).mapper.columns]
+        ).subquery()
+
+    @property
+    def object_class_type(self):
+        if self._object_class_type is None:
+            result = (
+                self.query(self.class_type_sq)
+                .filter(self.class_type_sq.c.name == "object")
+                .first()
+            )
+            self._object_class_type = result.id
+        return self._object_class_type
+
+    @property
+    def relationship_class_type(self):
+        if self._relationship_class_type is None:
+            result = (
+                self.query(self.class_type_sq)
+                .filter(self.class_type_sq.c.name == "relationship")
+                .first()
+            )
+            self._relationship_class_type = result.id
+        return self._relationship_class_type
+
+    @property
+    def object_entity_type(self):
+        if self._object_entity_type is None:
+            result = (
+                self.query(self.entity_type_sq)
+                .filter(self.entity_type_sq.c.name == "object")
+                .first()
+            )
+            self._object_entity_type = result.id
+        return self._object_entity_type
+
+    @property
+    def relationship_entity_type(self):
+        if self._relationship_entity_type is None:
+            result = (
+                self.query(self.entity_type_sq)
+                .filter(self.entity_type_sq.c.name == "relationship")
+                .first()
+            )
+            self._relationship_entity_type = result.id
+        return self._relationship_entity_type
+
+    @property
+    def class_type_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM class_type
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._class_type_sq is None:
+            self._class_type_sq = self._subquery("class_type")
+        return self._class_type_sq
+
+    @property
+    def entity_type_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM class_type
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._entity_type_sq is None:
+            self._entity_type_sq = self._subquery("entity_type")
+        return self._entity_type_sq
+
+    @property
+    def class_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM class
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._class_sq is None:
+            self._class_sq = self._subquery("class")
+        return self._class_sq
+
+    @property
+    def entity_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM entity
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._entity_sq is None:
+            self._entity_sq = self._subquery("entity")
+        return self._entity_sq
 
     @property
     def object_class_sq(self):
@@ -219,7 +346,20 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_class_sq is None:
-            self._object_class_sq = self._subquery("object_class")
+            
+            self._object_class_sq = (
+                self.query(
+                    self.class_sq.c.id.label("id"),
+                    self.class_sq.c.name.label("name"),
+                    self.class_sq.c.description.label("description"),
+                    self.class_sq.c.display_order.label("display_order"),
+                    self.class_sq.c.display_icon.label("display_icon"),
+                    self.class_sq.c.hidden.label("hidden"),
+                    self.class_sq.c.commit_id.label("commit_id"),
+                )
+                .filter(self.class_sq.c.type_id == self.object_class_type)
+                .subquery()
+            )
         return self._object_class_sq
 
     @property
@@ -233,7 +373,17 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_sq is None:
-            self._object_sq = self._subquery("object")
+            self._object_sq = (
+                self.query(
+                    self.entity_sq.c.id.label("id"),
+                    self.entity_sq.c.class_id.label("class_id"),
+                    self.entity_sq.c.name.label("name"),
+                    self.entity_sq.c.description.label("description"),
+                    self.entity_sq.c.commit_id.label("commit_id"),
+                )
+                .filter(self.entity_sq.c.type_id == self.object_entity_type)
+                .subquery()
+            )
         return self._object_sq
 
     @property
@@ -247,7 +397,19 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_class_sq is None:
-            self._relationship_class_sq = self._subquery("relationship_class")
+            rel_class_sq = self._subquery("relationship_class")
+            self._relationship_class_sq = (
+                self.query(
+                    rel_class_sq.c.id.label("id"),
+                    rel_class_sq.c.dimension.label("dimension"),
+                    rel_class_sq.c.member_id.label("object_class_id"),
+                    self.class_sq.c.name.label("name"),
+                    self.class_sq.c.hidden.label("hidden"),
+                    self.class_sq.c.commit_id.label("commit_id"),
+                )
+                .filter(self.class_sq.c.id == rel_class_sq.c.id)
+                .subquery()
+            )
         return self._relationship_class_sq
 
     @property
@@ -261,7 +423,19 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_sq is None:
-            self._relationship_sq = self._subquery("relationship")
+            rel_sq = self._subquery("relationship")
+            self._relationship_sq = (
+                self.query(
+                    rel_sq.c.id.label("id"),
+                    rel_sq.c.dimension.label("dimension"),
+                    rel_sq.c.member_id.label("object_id"),
+                    rel_sq.c.class_id.label("class_id"),
+                    self.entity_sq.c.name.label("name"),
+                    self.entity_sq.c.commit_id.label("commit_id"),
+                )
+                .filter(self.entity_sq.c.id == rel_sq.c.id)
+                .subquery()
+            )
         return self._relationship_sq
 
     @property
@@ -274,8 +448,24 @@ class DatabaseMappingBase(object):
 
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
+
         if self._parameter_definition_sq is None:
-            self._parameter_definition_sq = self._subquery("parameter_definition")
+            par_def_sq = self._subquery("parameter_definition")
+
+            object_class_case = case([(self.class_sq.c.type_id == self.object_class_type, par_def_sq.c.class_id),], else_ = None)
+            rel_class_case = case([(self.class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.class_id),], else_ = None)
+
+            self._parameter_definition_sq = self.query(
+                par_def_sq.c.id.label("id"),
+                par_def_sq.c.name.label("name"),
+                par_def_sq.c.description.label("description"),
+                par_def_sq.c.data_type.label("data_type"),
+                label("object_class_id",object_class_case),
+                label("relationship_class_id",rel_class_case),
+                par_def_sq.c.default_value.label("default_value"),
+                par_def_sq.c.commit_id.label("commit_id"),
+                par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
+            ).join(self.class_sq, self.class_sq.c.id == par_def_sq.c.class_id).subquery()
         return self._parameter_definition_sq
 
     @property
@@ -289,7 +479,19 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_sq is None:
-            self._parameter_value_sq = self._subquery("parameter_value")
+            par_val_sq = self._subquery("parameter_value")
+            object_entity_case = case([(self.entity_sq.c.type_id == self.object_entity_type, par_val_sq.c.entity_id),], else_ = None)
+            rel_entity_case = case([(self.entity_sq.c.type_id == self.relationship_entity_type, par_val_sq.c.entity_id),], else_ = None)
+
+            self._parameter_value_sq = self.query(
+                par_val_sq.c.id.label("id"),
+                par_val_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                label("relationship_id", rel_entity_case),
+                label("object_id", object_entity_case),
+                par_val_sq.c.value.label("value"),
+                par_val_sq.c.commit_id.label("commit_id"),
+            ).join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id).subquery()
+
         return self._parameter_value_sq
 
     @property
@@ -317,7 +519,9 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_definition_tag_sq is None:
-            self._parameter_definition_tag_sq = self._subquery("parameter_definition_tag")
+            self._parameter_definition_tag_sq = self._subquery(
+                "parameter_definition_tag"
+            )
         return self._parameter_definition_tag_sq
 
     @property
@@ -395,12 +599,17 @@ class DatabaseMappingBase(object):
                 self.query(
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
-                    func.group_concat(self.ext_relationship_class_sq.c.object_class_id).label("object_class_id_list"),
-                    func.group_concat(self.ext_relationship_class_sq.c.object_class_name).label(
-                        "object_class_name_list"
-                    ),
+                    func.group_concat(
+                        self.ext_relationship_class_sq.c.object_class_id
+                    ).label("object_class_id_list"),
+                    func.group_concat(
+                        self.ext_relationship_class_sq.c.object_class_name
+                    ).label("object_class_name_list"),
                 )
-                .group_by(self.ext_relationship_class_sq.c.id, self.ext_relationship_class_sq.c.name)
+                .group_by(
+                    self.ext_relationship_class_sq.c.id,
+                    self.ext_relationship_class_sq.c.name,
+                )
                 .subquery()
             )
         return self._wide_relationship_class_sq
@@ -471,11 +680,17 @@ class DatabaseMappingBase(object):
                     self.ext_relationship_sq.c.id,
                     self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.name,
-                    func.group_concat(self.ext_relationship_sq.c.object_id).label("object_id_list"),
-                    func.group_concat(self.ext_relationship_sq.c.object_name).label("object_name_list"),
+                    func.group_concat(self.ext_relationship_sq.c.object_id).label(
+                        "object_id_list"
+                    ),
+                    func.group_concat(self.ext_relationship_sq.c.object_name).label(
+                        "object_name_list"
+                    ),
                 )
                 .group_by(
-                    self.ext_relationship_sq.c.id, self.ext_relationship_sq.c.class_id, self.ext_relationship_sq.c.name
+                    self.ext_relationship_sq.c.id,
+                    self.ext_relationship_sq.c.class_id,
+                    self.ext_relationship_sq.c.name,
                 )
                 .subquery()
             )
@@ -538,13 +753,18 @@ class DatabaseMappingBase(object):
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
-                    self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
+                    self.parameter_definition_sq.c.parameter_value_list_id.label(
+                        "value_list_id"
+                    ),
                     self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
                 )
-                .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
+                .filter(
+                    self.object_class_sq.c.id
+                    == self.parameter_definition_sq.c.object_class_id
+                )
                 .outerjoin(
                     self.wide_parameter_definition_tag_sq,
                     self.wide_parameter_definition_tag_sq.c.parameter_definition_id
@@ -552,7 +772,8 @@ class DatabaseMappingBase(object):
                 )
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
-                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                    self.wide_parameter_value_list_sq.c.id
+                    == self.parameter_definition_sq.c.parameter_value_list_id,
                 )
                 .subquery()
             )
@@ -633,18 +854,25 @@ class DatabaseMappingBase(object):
             self._relationship_parameter_definition_sq = (
                 self.query(
                     self.parameter_definition_sq.c.id.label("id"),
-                    self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
-                    self.wide_relationship_class_sq.c.name.label("relationship_class_name"),
+                    self.wide_relationship_class_sq.c.id.label("class_id"),
+                    self.wide_relationship_class_sq.c.name.label(
+                        "relationship_class_name"
+                    ),
                     self.wide_relationship_class_sq.c.object_class_id_list,
                     self.wide_relationship_class_sq.c.object_class_name_list,
                     self.parameter_definition_sq.c.name.label("parameter_name"),
-                    self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
+                    self.parameter_definition_sq.c.parameter_value_list_id.label(
+                        "value_list_id"
+                    ),
                     self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
                 )
-                .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
+                .filter(
+                    self.parameter_definition_sq.c.relationship_class_id
+                    == self.wide_relationship_class_sq.c.id
+                )
                 .outerjoin(
                     self.wide_parameter_definition_tag_sq,
                     self.wide_parameter_definition_tag_sq.c.parameter_definition_id
@@ -652,7 +880,8 @@ class DatabaseMappingBase(object):
                 )
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
-                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                    self.wide_parameter_value_list_sq.c.id
+                    == self.parameter_definition_sq.c.parameter_value_list_id,
                 )
                 .subquery()
             )
@@ -677,9 +906,15 @@ class DatabaseMappingBase(object):
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_value_sq.c.value,
                 )
-                .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
+                .filter(
+                    self.parameter_definition_sq.c.id
+                    == self.parameter_value_sq.c.parameter_definition_id
+                )
                 .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
-                .filter(self.parameter_definition_sq.c.object_class_id == self.object_class_sq.c.id)
+                .filter(
+                    self.parameter_definition_sq.c.object_class_id
+                    == self.object_class_sq.c.id
+                )
                 .subquery()
             )
         return self._object_parameter_value_sq
@@ -697,7 +932,9 @@ class DatabaseMappingBase(object):
                 self.query(
                     self.parameter_value_sq.c.id.label("id"),
                     self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
-                    self.wide_relationship_class_sq.c.name.label("relationship_class_name"),
+                    self.wide_relationship_class_sq.c.name.label(
+                        "relationship_class_name"
+                    ),
                     self.wide_relationship_class_sq.c.object_class_id_list,
                     self.wide_relationship_class_sq.c.object_class_name_list,
                     self.wide_relationship_sq.c.id.label("relationship_id"),
@@ -707,9 +944,18 @@ class DatabaseMappingBase(object):
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_value_sq.c.value,
                 )
-                .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
-                .filter(self.parameter_value_sq.c.relationship_id == self.wide_relationship_sq.c.id)
-                .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
+                .filter(
+                    self.parameter_definition_sq.c.id
+                    == self.parameter_value_sq.c.parameter_definition_id
+                )
+                .filter(
+                    self.parameter_value_sq.c.relationship_id
+                    == self.wide_relationship_sq.c.id
+                )
+                .filter(
+                    self.parameter_definition_sq.c.relationship_class_id
+                    == self.wide_relationship_class_sq.c.id
+                )
                 .subquery()
             )
         return self._relationship_parameter_value_sq
@@ -732,11 +978,18 @@ class DatabaseMappingBase(object):
         if self._ext_parameter_definition_tag_sq is None:
             self._ext_parameter_definition_tag_sq = (
                 self.query(
-                    self.parameter_definition_tag_sq.c.parameter_definition_id.label("parameter_definition_id"),
-                    self.parameter_definition_tag_sq.c.parameter_tag_id.label("parameter_tag_id"),
+                    self.parameter_definition_tag_sq.c.parameter_definition_id.label(
+                        "parameter_definition_id"
+                    ),
+                    self.parameter_definition_tag_sq.c.parameter_tag_id.label(
+                        "parameter_tag_id"
+                    ),
                     self.parameter_tag_sq.c.tag.label("parameter_tag"),
                 )
-                .filter(self.parameter_definition_tag_sq.c.parameter_tag_id == self.parameter_tag_sq.c.id)
+                .filter(
+                    self.parameter_definition_tag_sq.c.parameter_tag_id
+                    == self.parameter_tag_sq.c.id
+                )
                 .subquery()
             )
         return self._ext_parameter_definition_tag_sq
@@ -767,12 +1020,16 @@ class DatabaseMappingBase(object):
             self._wide_parameter_definition_tag_sq = (
                 self.query(
                     self.ext_parameter_definition_tag_sq.c.parameter_definition_id,
-                    func.group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag_id).label(
-                        "parameter_tag_id_list"
-                    ),
-                    func.group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag).label("parameter_tag_list"),
+                    func.group_concat(
+                        self.ext_parameter_definition_tag_sq.c.parameter_tag_id
+                    ).label("parameter_tag_id_list"),
+                    func.group_concat(
+                        self.ext_parameter_definition_tag_sq.c.parameter_tag
+                    ).label("parameter_tag_list"),
                 )
-                .group_by(self.ext_parameter_definition_tag_sq.c.parameter_definition_id)
+                .group_by(
+                    self.ext_parameter_definition_tag_sq.c.parameter_definition_id
+                )
                 .subquery()
             )
         return self._wide_parameter_definition_tag_sq
@@ -787,11 +1044,14 @@ class DatabaseMappingBase(object):
             self._ext_parameter_tag_definition_sq = (
                 self.query(
                     self.parameter_definition_sq.c.id.label("parameter_definition_id"),
-                    self.parameter_definition_tag_sq.c.parameter_tag_id.label("parameter_tag_id"),
+                    self.parameter_definition_tag_sq.c.parameter_tag_id.label(
+                        "parameter_tag_id"
+                    ),
                 )
                 .outerjoin(
                     self.parameter_definition_tag_sq,
-                    self.parameter_definition_sq.c.id == self.parameter_definition_tag_sq.c.parameter_definition_id,
+                    self.parameter_definition_sq.c.id
+                    == self.parameter_definition_tag_sq.c.parameter_definition_id,
                 )
                 .subquery()
             )
@@ -807,9 +1067,9 @@ class DatabaseMappingBase(object):
             self._wide_parameter_tag_definition_sq = (
                 self.query(
                     self.ext_parameter_tag_definition_sq.c.parameter_tag_id,
-                    func.group_concat(self.ext_parameter_tag_definition_sq.c.parameter_definition_id).label(
-                        "parameter_definition_id_list"
-                    ),
+                    func.group_concat(
+                        self.ext_parameter_tag_definition_sq.c.parameter_definition_id
+                    ).label("parameter_definition_id_list"),
                 )
                 .group_by(self.ext_parameter_tag_definition_sq.c.parameter_tag_id)
                 .subquery()
@@ -838,7 +1098,10 @@ class DatabaseMappingBase(object):
         if self._ord_parameter_value_list_sq is None:
             self._ord_parameter_value_list_sq = (
                 self.query(self.parameter_value_list_sq)
-                .order_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.value_index)
+                .order_by(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.value_index,
+                )
                 .subquery()
             )
         return self._ord_parameter_value_list_sq
@@ -871,7 +1134,10 @@ class DatabaseMappingBase(object):
                         # self.parameter_value_list_sq.c.value.op("ORDER BY")(self.parameter_value_list_sq.c.value_index)
                         self.parameter_value_list_sq.c.value
                     ).label("value_list"),
-                ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
+                ).group_by(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.name,
+                )
             ).subquery()
         return self._wide_parameter_value_list_sq
 
@@ -879,8 +1145,8 @@ class DatabaseMappingBase(object):
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
         """
-        self.query(self.ObjectClass).delete(synchronize_session=False)
-        self.query(self.Object).delete(synchronize_session=False)
+        self.query(self.Class).delete(synchronize_session=False)
+        self.query(self.Entity).delete(synchronize_session=False)
         self.query(self.RelationshipClass).delete(synchronize_session=False)
         self.query(self.Relationship).delete(synchronize_session=False)
         self.query(self.ParameterDefinition).delete(synchronize_session=False)

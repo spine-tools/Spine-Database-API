@@ -60,10 +60,14 @@ def duration_to_relativedelta(duration):
         a relativedelta object corresponding to the given duration
     """
     try:
-        count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
+        count, abbreviation, full_unit = re.split(
+            "\\s|([a-z]|[A-Z])", duration, maxsplit=1
+        )
         count = int(count)
     except ValueError:
-        raise ParameterValueFormatError('Could not parse duration "{}"'.format(duration))
+        raise ParameterValueFormatError(
+            'Could not parse duration "{}"'.format(duration)
+        )
     unit = abbreviation if abbreviation is not None else full_unit
     if unit in ["s", "second", "seconds"]:
         return relativedelta(seconds=count)
@@ -131,10 +135,13 @@ def from_database(database_value):
     if database_value is None:
         # NOTE: Our database can have NULL parameter values at the moment so I believe we need this
         return None
-    try:
-        value = json.loads(database_value)
-    except JSONDecodeError:
-        raise ParameterValueFormatError("Could not decode the value")
+    if isinstance(database_value, str):
+        try:
+            value = json.loads(database_value)
+        except JSONDecodeError:
+            raise ParameterValueFormatError("Could not decode the value")
+    else:
+        value = database_value
     if isinstance(value, dict):
         try:
             value_type = value["type"]
@@ -146,9 +153,15 @@ def from_database(database_value):
                 return _time_pattern_from_database(value)
             if value_type == "time_series":
                 return _time_series_from_database(value)
-            raise ParameterValueFormatError('Unknown parameter value type "{}"'.format(value_type))
+            raise ParameterValueFormatError(
+                'Unknown parameter value type "{}"'.format(value_type)
+            )
         except KeyError as error:
-            raise ParameterValueFormatError('"{}" is missing in the parameter value description'.format(error.args[0]))
+            raise ParameterValueFormatError(
+                '"{}" is missing in the parameter value description'.format(
+                    error.args[0]
+                )
+            )
     return value
 
 
@@ -182,7 +195,9 @@ def _datetime_from_database(value):
     try:
         stamp = dateutil.parser.parse(value)
     except ValueError:
-        raise ParameterValueFormatError('Could not parse datetime from "{}"'.format(value))
+        raise ParameterValueFormatError(
+            'Could not parse datetime from "{}"'.format(value)
+        )
     return DateTime(stamp)
 
 
@@ -221,11 +236,17 @@ def _variable_resolution_time_series_info_from_index(value):
         try:
             ignore_year = bool(data_index.get("ignore_year", False))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode ignore_year from "{}"'.format(data_index["ignore_year"]))
+            raise ParameterValueFormatError(
+                'Could not decode ignore_year from "{}"'.format(
+                    data_index["ignore_year"]
+                )
+            )
         try:
             repeat = bool(data_index.get("repeat", False))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode repeat from "{}"'.format(data_index["repeat"]))
+            raise ParameterValueFormatError(
+                'Could not decode repeat from "{}"'.format(data_index["repeat"])
+            )
     else:
         ignore_year = False
         repeat = False
@@ -241,7 +262,9 @@ def _time_series_from_dictionary(value):
         try:
             stamp = np.datetime64(dateutil.parser.parse(stamp))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(stamp))
+            raise ParameterValueFormatError(
+                'Could not decode time stamp "{}"'.format(stamp)
+            )
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
@@ -253,14 +276,24 @@ def _time_series_from_single_column(value):
     """Converts a compact JSON formatted time series into a TimeSeriesFixedResolution object."""
     if "index" in value:
         value_index = value["index"]
-        start = value_index["start"] if "start" in value_index else _TIME_SERIES_DEFAULT_START
-        resolution = value_index["resolution"] if "resolution" in value_index else _TIME_SERIES_DEFAULT_RESOLUTION
+        start = (
+            value_index["start"]
+            if "start" in value_index
+            else _TIME_SERIES_DEFAULT_START
+        )
+        resolution = (
+            value_index["resolution"]
+            if "resolution" in value_index
+            else _TIME_SERIES_DEFAULT_RESOLUTION
+        )
         if "ignore_year" in value_index:
             try:
                 ignore_year = bool(value_index["ignore_year"])
             except ValueError:
                 raise ParameterValueFormatError(
-                    'Could not decode ignore_year value "{}"'.format(value_index["ignore_year"])
+                    'Could not decode ignore_year value "{}"'.format(
+                        value_index["ignore_year"]
+                    )
                 )
         else:
             ignore_year = "start" not in value_index
@@ -268,7 +301,11 @@ def _time_series_from_single_column(value):
             try:
                 repeat = bool(value_index["repeat"])
             except ValueError:
-                raise ParameterValueFormatError('Could not decode repeat value "{}"'.format(value_index["ignore_year"]))
+                raise ParameterValueFormatError(
+                    'Could not decode repeat value "{}"'.format(
+                        value_index["ignore_year"]
+                    )
+                )
         else:
             repeat = "start" not in value_index
     else:
@@ -287,7 +324,9 @@ def _time_series_from_single_column(value):
     try:
         start = dateutil.parser.parse(start)
     except ValueError:
-        raise ParameterValueFormatError('Could not decode start value "{}"'.format(start))
+        raise ParameterValueFormatError(
+            'Could not decode start value "{}"'.format(start)
+        )
     values = np.array(value["data"])
     return TimeSeriesFixedResolution(start, relativedeltas, values, ignore_year, repeat)
 
@@ -303,7 +342,9 @@ def _time_series_from_two_columns(value):
         try:
             stamp = np.datetime64(dateutil.parser.parse(element[0]))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(element[0]))
+            raise ParameterValueFormatError(
+                'Could not decode time stamp "{}"'.format(element[0])
+            )
         stamps.append(stamp)
         values[index] = element[1]
     stamps = np.array(stamps)
@@ -431,7 +472,9 @@ class TimeSeries(IndexedValue):
 
     def __init__(self, values, ignore_year, repeat):
         if len(values) < 2:
-            raise ParameterValueFormatError("Time series too short. Must have two or more values")
+            raise ParameterValueFormatError(
+                "Time series too short. Must have two or more values"
+            )
         super().__init__(values)
         self._ignore_year = ignore_year
         self._repeat = repeat
@@ -475,7 +518,9 @@ class TimePattern(IndexedValue):
 
     def __init__(self, indexes, values):
         if len(indexes) != len(values):
-            raise ParameterValueFormatError("Length of values does not match length of indexes")
+            raise ParameterValueFormatError(
+                "Length of values does not match length of indexes"
+            )
         if not indexes:
             raise ParameterValueFormatError("Empty time pattern not allowed")
         super().__init__(values)
@@ -546,8 +591,12 @@ class TimeSeriesFixedResolution(TimeSeries):
             if step_index >= len(self._resolution):
                 step_index = 0
                 step_cycle_index += 1
-            current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
-            duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
+            current_cycle_duration = sum(
+                self._resolution[: step_index + 1], relativedelta()
+            )
+            duration_from_start = (
+                step_cycle_index * full_cycle_duration + current_cycle_duration
+            )
             stamps[stamp_index] = self._start + duration_from_start
             step_index += 1
         return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
@@ -569,7 +618,9 @@ class TimeSeriesFixedResolution(TimeSeries):
             try:
                 self._start = dateutil.parser.parse(start)
             except ValueError:
-                raise ParameterValueFormatError('Cannot parse start time "{}"'.format(start))
+                raise ParameterValueFormatError(
+                    'Cannot parse start time "{}"'.format(start)
+                )
         else:
             self._start = start
 
@@ -601,7 +652,9 @@ class TimeSeriesFixedResolution(TimeSeries):
     def to_database(self):
         """Returns the value in its database representation."""
         if len(self._resolution) > 1:
-            resolution_as_json = [relativedelta_to_duration(step) for step in self._resolution]
+            resolution_as_json = [
+                relativedelta_to_duration(step) for step in self._resolution
+            ]
         else:
             resolution_as_json = relativedelta_to_duration(self._resolution[0])
         return json.dumps(
@@ -632,7 +685,9 @@ class TimeSeriesVariableResolution(TimeSeries):
     def __init__(self, indexes, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
         if len(indexes) != len(values):
-            raise ParameterValueFormatError("Length of values does not match length of indexes")
+            raise ParameterValueFormatError(
+                "Length of values does not match length of indexes"
+            )
         if not isinstance(indexes, np.ndarray):
             date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
             for i in range(len(indexes)):
@@ -664,7 +719,9 @@ class TimeSeriesVariableResolution(TimeSeries):
             try:
                 data[str(index)] = float(value)
             except ValueError:
-                raise ParameterValueFormatError('Failed to convert "{}" to a float'.format(value))
+                raise ParameterValueFormatError(
+                    'Failed to convert "{}" to a float'.format(value)
+                )
         database_value["data"] = data
         # Add "index" entry only if its contents are not set to their default values.
         if self._ignore_year:

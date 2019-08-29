@@ -31,7 +31,14 @@ class DiffDatabaseMappingUpdateMixin:
         """Initialize class."""
         super().__init__(*args, **kwargs)
 
-    def _handle_items(self, orig_class, diff_class, checked_kwargs_list, filter_key=("id",), unhandled_fields=()):
+    def _handle_items(
+        self,
+        orig_class,
+        diff_class,
+        checked_kwargs_list,
+        filter_key=("id",),
+        unhandled_fields=(),
+    ):
         """Return lists of items for update and insert.
         Items found in the diff classes should be updated,
         whereas items found in the orig classes should be marked as dirty and
@@ -67,9 +74,13 @@ class DiffDatabaseMappingUpdateMixin:
 
     def update_object_classes(self, *kwargs_list, strict=False):
         """Update parameter values."""
-        checked_kwargs_list, intgr_error_log = self.check_object_classes_for_update(*kwargs_list, strict=strict)
+        checked_kwargs_list, intgr_error_log = self.check_object_classes_for_update(
+            *kwargs_list, strict=strict
+        )
         updated_ids = self._update_object_classes(*checked_kwargs_list)
-        updated_item_list = self.query(self.object_class_sq).filter(self.object_class_sq.c.id.in_(updated_ids))
+        updated_item_list = self.query(self.object_class_sq).filter(
+            self.object_class_sq.c.id.in_(updated_ids)
+        )
         return updated_item_list, intgr_error_log
 
     def _update_object_classes(self, *checked_kwargs_list, strict=False):
@@ -81,8 +92,8 @@ class DiffDatabaseMappingUpdateMixin:
             self.session.bulk_update_mappings(self.DiffObjectClass, items_for_update)
             self.session.bulk_insert_mappings(self.DiffObjectClass, items_for_insert)
             self.session.commit()
-            self._mark_as_dirty("object_class", dirty_ids)
-            self.updated_item_id["object_class"].update(dirty_ids)
+            self._mark_as_dirty("class", dirty_ids)
+            self.updated_item_id["class"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
@@ -91,22 +102,29 @@ class DiffDatabaseMappingUpdateMixin:
 
     def update_objects(self, *kwargs_list, strict=False):
         """Update objects."""
-        checked_kwargs_list, intgr_error_log = self.check_objects_for_update(*kwargs_list, strict=strict)
+        checked_kwargs_list, intgr_error_log = self.check_objects_for_update(
+            *kwargs_list, strict=strict
+        )
         updated_ids = self._update_objects(*checked_kwargs_list)
-        updated_item_list = self.query(self.object_sq).filter(self.object_sq.c.id.in_(updated_ids))
+        updated_item_list = self.query(self.object_sq).filter(
+            self.object_sq.c.id.in_(updated_ids)
+        )
         return updated_item_list, intgr_error_log
 
     def _update_objects(self, *checked_kwargs_list):
         """Update objects without checking integrity."""
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
-                self.Object, self.DiffObject, checked_kwargs_list, unhandled_fields=("class_id",)
+                self.Object,
+                self.DiffObject,
+                checked_kwargs_list,
+                unhandled_fields=("class_id",),
             )
             self.session.bulk_update_mappings(self.DiffObject, items_for_update)
             self.session.bulk_insert_mappings(self.DiffObject, items_for_insert)
             self.session.commit()
-            self._mark_as_dirty("object", dirty_ids)
-            self.updated_item_id["object"].update(dirty_ids)
+            self._mark_as_dirty("entity", dirty_ids)
+            self.updated_item_id["entity"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
@@ -133,15 +151,23 @@ class DiffDatabaseMappingUpdateMixin:
                 checked_wide_kwargs_list,
                 unhandled_fields=("object_class_id_list",),
             )
-            self.session.bulk_update_mappings(self.DiffRelationshipClass, items_for_update)
-            self.session.bulk_insert_mappings(self.DiffRelationshipClass, items_for_insert)
+            self.session.bulk_update_mappings(
+                self.DiffRelationshipClass, items_for_update
+            )
+            self.session.bulk_insert_mappings(
+                self.DiffRelationshipClass, items_for_insert
+            )
             self.session.commit()
             self._mark_as_dirty("relationship_class", dirty_ids)
+            self._mark_as_dirty("class", dirty_ids)
+            self.updated_item_id["class"].update(dirty_ids)
             self.updated_item_id["relationship_class"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while updating relationship classes: {}".format(e.orig.args)
+            msg = "DBAPIError while updating relationship classes: {}".format(
+                e.orig.args
+            )
             raise SpineDBAPIError(msg)
 
     def update_wide_relationships(self, *wide_kwargs_list, strict=False):
@@ -184,11 +210,17 @@ class DiffDatabaseMappingUpdateMixin:
                 filter_key=("id", "dimension"),
                 unhandled_fields=("class_id",),
             )
-            self.session.bulk_update_mappings(self.DiffRelationship, items_for_update + items_for_update_)
-            self.session.bulk_insert_mappings(self.DiffRelationship, items_for_insert + items_for_insert_)
+            self.session.bulk_update_mappings(
+                self.DiffRelationship, items_for_update + items_for_update_
+            )
+            self.session.bulk_insert_mappings(
+                self.DiffRelationship, items_for_insert + items_for_insert_
+            )
             self.session.commit()
             self._mark_as_dirty("relationship", dirty_ids.union(dirty_ids_))
             self.updated_item_id["relationship"].update(dirty_ids.union(dirty_ids_))
+            self._mark_as_dirty("entity", dirty_ids.union(dirty_ids_))
+            self.updated_item_id["entity"].update(dirty_ids.union(dirty_ids_))
             return updated_ids.union(updated_ids_)
         except DBAPIError as e:
             self.session.rollback()
@@ -197,7 +229,9 @@ class DiffDatabaseMappingUpdateMixin:
 
     def update_parameter_definitions(self, *kwargs_list, strict=False):
         """Update parameter definitions."""
-        checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_update(*kwargs_list, strict=strict)
+        checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_update(
+            *kwargs_list, strict=strict
+        )
         updated_ids = self._update_parameters(*checked_kwargs_list)
         updated_item_list = self.query(self.parameter_definition_sq).filter(
             self.parameter_definition_sq.c.id.in_(updated_ids)
@@ -213,26 +247,39 @@ class DiffDatabaseMappingUpdateMixin:
                 checked_kwargs_list,
                 unhandled_fields=("object_class_id", "relationship_class_id"),
             )
-            self.session.bulk_update_mappings(self.DiffParameterDefinition, items_for_update)
-            self.session.bulk_insert_mappings(self.DiffParameterDefinition, items_for_insert)
+            self.session.bulk_update_mappings(
+                self.DiffParameterDefinition, items_for_update
+            )
+            self.session.bulk_insert_mappings(
+                self.DiffParameterDefinition, items_for_insert
+            )
             self.session.commit()
             self._mark_as_dirty("parameter_definition", dirty_ids)
             self.updated_item_id["parameter_definition"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while updating parameter definitions: {}".format(e.orig.args)
+            msg = "DBAPIError while updating parameter definitions: {}".format(
+                e.orig.args
+            )
             raise SpineDBAPIError(msg)
 
     def update_parameters(self, *kwargs_list, strict=False):
-        warnings.warn("update_parameters is deprecated, use update_parameter_definitions instead", DeprecationWarning)
+        warnings.warn(
+            "update_parameters is deprecated, use update_parameter_definitions instead",
+            DeprecationWarning,
+        )
         return self.update_parameter_definitions(*kwargs_list, strict=strict)
 
     def update_parameter_values(self, *kwargs_list, strict=False):
         """Update parameter values."""
-        checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_update(*kwargs_list, strict=strict)
+        checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_update(
+            *kwargs_list, strict=strict
+        )
         updated_ids = self._update_parameter_values(*checked_kwargs_list)
-        updated_item_list = self.query(self.parameter_value_sq).filter(self.parameter_value_sq.c.id.in_(updated_ids))
+        updated_item_list = self.query(self.parameter_value_sq).filter(
+            self.parameter_value_sq.c.id.in_(updated_ids)
+        )
         return updated_item_list, intgr_error_log
 
     def _update_parameter_values(self, *checked_kwargs_list):
@@ -246,7 +293,11 @@ class DiffDatabaseMappingUpdateMixin:
                 self.ParameterValue,
                 self.DiffParameterValue,
                 checked_kwargs_list,
-                unhandled_fields=("object_id", "relationship_id", "parameter_definition_id"),
+                unhandled_fields=(
+                    "object_id",
+                    "relationship_id",
+                    "parameter_definition_id",
+                ),
             )
             self.session.bulk_update_mappings(self.DiffParameterValue, items_for_update)
             self.session.bulk_insert_mappings(self.DiffParameterValue, items_for_insert)
@@ -261,9 +312,13 @@ class DiffDatabaseMappingUpdateMixin:
 
     def update_parameter_tags(self, *kwargs_list, strict=False):
         """Update parameter tags."""
-        checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_update(*kwargs_list, strict=strict)
+        checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_update(
+            *kwargs_list, strict=strict
+        )
         updated_ids = self._update_parameter_tags(*checked_kwargs_list)
-        updated_item_list = self.query(self.parameter_tag_sq).filter(self.parameter_tag_sq.c.id.in_(updated_ids))
+        updated_item_list = self.query(self.parameter_tag_sq).filter(
+            self.parameter_tag_sq.c.id.in_(updated_ids)
+        )
         return updated_item_list, intgr_error_log
 
     def _update_parameter_tags(self, *checked_kwargs_list):
@@ -286,27 +341,37 @@ class DiffDatabaseMappingUpdateMixin:
     def set_parameter_definition_tags(self, tag_dict, strict=False):
         """Set tags for parameter definitions."""
         tag_id_lists = {
-            x.parameter_definition_id: [int(y) for y in x.parameter_tag_id_list.split(",")]
+            x.parameter_definition_id: [
+                int(y) for y in x.parameter_tag_id_list.split(",")
+            ]
             for x in self.wide_parameter_definition_tag_list()
         }
         definition_tag_id_dict = {
-            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.parameter_definition_tag_list()
+            (x.parameter_definition_id, x.parameter_tag_id): x.id
+            for x in self.parameter_definition_tag_list()
         }
         items_to_insert = list()
         ids_to_delete = set()
         for definition_id, tag_id_list in tag_dict.items():
-            target_tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
+            target_tag_id_list = (
+                [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
+            )
             current_tag_id_list = tag_id_lists.get(definition_id, [])
             for tag_id in target_tag_id_list:
                 if tag_id not in current_tag_id_list:
-                    item = {"parameter_definition_id": definition_id, "parameter_tag_id": tag_id}
+                    item = {
+                        "parameter_definition_id": definition_id,
+                        "parameter_tag_id": tag_id,
+                    }
                     items_to_insert.append(item)
             for tag_id in current_tag_id_list:
                 if tag_id not in target_tag_id_list:
                     ids_to_delete.add(definition_tag_id_dict[definition_id, tag_id])
         deleted_items = self.parameter_definition_tag_list(id_list=ids_to_delete)
         self.remove_items(parameter_definition_tag_ids=ids_to_delete)
-        added_items, error_log = self.add_parameter_definition_tags(*items_to_insert, strict=strict)
+        added_items, error_log = self.add_parameter_definition_tags(
+            *items_to_insert, strict=strict
+        )
         return added_items.all() + deleted_items.all(), error_log
 
     def update_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False):
@@ -316,7 +381,9 @@ class DiffDatabaseMappingUpdateMixin:
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
             *wide_kwargs_list, strict=strict
         )
-        wide_parameter_value_list_dict = {x.id: x._asdict() for x in self.wide_parameter_value_list_list()}
+        wide_parameter_value_list_dict = {
+            x.id: x._asdict() for x in self.wide_parameter_value_list_list()
+        }
         updated_ids = set()
         item_list = list()
         for wide_kwargs in checked_wide_kwargs_list:
@@ -329,15 +396,22 @@ class DiffDatabaseMappingUpdateMixin:
             except KeyError:
                 continue
             # Split value_list so it's actually a list
-            updated_wide_kwargs["value_list"] = updated_wide_kwargs["value_list"].split(",")
+            updated_wide_kwargs["value_list"] = updated_wide_kwargs["value_list"].split(
+                ","
+            )
             updated_wide_kwargs.update(wide_kwargs)
             for k, value in enumerate(updated_wide_kwargs["value_list"]):
-                narrow_kwargs = {"id": id, "name": updated_wide_kwargs["name"], "value_index": k, "value": value}
+                narrow_kwargs = {
+                    "id": id,
+                    "name": updated_wide_kwargs["name"],
+                    "value_index": k,
+                    "value": value,
+                }
                 item_list.append(narrow_kwargs)
         try:
-            self.query(self.DiffParameterValueList).filter(self.DiffParameterValueList.id.in_(updated_ids)).delete(
-                synchronize_session=False
-            )
+            self.query(self.DiffParameterValueList).filter(
+                self.DiffParameterValueList.id.in_(updated_ids)
+            ).delete(synchronize_session=False)
             self.session.bulk_insert_mappings(self.DiffParameterValueList, item_list)
             self.session.commit()
             self.added_item_id["parameter_value_list"].update(updated_ids)
@@ -347,5 +421,8 @@ class DiffDatabaseMappingUpdateMixin:
             return updated_item_list, intgr_error_log
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while updating parameter value lists: {}".format(e.orig.args)
+            msg = "DBAPIError while updating parameter value lists: {}".format(
+                e.orig.args
+            )
             raise SpineDBAPIError(msg)
+

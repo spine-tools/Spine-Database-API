@@ -42,7 +42,13 @@ from sqlalchemy import (
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.engine import reflection
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
+from sqlalchemy.exc import (
+    DatabaseError,
+    DBAPIError,
+    IntegrityError,
+    OperationalError,
+    NoSuchTableError,
+)
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
@@ -127,7 +133,13 @@ def is_head(db_url, upgrade=False):
             return script._upgrade_revs("head", rev)
 
         with EnvironmentContext(
-            config, script, fn=fn, as_sql=False, starting_rev=None, destination_rev="head", tag=None
+            config,
+            script,
+            fn=fn,
+            as_sql=False,
+            starting_rev=None,
+            destination_rev="head",
+            tag=None,
         ) as environment_context:
             environment_context.configure(connection=connection, target_metadata=None)
             with environment_context.begin_transaction():
@@ -135,7 +147,14 @@ def is_head(db_url, upgrade=False):
     return True
 
 
-def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=set(), skip_tables=set()):
+def copy_database(
+    dest_url,
+    source_url,
+    overwrite=True,
+    upgrade=False,
+    only_tables=set(),
+    skip_tables=set(),
+):
     """Copy the database from source_url into dest_url."""
     if not is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
@@ -178,12 +197,16 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
             warnings.warn("Skipping table {0}: {1}".format(t.name, e.orig.args))
 
 
-def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
+def custom_generate_relationship(
+    base, direction, return_fn, attrname, local_cls, referred_cls, **kw
+):
     # NOTE: Not in use at the moment
     if direction is interfaces.ONETOMANY:
         kw["cascade"] = "all, delete-orphan"
         kw["passive_deletes"] = True
-    return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
+    return generate_relationship(
+        base, direction, return_fn, attrname, local_cls, referred_cls, **kw
+    )
 
 
 def is_unlocked(db_url, timeout=0):
@@ -204,7 +227,9 @@ def schemas_are_equal(left_engine, right_engine):
     For now it only checks table names, but we should also check columns definitions and more...."""
     left_inspector = reflection.Inspector.from_engine(left_engine)
     right_inspector = reflection.Inspector.from_engine(right_engine)
-    if sorted(right_inspector.get_table_names()) != sorted(left_inspector.get_table_names()):
+    if sorted(right_inspector.get_table_names()) != sorted(
+        left_inspector.get_table_names()
+    ):
         return False
     return True
 
@@ -213,7 +238,9 @@ def is_empty(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+        raise SpineDBAPIError(
+            "Could not connect to '{}': {}".format(db_url, e.orig.args)
+        )
     insp = inspect(engine)
     if insp.get_table_names():
         return False
@@ -225,7 +252,9 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+        raise SpineDBAPIError(
+            "Could not connect to '{}': {}".format(db_url, e.orig.args)
+        )
     # Drop existing tables. This is a Spine db now...
     meta = MetaData(engine)
     meta.reflect()
@@ -240,129 +269,204 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         Column("date", DateTime, nullable=False),
         Column("user", String(45)),
     )
-    object_class_category = Table(
-        "object_class_category",
+    Table(
+        "class_type",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False, unique=True),
-        Column("description", String(255), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
+        Column("name", String(255), nullable=False),
     )
-    object_class = Table(
-        "object_class",
+    Table(
+        "class",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False, unique=True),
+        Column("type_id", Integer, ForeignKey("class_type.id"), nullable=False),
+        Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
-        Column("category_id", Integer, ForeignKey("object_class_category.id"), server_default=null()),
         Column("display_order", Integer, server_default="99"),
         Column("display_icon", BigInteger, server_default=null()),
         Column("hidden", Integer, server_default="0"),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-    )
-    Table(
-        "object_category",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("object_class_id", Integer, ForeignKey("object_class.id")),
-        Column("name", String(255), nullable=False, unique=True),
-        Column("description", String(255), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-    )
-    Table(
-        "object",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("class_id", Integer, ForeignKey("object_class.id", onupdate="CASCADE", ondelete="CASCADE")),
-        Column("name", String(255), nullable=False, unique=True),
-        Column("description", String(255), server_default=null()),
-        Column("category_id", Integer, ForeignKey("object_category.id")),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("id", "type_id"),
+        UniqueConstraint("type_id", "name"),
     )
     Table(
         "relationship_class",
         meta,
         Column("id", Integer, primary_key=True),
         Column("dimension", Integer, primary_key=True),
-        Column("object_class_id", Integer, ForeignKey("object_class.id")),
+        Column("type_id", Integer, nullable=False),
+        Column("member_id", Integer, nullable=False),
+        Column("member_type_id", Integer, nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
+        UniqueConstraint("dimension", "id",  "member_id"),
+        ForeignKeyConstraint(
+            ("id", "type_id"),
+            ("class.id", "class.type_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ("member_id", "member_type_id"),
+            ("class.id", "class.type_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "`type_id` = 2"  # make sure relationship class can only relationship typ class
+        ),
+        CheckConstraint(
+            "`member_type_id` != 2"  # make sure relationship class can only have other classes than relationship classes
+        ),
+    )
+    Table(
+        "entity_type",
+        meta,
+        Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("hidden", Integer, server_default="0"),
+    )
+    Table(
+        "entity",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "type_id",
+            Integer,
+            ForeignKey("entity_type.id", onupdate="CASCADE", ondelete="CASCADE"),
+        ),
+        Column(
+            "class_id",
+            Integer,
+            ForeignKey("class.id", onupdate="CASCADE", ondelete="CASCADE"),
+        ),
+        Column("name", String(255), nullable=False),
+        Column("description", String(255), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("dimension", "name"),
+        UniqueConstraint("id", "class_id"),
+        UniqueConstraint("id", "type_id", "class_id"),
+        UniqueConstraint("class_id", "name"),
     )
     Table(
         "relationship",
         meta,
         Column("id", Integer, primary_key=True),
+        Column("type_id", Integer, nullable=False),
+        Column("class_id", Integer, primary_key=True),
         Column("dimension", Integer, primary_key=True),
-        Column("object_id", Integer, ForeignKey("object.id")),
-        Column("class_id", Integer, nullable=False),
-        Column("name", String(255), nullable=False),
+        Column("member_id", Integer, nullable=False),
+        Column("member_type_id", Integer, nullable=False),
+        Column("member_class_id", Integer, nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("dimension", "name"),
         ForeignKeyConstraint(
-            ("class_id", "dimension"),
-            ("relationship_class.id", "relationship_class.dimension"),
+            ("id", "type_id", "class_id"),
+            ("entity.id", "entity.type_id", "entity.class_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ("member_id", "member_type_id", "member_class_id"),
+            ("entity.id", "entity.type_id", "entity.class_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ("class_id", "dimension", "member_class_id"),
+            (
+                "relationship_class.id",
+                "relationship_class.dimension",
+                "relationship_class.member_id",
+            ),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "`type_id` = 2"
+        ),  # make sure relationship can have only relationship type entities
     )
     Table(
-        "parameter",
+        "parameter_definition",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("name", String(155), nullable=False, unique=True),
+        Column(
+            "class_id",
+            Integer,
+            ForeignKey("class.id", onupdate="CASCADE", ondelete="CASCADE"),
+        ),
+        Column("name", String(155), nullable=False),
         Column("description", String(155), server_default=null()),
         Column("data_type", String(155), server_default="NUMERIC"),
-        Column("relationship_class_id", Integer, default=null()),
-        Column(
-            "object_class_id",
-            Integer,
-            ForeignKey("object_class.id", onupdate="CASCADE", ondelete="CASCADE"),
-            server_default=null(),
-        ),
-        Column("can_have_time_series", Integer, server_default="0"),
-        Column("can_have_time_pattern", Integer, server_default="1"),
-        Column("can_be_stochastic", Integer, server_default="0"),
         Column("default_value", String(155), server_default="0"),
-        Column("is_mandatory", Integer, server_default="0"),
-        Column("precision", Integer, server_default="2"),
-        Column("unit", String(155), server_default=null()),
-        Column("minimum_value", Float, server_default=null()),
-        Column("maximum_value", Float, server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        CheckConstraint("`relationship_class_id` IS NOT NULL OR `object_class_id` IS NOT NULL"),
+        Column("parameter_value_list_id", Integer),
+        UniqueConstraint("id", "class_id"),
+        UniqueConstraint("class_id", "name"),
+    )
+    Table(
+        "parameter_tag",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("tag", String(155), nullable=False),
+        Column("description", String(155), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "parameter_definition_tag",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "parameter_definition_id",
+            Integer,
+            ForeignKey("parameter_definition.id"),
+            nullable=False,
+        ),
+        Column(
+            "parameter_tag_id",
+            String(155),
+            ForeignKey("parameter_tag.id"),
+            nullable=False,
+        ),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("parameter_definition_id", "parameter_tag_id"),
     )
     Table(
         "parameter_value",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("parameter_id", Integer, ForeignKey("parameter.id", onupdate="CASCADE", ondelete="CASCADE")),
-        Column("relationship_id", Integer, server_default=null()),
-        Column("dummy_relationship_dimension", Integer, server_default="0"),
-        Column(
-            "object_id", Integer, ForeignKey("object.id", onupdate="CASCADE", ondelete="CASCADE"), server_default=null()
-        ),
-        Column("index", Integer, server_default="1"),
+        Column("parameter_definition_id", Integer),
+        Column("entity_id", Integer),
+        Column("entity_class_id", Integer),
         Column("value", String(155), server_default=null()),
-        Column("json", String(255), server_default=null()),
-        Column("expression", String(155), server_default=null()),
-        Column("time_pattern", String(155), server_default=null()),
-        Column("time_series_id", String(155), server_default=null()),
-        Column("stochastic_model_id", String(155), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        CheckConstraint("`relationship_id` IS NOT NULL OR `object_id` IS NOT NULL"),
-        UniqueConstraint("parameter_id", "object_id"),
-        UniqueConstraint("parameter_id", "relationship_id"),
+        UniqueConstraint("parameter_definition_id", "entity_id"),
         ForeignKeyConstraint(
-            ("relationship_id", "dummy_relationship_dimension"),
-            ("relationship.id", "relationship.dimension"),
+            ("entity_id", "entity_class_id"),
+            ("entity.id", "entity.class_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ("parameter_definition_id", "entity_class_id"),
+            ("parameter_definition.id", "parameter_definition.class_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
     )
+    Table(
+        "parameter_value_list",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(155), nullable=False),
+        Column("value_index", Integer, nullable=False),
+        Column("value", String(155), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
     try:
         meta.create_all(engine)
+        engine.execute(
+            "INSERT INTO class_type VALUES (1, 'object'), (2, 'relationship')"
+        )
+        engine.execute(
+            "INSERT INTO entity_type VALUES (1, 'object'), (2, 'relationship')"
+        )
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
     if not upgrade:
@@ -384,8 +488,18 @@ def add_specifc_data_structure_for_spine_model(db_url):
     db_map = DiffDatabaseMapping(db_url)
     object_classes = (
         ("direction", "A flow direction", 1, 281105626296654),
-        ("unit", "An entity where an energy conversion process takes place", 2, 281470681805429),
-        ("connection", "An entity where an energy transfer takes place", 3, 280378317271233),
+        (
+            "unit",
+            "An entity where an energy conversion process takes place",
+            2,
+            281470681805429,
+        ),
+        (
+            "connection",
+            "An entity where an energy transfer takes place",
+            3,
+            280378317271233,
+        ),
         ("storage", "A storage", 4, 280376899531934),
         ("commodity", "A commodity", 5, 281473533932880),
         ("node", "An entity where an energy balance takes place", 6, 280740554077951),
@@ -393,14 +507,23 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("rolling", "A rolling horizon", 9, 281107043971546),
     )
     db_map.add_object_classes(
-        *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
+        *[
+            dict(zip(("name", "description", "display_order", "display_icon"), x))
+            for x in object_classes
+        ]
     )
     import_data(
         db_map,
         objects=(("direction", "from_node"), ("direction", "to_node")),
         relationship_classes=(
-            ("unit__node__direction__temporal_block", ("unit", "node", "direction", "temporal_block")),
-            ("connection__node__direction__temporal_block", ("connection", "node", "direction", "temporal_block")),
+            (
+                "unit__node__direction__temporal_block",
+                ("unit", "node", "direction", "temporal_block"),
+            ),
+            (
+                "connection__node__direction__temporal_block",
+                ("connection", "node", "direction", "temporal_block"),
+            ),
             ("node__commodity", ("node", "commodity")),
             ("unit_group__unit", ("unit", "unit")),
             ("commodity_group__commodity", ("commodity", "commodity")),
