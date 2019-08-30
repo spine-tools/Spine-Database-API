@@ -535,13 +535,12 @@ class DatabaseMappingCheckMixin:
                 object_class_id = item.get("object_class_id", None)
                 relationship_class_id = item.get("relationship_class_id", None)
                 if object_class_id is not None:
-                    class_id = object_class_id
+                    item["class_id"] = object_class_id
                     obj_parameter_definition_names[object_class_id, item["name"]] = id
                 elif relationship_class_id is not None:
-                    class_id = relationship_class_id
+                    item["class_id"] = relationship_class_id
                     rel_parameter_definition_names[relationship_class_id, item["name"]] = id
                 parameter_definition_dict[id] = updated_item
-                item["class_id"] = class_id
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -710,15 +709,13 @@ class DatabaseMappingCheckMixin:
                 object_id = updated_item.get("object_id", None)
                 relationship_id = updated_item.get("relationship_id", None)
                 if object_id is not None:
-                    entity_id = object_id
-                    entity_class_id = object_dict[object_id]["class_id"]
+                    item["entity_id"] = object_id
+                    item["entity_class_id"] = object_dict[object_id]["class_id"]
                     object_parameter_values[object_id, updated_item["parameter_definition_id"]] = id
                 elif relationship_id is not None:
-                    entity_id = relationship_id
-                    entity_class_id = relationship_dict[relationship_id]["class_id"]
+                    item["entity_id"] = relationship_id
+                    item["entity_class_id"] = relationship_dict[relationship_id]["class_id"]
                     relationship_parameter_values[relationship_id, updated_item["parameter_definition_id"]] = id
-                item["entity_id"] = entity_id
-                item["entity_class_id"] = entity_class_id
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:

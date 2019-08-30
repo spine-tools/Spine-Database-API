@@ -55,6 +55,8 @@ class DiffDatabaseMappingRemoveMixin:
         )
         try:
             for tablename, ids in removed_diff_item_id.items():
+                classname = self.table_to_class[tablename]
+                diff_class = getattr(self, "Diff" + classname)
                 self.query(diff_class).filter(diff_class.id.in_(ids)).delete(
                     synchronize_session=False
                 )
