@@ -156,8 +156,8 @@ def import_object_classes(db_map, object_classes):
     error_log = []
     for object_class_name in set(object_classes).difference(existing_classes):
         try:
-            new_oc = {"name": object_class_name}
-            check_object_class(new_oc, existing_classes)
+            new_oc = {"name": object_class_name, "type_id": db_map.object_class_type}
+            check_object_class(new_oc, existing_classes, db_map.object_class_type)
             new_classes.append(new_oc)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object class"))
@@ -191,9 +191,18 @@ def import_objects(db_map, object_data):
         oc_id = existing_classes.get(oc_name, None)
         if (oc_id, name) in seen_objects or (oc_id, name) in existing_objects:
             continue
-        db_object = {"name": name, "class_id": oc_id}
+        db_object = {
+            "name": name,
+            "class_id": oc_id,
+            "type_id": db_map.object_entity_type,
+        }
         try:
-            check_object(db_object, existing_objects, existing_class_ids)
+            check_object(
+                db_object,
+                existing_objects,
+                existing_class_ids,
+                db_map.object_entity_type,
+            )
             new_objects.append(db_object)
             seen_objects.add((oc_id, name))
         except SpineIntegrityError as e:
@@ -235,10 +244,17 @@ def import_relationship_classes(db_map, relationship_classes):
                 == existing_rel_classes[name].object_class_id_list
             ):
                 continue
-        rel_class = {"name": name, "object_class_id_list": oc_ids}
+        rel_class = {
+            "name": name,
+            "object_class_id_list": oc_ids,
+            "type_id": db_map.relationship_class_type,
+        }
         try:
             check_wide_relationship_class(
-                rel_class, relationship_class_names, existing_classes_ids
+                rel_class,
+                relationship_class_names,
+                existing_classes_ids,
+                db_map.relationship_class_type,
             )
             new_rc.append(rel_class)
             relationship_class_names[name] = None
@@ -303,6 +319,8 @@ def import_object_parameters(db_map, parameter_data):
                 {},
                 parameter_value_list_dict,
             )
+            param["class_id"] = param["object_class_id"]
+            param.pop("object_class_id", None)
             new_parameters.append(param)
             seen_parameters.add((oc_id, parameter_name))
         except SpineIntegrityError as e:
@@ -369,6 +387,8 @@ def import_relationship_parameters(db_map, parameter_data):
                 parameter_value_list_dict,
             )
             new_parameters.append(new_param)
+            new_param["class_id"] = new_param["relationship_class_id"]
+            new_param.pop("relationship_class_id", None)
             seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
@@ -436,6 +456,8 @@ def import_relationships(db_map, relationship_data):
             "name": rel_class_name + "_" + "__".join(object_names),
             "class_id": rc_id,
             "object_id_list": o_ids,
+            "object_class_id_list": rc_oc_id,
+            "type_id": db_map.relationship_entity_type,
         }
         try:
             check_wide_relationship(
@@ -444,6 +466,7 @@ def import_relationships(db_map, relationship_data):
                 relationship_objects,
                 relationship_class_dict,
                 object_dict,
+                db_map.relationship_entity_type,
             )
             new_relationships.append(new_rel)
             seen_relationships.add((rc_id, o_ids))
@@ -530,6 +553,9 @@ def import_object_parameter_values(db_map, data):
                 {},
                 parameter_value_list_dict,
             )
+            new_value["entity_id"] = new_value["object_id"]
+            new_value["entity_class_id"] = oc_id
+            new_value.pop("object_id", None)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
             continue
@@ -669,6 +695,9 @@ def import_relationship_parameter_values(db_map, data):
                 relationship_dict,
                 parameter_value_list_dict,
             )
+            new_value["entity_id"] = new_value["relationship_id"]
+            new_value["entity_class_id"] = rc_id
+            new_value.pop("relationship_id", None)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
             continue

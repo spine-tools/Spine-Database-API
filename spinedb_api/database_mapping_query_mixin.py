@@ -182,7 +182,7 @@ class DatabaseMappingQueryMixin:
         qry = self.query(self.relationship_parameter_definition_sq)
         if relationship_class_id:
             qry = qry.filter(
-                self.relationship_parameter_definition_sq.c.class_id
+                self.relationship_parameter_definition_sq.c.relationship_class_id
                 == relationship_class_id
             )
         if parameter_definition_id:
@@ -225,16 +225,18 @@ class DatabaseMappingQueryMixin:
     ):
         """Return relationship classes and their parameter definitions in wide format."""
         qry = self.query(
-            self.Class.id.label("relationship_class_id"),
-            self.Class.name.label("relationship_class_name"),
+            self.relationship_class_sq.c.id.label("relationship_class_id"),
+            self.relationship_class_sq.c.name.label("relationship_class_name"),
             self.parameter_definition_sq.c.id.label("parameter_definition_id"),
             self.parameter_definition_sq.c.name.label("parameter_name"),
         ).filter(
-            self.Class.id == self.parameter_definition_sq.c.relationship_class_id,
-            self.Class.type_id == self.relationship_class_type,
+            self.relationship_class_sq.c.id
+            == self.parameter_definition_sq.c.relationship_class_id
         )
         if relationship_class_id_list is not None:
-            qry = qry.filter(self.Class.id.in_(relationship_class_id_list))
+            qry = qry.filter(
+                self.relationship_class_sq.c.id.in_(relationship_class_id_list)
+            )
         if parameter_definition_id_list is not None:
             qry = qry.filter(
                 self.parameter_definition_sq.c.id.in_(parameter_definition_id_list)

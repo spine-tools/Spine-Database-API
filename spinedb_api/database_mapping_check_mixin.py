@@ -603,11 +603,14 @@ class DatabaseMappingCheckMixin:
                 relationship_id = item.get("relationship_id", None)
                 if object_id is not None:
                     entity_id = object_id
+                    entity_class_id = object_dict[object_id]["class_id"]
                     object_parameter_values[object_id, item["parameter_definition_id"]] = None
                 elif relationship_id is not None:
                     entity_id = relationship_id
+                    entity_class_id = relationship_dict[relationship_id]["class_id"]
                     relationship_parameter_values[relationship_id, item["parameter_definition_id"]] = None
                 item["entity_id"] = entity_id
+                item["entity_class_id"] = entity_class_id
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -708,11 +711,14 @@ class DatabaseMappingCheckMixin:
                 relationship_id = updated_item.get("relationship_id", None)
                 if object_id is not None:
                     entity_id = object_id
+                    entity_class_id = object_dict[object_id]["class_id"]
                     object_parameter_values[object_id, updated_item["parameter_definition_id"]] = id
                 elif relationship_id is not None:
                     entity_id = relationship_id
+                    entity_class_id = relationship_dict[relationship_id]["class_id"]
                     relationship_parameter_values[relationship_id, updated_item["parameter_definition_id"]] = id
                 item["entity_id"] = entity_id
+                item["entity_class_id"] = entity_class_id
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:

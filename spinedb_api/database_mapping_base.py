@@ -854,7 +854,7 @@ class DatabaseMappingBase(object):
             self._relationship_parameter_definition_sq = (
                 self.query(
                     self.parameter_definition_sq.c.id.label("id"),
-                    self.wide_relationship_class_sq.c.id.label("class_id"),
+                    self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
                     self.wide_relationship_class_sq.c.name.label(
                         "relationship_class_name"
                     ),

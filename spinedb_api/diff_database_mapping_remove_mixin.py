@@ -92,7 +92,7 @@ class DiffDatabaseMappingRemoveMixin:
             self.Class.id.in_(object_class_ids),
             self.Class.type_id == self.object_class_type,
         )
-        diff_item_list = self.query(self.DiffObjectClass.id).filter(
+        diff_item_list = self.query(self.DiffClass.id).filter(
             self.DiffClass.id.in_(object_class_ids),
             self.DiffClass.type_id == self.object_class_type,
         )

@@ -40,25 +40,25 @@ class TestDatabaseAPI(unittest.TestCase):
         self.number_wide_relationship = 100
         self.number_of_parameter = 100
         self.number_of_parameter_value = 100
-        self.db = create_new_spine_database('sqlite:///TestDatabaseAPI.sqlite')
-        self.db_map = DatabaseMapping('sqlite:///TestDatabaseAPI.sqlite')
+        self.db = create_new_spine_database('sqlite:///TestDatabaseAPI.sqlite', upgrade=False)
+        self.db_map = DiffDatabaseMapping('sqlite:///TestDatabaseAPI.sqlite', upgrade=False)
 
 
     def test_create_db(self):
         # create a in memory database
         m = MetaData()
-        db = create_new_spine_database('sqlite://')
+        db = create_new_spine_database('sqlite://', upgrade=False)
         m.reflect(db.engine)
         assert len(m.tables.values()) == 9
 
     def test_create_engine_and_session(self):
 
-        db = create_new_spine_database('sqlite:///test_create_engine_and_session.sqlite')
+        db = create_new_spine_database('sqlite:///test_create_engine_and_session.sqlite', upgrade=False)
         db.connect()
 
-        m = DatabaseMapping('sqlite:///test_create_engine_and_session.sqlite',create_all=False)
+        m = DiffDatabaseMapping('sqlite:///test_create_engine_and_session.sqlite')
 
-        assert isinstance(m,DatabaseMapping)
+        assert isinstance(m,DiffDatabaseMapping)
 
         assert not isinstance(m.session, Session)
 
@@ -69,15 +69,16 @@ class TestDatabaseAPI(unittest.TestCase):
 
     def test_add_object_class_and_object(self):
 
-        objects_before_insert = self.db_map.session.query(self.db_map.Object).count()
-        objectclasses_before_insert = self.db_map.session.query(self.db_map.ObjectClass).count()
+        objects_before_insert = self.db_map.session.query(self.db_map.Entity).count()
+        objectclasses_before_insert = self.db_map.session.query(self.db_map.Class).count()
         fake = Faker()
         obj_class_ids = list()
         [obj_class_ids.append(self.db_map.add_object_class(**{'name': fake.pystr(min_chars=None, max_chars=40)}).id) for i in range(self.object_class_number)]
         [self.db_map.add_object(**{'name': fake.pystr(min_chars=None, max_chars=40),'class_id':random.choice(obj_class_ids)}) for i in range(self.object_number)]
+        self.db_map.commit_session("")
 
-        assert self.db_map.session.query(self.db_map.Object).count() == self.object_number + objects_before_insert
-        assert self.db_map.session.query(self.db_map.ObjectClass).count() == self.object_class_number + objectclasses_before_insert
+        self.assertEqual(self.db_map.session.query(self.db_map.Entity).count(), self.object_number + objects_before_insert)
+        self.assertEqual(self.db_map.session.query(self.db_map.Class).count(),self.object_class_number + objectclasses_before_insert)
 
     def test_single_object(self):
 
@@ -691,9 +692,8 @@ class TestDatabaseAPI(unittest.TestCase):
         """Overridden method. Runs after each test.
         Use this to free resources after a test if needed.
         """
-        # delete temp excel file if it exists
 
-        self.db_map.close()
+        self.db_map.session.close()
 
         try:
             os.remove("TestDatabaseAPI.sqlite")
