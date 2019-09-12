@@ -25,3 +25,28 @@ You can also specify a branch, or a tag, for instance:
 
     $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git@dev
     $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git@v0.0.10
+
+
+## Building the documentation
+
+Source files for the documentation can be found in `docs/source` directory. In order to 
+build the HTML docs, you need to install the additional documentation building requirements
+by running:
+
+    $ pip install -r docs-requirements.txt 
+
+This installs Sphinx (among other things), which is required in building the documentation.
+When Sphinx is installed, you can build the HTML pages from the source files by running:
+
+    > docs\make.bat html
+    
+or
+
+    $ pushd docs
+    $ make html
+    $ popd
+    
+depending on your operating system.        
+ 
+After running the build, the index page can be found in `docs/build/html/index.html`.
+

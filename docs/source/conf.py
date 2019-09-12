@@ -12,22 +12,25 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-#
-# sys.path.insert(0, os.path.abspath("../../"))
+import os
+import sys
+
+root_path = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
+sys.path.insert(0, os.path.abspath(root_path))
 
 
 # -- Project information -----------------------------------------------------
 
 project = "Spine Database API"
-copyright = "2019, Spine"
 author = "Various"
+# TODO: correctly identify authors / copyright
+copyright = "2019, Spine"
 
 # The short X.Y version
-version = ""
+from spinedb_api import __version__ as spinedb_api_version
+version = spinedb_api_version
 # The full version, including alpha/beta/rc tags
-release = ""
+release = spinedb_api_version
 
 
 # -- General configuration ---------------------------------------------------
@@ -41,10 +44,14 @@ release = ""
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.intersphinx",
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
+    'sphinx.ext.ifconfig',
+    'sphinx.ext.viewcode',
     "sphinx.ext.githubpages",
+    "sphinx.ext.intersphinx",
+    'recommonmark',
+    'autoapi.extension',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -54,7 +61,9 @@ templates_path = ["_templates"]
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = ".rst"
+# source_suffix = ".rst"
+source_suffix = {'.rst': 'restructuredtext', '.md': 'markdown'}
+
 
 # The master toctree document.
 master_doc = "index"
@@ -73,6 +82,13 @@ exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
+
+
+# Settings for Sphinx AutoAPI
+autoapi_dirs = ['../../spinedb_api']  # package to be documented
+autoapi_ignore = [
+    '*_rc.py',
+]  # ignored modules
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -130,7 +146,14 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [(master_doc, "SpineDatabaseAPI.tex", "Spine Database API Documentation", "Fabiano", "manual")]
+latex_documents = [
+    (
+        master_doc,
+        "SpineDatabaseAPI.tex",
+        "Spine Database API Documentation",
+        "Fabiano, various",
+        "manual")
+]
 
 
 # -- Options for manual page output ------------------------------------------
