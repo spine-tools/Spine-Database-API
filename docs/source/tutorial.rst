@@ -36,11 +36,11 @@ you can also do with a :class:`.DiffDatabaseMapping`.
 
 To create a :class:`.DatabaseMapping`, we just pass the database URL to the class constructor::
 
-  from spinedb_api import DatabaseMapping
+    from spinedb_api import DatabaseMapping
 
-  url = "sqlite:///spine.db"
+    url = "sqlite:///spine.db"
 
-  db_map = DatabaseMapping(url)
+    db_map = DatabaseMapping(url)
 
 The URL should be formatted following the RFC-1738 standard, so it basically
 works with :func:`sqlalchemy.create_engine` as described
@@ -64,7 +64,7 @@ Standard querying
 To perform standard querying, we chose among the methods of the :class:`~.DatabaseMappingQueryMixin` class,
 the one that bets suits our purpose. E.g.::
 
-TODO
+    TODO
 
 Custom querying
 ===============

@@ -11,6 +11,7 @@ spinedb\_api.check\_functions module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.database\_mapping module
 -------------------------------------
 
@@ -18,6 +19,7 @@ spinedb\_api.database\_mapping module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.database\_mapping\_base module
 -------------------------------------------
 
@@ -25,6 +27,7 @@ spinedb\_api.database\_mapping\_base module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.database\_mapping\_check\_mixin module
 ---------------------------------------------------
 
@@ -32,6 +35,7 @@ spinedb\_api.database\_mapping\_check\_mixin module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.database\_mapping\_query\_mixin module
 ---------------------------------------------------
 
@@ -39,6 +43,7 @@ spinedb\_api.database\_mapping\_query\_mixin module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.diff\_database\_mapping module
 -------------------------------------------
 
@@ -46,6 +51,7 @@ spinedb\_api.diff\_database\_mapping module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.diff\_database\_mapping\_add\_mixin module
 -------------------------------------------------------
 
@@ -53,6 +59,7 @@ spinedb\_api.diff\_database\_mapping\_add\_mixin module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.diff\_database\_mapping\_base module
 -------------------------------------------------
 
@@ -60,6 +67,7 @@ spinedb\_api.diff\_database\_mapping\_base module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.diff\_database\_mapping\_commit\_mixin module
 ----------------------------------------------------------
 
@@ -67,6 +75,7 @@ spinedb\_api.diff\_database\_mapping\_commit\_mixin module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.diff\_database\_mapping\_remove\_mixin module
 ----------------------------------------------------------
 
@@ -74,6 +83,7 @@ spinedb\_api.diff\_database\_mapping\_remove\_mixin module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.diff\_database\_mapping\_update\_mixin module
 ----------------------------------------------------------
 
@@ -81,6 +91,7 @@ spinedb\_api.diff\_database\_mapping\_update\_mixin module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.exception module
 -----------------------------
 
@@ -88,6 +99,7 @@ spinedb\_api.exception module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.helpers module
 ---------------------------
 
@@ -95,6 +107,7 @@ spinedb\_api.helpers module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.import\_functions module
 -------------------------------------
 
@@ -102,6 +115,7 @@ spinedb\_api.import\_functions module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.json\_mapping module
 ---------------------------------
 
@@ -109,6 +123,7 @@ spinedb\_api.json\_mapping module
    :members:
    :undoc-members:
    :show-inheritance:
+
 spinedb\_api.version module
 ---------------------------
 
