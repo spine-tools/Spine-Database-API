@@ -8,6 +8,7 @@ Create Date: 2019-09-17 13:38:53.437119
 from alembic import op
 import sqlalchemy as sa
 from spinedb_api import naming_convention
+from datetime import datetime
 
 
 # revision identifiers, used by Alembic.
@@ -15,8 +16,6 @@ revision = "bba1e2ef5153"
 down_revision = "bf255c179bce"
 branch_labels = None
 depends_on = None
-
-# TODO: What about `next_id`???
 
 
 def create_new_tables():
@@ -257,7 +256,7 @@ def insert_into_new_tables():
     return (meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent)
 
 
-def alter_old_tables_before_update():
+def alter_old_tables_before_update(meta):
     with op.batch_alter_table("object_class") as batch_op:
         batch_op.add_column(sa.Column("entity_class_id", sa.Integer))
         batch_op.add_column(sa.Column("type_id", sa.Integer))
@@ -284,9 +283,20 @@ def alter_old_tables_before_update():
         batch_op.create_foreign_key(
             "fk_parameter_value_entity_id_entity", "entity", ["entity_id", "entity_class_id"], ["id", "class_id"]
         )
+    if "next_id" not in meta.tables:
+        return
+    with op.batch_alter_table("next_id") as batch_op:
+        batch_op.drop_column("object_class_id")
+        batch_op.drop_column("object_id")
+        batch_op.drop_column("relationship_class_id")
+        batch_op.drop_column("relationship_id")
+        batch_op.add_column(sa.Column("entity_class_type_id", sa.Integer, server_default=sa.null()))
+        batch_op.add_column(sa.Column("entity_class_id", sa.Integer, server_default=sa.null()))
+        batch_op.add_column(sa.Column("entity_type_id", sa.Integer, server_default=sa.null()))
+        batch_op.add_column(sa.Column("entity_id", sa.Integer, server_default=sa.null()))
 
 
-def update_old_tables(obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent):
+def update_old_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent):
     conn = op.get_bind()
     ent_to_ent_cls = {r["id"]: r["class_id"] for r in conn.execute("SELECT id, class_id FROM entity")}
     for object_class_id, entity_class_id in obj_cls_to_ent_cls.items():
@@ -340,6 +350,30 @@ def update_old_tables(obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to
             entity_class_id=entity_class_id,
             relationship_id=relationship_id,
         )
+    if "next_id" not in meta.tables:
+        return
+    row = conn.execute("SELECT MAX(id) FROM entity_class").fetchone()
+    entity_class_id = row[0] + 1 if row else 1
+    row = conn.execute("SELECT MAX(id) FROM entity").fetchone()
+    entity_id = row[0] + 1 if row else 1
+    user = "alembic"
+    date = datetime.utcnow()
+    conn.execute(
+        """
+        UPDATE next_id
+        SET
+            user = :user,
+            date = :date,
+            entity_class_type_id = 3,
+            entity_type_id = 3,
+            entity_class_id = :entity_class_id,
+            entity_id = :entity_id
+        """,
+        user=user,
+        date=date,
+        entity_class_id=entity_class_id,
+        entity_id=entity_id,
+    )
 
 
 def alter_old_tables_after_update(meta):
@@ -374,8 +408,8 @@ def alter_old_tables_after_update(meta):
 def upgrade():
     create_new_tables()
     meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent = insert_into_new_tables()
-    alter_old_tables_before_update()
-    update_old_tables(obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent)
+    alter_old_tables_before_update(meta)
+    update_old_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent)
     alter_old_tables_after_update(meta)
 
 
