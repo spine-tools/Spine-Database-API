@@ -34,16 +34,6 @@ from sqlalchemy import Column, Integer
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
-Base = automap_base()
-class ObjectClass(Base):
-    __tablename__ = 'object_class'
-
-    # override schema elements like Columns
-    entity_class_id = Column('entity_class_id', Integer, primary_key=True)
-    type_id = Column('type_id', Integer)
-
-
-
 
 class DatabaseMappingBase(object):
     """Base class for all database mappings.
@@ -202,6 +192,16 @@ class DatabaseMappingBase(object):
     def _create_mapping(self):
         """Create ORM."""
         
+        # For some reason, automap_base doesn't seem to be able to map the object_class table
+        # adding it manualy for now
+        Base = automap_base()
+        class ObjectClass(Base):
+            __tablename__ = 'object_class'
+
+            # override schema elements like Columns
+            entity_class_id = Column('entity_class_id', Integer, primary_key=True)
+            type_id = Column('type_id', Integer)
+
         Base.prepare(self.engine, reflect=True)
         self.ObjectClass = ObjectClass
         not_found = []
@@ -210,7 +210,9 @@ class DatabaseMappingBase(object):
                 setattr(self, classname, getattr(Base.classes, tablename))
             except (NoSuchTableError, AttributeError):
                 not_found.append(tablename)
-        if not_found and not_found[0] != "object_class":
+        # "object_class table manualy added, skip if not found"
+        not_found = [nf for nf in not_found if nf != "object_class"]
+        if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
     def query(self, *args, **kwargs):
