@@ -319,7 +319,7 @@ def import_object_parameters(db_map, parameter_data):
                 {},
                 parameter_value_list_dict,
             )
-            param["class_id"] = param["object_class_id"]
+            param["entity_class_id"] = param["object_class_id"]
             param.pop("object_class_id", None)
             new_parameters.append(param)
             seen_parameters.add((oc_id, parameter_name))
@@ -387,7 +387,7 @@ def import_relationship_parameters(db_map, parameter_data):
                 parameter_value_list_dict,
             )
             new_parameters.append(new_param)
-            new_param["class_id"] = new_param["relationship_class_id"]
+            new_param["entity_class_id"] = new_param["relationship_class_id"]
             new_param.pop("relationship_class_id", None)
             seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:

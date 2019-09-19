@@ -475,8 +475,8 @@ class DatabaseMappingBase(object):
         if self._parameter_definition_sq is None:
             par_def_sq = self._subquery("parameter_definition")
 
-            object_class_case = case([(self.entity_class_sq.c.type_id == self.object_class_type, par_def_sq.c.class_id),], else_ = None)
-            rel_class_case = case([(self.entity_class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.class_id),], else_ = None)
+            object_class_case = case([(self.entity_class_sq.c.type_id == self.object_class_type, par_def_sq.c.entity_class_id),], else_ = None)
+            rel_class_case = case([(self.entity_class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.entity_class_id),], else_ = None)
 
             self._parameter_definition_sq = self.query(
                 par_def_sq.c.id.label("id"),
@@ -488,7 +488,7 @@ class DatabaseMappingBase(object):
                 par_def_sq.c.default_value.label("default_value"),
                 par_def_sq.c.commit_id.label("commit_id"),
                 par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
-            ).join(self.entity_class_sq, self.entity_class_sq.c.id == par_def_sq.c.class_id).subquery()
+            ).join(self.entity_class_sq, self.entity_class_sq.c.id == par_def_sq.c.entity_class_id).subquery()
         return self._parameter_definition_sq
 
     @property

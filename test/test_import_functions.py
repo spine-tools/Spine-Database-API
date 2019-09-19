@@ -307,7 +307,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
             self.mock_db_map, [["existing_oc1", "new_parameter"]]
         )
         self.mock_db_map._add_parameter_definitions.assert_called_once_with(
-            {"name": "new_parameter", "class_id": 1}
+            {"name": "new_parameter", "entity_class_id": 1}
         )
         self.assertEqual(len(errors), 0)
 
@@ -324,8 +324,8 @@ class TestImportObjectClassParameter(unittest.TestCase):
             [["existing_oc1", "new_parameter"], ["existing_oc2", "new_parameter"]],
         )
         self.mock_db_map._add_parameter_definitions.assert_called_once_with(
-            {"name": "new_parameter", "class_id": 1},
-            {"name": "new_parameter", "class_id": 2},
+            {"name": "new_parameter", "entity_class_id": 1},
+            {"name": "new_parameter", "entity_class_id": 2},
         )
         self.assertEqual(len(errors), 0)
 
@@ -349,7 +349,7 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
             self.mock_db_map, [["existing_rc1", "new_parameter"]]
         )
         self.mock_db_map._add_parameter_definitions.assert_called_once_with(
-            {"name": "new_parameter", "class_id": 3}
+            {"name": "new_parameter", "entity_class_id": 3}
         )
         self.assertEqual(len(errors), 0)
 
@@ -366,8 +366,8 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
             [["existing_rc1", "new_parameter"], ["existing_rc2", "new_parameter"]],
         )
         self.mock_db_map._add_parameter_definitions.assert_called_once_with(
-            {"name": "new_parameter", "class_id": 3},
-            {"name": "new_parameter", "class_id": 4},
+            {"name": "new_parameter", "entity_class_id": 3},
+            {"name": "new_parameter", "entity_class_id": 4},
         )
         self.assertEqual(len(errors), 0)
 
