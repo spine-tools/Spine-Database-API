@@ -30,7 +30,19 @@ from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
 from .helpers import create_new_spine_database, schemas_are_equal
 
+from sqlalchemy import Column, Integer
+
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
+
+Base = automap_base()
+class ObjectClass(Base):
+    __tablename__ = 'object_class'
+
+    # override schema elements like Columns
+    entity_class_id = Column('entity_class_id', Integer, primary_key=True)
+    type_id = Column('type_id', Integer)
+
+
 
 
 class DatabaseMappingBase(object):
@@ -52,12 +64,16 @@ class DatabaseMappingBase(object):
         self.connection = None
         self.session = None
         self.Commit = None
-        self.ClassType = None
-        self.Class = None
+        self.EntityClassType = None
+        self.EntityClass = None
         self.EntityType = None
         self.Entity = None
+        self.ObjectClass = None
+        self.Object = None
         self.RelationshipClass = None
         self.Relationship = None
+        self.RelationshipEntity = None
+        self.RelationshipEntityClass = None
         self.ParameterDefinition = None
         self.ParameterValue = None
         self.ParameterTag = None
@@ -69,9 +85,9 @@ class DatabaseMappingBase(object):
         self._object_entity_type = None
         self._relationship_entity_type = None
         # Subqueries that select everything from each table
-        self._class_sq = None
+        self._entity_class_sq = None
         self._entity_sq = None
-        self._class_type_sq = None
+        self._entity_class_type_sq = None
         self._entity_type_sq = None
         self._object_sq = None
         self._object_class_sq = None
@@ -101,12 +117,16 @@ class DatabaseMappingBase(object):
         # Table to class dict for convenience
         self.table_to_class = {
             "commit": "Commit",
-            "class": "Class",
-            "class_type": "ClassType",
+            "entity_class": "EntityClass",
+            "entity_class_type": "EntityClassType",
             "entity": "Entity",
             "entity_type": "EntityType",
+            "object": "Object",
+            "object_class": "ObjectClass",
             "relationship_class": "RelationshipClass",
             "relationship": "Relationship",
+            "relationship_entity": "RelationshipEntity",
+            "relationship_entity_class": "RelationshipEntityClass",
             "parameter_definition": "ParameterDefinition",
             "parameter_value": "ParameterValue",
             "parameter_tag": "ParameterTag",
@@ -181,15 +201,16 @@ class DatabaseMappingBase(object):
 
     def _create_mapping(self):
         """Create ORM."""
-        Base = automap_base()
+        
         Base.prepare(self.engine, reflect=True)
+        self.ObjectClass = ObjectClass
         not_found = []
         for tablename, classname in self.table_to_class.items():
             try:
                 setattr(self, classname, getattr(Base.classes, tablename))
             except (NoSuchTableError, AttributeError):
                 not_found.append(tablename)
-        if not_found:
+        if not_found and not_found[0] != "object_class":
             raise SpineTableNotFoundError(not_found, self.db_url)
 
     def query(self, *args, **kwargs):
@@ -239,8 +260,8 @@ class DatabaseMappingBase(object):
     def object_class_type(self):
         if self._object_class_type is None:
             result = (
-                self.query(self.class_type_sq)
-                .filter(self.class_type_sq.c.name == "object")
+                self.query(self.entity_class_type_sq)
+                .filter(self.entity_class_type_sq.c.name == "object")
                 .first()
             )
             self._object_class_type = result.id
@@ -250,8 +271,8 @@ class DatabaseMappingBase(object):
     def relationship_class_type(self):
         if self._relationship_class_type is None:
             result = (
-                self.query(self.class_type_sq)
-                .filter(self.class_type_sq.c.name == "relationship")
+                self.query(self.entity_class_type_sq)
+                .filter(self.entity_class_type_sq.c.name == "relationship")
                 .first()
             )
             self._relationship_class_type = result.id
@@ -280,7 +301,7 @@ class DatabaseMappingBase(object):
         return self._relationship_entity_type
 
     @property
-    def class_type_sq(self):
+    def entity_class_type_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
@@ -289,9 +310,9 @@ class DatabaseMappingBase(object):
 
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
-        if self._class_type_sq is None:
-            self._class_type_sq = self._subquery("class_type")
-        return self._class_type_sq
+        if self._entity_class_type_sq is None:
+            self._entity_class_type_sq = self._subquery("entity_class_type")
+        return self._entity_class_type_sq
 
     @property
     def entity_type_sq(self):
@@ -308,7 +329,7 @@ class DatabaseMappingBase(object):
         return self._entity_type_sq
 
     @property
-    def class_sq(self):
+    def entity_class_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
@@ -317,9 +338,9 @@ class DatabaseMappingBase(object):
 
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
-        if self._class_sq is None:
-            self._class_sq = self._subquery("class")
-        return self._class_sq
+        if self._entity_class_sq is None:
+            self._entity_class_sq = self._subquery("entity_class")
+        return self._entity_class_sq
 
     @property
     def entity_sq(self):
@@ -346,18 +367,19 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_class_sq is None:
+            object_class_sq = self._subquery("object_class")
             
             self._object_class_sq = (
                 self.query(
-                    self.class_sq.c.id.label("id"),
-                    self.class_sq.c.name.label("name"),
-                    self.class_sq.c.description.label("description"),
-                    self.class_sq.c.display_order.label("display_order"),
-                    self.class_sq.c.display_icon.label("display_icon"),
-                    self.class_sq.c.hidden.label("hidden"),
-                    self.class_sq.c.commit_id.label("commit_id"),
+                    self.entity_class_sq.c.id.label("id"),
+                    self.entity_class_sq.c.name.label("name"),
+                    self.entity_class_sq.c.description.label("description"),
+                    self.entity_class_sq.c.display_order.label("display_order"),
+                    self.entity_class_sq.c.display_icon.label("display_icon"),
+                    self.entity_class_sq.c.hidden.label("hidden"),
+                    self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.class_sq.c.type_id == self.object_class_type)
+                .filter(self.entity_class_sq.c.id == object_class_sq.c.entity_class_id)
                 .subquery()
             )
         return self._object_class_sq
@@ -373,6 +395,7 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._object_sq is None:
+            object_sq = self._subquery("object")
             self._object_sq = (
                 self.query(
                     self.entity_sq.c.id.label("id"),
@@ -381,7 +404,7 @@ class DatabaseMappingBase(object):
                     self.entity_sq.c.description.label("description"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.type_id == self.object_entity_type)
+                .filter(self.entity_sq.c.id == object_sq.c.entity_id)
                 .subquery()
             )
         return self._object_sq
@@ -397,17 +420,17 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_class_sq is None:
-            rel_class_sq = self._subquery("relationship_class")
+            rel_class_sq = self._subquery("relationship_entity_class")
             self._relationship_class_sq = (
                 self.query(
-                    rel_class_sq.c.id.label("id"),
+                    rel_class_sq.c.entity_class_id.label("id"),
                     rel_class_sq.c.dimension.label("dimension"),
-                    rel_class_sq.c.member_id.label("object_class_id"),
-                    self.class_sq.c.name.label("name"),
-                    self.class_sq.c.hidden.label("hidden"),
-                    self.class_sq.c.commit_id.label("commit_id"),
+                    rel_class_sq.c.member_class_id.label("object_class_id"),
+                    self.entity_class_sq.c.name.label("name"),
+                    self.entity_class_sq.c.hidden.label("hidden"),
+                    self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.class_sq.c.id == rel_class_sq.c.id)
+                .filter(self.entity_class_sq.c.id == rel_class_sq.c.entity_class_id)
                 .subquery()
             )
         return self._relationship_class_sq
@@ -423,17 +446,17 @@ class DatabaseMappingBase(object):
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._relationship_sq is None:
-            rel_sq = self._subquery("relationship")
+            rel_sq = self._subquery("relationship_entity")
             self._relationship_sq = (
                 self.query(
-                    rel_sq.c.id.label("id"),
+                    rel_sq.c.entity_id.label("id"),
                     rel_sq.c.dimension.label("dimension"),
                     rel_sq.c.member_id.label("object_id"),
-                    rel_sq.c.class_id.label("class_id"),
+                    rel_sq.c.entity_class_id.label("class_id"),
                     self.entity_sq.c.name.label("name"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.id == rel_sq.c.id)
+                .filter(self.entity_sq.c.id == rel_sq.c.entity_id)
                 .subquery()
             )
         return self._relationship_sq
@@ -452,8 +475,8 @@ class DatabaseMappingBase(object):
         if self._parameter_definition_sq is None:
             par_def_sq = self._subquery("parameter_definition")
 
-            object_class_case = case([(self.class_sq.c.type_id == self.object_class_type, par_def_sq.c.class_id),], else_ = None)
-            rel_class_case = case([(self.class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.class_id),], else_ = None)
+            object_class_case = case([(self.entity_class_sq.c.type_id == self.object_class_type, par_def_sq.c.class_id),], else_ = None)
+            rel_class_case = case([(self.entity_class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.class_id),], else_ = None)
 
             self._parameter_definition_sq = self.query(
                 par_def_sq.c.id.label("id"),
@@ -465,7 +488,7 @@ class DatabaseMappingBase(object):
                 par_def_sq.c.default_value.label("default_value"),
                 par_def_sq.c.commit_id.label("commit_id"),
                 par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
-            ).join(self.class_sq, self.class_sq.c.id == par_def_sq.c.class_id).subquery()
+            ).join(self.entity_class_sq, self.entity_class_sq.c.id == par_def_sq.c.class_id).subquery()
         return self._parameter_definition_sq
 
     @property
@@ -1145,10 +1168,12 @@ class DatabaseMappingBase(object):
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
         """
-        self.query(self.Class).delete(synchronize_session=False)
+        self.query(self.EntityClass).delete(synchronize_session=False)
         self.query(self.Entity).delete(synchronize_session=False)
+        self.query(self.RelationshipEntityClass).delete(synchronize_session=False)
         self.query(self.RelationshipClass).delete(synchronize_session=False)
         self.query(self.Relationship).delete(synchronize_session=False)
+        self.query(self.RelationshipEntity).delete(synchronize_session=False)
         self.query(self.ParameterDefinition).delete(synchronize_session=False)
         self.query(self.ParameterValue).delete(synchronize_session=False)
         self.query(self.ParameterTag).delete(synchronize_session=False)

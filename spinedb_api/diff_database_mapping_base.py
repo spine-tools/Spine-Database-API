@@ -42,12 +42,16 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.diff_prefix = None
         # Diff classes
         self.DiffCommit = None
-        self.DiffClass = None
-        self.DiffClassType = None
+        self.DiffEntityClass = None
+        self.DiffEntityClassType = None
         self.DiffEntity = None
         self.DiffEntityType = None
+        self.DiffObject = None
+        self.DiffObjectClass = None
         self.DiffRelationshipClass = None
+        self.DiffRelationshipEntityClass = None
         self.DiffRelationship = None
+        self.DiffRelationshipEntity = None
         self.DiffParameterDefinition = None
         self.DiffParameterValue = None
         self.DiffParameterTag = None
@@ -61,6 +65,16 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Initialize stuff
         self._init_diff_dicts()
         self._create_diff_tables_and_mapping()
+        # table primary ids map:
+        self.table_ids = {
+            "relationship_entity_class": "entity_class_id",
+            "object_class": "entity_class_id",
+            "relationship_class": "entity_class_id",
+            "object": "entity_id",
+            "relationship": "entity_id",
+            "relationship": "entity_id",
+            "relationship_entity": "entity_id",
+        }
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
@@ -141,16 +155,17 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
+        id_col = self.table_ids.get(tablename, "id")
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(~orig_class.id.in_(self.dirty_item_id[tablename]))
+            .filter(~getattr(orig_class, id_col).in_(self.dirty_item_id[tablename]))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )
 
     def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
-        self.query(self.DiffClass).delete()
+        self.query(self.DiffEntityClass).delete()
         self.query(self.DiffEntity).delete()
         self.query(self.DiffRelationshipClass).delete()
         self.query(self.DiffRelationship).delete()
@@ -159,3 +174,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.query(self.DiffParameterTag).delete()
         self.query(self.DiffParameterDefinitionTag).delete()
         self.query(self.DiffParameterValueList).delete()
+        self.query(self.DiffObject).delete()
+        self.query(self.DiffObjectClass).delete()
+        self.query(self.DiffRelationshipEntityClass).delete()
+        self.query(self.DiffRelationshipEntity).delete()
+

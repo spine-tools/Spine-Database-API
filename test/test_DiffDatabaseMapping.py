@@ -95,7 +95,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_object_classes(self):
         """Test that adding object classes works."""
         self.db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
-        object_classes = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.object_class_type).all()
+        object_classes = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.object_class_type).all()
         self.assertEqual(len(object_classes), 2)
         self.assertEqual(object_classes[0].name, "fish")
         self.assertEqual(object_classes[1].name, "dog")
@@ -103,7 +103,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_object_classes_with_same_name(self):
         """Test that adding two object classes with the same name only adds one of them."""
         self.db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
-        object_classes = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.object_class_type).all()
+        object_classes = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.object_class_type).all()
         self.assertEqual(len(object_classes), 1)
         self.assertEqual(object_classes[0].name, "fish")
 
@@ -155,47 +155,29 @@ class TestDiffDatabaseMapping(unittest.TestCase):
 
     def test_add_relationship_classes(self):
         """Test that adding relationship classes works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ):
-            mock_object_class_list.return_value = [
-                KeyedTuple([1, "fish"], labels=["id", "name"]),
-                KeyedTuple([2, "dog"], labels=["id", "name"]),
-            ]
-            self.db_map.add_wide_relationship_classes(
-                {"name": "fish__dog", "object_class_id_list": [1, 2]},
-                {"name": "fishy_doggy", "object_class_id_list": [1, 2]},
-            )
-        relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
-        relationships = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.relationship_class_type).all()
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1,2]}, {"name": "rc2", "object_class_id_list": [2,1]})
+        relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipEntityClass).all()
+        relationships = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.relationship_class_type).all()
         self.assertEqual(len(relationship_members), 4)
-        self.assertEqual(relationships[0].name, "fish__dog")
-        self.assertEqual(relationship_members[0].member_id, 1)
-        self.assertEqual(relationship_members[1].member_id, 2)
-        self.assertEqual(relationships[1].name, "fishy_doggy")
-        self.assertEqual(relationship_members[2].member_id, 1)
-        self.assertEqual(relationship_members[3].member_id, 2)
+        self.assertEqual(relationships[0].name, "rc1")
+        self.assertEqual(relationship_members[0].member_class_id, 1)
+        self.assertEqual(relationship_members[1].member_class_id, 2)
+        self.assertEqual(relationships[1].name, "rc2")
+        self.assertEqual(relationship_members[2].member_class_id, 2)
+        self.assertEqual(relationship_members[3].member_class_id, 1)
 
     def test_add_relationship_classes_with_same_name(self):
         """Test that adding two relationship classes with the same name only adds one of them."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ):
-            mock_object_class_list.return_value = [
-                KeyedTuple([1, "fish"], labels=["id", "name"]),
-                KeyedTuple([2, "dog"], labels=["id", "name"]),
-            ]
-            self.db_map.add_wide_relationship_classes(
-                {"name": "dog__fish", "object_class_id_list": [1, 2]},
-                {"name": "dog__fish", "object_class_id_list": [1, 2]},
-            )
-        relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipClass).all()
-        relationships = self.db_map.session.query(self.db_map.DiffClass).filter(self.db_map.DiffClass.type_id == self.db_map.relationship_class_type).all()
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1,2]}, {"name": "rc1", "object_class_id_list": [1,2]})
+        relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipEntityClass).all()
+        relationships = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.relationship_class_type).all()
         self.assertEqual(len(relationship_members), 2)
         self.assertEqual(len(relationships), 1)
-        self.assertEqual(relationships[0].name, "dog__fish")
-        self.assertEqual(relationship_members[0].member_id, 1)
-        self.assertEqual(relationship_members[1].member_id, 2)
+        self.assertEqual(relationships[0].name, "rc1")
+        self.assertEqual(relationship_members[0].member_class_id, 1)
+        self.assertEqual(relationship_members[1].member_class_id, 2)
 
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
@@ -227,61 +209,35 @@ class TestDiffDatabaseMapping(unittest.TestCase):
 
     def test_add_relationships(self):
         """Test that adding relationships works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list, mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
-            mock_object_list.return_value = [
-                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 10, "dory"], labels=["id", "class_id", "name"]),
-                KeyedTuple([3, 20, "pluto"], labels=["id", "class_id", "name"]),
-                KeyedTuple([4, 20, "scooby"], labels=["id", "class_id", "name"]),
-            ]
-            mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, "10,20", "fish__dog"], labels=["id", "object_class_id_list", "name"]),
-                KeyedTuple([2, "20,10", "dog__fish"], labels=["id", "object_class_id_list", "name"]),
-            ]
-            self.db_map.add_wide_relationships(
-                {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 3]},
-                {"name": "scooby_dory", "class_id": 2, "object_id_list": [4, 2]},
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
+        self.db_map.add_wide_relationships(
+                *[{"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]}],
             )
-        relationships_member = self.db_map.session.query(self.db_map.DiffRelationship).all()
+
+        relationships_member = self.db_map.session.query(self.db_map.DiffRelationshipEntity).all()
         relationships = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.relationship_entity_type).all()
-        self.assertEqual(len(relationships_member), 4)
-        self.assertEqual(len(relationships), 2)
+        self.assertEqual(len(relationships_member), 2)
+        self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "nemo__pluto")
-        self.assertEqual(relationships_member[0].class_id, 1)
+        self.assertEqual(relationships_member[0].entity_class_id, 3)
         self.assertEqual(relationships_member[0].member_id, 1)
-        self.assertEqual(relationships_member[1].class_id, 1)
-        self.assertEqual(relationships_member[1].member_id, 3)
-        self.assertEqual(relationships[1].name, "scooby_dory")
-        self.assertEqual(relationships_member[2].class_id, 2)
-        self.assertEqual(relationships_member[2].member_id, 4)
-        self.assertEqual(relationships_member[3].class_id, 2)
-        self.assertEqual(relationships_member[3].member_id, 2)
+        self.assertEqual(relationships_member[1].entity_class_id, 3)
+        self.assertEqual(relationships_member[1].member_id, 2)
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list, mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
-            mock_object_list.return_value = [
-                KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
-                KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
-            ]
-            mock_wide_rel_cls_list.return_value = [
-                KeyedTuple([1, "10,20", "fish__dog"], labels=["id", "object_class_id_list", "name"])
-            ]
-            self.db_map.add_wide_relationships(
-                {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 2]},
-                {"name": "nemoy__plutoy", "class_id": 1, "object_id_list": [1, 2]},
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
+        self.db_map.add_wide_relationships(
+                {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
+                {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]}
             )
         relationships = self.db_map.session.query(self.db_map.DiffRelationship).all()
-        self.assertEqual(len(relationships), 2)
-        self.assertEqual(relationships[0].class_id, 1)
-        self.assertEqual(relationships[0].member_id, 1)
-        self.assertEqual(relationships[1].class_id, 1)
-        self.assertEqual(relationships[1].member_id, 2)
+        self.assertEqual(len(relationships), 1)
 
     def test_add_relationship_identical_to_existing_one(self):
         """Test that adding a relationship with the same class and same objects as an existing one
