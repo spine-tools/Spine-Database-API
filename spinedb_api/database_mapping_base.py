@@ -1172,6 +1172,8 @@ class DatabaseMappingBase(object):
         """
         self.query(self.EntityClass).delete(synchronize_session=False)
         self.query(self.Entity).delete(synchronize_session=False)
+        self.query(self.Object).delete(synchronize_session=False)
+        self.query(self.ObjectClass).delete(synchronize_session=False)
         self.query(self.RelationshipEntityClass).delete(synchronize_session=False)
         self.query(self.RelationshipClass).delete(synchronize_session=False)
         self.query(self.Relationship).delete(synchronize_session=False)

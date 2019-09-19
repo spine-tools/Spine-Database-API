@@ -55,11 +55,12 @@ class DiffDatabaseMappingRemoveMixin:
         )
         try:
             for tablename, ids in removed_diff_item_id.items():
+                id_col = self.table_ids.get(tablename, "id")
                 classname = self.table_to_class[tablename]
                 diff_class = getattr(self, "Diff" + classname)
-                self.query(diff_class).filter(diff_class.id.in_(ids)).delete(
-                    synchronize_session=False
-                )
+                self.query(diff_class).filter(
+                    getattr(diff_class, id_col).in_(ids)
+                ).delete(synchronize_session=False)
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()
@@ -97,8 +98,8 @@ class DiffDatabaseMappingRemoveMixin:
             self.DiffObjectClass.entity_class_id.in_(object_class_ids)
         )
         self._remove_cascade_object_classes(
-            [x.id for x in item_list],
-            [x.id for x in diff_item_list],
+            [x.entity_class_id for x in item_list],
+            [x.entity_class_id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id,
         )
@@ -110,21 +111,21 @@ class DiffDatabaseMappingRemoveMixin:
             self.DiffObject.entity_id.in_(object_ids)
         )
         self._remove_cascade_objects(
-            [x.id for x in item_list],
-            [x.id for x in diff_item_list],
+            [x.entity_id for x in item_list],
+            [x.entity_id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id,
         )
         # relationship_class
-        item_list = self.query(self.RelationshipClass.id).filter(
-            self.RelationshipClass.id.in_(relationship_class_ids)
+        item_list = self.query(self.RelationshipClass.entity_class_id).filter(
+            self.RelationshipClass.entity_class_id.in_(relationship_class_ids)
         )
-        diff_item_list = self.query(self.DiffRelationshipClass.id).filter(
-            self.DiffRelationshipClass.id.in_(relationship_class_ids)
+        diff_item_list = self.query(self.DiffRelationshipClass.entity_class_id).filter(
+            self.DiffRelationshipClass.entity_class_id.in_(relationship_class_ids)
         )
         self._remove_cascade_relationship_classes(
-            [x.id for x in item_list],
-            [x.id for x in diff_item_list],
+            [x.entity_class_id for x in item_list],
+            [x.entity_class_id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id,
         )
@@ -136,8 +137,8 @@ class DiffDatabaseMappingRemoveMixin:
             self.DiffRelationship.entity_id.in_(relationship_ids)
         )
         self._remove_cascade_relationships(
-            [x.id for x in item_list],
-            [x.id for x in diff_item_list],
+            [x.entity_id for x in item_list],
+            [x.entity_id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id,
         )
@@ -245,10 +246,10 @@ class DiffDatabaseMappingRemoveMixin:
         )
         # parameter
         item_list = self.query(self.ParameterDefinition.id).filter(
-            self.ParameterDefinition.class_id.in_(ids)
+            self.ParameterDefinition.entity_class_id.in_(ids)
         )
         diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.class_id.in_(ids + diff_ids)
+            self.DiffParameterDefinition.entity_class_id.in_(ids + diff_ids)
         )
         self._remove_cascade_parameter_definitions(
             [x.id for x in item_list],
@@ -269,11 +270,11 @@ class DiffDatabaseMappingRemoveMixin:
         removed_item_id.setdefault("object", set()).update(ids)
         removed_diff_item_id.setdefault("object", set()).update(diff_ids)
         # relationship
-        item_list = self.query(self.Relationship.entity_id).filter(
-            self.Relationship.member_id.in_(ids)
+        item_list = self.query(self.RelationshipEntity.entity_id).filter(
+            self.RelationshipEntity.member_id.in_(ids)
         )
-        diff_item_list = self.query(self.DiffRelationship.entity_id).filter(
-            self.DiffRelationship.member_id.in_(ids + diff_ids)
+        diff_item_list = self.query(self.DiffRelationshipEntity.entity_id).filter(
+            self.DiffRelationshipEntity.member_id.in_(ids + diff_ids)
         )
         self._remove_cascade_relationships(
             [x.id for x in item_list],
@@ -325,10 +326,10 @@ class DiffDatabaseMappingRemoveMixin:
         )
         # parameter
         item_list = self.query(self.ParameterDefinition.id).filter(
-            self.ParameterDefinition.class_id.in_(ids)
+            self.ParameterDefinition.entity_class_id.in_(ids)
         )
         diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.class_id.in_(ids + diff_ids)
+            self.DiffParameterDefinition.entity_class_id.in_(ids + diff_ids)
         )
         self._remove_cascade_parameter_definitions(
             [x.id for x in item_list],
