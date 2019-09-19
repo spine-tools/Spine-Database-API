@@ -29,6 +29,79 @@ from unittest import mock
 from sqlalchemy.orm import Session
 
 
+
+class TestDiffDatabaseMappingRemove(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """Overridden method. Runs once before all tests in this class."""
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=logging.DEBUG,
+            format="%(asctime)s %(levelname)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        try:
+            os.remove("temp.sqlite")
+        except OSError:
+            pass
+        db_url = "sqlite:///temp.sqlite"
+        engine = create_new_spine_database(db_url, upgrade=False)
+        cls.db_map = DiffDatabaseMapping(db_url, username="UnitTest")
+
+    @classmethod
+    def tearDownClass(cls):
+        """Overridden method. Runs once after all tests in this class."""
+        try:
+            os.remove("temp.sqlite")
+        except OSError:
+            pass
+
+    def setUp(self):
+        """Overridden method. Runs before each test. Makes instances of TreeViewForm and GraphViewForm classes.
+        """
+        # Set logging level to Error to silence "Logging level: All messages" print
+        logging.disable(level=logging.ERROR)  # Disable logging
+        self.db_map._reset_mapping()
+        self.db_map._reset_diff_mapping()
+        self.db_map.commit_session("")
+        self.db_map.session.query(self.db_map.NextId).delete(synchronize_session=False)
+        logging.disable(level=logging.NOTSET)  # Enable logging
+
+    def tearDown(self):
+        """Overridden method. Runs after each test.
+        Use this to free resources after a test if needed.
+        """
+        pass
+
+    def test_remove_relationship(self):
+        """Test adding and removing an relationship and commiting"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
+        rel, _ = self.db_map.add_wide_relationships(
+                *[{"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}],
+            )
+        self.db_map.remove_items(relationship_ids = [r.id for r in rel])
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+    
+    def test_remove_relationship_from_commited_session(self):
+        """Test removing an relationship from an commited session"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
+        rel, _ = self.db_map.add_wide_relationships(
+                *[{"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}],
+            )
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 1)
+        self.db_map.remove_items(relationship_ids = [r.id for r in rel])
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.db_map.commit_session("")
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+
+
 class TestDiffDatabaseMapping(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
