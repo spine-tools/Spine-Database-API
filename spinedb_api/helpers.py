@@ -309,6 +309,9 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
+        CheckConstraint(
+            "`type_id` = 1"  # make sure object class can only have object type
+        ),
     )
     Table(
         "relationship_class",
