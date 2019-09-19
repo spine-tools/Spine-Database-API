@@ -337,16 +337,16 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         ),
         Column("dimension", Integer, primary_key=True),
         Column("member_class_id", Integer, nullable=False),
-        Column("member_type_id", Integer, nullable=False),
+        Column("member_class_type_id", Integer, nullable=False),
         UniqueConstraint("dimension", "entity_class_id", "member_class_id"),
         ForeignKeyConstraint(
-            ("member_class_id", "member_type_id"),
+            ("member_class_id", "member_class_type_id"),
             ("entity_class.id", "entity_class.type_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
         CheckConstraint(
-            "`member_type_id` != 2"  # make sure relationship class can only have other classes than relationship classes
+            "`member_class_type_id` != 2"  # make sure relationship class can only have other classes than relationship classes
         ),
     )
     Table(

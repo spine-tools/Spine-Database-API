@@ -267,7 +267,7 @@ class DiffDatabaseMappingAddMixin:
                         "entity_class_id": id,
                         "dimension": dimension,
                         "member_class_id": object_class_id,
-                        "member_type_id": self.object_class_type,
+                        "member_class_type_id": self.object_class_type,
                     }
                     items_to_add.append(narrow_item)
                 id += 1
@@ -356,7 +356,7 @@ class DiffDatabaseMappingAddMixin:
                         "entity_class_id": wide_item["class_id"],
                         "dimension": dimension,
                         "member_id": object_id,
-                        "member_type_id": self.object_entity_type,
+                        "member_class_type_id": self.object_entity_type,
                         "member_class_id": object_class_id,
                     }
                     items_to_add.append(narrow_item)
