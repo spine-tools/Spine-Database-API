@@ -30,11 +30,16 @@ def upgrade():
     with op.batch_alter_table("parameter_tag") as batch_op:
         batch_op.alter_column("description", server_default=sa.null())
     # 2. Rename parameter_definition constraints. Basically remove and readd them so they get the correct name
+    insp = sa.inspect(op.get_bind())
+    parameter_definition_pk_name = insp.get_pk_constraint("parameter_definition")["name"]
+    parameter_definition_fk_names = [x["name"] for x in insp.get_foreign_keys("parameter_definition")]
     with op.batch_alter_table("parameter_definition") as batch_op:
-        batch_op.drop_constraint("pk_parameter", type_="primary")
-        batch_op.drop_constraint("fk_parameter_commit_id_commit", type_="foreignkey")
-        batch_op.create_primary_key(None, ["id"])
-        batch_op.create_foreign_key(None, "commit", ["commit_id"], ["id"])
+        if parameter_definition_pk_name == "pk_parameter":
+            batch_op.drop_constraint("pk_parameter", type_="primary")
+            batch_op.create_primary_key(None, ["id"])
+        if "fk_parameter_commit_id_commit" in parameter_definition_fk_names:
+            batch_op.drop_constraint("fk_parameter_commit_id_commit", type_="foreignkey")
+            batch_op.create_foreign_key(None, "commit", ["commit_id"], ["id"])
 
 
 def downgrade():

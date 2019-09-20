@@ -5,9 +5,9 @@ Revises: bf255c179bce
 Create Date: 2019-09-17 13:38:53.437119
 
 """
+from datetime import datetime
 from alembic import op
 import sqlalchemy as sa
-from datetime import datetime
 
 
 # revision identifiers, used by Alembic.
@@ -328,7 +328,7 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             object_id=object_id,
         )
 
-    for relationship_id, entity_id in obj_to_ent.items():
+    for relationship_id, entity_id in rel_to_ent.items():
         entity_class_id = ent_to_ent_cls[entity_id]
         conn.execute(
             """
