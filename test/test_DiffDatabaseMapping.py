@@ -29,7 +29,6 @@ from unittest import mock
 from sqlalchemy.orm import Session
 
 
-
 class TestDiffDatabaseMappingRemove(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -45,7 +44,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         except OSError:
             pass
         db_url = "sqlite:///temp.sqlite"
-        engine = create_new_spine_database(db_url, upgrade=False)
+        create_new_spine_database(db_url, upgrade=False)
         cls.db_map = DiffDatabaseMapping(db_url, username="UnitTest")
 
     @classmethod
@@ -71,38 +70,33 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         """Overridden method. Runs after each test.
         Use this to free resources after a test if needed.
         """
-        pass
 
     def test_remove_relationship(self):
         """Test adding and removing an relationship and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
-        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
-        rel, _ = self.db_map.add_wide_relationships(
-                *[{"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}],
-            )
-        self.db_map.remove_items(relationship_ids = [r.id for r in rel])
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        rel, _ = self.db_map.add_wide_relationships(*[{"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}])
+        self.db_map.remove_items(relationship_ids=[r.id for r in rel])
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
-    
+
     def test_remove_relationship_from_commited_session(self):
         """Test removing an relationship from an commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
-        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
-        rel, _ = self.db_map.add_wide_relationships(
-                *[{"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}],
-            )
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        rel, _ = self.db_map.add_wide_relationships(*[{"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}])
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 1)
-        self.db_map.remove_items(relationship_ids = [r.id for r in rel])
+        self.db_map.remove_items(relationship_ids=[r.id for r in rel])
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
 
 
-class TestDiffDatabaseMapping(unittest.TestCase):
+class TestDiffDatabaseMappingAdd(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Overridden method. Runs once before all tests in this class."""
@@ -117,7 +111,7 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         except OSError:
             pass
         db_url = "sqlite:///temp.sqlite"
-        engine = create_new_spine_database(db_url, upgrade=False)
+        create_new_spine_database(db_url, upgrade=False)
         cls.db_map = DiffDatabaseMapping(db_url, username="UnitTest")
 
     @classmethod
@@ -142,22 +136,14 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         """Overridden method. Runs after each test.
         Use this to free resources after a test if needed.
         """
-        pass
 
-    def test_insert_many_objects_and_commit(self):
-        """Tests inserting many objects into db"""
-
-        new_item_list, intgr_error_log = self.db_map.add_object_classes({"name": "testclass"})
-        c_id = new_item_list.first()
-        self.db_map.add_objects(*[{"name": str(i), "class_id": c_id.id} for i in range(1001)])
-        self.db_map.commit_session("test_commit")
-        self.assertEqual(self.db_map.session.query(self.db_map.Entity).count(), 1001)
-
-    def test_insert_and_retrieve_many_objects(self):
-        """Tests inserting many objects into db and retrieving them."""
+    def test_add_and_retrieve_many_objects(self):
+        """Tests add many objects into db and retrieving them."""
         c_id = self.db_map.add_object_classes({"name": "testclass"})[0].first().id
         objects = self.db_map.add_objects(*[{"name": str(i), "class_id": c_id} for i in range(1001)])[0]
         self.assertEqual(objects.count(), 1001)
+        self.db_map.commit_session("test_commit")
+        self.assertEqual(self.db_map.session.query(self.db_map.Entity).count(), 1001)
 
     @unittest.skip("TODO")
     def test_check_wide_relationship_with_repeated_object(self):
@@ -168,7 +154,11 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_object_classes(self):
         """Test that adding object classes works."""
         self.db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
-        object_classes = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.object_class_type).all()
+        object_classes = (
+            self.db_map.session.query(self.db_map.DiffEntityClass)
+            .filter(self.db_map.DiffEntityClass.type_id == self.db_map.object_class_type)
+            .all()
+        )
         self.assertEqual(len(object_classes), 2)
         self.assertEqual(object_classes[0].name, "fish")
         self.assertEqual(object_classes[1].name, "dog")
@@ -176,7 +166,11 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_object_classes_with_same_name(self):
         """Test that adding two object classes with the same name only adds one of them."""
         self.db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
-        object_classes = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.object_class_type).all()
+        object_classes = (
+            self.db_map.session.query(self.db_map.DiffEntityClass)
+            .filter(self.db_map.DiffEntityClass.type_id == self.db_map.object_class_type)
+            .all()
+        )
         self.assertEqual(len(object_classes), 1)
         self.assertEqual(object_classes[0].name, "fish")
 
@@ -192,7 +186,11 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
             mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
-        objects = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.object_entity_type).all()
+        objects = (
+            self.db_map.session.query(self.db_map.DiffEntity)
+            .filter(self.db_map.DiffEntity.type_id == self.db_map.object_entity_type)
+            .all()
+        )
         self.assertEqual(len(objects), 2)
         self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
@@ -204,7 +202,11 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
             mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
-        objects = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.object_entity_type).all()
+        objects = (
+            self.db_map.session.query(self.db_map.DiffEntity)
+            .filter(self.db_map.DiffEntity.type_id == self.db_map.object_entity_type)
+            .all()
+        )
         self.assertEqual(len(objects), 1)
         self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
@@ -229,9 +231,15 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_relationship_classes(self):
         """Test that adding relationship classes works."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1,2]}, {"name": "rc2", "object_class_id_list": [2,1]})
+        self.db_map.add_wide_relationship_classes(
+            {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc2", "object_class_id_list": [2, 1]}
+        )
         relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipEntityClass).all()
-        relationships = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.relationship_class_type).all()
+        relationships = (
+            self.db_map.session.query(self.db_map.DiffEntityClass)
+            .filter(self.db_map.DiffEntityClass.type_id == self.db_map.relationship_class_type)
+            .all()
+        )
         self.assertEqual(len(relationship_members), 4)
         self.assertEqual(relationships[0].name, "rc1")
         self.assertEqual(relationship_members[0].member_class_id, 1)
@@ -243,9 +251,15 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_relationship_classes_with_same_name(self):
         """Test that adding two relationship classes with the same name only adds one of them."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1,2]}, {"name": "rc1", "object_class_id_list": [1,2]})
+        self.db_map.add_wide_relationship_classes(
+            {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc1", "object_class_id_list": [1, 2]}
+        )
         relationship_members = self.db_map.session.query(self.db_map.DiffRelationshipEntityClass).all()
-        relationships = self.db_map.session.query(self.db_map.DiffEntityClass).filter(self.db_map.DiffEntityClass.type_id == self.db_map.relationship_class_type).all()
+        relationships = (
+            self.db_map.session.query(self.db_map.DiffEntityClass)
+            .filter(self.db_map.DiffEntityClass.type_id == self.db_map.relationship_class_type)
+            .all()
+        )
         self.assertEqual(len(relationship_members), 2)
         self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "rc1")
@@ -283,14 +297,16 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_relationships(self):
         """Test that adding relationships works."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
-        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
-        self.db_map.add_wide_relationships(
-                *[{"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]}],
-            )
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        self.db_map.add_wide_relationships(*[{"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]}])
 
         relationships_member = self.db_map.session.query(self.db_map.DiffRelationshipEntity).all()
-        relationships = self.db_map.session.query(self.db_map.DiffEntity).filter(self.db_map.DiffEntity.type_id == self.db_map.relationship_entity_type).all()
+        relationships = (
+            self.db_map.session.query(self.db_map.DiffEntity)
+            .filter(self.db_map.DiffEntity.type_id == self.db_map.relationship_entity_type)
+            .all()
+        )
         self.assertEqual(len(relationships_member), 2)
         self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "nemo__pluto")
@@ -303,12 +319,12 @@ class TestDiffDatabaseMapping(unittest.TestCase):
         """Test that adding two relationships with the same class and same objects only adds the first one.
         """
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
-        self.db_map.add_objects({"name": "o1", "id": 1, "class_id":1}, {"name": "o2", "id": 2, "class_id":2})
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self.db_map.add_wide_relationships(
-                {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
-                {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]}
-            )
+            {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
+            {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
+        )
         relationships = self.db_map.session.query(self.db_map.DiffRelationship).all()
         self.assertEqual(len(relationships), 1)
 
@@ -375,10 +391,10 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_parameter_definitions(self):
         """Test that adding parameter definitions works."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
         self.db_map.add_parameter_definitions(
-                {"name": "color", "object_class_id": 1}, {"name": "relative_speed", "relationship_class_id": 3}
-            )
+            {"name": "color", "object_class_id": 1}, {"name": "relative_speed", "relationship_class_id": 3}
+        )
         parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
@@ -389,10 +405,10 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_parameter_definitions_with_same_name(self):
         """Test that adding two parameter_definitions with the same name adds both of them."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
         self.db_map.add_parameter_definitions(
-                {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
-            )
+            {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
+        )
         parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
@@ -402,27 +418,21 @@ class TestDiffDatabaseMapping(unittest.TestCase):
     def test_add_parameter_with_same_name_as_existing_one(self):
         """Test that adding parameter_definitions with an already taken name raises and integrity error."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
         self.db_map.add_parameter_definitions(
-                {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
-            )
+            {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
+        )
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_parameter_definitions(
-                {"name": "color", "object_class_id": 1}, strict=True
-            )
+            self.db_map.add_parameter_definitions({"name": "color", "object_class_id": 1}, strict=True)
 
     def test_add_parameter_with_invalid_class(self):
         """Test that adding parameter_definitions with an invalid (object or relationship) class raises and integrity error."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1,2]}])
+        self.db_map.add_wide_relationship_classes(*[{"name": "rc1", "id": 3, "object_class_id_list": [1, 2]}])
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_parameter_definitions(
-                {"name": "color", "object_class_id": 3}, strict=True
-            )
+            self.db_map.add_parameter_definitions({"name": "color", "object_class_id": 3}, strict=True)
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_parameter_definitions(
-                {"name": "color", "relationship_class_id": 1}, strict=True
-            )
+            self.db_map.add_parameter_definitions({"name": "color", "relationship_class_id": 1}, strict=True)
 
     def test_add_parameter_for_both_object_and_relationship_class(self):
         """Test that adding parameter_definitions associated to both and object and relationship class
