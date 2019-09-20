@@ -7,7 +7,11 @@ Create Date: 2019-03-26 15:34:26.550171
 """
 from alembic import op
 import sqlalchemy as sa
-from spinedb_api import naming_convention
+
+naming_convention = {
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "uq": "uq_%(table_name)s_%(column_0N_name)s",
+}
 
 
 # revision identifiers, used by Alembic.

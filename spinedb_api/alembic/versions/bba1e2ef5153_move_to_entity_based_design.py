@@ -272,6 +272,9 @@ def alter_tables_before_update(meta):
         batch_op.create_foreign_key(
             None, "entity", ["entity_id", "entity_class_id"], ["id", "class_id"], onupdate="CASCADE", ondelete="CASCADE"
         )
+    # Can you believe some dbs still have the `parameter` table after revision 8c19c53d5701 ???
+    if "parameter" in sa.inspect(op.get_bind()).get_table_names():
+        op.drop_table("parameter")
     if "next_id" not in meta.tables:
         return
     with op.batch_alter_table("next_id") as batch_op:
@@ -327,7 +330,6 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             entity_class_id=entity_class_id,
             object_id=object_id,
         )
-
     for relationship_id, entity_id in rel_to_ent.items():
         entity_class_id = ent_to_ent_cls[entity_id]
         conn.execute(
@@ -339,6 +341,10 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             entity_class_id=entity_class_id,
             relationship_id=relationship_id,
         )
+    # Clean our potential mess.
+    # E.g., I've seen parameter definitions with an invalid relationship_class_id for some reason...!
+    conn.execute("DELETE FROM parameter_definition WHERE entity_class_id IS NULL")
+    conn.execute("DELETE FROM parameter_value WHERE entity_class_id IS NULL OR entity_id IS NULL")
     if "next_id" not in meta.tables:
         return
     row = conn.execute("SELECT MAX(id) FROM entity_class").fetchone()
