@@ -43,13 +43,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.engine import reflection
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import (
-    DatabaseError,
-    DBAPIError,
-    IntegrityError,
-    OperationalError,
-    NoSuchTableError,
-)
+from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
@@ -76,9 +70,13 @@ SUPPORTED_DIALECTS = {
 
 
 naming_convention = {
+    "pk": "pk_%(table_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "uq": "uq_%(table_name)s_%(column_0N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
 }
+
+model_meta = MetaData(naming_convention=naming_convention)
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -117,11 +115,21 @@ def is_head(db_url, upgrade=False):
         db_url (str): database url
         upgrade (Bool): if True, upgrade db to head
     """
+    engine = create_engine(db_url)
+    return is_head_from_engine(engine, upgrade=upgrade)
+
+
+def is_head_from_engine(engine, upgrade=False):
+    """Check whether or not engine is head.
+
+    Args:
+        engine (Engine): database engine
+        upgrade (Bool): if True, upgrade db to head
+    """
     config = Config()
     config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
     head = script.get_current_head()
-    engine = create_engine(db_url)
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection)
         current_rev = migration_context.get_current_revision()
@@ -134,28 +142,15 @@ def is_head(db_url, upgrade=False):
             return script._upgrade_revs("head", rev)
 
         with EnvironmentContext(
-            config,
-            script,
-            fn=fn,
-            as_sql=False,
-            starting_rev=None,
-            destination_rev="head",
-            tag=None,
+            config, script, fn=fn, as_sql=False, starting_rev=None, destination_rev="head", tag=None
         ) as environment_context:
-            environment_context.configure(connection=connection, target_metadata=None)
+            environment_context.configure(connection=connection, target_metadata=model_meta)
             with environment_context.begin_transaction():
                 environment_context.run_migrations()
     return True
 
 
-def copy_database(
-    dest_url,
-    source_url,
-    overwrite=True,
-    upgrade=False,
-    only_tables=set(),
-    skip_tables=set(),
-):
+def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=set(), skip_tables=set()):
     """Copy the database from source_url into dest_url."""
     if not is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
@@ -198,16 +193,12 @@ def copy_database(
             warnings.warn("Skipping table {0}: {1}".format(t.name, e.orig.args))
 
 
-def custom_generate_relationship(
-    base, direction, return_fn, attrname, local_cls, referred_cls, **kw
-):
+def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
     # NOTE: Not in use at the moment
     if direction is interfaces.ONETOMANY:
         kw["cascade"] = "all, delete-orphan"
         kw["passive_deletes"] = True
-    return generate_relationship(
-        base, direction, return_fn, attrname, local_cls, referred_cls, **kw
-    )
+    return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 
 def is_unlocked(db_url, timeout=0):
@@ -228,9 +219,7 @@ def schemas_are_equal(left_engine, right_engine):
     For now it only checks table names, but we should also check columns definitions and more...."""
     left_inspector = reflection.Inspector.from_engine(left_engine)
     right_inspector = reflection.Inspector.from_engine(right_engine)
-    if sorted(right_inspector.get_table_names()) != sorted(
-        left_inspector.get_table_names()
-    ):
+    if sorted(right_inspector.get_table_names()) != sorted(left_inspector.get_table_names()):
         return False
     return True
 
@@ -239,9 +228,7 @@ def is_empty(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError(
-            "Could not connect to '{}': {}".format(db_url, e.orig.args)
-        )
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
     insp = inspect(engine)
     if insp.get_table_names():
         return False
@@ -253,9 +240,7 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError(
-            "Could not connect to '{}': {}".format(db_url, e.orig.args)
-        )
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
     # Drop existing tables. This is a Spine db now...
     meta = MetaData(engine)
     meta.reflect()
@@ -288,7 +273,12 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         "entity_class",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("type_id", Integer, ForeignKey("entity_class_type.id"), nullable=False),
+        Column(
+            "type_id",
+            Integer,
+            ForeignKey("entity_class_type.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
         Column("display_order", Integer, server_default="99"),
@@ -302,32 +292,29 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         "object_class",
         meta,
         Column("entity_class_id", Integer, primary_key=True),
-        Column("type_id", Integer, ForeignKey("entity_class_type.id"), nullable=False),
+        Column("type_id", Integer, nullable=False),
         ForeignKeyConstraint(
             ("entity_class_id", "type_id"),
             ("entity_class.id", "entity_class.type_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
-        CheckConstraint(
-            "`type_id` = 1"  # make sure object class can only have object type
-        ),
+        CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object class can only have object type
     )
     Table(
         "relationship_class",
         meta,
         Column("entity_class_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        PrimaryKeyConstraint("entity_class_id", name="relationship_class_PK"),
+        # TODO: Check if automap keeps working after removing this
+        # PrimaryKeyConstraint("entity_class_id", name="relationship_class_PK"),
         ForeignKeyConstraint(
             ("entity_class_id", "type_id"),
             ("entity_class.id", "entity_class.type_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
-        CheckConstraint(
-            "`type_id` = 2"  # make sure relationship class can only relationship typ class
-        ),
+        CheckConstraint("`type_id` = 2", name="type_id"),
     )
     Table(
         "relationship_entity_class",
@@ -335,37 +322,28 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         Column(
             "entity_class_id",
             Integer,
-            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            ForeignKey("relationship_class.entity_class_id", onupdate="CASCADE", ondelete="CASCADE"),
             primary_key=True,
         ),
         Column("dimension", Integer, primary_key=True),
         Column("member_class_id", Integer, nullable=False),
         Column("member_class_type_id", Integer, nullable=False),
-        UniqueConstraint("dimension", "entity_class_id", "member_class_id"),
+        # TODO: Why this one below???
+        # UniqueConstraint("dimension", "entity_class_id", "member_class_id"),
         ForeignKeyConstraint(
             ("member_class_id", "member_class_type_id"),
             ("entity_class.id", "entity_class.type_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
-        CheckConstraint(
-            "`member_class_type_id` != 2"  # make sure relationship class can only have other classes than relationship classes
-        ),
+        CheckConstraint("`member_class_type_id` != 2", name="member_class_type_id"),
     )
     Table(
         "entity",
         meta,
         Column("id", Integer, primary_key=True),
-        Column(
-            "type_id",
-            Integer,
-            ForeignKey("entity_type.id", onupdate="CASCADE", ondelete="CASCADE"),
-        ),
-        Column(
-            "class_id",
-            Integer,
-            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
-        ),
+        Column("type_id", Integer, ForeignKey("entity_type.id", onupdate="CASCADE", ondelete="CASCADE")),
+        Column("class_id", Integer, ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE")),
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
@@ -379,24 +357,20 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         Column("entity_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
         ForeignKeyConstraint(
-            ("entity_id", "type_id"),
-            ("entity.id", "entity.type_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            ("entity_id", "type_id"), ("entity.id", "entity.type_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
+        CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object can only have object type
     )
     Table(
         "relationship",
         meta,
         Column("entity_id", Integer, primary_key=True),
-        Column("entity_class_id", Integer, primary_key=True),
+        Column("entity_class_id", Integer, nullable=False),
         Column("type_id", Integer, nullable=False),
         ForeignKeyConstraint(
-            ("entity_id", "type_id", "entity_class_id"),
-            ("entity.id", "entity.type_id", "entity.class_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            ("entity_id", "type_id"), ("entity.id", "entity.type_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
+        CheckConstraint("`type_id` = 2", name="type_id"),
     )
     Table(
         "relationship_entity",
@@ -407,16 +381,7 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         Column("member_id", Integer, nullable=False),
         Column("member_class_id", Integer, nullable=False),
         ForeignKeyConstraint(
-            ("entity_id", "entity_class_id"),
-            ("relationship.entity_id", "relationship.entity_class_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ("member_id", "member_class_id"),
-            ("entity.id", "entity.class_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            ("member_id", "member_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
         ForeignKeyConstraint(
             ("entity_class_id", "dimension", "member_class_id"),
@@ -425,6 +390,12 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
                 "relationship_entity_class.dimension",
                 "relationship_entity_class.member_class_id",
             ),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ("entity_id", "entity_class_id"),
+            ("relationship.entity_id", "relationship.entity_class_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
@@ -452,26 +423,16 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         "parameter_tag",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("tag", String(155), nullable=False),
-        Column("description", String(155), server_default=null()),
+        Column("tag", String(155), nullable=False, unique=True),
+        Column("description", String(255), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "parameter_definition_tag",
         meta,
         Column("id", Integer, primary_key=True),
-        Column(
-            "parameter_definition_id",
-            Integer,
-            ForeignKey("parameter_definition.id"),
-            nullable=False,
-        ),
-        Column(
-            "parameter_tag_id",
-            String(155),
-            ForeignKey("parameter_tag.id"),
-            nullable=False,
-        ),
+        Column("parameter_definition_id", Integer, ForeignKey("parameter_definition.id"), nullable=False),
+        Column("parameter_tag_id", Integer, ForeignKey("parameter_tag.id"), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_definition_id", "parameter_tag_id"),
     )
@@ -486,10 +447,7 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_definition_id", "entity_id"),
         ForeignKeyConstraint(
-            ("entity_id", "entity_class_id"),
-            ("entity.id", "entity.class_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            ("entity_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
         ForeignKeyConstraint(
             ("parameter_definition_id", "entity_class_id"),
@@ -503,23 +461,23 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(155), nullable=False),
-        Column("value_index", Integer, nullable=False),
-        Column("value", String(155), nullable=False),
+        Column("value_index", Integer, primary_key=True, nullable=False),
+        Column("value", String(255), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "alembic_version",
+        meta,
+        Column("version_num", String(32), nullable=False),
+        PrimaryKeyConstraint("version_num", name="alembic_version_pkc"),
     )
     try:
         meta.create_all(engine)
-        engine.execute(
-            "INSERT INTO entity_class_type VALUES (1, 'object', null), (2, 'relationship', null)"
-        )
-        engine.execute(
-            "INSERT INTO entity_type VALUES (1, 'object', null), (2, 'relationship', null)"
-        )
+        engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', null), (2, 'relationship', null)")
+        engine.execute("INSERT INTO entity_type VALUES (1, 'object', null), (2, 'relationship', null)")
+        engine.execute("INSERT INTO alembic_version VALUES ('bba1e2ef5153')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
-    if not upgrade:
-        return engine
-    is_head(db_url, upgrade=True)
     if for_spine_model:
         add_specifc_data_structure_for_spine_model(db_url)
     return engine
@@ -536,18 +494,8 @@ def add_specifc_data_structure_for_spine_model(db_url):
     db_map = DiffDatabaseMapping(db_url)
     object_classes = (
         ("direction", "A flow direction", 1, 281105626296654),
-        (
-            "unit",
-            "An entity where an energy conversion process takes place",
-            2,
-            281470681805429,
-        ),
-        (
-            "connection",
-            "An entity where an energy transfer takes place",
-            3,
-            280378317271233,
-        ),
+        ("unit", "An entity where an energy conversion process takes place", 2, 281470681805429),
+        ("connection", "An entity where an energy transfer takes place", 3, 280378317271233),
         ("storage", "A storage", 4, 280376899531934),
         ("commodity", "A commodity", 5, 281473533932880),
         ("node", "An entity where an energy balance takes place", 6, 280740554077951),
@@ -555,23 +503,14 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("rolling", "A rolling horizon", 9, 281107043971546),
     )
     db_map.add_object_classes(
-        *[
-            dict(zip(("name", "description", "display_order", "display_icon"), x))
-            for x in object_classes
-        ]
+        *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
     )
     import_data(
         db_map,
         objects=(("direction", "from_node"), ("direction", "to_node")),
         relationship_classes=(
-            (
-                "unit__node__direction__temporal_block",
-                ("unit", "node", "direction", "temporal_block"),
-            ),
-            (
-                "connection__node__direction__temporal_block",
-                ("connection", "node", "direction", "temporal_block"),
-            ),
+            ("unit__node__direction__temporal_block", ("unit", "node", "direction", "temporal_block")),
+            ("connection__node__direction__temporal_block", ("connection", "node", "direction", "temporal_block")),
             ("node__commodity", ("node", "commodity")),
             ("unit_group__unit", ("unit", "unit")),
             ("commodity_group__commodity", ("commodity", "commodity")),

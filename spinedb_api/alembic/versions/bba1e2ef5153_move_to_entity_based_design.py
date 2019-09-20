@@ -7,7 +7,6 @@ Create Date: 2019-09-17 13:38:53.437119
 """
 from alembic import op
 import sqlalchemy as sa
-from spinedb_api import naming_convention
 from datetime import datetime
 
 
@@ -23,45 +22,38 @@ def create_new_tables():
         "entity_class_type",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.Unicode(255), nullable=False, unique=True),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
     )
     op.create_table(
         "entity_class",
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("type_id", sa.Integer, sa.ForeignKey("entity_class_type.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column(
+            "type_id",
+            sa.Integer,
+            sa.ForeignKey("entity_class_type.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.Unicode(255), nullable=False, unique=True),
         sa.Column("description", sa.Unicode(255), server_default=sa.null()),
+        sa.Column("display_order", sa.Integer, server_default="99"),
+        sa.Column("display_icon", sa.BigInteger, server_default=sa.null()),
         sa.Column("hidden", sa.Integer, server_default="0"),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
     )
     op.create_table(
         "temp_relationship_class",
         sa.Column("entity_class_id", sa.Integer),
-        sa.Column("type_id", sa.Integer, sa.CheckConstraint("type_id=2")),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
-        sa.ForeignKeyConstraint(
-            ("entity_class_id", "type_id"),
-            ("entity_class.id", "entity_class.type_id"),
-            name="fk_relationship_class_entity_class_id_entity_class",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
+        sa.Column("type_id", sa.Integer, nullable=False),
     )
     op.create_table(
         "relationship_entity_class",
-        sa.Column(
-            "entity_class_id",
-            sa.Integer,
-            sa.ForeignKey("temp_relationship_class.entity_class_id", onupdate="CASCADE", ondelete="CASCADE"),
-        ),
-        sa.Column("dimension", sa.Integer),
-        sa.Column("member_class_id", sa.Integer),
-        sa.Column("member_class_type_id", sa.Integer, sa.CheckConstraint("member_class_type_id=1")),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column("entity_class_id", sa.Integer, primary_key=True),
+        sa.Column("dimension", sa.Integer, primary_key=True),
+        sa.Column("member_class_id", sa.Integer, nullable=False),
+        sa.Column("member_class_type_id", sa.Integer, nullable=False),
         sa.ForeignKeyConstraint(
             ("member_class_id", "member_class_type_id"),
             ("entity_class.id", "entity_class.type_id"),
-            name="fk_relationship_entity_class_member_class_id_entity_class",
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
@@ -70,7 +62,7 @@ def create_new_tables():
         "entity_type",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.Unicode(255), nullable=False, unique=True),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
     )
     op.create_table(
         "entity",
@@ -78,44 +70,25 @@ def create_new_tables():
         sa.Column("type_id", sa.Integer, sa.ForeignKey("entity_type.id", onupdate="CASCADE", ondelete="CASCADE")),
         sa.Column("class_id", sa.Integer, sa.ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE")),
         sa.Column("name", sa.Unicode(255), nullable=False),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column("description", sa.String(255), server_default=sa.null()),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("class_id", "name"),
     )
     op.create_table(
         "temp_relationship",
         sa.Column("entity_id", sa.Integer),
-        sa.Column("entity_class_id", sa.Integer),
-        sa.Column("type_id", sa.Integer, sa.CheckConstraint("type_id=2")),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
-        sa.ForeignKeyConstraint(
-            ("entity_id", "entity_class_id", "type_id"),
-            ("entity.id", "entity.class_id", "entity.type_id"),
-            name="fk_relationship_entity_id_entity",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
+        sa.Column("entity_class_id", sa.Integer, nullable=False),
+        sa.Column("type_id", sa.Integer, nullable=False),
     )
     op.create_table(
         "relationship_entity",
-        sa.Column("entity_id", sa.Integer),
-        sa.Column("entity_class_id", sa.Integer),
-        sa.Column("dimension", sa.Integer),
-        sa.Column("member_id", sa.Integer),
-        sa.Column("member_class_id", sa.Integer),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id", onupdate="CASCADE", ondelete="CASCADE")),
+        sa.Column("entity_id", sa.Integer, primary_key=True),
+        sa.Column("entity_class_id", sa.Integer, nullable=False),
+        sa.Column("dimension", sa.Integer, primary_key=True),
+        sa.Column("member_id", sa.Integer, nullable=False),
+        sa.Column("member_class_id", sa.Integer, nullable=False),
         sa.ForeignKeyConstraint(
-            ("entity_id", "entity_class_id"),
-            ("temp_relationship.entity_id", "temp_relationship.entity_class_id"),
-            name="fk_relationship_entity_id_relationship",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ("member_id", "member_class_id"),
-            ("entity.id", "entity.class_id"),
-            name="fk_relationship_entity_member_id_entity",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            ("member_id", "member_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
             ("entity_class_id", "dimension", "member_class_id"),
@@ -124,7 +97,6 @@ def create_new_tables():
                 "relationship_entity_class.dimension",
                 "relationship_entity_class.member_class_id",
             ),
-            name="fk_relationship_entity_entity_class_id_relationship_entity_class",
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
@@ -147,12 +119,24 @@ def insert_into_new_tables():
             "type_id": 1,
             "name": r["name"],
             "description": r["description"],
+            "display_order": r["display_order"],
+            "display_icon": r["display_icon"],
             "hidden": r["hidden"],
             "commit_id": r["commit_id"],
         }
-        for r in conn.execute("SELECT name, description, hidden, commit_id FROM object_class")
+        for r in conn.execute(
+            "SELECT name, description, display_order, display_icon, hidden, commit_id FROM object_class"
+        )
     ] + [
-        {"type_id": 2, "name": r["name"], "description": None, "hidden": r["hidden"], "commit_id": r["commit_id"]}
+        {
+            "type_id": 2,
+            "name": r["name"],
+            "description": None,
+            "display_order": None,
+            "display_icon": None,
+            "hidden": r["hidden"],
+            "commit_id": r["commit_id"],
+        }
         for r in conn.execute("SELECT name, hidden, commit_id FROM relationship_class GROUP BY name")
     ]
     op.bulk_insert(meta.tables["entity_class"], entity_classes)
@@ -256,32 +240,37 @@ def insert_into_new_tables():
     return (meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent)
 
 
-def alter_old_tables_before_update(meta):
+def alter_tables_before_update(meta):
     with op.batch_alter_table("object_class") as batch_op:
         batch_op.add_column(sa.Column("entity_class_id", sa.Integer))
         batch_op.add_column(sa.Column("type_id", sa.Integer))
         batch_op.create_foreign_key(
-            "fk_object_class_entity_class_id_entity_class",
+            None,
             "entity_class",
             ["entity_class_id", "type_id"],
             ["id", "type_id"],
+            onupdate="CASCADE",
+            ondelete="CASCADE",
         )
-    with op.batch_alter_table("object", naming_convention=naming_convention) as batch_op:
+    with op.batch_alter_table("object") as batch_op:
         batch_op.add_column(sa.Column("entity_id", sa.Integer))
         batch_op.add_column(sa.Column("type_id", sa.Integer))
-        batch_op.create_foreign_key("fk_object_entity_id_entity", "entity", ["entity_id", "type_id"], ["id", "type_id"])
-    with op.batch_alter_table("parameter_definition", naming_convention=naming_convention) as batch_op:
+        batch_op.create_foreign_key(
+            None, "entity", ["entity_id", "type_id"], ["id", "type_id"], onupdate="CASCADE", ondelete="CASCADE"
+        )
+    with op.batch_alter_table("parameter_definition") as batch_op:
         batch_op.add_column(sa.Column("entity_class_id", sa.Integer))
         batch_op.drop_constraint("uq_parameter_definition_name_class_id", type_="unique")
         batch_op.create_foreign_key(
-            "fk_parameter_definition_entity_class_id_entity_class", "entity_class", ["entity_class_id"], ["id"]
+            None, "entity_class", ["entity_class_id"], ["id"], onupdate="CASCADE", ondelete="CASCADE"
         )
-        batch_op.create_unique_constraint("uq_parameter_definition_name_entity_class_id", ["name", "entity_class_id"])
-    with op.batch_alter_table("parameter_value", naming_convention=naming_convention) as batch_op:
+        batch_op.create_unique_constraint(None, ["name", "entity_class_id"])
+    with op.batch_alter_table("parameter_value") as batch_op:
+        batch_op.alter_column("parameter_definition_id", nullable=False)
         batch_op.add_column(sa.Column("entity_id", sa.Integer))
         batch_op.add_column(sa.Column("entity_class_id", sa.Integer))
         batch_op.create_foreign_key(
-            "fk_parameter_value_entity_id_entity", "entity", ["entity_id", "entity_class_id"], ["id", "class_id"]
+            None, "entity", ["entity_id", "entity_class_id"], ["id", "class_id"], onupdate="CASCADE", ondelete="CASCADE"
         )
     if "next_id" not in meta.tables:
         return
@@ -296,7 +285,7 @@ def alter_old_tables_before_update(meta):
         batch_op.add_column(sa.Column("entity_id", sa.Integer, server_default=sa.null()))
 
 
-def update_old_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent):
+def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent):
     conn = op.get_bind()
     ent_to_ent_cls = {r["id"]: r["class_id"] for r in conn.execute("SELECT id, class_id FROM entity")}
     for object_class_id, entity_class_id in obj_cls_to_ent_cls.items():
@@ -376,41 +365,98 @@ def update_old_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, 
     )
 
 
-def alter_old_tables_after_update(meta):
+def alter_tables_after_update(meta):
     with op.batch_alter_table("object_class") as batch_op:
         batch_op.drop_column("id")
         batch_op.drop_column("name")
         batch_op.drop_column("description")
+        batch_op.drop_column("display_order")
+        batch_op.drop_column("display_icon")
         batch_op.drop_column("hidden")
-        batch_op.create_check_constraint("ck_object_class_entity_class_type", "type_id = 1")
+        batch_op.drop_column("commit_id")
+        batch_op.alter_column("type_id", nullable=False)
+        batch_op.create_check_constraint("type_id", "`type_id` = 1")
+        batch_op.create_primary_key(None, ["entity_class_id"])
     with op.batch_alter_table("object") as batch_op:
         batch_op.drop_column("class_id")
         batch_op.drop_column("id")
         batch_op.drop_column("name")
         batch_op.drop_column("description")
-        batch_op.create_check_constraint("ck_object_entity_type", "type_id = 1")
+        batch_op.drop_column("commit_id")
+        batch_op.alter_column("type_id", nullable=False)
+        batch_op.create_check_constraint("type_id", "`type_id` = 1")
+        batch_op.create_primary_key(None, ["entity_id"])
     op.drop_table("relationship_class")
     op.drop_table("relationship")
     op.rename_table("temp_relationship_class", "relationship_class")
     op.rename_table("temp_relationship", "relationship")
-    par_def_col_names = [x.name for x in meta.tables["parameter_definition"].c]
+    with op.batch_alter_table("relationship_class") as batch_op:
+        batch_op.create_check_constraint("type_id", "`type_id` = 2")
+        batch_op.create_primary_key(None, ["entity_class_id"])
+        batch_op.create_foreign_key(
+            None,
+            "entity_class",
+            ("entity_class_id", "type_id"),
+            ("id", "type_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        )
+    with op.batch_alter_table("relationship") as batch_op:
+        batch_op.create_check_constraint("type_id", "`type_id` = 2")
+        batch_op.create_primary_key(None, ["entity_id"])
+        batch_op.create_foreign_key(
+            None, "entity", ("entity_id", "type_id"), ("id", "type_id"), onupdate="CASCADE", ondelete="CASCADE"
+        )
+    with op.batch_alter_table("relationship_entity_class") as batch_op:
+        batch_op.create_foreign_key(
+            None, "relationship_class", ["entity_class_id"], ["entity_class_id"], onupdate="CASCADE", ondelete="CASCADE"
+        )
+        batch_op.create_check_constraint("member_class_type_id", "`member_class_type_id` != 2")
+    with op.batch_alter_table("relationship_entity") as batch_op:
+        batch_op.create_foreign_key(
+            None,
+            "relationship",
+            ["entity_id", "entity_class_id"],
+            ["entity_id", "entity_class_id"],
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        )
     with op.batch_alter_table("parameter_definition") as batch_op:
         batch_op.drop_column("object_class_id")
         batch_op.drop_column("relationship_class_id")
-        batch_op.drop_column(next(x for x in par_def_col_names if x.startswith("dummy_relationship_class")))
-    par_val_col_names = [x.name for x in meta.tables["parameter_value"].c]
+        batch_op.alter_column("entity_class_id", nullable=False)
+        dummy_relationship_class = next(
+            (x.name for x in meta.tables["parameter_definition"].c if x.name.startswith("dummy_relationship_class")),
+            None,
+        )
+        if dummy_relationship_class:
+            batch_op.drop_column(dummy_relationship_class)
     with op.batch_alter_table("parameter_value") as batch_op:
         batch_op.drop_column("object_id")
         batch_op.drop_column("relationship_id")
-        batch_op.drop_column(next(x for x in par_val_col_names if x.startswith("dummy_relationship")))
+        batch_op.alter_column("entity_class_id", nullable=False)
+        batch_op.alter_column("entity_id", nullable=False)
+        dummy_relationship = next(
+            (x.name for x in meta.tables["parameter_value"].c if x.name.startswith("dummy_relationship")), None
+        )
+        if dummy_relationship:
+            batch_op.drop_column(dummy_relationship)
+        batch_op.create_foreign_key(
+            None,
+            "parameter_definition",
+            ["parameter_definition_id", "entity_class_id"],
+            ["id", "entity_class_id"],
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        )
 
 
 def upgrade():
     create_new_tables()
     meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent = insert_into_new_tables()
-    alter_old_tables_before_update(meta)
-    update_old_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent)
-    alter_old_tables_after_update(meta)
+    alter_tables_before_update(meta)
+    update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_to_ent)
+    alter_tables_after_update(meta)
 
 
 def downgrade():
