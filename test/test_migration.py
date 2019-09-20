@@ -206,7 +206,8 @@ def schema_dict(insp):
 
 class TestMigration(unittest.TestCase):
     def test_upgrade(self):
-        """Tests that the upgrade scripts produce a db in the latest version alright.
+        """Tests that the upgrade scripts produce the same schema as the function to create
+        a Spine db anew.
         """
         left_engine = create_new_spine_database_by_upgrades("sqlite://")
         left_insp = inspect(left_engine)
@@ -216,3 +217,14 @@ class TestMigration(unittest.TestCase):
         right_dict = schema_dict(right_insp)
         self.maxDiff = None
         self.assertEqual(pprint.pformat(left_dict), pprint.pformat(right_dict))
+
+        left_ver = left_engine.execute("SELECT version_num FROM alembic_version").fetchall()
+        right_ver = right_engine.execute("SELECT version_num FROM alembic_version").fetchall()
+        self.assertEqual(left_ver, right_ver)
+
+        left_ent_typ = left_engine.execute("SELECT * FROM entity_type").fetchall()
+        right_ent_typ = right_engine.execute("SELECT * FROM entity_type").fetchall()
+        left_ent_cls_typ = left_engine.execute("SELECT * FROM entity_class_type").fetchall()
+        right_ent_cls_typ = right_engine.execute("SELECT * FROM entity_class_type").fetchall()
+        self.assertEqual(left_ent_typ, right_ent_typ)
+        self.assertEqual(left_ent_cls_typ, right_ent_cls_typ)

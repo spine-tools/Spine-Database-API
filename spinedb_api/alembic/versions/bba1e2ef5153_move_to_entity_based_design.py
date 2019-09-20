@@ -105,8 +105,8 @@ def create_new_tables():
 
 def insert_into_new_tables():
     # Easy ones
-    op.execute("""INSERT INTO entity_class_type (id, name) VALUES (1, "object_class")""")
-    op.execute("""INSERT INTO entity_class_type (id, name) VALUES (2, "relationship_class")""")
+    op.execute("""INSERT INTO entity_class_type (id, name) VALUES (1, "object")""")
+    op.execute("""INSERT INTO entity_class_type (id, name) VALUES (2, "relationship")""")
     op.execute("""INSERT INTO entity_type (id, name) VALUES (1, "object")""")
     op.execute("""INSERT INTO entity_type (id, name) VALUES (2, "relationship")""")
     # More difficult ones

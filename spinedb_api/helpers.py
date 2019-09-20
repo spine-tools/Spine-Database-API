@@ -475,7 +475,7 @@ def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
         meta.create_all(engine)
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', null), (2, 'relationship', null)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', null), (2, 'relationship', null)")
-        engine.execute("INSERT INTO alembic_version VALUES ('bba1e2ef5153')")
+        engine.execute("INSERT INTO alembic_version VALUES ('070a0eb89e88')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
     if for_spine_model:
