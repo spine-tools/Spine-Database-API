@@ -37,7 +37,7 @@ class DiffDatabaseMappingUpdateMixin:
         whereas items found in the orig classes should be marked as dirty and
         inserted into the corresponding diff class."""
         classname = self.table_to_class[tablename]
-        orig_class = getattr(self, "Diff" + classname)
+        orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
         primary_id = self.table_ids[tablename]
         items_for_update = list()
