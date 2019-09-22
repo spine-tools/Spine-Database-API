@@ -65,16 +65,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Initialize stuff
         self._init_diff_dicts()
         self._create_diff_tables_and_mapping()
-        # table primary ids map:
-        self.table_ids = {
-            "relationship_entity_class": "entity_class_id",
-            "object_class": "entity_class_id",
-            "relationship_class": "entity_class_id",
-            "object": "entity_id",
-            "relationship": "entity_id",
-            "relationship": "entity_id",
-            "relationship_entity": "entity_id",
-        }
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
