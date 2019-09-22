@@ -17,21 +17,16 @@ General helper functions and classes.
 """
 
 import warnings
-import os
-from textwrap import fill
 from sqlalchemy import (
     create_engine,
-    text,
     Table,
     Column,
     MetaData,
     select,
-    event,
     inspect,
     String,
     Integer,
     BigInteger,
-    Float,
     null,
     DateTime,
     ForeignKey,
@@ -42,20 +37,16 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.engine import reflection
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, OperationalError, NoSuchTableError
+from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.orm import interfaces
-from sqlalchemy.engine import Engine
-from sqlalchemy import inspect
-from .exception import SpineDBAPIError, SpineDBVersionError
-from .import_functions import import_data
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
-from alembic import command
+from .exception import SpineDBAPIError, SpineDBVersionError
+from .import_functions import import_data
 
 # Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
 # - sqlite works
@@ -150,7 +141,7 @@ def is_head_from_engine(engine, upgrade=False):
     return True
 
 
-def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=set(), skip_tables=set()):
+def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=(), skip_tables=()):
     """Copy the database from source_url into dest_url."""
     if not is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
@@ -235,7 +226,7 @@ def is_empty(db_url):
     return True
 
 
-def create_new_spine_database(db_url, upgrade=True, for_spine_model=False):
+def create_new_spine_database(db_url, for_spine_model=False):
     """Create a new Spine database at the given url."""
     try:
         engine = create_engine(db_url)
@@ -570,35 +561,6 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ),
     )
     db_map.commit_session("Add specific data structure for Spine Model.")
-
-
-def forward_sweep(root, func):
-    """Recursively visit, using `get_children()`, the given sqlalchemy object.
-    Apply `func` on every visited node."""
-    current = root
-    parent = {}
-    children = {current: iter(current.get_children(column_collections=False))}
-    while True:
-        func(current)
-        # Try and visit next children
-        next_ = next(children[current], None)
-        if next_ is not None:
-            parent[next_] = current
-            children[next_] = iter(next_.get_children(column_collections=False))
-            current = next_
-            continue
-        # No (more) children, try and visit next sibling
-        current_parent = parent[current]
-        next_ = next(children[current_parent], None)
-        if next_ is not None:
-            parent[next_] = current_parent
-            children[next_] = iter(next_.get_children(column_collections=False))
-            current = next_
-            continue
-        # No (more) siblings, go back to parent
-        current = current_parent
-        if current == root:
-            break
 
 
 def forward_sweep(root, func):
