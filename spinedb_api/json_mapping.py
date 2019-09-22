@@ -35,6 +35,7 @@ PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
 MAPPINGCOLLECTION = "collection"
 VALID_PARAMETER_TYPES = ['time series', 'time pattern', '1d array', 'single value', 'definition']
 
+
 def valid_mapping_or_value(mapping):
     if isinstance(mapping, Mapping):
         valid, msg = mapping.is_valid()
@@ -73,13 +74,14 @@ def mapping_from_dict_int_str(value, map_type=COLUMN):
 
 class Mapping:
     """
-    Class for holding and validating Mapping specification:
-    Mapping {
+    Class for holding and validating Mapping specification::
+    
+        Mapping {
             map_type: 'column' | 'row' | 'column_name'
             value_reference: str | int
             append_str: str
             prepend_str: str
-            }
+        }
     """
 
     _required_fields = ("map_type",)
@@ -179,14 +181,16 @@ class Mapping:
 
 
 class ParameterMapping:
-    """Class for holding and validating Mapping specification:
-    ParameterMapping {
+    """
+    Class for holding and validating Mapping specification::
+
+        ParameterMapping {
             map_type: 'parameter'
             name: Mapping | str
             value: Mapping | None
             extra_dimensions: [Mapping] | None
             parameter_type: 'time series' | 'time pattern' | '1d array' | 'single value'
-    }
+        }
     """
 
     def __init__(self, name=None, value=None, extra_dimensions=None, parameter_type='single value'):
@@ -336,12 +340,14 @@ class ParameterMapping:
 
 
 class ParameterColumnCollectionMapping:
-    """Class for holding and validating Mapping specification:
-    ParameterColumnCollectionMapping {
+    """
+    Class for holding and validating Mapping specification::
+    
+        ParameterColumnCollectionMapping {
             map_type: 'parameter_column_collection'
             parameters: [ParameterColumnMapping]
             extra_dimensions: [Mapping] | None
-    }
+        }
     """
 
     def __init__(self, parameters=None, extra_dimensions=None):
@@ -427,14 +433,16 @@ class ParameterColumnCollectionMapping:
 
 
 class ParameterColumnMapping:
-    """Class for holding and validating Mapping specification:
-    ParameterColumnMapping {
-        map_type: 'parameter_column'
-        name: str | None #overrides column name
-        column: str | int
-        append_str: str | None
-        prepend_str: str | None]
-    }
+    """
+    Class for holding and validating Mapping specification::
+    
+        ParameterColumnMapping {
+            map_type: 'parameter_column'
+            name: str | None #overrides column name
+            column: str | int
+            append_str: str | None
+            prepend_str: str | None]
+        }
     """
 
     def __init__(self, name=None, column=None, append_str=None, prepend_str=None):
@@ -525,13 +533,15 @@ class ParameterColumnMapping:
 
 
 class ObjectClassMapping:
-    """Class for holding and validating Mapping specification:
-    ObjectClassMapping {
+    """
+    Class for holding and validating Mapping specification::
+
+        ObjectClassMapping {
             map_type: 'object'
             name: str | Mapping
             objects: Mapping | str | None
             parameters: ParameterMapping | ParameterColumnCollectionMapping | None
-    }
+        }
     """
 
     def __init__(self, name=None, obj=None, parameters=None, skip_columns=None):
@@ -709,14 +719,16 @@ class ObjectClassMapping:
 
 
 class RelationshipClassMapping:
-    """Class for holding and validating Mapping specification:
-    RelationshipClassMapping {
-        map_type: 'relationship'
-        name:  str | Mapping
-        object_classes: [str | Mapping] | None
-        objects: [str | Mapping] | None
-        parameters: ParameterMapping | ParameterColumnCollectionMapping | None
-    }
+    """
+    Class for holding and validating Mapping specification::
+    
+        RelationshipClassMapping {
+            map_type: 'relationship'
+            name:  str | Mapping
+            object_classes: [str | Mapping] | None
+            objects: [str | Mapping] | None
+            parameters: ParameterMapping | ParameterColumnCollectionMapping | None
+        }
     """
 
     def __init__(
@@ -965,11 +977,13 @@ class RelationshipClassMapping:
 
 
 class DataMapping:
-    """Class for holding and validating Mapping specification:
-    DataMapping {
+    """
+    Class for holding and validating Mapping specification::
+    
+        DataMapping {
             map_type: 'collection'
             mappings: List[ObjectClassMapping | RelationshipClassMapping]
-    }
+        }
     """
 
     def __init__(self, mappings=None, has_header=False):
@@ -1175,7 +1189,7 @@ def dict_to_map(map_dict):
 
 
 def read_with_mapping(data_source, mapping, num_cols, data_header=None):
-    """reads data_source line by line with supplied Mapping object or dict
+    """Reads data_source line by line with supplied Mapping object or dict
     that can be translated into a Mapping object"""
 
     if isinstance(mapping, dict):
@@ -1443,7 +1457,8 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
     """Function that take a list of getter functions and returns one function
     that zips together the result into a list,
 
-    Ex:
+    Example::
+    
         row = (1,2,3)
         function_list = [lambda row: row[2], lambda row: 'constant', itemgetter(0,1)]
         row_getter, output_len, reads_data = create_getter_function_from_function_list(function_list, [1,1,2], [True, False, True])
@@ -1458,7 +1473,8 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
         function_list = [lambda row: 'outer', inner_function]
         row_getter, output_len, reads_data = create_getter_function_from_function_list(function_list, [1,2], [False, reads_data])
         list(row_getter(row)) == [('outer', ('inner', 1)), ('outer', ('inner', 2))]
-        """
+        
+    """
     if not function_list:
         # empty list
         return None, None, None
@@ -1540,19 +1556,26 @@ def create_pivot_getter_function(mapping, pivoted_data, pivoted_cols, data_heade
     then that value will be returned, if Mapping is a pivoted row header reference
     then thoose values will be returned.
 
-    mapping = "constant" will return:
+    mapping = "constant" will return::
+
         def getter(row):
             return "constant"
-    mapping.value_reference = 0 and mapping.map_type = COLUMN
+
+    mapping.value_reference = 0 and mapping.map_type = COLUMN::
+
         def getter(row):
             return row[0]
+
     etc...
 
-    returns:
-        getter: function that takes a row and returns data, getter(row)
-        num: int how long list of data the funciton returns.
-             if 1 it returns the value instead of a list
-        reads_data: boolean if getter actually reads data from input
+    Returns:
+
+        A tuple (getter, num, reads_data).
+        
+        * getter: function that takes a row and returns data, getter(row)
+        * num: number of elements in the list of data the function returns.
+          If 1 it returns the value instead of a list
+        * reads_data: boolean if getter actually reads data from input
     """
     if mapping is None:
         return None, None, None
