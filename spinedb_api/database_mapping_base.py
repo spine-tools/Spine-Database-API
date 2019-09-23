@@ -125,11 +125,9 @@ class DatabaseMappingBase(object):
         }
         # Table primary ids map:
         self.table_ids = {
-            "entity_class": "id",
             "relationship_entity_class": "entity_class_id",
             "object_class": "entity_class_id",
             "relationship_class": "entity_class_id",
-            "entity": "id",
             "object": "entity_id",
             "relationship": "entity_id",
             "relationship": "entity_id",

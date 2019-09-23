@@ -39,7 +39,7 @@ class DiffDatabaseMappingUpdateMixin:
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
-        primary_id = self.table_ids[tablename]
+        primary_id = self.table_ids.get(tablename, "id")
         items_for_update = list()
         items_for_insert = list()
         dirty_ids = set()
