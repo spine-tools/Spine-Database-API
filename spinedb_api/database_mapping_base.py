@@ -28,7 +28,7 @@ from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
-from .helpers import create_new_spine_database, schemas_are_equal, model_meta
+from .helpers import create_new_spine_database, schemas_are_equal, model_meta, custom_generate_relationship
 
 from sqlalchemy import Column, Integer
 
@@ -199,7 +199,7 @@ class DatabaseMappingBase(object):
             entity_class_id = Column("entity_class_id", Integer, primary_key=True)
             type_id = Column("type_id", Integer)
 
-        Base.prepare(self.engine, reflect=True)
+        Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
         self.ObjectClass = ObjectClass
         not_found = []
         for tablename, classname in self.table_to_class.items():

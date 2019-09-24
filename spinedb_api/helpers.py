@@ -185,10 +185,8 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
-    # NOTE: Not in use at the moment
-    if direction is interfaces.ONETOMANY:
-        kw["cascade"] = "all, delete-orphan"
-        kw["passive_deletes"] = True
+    """Make all relationships view only to avoid warnings."""
+    kw["viewonly"] = True
     return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 
