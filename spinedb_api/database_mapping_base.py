@@ -187,28 +187,16 @@ class DatabaseMappingBase(object):
 
     def _create_mapping(self):
         """Create ORM."""
-
         # For some reason, automap_base doesn't seem to be able to map the object_class table
-        # adding it manualy for now
+        # ...it works now...???
         Base = automap_base()
-
-        class ObjectClass(Base):
-            __tablename__ = "object_class"
-
-            # override schema elements like Columns
-            entity_class_id = Column("entity_class_id", Integer, primary_key=True)
-            type_id = Column("type_id", Integer)
-
         Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
-        self.ObjectClass = ObjectClass
         not_found = []
         for tablename, classname in self.table_to_class.items():
             try:
                 setattr(self, classname, getattr(Base.classes, tablename))
-            except (NoSuchTableError, AttributeError):
+            except (NoSuchTableError, AttributeError) as e:
                 not_found.append(tablename)
-        # "object_class table manualy added, skip if not found"
-        not_found = [nf for nf in not_found if nf != "object_class"]
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
