@@ -28,7 +28,13 @@ from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
-from .helpers import create_new_spine_database, schemas_are_equal, model_meta, custom_generate_relationship
+from .helpers import (
+    create_new_spine_database,
+    compare_schemas,
+    model_meta,
+    custom_generate_relationship,
+    _create_first_spine_database,
+)
 
 from sqlalchemy import Column, Integer
 
@@ -165,9 +171,9 @@ class DatabaseMappingBase(object):
             current = migration_context.get_current_revision()
             if current is None:
                 # No revision information. Check if the schema of the given url corresponds to
-                # a non-upgraded new Spine db --otherwise we can't go on.
-                ref_engine = create_new_spine_database("sqlite://", upgrade=False)
-                if not schemas_are_equal(self.engine, ref_engine):
+                # a 'first' Spine db --otherwise we can't go on.
+                ref_engine = _create_first_spine_database("sqlite://")
+                if not compare_schemas(self.engine, ref_engine):
                     raise SpineDBAPIError("The db at '{0}' doesn't seem like a valid Spine db.".format(self.db_url))
             if current == head:
                 return
