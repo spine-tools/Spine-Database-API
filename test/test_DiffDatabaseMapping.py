@@ -93,6 +93,64 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
 
+    def test_remove_object(self):
+        """Test adding and removing an relationship and commiting"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        obj, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        self.db_map.remove_items(object_ids=[o.id for o in obj])
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+
+    def test_remove_object_from_commited_session(self):
+        """Test removing an relationship from an commited session"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        obj, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.object_list().all()), 2)
+        self.db_map.remove_items(object_ids=[o.id for o in obj])
+        self.assertEqual(len(self.db_map.object_list().all()), 0)
+        self.db_map.commit_session("")
+        self.assertEqual(len(self.db_map.object_list().all()), 0)
+
+    def test_remove_relationship_class(self):
+        """Test adding and removing an relationship and commiting"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        relc, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        self.db_map.remove_items(relationship_class_ids=[r.id for r in relc])
+        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+
+    def test_remove_relationship_class_from_commited_session(self):
+        """Test removing an relationship from an commited session"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        relc, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 1)
+        self.db_map.remove_items(relationship_class_ids=[r.id for r in relc])
+        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+        self.db_map.commit_session("")
+        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+
+    def test_remove_object_class(self):
+        """Test adding and removing an relationship and commiting"""
+        objc, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.remove_items(object_class_ids=[o.id for o in objc])
+        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+
+    def test_remove_object_class_from_commited_session(self):
+        """Test removing an relationship from an commited session"""
+        objc, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.object_class_list().all()), 2)
+        self.db_map.remove_items(object_class_ids=[o.id for o in objc])
+        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+        self.db_map.commit_session("")
+        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+ 
 
 class TestDiffDatabaseMappingAdd(unittest.TestCase):
     @classmethod
