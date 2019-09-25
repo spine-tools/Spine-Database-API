@@ -345,7 +345,6 @@ class DatabaseMappingBase(object):
         """
         if self._object_class_sq is None:
             object_class_sq = self._subquery("object_class")
-
             self._object_class_sq = (
                 self.query(
                     self.entity_class_sq.c.id.label("id"),
@@ -381,7 +380,7 @@ class DatabaseMappingBase(object):
                     self.entity_sq.c.description.label("description"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.type_id == self.object_entity_type)
+                .filter(self.entity_sq.c.id == object_sq.c.entity_id)
                 .subquery()
             )
         return self._object_sq
@@ -433,7 +432,7 @@ class DatabaseMappingBase(object):
                     self.entity_sq.c.name.label("name"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.type_id == self.relationship_entity_type)
+                .filter(self.entity_sq.c.id == rel_ent_sq.c.entity_id)
                 .subquery()
             )
         return self._relationship_sq

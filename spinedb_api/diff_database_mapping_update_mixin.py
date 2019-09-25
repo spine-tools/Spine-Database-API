@@ -86,9 +86,7 @@ class DiffDatabaseMappingUpdateMixin:
             self.session.bulk_insert_mappings(self.DiffEntityClass, items_for_insert)
             self.session.commit()
             self._mark_as_dirty("entity_class", dirty_ids)
-            self._mark_as_dirty("object_class", dirty_ids)
             self.updated_item_id["entity_class"].update(dirty_ids)
-            self.updated_item_id["object_class"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
@@ -112,9 +110,7 @@ class DiffDatabaseMappingUpdateMixin:
             self.session.bulk_insert_mappings(self.DiffEntity, items_for_insert)
             self.session.commit()
             self._mark_as_dirty("entity", dirty_ids)
-            self._mark_as_dirty("object", dirty_ids)
             self.updated_item_id["entity"].update(dirty_ids)
-            self.updated_item_id["object"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
@@ -142,11 +138,7 @@ class DiffDatabaseMappingUpdateMixin:
             self.session.bulk_insert_mappings(self.DiffEntityClass, items_for_insert)
             self.session.commit()
             self._mark_as_dirty("entity_class", dirty_ids)
-            self._mark_as_dirty("relationship_class", dirty_ids)
-            self._mark_as_dirty("relationship_entity_class", dirty_ids)
             self.updated_item_id["entity_class"].update(dirty_ids)
-            self.updated_item_id["relationship_class"].update(dirty_ids)
-            self.updated_item_id["relationship_entity_class"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
@@ -195,10 +187,8 @@ class DiffDatabaseMappingUpdateMixin:
             dirty_ids = dirty_ent_ids.union(dirty_rel_ent_ids)
             updated_ids = updated_ent_ids.union(updated_rel_ent_ids)
             self._mark_as_dirty("entity", dirty_ids)
-            self._mark_as_dirty("relationship", dirty_ids)
             self._mark_as_dirty("relationship_entity", dirty_ids)
             self.updated_item_id["entity"].update(dirty_ids)
-            self.updated_item_id["relationship"].update(dirty_ids)
             self.updated_item_id["relationship_entity"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
