@@ -381,7 +381,7 @@ class DatabaseMappingBase(object):
                     self.entity_sq.c.description.label("description"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.id == object_sq.c.entity_id)
+                .filter(self.entity_sq.c.type_id == self.object_entity_type)
                 .subquery()
             )
         return self._object_sq
@@ -433,7 +433,7 @@ class DatabaseMappingBase(object):
                     self.entity_sq.c.name.label("name"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.id == rel_ent_sq.c.entity_id)
+                .filter(self.entity_sq.c.type_id == self.relationship_entity_type)
                 .subquery()
             )
         return self._relationship_sq

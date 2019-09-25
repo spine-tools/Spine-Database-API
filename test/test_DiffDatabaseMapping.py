@@ -768,6 +768,32 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         self.assertEqual(objects[1], "klaus")
         self.assertEqual(objects[2], "squidward")
 
+    def test_update_objects_not_commited(self):
+        """Test that updating objects works."""
+        self.db_map.add_object_classes({"id": 1, "name": "some_class"})
+        self.db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
+        objects, intgr_error_log = self.db_map.update_objects({"id": 1, "name": "klaus"})
+        objects = {x.id: x.name for x in objects}
+        self.assertEqual(intgr_error_log, [])
+        self.assertEqual(objects[1], "klaus")
+        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+        self.db_map.commit_session("update")
+        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+    
+    def test_update_comitted_object(self):
+        """Test that updating objects works."""
+        self.db_map.add_object_classes({"id": 1, "name": "some_class"})
+        self.db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
+        self.db_map.commit_session("update")
+        objects, intgr_error_log = self.db_map.update_objects({"id": 1, "name": "klaus"})
+        objects = {x.id: x.name for x in objects}
+        self.assertEqual(intgr_error_log, [])
+        self.assertEqual(objects[1], "klaus")
+        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+        self.db_map.commit_session("update")
+        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+
+
     def test_update_relationship_classes(self):
         """Test that updating relationship classes works."""
         self.db_map.add_object_classes({"name": "dog", "id": 1}, {"name": "fish", "id": 2})
