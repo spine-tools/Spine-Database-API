@@ -150,6 +150,56 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+    
+    def test_remove_parameter_value(self):
+        """Test adding and removing an parameter value and commiting"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
+        self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.db_map.remove_items(parameter_value_ids=[1])
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+
+    def test_remove_parameter_value_from_commited_session(self):
+        """Test adding and commiting a parmaeter value and then removing it"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
+        self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.db_map.remove_items(parameter_value_ids=[1])
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+    
+    def test_remove_object_with_parameter_value(self):
+        """Test adding and removing an parameter value and commiting"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
+        self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.db_map.remove_items(object_ids=[1])
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+
+    def test_remove_object_with_parameter_value_from_commited_session(self):
+        """Test adding and commiting a parmaeter value and then removing it"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
+        self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.db_map.remove_items(object_ids=[1])
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
  
 
 class TestDiffDatabaseMappingAdd(unittest.TestCase):

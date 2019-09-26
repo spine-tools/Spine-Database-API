@@ -290,8 +290,8 @@ class DiffDatabaseMappingRemoveMixin:
             self.DiffParameterValue.entity_id.in_(ids + diff_ids)
         )
         self._remove_cascade_parameter_values(
-            [x.entity_id for x in item_list],
-            [x.entity_id for x in diff_item_list],
+            [x.id for x in item_list],
+            [x.id for x in diff_item_list],
             removed_item_id,
             removed_diff_item_id,
         )
