@@ -206,11 +206,11 @@ def is_unlocked(db_url, timeout=0):
 
 def compare_schemas(left_engine, right_engine):
     """Whether or not the left and right engine have the same schema."""
-    left_insp = inspect.from_engine(left_engine)
-    right_insp = inspect.from_engine(right_engine)
+    left_insp = inspect(left_engine)
+    right_insp = inspect(right_engine)
     left_dict = schema_dict(left_insp)
     right_dict = schema_dict(right_insp)
-    return pprint.pformat(left_dict) == pprint.pformat(right_dict)
+    return str(left_dict) == str(right_dict)
 
 
 def schema_dict(insp):
