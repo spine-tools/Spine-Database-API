@@ -55,10 +55,11 @@ class DatabaseMappingBase(object):
         """Initialize class."""
         self.db_url = db_url
         self.username = username if username else "anon"
-        self.sa_url = None
-        self.engine = None
-        self.connection = None
-        self.session = None
+        self.engine = self._create_engine(db_url)
+        self._check_db_version(upgrade=upgrade)
+        self.connection = self.engine.connect()
+        self.session = Session(self.connection, autoflush=False)
+        self.sa_url = make_url(self.db_url)
         self.Commit = None
         self.EntityClassType = None
         self.EntityClass = None
@@ -139,24 +140,21 @@ class DatabaseMappingBase(object):
             "relationship": "entity_id",
             "relationship_entity": "entity_id",
         }
-        self._create_engine_and_session()
-        self._check_db_version(upgrade=upgrade)
         self._create_mapping()
 
-    def _create_engine_and_session(self):
-        """Create engine, session and connection."""
+    @staticmethod
+    def _create_engine(db_url):
+        """Create engine."""
         try:
-            self.engine = create_engine(self.db_url)
-            with self.engine.connect():
+            engine = create_engine(db_url)
+            with engine.connect():
                 pass
         except Exception as e:
             raise SpineDBAPIError(
                 "Could not connect to '{0}': {1}. Please make sure that '{0}' is the URL "
-                "of a Spine database and try again.".format(self.db_url, str(e))
+                "of a Spine database and try again.".format(db_url, str(e))
             )
-        self.connection = self.engine.connect()
-        self.session = Session(self.connection, autoflush=False)
-        self.sa_url = make_url(self.db_url)
+        return engine
 
     def _check_db_version(self, upgrade=False):
         """Check if database is the latest version and raise a `SpineDBVersionError` if not.

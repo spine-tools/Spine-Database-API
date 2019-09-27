@@ -31,6 +31,10 @@ from sqlalchemy.orm.util import AliasedInsp
 
 class DiffDatabaseMappingBase(DatabaseMappingBase):
     """Base class for the read-write database mapping.
+
+    :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
+    :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
+    :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 
     # NOTE: It works by creating and mapping a set of
