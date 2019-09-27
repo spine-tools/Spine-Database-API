@@ -41,7 +41,7 @@ class TestMigration(unittest.TestCase):
         right_insp = inspect(right_engine)
         right_dict = schema_dict(right_insp)
         self.maxDiff = None
-        self.assertEqual(pprint.pformat(left_dict), pprint.pformat(right_dict))
+        self.assertEqual(str(left_dict), str(right_dict))
 
         left_ver = left_engine.execute("SELECT version_num FROM alembic_version").fetchall()
         right_ver = right_engine.execute("SELECT version_num FROM alembic_version").fetchall()
