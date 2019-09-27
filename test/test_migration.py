@@ -16,7 +16,7 @@ Unit tests for migration scripts.
 :date:   19.9.2019
 """
 
-import pprint
+import os
 import unittest
 from sqlalchemy import inspect
 from spinedb_api.helpers import (
@@ -25,10 +25,11 @@ from spinedb_api.helpers import (
     is_head_from_engine,
     schema_dict,
 )
+from spinedb_api import DiffDatabaseMapping
 
 
 class TestMigration(unittest.TestCase):
-    def test_upgrade(self):
+    def test_upgrade_schema(self):
         """Tests that the upgrade scripts produce the same schema as the function to create
         a Spine db anew.
         """
@@ -52,3 +53,97 @@ class TestMigration(unittest.TestCase):
         right_ent_cls_typ = right_engine.execute("SELECT * FROM entity_class_type").fetchall()
         self.assertEqual(left_ent_typ, right_ent_typ)
         self.assertEqual(left_ent_cls_typ, right_ent_cls_typ)
+
+    def test_upgrade_content(self):
+        """Tests that the upgrade scripts when applied on a db that has some contents
+        persist that content entirely.
+        """
+        # Create temp db file
+        file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp_db.sqlite")
+        if not os.path.exists(file_path):
+            with open(file_path, 'w'):
+                pass
+        db_url = "sqlite:///" + file_path
+        # Create *first* spine db
+        engine = _create_first_spine_database(db_url)
+        # Insert basic stuff
+        engine.execute("INSERT INTO object_class (id, name) VALUES (1, 'dog')")
+        engine.execute("INSERT INTO object_class (id, name) VALUES (2, 'fish')")
+        engine.execute("INSERT INTO object (id, class_id, name) VALUES (1, 1, 'pluto')")
+        engine.execute("INSERT INTO object (id, class_id, name) VALUES (2, 1, 'scooby')")
+        engine.execute("INSERT INTO object (id, class_id, name) VALUES (3, 2, 'nemo')")
+        engine.execute(
+            "INSERT INTO relationship_class (id, name, dimension, object_class_id) VALUES (1, 'dog__fish', 0, 1)"
+        )
+        engine.execute(
+            "INSERT INTO relationship_class (id, name, dimension, object_class_id) VALUES (1, 'dog__fish', 1, 2)"
+        )
+        engine.execute(
+            "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (1, 1, 'pluto__nemo', 0, 1)"
+        )
+        engine.execute(
+            "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (1, 1, 'pluto__nemo', 1, 3)"
+        )
+        engine.execute(
+            "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (2, 1, 'scooby__nemo', 0, 2)"
+        )
+        engine.execute(
+            "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (2, 1, 'scooby__nemo', 1, 3)"
+        )
+        engine.execute("INSERT INTO parameter (id, object_class_id, name) VALUES (1, 1, 'breed')")
+        engine.execute("INSERT INTO parameter (id, object_class_id, name) VALUES (2, 2, 'water')")
+        engine.execute("INSERT INTO parameter (id, relationship_class_id, name) VALUES (3, 1, 'relative_speed')")
+        engine.execute("INSERT INTO parameter_value (parameter_id, object_id, value) VALUES (1, 1, 'labrador')")
+        engine.execute("INSERT INTO parameter_value (parameter_id, object_id, value) VALUES (1, 2, 'big dane')")
+        engine.execute("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 1, 100)")
+        engine.execute("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 2, -1)")
+        # Upgrade the db and check that our stuff is still there
+        db_map = DiffDatabaseMapping(db_url, upgrade=True)
+        object_classes = {x.id: x.name for x in db_map.object_class_list()}
+        objects = {x.id: (object_classes[x.class_id], x.name) for x in db_map.object_list()}
+        rel_clss = {x.id: (x.name, x.object_class_name_list) for x in db_map.wide_relationship_class_list()}
+        rels = {x.id: (rel_clss[x.class_id][0], x.name, x.object_name_list) for x in db_map.wide_relationship_list()}
+        obj_par_defs = {
+            x.id: (object_classes[x.object_class_id], x.parameter_name)
+            for x in db_map.object_parameter_definition_list()
+        }
+        rel_par_defs = {
+            x.id: (rel_clss[x.relationship_class_id][0], x.parameter_name)
+            for x in db_map.relationship_parameter_definition_list()
+        }
+        obj_par_vals = {
+            (obj_par_defs[x.parameter_id][1], objects[x.object_id][1], x.value)
+            for x in db_map.object_parameter_value_list()
+        }
+        rel_par_vals = {
+            (rel_par_defs[x.parameter_id][1], rels[x.relationship_id][1], x.value)
+            for x in db_map.relationship_parameter_value_list()
+        }
+        self.assertTrue(len(object_classes), 2)
+        self.assertTrue(len(objects), 3)
+        self.assertTrue(len(rel_clss), 1)
+        self.assertTrue(len(rels), 2)
+        self.assertTrue(len(obj_par_defs), 2)
+        self.assertTrue(len(rel_par_defs), 1)
+        self.assertTrue(len(obj_par_vals), 2)
+        self.assertTrue(len(rel_par_vals), 2)
+        self.assertTrue('dog' in object_classes.values())
+        self.assertTrue('fish' in object_classes.values())
+        self.assertTrue(('dog', 'pluto') in objects.values())
+        self.assertTrue(('dog', 'scooby') in objects.values())
+        self.assertTrue(('fish', 'nemo') in objects.values())
+        self.assertTrue(('dog__fish', 'dog,fish') in rel_clss.values())
+        self.assertTrue(('dog__fish', 'pluto__nemo', 'pluto,nemo') in rels.values())
+        self.assertTrue(('dog__fish', 'scooby__nemo', 'scooby,nemo') in rels.values())
+        self.assertTrue(('dog', 'breed') in obj_par_defs.values())
+        self.assertTrue(('fish', 'water') in obj_par_defs.values())
+        self.assertTrue(('dog__fish', 'relative_speed') in rel_par_defs.values())
+        self.assertTrue(('breed', 'scooby', 'big dane') in obj_par_vals)
+        self.assertTrue(('breed', 'pluto', 'labrador') in obj_par_vals)
+        self.assertTrue(('relative_speed', 'pluto__nemo', '100') in rel_par_vals)
+        self.assertTrue(('relative_speed', 'scooby__nemo', '-1') in rel_par_vals)
+        # Remove file
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
