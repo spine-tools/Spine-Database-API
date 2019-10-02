@@ -39,19 +39,19 @@ class TestDatabaseAPI(unittest.TestCase):
         self.number_wide_relationship = 100
         self.number_of_parameter = 100
         self.number_of_parameter_value = 100
-        self.db = create_new_spine_database("sqlite:///TestDatabaseAPI.sqlite", upgrade=False)
+        self.db = create_new_spine_database("sqlite:///TestDatabaseAPI.sqlite")
         self.db_map = DiffDatabaseMapping("sqlite:///TestDatabaseAPI.sqlite", upgrade=False)
 
     def test_create_db(self):
         # create a in memory database
         m = MetaData()
-        db = create_new_spine_database("sqlite://", upgrade=False)
+        db = create_new_spine_database("sqlite://")
         m.reflect(db.engine)
         assert len(m.tables.values()) == 9
 
     def test_create_engine_and_session(self):
 
-        db = create_new_spine_database("sqlite:///test_create_engine_and_session.sqlite", upgrade=False)
+        db = create_new_spine_database("sqlite:///test_create_engine_and_session.sqlite")
         db.connect()
 
         m = DiffDatabaseMapping("sqlite:///test_create_engine_and_session.sqlite")
