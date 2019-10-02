@@ -1038,19 +1038,13 @@ class DatabaseMappingBase(object):
 
         .. code-block:: sql
 
-            SELECT
-                id,
-                name,
-                GROUP_CONCAT(value) AS value_list
-            FROM (
-                SELECT id, name, value
-                FROM parameter_value_list
-                ORDER BY id, value_index
-            )
-            GROUP BY id
+            SELECT *
+            FROM parameter_value_list
+            ORDER BY id, value_index
 
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
+        # NOTE: Not sure what the purpose of this was
         if self._ord_parameter_value_list_sq is None:
             self._ord_parameter_value_list_sq = (
                 self.query(self.parameter_value_list_sq)
