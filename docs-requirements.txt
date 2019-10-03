@@ -1,0 +1,5 @@
+# Additional requirements for compiling the documentation
+# (additional to the packages already listed in setup.py)
+# Install with
+#   pip install -r docs-requirements.txt
+-r "docs/requirements.txt"

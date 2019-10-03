@@ -52,28 +52,30 @@ def import_data(
     object_parameter_values=(),
     relationship_parameter_values=(),
 ):
-    """Imports data into a Spine database using name references (rather than id references).
+    """Imports data into a Spine database using name references (rather than id
+    references).
 
-    Ex:
-        object_c = ['example_class', 'other_class']
-        obj_parameters = [['example_class', 'example_parameter']]
-        relationship_c = [['example_rel_class', ['example_class', 'other_class']]]
-        rel_parameters = [['example_rel_class', 'rel_parameter']]
-        objects = [['example_class', 'example_object'],
-                   ['other_class', 'other_object']]
-        object_p_values = [['example_object_class', 'example_object', 'example_parameter', 3.14]]
-        relationships = [['example_rel_class', ['example_object', 'other_object']]]
-        rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
+    Example::
 
-        import_data(db_map,
-                    object_classes=object_c,
-                    relationship_classes=relationship_c,
-                    object_parameters=obj_parameters,
-                    relationship_parameters=rel_parameters,
-                    objects=objects,
-                    relationships=relationships,
-                    object_parameter_values=object_p_values,
-                    relationship_parameter_values=rel_p_values)
+            object_c = ['example_class', 'other_class']
+            obj_parameters = [['example_class', 'example_parameter']]
+            relationship_c = [['example_rel_class', ['example_class', 'other_class']]]
+            rel_parameters = [['example_rel_class', 'rel_parameter']]
+            objects = [['example_class', 'example_object'],
+                       ['other_class', 'other_object']]
+            object_p_values = [['example_object_class', 'example_object', 'example_parameter', 3.14]]
+            relationships = [['example_rel_class', ['example_object', 'other_object']]]
+            rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
+
+            import_data(db_map,
+                        object_classes=object_c,
+                        relationship_classes=relationship_c,
+                        object_parameters=obj_parameters,
+                        relationship_parameters=rel_parameters,
+                        objects=objects,
+                        relationships=relationships,
+                        object_parameter_values=object_p_values,
+                        relationship_parameter_values=rel_p_values)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): database mapping
@@ -129,9 +131,7 @@ def import_data(
         num_imports = num_imports + new
         error_log.extend(errors)
     if relationship_parameter_values:
-        new, errors = import_relationship_parameter_values(
-            db_map, relationship_parameter_values
-        )
+        new, errors = import_relationship_parameter_values(db_map, relationship_parameter_values)
         num_imports = num_imports + new
         error_log.extend(errors)
     return num_imports, error_log
@@ -140,7 +140,9 @@ def import_data(
 def import_object_classes(db_map, object_classes):
     """Imports list of object classes by name into given database mapping.
     Ignores duplicate names and existing names.
-        ex:
+
+    Example::
+
             data = ['new_object_class']
             import_objects(db_map, data)
 
@@ -156,8 +158,8 @@ def import_object_classes(db_map, object_classes):
     error_log = []
     for object_class_name in set(object_classes).difference(existing_classes):
         try:
-            new_oc = {"name": object_class_name}
-            check_object_class(new_oc, existing_classes)
+            new_oc = {"name": object_class_name, "type_id": db_map.object_class_type}
+            check_object_class(new_oc, existing_classes, db_map.object_class_type)
             new_classes.append(new_oc)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object class"))
@@ -168,7 +170,9 @@ def import_object_classes(db_map, object_classes):
 def import_objects(db_map, object_data):
     """Imports list of object by name with associated object class name into given database mapping:
     Ignores duplicate names and existing names.
-        ex:
+
+    Example::
+
             data = [('object_class_name', 'new_object')]
             import_objects(db_map, data)
 
@@ -191,9 +195,9 @@ def import_objects(db_map, object_data):
         oc_id = existing_classes.get(oc_name, None)
         if (oc_id, name) in seen_objects or (oc_id, name) in existing_objects:
             continue
-        db_object = {"name": name, "class_id": oc_id}
+        db_object = {"name": name, "class_id": oc_id, "type_id": db_map.object_entity_type}
         try:
-            check_object(db_object, existing_objects, existing_class_ids)
+            check_object(db_object, existing_objects, existing_class_ids, db_map.object_entity_type)
             new_objects.append(db_object)
             seen_objects.add((oc_id, name))
         except SpineIntegrityError as e:
@@ -204,8 +208,10 @@ def import_objects(db_map, object_data):
 
 def import_relationship_classes(db_map, relationship_classes):
     """Imports list of relationship class names with object classes:
-        ex:
-            data = [('new_rel_class', ['object_class_1, object_class_2])]
+
+    Example::
+
+            data = [('new_rel_class', ['object_class_1', 'object_class_2'])]
             import_relationship_classes(db_map, data)
 
     Args:
@@ -219,9 +225,7 @@ def import_relationship_classes(db_map, relationship_classes):
     existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
     existing_classes_ids = set(existing_classes.values())
     existing_rel_classes = {x.name: x for x in db_map.wide_relationship_class_list()}
-    relationship_class_names = {
-        x.name: x.id for x in db_map.wide_relationship_class_list()
-    }
+    relationship_class_names = {x.name: x.id for x in db_map.wide_relationship_class_list()}
     seen_classes = set()
     error_log = []
     new_rc = []
@@ -230,30 +234,27 @@ def import_relationship_classes(db_map, relationship_classes):
         if (name, oc_ids) in seen_classes:
             continue
         if name in existing_rel_classes:
-            if (
-                ",".join(str(i) for i in oc_ids)
-                == existing_rel_classes[name].object_class_id_list
-            ):
+            if ",".join(str(i) for i in oc_ids) == existing_rel_classes[name].object_class_id_list:
                 continue
-        rel_class = {"name": name, "object_class_id_list": oc_ids}
+        rel_class = {"name": name, "object_class_id_list": oc_ids, "type_id": db_map.relationship_class_type}
         try:
             check_wide_relationship_class(
-                rel_class, relationship_class_names, existing_classes_ids
+                rel_class, relationship_class_names, existing_classes_ids, db_map.relationship_class_type
             )
             new_rc.append(rel_class)
             relationship_class_names[name] = None
             seen_classes.add((name, oc_ids))
         except SpineIntegrityError as e:
-            error_log.append(
-                ImportErrorLogItem(msg=e.msg, db_type="relationship class")
-            )
+            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship class"))
     added = db_map._add_wide_relationship_classes(*new_rc)
     return len(added), error_log
 
 
 def import_object_parameters(db_map, parameter_data):
     """Imports list of object class parameters:
-        ex:
+
+    Example::
+
             data = [
                 ('object_class_1', 'new_parameter'),
                 ('object_class_2', 'other_parameter', 'default_value')
@@ -270,15 +271,11 @@ def import_object_parameters(db_map, parameter_data):
     """
 
     obj_parameter_names = {
-        (x.object_class_id, x.name): x.id
-        for x in db_map.parameter_definition_list()
-        if x.object_class_id
+        (x.object_class_id, x.name): x.id for x in db_map.parameter_definition_list() if x.object_class_id
     }
     object_class_dict = {x.id: x.name for x in db_map.object_class_list()}
     existing_classes = {oc_name: oc_id for oc_id, oc_name in object_class_dict.items()}
-    parameter_value_list_dict = {
-        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
-    }
+    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
     seen_parameters = set()
     error_log = []
     new_parameters = []
@@ -286,23 +283,15 @@ def import_object_parameters(db_map, parameter_data):
         oc_name = parameter[0]
         parameter_name = parameter[1]
         oc_id = existing_classes.get(oc_name, None)
-        if (oc_id, parameter_name) in seen_parameters or (
-            oc_id,
-            parameter_name,
-        ) in obj_parameter_names:
+        if (oc_id, parameter_name) in seen_parameters or (oc_id, parameter_name) in obj_parameter_names:
             continue
         param = {"name": parameter_name, "object_class_id": oc_id}
         if len(parameter) > 2:
             param["default_value"] = parameter[2]
         try:
-            check_parameter_definition(
-                param,
-                obj_parameter_names,
-                {},
-                object_class_dict,
-                {},
-                parameter_value_list_dict,
-            )
+            check_parameter_definition(param, obj_parameter_names, {}, object_class_dict, {}, parameter_value_list_dict)
+            param["entity_class_id"] = param["object_class_id"]
+            param.pop("object_class_id", None)
             new_parameters.append(param)
             seen_parameters.add((oc_id, parameter_name))
         except SpineIntegrityError as e:
@@ -314,7 +303,9 @@ def import_object_parameters(db_map, parameter_data):
 
 def import_relationship_parameters(db_map, parameter_data):
     """Imports list of relationship class parameters:
-        ex:
+
+    Example::
+
             data = [
                 ('relationship_class_1', 'new_parameter'),
                 ('relationship_class_2', 'other_parameter', 'default_value')
@@ -330,19 +321,11 @@ def import_relationship_parameters(db_map, parameter_data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     rel_parameter_names = {
-        (x.relationship_class_id, x.name): x.id
-        for x in db_map.parameter_definition_list()
-        if x.relationship_class_id
+        (x.relationship_class_id, x.name): x.id for x in db_map.parameter_definition_list() if x.relationship_class_id
     }
-    relationship_class_dict = {
-        x.id: x.name for x in db_map.wide_relationship_class_list()
-    }
-    existing_classes = {
-        rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()
-    }
-    parameter_value_list_dict = {
-        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
-    }
+    relationship_class_dict = {x.id: x.name for x in db_map.wide_relationship_class_list()}
+    existing_classes = {rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()}
+    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
     seen_parameters = set()
 
     error_log = []
@@ -351,24 +334,18 @@ def import_relationship_parameters(db_map, parameter_data):
         rel_class_name = parameter[0]
         param_name = parameter[1]
         rc_id = existing_classes.get(rel_class_name, None)
-        if (rc_id, param_name) in seen_parameters or (
-            rc_id,
-            param_name,
-        ) in rel_parameter_names:
+        if (rc_id, param_name) in seen_parameters or (rc_id, param_name) in rel_parameter_names:
             continue
         new_param = {"name": param_name, "relationship_class_id": rc_id}
         if len(parameter) > 2:
             new_param["default_value"] = parameter[2]
         try:
             check_parameter_definition(
-                new_param,
-                {},
-                rel_parameter_names,
-                {},
-                relationship_class_dict,
-                parameter_value_list_dict,
+                new_param, {}, rel_parameter_names, {}, relationship_class_dict, parameter_value_list_dict
             )
             new_parameters.append(new_param)
+            new_param["entity_class_id"] = new_param["relationship_class_id"]
+            new_param.pop("relationship_class_id", None)
             seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
@@ -379,8 +356,10 @@ def import_relationship_parameters(db_map, parameter_data):
 
 def import_relationships(db_map, relationship_data):
     """Imports list of relationships:
-        ex:
-            data = [('relationship_class_name', ('object_name1','object_name2'))]
+
+    Example::
+
+            data = [('relationship_class_name', ('object_name1', 'object_name2'))]
             import_object_parameters(db_map, data)
 
     Args:
@@ -394,38 +373,22 @@ def import_relationships(db_map, relationship_data):
 
     relationships = {x.name: x for x in db_map.wide_relationship_list()}
     relationship_names = {(x.class_id, x.name): x.id for x in relationships.values()}
-    relationship_objects = {
-        (x.class_id, x.object_id_list): x.id for x in relationships.values()
-    }
+    relationship_objects = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
     relationship_class_dict = {
-        x.id: {
-            "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")],
-            "name": x.name,
-        }
+        x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
         for x in db_map.wide_relationship_class_list()
     }
-    object_dict = {
-        x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()
-    }
-    existing_objects = {
-        (o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()
-    }
-    existing_relationship_classes = {
-        rc["name"]: rc_id for rc_id, rc in relationship_class_dict.items()
-    }
+    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
+    existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
+    existing_relationship_classes = {rc["name"]: rc_id for rc_id, rc in relationship_class_dict.items()}
     error_log = []
     new_relationships = []
     seen_relationships = set()
     for rel_class_name, object_names in relationship_data:
         rc_id = existing_relationship_classes.get(rel_class_name, None)
-        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})[
-            "object_class_id_list"
-        ]
+        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})["object_class_id_list"]
         if len(object_names) == len(rc_oc_id):
-            o_ids = tuple(
-                existing_objects.get((n, rc_oc_id[i]), None)
-                for i, n in enumerate(object_names)
-            )
+            o_ids = tuple(existing_objects.get((n, rc_oc_id[i]), None) for i, n in enumerate(object_names))
         else:
             o_ids = tuple(None for n in object_names)
         if (rc_id, o_ids) in seen_relationships:
@@ -436,6 +399,8 @@ def import_relationships(db_map, relationship_data):
             "name": rel_class_name + "_" + "__".join(object_names),
             "class_id": rc_id,
             "object_id_list": o_ids,
+            "object_class_id_list": rc_oc_id,
+            "type_id": db_map.relationship_entity_type,
         }
         try:
             check_wide_relationship(
@@ -444,6 +409,7 @@ def import_relationships(db_map, relationship_data):
                 relationship_objects,
                 relationship_class_dict,
                 object_dict,
+                db_map.relationship_entity_type,
             )
             new_relationships.append(new_rel)
             seen_relationships.add((rc_id, o_ids))
@@ -456,9 +422,12 @@ def import_relationships(db_map, relationship_data):
 
 def import_object_parameter_values(db_map, data):
     """Imports list of object parameter values:
-        ex:
+
+    Example::
+
             data = [('object_class_name', 'object_name', 'parameter_name', 123.4),
-                    ('object_class_name', 'object_name', 'parameter_name2', '{"type":"time_series", "data": [1,2,3]}')]
+                    ('object_class_name', 'object_name', 'parameter_name2',
+                        '{"type":"time_series", "data": [1,2,3]}')]
             import_object_parameter_values(db_map, data)
 
     Args:
@@ -473,10 +442,7 @@ def import_object_parameter_values(db_map, data):
     """
 
     object_class_dict = {x.name: x.id for x in db_map.object_class_list()}
-    object_parameter_values = {
-        (x.object_id, x.parameter_id): x.id
-        for x in db_map.object_parameter_value_list()
-    }
+    object_parameter_values = {(x.object_id, x.parameter_id): x.id for x in db_map.object_parameter_value_list()}
     parameter_dict = {
         x.id: {
             "name": x.name,
@@ -486,18 +452,10 @@ def import_object_parameter_values(db_map, data):
         }
         for x in db_map.parameter_definition_list()
     }
-    object_dict = {
-        x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()
-    }
-    parameter_value_list_dict = {
-        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
-    }
-    existing_objects = {
-        (o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()
-    }
-    existing_parameters = {
-        (p["name"], p["object_class_id"]): p_id for p_id, p in parameter_dict.items()
-    }
+    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
+    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
+    existing_parameters = {(p["name"], p["object_class_id"]): p_id for p_id, p in parameter_dict.items()}
     error_log = []
     new_values = []
     update_values = []
@@ -508,11 +466,7 @@ def import_object_parameter_values(db_map, data):
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
         pv_id = object_parameter_values.get((o_id, p_id), None)
-        new_value = {
-            "parameter_definition_id": p_id,
-            "object_id": o_id,
-            "value": to_database(value),
-        }
+        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": to_database(value)}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -522,14 +476,11 @@ def import_object_parameter_values(db_map, data):
             if (o_id, p_id) in object_parameter_values:
                 object_parameter_values.pop((o_id, p_id))
             check_parameter_value(
-                new_value,
-                object_parameter_values,
-                {},
-                parameter_dict,
-                object_dict,
-                {},
-                parameter_value_list_dict,
+                new_value, object_parameter_values, {}, parameter_dict, object_dict, {}, parameter_value_list_dict
             )
+            new_value["entity_id"] = new_value["object_id"]
+            new_value["entity_class_id"] = oc_id
+            new_value.pop("object_id", None)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
             continue
@@ -563,7 +514,9 @@ def import_object_parameter_values(db_map, data):
 
 def import_relationship_parameter_values(db_map, data):
     """Imports list of object parameter values:
-        ex:
+
+    Example::
+
             data = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
             import_relationship_parameter_values(db_map, data)
 
@@ -578,16 +531,12 @@ def import_relationship_parameter_values(db_map, data):
     """
 
     relationship_class_dict = {
-        x.id: {
-            "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")],
-            "name": x.name,
-        }
+        x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
         for x in db_map.wide_relationship_class_list()
     }
 
     relationship_parameter_values = {
-        (x.relationship_id, x.parameter_id): x.id
-        for x in db_map.relationship_parameter_value_list()
+        (x.relationship_id, x.parameter_id): x.id for x in db_map.relationship_parameter_value_list()
     }
     parameter_dict = {
         x.id: {
@@ -598,33 +547,17 @@ def import_relationship_parameter_values(db_map, data):
         }
         for x in db_map.parameter_definition_list()
     }
-    object_dict = {
-        x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()
-    }
+    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
     relationship_dict = {
-        x.id: {
-            "class_id": x.class_id,
-            "name": x.name,
-            "object_id_list": [int(i) for i in x.object_id_list.split(",")],
-        }
+        x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": [int(i) for i in x.object_id_list.split(",")]}
         for x in db_map.wide_relationship_list()
     }
-    parameter_value_list_dict = {
-        x.id: x.value_list for x in db_map.wide_parameter_value_list_list()
-    }
-    existing_objects = {
-        (o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()
-    }
-    existing_parameters = {
-        (p["name"], p["relationship_class_id"]): p_id
-        for p_id, p in parameter_dict.items()
-    }
-    existing_relationship_classes = {
-        oc.name: oc.id for oc in db_map.wide_relationship_class_list()
-    }
+    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
+    existing_parameters = {(p["name"], p["relationship_class_id"]): p_id for p_id, p in parameter_dict.items()}
+    existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
     existing_relationships = {
-        (r["class_id"], tuple(r["object_id_list"])): r_id
-        for r_id, r in relationship_dict.items()
+        (r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationship_dict.items()
     }
 
     error_log = []
@@ -633,25 +566,16 @@ def import_relationship_parameter_values(db_map, data):
     checked_new_values = set()
     for class_name, object_names, param_name, value in data:
         rc_id = existing_relationship_classes.get(class_name, None)
-        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})[
-            "object_class_id_list"
-        ]
+        rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})["object_class_id_list"]
         if len(object_names) == len(rc_oc_id):
-            o_ids = tuple(
-                existing_objects.get((n, rc_oc_id[i]), None)
-                for i, n in enumerate(object_names)
-            )
+            o_ids = tuple(existing_objects.get((n, rc_oc_id[i]), None) for i, n in enumerate(object_names))
         else:
             o_ids = tuple(None for n in object_names)
         rel_key = (rc_id, o_ids)
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        new_value = {
-            "parameter_definition_id": p_id,
-            "relationship_id": r_id,
-            "value": to_database(value),
-        }
+        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": to_database(value)}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
@@ -669,6 +593,9 @@ def import_relationship_parameter_values(db_map, data):
                 relationship_dict,
                 parameter_value_list_dict,
             )
+            new_value["entity_id"] = new_value["relationship_id"]
+            new_value["entity_class_id"] = rc_id
+            new_value.pop("relationship_id", None)
         except SpineIntegrityError as e:
             error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
             continue

@@ -60,7 +60,8 @@ class DatabaseMappingCheckMixin:
         object_class_names = {x.name: x.id for x in self.object_class_list()}
         for item in items:
             try:
-                check_object_class(item, object_class_names)
+                check_object_class(item, object_class_names, self.object_class_type)
+                item["type_id"] = self.object_class_type
                 checked_items.append(item)
                 # If the check passes, append item to `object_class_names` for next iteration.
                 object_class_names[item["name"]] = None
@@ -111,7 +112,7 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_object_class(updated_item, object_class_names)
+                check_object_class(updated_item, object_class_names, self.object_class_type)
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 object_class_dict[id] = updated_item
@@ -143,7 +144,8 @@ class DatabaseMappingCheckMixin:
         object_class_id_list = [x.id for x in self.object_class_list()]
         for item in items:
             try:
-                check_object(item, object_names, object_class_id_list)
+                check_object(item, object_names, object_class_id_list, self.object_entity_type)
+                item["type_id"] = self.object_entity_type
                 checked_items.append(item)
                 object_names[item["class_id"], item["name"]] = None
             except SpineIntegrityError as e:
@@ -193,7 +195,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 updated_item.update(item)
-                check_object(updated_item, object_names, object_class_id_list)
+                check_object(updated_item, object_names, object_class_id_list, self.object_entity_type)
                 checked_items.append(item)
                 object_dict[id] = updated_item
                 object_names[updated_item["class_id"], updated_item["name"]] = id
@@ -224,7 +226,8 @@ class DatabaseMappingCheckMixin:
         object_class_id_list = [x.id for x in self.object_class_list()]
         for wide_item in wide_items:
             try:
-                check_wide_relationship_class(wide_item, relationship_class_names, object_class_id_list)
+                check_wide_relationship_class(wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type)
+                wide_item["type_id"] = self.relationship_class_type
                 checked_wide_items.append(wide_item)
                 relationship_class_names[wide_item["name"]] = None
             except SpineIntegrityError as e:
@@ -277,7 +280,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 updated_wide_item.update(wide_item)
-                check_wide_relationship_class(updated_wide_item, relationship_class_names, object_class_id_list)
+                check_wide_relationship_class(updated_wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type)
                 checked_wide_items.append(wide_item)
                 relationship_class_dict[id] = updated_wide_item
                 relationship_class_names[updated_wide_item["name"]] = id
@@ -315,8 +318,10 @@ class DatabaseMappingCheckMixin:
         for wide_item in wide_items:
             try:
                 check_wide_relationship(
-                    wide_item, relationship_names, relationship_objects, relationship_class_dict, object_dict
+                    wide_item, relationship_names, relationship_objects, relationship_class_dict, object_dict, self.relationship_entity_type
                 )
+                wide_item["type_id"] = self.relationship_entity_type
+                wide_item["object_class_id_list"] = [object_dict[id]["class_id"] for id in wide_item["object_id_list"]]
                 checked_wide_items.append(wide_item)
                 relationship_names[wide_item["class_id"], wide_item["name"]] = None
                 join_object_id_list = ",".join([str(x) for x in wide_item["object_id_list"]])
@@ -383,8 +388,10 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_wide_item.update(wide_item)
                 check_wide_relationship(
-                    updated_wide_item, relationship_names, relationship_objects, relationship_class_dict, object_dict
+                    updated_wide_item, relationship_names, relationship_objects, relationship_class_dict, object_dict, self.relationship_entity_type
                 )
+                wide_item["type_id"] = self.relationship_entity_type
+                wide_item["object_class_id_list"] = [object_dict[id]["class_id"] for id in wide_item["object_id_list"]]
                 checked_wide_items.append(wide_item)
                 relationship_dict[id] = updated_wide_item
                 relationship_names[updated_wide_item["class_id"], updated_wide_item["name"]] = id
@@ -433,13 +440,16 @@ class DatabaseMappingCheckMixin:
                     relationship_class_dict,
                     parameter_value_list_dict,
                 )
-                checked_items.append(item)
                 object_class_id = item.get("object_class_id", None)
                 relationship_class_id = item.get("relationship_class_id", None)
-                if object_class_id:
+                if object_class_id is not None:
+                    class_id = object_class_id
                     obj_parameter_definition_names[object_class_id, item["name"]] = None
-                elif relationship_class_id:
+                elif relationship_class_id is not None:
+                    class_id = relationship_class_id
                     rel_parameter_definition_names[relationship_class_id, item["name"]] = None
+                item["entity_class_id"] = class_id
+                checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -522,14 +532,16 @@ class DatabaseMappingCheckMixin:
                     relationship_class_dict,
                     parameter_value_list_dict,
                 )
-                checked_items.append(item)
                 object_class_id = item.get("object_class_id", None)
                 relationship_class_id = item.get("relationship_class_id", None)
-                if object_class_id:
+                if object_class_id is not None:
+                    item["entity_class_id"] = object_class_id
                     obj_parameter_definition_names[object_class_id, item["name"]] = id
-                elif relationship_class_id:
+                elif relationship_class_id is not None:
+                    item["entity_class_id"] = relationship_class_id
                     rel_parameter_definition_names[relationship_class_id, item["name"]] = id
                 parameter_definition_dict[id] = updated_item
+                checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -584,15 +596,21 @@ class DatabaseMappingCheckMixin:
                     relationship_dict,
                     parameter_value_list_dict,
                 )
-                checked_items.append(item)
                 # Update sets of tuples (object_id, parameter_definition_id)
                 # and (relationship_id, parameter_definition_id)
                 object_id = item.get("object_id", None)
                 relationship_id = item.get("relationship_id", None)
-                if object_id:
+                if object_id is not None:
+                    entity_id = object_id
+                    entity_class_id = object_dict[object_id]["class_id"]
                     object_parameter_values[object_id, item["parameter_definition_id"]] = None
-                elif relationship_id:
+                elif relationship_id is not None:
+                    entity_id = relationship_id
+                    entity_class_id = relationship_dict[relationship_id]["class_id"]
                     relationship_parameter_values[relationship_id, item["parameter_definition_id"]] = None
+                item["entity_id"] = entity_id
+                item["entity_class_id"] = entity_class_id
+                checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -685,16 +703,20 @@ class DatabaseMappingCheckMixin:
                     relationship_dict,
                     parameter_value_list_dict,
                 )
-                checked_items.append(item)
                 parameter_value_dict[id] = updated_item
                 # Add updated tuples (object_id, parameter_definition_id)
                 # and (relationship_id, parameter_definition_id)
                 object_id = updated_item.get("object_id", None)
                 relationship_id = updated_item.get("relationship_id", None)
-                if object_id:
+                if object_id is not None:
+                    item["entity_id"] = object_id
+                    item["entity_class_id"] = object_dict[object_id]["class_id"]
                     object_parameter_values[object_id, updated_item["parameter_definition_id"]] = id
-                elif relationship_id:
+                elif relationship_id is not None:
+                    item["entity_id"] = relationship_id
+                    item["entity_class_id"] = relationship_dict[relationship_id]["class_id"]
                     relationship_parameter_values[relationship_id, updated_item["parameter_definition_id"]] = id
+                checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e

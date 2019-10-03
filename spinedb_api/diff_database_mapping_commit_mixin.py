@@ -37,6 +37,7 @@ class DiffDatabaseMappingCommitMixin:
 
         :param str comment: An informative comment explaining the nature of the commit.
         """
+
         try:
             user = self.username
             date = datetime.now(timezone.utc)
@@ -47,21 +48,26 @@ class DiffDatabaseMappingCommitMixin:
             # Remove
             for tablename, ids in self.removed_item_id.items():
                 classname = self.table_to_class[tablename]
+                id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
                 removed_ids = list(ids)
                 for i in range(0, len(removed_ids), n):
-                    self.query(orig_class).filter(orig_class.id.in_(removed_ids[i : i + n])).delete(
-                        synchronize_session=False
-                    )
+                    self.query(orig_class).filter(
+                        getattr(orig_class, id_col).in_(removed_ids[i : i + n])
+                    ).delete(synchronize_session=False)
+
             # Update
             for tablename, ids in self.updated_item_id.items():
                 classname = self.table_to_class[tablename]
+                id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
                 dirty_ids = list(ids)
                 updated_items = []
                 for i in range(0, len(dirty_ids), n):
-                    for item in self.query(diff_class).filter(diff_class.id.in_(dirty_ids[i : i + n])):
+                    for item in self.query(diff_class).filter(
+                        getattr(diff_class, id_col).in_(dirty_ids[i : i + n])
+                    ):
                         kwargs = attr_dict(item)
                         kwargs["commit_id"] = commit.id
                         updated_items.append(kwargs)
@@ -69,12 +75,15 @@ class DiffDatabaseMappingCommitMixin:
             # Add
             for tablename, ids in self.added_item_id.items():
                 classname = self.table_to_class[tablename]
+                id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
                 new_ids = list(ids)
                 new_items = []
                 for i in range(0, len(new_ids), n):
-                    for item in self.query(diff_class).filter(diff_class.id.in_(new_ids[i : i + n])):
+                    for item in self.query(diff_class).filter(
+                        getattr(diff_class, id_col).in_(new_ids[i : i + n])
+                    ):
                         kwargs = attr_dict(item)
                         kwargs["commit_id"] = commit.id
                         new_items.append(kwargs)

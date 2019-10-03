@@ -12,22 +12,25 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-#
-# sys.path.insert(0, os.path.abspath("../../"))
+import os
+import sys
+
+root_path = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
+sys.path.insert(0, os.path.abspath(root_path))
 
 
 # -- Project information -----------------------------------------------------
 
 project = "Spine Database API"
-copyright = "2019, Spine"
 author = "Various"
+# TODO: correctly identify authors / copyright
+copyright = "2019, Spine"
 
 # The short X.Y version
-version = ""
+from spinedb_api import __version__ as spinedb_api_version
+version = spinedb_api_version
 # The full version, including alpha/beta/rc tags
-release = ""
+release = spinedb_api_version
 
 
 # -- General configuration ---------------------------------------------------
@@ -41,10 +44,14 @@ release = ""
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.todo",
-    "sphinx.ext.coverage",
-    "sphinx.ext.githubpages",
+    "sphinx.ext.todo",        # support for ".. todo:"
+    'sphinx.ext.napoleon',    # support for NumPy or Google style in-code docstrings
+                              # ref: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
+    "sphinx.ext.coverage",    # checks documentation coverage
+    # "sphinx.ext.githubpages",  # prepares for export to github
+    "sphinx.ext.intersphinx",  # enables link to other Sphinx based documentation
+    'recommonmark',
+    # 'autoapi.extension',    # further extends sphinx.ext.autodoc???
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -54,7 +61,13 @@ templates_path = ["_templates"]
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = ".rst"
+# source_suffix = ".rst"
+# (note: since Sphinx 1.8 this is a dict rather than a list)
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',    # support provided via the 'recommonmark' extension
+}
+
 
 # The master toctree document.
 master_doc = "index"
@@ -74,6 +87,13 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
 
+# Settings for Sphinx AutoAPI
+if 'autoapi.extension' in extensions:
+    autoapi_dirs = ['../../spinedb_api']  # package to be documented
+    autoapi_ignore = [
+        '*_rc.py',
+    ]  # ignored modules
+
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -91,7 +111,9 @@ html_theme = "sphinx_rtd_theme"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
+html_static_path = [
+    # "_static",  # Not used at the moment. Commented out to avoid Sphinx warning
+]
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -130,7 +152,14 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [(master_doc, "SpineDatabaseAPI.tex", "Spine Database API Documentation", "Fabiano", "manual")]
+latex_documents = [
+    (
+        master_doc,
+        "SpineDatabaseAPI.tex",
+        "Spine Database API Documentation",
+        "Fabiano, various",
+        "manual")
+]
 
 
 # -- Options for manual page output ------------------------------------------
@@ -181,7 +210,10 @@ epub_exclude_files = ["search.html"]
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {"https://docs.python.org/": None, "https://docs.sqlalchemy.org/en/13/": None}
+intersphinx_mapping = {
+    "https://docs.python.org/": None,
+    "https://docs.sqlalchemy.org/en/13/": None
+}
 
 # -- Options for todo extension ----------------------------------------------
 

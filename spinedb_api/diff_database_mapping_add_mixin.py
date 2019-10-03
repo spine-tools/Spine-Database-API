@@ -44,10 +44,8 @@ class DiffDatabaseMappingAddMixin:
             metadata,
             Column("user", String(155), primary_key=True),
             Column("date", String(155), primary_key=True),
-            Column("object_class_id", Integer, server_default=null()),
-            Column("object_id", Integer, server_default=null()),
-            Column("relationship_class_id", Integer, server_default=null()),
-            Column("relationship_id", Integer, server_default=null()),
+            Column("entity_id", Integer, server_default=null()),
+            Column("entity_class_id", Integer, server_default=null()),
             Column("parameter_definition_id", Integer, server_default=null()),
             Column("parameter_value_id", Integer, server_default=null()),
             Column("parameter_tag_id", Integer, server_default=null()),
@@ -114,21 +112,25 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.object_class_id:
-            id = next_id.object_class_id
+        if next_id.entity_class_id:
+            id = next_id.entity_class_id
         else:
-            max_id = self.query(func.max(self.ObjectClass.id)).scalar()
+            max_id = self.query(func.max(self.EntityClass.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
+            oc_to_add = list()
             id_list = set(range(id, id + len(item_list)))
             for item in item_list:
                 item["id"] = id
                 items_to_add.append(item)
+                oc_to_add.append({"entity_class_id": item["id"], "type_id": item["type_id"]})
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffObjectClass, items_to_add)
-            next_id.object_class_id = id
+            self.session.bulk_insert_mappings(self.DiffEntityClass, items_to_add)
+            self.session.bulk_insert_mappings(self.DiffObjectClass, oc_to_add)
+            next_id.entity_class_id = id
             self.session.commit()
+            self.added_item_id["entity_class"].update(id_list)
             self.added_item_id["object_class"].update(id_list)
             return id_list
         except DBAPIError as e:
@@ -166,21 +168,26 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.object_id:
-            id = next_id.object_id
+        if next_id.entity_id:
+            id = next_id.entity_id
         else:
-            max_id = self.query(func.max(self.Object.id)).scalar()
+            max_id = self.query(func.max(self.Entity.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
+            object_to_add = list()
             id_list = set(range(id, id + len(item_list)))
             for item in item_list:
                 item["id"] = id
+                item["type_id"] = self.object_entity_type
                 items_to_add.append(item)
+                object_to_add.append({"entity_id": item["id"], "type_id": item["type_id"]})
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffObject, items_to_add)
-            next_id.object_id = id
+            self.session.bulk_insert_mappings(self.DiffEntity, items_to_add)
+            self.session.bulk_insert_mappings(self.DiffObject, object_to_add)
+            next_id.entity_id = id
             self.session.commit()
+            self.added_item_id["entity"].update(id_list)
             self.added_item_id["object"].update(id_list)
             return id_list
         except DBAPIError as e:
@@ -222,28 +229,36 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.relationship_class_id:
-            id = next_id.relationship_class_id
+        if next_id.entity_class_id:
+            id = next_id.entity_class_id
         else:
-            max_id = self.query(func.max(self.RelationshipClass.id)).scalar()
+            max_id = self.query(func.max(self.EntityClass.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
-            items_to_add = list()
+            rel_ent_clss_to_add = list()
+            ent_clss_to_add = list()
+            rel_clss_to_add = list()
             id_list = set(range(id, id + len(wide_item_list)))
             for wide_item in wide_item_list:
+                ent_clss_to_add.append({"id": id, "name": wide_item["name"], "type_id": self.relationship_class_type})
+                rel_clss_to_add.append({"entity_class_id": id, "type_id": self.relationship_class_type})
                 for dimension, object_class_id in enumerate(wide_item["object_class_id_list"]):
-                    narrow_item = {
-                        "id": id,
+                    rel_ent_cls = {
+                        "entity_class_id": id,
                         "dimension": dimension,
-                        "object_class_id": object_class_id,
-                        "name": wide_item["name"],
+                        "member_class_id": object_class_id,
+                        "member_class_type_id": self.object_class_type,
                     }
-                    items_to_add.append(narrow_item)
+                    rel_ent_clss_to_add.append(rel_ent_cls)
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffRelationshipClass, items_to_add)
-            next_id.relationship_class_id = id
+            self.session.bulk_insert_mappings(self.DiffEntityClass, ent_clss_to_add)
+            self.session.bulk_insert_mappings(self.DiffRelationshipClass, rel_clss_to_add)
+            self.session.bulk_insert_mappings(self.DiffRelationshipEntityClass, rel_ent_clss_to_add)
+            next_id.entity_class_id = id
             self.session.commit()
+            self.added_item_id["entity_class"].update(id_list)
             self.added_item_id["relationship_class"].update(id_list)
+            self.added_item_id["relationship_entity_class"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
@@ -282,29 +297,54 @@ class DiffDatabaseMappingAddMixin:
             id_list (set): added instances' ids
         """
         next_id = self._next_id_with_lock()
-        if next_id.relationship_id:
-            id = next_id.relationship_id
+        if next_id.entity_id:
+            id = next_id.entity_id
         else:
-            max_id = self.query(func.max(self.Relationship.id)).scalar()
+            max_id = self.query(func.max(self.Entity.id)).scalar()
             id = max_id + 1 if max_id else 1
         try:
             items_to_add = list()
+            entities_to_add = list()
+            rel_to_add = list()
             id_list = set(range(id, id + len(wide_item_list)))
             for wide_item in wide_item_list:
-                for dimension, object_id in enumerate(wide_item["object_id_list"]):
-                    narrow_item = {
+                entities_to_add.append(
+                    {
                         "id": id,
+                        "type_id": self.relationship_entity_type,
                         "class_id": wide_item["class_id"],
-                        "dimension": dimension,
-                        "object_id": object_id,
                         "name": wide_item["name"],
+                    }
+                )
+                rel_to_add.append(
+                    {
+                        "entity_id": id,
+                        "entity_class_id": wide_item["class_id"],
+                        "type_id": self.relationship_entity_type,
+                    }
+                )
+                for dimension, (object_id, object_class_id) in enumerate(
+                    zip(wide_item["object_id_list"], wide_item["object_class_id_list"])
+                ):
+                    narrow_item = {
+                        "entity_id": id,
+                        "type_id": self.relationship_entity_type,
+                        "entity_class_id": wide_item["class_id"],
+                        "dimension": dimension,
+                        "member_id": object_id,
+                        "member_class_type_id": self.object_entity_type,
+                        "member_class_id": object_class_id,
                     }
                     items_to_add.append(narrow_item)
                 id += 1
-            self.session.bulk_insert_mappings(self.DiffRelationship, items_to_add)
-            next_id.relationship_id = id
+            self.session.bulk_insert_mappings(self.DiffEntity, entities_to_add)
+            self.session.bulk_insert_mappings(self.DiffRelationship, rel_to_add)
+            self.session.bulk_insert_mappings(self.DiffRelationshipEntity, items_to_add)
+            next_id.entity_id = id
             self.session.commit()
+            self.added_item_id["entity"].update(id_list)
             self.added_item_id["relationship"].update(id_list)
+            self.added_item_id["relationship_entity"].update(id_list)
             return id_list
         except DBAPIError as e:
             self.session.rollback()
