@@ -34,14 +34,10 @@ def check_object_class(item, current_items, object_class_type):
     except KeyError:
         raise SpineIntegrityError("Missing object class name.")
     if "type_id" in item and item["type_id"] != object_class_type:
-        raise SpineIntegrityError(
-            "Object class '{}' must have correct type_id .".format(name),
-            id=current_items[name],
-        )
+        raise SpineIntegrityError("Object class '{}' must have correct type_id .".format(name), id=current_items[name])
     if name in current_items:
         raise SpineIntegrityError(
-            "There can't be more than one object class called '{}'.".format(name),
-            id=current_items[name],
+            "There can't be more than one object class called '{}'.".format(name), id=current_items[name]
         )
 
 
@@ -67,20 +63,14 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
     except KeyError:
         raise SpineIntegrityError("Missing object name.")
     if "type_id" in item and item["type_id"] != object_entity_type:
-        raise SpineIntegrityError(
-            "Object '{}' must have correct type_id .".format(name),
-            id=current_items[name],
-        )
+        raise SpineIntegrityError("Object '{}' must have correct type_id .".format(name), id=current_items[name])
     if (class_id, name) in current_items:
         raise SpineIntegrityError(
-            "There's already an object called '{}' in the same class.".format(name),
-            id=current_items[class_id, name],
+            "There's already an object called '{}' in the same class.".format(name), id=current_items[class_id, name]
         )
 
 
-def check_wide_relationship_class(
-    wide_item, current_items, object_class_ids, relationship_class_type
-):
+def check_wide_relationship_class(wide_item, current_items, object_class_ids, relationship_class_type):
     """Check whether the insertion of a relationship class item
     results in the violation of an integrity constraint.
 
@@ -105,23 +95,16 @@ def check_wide_relationship_class(
         raise SpineIntegrityError("Missing relationship class name.")
     if "type_id" in wide_item and wide_item["type_id"] != relationship_class_type:
         raise SpineIntegrityError(
-            "Relationship class '{}' must have correct type_id .".format(name),
-            id=current_items[name],
+            "Relationship class '{}' must have correct type_id .".format(name), id=current_items[name]
         )
     if name in current_items:
         raise SpineIntegrityError(
-            "There can't be more than one relationship class called '{}'.".format(name),
-            id=current_items[name],
+            "There can't be more than one relationship class called '{}'.".format(name), id=current_items[name]
         )
 
 
 def check_wide_relationship(
-    wide_item,
-    current_items_by_name,
-    current_items_by_obj_lst,
-    relationship_classes,
-    objects,
-    relationship_entity_type,
+    wide_item, current_items_by_name, current_items_by_obj_lst, relationship_classes, objects, relationship_entity_type
 ):
     """Check whether the insertion of a relationship item
     results in the violation of an integrity constraint.
@@ -147,14 +130,11 @@ def check_wide_relationship(
         raise SpineIntegrityError("Missing relationship class identifier.")
     if "type_id" in wide_item and wide_item["type_id"] != relationship_entity_type:
         raise SpineIntegrityError(
-            "Relationship '{}' must have correct type_id .".format(name),
-            id=current_items_by_name[class_id, name],
+            "Relationship '{}' must have correct type_id .".format(name), id=current_items_by_name[class_id, name]
         )
     if (class_id, name) in current_items_by_name:
         raise SpineIntegrityError(
-            "There's already a relationship called '{}' in the same class.".format(
-                name
-            ),
+            "There's already a relationship called '{}' in the same class.".format(name),
             id=current_items_by_name[class_id, name],
         )
     try:
@@ -173,9 +153,7 @@ def check_wide_relationship(
         object_name_list = [objects[id]["name"] for id in object_id_list]
         relationship_class_name = relationship_classes[class_id]["name"]
         raise SpineIntegrityError(
-            "Incorrect objects '{}' for relationship class '{}'.".format(
-                object_name_list, relationship_class_name
-            )
+            "Incorrect objects '{}' for relationship class '{}'.".format(object_name_list, relationship_class_name)
         )
     join_object_id_list = ",".join([str(x) for x in object_id_list])
     if (class_id, join_object_id_list) in current_items_by_obj_lst:
@@ -190,12 +168,7 @@ def check_wide_relationship(
 
 
 def check_parameter_definition(
-    item,
-    current_obj_items,
-    current_rel_items,
-    object_class_names,
-    relationship_class_names,
-    parameter_value_lists,
+    item, current_obj_items, current_rel_items, object_class_names, relationship_class_names, parameter_value_lists
 ):
     """Check whether the insertion of a parameter definition item
     results in the violation of an integrity constraint.
@@ -231,9 +204,8 @@ def check_parameter_definition(
     if object_class_id:
         if object_class_id not in object_class_names:
             raise SpineIntegrityError("Object class not found.")
-        try:
-            name = item["name"]
-        except KeyError:
+        name = item.get("name")
+        if not name:
             raise SpineIntegrityError("Missing parameter name.")
         if (object_class_id, name) in current_obj_items:
             raise SpineIntegrityError(
@@ -243,9 +215,8 @@ def check_parameter_definition(
     elif relationship_class_id:
         if relationship_class_id not in relationship_class_names:
             raise SpineIntegrityError("Relationship class not found.")
-        try:
-            name = item["name"]
-        except KeyError:
+        name = item.get("name")
+        if not name:
             raise SpineIntegrityError("Missing parameter name.")
         if (relationship_class_id, name) in current_rel_items:
             raise SpineIntegrityError(
@@ -253,35 +224,20 @@ def check_parameter_definition(
                 id=current_rel_items[relationship_class_id, name],
             )
     else:
-        raise SpineIntegrityError(
-            "Missing object class or relationship class identifier."
-        )
+        raise SpineIntegrityError("Missing object class or relationship class identifier.")
     parameter_value_list_id = item.get("parameter_value_list_id")
-    if (
-        parameter_value_list_id is not None
-        and parameter_value_list_id not in parameter_value_lists
-    ):
+    if parameter_value_list_id is not None and parameter_value_list_id not in parameter_value_lists:
         raise SpineIntegrityError("Invalid parameter value list.")
     default_value = item.get("default_value")
     if default_value is not None:
         try:
             json.loads(default_value)
         except json.JSONDecodeError as err:
-            raise SpineIntegrityError(
-                "Couldn't decode default value '{}' as JSON: {}".format(
-                    default_value, err
-                )
-            )
+            raise SpineIntegrityError("Couldn't decode default value '{}' as JSON: {}".format(default_value, err))
 
 
 def check_parameter_value(
-    item,
-    current_obj_items,
-    current_rel_items,
-    parameter_definitions,
-    objects,
-    relationships,
-    parameter_value_lists,
+    item, current_obj_items, current_rel_items, parameter_definitions, objects, relationships, parameter_value_lists
 ):
     """Check whether the insertion of a parameter value item
     results in the violation of an integrity constraint.
@@ -311,9 +267,7 @@ def check_parameter_value(
         try:
             json.loads(value)
         except json.JSONDecodeError as err:
-            raise SpineIntegrityError(
-                "Couldn't decode '{}' as JSON: {}".format(value, err)
-            )
+            raise SpineIntegrityError("Couldn't decode '{}' as JSON: {}".format(value, err))
         parameter_value_list_id = parameter_definition["parameter_value_list_id"]
         if parameter_value_list_id in parameter_value_lists:
             value_list = parameter_value_lists[parameter_value_list_id].split(",")
@@ -348,18 +302,12 @@ def check_parameter_value(
         if object_class_id != parameter_definition["object_class_id"]:
             object_name = objects[object_id]["name"]
             parameter_name = parameter_definition["name"]
-            raise SpineIntegrityError(
-                "Incorrect object '{}' for parameter '{}'.".format(
-                    object_name, parameter_name
-                )
-            )
+            raise SpineIntegrityError("Incorrect object '{}' for parameter '{}'.".format(object_name, parameter_name))
         if (object_id, parameter_definition_id) in current_obj_items:
             object_name = objects[object_id]["name"]
             parameter_name = parameter_definition["name"]
             raise SpineIntegrityError(
-                "The value of parameter '{}' for object '{}' is already specified.".format(
-                    parameter_name, object_name
-                ),
+                "The value of parameter '{}' for object '{}' is already specified.".format(parameter_name, object_name),
                 id=current_obj_items[object_id, parameter_definition_id],
             )
     elif relationship_id:
@@ -371,9 +319,7 @@ def check_parameter_value(
             relationship_name = relationships[relationship_id]["name"]
             parameter_name = parameter_definition["name"]
             raise SpineIntegrityError(
-                "Incorrect relationship '{}' for parameter '{}'.".format(
-                    relationship_name, parameter_name
-                )
+                "Incorrect relationship '{}' for parameter '{}'.".format(relationship_name, parameter_name)
             )
         if (relationship_id, parameter_definition_id) in current_rel_items:
             relationship_name = relationships[relationship_id]["name"]
@@ -402,14 +348,10 @@ def check_parameter_tag(item, current_items):
     except KeyError:
         raise SpineIntegrityError("Missing parameter tag.")
     if tag in current_items:
-        raise SpineIntegrityError(
-            "There can't be more than one '{}' tag.".format(tag), id=current_items[tag]
-        )
+        raise SpineIntegrityError("There can't be more than one '{}' tag.".format(tag), id=current_items[tag])
 
 
-def check_parameter_definition_tag(
-    item, current_items, parameter_names, parameter_tags
-):
+def check_parameter_definition_tag(item, current_items, parameter_names, parameter_tags):
     """Check whether the insertion of a parameter tag item
     results in the violation of an integrity constraint.
 
@@ -460,10 +402,7 @@ def check_wide_parameter_value_list(wide_item, current_items):
         raise SpineIntegrityError("Missing parameter value list name.")
     if name in current_items:
         raise SpineIntegrityError(
-            "There can't be more than one parameter value_list called '{}'.".format(
-                name
-            ),
-            id=current_items[name],
+            "There can't be more than one parameter value_list called '{}'.".format(name), id=current_items[name]
         )
     try:
         value_list = wide_item["value_list"]
@@ -477,7 +416,4 @@ def check_wide_parameter_value_list(wide_item, current_items):
         try:
             json.loads(value)
         except json.JSONDecodeError as err:
-            raise SpineIntegrityError(
-                "Unable to decode value '{}' as JSON: {}".format(value, err)
-            )
-
+            raise SpineIntegrityError("Unable to decode value '{}' as JSON: {}".format(value, err))
