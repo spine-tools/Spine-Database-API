@@ -724,6 +724,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ),
     )
     db_map.commit_session("Add specific data structure for Spine Model.")
+    db_map.connection.close()
 
 
 def forward_sweep(root, func):
