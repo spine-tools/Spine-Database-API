@@ -27,6 +27,16 @@ from spinedb_api.exception import SpineIntegrityError
 from spinedb_api.helpers import create_new_spine_database
 
 
+def create_query_wrapper(db_map):
+    def query_wrapper(*args, orig_query=db_map.query, **kwargs):
+        arg = args[0]
+        if isinstance(arg, mock.Mock):
+            return arg.value
+        return orig_query(*args, **kwargs)
+
+    return query_wrapper
+
+
 class TestDiffDatabaseMappingRemove(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -62,6 +72,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map._reset_diff_mapping()
         self.db_map.commit_session("")
         self.db_map.session.query(self.db_map.NextId).delete(synchronize_session=False)
+        self.query_wrapper = create_query_wrapper(self.db_map)
         logging.disable(level=logging.NOTSET)  # Enable logging
 
     def tearDown(self):
@@ -150,13 +161,15 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
-    
+
     def test_remove_parameter_value(self):
         """Test adding and removing an parameter value and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
-        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.db_map.add_parameter_values(
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True
+        )
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
         self.db_map.remove_items(parameter_value_ids=[1])
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
@@ -168,20 +181,24 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
-        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.db_map.add_parameter_values(
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True
+        )
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
         self.db_map.remove_items(parameter_value_ids=[1])
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
-    
+
     def test_remove_object_with_parameter_value(self):
         """Test adding and removing an parameter value and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
-        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.db_map.add_parameter_values(
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True
+        )
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
         self.db_map.remove_items(object_ids=[1])
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
@@ -193,14 +210,16 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
-        self.db_map.add_parameter_values({"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True)
+        self.db_map.add_parameter_values(
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1}, strict=True
+        )
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
         self.db_map.remove_items(object_ids=[1])
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
- 
+
 
 class TestDiffDatabaseMappingAdd(unittest.TestCase):
     @classmethod
@@ -236,6 +255,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.db_map._reset_mapping()
         self.db_map._reset_diff_mapping()
         self.db_map.session.query(self.db_map.NextId).delete(synchronize_session=False)
+        self.query_wrapper = create_query_wrapper(self.db_map)
         logging.disable(level=logging.NOTSET)  # Enable logging
 
     def tearDown(self):
@@ -280,15 +300,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_object_class_with_same_name_as_existing_one(self):
         """Test that adding an object class with an already taken name raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_object_classes({"name": "fish"}, strict=True)
 
     def test_add_objects(self):
         """Test that adding objects works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
         objects = (
             self.db_map.session.query(self.db_map.DiffEntity)
@@ -303,8 +330,12 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_objects_with_same_name(self):
         """Test that adding two objects with the same name only adds one of them."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
         objects = (
             self.db_map.session.query(self.db_map.DiffEntity)
@@ -541,11 +572,14 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_parameter_for_both_object_and_relationship_class(self):
         """Test that adding parameter_definitions associated to both and object and relationship class
         raises and integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            mock_wide_rel_cls_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_sq"
+        ) as mock_wide_rel_cls_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+            mock_wide_rel_cls_sq.value = [
                 KeyedTuple([10, "1,2", "fish__dog"], labels=["id", "object_class_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
@@ -555,19 +589,23 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_parameter_values(self):
         """Test that adding parameter values works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_definition_list"
-        ) as mock_parameter_definition_list:
-            mock_object_list.return_value = [
+
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_sq"
+        ) as mock_parameter_definition_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.value = [
                 KeyedTuple([2, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
-            mock_parameter_definition_list.return_value = [
+            mock_parameter_definition_sq.value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
@@ -691,19 +729,23 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_same_parameter_value_twice(self):
         """Test that adding a parameter value twice only adds the first one."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_definition_list"
-        ) as mock_parameter_definition_list:
-            mock_object_list.return_value = [
+
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_sq"
+        ) as mock_parameter_definition_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.value = [
                 KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
-            mock_parameter_definition_list.return_value = [
+            mock_parameter_definition_sq.value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
@@ -721,27 +763,31 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_existing_parameter_value(self):
         """Test that adding an existing parameter value raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_definition_list"
-        ) as mock_parameter_definition_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_value_list"
-        ) as mock_parameter_value_list:
-            mock_object_list.return_value = [
+
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_sq"
+        ) as mock_parameter_definition_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_value_sq"
+        ) as mock_parameter_value_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.value = [
                 KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
-            mock_parameter_definition_list.return_value = [
+            mock_parameter_definition_sq.value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
                 )
             ]
-            mock_parameter_value_list.return_value = [
+            mock_parameter_value_sq.value = [
                 KeyedTuple(
                     [1, 1, 1, None, "orange"],
                     labels=["id", "parameter_definition_id", "object_id", "relationship_id", "value"],
@@ -787,6 +833,7 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         self.db_map._reset_mapping()
         self.db_map._reset_diff_mapping()
         self.db_map.session.query(self.db_map.NextId).delete(synchronize_session=False)
+        self.query_wrapper = create_query_wrapper(self.db_map)
         logging.disable(level=logging.NOTSET)  # Enable logging
 
     def tearDown(self):
@@ -807,8 +854,11 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
 
     def test_update_objects(self):
         """Test that updating objects works."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1}, {"id": 2, "name": "dory", "class_id": 1})
             objects, intgr_error_log = self.db_map.update_objects(
                 {"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"}
@@ -829,7 +879,7 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
         self.db_map.commit_session("update")
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
-    
+
     def test_update_comitted_object(self):
         """Test that updating objects works."""
         self.db_map.add_object_classes({"id": 1, "name": "some_class"})
@@ -842,7 +892,6 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
         self.db_map.commit_session("update")
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
-
 
     def test_update_relationship_classes(self):
         """Test that updating relationship classes works."""

@@ -280,10 +280,10 @@ class DiffDatabaseMappingUpdateMixin:
         """Set tags for parameter definitions."""
         tag_id_lists = {
             x.parameter_definition_id: [int(y) for y in x.parameter_tag_id_list.split(",")]
-            for x in self.wide_parameter_definition_tag_list()
+            for x in self.query(self.wide_parameter_definition_tag_sq)
         }
         definition_tag_id_dict = {
-            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.parameter_definition_tag_list()
+            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
         new_items = list()
         deleted_ids = set()

@@ -53,7 +53,7 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_class_names = {x.name: x.id for x in self.object_class_list()}
+        object_class_names = {x.name: x.id for x in self.query(self.object_class_sq)}
         for item in items:
             try:
                 check_object_class(item, object_class_names, self.object_class_type)
@@ -84,8 +84,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_class_dict = {x.id: {"name": x.name} for x in self.object_class_list()}
-        object_class_names = {x.name: x.id for x in self.object_class_list()}
+        object_class_dict = {x.id: {"name": x.name} for x in self.query(self.object_class_sq)}
+        object_class_names = {x.name: x.id for x in self.query(self.object_class_sq)}
         for item in items:
             try:
                 id = item["id"]
@@ -136,8 +136,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_names = {(x.class_id, x.name): x.id for x in self.object_list()}
-        object_class_id_list = [x.id for x in self.object_class_list()]
+        object_names = {(x.class_id, x.name): x.id for x in self.query(self.object_sq)}
+        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
         for item in items:
             try:
                 check_object(item, object_names, object_class_id_list, self.object_entity_type)
@@ -167,10 +167,10 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_list = self.object_list()
-        object_names = {(x.class_id, x.name): x.id for x in self.object_list()}
-        object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_list}
-        object_class_id_list = [x.id for x in self.object_class_list()]
+        object_qry = self.query(self.object_sq)
+        object_names = {(x.class_id, x.name): x.id for x in object_qry}
+        object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_qry}
+        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
         for item in items:
             try:
                 id = item["id"]
@@ -218,8 +218,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_class_names = {x.name: x.id for x in self.wide_relationship_class_list()}
-        object_class_id_list = [x.id for x in self.object_class_list()]
+        relationship_class_names = {x.name: x.id for x in self.query(self.wide_relationship_class_sq)}
+        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
         for wide_item in wide_items:
             try:
                 check_wide_relationship_class(
@@ -251,13 +251,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        wide_relationship_class_list = self.wide_relationship_class_list()
-        relationship_class_names = {x.name: x.id for x in wide_relationship_class_list}
+        wide_relationship_class_qry = self.query(self.wide_relationship_class_sq)
+        relationship_class_names = {x.name: x.id for x in wide_relationship_class_qry}
         relationship_class_dict = {
             x.id: {"name": x.name, "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")]}
-            for x in wide_relationship_class_list
+            for x in wide_relationship_class_qry
         }
-        object_class_id_list = [x.id for x in self.object_class_list()]
+        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
         for wide_item in wide_items:
             try:
                 id = wide_item["id"]
@@ -307,14 +307,14 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        wide_relationship_list = self.wide_relationship_list()
-        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_list}
-        relationship_objects = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_list}
+        wide_relationship_qry = self.query(self.wide_relationship_sq)
+        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
+        relationship_objects = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
         relationship_class_dict = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-            for x in self.wide_relationship_class_list()
+            for x in self.query(self.wide_relationship_class_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.object_list()}
+        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
         for wide_item in wide_items:
             try:
                 check_wide_relationship(
@@ -354,22 +354,22 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        wide_relationship_list = self.wide_relationship_list()
-        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_list}
-        relationship_objects = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_list}
+        wide_relationship_qry = self.query(self.wide_relationship_sq)
+        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
+        relationship_objects = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
         relationship_dict = {
             x.id: {
                 "class_id": x.class_id,
                 "name": x.name,
                 "object_id_list": [int(y) for y in x.object_id_list.split(",")],
             }
-            for x in wide_relationship_list
+            for x in wide_relationship_qry
         }
         relationship_class_dict = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-            for x in self.wide_relationship_class_list()
+            for x in self.query(self.wide_relationship_class_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.object_list()}
+        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
         for wide_item in wide_items:
             try:
                 id = wide_item["id"]
@@ -432,14 +432,14 @@ class DatabaseMappingCheckMixin:
         checked_items = list()
         obj_parameter_definition_names = {}
         rel_parameter_definition_names = {}
-        for x in self.parameter_definition_list():
+        for x in self.query(self.parameter_definition_sq):
             if x.object_class_id:
                 obj_parameter_definition_names[x.object_class_id, x.name] = x.id
             elif x.relationship_class_id:
                 rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
-        object_class_dict = {x.id: x.name for x in self.object_class_list()}
-        relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.wide_parameter_value_list_list()}
+        object_class_dict = {x.id: x.name for x in self.query(self.object_class_sq)}
+        relationship_class_dict = {x.id: x.name for x in self.query(self.wide_relationship_class_sq)}
+        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
                 check_parameter_definition(
@@ -483,10 +483,10 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_list = self.parameter_definition_list()  # Query db only once
+        parameter_definition_qry = self.query(self.parameter_definition_sq)  # Query db only once
         obj_parameter_definition_names = {}
         rel_parameter_definition_names = {}
-        for x in parameter_definition_list:
+        for x in parameter_definition_qry:
             if x.object_class_id:
                 obj_parameter_definition_names[x.object_class_id, x.name] = x.id
             elif x.relationship_class_id:
@@ -499,11 +499,11 @@ class DatabaseMappingCheckMixin:
                 "parameter_value_list_id": x.parameter_value_list_id,
                 "default_value": x.default_value,
             }
-            for x in parameter_definition_list
+            for x in parameter_definition_qry
         }
-        object_class_dict = {x.id: x.name for x in self.object_class_list()}
-        relationship_class_dict = {x.id: x.name for x in self.wide_relationship_class_list()}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.wide_parameter_value_list_list()}
+        object_class_dict = {x.id: x.name for x in self.query(self.object_class_sq)}
+        relationship_class_dict = {x.id: x.name for x in self.query(self.wide_relationship_class_sq)}
+        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
                 id = item["id"]
@@ -576,11 +576,11 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         object_parameter_values = {
-            (x.object_id, x.parameter_definition_id): x.id for x in self.parameter_value_list() if x.object_id
+            (x.object_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq) if x.object_id
         }
         relationship_parameter_values = {
             (x.relationship_id, x.parameter_definition_id): x.id
-            for x in self.parameter_value_list()
+            for x in self.query(self.parameter_value_sq)
             if x.relationship_id
         }
         parameter_definition_dict = {
@@ -590,11 +590,13 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in self.parameter_definition_list()
+            for x in self.query(self.parameter_definition_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.object_list()}
-        relationship_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.wide_relationship_list()}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.wide_parameter_value_list_list()}
+        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
+        relationship_dict = {
+            x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.wide_relationship_sq)
+        }
+        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
                 check_parameter_value(
@@ -650,14 +652,14 @@ class DatabaseMappingCheckMixin:
                 "object_id": x.object_id,
                 "relationship_id": x.relationship_id,
             }
-            for x in self.parameter_value_list()
+            for x in self.query(self.parameter_value_sq)
         }
         object_parameter_values = {
-            (x.object_id, x.parameter_definition_id): x.id for x in self.parameter_value_list() if x.object_id
+            (x.object_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq) if x.object_id
         }
         relationship_parameter_values = {
             (x.relationship_id, x.parameter_definition_id): x.id
-            for x in self.parameter_value_list()
+            for x in self.query(self.parameter_value_sq)
             if x.relationship_id
         }
         parameter_definition_dict = {
@@ -667,11 +669,13 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in self.parameter_definition_list()
+            for x in self.query(self.parameter_definition_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.object_list()}
-        relationship_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.wide_relationship_list()}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.wide_parameter_value_list_list()}
+        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
+        relationship_dict = {
+            x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.wide_relationship_sq)
+        }
+        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
                 id = item["id"]
@@ -750,7 +754,7 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_tags = {x.tag: x.id for x in self.parameter_tag_list()}
+        parameter_tags = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
                 check_parameter_tag(item, parameter_tags)
@@ -779,8 +783,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_tag_dict = {x.id: {"tag": x.tag} for x in self.parameter_tag_list()}
-        parameter_tags = {x.tag: x.id for x in self.parameter_tag_list()}
+        parameter_tag_dict = {x.id: {"tag": x.tag} for x in self.query(self.parameter_tag_sq)}
+        parameter_tags = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
                 id = item["id"]
@@ -831,10 +835,10 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         parameter_definition_tags = {
-            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.parameter_definition_tag_list()
+            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
-        parameter_name_dict = {x.id: x.name for x in self.parameter_definition_list()}
-        parameter_tag_dict = {x.id: x.tag for x in self.parameter_tag_list()}
+        parameter_name_dict = {x.id: x.name for x in self.query(self.parameter_definition_sq)}
+        parameter_tag_dict = {x.id: x.tag for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
                 check_parameter_definition_tag(item, parameter_definition_tags, parameter_name_dict, parameter_tag_dict)
@@ -863,7 +867,7 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        parameter_value_list_names = {x.name: x.id for x in self.wide_parameter_value_list_list()}
+        parameter_value_list_names = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
         for wide_item in wide_items:
             try:
                 check_wide_parameter_value_list(wide_item, parameter_value_list_names)
@@ -893,9 +897,10 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         parameter_value_list_dict = {
-            x.id: {"name": x.name, "value_list": x.value_list.split(",")} for x in self.wide_parameter_value_list_list()
+            x.id: {"name": x.name, "value_list": x.value_list.split(",")}
+            for x in self.query(self.wide_parameter_value_list_sq)
         }
-        parameter_value_list_names = {x.name: x.id for x in self.wide_parameter_value_list_list()}
+        parameter_value_list_names = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
         for wide_item in wide_items:
             try:
                 id = wide_item["id"]

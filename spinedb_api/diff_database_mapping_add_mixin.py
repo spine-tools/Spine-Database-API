@@ -97,7 +97,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_object_classes(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.object_class_list(id_list=id_list)
+        sq = self.object_class_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_object_classes(self, *item_list):
@@ -155,7 +156,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_objects(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.object_list(id_list=id_list)
+        sq = self.object_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_objects(self, *item_list):
@@ -214,7 +216,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_wide_relationship_classes(*checked_wide_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.wide_relationship_class_list(id_list=id_list)
+        sq = self.wide_relationship_class_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_wide_relationship_classes(self, *wide_item_list):
@@ -284,7 +287,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_wide_relationships(*checked_wide_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.wide_relationship_list(id_list=id_list)
+        sq = self.wide_relationship_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_wide_relationships(self, *wide_item_list):
@@ -368,7 +372,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_parameter_definitions(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.parameter_definition_list(id_list=id_list)
+        sq = self.parameter_definition_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_parameter_definitions(self, *item_list):
@@ -420,7 +425,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_parameter_values(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.parameter_value_list(id_list=id_list)
+        sq = self.parameter_value_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_parameter_values(self, *item_list):
@@ -469,7 +475,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_parameter_tags(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.parameter_tag_list(id_list=id_list)
+        sq = self.parameter_tag_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_parameter_tags(self, *item_list):
@@ -518,7 +525,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_parameter_definition_tags(*checked_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.parameter_definition_tag_list(id_list=id_list)
+        sq = self.parameter_definition_tag_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_parameter_definition_tags(self, *item_list):
@@ -569,7 +577,8 @@ class DiffDatabaseMappingAddMixin:
         id_list = self._add_wide_parameter_value_lists(*checked_wide_item_list)
         if return_dups:
             id_list.update(set(x.id for x in intgr_error_log if x.id))
-        new_item_list = self.wide_parameter_value_list_list(id_list=id_list)
+        sq = self.wide_parameter_value_list_sq
+        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
         return new_item_list, intgr_error_log
 
     def _add_wide_parameter_value_lists(self, *wide_item_list):
