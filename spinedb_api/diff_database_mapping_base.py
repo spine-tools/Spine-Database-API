@@ -40,9 +40,9 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
     # NOTE: It works by creating and mapping a set of
     # temporary 'diff' tables, where temporary changes are staged until the moment of commit.
 
-    def __init__(self, db_url, username=None, upgrade=False):
+    def __init__(self, *args, **kwargs):
         """Initialize class."""
-        super().__init__(db_url, username=username, upgrade=upgrade)
+        super().__init__(*args, **kwargs)
         self.diff_prefix = None
         # Diff classes
         self.DiffCommit = None

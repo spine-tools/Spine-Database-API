@@ -28,10 +28,6 @@ from datetime import datetime, timezone
 class DiffDatabaseMappingCommitMixin:
     """Provides methods to commit or rollback staged changes onto a Spine database."""
 
-    def __init__(self, *args, **kwargs):
-        """Initialize class."""
-        super().__init__(*args, **kwargs)
-
     def commit_session(self, comment):
         """Commit staged changes to the database.
 
@@ -52,9 +48,9 @@ class DiffDatabaseMappingCommitMixin:
                 orig_class = getattr(self, classname)
                 removed_ids = list(ids)
                 for i in range(0, len(removed_ids), n):
-                    self.query(orig_class).filter(
-                        getattr(orig_class, id_col).in_(removed_ids[i : i + n])
-                    ).delete(synchronize_session=False)
+                    self.query(orig_class).filter(getattr(orig_class, id_col).in_(removed_ids[i : i + n])).delete(
+                        synchronize_session=False
+                    )
 
             # Update
             for tablename, ids in self.updated_item_id.items():
@@ -65,9 +61,7 @@ class DiffDatabaseMappingCommitMixin:
                 dirty_ids = list(ids)
                 updated_items = []
                 for i in range(0, len(dirty_ids), n):
-                    for item in self.query(diff_class).filter(
-                        getattr(diff_class, id_col).in_(dirty_ids[i : i + n])
-                    ):
+                    for item in self.query(diff_class).filter(getattr(diff_class, id_col).in_(dirty_ids[i : i + n])):
                         kwargs = attr_dict(item)
                         kwargs["commit_id"] = commit.id
                         updated_items.append(kwargs)
@@ -81,9 +75,7 @@ class DiffDatabaseMappingCommitMixin:
                 new_ids = list(ids)
                 new_items = []
                 for i in range(0, len(new_ids), n):
-                    for item in self.query(diff_class).filter(
-                        getattr(diff_class, id_col).in_(new_ids[i : i + n])
-                    ):
+                    for item in self.query(diff_class).filter(getattr(diff_class, id_col).in_(new_ids[i : i + n])):
                         kwargs = attr_dict(item)
                         kwargs["commit_id"] = commit.id
                         new_items.append(kwargs)

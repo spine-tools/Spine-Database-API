@@ -45,7 +45,3 @@ class DiffDatabaseMapping(
     :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
-
-    def __init__(self, db_url, username=None, upgrade=False):
-        """Initialize class."""
-        super().__init__(db_url, username=username, upgrade=upgrade)

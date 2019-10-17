@@ -36,10 +36,6 @@ class DatabaseMappingCheckMixin:
     """Provides methods to check whether insert and update operations violate Spine db integrity constraints.
     """
 
-    def __init__(self, *args, **kwargs):
-        """Initialize class."""
-        super().__init__(*args, **kwargs)
-
     def check_object_classes_for_insert(self, *items, strict=False):
         """Check whether object classes passed as argument respect integrity constraints
         for an insert operation.
@@ -226,7 +222,9 @@ class DatabaseMappingCheckMixin:
         object_class_id_list = [x.id for x in self.object_class_list()]
         for wide_item in wide_items:
             try:
-                check_wide_relationship_class(wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type)
+                check_wide_relationship_class(
+                    wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type
+                )
                 wide_item["type_id"] = self.relationship_class_type
                 checked_wide_items.append(wide_item)
                 relationship_class_names[wide_item["name"]] = None
@@ -280,7 +278,9 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 updated_wide_item.update(wide_item)
-                check_wide_relationship_class(updated_wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type)
+                check_wide_relationship_class(
+                    updated_wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type
+                )
                 checked_wide_items.append(wide_item)
                 relationship_class_dict[id] = updated_wide_item
                 relationship_class_names[updated_wide_item["name"]] = id
@@ -318,7 +318,12 @@ class DatabaseMappingCheckMixin:
         for wide_item in wide_items:
             try:
                 check_wide_relationship(
-                    wide_item, relationship_names, relationship_objects, relationship_class_dict, object_dict, self.relationship_entity_type
+                    wide_item,
+                    relationship_names,
+                    relationship_objects,
+                    relationship_class_dict,
+                    object_dict,
+                    self.relationship_entity_type,
                 )
                 wide_item["type_id"] = self.relationship_entity_type
                 wide_item["object_class_id_list"] = [object_dict[id]["class_id"] for id in wide_item["object_id_list"]]
@@ -388,7 +393,12 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_wide_item.update(wide_item)
                 check_wide_relationship(
-                    updated_wide_item, relationship_names, relationship_objects, relationship_class_dict, object_dict, self.relationship_entity_type
+                    updated_wide_item,
+                    relationship_names,
+                    relationship_objects,
+                    relationship_class_dict,
+                    object_dict,
+                    self.relationship_entity_type,
                 )
                 wide_item["type_id"] = self.relationship_entity_type
                 wide_item["object_class_id_list"] = [object_dict[id]["class_id"] for id in wide_item["object_id_list"]]
