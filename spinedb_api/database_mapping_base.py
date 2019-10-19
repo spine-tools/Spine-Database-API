@@ -487,6 +487,14 @@ class DatabaseMappingBase(object):
         """
         if self._parameter_value_sq is None:
             par_val_sq = self._subquery("parameter_value")
+
+            object_class_case = case(
+                [(self.entity_class_sq.c.type_id == self.object_class_type, par_val_sq.c.entity_class_id)], else_=None
+            )
+            rel_class_case = case(
+                [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_val_sq.c.entity_class_id)],
+                else_=None,
+            )
             object_entity_case = case(
                 [(self.entity_sq.c.type_id == self.object_entity_type, par_val_sq.c.entity_id)], else_=None
             )
@@ -498,12 +506,15 @@ class DatabaseMappingBase(object):
                 self.query(
                     par_val_sq.c.id.label("id"),
                     par_val_sq.c.parameter_definition_id.label("parameter_definition_id"),
-                    label("relationship_id", rel_entity_case),
+                    label("object_class_id", object_class_case),
+                    label("relationship_class_id", rel_class_case),
                     label("object_id", object_entity_case),
+                    label("relationship_id", rel_entity_case),
                     par_val_sq.c.value.label("value"),
                     par_val_sq.c.commit_id.label("commit_id"),
                 )
                 .join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id)
+                .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
                 .subquery()
             )
 
