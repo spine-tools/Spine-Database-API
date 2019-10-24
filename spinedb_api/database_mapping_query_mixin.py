@@ -290,20 +290,6 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.wide_parameter_definition_tag_sq.c.parameter_definition_id == parameter_definition_id)
         return qry
 
-    def wide_parameter_tag_definition_list(self, parameter_tag_id=None):
-        """Return all records from the
-        :meth:`wide_parameter_tag_definition_sq <.DatabaseMappingBase.wide_parameter_tag_definition_sq>` subquery.
-
-        :param int parameter_tag_id: If present, only return records where ``parameter_tag_id``
-            is equal to this.
-
-        :rtype: :class:`~sqlalchemy.orm.query.Query`
-        """
-        qry = self.query(self.wide_parameter_tag_definition_sq)
-        if parameter_tag_id:
-            qry = qry.filter(self.wide_parameter_tag_definition_sq.c.parameter_tag_id == parameter_tag_id)
-        return qry
-
     def parameter_value_list_list(self, id_list=None):
         """Return all records from the
         :meth:`parameter_value_list_sq <.DatabaseMappingBase.parameter_value_list_sq>` subquery.

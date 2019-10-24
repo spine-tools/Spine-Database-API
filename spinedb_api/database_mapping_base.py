@@ -17,31 +17,24 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, MetaData, case
-from sqlalchemy.sql.expression import label, bindparam
+from sqlalchemy import create_engine, inspect, func, case
+from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoSuchTableError, DBAPIError, DatabaseError, ArgumentError
+from sqlalchemy.exc import NoSuchTableError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
-from .helpers import (
-    create_new_spine_database,
-    compare_schemas,
-    model_meta,
-    custom_generate_relationship,
-    _create_first_spine_database,
-)
+from .helpers import compare_schemas, model_meta, custom_generate_relationship, _create_first_spine_database
 
-from sqlalchemy import Column, Integer
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 
-class DatabaseMappingBase(object):
+class DatabaseMappingBase:
     """Base class for all database mappings.
 
     It provides the :meth:`query` method for custom db querying.
@@ -138,7 +131,6 @@ class DatabaseMappingBase(object):
             "relationship_class": "entity_class_id",
             "object": "entity_id",
             "relationship": "entity_id",
-            "relationship": "entity_id",
             "relationship_entity": "entity_id",
         }
         self._create_mapping()
@@ -208,7 +200,7 @@ class DatabaseMappingBase(object):
         for tablename, classname in self.table_to_class.items():
             try:
                 setattr(self, classname, getattr(Base.classes, tablename))
-            except (NoSuchTableError, AttributeError) as e:
+            except (NoSuchTableError, AttributeError):
                 not_found.append(tablename)
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
@@ -1015,45 +1007,6 @@ class DatabaseMappingBase(object):
                 .subquery()
             )
         return self._wide_parameter_definition_tag_sq
-
-    @property
-    def ext_parameter_tag_definition_sq(self):
-        """A subquery of the form:
-
-        :type: :class:`~sqlalchemy.sql.expression.Alias`
-        """
-        if self._ext_parameter_tag_definition_sq is None:
-            self._ext_parameter_tag_definition_sq = (
-                self.query(
-                    self.parameter_definition_sq.c.id.label("parameter_definition_id"),
-                    self.parameter_definition_tag_sq.c.parameter_tag_id.label("parameter_tag_id"),
-                )
-                .outerjoin(
-                    self.parameter_definition_tag_sq,
-                    self.parameter_definition_sq.c.id == self.parameter_definition_tag_sq.c.parameter_definition_id,
-                )
-                .subquery()
-            )
-        return self._ext_parameter_tag_definition_sq
-
-    @property
-    def wide_parameter_tag_definition_sq(self):
-        """A subquery of the form:
-
-        :type: :class:`~sqlalchemy.sql.expression.Alias`
-        """
-        if self._wide_parameter_tag_definition_sq is None:
-            self._wide_parameter_tag_definition_sq = (
-                self.query(
-                    self.ext_parameter_tag_definition_sq.c.parameter_tag_id,
-                    func.group_concat(self.ext_parameter_tag_definition_sq.c.parameter_definition_id).label(
-                        "parameter_definition_id_list"
-                    ),
-                )
-                .group_by(self.ext_parameter_tag_definition_sq.c.parameter_tag_id)
-                .subquery()
-            )
-        return self._wide_parameter_tag_definition_sq
 
     @property
     def ord_parameter_value_list_sq(self):
