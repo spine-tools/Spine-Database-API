@@ -55,7 +55,7 @@ class DatabaseMappingBase(object):
         """Initialize class."""
         self.db_url = db_url
         self.username = username if username else "anon"
-        self.codename = codename if codename else db_url
+        self.codename = str(codename) if codename else str(db_url)
         self.engine = self._create_engine(db_url)
         self._check_db_version(upgrade=upgrade)
         self.connection = self.engine.connect()
@@ -142,6 +142,14 @@ class DatabaseMappingBase(object):
             "relationship_entity": "entity_id",
         }
         self._create_mapping()
+
+    def __eq__(self, other):
+        if isinstance(other, DatabaseMappingBase):
+            return self.db_url == other.db_url
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.db_url)
 
     @staticmethod
     def _create_engine(db_url):
@@ -655,12 +663,14 @@ class DatabaseMappingBase(object):
             self._ext_relationship_sq = (
                 self.query(
                     self.relationship_sq.c.id.label("id"),
-                    self.relationship_sq.c.class_id.label("class_id"),
                     self.relationship_sq.c.name.label("name"),
+                    self.relationship_sq.c.class_id.label("class_id"),
+                    self.wide_relationship_class_sq.c.name.label("class_name"),
                     self.object_sq.c.id.label("object_id"),
                     self.object_sq.c.name.label("object_name"),
                 )
                 .filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
+                .filter(self.relationship_sq.c.class_id == self.wide_relationship_class_sq.c.id)
                 .order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
                 .subquery()
             )
@@ -697,8 +707,9 @@ class DatabaseMappingBase(object):
             self._wide_relationship_sq = (
                 self.query(
                     self.ext_relationship_sq.c.id,
-                    self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.name,
+                    self.ext_relationship_sq.c.class_id,
+                    self.ext_relationship_sq.c.class_name,
                     func.group_concat(self.ext_relationship_sq.c.object_id).label("object_id_list"),
                     func.group_concat(self.ext_relationship_sq.c.object_name).label("object_name_list"),
                 )

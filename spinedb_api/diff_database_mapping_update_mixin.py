@@ -340,7 +340,8 @@ class DiffDatabaseMappingUpdateMixin:
             self.added_item_id["parameter_value_list"].update(updated_ids)
             self.removed_item_id["parameter_value_list"].update(updated_ids)
             self._mark_as_dirty("parameter_value_list", updated_ids)
-            updated_item_list = self.wide_parameter_value_list_list(id_list=updated_ids)
+            sq = self.wide_parameter_value_list_sq
+            updated_item_list = self.query(sq).filter(sq.c.id.in_(updated_ids))
             return updated_item_list, intgr_error_log
         except DBAPIError as e:
             self.session.rollback()
