@@ -135,14 +135,6 @@ class DatabaseMappingBase:
         }
         self._create_mapping()
 
-    def __eq__(self, other):
-        if isinstance(other, DatabaseMappingBase):
-            return self.db_url == other.db_url
-        return NotImplemented
-
-    def __hash__(self):
-        return hash(self.db_url)
-
     @staticmethod
     def _create_engine(db_url):
         """Create engine."""
