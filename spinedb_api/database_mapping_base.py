@@ -197,6 +197,9 @@ class DatabaseMappingBase:
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
 
+    def reconnect(self):
+        self.connection = self.engine.connect()
+
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
         to this :class:`.DatabaseMappingBase`.
