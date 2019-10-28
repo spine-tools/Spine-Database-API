@@ -368,7 +368,10 @@ class DateTime:
 
     def __init__(self, value):
         if isinstance(value, str):
-            value = dateutil.parser.parse(value)
+            try:
+                value = dateutil.parser.parse(value)
+            except ValueError:
+                raise ParameterValueFormatError('Could not parse datetime from "{}"'.format(value))
         self._value = value
 
     def __eq__(self, other):
