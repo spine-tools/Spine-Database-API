@@ -405,10 +405,12 @@ class Duration:
             value = [duration_to_relativedelta(value)]
         elif isinstance(value, relativedelta):
             value = [value]
-        else:
+        elif isinstance(value, Iterable):
             for index, element in enumerate(value):
                 if isinstance(element, str):
                     value[index] = duration_to_relativedelta(element)
+        else:
+            raise ParameterValueFormatError('Could not parse duration from "{}"'.format(value))
         self._value = value
 
     def __eq__(self, other):
