@@ -23,10 +23,22 @@ from spinedb_api.json_mapping import (
     ObjectClassMapping,
     RelationshipClassMapping,
     Mapping,
-    ParameterMapping
+    ParameterMapping,
+    convert_function_from_spec
 )
 from spinedb_api.parameter_value import TimeSeriesVariableResolution, TimePattern
+from spinedb_api.exception import TypeConversionError
 
+
+class TestTypeConversion(unittest.TestCase):
+    def test_convert_function(self):
+        convert_function = convert_function_from_spec({0: str, 1: float}, 2)
+        self.assertEqual(convert_function(["a", "1.2"]), ["a", 1.2])
+    
+    def test_convert_function_raises_error(self):
+        convert_function = convert_function_from_spec({0: str, 1: float}, 2)
+        with self.assertRaises(TypeConversionError):
+            convert_function(["a", "not a float"])
 
 class TestMappingIO(unittest.TestCase):
     def test_ObjectClass_to_dict_from_dict(self):

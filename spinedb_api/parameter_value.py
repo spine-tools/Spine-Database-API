@@ -738,3 +738,7 @@ class TimeSeriesVariableResolution(TimeSeries):
                 database_value["index"] = dict()
             database_value["index"]["repeat"] = self._repeat
         return json.dumps(database_value)
+
+
+# List of scalar types that are supported by the spinedb_api
+SUPPORTED_TYPES = (Duration, DateTime, float, str)

@@ -20,7 +20,8 @@ from operator import itemgetter
 import itertools
 import json
 
-from .parameter_value import TimeSeriesVariableResolution, TimePattern
+from .parameter_value import TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError, SUPPORTED_TYPES
+from .exception import TypeConversionError
 
 
 # Constants for json spec
@@ -153,6 +154,8 @@ class Mapping:
     def last_pivot_row(self):
         if self.is_pivoted():
             return self.value_reference
+        else:
+            return -1
 
     def to_dict(self):
         map_dict = {"value_reference": self.value_reference, "map_type": self.map_type}
@@ -225,7 +228,7 @@ class ParameterMapping:
             last_pivot_rows.append(self.name.last_pivot_row())
         if self.extra_dimensions is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
-        return max(last_pivot_rows, key=none_is_minus_inf, default=None)
+        return max(last_pivot_rows, default=-1)
 
     def is_pivoted(self):
         if isinstance(self.name, Mapping) and self.name.is_pivoted():
@@ -372,7 +375,7 @@ class ParameterColumnCollectionMapping:
         last_pivot_rows = []
         if self.extra_dimensions is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
-        return max(last_pivot_rows, key=none_is_minus_inf, default=None)
+        return max(last_pivot_rows, default=None)
 
     def is_pivoted(self):
         if self.extra_dimensions is not None:
@@ -464,7 +467,7 @@ class ParameterColumnMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        return None
+        return -1
 
     def is_pivoted(self):
         return False
@@ -568,13 +571,13 @@ class ObjectClassMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_row = None
+        last_pivot_row = -1
         if isinstance(self.name, Mapping):
             last_pivot_row = self.name.last_pivot_row()
         if isinstance(self.object, Mapping):
-            last_pivot_row = max(last_pivot_row, self.object.last_pivot_row(), key=none_is_minus_inf)
+            last_pivot_row = max(last_pivot_row, self.object.last_pivot_row())
         if isinstance(self.parameters, (ParameterMapping, ParameterColumnCollectionMapping)):
-            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row(), key=none_is_minus_inf)
+            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row())
         return last_pivot_row
 
     def is_pivoted(self):
@@ -771,19 +774,19 @@ class RelationshipClassMapping:
         Returns:
             [int] -- highest pivoted row
         """
-        last_pivot_row = None
+        last_pivot_row = -1
         if isinstance(self.name, Mapping):
             last_pivot_row = self.name.last_pivot_row()
         if self.object_classes is not None:
             for object_class in self.object_classes:
                 if isinstance(object_class, Mapping):
-                    last_pivot_row = max(last_pivot_row, object_class.last_pivot_row(), key=none_is_minus_inf)
+                    last_pivot_row = max(last_pivot_row, object_class.last_pivot_row())
         if self.objects is not None:
             for obj in self.objects:
                 if isinstance(obj, Mapping):
-                    last_pivot_row = max(last_pivot_row, obj.last_pivot_row(), key=none_is_minus_inf)
+                    last_pivot_row = max(last_pivot_row, obj.last_pivot_row())
         if self.parameters is not None:
-            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row(), key=none_is_minus_inf)
+            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row())
         return last_pivot_row
 
     def is_pivoted(self):
@@ -1002,10 +1005,10 @@ class DataMapping:
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_rows = []
+        last_pivot_rows = [-1]
         if self.mappings is not None:
             last_pivot_rows += [m.last_pivot_row() for m in self.mappings if m is not None]
-        return max(last_pivot_rows, default=None, key=none_is_minus_inf)
+        return max(last_pivot_rows)
 
     def is_pivoted(self):
         if self.mappings is not None:
@@ -1188,9 +1191,106 @@ def dict_to_map(map_dict):
     return mapping
 
 
-def read_with_mapping(data_source, mapping, num_cols, data_header=None):
+def type_class_list_from_spec(types, num_sections, skip_sections=None):
+    if skip_sections is None:
+        skip_sections = []
+    do_nothing = lambda x: x
+    type_conv_list = []
+    for section in range(num_sections):
+        type_class = types.get(section, None)
+        if section in skip_sections:
+            type_class = do_nothing
+        elif type_class is None:
+            type_class = do_nothing
+        elif type_class not in SUPPORTED_TYPES:
+            raise ValueError(f"Unsupported type of {type_class} specified for column: {c}")
+        type_conv_list.append(type_class)
+    return type_conv_list
+
+def convert_value(value, type_converter):
+    try:
+        if isinstance(value, str) and not value:
+            value = None
+        if value is not None:
+            value = type_converter(value)
+        return value
+    except (ValueError, ParameterValueFormatError):
+        raise TypeConversionError(
+            f"Could not convert value: '{value}' to type: '{type_converter.__name__}'",
+        )
+
+def convert_function_from_spec(column_types, num_cols, skip_cols=None):
+    """Creates a function that converts a list of data with length num_cols to the
+    types in the column_types dict. If no type is given then the function returns the original value
+    
+    Arguments:
+        column_types {dict} -- dict with column number as key and type constructor as value for each column
+        num_cols {int} -- length of data that the function should convert
+    
+    Raises:
+        ValueError: Raised if the column_types dict contains a unsupported class type
+        TypeConversionError: [description]
+    
+    Returns:
+        [function] -- A function that converts a row of data to the types given by column_types. 
+    """
+    if column_types:
+        type_conv_list = type_class_list_from_spec(column_types, num_cols, skip_cols)
+        def convert_row_data(row):
+            row_list = []
+            for row_item, col_type in zip(row, type_conv_list):
+                row_list.append(convert_value(row_item, col_type))
+            return row_list
+    else:
+        convert_row_data = lambda x: x
+    return convert_row_data
+
+
+def get_pivoted_data(data_source, mapping, num_cols, data_header, row_types):
+    pivoted_data = []
+    errors = []
+
+    # find used columns
+    if isinstance(mapping, DataMapping):
+        map_list = mapping.mappings
+    else:
+        map_list = [mapping]
+    used_columns = set()
+    for map_ in map_list:
+        skip_columns = set(mapping_non_pivoted_columns(map_, num_cols, data_header))
+        if map_.skip_columns is not None:
+            skip_columns.update(set(map_.skip_columns))
+        map_using_cols = set(range(num_cols)).difference(skip_columns)
+        used_columns.update(map_using_cols)
+
+    # get data from iterator and convert to correct type.
+    if mapping.is_pivoted():
+        do_nothing = lambda x: x
+        for row_number in range(mapping.last_pivot_row() + 1):
+            # TODO: if data_source iterator ends before all pivoted rows are collected.
+            type_converter = row_types.get(row_number, do_nothing)
+            row_data = next(data_source)
+            typed_row = []
+            for col, value in enumerate(row_data):
+                if col in used_columns:
+                    try:
+                        typed_row.append(convert_value(value, type_converter))
+                    except TypeConversionError as e:
+                        errors.append((row_number, e))
+                        typed_row.append(None)
+                else:
+                    typed_row.append(value)
+            pivoted_data.append(typed_row)
+    return pivoted_data, errors
+
+
+def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_types=None, row_types=None):
     """Reads data_source line by line with supplied Mapping object or dict
     that can be translated into a Mapping object"""
+    if row_types is None:
+        row_types = {}
+
+    errors = []
 
     if isinstance(mapping, dict):
         mapping = dict_to_map(mapping)
@@ -1199,11 +1299,9 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
         mapping = DataMapping(mappings=[dict_to_map(m) if isinstance(m, dict) else m for m in mapping])
 
     # if we have a pivot in the map, read those rows first to create getters.
-    pivoted_data = []
-    if mapping.is_pivoted():
-        for _ in range(mapping.last_pivot_row() + 1):
-            # TODO: if data_source iterator ends before all pivoted rows are collected.
-            pivoted_data.append(next(data_source))
+    pivoted_data, pivot_type_errors = get_pivoted_data(data_source, mapping, num_cols, data_header, row_types)
+    errors.extend(pivot_type_errors)
+    num_pivoted_rows = len(pivoted_data)
 
     if isinstance(mapping, DataMapping):
         mappings = mapping.mappings
@@ -1229,7 +1327,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
         "relationship_parameter_values": [],
     }
     row_readers = []
-    errors = []
+    
     for key, func, reads_rows in readers:
         if key not in data:
             data[key] = []
@@ -1238,15 +1336,22 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
         else:
             data[key].extend(func(None))
 
+    convert_row_types = convert_function_from_spec(column_types, num_cols)
+
     # read each row in data source
     if row_readers:
         for row_number, row_data in enumerate(data_source):
+            try:
+                row_data = convert_row_types(row_data)
+            except TypeConversionError as e:
+                errors.append((row_number + num_pivoted_rows, e))
+                continue
             try:
                 # read the row with each reader
                 for key, reader in row_readers:
                     data[key].extend([row_value for row_value in reader(row_data) if all(v is not None for v in row_value)])
             except IndexError as e:
-                errors.append((row_number, e))
+                errors.append((row_number + num_pivoted_rows, e))
 
     # pack extra dimensions into list of list
     # FIXME: This should probably be moved somewhere else
@@ -1296,6 +1401,35 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None):
             if key in existing_key:
                 data.pop(existing_key, None)
     return data, errors
+
+
+def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):
+    """Returns columns that are referenced but not pivoted given a header and number of columns
+    
+    Arguments:
+        mapping {Mapping} -- mapping object
+        num_cols {int} -- number of columns to check
+    
+    Keyword Arguments:
+        data_header {list[str]} -- list of strings, headers (default: {None})
+    
+    Returns:
+        [set] -- referenced columns in mapping that is not pivoted.
+    """
+    if data_header is None:
+        data_header = []
+    non_pivoted_columns = mapping.non_pivoted_columns()
+    int_non_piv_cols = []
+    for pc in non_pivoted_columns:
+        if isinstance(pc, str):
+            if pc not in data_header:
+                # could not find reference
+                continue
+            pc = data_header.index(pc)
+        if pc >= num_cols:
+            continue
+        int_non_piv_cols.append(pc)
+    return set(int_non_piv_cols)
 
 
 def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):

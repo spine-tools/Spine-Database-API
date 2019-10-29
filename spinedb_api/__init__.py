@@ -18,7 +18,8 @@ from .exception import (
     SpineTableNotFoundError,
     RecordNotFoundError,
     ParameterValueError,
-    ParameterValueFormatError
+    ParameterValueFormatError,
+    TypeConversionError,
 )
 from .helpers import (
     naming_convention,
@@ -59,7 +60,8 @@ from .json_mapping import (
     RelationshipClassMapping,
     DataMapping,
     read_with_mapping,
-    dict_to_map
+    dict_to_map,
+    mapping_non_pivoted_columns,
 )
 from .parameter_value import (
     duration_to_relativedelta,

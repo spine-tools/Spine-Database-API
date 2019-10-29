@@ -95,3 +95,17 @@ class ParameterValueFormatError(SpineDBAPIError):
 
     def __init__(self, msg):
         super().__init__(msg)
+
+
+class TypeConversionError(SpineDBAPIError):
+    """
+    Failure in converting type to a spinedb_api valid type
+    when reading data with a mapping.
+
+    Attributes:
+        msg (str): an error message
+        row_number (int): row of data that failed.
+    """
+
+    def __init__(self, msg):
+        super(TypeConversionError, self).__init__(msg)
