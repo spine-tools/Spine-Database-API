@@ -67,6 +67,7 @@ class TestMappingIO(unittest.TestCase):
                 "value": {"value_reference": 3, "map_type": "column"},
                 "parameter_type": "single value",
             },
+            "read_start_row": 0,
         }
         self.assertEqual(out, expected)
 
@@ -80,6 +81,7 @@ class TestMappingIO(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": {"value_reference": 0, "map_type": "column"},
             "object": {"value_reference": 1, "map_type": "column"},
+            "read_start_row": 0,
         }
         self.assertEqual(out, expected)
 
@@ -88,7 +90,7 @@ class TestMappingIO(unittest.TestCase):
         map_obj = ObjectClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {"map_type": "ObjectClass", "name": "str", "object": "str"}
+        expected = {"map_type": "ObjectClass", "name": "str", "object": "str", "read_start_row": 0,}
         self.assertEqual(out, expected)
 
     def test_RelationshipClassMapping_from_dict_to_dict(self):
@@ -120,6 +122,7 @@ class TestMappingIO(unittest.TestCase):
                 "parameter_type": "single value",
                 "value": {"value_reference": 2, "map_type": "column"},
             },
+            "read_start_row": 0,
         }
         self.assertEqual(out, expected)
 
@@ -142,6 +145,7 @@ class TestMappingIO(unittest.TestCase):
                 {"value_reference": 0, "map_type": "column_name"},
             ],
             "objects": ["test", {"value_reference": 0, "map_type": "column"}],
+            "read_start_row": 0,
         }
         self.assertEqual(out, expected)
 
@@ -174,6 +178,7 @@ class TestMappingIO(unittest.TestCase):
                     {"value_reference": 0, "map_type": "column"},
                 ],
             },
+            "read_start_row": 0,
         }
         self.assertEqual(out, expected)
 
@@ -1103,6 +1108,89 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
+    def test_read_data_with_read_start_row(self):
+        input_data = [
+            ["object_class", "object", "parameter", "value"],
+            [" ", " ", " ", " "],
+            ["oc1", "obj1", "parameter_name1", 1],
+            ["oc2", "obj2", "parameter_name2", 2],
+        ]
+        self.empty_data.update(
+            {
+                "object_classes": ["oc1", "oc2"],
+                "objects": [("oc1", "obj1"), ("oc2", "obj2")],
+                "object_parameters": [
+                    ("oc1", "parameter_name1"),
+                    ("oc2", "parameter_name2"),
+                ],
+                "object_parameter_values": [
+                    ("oc1", "obj1", "parameter_name1", 1),
+                    ("oc2", "obj2", "parameter_name2", 2),
+                ],
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": 0,
+            "object": 1,
+            "parameters": {"map_type": "parameter", "name": 2, "value": 3},
+            "read_start_row": 1,
+        }
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
+
+    def test_read_data_with_two_mappings_with_different_read_start_row(self):
+        input_data = [
+            ["oc1", "oc2", "parameter_class1", "parameter_class2"],
+            [" ", " ", " ", " "],
+            ["oc1_obj1", "oc2_obj1", 1, 3],
+            ["oc1_obj2", "oc2_obj2", 2, 4],
+        ]
+        self.empty_data.update(
+            {
+                "object_classes": ["oc1", "oc2"],
+                "objects": [("oc1", "oc1_obj1"), ("oc1", "oc1_obj2"), ("oc2", "oc2_obj2")],
+                "object_parameters": [
+                    ("oc1", "parameter_class1"),
+                    ("oc2", "parameter_class2"),
+                ],
+                "object_parameter_values": [
+                    ("oc1", "oc1_obj1", "parameter_class1", 1),
+                    ("oc1", "oc1_obj2", "parameter_class1", 2),
+                    ("oc2", "oc2_obj2", "parameter_class2", 4),
+                ],
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping1 = {
+            "map_type": "ObjectClass",
+            "name": {"map_type": "column_name", "value_reference": 0},
+            "object": 0,
+            "parameters": {"map_type": "parameter", "name": {"map_type": "column_name", "value_reference": 2}, "value": 2},
+            "read_start_row": 1,
+        }
+        mapping2 = {
+            "map_type": "ObjectClass",
+            "name": {"map_type": "column_name", "value_reference": 1},
+            "object": 1,
+            "parameters": {"map_type": "parameter", "name": {"map_type": "column_name", "value_reference": 3}, "value": 3},
+            "read_start_row": 2,
+        }
+
+        out, errors = read_with_mapping(data, [mapping1, mapping2], num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
 
 if __name__ == "__main__":
 

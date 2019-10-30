@@ -547,15 +547,17 @@ class ObjectClassMapping:
         }
     """
 
-    def __init__(self, name=None, obj=None, parameters=None, skip_columns=None):
+    def __init__(self, name=None, obj=None, parameters=None, skip_columns=None, read_start_row=0):
         self._name = None
         self._object = None
         self._parameters = None
         self._skip_columns = None
+        self._read_start_row = None
         self.name = name
         self.object = obj
         self.parameters = parameters
         self.skip_columns = skip_columns
+        self.read_start_row = read_start_row
         self._map_type = OBJECTCLASS
 
     def non_pivoted_columns(self):
@@ -590,6 +592,10 @@ class ObjectClassMapping:
         return False
 
     @property
+    def read_start_row(self):
+        return self._read_start_row
+
+    @property
     def skip_columns(self):
         return self._skip_columns
 
@@ -604,6 +610,14 @@ class ObjectClassMapping:
     @property
     def parameters(self):
         return self._parameters
+
+    @read_start_row.setter
+    def read_start_row(self, row):
+        if not isinstance(row, int):
+            raise TypeError(f"row must be int, instead got {type(row)}")
+        if row < 0:
+            raise ValueError(f"row must be >= 0, istead was: {row}")
+        self._read_start_row = row
 
     @name.setter
     def name(self, name=None):
@@ -668,6 +682,7 @@ class ObjectClassMapping:
         obj = mapping_from_dict_int_str(map_dict.get("object", None))
         parameters = map_dict.get("parameters", None)
         skip_columns = map_dict.get("skip_columns", None)
+        read_start_row = map_dict.get("read_start_row", 0)
         if isinstance(parameters, dict):
             p_type = parameters.get("map_type", None)
             if p_type == PARAMETER:
@@ -678,7 +693,7 @@ class ObjectClassMapping:
             parameters = {"map_type": PARAMETERCOLUMNCOLLECTION, "parameters": list(parameters)}
             parameters = ParameterColumnCollectionMapping.from_dict(parameters)
 
-        return ObjectClassMapping(name, obj, parameters, skip_columns)
+        return ObjectClassMapping(name, obj, parameters, skip_columns, read_start_row)
 
     def to_dict(self):
         map_dict = {"map_type": self._map_type}
@@ -693,6 +708,7 @@ class ObjectClassMapping:
             map_dict.update(parameters=self.parameters.to_dict())
         if self.skip_columns:
             map_dict.update(skip_columns=self.skip_columns)
+        map_dict.update(read_start_row=self.read_start_row)
         return map_dict
     
     def is_valid(self):
@@ -735,7 +751,7 @@ class RelationshipClassMapping:
     """
 
     def __init__(
-        self, name=None, object_classes=None, objects=None, parameters=None, skip_columns=None, import_objects=False
+        self, name=None, object_classes=None, objects=None, parameters=None, skip_columns=None, import_objects=False, read_start_row=0
     ):
         self._map_type = RELATIONSHIPCLASS
         self._name = None
@@ -744,12 +760,14 @@ class RelationshipClassMapping:
         self._parameters = None
         self._skip_columns = None
         self._import_objects = None
+        self._read_start_row = None
         self.name = name
         self.object_classes = object_classes
         self.objects = objects
         self.parameters = parameters
         self.skip_columns = skip_columns
         self.import_objects = import_objects
+        self.read_start_row = read_start_row
 
     def non_pivoted_columns(self):
         non_pivoted_columns = []
@@ -806,6 +824,10 @@ class RelationshipClassMapping:
         return False
 
     @property
+    def read_start_row(self):
+        return self._read_start_row
+
+    @property
     def import_objects(self):
         return self._import_objects
 
@@ -828,6 +850,14 @@ class RelationshipClassMapping:
     @property
     def skip_columns(self):
         return self._skip_columns
+
+    @read_start_row.setter
+    def read_start_row(self, row):
+        if not isinstance(row, int):
+            raise TypeError(f"row must be int, instead got {type(row)}")
+        if row < 0:
+            raise ValueError(f"row must be >= 0, istead was: {row}")
+        self._read_start_row = row
 
     @import_objects.setter
     def import_objects(self, import_objects):
@@ -917,7 +947,8 @@ class RelationshipClassMapping:
             parameters = ParameterColumnCollectionMapping.from_dict(parameters)
         skip_columns = map_dict.get("skip_columns", None)
         import_objects = map_dict.get("import_objects", False)
-        return RelationshipClassMapping(name, object_classes, objects, parameters, skip_columns, import_objects)
+        read_start_row = map_dict.get("read_start_row", False)
+        return RelationshipClassMapping(name, object_classes, objects, parameters, skip_columns, import_objects, read_start_row)
 
     def to_dict(self):
         map_dict = {"map_type": self._map_type, "import_objects": self._import_objects}
@@ -934,6 +965,7 @@ class RelationshipClassMapping:
             map_dict.update(parameters=self.parameters.to_dict())
         if self.skip_columns:
             map_dict.update(skip_columns=self.skip_columns)
+        map_dict.update(read_start_row=self.read_start_row)
         return map_dict
     
     def is_valid(self):
@@ -1298,24 +1330,38 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         # NOTE: No need to check types here, DataMapping.@mappings.setter does it already
         mapping = DataMapping(mappings=[dict_to_map(m) if isinstance(m, dict) else m for m in mapping])
 
-    # if we have a pivot in the map, read those rows first to create getters.
-    pivoted_data, pivot_type_errors = get_pivoted_data(data_source, mapping, num_cols, data_header, row_types)
-    errors.extend(pivot_type_errors)
-    num_pivoted_rows = len(pivoted_data)
-
     if isinstance(mapping, DataMapping):
         mappings = mapping.mappings
     else:
         mappings = [mapping]
 
+    # find max pivot row since mapping can have different number of pivoted rows.
+    last_pivot_row = -1
+    has_pivot = False
+    for map_ in mappings:
+        if mapping.is_pivoted():
+            has_pivot = True
+            last_pivot_row = max(last_pivot_row, mapping.last_pivot_row())
+    
+    # get pivoted rows of data.
+    raw_pivoted_data = []
+    if has_pivot:
+        for row_number in range(last_pivot_row + 1):
+            raw_pivoted_data.append(next(data_source))
+    num_pivoted_rows = len(raw_pivoted_data)
+
     # get a list of reader functions
     readers = []
+    min_read_data_from_row = 0
     for m in mappings:
+        pivoted_data, pivot_type_errors = get_pivoted_data(iter(raw_pivoted_data), m, num_cols, data_header, row_types)
+        errors.extend(pivot_type_errors)
+        read_data_from_row = max(m.last_pivot_row() + 1, m.read_start_row)
         r = create_mapping_readers(m, num_cols, pivoted_data, data_header)
-        readers.extend(r)
+        readers.extend([(key, reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
+        min_read_data_from_row = min(min_read_data_from_row, read_data_from_row)
 
-    # run functions that read from header or pivoted area first
-    # select only readers that actually need to read row data
+    
     data = {
         "object_classes": [],
         "objects": [],
@@ -1326,17 +1372,24 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationship_parameters": [],
         "relationship_parameter_values": [],
     }
+    # run functions that read from header or pivoted area first
+    # select only readers that actually need to read row data
     row_readers = []
-    
-    for key, func, reads_rows in readers:
+    for key, func, reads_rows, read_data_from_row in readers:
         if key not in data:
             data[key] = []
         if reads_rows:
-            row_readers.append((key, func))
+            row_readers.append((key, func, read_data_from_row))
         else:
             data[key].extend(func(None))
 
+    # function that converts column in the row data to the types specified in column_types
     convert_row_types = convert_function_from_spec(column_types, num_cols)
+
+    if raw_pivoted_data:
+        data_source = itertools.chain(raw_pivoted_data, data_source)
+    
+    data_source = itertools.islice(data_source, min_read_data_from_row, None)
 
     # read each row in data source
     if row_readers:
@@ -1344,14 +1397,15 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             try:
                 row_data = convert_row_types(row_data)
             except TypeConversionError as e:
-                errors.append((row_number + num_pivoted_rows, e))
+                errors.append((row_number, e))
                 continue
             try:
                 # read the row with each reader
-                for key, reader in row_readers:
-                    data[key].extend([row_value for row_value in reader(row_data) if all(v is not None for v in row_value)])
+                for key, reader, read_data_from_row in row_readers:
+                    if row_number >= read_data_from_row:
+                        data[key].extend([row_value for row_value in reader(row_data) if all(v is not None for v in row_value)])
             except IndexError as e:
-                errors.append((row_number + num_pivoted_rows, e))
+                errors.append((row_number, e))
 
     # pack extra dimensions into list of list
     # FIXME: This should probably be moved somewhere else
