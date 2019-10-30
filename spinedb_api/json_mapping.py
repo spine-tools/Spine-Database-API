@@ -19,6 +19,8 @@ Classes for reading data with json mapping specifications
 from operator import itemgetter
 import itertools
 import json
+import math
+
 
 from .parameter_value import TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError, SUPPORTED_TYPES
 from .exception import TypeConversionError
@@ -1352,7 +1354,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
 
     # get a list of reader functions
     readers = []
-    min_read_data_from_row = 0
+    min_read_data_from_row = math.inf
     for m in mappings:
         pivoted_data, pivot_type_errors = get_pivoted_data(iter(raw_pivoted_data), m, num_cols, data_header, row_types)
         errors.extend(pivot_type_errors)
@@ -1390,10 +1392,12 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         data_source = itertools.chain(raw_pivoted_data, data_source)
     
     data_source = itertools.islice(data_source, min_read_data_from_row, None)
+    skipped_rows = min_read_data_from_row
 
     # read each row in data source
     if row_readers:
         for row_number, row_data in enumerate(data_source):
+            row_number = row_number + skipped_rows
             try:
                 row_data = convert_row_types(row_data)
             except TypeConversionError as e:
