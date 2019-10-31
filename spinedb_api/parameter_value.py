@@ -700,7 +700,10 @@ class TimeSeriesVariableResolution(TimeSeries):
         if not isinstance(indexes, np.ndarray):
             date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
             for i in range(len(indexes)):
-                date_times[i] = np.datetime64(indexes[i])
+                if isinstance(indexes[i], DateTime):
+                    date_times[i] = np.datetime64(indexes[i].value)
+                else:
+                    date_times[i] = np.datetime64(indexes[i])
             indexes = date_times
         self._indexes = indexes
 
