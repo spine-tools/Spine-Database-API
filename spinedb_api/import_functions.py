@@ -287,7 +287,7 @@ def import_object_parameters(db_map, parameter_data):
             continue
         param = {"name": parameter_name, "object_class_id": oc_id}
         if len(parameter) > 2:
-            param["default_value"] = parameter[2]
+            param["default_value"] = to_database(parameter[2])
         try:
             check_parameter_definition(param, obj_parameter_names, {}, object_class_dict, {}, parameter_value_list_dict)
             param["entity_class_id"] = param["object_class_id"]
@@ -338,7 +338,7 @@ def import_relationship_parameters(db_map, parameter_data):
             continue
         new_param = {"name": param_name, "relationship_class_id": rc_id}
         if len(parameter) > 2:
-            new_param["default_value"] = parameter[2]
+            new_param["default_value"] = to_database(parameter[2])
         try:
             check_parameter_definition(
                 new_param, {}, rel_parameter_names, {}, relationship_class_dict, parameter_value_list_dict
