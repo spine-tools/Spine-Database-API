@@ -119,7 +119,7 @@ def relativedelta_to_duration(delta):
         return "{}M".format(months)
     if delta.years > 0:
         return "{}Y".format(delta.years)
-    raise ParameterValueFormatError("Zero relativedelta")
+    return "0h"
 
 
 def from_database(database_value):
@@ -418,6 +418,10 @@ class Duration:
         if not isinstance(other, Duration):
             return NotImplemented
         return self._value == other._value
+
+    def to_text(self):
+        """Returns a coma separated str representation of the duration"""
+        return ", ".join(relativedelta_to_duration(delta) for delta in self.value)
 
     def to_database(self):
         """Returns the database representation of the duration."""
