@@ -33,6 +33,8 @@ class DiffDatabaseMappingCommitMixin:
 
         :param str comment: An informative comment explaining the nature of the commit.
         """
+        if not self.has_pending_changes():
+            raise SpineDBAPIError("Nothing to commit.")
 
         try:
             user = self.username
@@ -91,6 +93,8 @@ class DiffDatabaseMappingCommitMixin:
     def rollback_session(self):
         """Discard all staged changes.
         """
+        if not self.has_pending_changes():
+            raise SpineDBAPIError("Nothing to rollback.")
         try:
             self._reset_diff_mapping()
             self.session.commit()

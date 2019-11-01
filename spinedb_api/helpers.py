@@ -218,7 +218,7 @@ def schema_dict(insp):
         table_name: {
             "columns": sorted(insp.get_columns(table_name), key=lambda x: x["name"]),
             "pk_constraint": insp.get_pk_constraint(table_name),
-            "foreign_keys": sorted(insp.get_foreign_keys(table_name), key=lambda x: x["name"]),
+            "foreign_keys": sorted(insp.get_foreign_keys(table_name), key=lambda x: x["name"] or ""),
             "check_constraints": insp.get_check_constraints(table_name),
         }
         for table_name in insp.get_table_names()
