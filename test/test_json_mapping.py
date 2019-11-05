@@ -20,11 +20,13 @@ import unittest
 from unittest.mock import MagicMock
 from spinedb_api.json_mapping import (
     read_with_mapping,
+    ColumnMapping,
     ObjectClassMapping,
     RelationshipClassMapping,
-    Mapping,
-    ParameterMapping,
-    convert_function_from_spec
+    ParameterDefinitionMapping,
+    ParameterValueMapping,
+    convert_function_from_spec,
+    parameter_mapping_from_dict
 )
 from spinedb_api.parameter_value import TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError
@@ -45,7 +47,7 @@ class TestMappingIO(unittest.TestCase):
         mapping = {
             "map_type": "ObjectClass",
             "name": 0,
-            "object": 1,
+            "objects": 1,
             "parameters": {
                 "map_type": "parameter",
                 "name": 2,
@@ -59,38 +61,41 @@ class TestMappingIO(unittest.TestCase):
 
         expected = {
             "map_type": "ObjectClass",
-            "name": {"value_reference": 0, "map_type": "column"},
-            "object": {"value_reference": 1, "map_type": "column"},
+            "name": {"reference": 0, "map_type": "column"},
+            "objects": {"reference": 1, "map_type": "column"},
             "parameters": {
                 "map_type": "parameter",
-                "name": {"value_reference": 2, "map_type": "column"},
-                "value": {"value_reference": 3, "map_type": "column"},
+                "name": {"reference": 2, "map_type": "column"},
+                "value": {"reference": 3, "map_type": "column"},
                 "parameter_type": "single value",
             },
             "read_start_row": 0,
+            "skip_columns": []
         }
         self.assertEqual(out, expected)
 
     def test_ObjectClass_object_from_dict_to_dict(self):
-        mapping = {"map_type": "ObjectClass", "name": 0, "object": 1}
+        mapping = {"map_type": "ObjectClass", "name": 0, "objects": 1}
 
         map_obj = ObjectClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
         expected = {
             "map_type": "ObjectClass",
-            "name": {"value_reference": 0, "map_type": "column"},
-            "object": {"value_reference": 1, "map_type": "column"},
+            "name": {"reference": 0, "map_type": "column"},
+            "objects": {"reference": 1, "map_type": "column"},
+            "parameters": {"map_type": "None"},
             "read_start_row": 0,
+            "skip_columns": []
         }
         self.assertEqual(out, expected)
 
-        mapping = {"map_type": "ObjectClass", "name": "str", "object": "str"}
+        mapping = {"map_type": "ObjectClass", "name": "str", "objects": "str"}
 
         map_obj = ObjectClassMapping.from_dict(mapping)
         out = map_obj.to_dict()
 
-        expected = {"map_type": "ObjectClass", "name": "str", "object": "str", "read_start_row": 0,}
+        expected = {"map_type": "ObjectClass", "parameters": {"map_type": "None"}, "name": {"reference": "str", "map_type": "constant"}, "objects": {"reference": "str", "map_type": "constant"}, "read_start_row": 0, "skip_columns": []}
         self.assertEqual(out, expected)
 
     def test_RelationshipClassMapping_from_dict_to_dict(self):
@@ -107,22 +112,23 @@ class TestMappingIO(unittest.TestCase):
         expected = {
             "map_type": "RelationshipClass",
             "import_objects": False,
-            "name": "unit__node",
+            "name": {"map_type": "constant", "reference": "unit__node"},
             "object_classes": [
-                {"value_reference": 0, "map_type": "column_name"},
-                {"value_reference": 1, "map_type": "column_name"},
+                {"reference": 0, "map_type": "column"},
+                {"reference": 1, "map_type": "column"},
             ],
             "objects": [
-                {"value_reference": 0, "map_type": "column"},
-                {"value_reference": 1, "map_type": "column"},
+                {"reference": 0, "map_type": "column"},
+                {"reference": 1, "map_type": "column"},
             ],
             "parameters": {
                 "map_type": "parameter",
-                "name": "test",
+                "name": {"map_type": "constant", "reference": "test"},
                 "parameter_type": "single value",
-                "value": {"value_reference": 2, "map_type": "column"},
+                "value": {"reference": 2, "map_type": "column"},
             },
             "read_start_row": 0,
+            "skip_columns": []
         }
         self.assertEqual(out, expected)
 
@@ -139,13 +145,15 @@ class TestMappingIO(unittest.TestCase):
         expected = {
             "map_type": "RelationshipClass",
             "import_objects": False,
-            "name": "unit__node",
+            "name": {"map_type": "constant", "reference": "unit__node"},
             "object_classes": [
-                "test",
-                {"value_reference": 0, "map_type": "column_name"},
+                {"map_type": "constant", "reference": "test"},
+                {"reference": 0, "map_type": "column"},
             ],
-            "objects": ["test", {"value_reference": 0, "map_type": "column"}],
+            "objects": [{"map_type": "constant", "reference": "test"}, {"reference": 0, "map_type": "column"}],
+            "parameters": {"map_type": "None"},
             "read_start_row": 0,
+            "skip_columns": []
         }
         self.assertEqual(out, expected)
 
@@ -158,7 +166,7 @@ class TestMappingIO(unittest.TestCase):
                 "name": "test",
                 "value": 2,
                 "parameter_type": "1d array",
-                "extra_dimensions": ["test", 0],
+                "extra_dimensions": ["test"],
             },
         }
         map_obj = RelationshipClassMapping.from_dict(mapping)
@@ -167,31 +175,33 @@ class TestMappingIO(unittest.TestCase):
         expected = {
             "map_type": "RelationshipClass",
             "import_objects": False,
-            "name": "unit__node",
+            "name": {"map_type": "constant", "reference": "unit__node"},
+            'object_classes': [{'map_type': 'None'}],
+            'objects': [{'map_type': 'None'}],
             "parameters": {
                 "map_type": "parameter",
-                "name": "test",
+                "name": {"map_type": "constant", "reference": "test"},
                 "parameter_type": "1d array",
-                "value": {"value_reference": 2, "map_type": "column"},
+                "value": {"reference": 2, "map_type": "column"},
                 "extra_dimensions": [
-                    "test",
-                    {"value_reference": 0, "map_type": "column"},
+                    {"map_type": "constant", "reference": "test"}
                 ],
             },
             "read_start_row": 0,
+            "skip_columns": []
         }
         self.assertEqual(out, expected)
 
 
 class TestMappingIsValid(unittest.TestCase):
     def test_valid_mapping(self):
-        mapping = Mapping(value_reference=1)
-        is_valid, _ = mapping.is_valid()
+        mapping = ColumnMapping(reference=1)
+        is_valid = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_mapping(self):
-        mapping = Mapping()
-        is_valid, _ = mapping.is_valid()
+        mapping = ColumnMapping()
+        is_valid = mapping.is_valid()
         self.assertFalse(is_valid)
     
     def test_valid_parameter_mapping_definition(self):
@@ -200,7 +210,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "name": "test",
                 "parameter_type": "definition"
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertTrue(is_valid)
     
@@ -209,7 +219,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "map_type": "parameter",
                 "parameter_type": "definition"
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
     
@@ -220,7 +230,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "value": 0,
                 "parameter_type": "single value"
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertTrue(is_valid)
     
@@ -231,19 +241,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "value": None,
                 "parameter_type": "single value"
             }
-        mapping = ParameterMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
-        self.assertFalse(is_valid)
-    
-    def test_invalid_with_extra_dim_parameter_mapping_single_value(self):
-        mapping = {
-                "map_type": "parameter",
-                "name": "test",
-                "value": "test",
-                "parameter_type": "single value",
-                "extra_dimensions": [0]
-            }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
     
@@ -255,7 +253,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "parameter_type": "time series",
                 "extra_dimensions": [0]
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertTrue(is_valid)
     
@@ -266,19 +264,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "value": "test",
                 "parameter_type": "time series",
             }
-        mapping = ParameterMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
-        self.assertFalse(is_valid)
-    
-    def test_invalid_parameter_mapping_time_series_to_many_extra_dim(self):
-        mapping = {
-                "map_type": "parameter",
-                "name": "test",
-                "value": "test",
-                "parameter_type": "time series",
-                "extra_dimensions": [0, 3]
-            }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
     
@@ -290,7 +276,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "parameter_type": "time series",
                 "extra_dimensions": [None]
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
     
@@ -302,7 +288,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "parameter_type": "time pattern",
                 "extra_dimensions": [0]
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertTrue(is_valid)
     
@@ -313,16 +299,16 @@ class TestMappingIsValid(unittest.TestCase):
                 "value": "test",
                 "parameter_type": "time pattern",
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
     
     def test_valid_pivoted_parameter_mapping(self):
         mapping = {
                 "map_type": "parameter",
-                "name": {"map_type": "row", "value_reference": 0}
+                "name": {"map_type": "row", "reference": 0}
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertTrue(is_valid)
     
@@ -331,16 +317,16 @@ class TestMappingIsValid(unittest.TestCase):
                 "map_type": "parameter",
                 "name": {"map_type": "column", "value_reference": 0}
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
     
     def test_valid_pivoted_parent_parameter_mapping(self):
         mapping = {
                 "map_type": "parameter",
-                "name": {"map_type": "column", "value_reference": 0}
+                "name": {"map_type": "column", "reference": 0}
             }
-        mapping = ParameterMapping.from_dict(mapping)
+        mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(True)
         self.assertTrue(is_valid)
     
@@ -416,16 +402,6 @@ class TestMappingIsValid(unittest.TestCase):
         is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
     
-    def test_invalid_relationship_class_mapping(self):
-        mapping = {
-                "map_type": "RelationshipClass",
-                "name": "test",
-                "object_classes": []
-            }
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-    
     def test_valid_relationship_class_mapping_with_objects(self):
         mapping = {
                 "map_type": "RelationshipClass",
@@ -437,7 +413,7 @@ class TestMappingIsValid(unittest.TestCase):
         is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
     
-    def test_invalid_relationship_class_mapping_with_invalid_objects(self):
+    def test_valid_relationship_class_mapping_with_invalid_objects(self):
         mapping = {
                 "map_type": "RelationshipClass",
                 "name": "test",
@@ -446,19 +422,8 @@ class TestMappingIsValid(unittest.TestCase):
             }
         mapping = RelationshipClassMapping.from_dict(mapping)
         is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-    
-    def test_invalid_relationship_class_mapping_with_to_many_objects(self):
-        mapping = {
-                "map_type": "RelationshipClass",
-                "name": "test",
-                "object_classes": ["test"],
-                "objects": ["test1", "test2"]
-            }
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-    
+        self.assertTrue(is_valid)
+
     def test_valid_relationship_class_mapping_with_parameter_definition(self):
         mapping = {
                 "map_type": "RelationshipClass",
@@ -495,7 +460,7 @@ class TestMappingIsValid(unittest.TestCase):
                 "map_type": "RelationshipClass",
                 "name": "test",
                 "object_classes": ["test"],
-                "objects": [{"map_type": "row", "value_reference": 0}],
+                "objects": [{"map_type": "row", "reference": 0}],
                 "parameters": {
                     "map_type": "parameter",
                     "name": "test",
@@ -578,7 +543,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {
             "map_type": "ObjectClass",
             "name": 0,
-            "object": 1,
+            "objects": 1,
             "parameters": {"map_type": "parameter", "name": 2, "value": 3},
         }
 
@@ -612,7 +577,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {
             "map_type": "ObjectClass",
             "name": 0,
-            "object": 1,
+            "objects": 1,
             "parameters": {
                 "map_type": "parameter",
                 "name": "parameter_name1",
@@ -643,7 +608,7 @@ class TestMappingIntegration(unittest.TestCase):
 
         mapping = {
             "map_type": "ObjectClass",
-            "name": {"map_type": "column_name", "value_reference": 0},
+            "name": {"map_type": "column_name", "reference": 0},
             "object": 0,
         }
 
@@ -672,45 +637,6 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": {"map_type": "column_name", "value_reference": 0},
             "object": 0,
-        }
-
-        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
-        self.assertEqual(out, self.empty_data)
-        self.assertEqual(errors, [])
-
-    @unittest.skip("ColumnMapping will be removed")
-    def test_read_columncollection_parameters(self):
-        input_data = [
-            ["object", "parameter_name1", "parameter_name2"],
-            ["obj1", 0, 1],
-            ["obj2", 2, 3],
-        ]
-        self.empty_data.update(
-            {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [
-                    ("object", "parameter_name1"),
-                    ("object", "parameter_name2"),
-                ],
-                "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", 0),
-                    ("object", "obj1", "parameter_name2", 1),
-                    ("object", "obj2", "parameter_name1", 2),
-                    ("object", "obj2", "parameter_name2", 3),
-                ],
-            }
-        )
-
-        data = iter(input_data)
-        data_header = next(data)
-        num_cols = len(data_header)
-
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": {"map_type": "column_name", "value_reference": 0},
-            "object": 0,
-            "parameters": [1, 2],
         }
 
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
@@ -867,7 +793,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {
             "map_type": "RelationshipClass",
             "name": "node_group",
-            "object_classes": [1],
+            "object_classes": [{"map_type": "column_header", "reference": 1}],
             "objects": [1],
         }
 
@@ -894,7 +820,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {
             "map_type": "RelationshipClass",
             "name": "unit__node",
-            "object_classes": [0, 1],
+            "object_classes": [{"map_type": "column_header", "reference": 0}, {"map_type": "column_header", "reference": 1}],
             "objects": [0, 1],
         }
 
@@ -930,7 +856,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {
             "map_type": "RelationshipClass",
             "name": "unit__node",
-            "object_classes": [0, 1],
+            "object_classes": [{"map_type": "column_header", "reference": 0}, {"map_type": "column_header", "reference": 1}],
             "objects": [0, 1],
             "parameters": {
                 "map_type": "parameter",
@@ -1038,7 +964,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {
             "map_type": "RelationshipClass",
             "name": "unit__node",
-            "object_classes": [0, 1],
+            "object_classes": [{"map_type": "column_header", "reference": 0}, {"map_type": "column_header", "reference": 1}],
             "objects": [0, 1],
             "import_objects": True,
         }

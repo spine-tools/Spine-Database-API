@@ -54,11 +54,10 @@ from .import_functions import (
     import_relationships,
 )
 from .json_mapping import (
-    Mapping,
-    ParameterMapping,
+    ColumnMapping,
+    ParameterDefinitionMapping,
     ObjectClassMapping,
     RelationshipClassMapping,
-    DataMapping,
     read_with_mapping,
     dict_to_map,
     mapping_non_pivoted_columns,
