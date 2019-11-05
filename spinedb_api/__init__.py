@@ -54,7 +54,9 @@ from .import_functions import (
     import_relationships,
 )
 from .json_mapping import (
+    mappingbase_from_dict_int_str,
     ColumnMapping,
+    parameter_mapping_from_dict,
     ParameterDefinitionMapping,
     ObjectClassMapping,
     RelationshipClassMapping,

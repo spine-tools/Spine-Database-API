@@ -1123,19 +1123,6 @@ class RelationshipClassMapping(EntityClassMapping):
         return readers
 
 
-def create_getter_list(mapping, pivoted_columns, pivoted_data, data_header):
-    """Creates a list of getter functions from a list of Mappings"""
-    getter_list = []
-    num_list = []
-    reads_list = []
-    for map_ in mapping:
-        o, num, reads = map_.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        getter_list.append(o)
-        num_list.append(num)
-        reads_list.append(reads)
-    return getter_list, num_list, reads_list
-
-
 def mappingbase_from_value(value, default_map=NoneMapping):
     if value is None:
         return ColumnMapping()
@@ -1486,6 +1473,19 @@ def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):
             continue
         int_non_piv_cols.append(pc)
     return set(int_non_piv_cols)
+
+
+def create_getter_list(mapping, pivoted_columns, pivoted_data, data_header):
+    """Creates a list of getter functions from a list of Mappings"""
+    getter_list = []
+    num_list = []
+    reads_list = []
+    for map_ in mapping:
+        o, num, reads = map_.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        getter_list.append(o)
+        num_list.append(num)
+        reads_list.append(reads)
+    return getter_list, num_list, reads_list
 
 
 def create_final_getter_function(function_list, function_output_len_list, reads_data_list):
