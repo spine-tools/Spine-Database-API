@@ -395,6 +395,7 @@ def import_relationships(db_map, relationship_data):
             continue
         if (rc_id, ",".join(str(o) for o in o_ids)) in relationship_objects:
             continue
+        object_names = [str(obj) for obj in object_names]
         new_rel = {
             "name": rel_class_name + "_" + "__".join(object_names),
             "class_id": rc_id,
