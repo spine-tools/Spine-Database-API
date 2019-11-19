@@ -698,7 +698,9 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("temporal_block", "time_slice_duration", Duration("1 hours")),
             ("node", "demand", 0),
             ("storage", "stor_state_cap", None),
-            ("storage", "frac_state_loss", None),
+            ("storage", "stor_state_min", 0),
+            ("storage", "frac_state_loss", 0),
+            ("storage", "state_coeff", 1),
         ),
         relationship_parameters=(
             ("unit__commodity", "unit_conv_cap_to_flow", 1),
