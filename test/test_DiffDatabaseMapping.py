@@ -70,7 +70,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         logging.disable(level=logging.ERROR)  # Disable logging
         self.db_map._reset_mapping()
         self.db_map._reset_diff_mapping()
-        self.db_map.commit_session("")
+        if self.db_map.has_pending_changes():
+            self.db_map.commit_session("")
         self.db_map.session.query(self.db_map.NextId).delete(synchronize_session=False)
         self.query_wrapper = create_query_wrapper(self.db_map)
         logging.disable(level=logging.NOTSET)  # Enable logging
