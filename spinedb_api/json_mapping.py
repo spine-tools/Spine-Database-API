@@ -1236,8 +1236,6 @@ def type_class_list_from_spec(types, num_sections, skip_sections=None):
             type_class = do_nothing
         elif type_class is None:
             type_class = do_nothing
-        elif type_class not in SUPPORTED_TYPES:
-            raise ValueError(f"Unsupported type of {type_class} specified for column: {c}")
         type_conv_list.append(type_class)
     return type_conv_list
 
