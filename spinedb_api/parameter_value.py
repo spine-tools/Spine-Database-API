@@ -480,9 +480,9 @@ class TimeSeries(IndexedValue):
     """
 
     def __init__(self, values, ignore_year, repeat):
-        if len(values) < 2:
+        if len(values) < 1:
             raise ParameterValueFormatError(
-                "Time series too short. Must have two or more values"
+                "Time series too short. Must have one or more values"
             )
         super().__init__(values)
         self._ignore_year = ignore_year
