@@ -656,6 +656,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("node", "An entity where an energy balance takes place", 6, 280740554077951),
         ("temporal_block", "A temporal block", 7, 280376891207703),
         ("rolling", "A rolling horizon", 9, 281107043971546),
+        ("model", "A modelling time horizon", 8, 280376891207703),
     )
     db_map.add_object_classes(
         *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
@@ -693,14 +694,17 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("unit", "min_up_time", None),
             ("unit", "online_variable_type", "no_online_variable"),
             ("unit", "fix_units_on", None),
-            ("temporal_block", "start_datetime", Date("2000-01-01T00:00:00")),
-            ("temporal_block", "end_datetime", Date("2000-01-02T00:00:00")),
-            ("temporal_block", "time_slice_duration", Duration("1 hours")),
+            # ("temporal_block", "start_datetime", Date("2000-01-01T00:00:00")),
+            # ("temporal_block", "end_datetime", Date("2000-01-02T00:00:00")),
+            # ("temporal_block", "time_slice_duration", Duration("1 hours")),
+            ("temporal_block", "resolution", Duration("1 hours")),
             ("node", "demand", 0),
             ("storage", "stor_state_cap", None),
             ("storage", "stor_state_min", 0),
             ("storage", "frac_state_loss", 0),
             ("storage", "state_coeff", 1),
+            ("model", "model_start", Date("2000-01-01T00:00:00")),
+            ("model", "model_end", Date("2000-01-02T00:00:00")),
         ),
         relationship_parameters=(
             ("unit__commodity", "unit_conv_cap_to_flow", 1),
