@@ -1236,8 +1236,6 @@ def type_class_list_from_spec(types, num_sections, skip_sections=None):
             type_class = do_nothing
         elif type_class is None:
             type_class = do_nothing
-        elif type_class not in SUPPORTED_TYPES:
-            raise ValueError(f"Unsupported type of {type_class} specified for column: {c}")
         type_conv_list.append(type_class)
     return type_conv_list
 
@@ -1420,19 +1418,28 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             new = []
             if "time series" in k:
                 for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = list(values)
-                    indexes = [items[-1][0] for items in values]
-                    values = [items[-1][1] for items in values]
-                    new.append(keys + (TimeSeriesVariableResolution(indexes, values, False, False),))
+                    values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+                    if values:
+                        indexes = [items[0] for items in values]
+                        values = [items[1] for items in values]
+                        new.append(keys + (TimeSeriesVariableResolution(indexes, values, False, False),))
             if "time pattern" in k:
                 for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = list(values)
-                    indexes = [items[-1][0] for items in values]
-                    values = [items[-1][1] for items in values]
-                    new.append(keys + (TimePattern(indexes, values),))
-            if "1d array" in k or "2d array" in k:
+                    values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+                    if values:
+                        indexes = [items[0] for items in values]
+                        values = [items[1] for items in values]
+                        new.append(keys + (TimePattern(indexes, values),))
+            if "1d array" in k:
                 for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    new.append(keys + ([items[-1] for items in values],))
+                    values = [value[-1] for value in values if value[-1] is not None]
+                    if values:
+                        new.append(keys + (values,))
+            if "2d array" in k:
+                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
+                    values = [value[-1] for value in values if all(v is not None in value[-1])]
+                    if values:
+                        new.append(keys + (values,))
 
             if "object_parameter_values" in k:
                 if "object_parameter_values" in new_data:
