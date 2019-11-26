@@ -721,13 +721,14 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("connection__node__direction", "fix_ratio_out_in_trans", None),
             ("connection__node__direction", "max_ratio_out_in_trans", None),
             ("connection__node__direction", "min_ratio_out_in_trans", None),
+            ("connection__node__direction", "fix_trans", None),
+            ("connection__node__direction", "conn_capacity", None),
             ("storage__unit", "stor_unit_discharg_eff", 1),
             ("storage__unit", "stor_unit_charg_eff", 1),
             ("storage__connection", "stor_conn_discharg_eff", 1),
             ("storage__connection", "stor_conn_charg_eff", 1),
             ("unit_group__commodity_group", "max_cum_in_flow_bound", None),
             ("unit__node__direction", "fix_flow", None),
-            ("connection__node__direction", "fix_trans", None),
         ),
     )
     db_map.commit_session("Add specific data structure for Spine Model.")
