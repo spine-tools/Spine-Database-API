@@ -684,6 +684,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("storage__unit", ("storage", "unit")),
             ("storage__connection", ("storage", "connection")),
             ("storage__commodity", ("storage", "commodity")),
+            ("storage__storage", ("storage", "storage")),
         ),
         object_parameters=(
             ("unit", "fom_cost", None),
@@ -736,6 +737,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("storage__unit", "stor_unit_charg_eff", 1),
             ("storage__connection", "stor_conn_discharg_eff", 1),
             ("storage__connection", "stor_conn_charg_eff", 1),
+            ("storage__storage", "diff_coeff", None),
             ("unit_group__commodity_group", "max_cum_in_flow_bound", None),
             ("unit__node__direction", "fix_flow", None),
         ),
