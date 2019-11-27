@@ -260,7 +260,7 @@ def _time_series_from_dictionary(value):
     values = np.empty(len(data))
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
-            stamp = np.datetime64(dateutil.parser.parse(stamp))
+            stamp = np.datetime64(stamp)
         except ValueError:
             raise ParameterValueFormatError(
                 'Could not decode time stamp "{}"'.format(stamp)
@@ -340,7 +340,7 @@ def _time_series_from_two_columns(value):
         if not isinstance(element, Sequence) or len(element) != 2:
             raise ParameterValueFormatError("Invalid value in time series array")
         try:
-            stamp = np.datetime64(dateutil.parser.parse(element[0]))
+            stamp = np.datetime64(element[0])
         except ValueError:
             raise ParameterValueFormatError(
                 'Could not decode time stamp "{}"'.format(element[0])
