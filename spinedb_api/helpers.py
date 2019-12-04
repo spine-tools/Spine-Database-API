@@ -654,9 +654,12 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("storage", "A storage", 4, 280376899531934),
         ("commodity", "A commodity", 5, 281473533932880),
         ("node", "An entity where an energy balance takes place", 6, 280740554077951),
-        ("temporal_block", "A temporal block", 7, 280376891207703),
+        ("model", "A modelling time horizon", 7, 280376891207703),
+        ("temporal_block", "A temporal block", 8, 280376891207703),
         ("rolling", "A rolling horizon", 9, 281107043971546),
-        ("model", "A modelling time horizon", 8, 280376891207703),
+        ("output", "Results", 10),
+        ("report", "Results", 10),
+
     )
     db_map.add_object_classes(
         *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
@@ -683,6 +686,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("storage__connection", ("storage", "connection")),
             ("storage__commodity", ("storage", "commodity")),
             ("storage__storage", ("storage", "storage")),
+            ("report__output", ("report", "output")),
         ),
         object_parameters=(
             ("unit", "fom_cost", None),
