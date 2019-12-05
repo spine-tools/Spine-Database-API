@@ -734,6 +734,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("connection__node__node", "fix_ratio_out_in_trans", None),
             ("connection__node__node", "max_ratio_out_in_trans", None),
             ("connection__node__node", "min_ratio_out_in_trans", None),
+            ("connection__node__node", "trans_delay", Duration("0 hours")),
             ("connection__node", "conn_avail_factor", 1),
             ("connection__node", "conn_conv_cap_to_trans", 1),
             ("storage__unit", "stor_unit_discharg_eff", 1),
