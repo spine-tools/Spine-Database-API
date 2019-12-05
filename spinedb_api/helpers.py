@@ -706,6 +706,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("storage", "stor_state_min", 0),
             ("storage", "frac_state_loss", 0),
             ("storage", "state_coeff", 1),
+            ("storage", "fix_stor_state", None),
             ("model", "model_start", Date("2000-01-01T00:00:00")),
             ("model", "model_end", Date("2000-01-02T00:00:00")),
             ("model", "roll_forward", None),
