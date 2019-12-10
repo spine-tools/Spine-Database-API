@@ -656,7 +656,6 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("node", "An entity where an energy balance takes place", 6, 280740554077951),
         ("model", "A modelling time horizon", 7, 280376891207703),
         ("temporal_block", "A temporal block", 8, 280376891207703),
-        ("rolling", "A rolling horizon", 9, 281107043971546),
         ("output", "Results", 10),
         ("report", "Results", 10),
 
