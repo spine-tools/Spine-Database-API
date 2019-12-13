@@ -715,6 +715,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("unit__commodity", "minimum_operating_point", None),
             ("unit__commodity__direction", "unit_capacity", None),
             ("unit__commodity__direction", "operating_cost", None),
+            ("unit__commodity__direction", "fuel_cost", None),
             ("unit__commodity__direction", "vom_cost", None),
             ("commodity_group__node_group", "tax_net_flow", None),
             ("commodity_group__node_group", "tax_out_flow", None),
