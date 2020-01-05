@@ -34,7 +34,7 @@ def check_object_class(item, current_items, object_class_type):
     except KeyError:
         raise SpineIntegrityError("Missing object class name.")
     if "type_id" in item and item["type_id"] != object_class_type:
-        raise SpineIntegrityError("Object class '{}' must have correct type_id .".format(name), id=current_items[name])
+        raise SpineIntegrityError("Object class '{}' must have correct type_id.".format(name), id=current_items[name])
     if name in current_items:
         raise SpineIntegrityError(
             "There can't be more than one object class called '{}'.".format(name), id=current_items[name]
@@ -63,7 +63,7 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
     except KeyError:
         raise SpineIntegrityError("Missing object name.")
     if "type_id" in item and item["type_id"] != object_entity_type:
-        raise SpineIntegrityError("Object '{}' must have correct type_id .".format(name), id=current_items[name])
+        raise SpineIntegrityError("Object '{}' must have correct type_id.".format(name), id=current_items[name])
     if (class_id, name) in current_items:
         raise SpineIntegrityError(
             "There's already an object called '{}' in the same class.".format(name), id=current_items[class_id, name]
@@ -85,7 +85,7 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         given_object_class_id_list = wide_item["object_class_id_list"]
     except KeyError:
         raise SpineIntegrityError("Missing object class identifiers.")
-    if len(given_object_class_id_list) == 0:
+    if not given_object_class_id_list:
         raise SpineIntegrityError("At least one object class is needed.")
     if not all([id in object_class_ids for id in given_object_class_id_list]):
         raise SpineIntegrityError("Object class not found.")
