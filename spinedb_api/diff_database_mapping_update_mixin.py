@@ -27,7 +27,7 @@ class DiffDatabaseMappingUpdateMixin:
     """Provides methods to stage ``UPDATE`` operations over a Spine db.
     """
 
-    def _handle_items(self, tablename, checked_kwargs_list, filter_key=("id",), skip_fields=()):
+    def _handle_items(self, tablename, checked_kwargs_list, filter_key=("id",)):
         """Return lists of items for update and insert.
         Items found in the diff classes should be updated,
         whereas items found in the orig classes should be marked as dirty and
@@ -45,8 +45,6 @@ class DiffDatabaseMappingUpdateMixin:
                 continue
             filter_ = {k: kwargs.pop(k) for k in filter_key}
             if not kwargs:
-                continue
-            if any(x in kwargs for x in skip_fields):
                 continue
             diff_query = self.query(diff_class).filter_by(**filter_)
             for diff_item in diff_query:
@@ -100,7 +98,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update objects without checking integrity."""
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
-                "entity", checked_kwargs_list, skip_fields=("class_id",)
+                "entity", checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffEntity, items_for_update)
             self.session.bulk_insert_mappings(self.DiffEntity, items_for_insert)
@@ -128,7 +126,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update relationship classes without checking integrity."""
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
-                "entity_class", checked_wide_kwargs_list, skip_fields=("object_class_id_list",)
+                "entity_class", checked_wide_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffEntityClass, items_for_update)
             self.session.bulk_insert_mappings(self.DiffEntityClass, items_for_insert)
@@ -167,13 +165,10 @@ class DiffDatabaseMappingUpdateMixin:
                 rel_ent_kwargs_list.append(rel_ent_kwargs)
         try:
             ents_for_update, ents_for_insert, dirty_ent_ids, updated_ent_ids = self._handle_items(
-                "entity", ent_kwargs_list, filter_key=("id",), skip_fields=("class_id",)
+                "entity", ent_kwargs_list, filter_key=("id",)
             )
             rel_ents_for_update, rel_ents_for_insert, dirty_rel_ent_ids, updated_rel_ent_ids = self._handle_items(
-                "relationship_entity",
-                rel_ent_kwargs_list,
-                filter_key=("entity_id", "dimension"),
-                skip_fields=("entity_class_id",),
+                "relationship_entity", rel_ent_kwargs_list, filter_key=("entity_id", "dimension")
             )
             self.session.bulk_update_mappings(self.DiffEntity, ents_for_update)
             self.session.bulk_insert_mappings(self.DiffEntity, ents_for_insert)
@@ -205,7 +200,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update parameter definitions without checking integrity."""
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
-                "parameter_definition", checked_kwargs_list, skip_fields=("object_class_id", "relationship_class_id")
+                "parameter_definition", checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffParameterDefinition, items_for_update)
             self.session.bulk_insert_mappings(self.DiffParameterDefinition, items_for_insert)
@@ -237,9 +232,7 @@ class DiffDatabaseMappingUpdateMixin:
         """
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
-                "parameter_value",
-                checked_kwargs_list,
-                skip_fields=("object_id", "relationship_id", "parameter_definition_id"),
+                "parameter_value", checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffParameterValue, items_for_update)
             self.session.bulk_insert_mappings(self.DiffParameterValue, items_for_insert)

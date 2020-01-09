@@ -36,6 +36,16 @@ class DatabaseMappingCheckMixin:
     """Provides methods to check whether insert and update operations violate Spine db integrity constraints.
     """
 
+    @staticmethod
+    def check_immutable_fields(current_item, item, immutable_fields):
+        for field in immutable_fields:
+            if field not in item:
+                continue
+            value = item[field]
+            current_value = current_item[field]
+            if value != current_value:
+                raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
+
     def check_object_classes_for_insert(self, *items, strict=False):
         """Check whether object classes passed as argument respect integrity constraints
         for an insert operation.
@@ -190,6 +200,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
+                self.check_immutable_fields(updated_item, item, ("class_id",))
                 updated_item.update(item)
                 check_object(updated_item, object_names, object_class_id_list, self.object_entity_type)
                 checked_items.append(item)
@@ -277,6 +288,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
+                self.check_immutable_fields(updated_wide_item, wide_item, ("object_class_id_list",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship_class(
                     updated_wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type
@@ -391,6 +403,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
+                self.check_immutable_fields(updated_wide_item, wide_item, ("class_id",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship(
                     updated_wide_item,
@@ -533,6 +546,7 @@ class DatabaseMappingCheckMixin:
                     item.setdefault("relationship_class_id", None)
                 if "relationship_class_id" in item:
                     item.setdefault("object_class_id", None)
+                self.check_immutable_fields(updated_item, item, ("object_class_id", "relationship_class_id"))
                 updated_item.update(item)
                 check_parameter_definition(
                     updated_item,
@@ -575,14 +589,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_parameter_values = {
-            (x.object_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq) if x.object_id
-        }
-        relationship_parameter_values = {
-            (x.relationship_id, x.parameter_definition_id): x.id
-            for x in self.query(self.parameter_value_sq)
-            if x.relationship_id
-        }
+        object_parameter_values = {}
+        relationship_parameter_values = {}
+        for x in self.query(self.parameter_value_sq):
+            if x.object_id:
+                object_parameter_values[x.object_id, x.parameter_definition_id] = x.id
+            elif x.relationship_id:
+                relationship_parameter_values[x.relationship_id, x.parameter_definition_id] = x.id
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
@@ -707,6 +720,9 @@ class DatabaseMappingCheckMixin:
                     item.setdefault("relationship_id", None)
                 if "relationship_id" in item:
                     item.setdefault("object_id", None)
+                self.check_immutable_fields(
+                    updated_item, item, ("object_id", "relationship_id", "parameter_definition_id")
+                )
                 updated_item.update(item)
                 check_parameter_value(
                     updated_item,
