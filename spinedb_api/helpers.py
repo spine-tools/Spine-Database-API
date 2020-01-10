@@ -695,7 +695,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("unit", "avail_factor", 1),
             ("unit", "min_down_time", None),
             ("unit", "min_up_time", None),
-            ("unit", "online_variable_type", "integer"),
+            ("unit", "online_variable_type", "integer_online_variable"),
             ("unit", "fix_units_on", None),
             ("temporal_block", "block_start", None),
             ("temporal_block", "block_end", None),
