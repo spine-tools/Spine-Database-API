@@ -16,12 +16,11 @@
 """
 # TODO: improve docstrings
 
-import warnings
+from datetime import datetime, timezone
 from sqlalchemy import func, MetaData, Table, Column, Integer, String, DateTime, null
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.exc import DBAPIError
-from .exception import SpineDBAPIError, SpineIntegrityError
-from datetime import datetime, timezone
+from sqlalchemy.exc import DBAPIError, NoSuchTableError
+from .exception import SpineDBAPIError, SpineTableNotFoundError
 
 
 class DiffDatabaseMappingAddMixin:

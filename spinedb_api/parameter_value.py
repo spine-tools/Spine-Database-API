@@ -41,6 +41,7 @@ from .exception import ParameterValueFormatError
 
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
+_NUMPY_DATETIME64_UNIT = "s"
 # Default start time guess, actual value not currently given in the JSON specification.
 _TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
 # Default resolution if it is omitted from the index entry.
@@ -260,7 +261,7 @@ def _time_series_from_dictionary(value):
     values = np.empty(len(data))
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
-            stamp = np.datetime64(dateutil.parser.parse(stamp))
+            stamp = np.datetime64(stamp, _NUMPY_DATETIME64_UNIT)
         except ValueError:
             raise ParameterValueFormatError(
                 'Could not decode time stamp "{}"'.format(stamp)
@@ -340,7 +341,7 @@ def _time_series_from_two_columns(value):
         if not isinstance(element, Sequence) or len(element) != 2:
             raise ParameterValueFormatError("Invalid value in time series array")
         try:
-            stamp = np.datetime64(dateutil.parser.parse(element[0]))
+            stamp = np.datetime64(element[0], _NUMPY_DATETIME64_UNIT)
         except ValueError:
             raise ParameterValueFormatError(
                 'Could not decode time stamp "{}"'.format(element[0])
@@ -480,9 +481,9 @@ class TimeSeries(IndexedValue):
     """
 
     def __init__(self, values, ignore_year, repeat):
-        if len(values) < 2:
+        if len(values) < 1:
             raise ParameterValueFormatError(
-                "Time series too short. Must have two or more values"
+                "Time series too short. Must have one or more values"
             )
         super().__init__(values)
         self._ignore_year = ignore_year
@@ -701,9 +702,9 @@ class TimeSeriesVariableResolution(TimeSeries):
             date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
             for i in range(len(indexes)):
                 if isinstance(indexes[i], DateTime):
-                    date_times[i] = np.datetime64(indexes[i].value)
+                    date_times[i] = np.datetime64(indexes[i].value, _NUMPY_DATETIME64_UNIT)
                 else:
-                    date_times[i] = np.datetime64(indexes[i])
+                    date_times[i] = np.datetime64(indexes[i], _NUMPY_DATETIME64_UNIT)
             indexes = date_times
         self._indexes = indexes
 
