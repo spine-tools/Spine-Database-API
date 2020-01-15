@@ -59,6 +59,7 @@ from .json_mapping import (
     ObjectClassMapping,
     RelationshipClassMapping,
     DataMapping,
+    TimeSeriesOptions,
     read_with_mapping,
     dict_to_map,
     mapping_non_pivoted_columns,

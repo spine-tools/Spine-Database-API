@@ -16,13 +16,11 @@ Classes for reading data with json mapping specifications
 :date:   22.02.2018
 """
 
-from operator import itemgetter
+from collections import Sequence
 import itertools
-import json
 import math
-
-
-from .parameter_value import TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError, SUPPORTED_TYPES
+from operator import itemgetter
+from .parameter_value import TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
 from .exception import TypeConversionError
 
 
@@ -185,6 +183,27 @@ class Mapping:
         return True, ""
 
 
+class TimeSeriesOptions:
+    """
+    Class for holding parameter type-specific options for time series parameter values.
+
+    Attributes:
+        repeat (bool): time series repeat flag
+    """
+    def __init__(self, repeat=False):
+        self.repeat = repeat
+
+    @staticmethod
+    def from_dict(options_dict):
+        """Restores TimeSeriesOptions from a dictionary."""
+        repeat = options_dict["repeat"]
+        return TimeSeriesOptions(repeat)
+
+    def to_dict(self):
+        """Saves the options to a dictionary."""
+        return {"repeat": self.repeat}
+
+
 class ParameterMapping:
     """
     Class for holding and validating Mapping specification::
@@ -195,18 +214,18 @@ class ParameterMapping:
             value: Mapping | None
             extra_dimensions: [Mapping] | None
             parameter_type: 'time series' | 'time pattern' | '1d array' | 'single value'
+            options: TimeSeriesOptions | None
         }
     """
 
-    def __init__(self, name=None, value=None, extra_dimensions=None, parameter_type='single value'):
-
-        self._name = None
-        self._value = None
-        self._extra_dimensions = None
-        self._parameter_type = None
+    def __init__(self, name=None, value=None, extra_dimensions=None, parameter_type='single value', options=None):
         self.name = name
         self.value = value
         self.extra_dimensions = extra_dimensions
+        if parameter_type == "time series" and options is None:
+            self.options = TimeSeriesOptions()
+        else:
+            self.options = options
         self.parameter_type = parameter_type
         self._map_type = PARAMETER
 
@@ -259,8 +278,13 @@ class ParameterMapping:
     def parameter_type(self, parameter_type):
         if not isinstance(parameter_type, str):
             raise TypeError(f"parameter_type must be str, instead got: {type(parameter_type)}")
-        if parameter_type.lower() not in VALID_PARAMETER_TYPES:
+        parameter_type = parameter_type.lower()
+        if parameter_type not in VALID_PARAMETER_TYPES:
             raise ValueError(f"parameter_type must be one of the following: {VALID_PARAMETER_TYPES}, instead got {parameter_type}")
+        if parameter_type != "time series":
+            self.options = None
+        elif self.options is None:
+            self.options = TimeSeriesOptions()
         self._parameter_type = parameter_type
 
     @name.setter
@@ -284,8 +308,8 @@ class ParameterMapping:
             raise TypeError(f"""extra_dimensions must be a list of Mapping or str, instead got {ed_types}""")
         self._extra_dimensions = extra_dimensions
 
-    @classmethod
-    def from_dict(cls, map_dict):
+    @staticmethod
+    def from_dict(map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
         name = mapping_from_dict_int_str(map_dict.get("name", None))
@@ -294,7 +318,10 @@ class ParameterMapping:
         parameter_type = map_dict.get("parameter_type", 'single value')
         if isinstance(extra_dimensions, list):
             extra_dimensions = [mapping_from_dict_int_str(ed) for ed in extra_dimensions]
-        return ParameterMapping(name, value, extra_dimensions, parameter_type)
+        options = map_dict.get("options", None)
+        if options is not None:
+            options = TimeSeriesOptions.from_dict(options)
+        return ParameterMapping(name, value, extra_dimensions, parameter_type, options)
 
     def to_dict(self):
         map_dict = {"map_type": self._map_type}
@@ -316,6 +343,7 @@ class ParameterMapping:
                 extra_dim = extra_dim if isinstance(extra_dim, str) else extra_dim.to_dict()
                 extra_dim_list.append(extra_dim)
             map_dict.update({"extra_dimensions": extra_dim_list})
+        map_dict["options"] = self.options.to_dict() if self.options is not None else None
         map_dict.update({"parameter_type": self.parameter_type})
         return map_dict
     
@@ -410,8 +438,8 @@ class ParameterColumnCollectionMapping:
             raise TypeError(f"""extra_dimensions must be a list of Mapping or str, instead got {ed_types}""")
         self._extra_dimensions = extra_dimensions
 
-    @classmethod
-    def from_dict(cls, map_dict):
+    @staticmethod
+    def from_dict(map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError("map_dict must be a dict, instead got {type(map_dict)}")
         parameters = map_dict.get("parameters", None)
@@ -514,8 +542,8 @@ class ParameterColumnMapping:
             raise TypeError(f"""prepend_str must be a None or str, instead got {type(prepend_str)}""")
         self._prepend_str = prepend_str
 
-    @classmethod
-    def from_dict(cls, map_dict):
+    @staticmethod
+    def from_dict(map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
         name = map_dict.get("name", None)
@@ -545,7 +573,7 @@ class ObjectClassMapping:
             map_type: 'object'
             name: str | Mapping
             objects: Mapping | str | None
-            parameters: ParameterMapping | ParameterColumnCollectionMapping | None
+            parameters: ParameterMapping | None
         }
     """
 
@@ -671,8 +699,8 @@ class ObjectClassMapping:
                 )
             self._skip_columns = skip_columns
 
-    @classmethod
-    def from_dict(cls, map_dict):
+    @staticmethod
+    def from_dict(map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError("map_dict must be a dict, instead got {type(map_dict)}")
         if map_dict.get("map_type", None) != OBJECTCLASS:
@@ -858,7 +886,7 @@ class RelationshipClassMapping:
         if not isinstance(row, int):
             raise TypeError(f"row must be int, instead got {type(row)}")
         if row < 0:
-            raise ValueError(f"row must be >= 0, istead was: {row}")
+            raise ValueError(f"row must be >= 0, instead was: {row}")
         self._read_start_row = row
 
     @import_objects.setter
@@ -921,8 +949,8 @@ class RelationshipClassMapping:
             )
         self._parameters = parameters
 
-    @classmethod
-    def from_dict(cls, map_dict):
+    @staticmethod
+    def from_dict(map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
         if map_dict.get("map_type", None) != RELATIONSHIPCLASS:
@@ -1075,8 +1103,8 @@ class DataMapping:
             map_dict.update(mappings=[m.to_dict() for m in self.mappings])
         return map_dict
 
-    @classmethod
-    def from_dict(cls, map_dict):
+    @staticmethod
+    def from_dict(map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
         has_header = map_dict.get("has_header", False)
@@ -1336,19 +1364,16 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         mappings = [mapping]
 
     # find max pivot row since mapping can have different number of pivoted rows.
-    last_pivot_row = -1
-    has_pivot = False
-    for map_ in mappings:
-        if mapping.is_pivoted():
-            has_pivot = True
-            last_pivot_row = max(last_pivot_row, mapping.last_pivot_row())
-    
+    has_pivot = mapping.is_pivoted()
+    if has_pivot:
+        last_pivot_row = max(-1, mapping.last_pivot_row())
+    else:
+        last_pivot_row = -1
     # get pivoted rows of data.
     raw_pivoted_data = []
     if has_pivot:
         for row_number in range(last_pivot_row + 1):
             raw_pivoted_data.append(next(data_source))
-    num_pivoted_rows = len(raw_pivoted_data)
 
     # get a list of reader functions
     readers = []
@@ -1360,8 +1385,6 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         r = create_mapping_readers(m, num_cols, pivoted_data, data_header)
         readers.extend([(key, reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
         min_read_data_from_row = min(min_read_data_from_row, read_data_from_row)
-
-    
     data = {
         "object_classes": [],
         "objects": [],
@@ -1408,7 +1431,6 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                         data[key].extend([row_value for row_value in reader(row_data) if all(v is not None for v in row_value)])
             except IndexError as e:
                 errors.append((row_number, e))
-
     # pack extra dimensions into list of list
     # FIXME: This should probably be moved somewhere else
     new_data = {}
@@ -1422,7 +1444,10 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                     if values:
                         indexes = [items[0] for items in values]
                         values = [items[1] for items in values]
-                        new.append(keys + (TimeSeriesVariableResolution(indexes, values, False, False),))
+                        parameter_options = _parameter_options_from_mapping(mappings, keys)
+                        ignore_year = False
+                        repeat = parameter_options.repeat if parameter_options is not None else False
+                        new.append(keys + (TimeSeriesVariableResolution(indexes, values, ignore_year, repeat),))
             if "time pattern" in k:
                 for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
                     values = [items[-1] for items in values if all(i is not None for i in items[-1])]
@@ -1838,3 +1863,20 @@ def create_pivot_getter_function(mapping, pivoted_data, pivoted_cols, data_heade
         reads_data = False
 
     return getter, num, reads_data
+
+
+def _parameter_options_from_mapping(mappings, keys):
+    """
+    Returns parameter's options from given mapping.
+
+    Args:
+        mappings (Sequence): a sequence of mappings
+        keys (Sequence): a sequence where the first element is the object/relationship class name
+            and last element the parameter's name
+    Returns:
+        TimeSeriesOptions: parameter's options or None.
+    """
+    for m in mappings:
+        if m.name == keys[0] and m.parameters.name == keys[-1]:
+            return m.parameters.options
+    return None
