@@ -1094,11 +1094,11 @@ class RelationshipClassMapping(EntityClassMapping):
         if self.import_objects:
             for oc, o in zip(self.object_classes, self.objects):
                 oc_getter, oc_num, oc_reads = oc.create_getter_function(pivoted_columns, pivoted_data, data_header)
-                o_getter, o_num, o_reads = o.create_getter_function(pivoted_columns, pivoted_data, data_header)
+                single_o_getter, single_o_num, single_o_reads = o.create_getter_function(pivoted_columns, pivoted_data, data_header)
                 readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
                 readers.append(
                     ("objects",)
-                    + create_final_getter_function([oc_getter, o_getter], [oc_num, o_num], [oc_reads, o_reads])
+                    + create_final_getter_function([oc_getter, single_o_getter], [oc_num, single_o_num], [oc_reads, single_o_reads])
                 )
         par_val_name = "relationship_parameter_values"
         if isinstance(self.parameters, ParameterDefinitionMapping):
@@ -1175,6 +1175,8 @@ def mappingbase_from_dict_int_str(value, default_map=NoneMapping):
 
 def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
     if map_dict is None:
+        return NoneMapping()
+    if map_dict.get("map_type", "") == "None":
         return NoneMapping()
 
     parameter_type_to_class = {

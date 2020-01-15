@@ -869,6 +869,80 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
+    def test_read_relationships_with_parameters2(self):
+        input_data = [
+            ["nuts2", "Capacity", "Fueltype"],
+            ["BE23", 268.0, "Bioenergy"],
+            ["DE11", 14.0, "Bioenergy"],
+        ]
+        self.empty_data.update(
+            {
+                "object_classes": ["nuts2", "fueltype"],
+                "objects": [("nuts2", "BE23"), ("fueltype", "Bioenergy"), ("nuts2", "DE11"), ("fueltype", "Bioenergy")],
+                "relationship_classes": [("nuts2__fueltype", ("nuts2", "fueltype"))],
+                "relationships": [
+                    ("nuts2__fueltype", ("BE23", "Bioenergy")),
+                    ("nuts2__fueltype", ("DE11", "Bioenergy")),
+                ],
+                "relationship_parameters": [("nuts2__fueltype", "capacity")],
+                "relationship_parameter_values": [
+                    ("nuts2__fueltype", ("BE23", "Bioenergy"), "capacity", 268.0),
+                    ("nuts2__fueltype", ("DE11", "Bioenergy"), "capacity", 14.0),
+                ],
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping = {
+                    "map_type": "RelationshipClass",
+                    "name": {
+                        "map_type": "constant",
+                        "reference": "nuts2__fueltype"
+                    },
+                    "parameters": {
+                        "map_type": "parameter",
+                        "name": {
+                            "map_type": "constant",
+                            "reference": "capacity"
+                        },
+                        "parameter_type": "single value",
+                        "value": {
+                            "map_type": "column",
+                            "reference": 1
+                        }
+                    },
+                    "skip_columns": [],
+                    "read_start_row": 0,
+                    "objects": [
+                        {
+                            "map_type": "column",
+                            "reference": 0
+                        },
+                        {
+                            "map_type": "column",
+                            "reference": 2
+                        }
+                    ],
+                    "object_classes": [
+                        {
+                            "map_type": "constant",
+                            "reference": "nuts2"
+                        },
+                        {
+                            "map_type": "constant",
+                            "reference": "fueltype"
+                        }
+                    ],
+                    "import_objects": True
+                }
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
+
     def test_read_parameter_header_with_only_one_parameter(self):
         input_data = [["object", "parameter_name1"], ["obj1", 0], ["obj2", 2]]
         self.empty_data.update(
