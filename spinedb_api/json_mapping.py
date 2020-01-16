@@ -382,6 +382,7 @@ class RowMapping(MappingBase):
             reads_data = None
         return getter, num, reads_data
 
+
 class TimeSeriesOptions:
     """
     Class for holding parameter type-specific options for time series parameter values.
@@ -389,18 +390,23 @@ class TimeSeriesOptions:
     Attributes:
         repeat (bool): time series repeat flag
     """
-    def __init__(self, repeat=False):
+    def __init__(self, repeat=False, ignore_year=False, fixed_resolution=False):
         self.repeat = repeat
+        self.ignore_year = ignore_year
+        self.fixed_resolution = fixed_resolution
 
     @staticmethod
     def from_dict(options_dict):
         """Restores TimeSeriesOptions from a dictionary."""
-        repeat = options_dict["repeat"]
-        return TimeSeriesOptions(repeat)
+        repeat = options_dict.get("repeat", False)
+        ignore_year = options_dict.get("ignore_year", False)
+        fixed_resolution = options_dict.get("fixed_resolution", False)
+        return TimeSeriesOptions(repeat, ignore_year, fixed_resolution)
 
     def to_dict(self):
         """Saves the options to a dictionary."""
-        return {"repeat": self.repeat}
+        return {"repeat": self.repeat, "ignore_year": self.ignore_year, "fixed_resolution": self.fixed_resolution}
+
 
 class ParameterDefinitionMapping:
     PARAMETER_TYPE = "definition"
@@ -430,8 +436,8 @@ class ParameterDefinitionMapping:
     def is_pivoted(self):
         return self.name.is_pivoted()
 
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
         map_type = map_dict.get("map_type", None)
@@ -528,6 +534,9 @@ class ParameterValueMapping(ParameterDefinitionMapping):
             getter, num, reads = self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
         getters["value"] = (getter, num, reads)
         return getters
+    
+    def raw_data_to_type(self, data):
+        return data
 
 
 class ParameterListMapping(ParameterValueMapping):
@@ -568,8 +577,8 @@ class ParameterListMapping(ParameterValueMapping):
     def is_pivoted(self):
         return super().is_pivoted() or any(ed.is_pivoted() for ed in self.extra_dimensions)
 
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
         map_type = map_dict.get("map_type", None)
@@ -626,16 +635,94 @@ class ParameterListMapping(ParameterValueMapping):
         getters["has_extra_dimensions"]: has_ed
 
         return getters
+    
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [value[-1] for value in values if value[-1] is not None]
+            if values:
+                out.append(keys + (values,))
+        return out
 
 
 class ParameterTimeSeriesMapping(ParameterListMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time series"
 
+    def __init__(self, name=None, value=None, extra_dimension=None, options=None):
+        super(ParameterTimeSeriesMapping, self).__init__(name, value, extra_dimension)
+        self._options = TimeSeriesOptions()
+        self.options = options
+
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, options):
+        if options is None:
+            options = TimeSeriesOptions()
+        if not isinstance(options, TimeSeriesOptions):
+            raise TypeError(
+                f"options must be a TimeSeriesOptions, instead got: {type(options).__name__}"
+            )
+        self._options = options
+    
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise ValueError("map_dict must be a dict")
+        map_type = map_dict.get("map_type", None)
+        parameter_type = map_dict.get("parameter_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        if parameter_type is not None and parameter_type != cls.PARAMETER_TYPE:
+            raise ValueError(
+                f"If field 'parameter_type' is specified, it must be {cls.PARAMETER_TYPE}, instead got {parameter_type}"
+            )
+
+        name = map_dict.get("name", None)
+        value = map_dict.get("value", None)
+        extra_dimensions = map_dict.get("extra_dimensions", None)
+        options = map_dict.get("options", None)
+        if options:
+            options = TimeSeriesOptions.from_dict(options)
+        return cls(name, value, extra_dimensions, options)
+
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict["options"] = self.options.to_dict()
+        return map_dict
+
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+            if values:
+                indexes = [items[0] for items in values]
+                values = [items[1] for items in values]
+                out.append(keys + (TimeSeriesVariableResolution(indexes, values, self.options.ignore_year, self.options.repeat),))
+        return out
+
 
 class ParameterTimePatternMapping(ParameterListMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time pattern"
+
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+            if values:
+                indexes = [items[0] for items in values]
+                values = [items[1] for items in values]
+                out.append(keys + (TimePattern(indexes, values),))
+        return out
 
 
 class EntityClassMapping:
@@ -742,8 +829,8 @@ class EntityClassMapping:
                 )
             self._skip_columns = skip_columns
 
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
 
@@ -862,8 +949,8 @@ class ObjectClassMapping(EntityClassMapping):
     def objects(self, objects):
         self._objects = mappingbase_from_dict_int_str(objects)
 
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
 
@@ -920,9 +1007,7 @@ class ObjectClassMapping(EntityClassMapping):
             ("objects",)
             + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
         )
-        par_val_name = "object_parameter_values"
         if isinstance(self.parameters, ParameterDefinitionMapping):
-            par_val_name = "object_parameter_values" + "_" + self.parameters.PARAMETER_TYPE
             par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
             readers.append(
                 ("object_parameters",)
@@ -931,6 +1016,7 @@ class ObjectClassMapping(EntityClassMapping):
                 )
             )
         if isinstance(self.parameters, ParameterValueMapping):
+            par_val_name = "object_parameter_values"
             par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
             readers.append(
                 (par_val_name,)
@@ -1024,8 +1110,8 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         self._object_classes = [mappingbase_from_dict_int_str(oc) for oc in object_classes]
 
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
         map_type = map_dict.get("map_type", None)
@@ -1120,7 +1206,6 @@ class RelationshipClassMapping(EntityClassMapping):
         par_val_name = "relationship_parameter_values"
         if isinstance(self.parameters, ParameterDefinitionMapping):
             par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
-            par_val_name = par_val_name + "_" + self.parameters.PARAMETER_TYPE
             readers.append(
                 ("relationship_parameters",)
                 + create_final_getter_function(
@@ -1129,6 +1214,7 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         if isinstance(self.parameters, ParameterValueMapping):
             par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
+            par_val_name = "relationship_parameter_values"
             readers.append(
                 (par_val_name,)
                 + create_final_getter_function(
@@ -1353,14 +1439,14 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
     # get a list of reader functions
     readers = []
     min_read_data_from_row = math.inf
-    for m in mappings:
+    for map_index, m in enumerate(mappings):
         pivoted_data, pivot_type_errors = get_pivoted_data(iter(raw_pivoted_data), m, num_cols, data_header, row_types)
         errors.extend(pivot_type_errors)
         read_data_from_row = max(m.last_pivot_row() + 1, m.read_start_row)
         r = m.create_mapping_readers(num_cols, pivoted_data, data_header)
-        readers.extend([(key, reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
+        readers.extend([((map_index, key), reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
         min_read_data_from_row = min(min_read_data_from_row, read_data_from_row)
-    data = {
+    merged_data = {
         "object_classes": [],
         "objects": [],
         "object_parameters": [],
@@ -1370,6 +1456,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationship_parameters": [],
         "relationship_parameter_values": [],
     }
+    data = dict()
     # run functions that read from header or pivoted area first
     # select only readers that actually need to read row data
     row_readers = []
@@ -1408,68 +1495,16 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                         )
             except IndexError as e:
                 errors.append((row_number, e))
-    # pack extra dimensions into list of list
-    # FIXME: This should probably be moved somewhere else
+    # convert parameter values to right class and put all data in one dict
     new_data = {}
-    for k, v in data.items():
-        if any(parameter_type in k for parameter_type in ("single value", "time series", "time pattern", "1d array", "2d array")) and v:
-            v = sorted(v, key=lambda x: x[:-1])
-            new = []
-            if "single value" in k:
-                new = v
-            if "time series" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [items[-1] for items in values if all(i is not None for i in items[-1])]
-                    if values:
-                        indexes = [items[0] for items in values]
-                        values = [items[1] for items in values]
-                        parameter_options = _parameter_options_from_mapping(mappings, keys)
-                        ignore_year = False
-                        repeat = parameter_options.repeat if parameter_options is not None else False
-                        new.append(keys + (TimeSeriesVariableResolution(indexes, values, ignore_year, repeat),))
-            if "time pattern" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [items[-1] for items in values if all(i is not None for i in items[-1])]
-                    if values:
-                        indexes = [items[0] for items in values]
-                        values = [items[1] for items in values]
-                        new.append(keys + (TimePattern(indexes, values),))
-            if "1d array" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [value[-1] for value in values if value[-1] is not None]
-                    if values:
-                        new.append(keys + (values,))
-            if "2d array" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [value[-1] for value in values if all(v is not None in value[-1])]
-                    if values:
-                        new.append(keys + (values,))
-
-            if "object_parameter_values" in k:
-                if "object_parameter_values" in new_data:
-                    new_data["object_parameter_values"] = new_data["object_parameter_values"].extend(new)
-                else:
-                    new_data["object_parameter_values"] = new
-            else:
-                if "relationship_parameter_values" in new_data:
-                    new_data["relationship_parameter_values"] = new_data["relationship_parameter_values"].extend(new)
-                else:
-                    new_data["relationship_parameter_values"] = new
-
-    if "object_parameter_values" not in data:
-        data["object_parameter_values"] = []
-    if "relationship_parameter_values" not in data:
-        data["relationship_parameter_values"] = []
-    data["object_parameter_values"].extend(new_data.get("object_parameter_values", []))
-    data["relationship_parameter_values"].extend(new_data.get("relationship_parameter_values", []))
-
-    # remove time series and time pattern raw data
-    existing_keys = list(data.keys())
-    for key in ["time series", "time pattern", "2d array", "1d array", "single value"]:
-        for existing_key in existing_keys:
-            if key in existing_key:
-                data.pop(existing_key, None)
-    return data, errors
+    for key, v in data.items():
+        map_i, k = key
+        if "parameter_values" in k:
+            current_mapping = mappings[map_i]
+            merged_data[k].extend(current_mapping.parameters.raw_data_to_type(v))
+        else:
+            merged_data[k].extend(v)
+    return merged_data, errors
 
 
 def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):

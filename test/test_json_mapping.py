@@ -199,12 +199,14 @@ class TestMappingIO(unittest.TestCase):
     def test_TimeSeriesOptions_to_dict(self):
         options = TimeSeriesOptions(repeat=True)
         options_dict = options.to_dict()
-        self.assertEqual(options_dict, {"repeat": True})
+        self.assertEqual(options_dict, {"repeat": True, "ignore_year": False, "fixed_resolution": False})
 
     def test_TimeSeriesOptions_from_dict(self):
-        options_dict = {"repeat": True}
+        options_dict = {"repeat": True, "ignore_year": False, "fixed_resolution": False}
         options = TimeSeriesOptions.from_dict(options_dict)
         self.assertEqual(options.repeat, True)
+        self.assertEqual(options.ignore_year, False)
+        self.assertEqual(options.fixed_resolution, False)
 
     def test_ParameterTimeSeriesMapping_to_dict(self):
         mapping_value = RowMapping(reference=23)
@@ -220,7 +222,7 @@ class TestMappingIO(unittest.TestCase):
                 "extra_dimensions": [
                     {"reference": "fifth column", "map_type": "column"},
                 ],
-                "options": {"repeat": True},
+                "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
             }
         self.assertEqual(mapping_dict, expected)
 
@@ -233,7 +235,7 @@ class TestMappingIO(unittest.TestCase):
                 "extra_dimensions": [
                     {"value_reference": "fifth column", "map_type": "column"},
                 ],
-                "options": {"repeat": True},
+                "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
             }
         parameter_mapping = ParameterTimeSeriesMapping.from_dict(mapping_dict)
         self.assertEqual(parameter_mapping.name.reference, "mapping name")
@@ -248,6 +250,8 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(dimension.reference, "fifth column")
         options = parameter_mapping.options
         self.assertEqual(options.repeat, True)
+        self.assertEqual(options.ignore_year, False)
+        self.assertEqual(options.fixed_resolution, False)
 
 
 class TestMappingIsValid(unittest.TestCase):
