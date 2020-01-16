@@ -68,6 +68,7 @@ from .json_mapping import (
     ParameterTimeSeriesMapping,
     ParameterTimePatternMapping,
     ParameterListMapping,
+    TimeSeriesOptions,
     ObjectClassMapping,
     RelationshipClassMapping,
     read_with_mapping,

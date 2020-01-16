@@ -17,16 +17,20 @@ Unit tests for import_functions.py.
 """
 
 import unittest
-from unittest.mock import MagicMock
 from spinedb_api.json_mapping import (
     read_with_mapping,
     ColumnMapping,
+    ConstantMapping,
     ObjectClassMapping,
     RelationshipClassMapping,
     ParameterDefinitionMapping,
     ParameterValueMapping,
+    ParameterTimeSeriesMapping,
+    RowMapping,
+    ColumnMapping,
     convert_function_from_spec,
-    parameter_mapping_from_dict
+    parameter_mapping_from_dict,
+    TimeSeriesOptions
 )
 from spinedb_api.parameter_value import TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError
@@ -158,7 +162,7 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(out, expected)
 
     def test_RelationshipClassMapping_from_dict_to_dict3(self):
-        mapping = mapping = {
+        mapping = {
             "map_type": "RelationshipClass",
             "name": "unit__node",
             "parameters": {
@@ -185,12 +189,65 @@ class TestMappingIO(unittest.TestCase):
                 "value": {"reference": 2, "map_type": "column"},
                 "extra_dimensions": [
                     {"map_type": "constant", "reference": "test"}
-                ],
+                ]
             },
             "read_start_row": 0,
             "skip_columns": []
         }
         self.assertEqual(out, expected)
+
+    def test_TimeSeriesOptions_to_dict(self):
+        options = TimeSeriesOptions(repeat=True)
+        options_dict = options.to_dict()
+        self.assertEqual(options_dict, {"repeat": True})
+
+    def test_TimeSeriesOptions_from_dict(self):
+        options_dict = {"repeat": True}
+        options = TimeSeriesOptions.from_dict(options_dict)
+        self.assertEqual(options.repeat, True)
+
+    def test_ParameterTimeSeriesMapping_to_dict(self):
+        mapping_value = RowMapping(reference=23)
+        extra_dimension = ColumnMapping(reference="fifth column")
+        parameter_options = TimeSeriesOptions(repeat=True)
+        parameter_mapping = ParameterTimeSeriesMapping("mapping name", value=mapping_value, extra_dimension=[extra_dimension], options=parameter_options)
+        mapping_dict = parameter_mapping.to_dict()
+        expected = {
+                "map_type": "parameter",
+                "name": {'map_type': 'constant', 'reference': 'mapping name'},
+                "parameter_type": "time series",
+                "value": {"reference": 23, "map_type": "row"},
+                "extra_dimensions": [
+                    {"reference": "fifth column", "map_type": "column"},
+                ],
+                "options": {"repeat": True},
+            }
+        self.assertEqual(mapping_dict, expected)
+
+    def test_ParameterMapping_from_dict(self):
+        mapping_dict = {
+                "map_type": "parameter",
+                "name": {'map_type': 'constant', 'reference': 'mapping name'},
+                "parameter_type": "time series",
+                "value": {"reference": 23, "map_type": "row"},
+                "extra_dimensions": [
+                    {"value_reference": "fifth column", "map_type": "column"},
+                ],
+                "options": {"repeat": True},
+            }
+        parameter_mapping = ParameterTimeSeriesMapping.from_dict(mapping_dict)
+        self.assertEqual(parameter_mapping.name.reference, "mapping name")
+        self.assertTrue(isinstance(parameter_mapping, ParameterTimeSeriesMapping))
+        value = parameter_mapping.value
+        self.assertTrue(isinstance(value, RowMapping))
+        self.assertEqual(value.reference, 23)
+        extra_dimensions = parameter_mapping.extra_dimensions
+        self.assertEqual(len(extra_dimensions), 1)
+        dimension = extra_dimensions[0]
+        self.assertTrue(isinstance(dimension, ColumnMapping))
+        self.assertEqual(dimension.reference, "fifth column")
+        options = parameter_mapping.options
+        self.assertEqual(options.repeat, True)
 
 
 class TestMappingIsValid(unittest.TestCase):
