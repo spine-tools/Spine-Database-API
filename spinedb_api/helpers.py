@@ -695,7 +695,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("unit", "avail_factor", 1),
             ("unit", "min_down_time", None),
             ("unit", "min_up_time", None),
-            ("unit", "online_variable_type", "integer_online_variable"),
+            ("unit", "online_variable_type", "binary"),
             ("unit", "fix_units_on", None),
             ("temporal_block", "block_start", None),
             ("temporal_block", "block_end", None),
@@ -709,6 +709,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("model", "model_start", Date("2000-01-01T00:00:00")),
             ("model", "model_end", Date("2000-01-02T00:00:00")),
             ("model", "roll_forward", None),
+            ("model", "duration_unit", "Minute"),
         ),
         relationship_parameters=(
             ("unit__commodity", "unit_conv_cap_to_flow", 1),
