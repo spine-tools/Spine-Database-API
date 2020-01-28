@@ -37,45 +37,9 @@ MAPPINGCOLLECTION = "collection"
 VALID_PARAMETER_TYPES = ['time series', 'time pattern', '1d array', 'single value', 'definition']
 
 
-def valid_mapping_or_value(mapping):
-    if isinstance(mapping, Mapping):
-        valid, msg = mapping.is_valid()
-        if not valid:
-            return False, msg
-    if mapping is None:
-        return False, "No mapping specified."
-    return True, ""
-
-
-def none_is_minus_inf(value):
-    """Returns minus infinity if value is None, otherwise returns the value.
-    Used in the `key` argument to the `max` function.
+class MappingBase:
     """
-    if value is None:
-        return float("-inf")
-    return value
-
-
-def mapping_from_dict_int_str(value, map_type=COLUMN):
-    """Creates Mapping object if `value` is a `dict` or `int`;
-    if `str` or `None` returns same value. If `int`, the Mapping is created
-    with map_type == column (default) unless other type is specified
-    """
-    if value is None:
-        return None
-    if isinstance(value, dict):
-        return Mapping.from_dict(value)
-    elif isinstance(value, int):
-        return Mapping(map_type=map_type, value_reference=value)
-    elif isinstance(value, str):
-        return value
-    else:
-        raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
-
-
-class Mapping:
-    """
-    Class for holding and validating Mapping specification::
+    Class for holding and validating Mapping specification:
     
         Mapping {
             map_type: 'column' | 'row' | 'column_name'
@@ -85,18 +49,16 @@ class Mapping:
         }
     """
 
-    _required_fields = ("map_type",)
+    MAP_TYPE = ""
 
-    def __init__(self, map_type=COLUMN, value_reference=None, append_str=None, prepend_str=None):
+    def __init__(self, reference=None, append_str=None, prepend_str=None):
 
         # this needs to be before value_reference because value_reference uses
         # self.map_type
-        self._map_type = COLUMN
-        self._value_reference = None
+        self._reference = None
         self._append_str = None
         self._prepend_str = None
-        self.map_type = map_type
-        self.value_reference = value_reference
+        self.reference = reference
         self.append_str = append_str
         self.prepend_str = prepend_str
 
@@ -109,56 +71,40 @@ class Mapping:
         return self._prepend_str
 
     @property
-    def map_type(self):
-        return self._map_type
-
-    @property
-    def value_reference(self):
-        return self._value_reference
+    def reference(self):
+        return self._reference
 
     @append_str.setter
-    def append_str(self, append_str=None):
+    def append_str(self, append_str):
         if append_str is not None and not isinstance(append_str, str):
             raise ValueError(f"append_str must be a None or str, instead got {type(append_str)}")
         self._append_str = append_str
 
     @prepend_str.setter
-    def prepend_str(self, prepend_str=None):
+    def prepend_str(self, prepend_str):
         if prepend_str is not None and not isinstance(prepend_str, str):
             raise ValueError(f"prepend_str must be None or str, instead got {type(prepend_str)}")
         self._prepend_str = prepend_str
 
-    @map_type.setter
-    def map_type(self, map_type=COLUMN):
-        if map_type not in [ROW, COLUMN, COLUMN_NAME]:
-            raise ValueError(f"map_type must be '{ROW}', '{COLUMN}' or '{COLUMN_NAME}', instead got '{map_type}'")
-        self._map_type = map_type
-
-    @value_reference.setter
-    def value_reference(self, value_reference=None):
-        if value_reference is not None and not isinstance(value_reference, (str, int)):
-            raise ValueError(f"value_reference must be str or int, instead got {type(value_reference)}")
-        if isinstance(value_reference, str) and self.map_type == ROW:
-            raise ValueError(f'value_reference cannot be str if map_type = "{self.map_type}"')
-        if isinstance(value_reference, int):
-            if value_reference < 0 and self.map_type in (COLUMN, COLUMN_NAME):
-                raise ValueError(f'value_reference must be >= 0 if map_type is "{COLUMN}" or "{COLUMN_NAME}"')
-            if value_reference < -1 and self.map_type == ROW:
-                raise ValueError(f'value_reference must be >= -1 if map_type is "{ROW}"')
-        self._value_reference = value_reference
+    @reference.setter
+    def reference(self, reference):
+        """Setter method for reference, should be implemented in subclasses
+        """
+        NotImplementedError()
 
     def is_pivoted(self):
-        """Returns True if Mapping type is ROW"""
-        return self.map_type == ROW
+        """Should return True if Mapping type is reading columns in a row, pivoted."""
+        NotImplementedError()
 
     def last_pivot_row(self):
-        if self.is_pivoted():
-            return self.value_reference
-        else:
-            return -1
+        """Returns the last row that is pivoted"""
+        return -1
 
     def to_dict(self):
-        map_dict = {"value_reference": self.value_reference, "map_type": self.map_type}
+        """Creates a dict representation of mapping, should be compatible with json.dumps and json.loads"""
+        map_dict = {"map_type": self.MAP_TYPE}
+        if self.reference is not None:
+            map_dict.update({"reference": self.reference})
         if self.append_str is not None:
             map_dict.update({"append_str": self.append_str})
         if self.prepend_str is not None:
@@ -167,20 +113,274 @@ class Mapping:
 
     @classmethod
     def from_dict(cls, map_dict):
+        """Creates a mapping object from dict representation of mapping
+        
+        Should return an instance of the subclass
+        """
+        NotImplementedError()
+
+    def is_valid(self):
+        """Should return True or False if mapping is ready to read data.
+        """
+        if self.reference is None:
+            return False
+        return True
+
+    def returns_value(self):
+        return self.is_valid()
+
+
+class NoneMapping(MappingBase):
+    """Class for holding a reference to a column by number or header string
+    
+    Arguments:
+        MappingBase {[type]} -- [description]
+    
+    Raises:
+        TypeError: [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
+    MAP_TYPE = "None"
+
+    def __init__(self, *args, **kwargs):
+        super(NoneMapping, self).__init__(*args, **kwargs)
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        """Setter method for reference, should be implemented in subclasses
+        """
+
+    def is_pivoted(self):
+        """Should return True if Mapping type is reading columns in a row, pivoted."""
+        return False
+
+    def last_pivot_row(self):
+        """Returns the last row that is pivoted"""
+        return -1
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        """Creates a mapping object from dict representation of mapping
+        
+        Should return an instance of the subclass
+        """
         if not isinstance(map_dict, dict):
-            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict)}")
-        if not all(k in map_dict.keys() for k in cls._required_fields):
-            raise KeyError("dict must contain keys: {}".format(cls._required_fields))
-        map_type = map_dict["map_type"]
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        return NoneMapping()
+
+    def to_dict(self):
+        return {"map_type": self.MAP_TYPE}
+
+    def returns_value(self):
+        return False
+
+    def is_valid(self):
+        return True
+
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        return None, None, None
+
+
+class ConstantMapping(MappingBase):
+    """Class for holding a reference to a column by number or header string
+    
+    Arguments:
+        MappingBase {[type]} -- [description]
+    
+    Raises:
+        TypeError: [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
+    MAP_TYPE = "constant"
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        """Setter method for reference, should be implemented in subclasses
+        """
+        if reference is not None and not isinstance(reference, str):
+            raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
+        self._reference = reference
+
+    def is_pivoted(self):
+        """Should return True if Mapping type is reading columns in a row, pivoted."""
+        return False
+
+    def last_pivot_row(self):
+        """Returns the last row that is pivoted"""
+        return -1
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        """Creates a mapping object from dict representation of mapping
+        
+        Should return an instance of the subclass
+        """
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
         append_str = map_dict.get("append_str", None)
         prepend_str = map_dict.get("prepend_str", None)
-        value_reference = map_dict.get("value_reference", None)
-        return Mapping(map_type, value_reference, append_str, prepend_str)
+        reference = map_dict.get("reference", None)
+        if reference is None:
+            reference = map_dict.get("value_reference", None)
+        return cls(reference, append_str, prepend_str)
+
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        constant = str(self.reference)
+
+        def getter(_):
+            return constant
+
+        return getter, 1, False
+
+
+class ColumnMapping(ConstantMapping):
+    """Class for holding a reference to a column by number or header string
     
-    def is_valid(self):
-        if self.value_reference is None:
-            return False, "Mapping is missing a reference"
-        return True, ""
+    Arguments:
+        MappingBase {[type]} -- [description]
+    
+    Raises:
+        TypeError: [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
+    MAP_TYPE = "column"
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        """Setter method for reference, should be implemented in subclasses
+        """
+        if reference is not None and not isinstance(reference, (str, int)):
+            raise TypeError(f"reference must be int, str or None, instead got: {type(reference).__name__}")
+        if isinstance(reference, int) and reference < 0:
+            raise ValueError(f"If reference is an int, it must be >= 0, instead got: {reference}")
+        self._reference = reference
+
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        ref = self.reference
+        if isinstance(ref, str):
+            ref = data_header.index(ref)
+        getter = itemgetter(ref)
+        num = 1
+        reads_data = True
+        return getter, num, reads_data
+
+
+class ColumnHeaderMapping(ColumnMapping):
+    MAP_TYPE = "column_header"
+    """Class for holding a reference to a column header by number or header string
+    
+    Arguments:
+        MappingBase {[type]} -- [description]
+    
+    Raises:
+        TypeError: [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        ref = self.reference
+        if isinstance(ref, str):
+            ref = data_header.index(ref)
+        constant = data_header[ref]
+
+        def getter(_):
+            return constant
+
+        num = 1
+        reads_data = False
+        return getter, num, reads_data
+
+
+class RowMapping(MappingBase):
+    MAP_TYPE = "row"
+    """Class for holding a reference to a row number or headers
+    
+    Arguments:
+        MappingBase {[type]} -- [description]
+    
+    Raises:
+        TypeError: [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        """Setter method for reference, should be implemented in subclasses
+        """
+        if reference is not None and not isinstance(reference, int):
+            raise TypeError(f"reference must be int or None, instead got: {type(reference).__name__}")
+        if isinstance(reference, int) and reference < -1:
+            raise ValueError(f"If reference is an int, it must be >= -1, instead got: {reference}")
+        self._reference = reference
+
+    def is_pivoted(self):
+        """Should return True if Mapping type is reading columns in a row, pivoted."""
+        return True
+
+    def last_pivot_row(self):
+        """Returns the last row that is pivoted"""
+        if self._reference is None:
+            return -1
+        return self._reference
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        """Creates a mapping object from dict representation of mapping
+        
+        Should return an instance of the subclass
+        """
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        append_str = map_dict.get("append_str", None)
+        prepend_str = map_dict.get("prepend_str", None)
+        reference = map_dict.get("reference", None)
+        return RowMapping(reference, append_str, prepend_str)
+
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        if self.reference == -1:
+            # special case, read pivoted rows from data header instead
+            # of pivoted data.
+            read_from = data_header
+        else:
+            read_from = pivoted_data[self.reference]
+        if pivoted_columns:
+            piv_values = [read_from[i] for i in pivoted_columns]
+            num = len(piv_values)
+            if len(piv_values) == 1:
+                piv_values = piv_values[0]
+
+            def getter(_):
+                return piv_values
+
+            reads_data = False
+        else:
+            # no data
+            getter = None
+            num = None
+            reads_data = None
+        return getter, num, reads_data
 
 
 class TimeSeriesOptions:
@@ -190,382 +390,342 @@ class TimeSeriesOptions:
     Attributes:
         repeat (bool): time series repeat flag
     """
-    def __init__(self, repeat=False):
+    def __init__(self, repeat=False, ignore_year=False, fixed_resolution=False):
         self.repeat = repeat
+        self.ignore_year = ignore_year
+        self.fixed_resolution = fixed_resolution
 
     @staticmethod
     def from_dict(options_dict):
         """Restores TimeSeriesOptions from a dictionary."""
-        repeat = options_dict["repeat"]
-        return TimeSeriesOptions(repeat)
+        repeat = options_dict.get("repeat", False)
+        ignore_year = options_dict.get("ignore_year", False)
+        fixed_resolution = options_dict.get("fixed_resolution", False)
+        return TimeSeriesOptions(repeat, ignore_year, fixed_resolution)
 
     def to_dict(self):
         """Saves the options to a dictionary."""
-        return {"repeat": self.repeat}
+        return {"repeat": self.repeat, "ignore_year": self.ignore_year, "fixed_resolution": self.fixed_resolution}
 
 
-class ParameterMapping:
-    """
-    Class for holding and validating Mapping specification::
+class ParameterDefinitionMapping:
+    PARAMETER_TYPE = "definition"
+    MAP_TYPE = "parameter"
 
-        ParameterMapping {
-            map_type: 'parameter'
-            name: Mapping | str
-            value: Mapping | None
-            extra_dimensions: [Mapping] | None
-            parameter_type: 'time series' | 'time pattern' | '1d array' | 'single value'
-            options: TimeSeriesOptions | None
-        }
-    """
-
-    def __init__(self, name=None, value=None, extra_dimensions=None, parameter_type='single value', options=None):
+    def __init__(self, name=None):
+        self._name = ColumnMapping(None)
         self.name = name
-        self.value = value
-        self.extra_dimensions = extra_dimensions
-        if parameter_type == "time series" and options is None:
-            self.options = TimeSeriesOptions()
-        else:
-            self.options = options
-        self.parameter_type = parameter_type
-        self._map_type = PARAMETER
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = []
-        if self.name is not None:
-            if isinstance(self.name, Mapping) and self.name.map_type == COLUMN:
-                non_pivoted_columns.append(self.name.value_reference)
-        if self.value is not None and not self.is_pivoted():
-            if isinstance(self.value, Mapping) and self.value.map_type == COLUMN:
-                non_pivoted_columns.append(self.value.value_reference)
-        if self.extra_dimensions is not None:
-            for extra_dim in self.extra_dimensions:
-                if isinstance(extra_dim, Mapping) and extra_dim.map_type == COLUMN:
-                    non_pivoted_columns.append(extra_dim.value_reference)
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        last_pivot_rows = []
-        if isinstance(self.name, Mapping):
-            last_pivot_rows.append(self.name.last_pivot_row())
-        if self.extra_dimensions is not None:
-            last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
-        return max(last_pivot_rows, default=-1)
-
-    def is_pivoted(self):
-        if isinstance(self.name, Mapping) and self.name.is_pivoted():
-            return True
-        if self.extra_dimensions is not None and any(ed.is_pivoted() for ed in self.extra_dimensions if isinstance(ed, Mapping)):
-            return True
-        return False
 
     @property
     def name(self):
         return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = mappingbase_from_dict_int_str(name)
+
+    def non_pivoted_columns(self):
+        non_pivoted_columns = []
+        if isinstance(self.name, ColumnMapping) and self.name.returns_value():
+            non_pivoted_columns.append(self.name.reference)
+        return non_pivoted_columns
+
+    def last_pivot_row(self):
+        return self.name.last_pivot_row()
+
+    def is_pivoted(self):
+        return self.name.is_pivoted()
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise ValueError("map_dict must be a dict")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        return ParameterDefinitionMapping(name)
+
+    def to_dict(self):
+        map_dict = {"map_type": self.MAP_TYPE}
+        map_dict.update({"name": self.name.to_dict()})
+        map_dict.update({"parameter_type": self.PARAMETER_TYPE})
+        return map_dict
+
+    def is_valid(self, parent_pivot: bool):
+        # check that parameter mapping has a valid name mapping
+        if not self.name.returns_value():
+            return False, "Parameter mapping must have a valid name mapping that returns a value"
+        return True, ""
+
+    def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
+        if self.name.returns_value():
+            getter, num, reads = self.name.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        else:
+            getter, num, reads = (None, None, None)
+        return {"name": (getter, num, reads)}
+
+
+class ParameterValueMapping(ParameterDefinitionMapping):
+    PARAMETER_TYPE = "single value"
+
+    def __init__(self, name=None, value=None):
+        super(ParameterValueMapping, self).__init__(name)
+        self._value = ColumnMapping(None)
+        self.value = value
 
     @property
     def value(self):
         return self._value
 
-    @property
-    def extra_dimensions(self):
-        return self._extra_dimensions
-    
-    @property
-    def parameter_type(self):
-        return self._parameter_type
-    
-    @parameter_type.setter
-    def parameter_type(self, parameter_type):
-        if not isinstance(parameter_type, str):
-            raise TypeError(f"parameter_type must be str, instead got: {type(parameter_type)}")
-        parameter_type = parameter_type.lower()
-        if parameter_type not in VALID_PARAMETER_TYPES:
-            raise ValueError(f"parameter_type must be one of the following: {VALID_PARAMETER_TYPES}, instead got {parameter_type}")
-        if parameter_type != "time series":
-            self.options = None
-        elif self.options is None:
-            self.options = TimeSeriesOptions()
-        self._parameter_type = parameter_type
-
-    @name.setter
-    def name(self, name=None):
-        if name is not None and not isinstance(name, (str, Mapping)):
-            raise ValueError(f"""name must be a None, str or Mapping, instead got {type(name)}""")
-        self._name = name
-
     @value.setter
-    def value(self, value=None):
-        if value is not None and not isinstance(value, (str, Mapping)):
-            raise ValueError(f"""value must be a None, Mapping or string, instead got {type(value)}""")
-        self._value = value
+    def value(self, value):
+        self._value = mappingbase_from_dict_int_str(value)
 
-    @extra_dimensions.setter
-    def extra_dimensions(self, extra_dimensions=None):
-        if extra_dimensions is not None and not all(
-            isinstance(ed, (Mapping, str)) or ed is None for ed in extra_dimensions
-        ):
-            ed_types = [type(ed) for ed in extra_dimensions]
-            raise TypeError(f"""extra_dimensions must be a list of Mapping or str, instead got {ed_types}""")
-        self._extra_dimensions = extra_dimensions
+    def non_pivoted_columns(self):
+        non_pivoted_columns = super().non_pivoted_columns()
+        if isinstance(self.value, ColumnMapping) and self.value.returns_value():
+            non_pivoted_columns.append(self.value.reference)
+        return non_pivoted_columns
 
-    @staticmethod
-    def from_dict(map_dict):
+    def last_pivot_row(self):
+        return max(super().last_pivot_row(), self.value.last_pivot_row())
+
+    def is_pivoted(self):
+        return super().is_pivoted() or self.value.is_pivoted()
+
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
-        name = mapping_from_dict_int_str(map_dict.get("name", None))
-        value = mapping_from_dict_int_str(map_dict.get("value", None))
-        extra_dimensions = map_dict.get("extra_dimensions", None)
-        parameter_type = map_dict.get("parameter_type", 'single value')
-        if isinstance(extra_dimensions, list):
-            extra_dimensions = [mapping_from_dict_int_str(ed) for ed in extra_dimensions]
-        options = map_dict.get("options", None)
-        if options is not None:
-            options = TimeSeriesOptions.from_dict(options)
-        return ParameterMapping(name, value, extra_dimensions, parameter_type, options)
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        value = map_dict.get("value", None)
+        return ParameterValueMapping(name, value)
 
     def to_dict(self):
-        map_dict = {"map_type": self._map_type}
-        if self.name is not None:
-            if isinstance(self.name, Mapping):
-                map_dict.update({"name": self.name.to_dict()})
-            else:
-                map_dict.update({"name": self.name})
-        if self.value is not None:
-            if isinstance(self.value, Mapping):
-                map_dict.update({"value": self.value.to_dict()})
-            else:
-                map_dict.update({"value": self.value})
-        if self.extra_dimensions is not None:
-            extra_dim_list = []
-            for extra_dim in self.extra_dimensions:
-                if extra_dim is None:
-                    extra_dim = Mapping()
-                extra_dim = extra_dim if isinstance(extra_dim, str) else extra_dim.to_dict()
-                extra_dim_list.append(extra_dim)
-            map_dict.update({"extra_dimensions": extra_dim_list})
-        map_dict["options"] = self.options.to_dict() if self.options is not None else None
-        map_dict.update({"parameter_type": self.parameter_type})
+        map_dict = super().to_dict()
+        map_dict["map_type"] = self.MAP_TYPE
+        map_dict.update({"parameter_type": self.PARAMETER_TYPE})
+        map_dict.update({"value": self.value.to_dict()})
         return map_dict
-    
+
     def is_valid(self, parent_pivot: bool):
         # check that parameter mapping has a valid name mapping
-        name_valid, msg = valid_mapping_or_value(self.name)
+        name_valid, msg = super().is_valid(parent_pivot)
         if not name_valid:
-            return False, "Parameter mapping must have a valid name mapping, current name mapping is not valid: " + msg
-        if self.parameter_type != 'definition':
-            # check if value mapping exists
-            if not (self.is_pivoted() or parent_pivot):
-                value_valid, msg = valid_mapping_or_value(self.value)
-                if not value_valid:
-                    return False, "Parameter mapping must have a valid value mapping, current name mapping is not valid: " + msg
-            # check that "single value" and "1d array" doesn't have any extra dimensions
-            if self.parameter_type in ["single value", "1d array"] and self.extra_dimensions:
-                return False, "Parameter mapping of type 'single value' or '1d array' cannot have any extra dimension mappings specified."
-            # check that extra dimension exists if needed
-            if self.parameter_type in ["time series", "time pattern"]:
-                if self.extra_dimensions is None or len(self.extra_dimensions) != 1:
-                    return False, "Parameter mapping of type 'time series' or 'time pattern' must have 1 extra dimensions mapping specified."
-                for extra_dim in self.extra_dimensions:
-                    extra_dim_valid, msg = valid_mapping_or_value(extra_dim)
-                    if not extra_dim_valid:
-                        return False, "Parameter mapping of type 'time series' or 'time pattern' must have valid extra dimensions mapping, current is not valid: " + msg
+            return False, msg
+        if not (self.is_pivoted() or parent_pivot) and not self.value.returns_value():
+            return False, "Parameter value mapping must be a valid mapping that returns a value"
         return True, ""
 
-
-class ParameterColumnCollectionMapping:
-    """
-    Class for holding and validating Mapping specification::
+    def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
+        getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
+        num, getter, reads = (None, None, None)
+        if (is_pivoted or self.is_pivoted()) and not self.value.is_pivoted():
+            # if mapping is pivoted values for parameters are read from pivoted data
+            if pivoted_columns:
+                num = len(pivoted_columns)
+                getter = itemgetter(*pivoted_columns)
+                reads = True
+        elif self.value.returns_value():
+            getter, num, reads = self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        getters["value"] = (getter, num, reads)
+        return getters
     
-        ParameterColumnCollectionMapping {
-            map_type: 'parameter_column_collection'
-            parameters: [ParameterColumnMapping]
-            extra_dimensions: [Mapping] | None
-        }
-    """
+    def raw_data_to_type(self, data):
+        return data
 
-    def __init__(self, parameters=None, extra_dimensions=None):
-        self._parameters = None
-        self._extra_dimensions = None
-        self.parameters = parameters
-        self.extra_dimensions = extra_dimensions
-        self._map_type = PARAMETERCOLUMNCOLLECTION
 
-    def non_pivoted_columns(self):
-        non_pivoted_columns = []
-        if self.parameters is not None:
-            for parameter in self.parameters:
-                non_pivoted_columns.extend(parameter.non_pivoted_columns())
-        if self.extra_dimensions is not None:
-            for extra_dim in self.extra_dimensions:
-                if isinstance(extra_dim, Mapping) and extra_dim.map_type == COLUMN:
-                    non_pivoted_columns.append(extra_dim.value_reference)
-        return non_pivoted_columns
+class ParameterListMapping(ParameterValueMapping):
+    NUM_EXTRA_DIMENSIONS = 1
+    PARAMETER_TYPE = "1d array"
 
-    def last_pivot_row(self):
-        last_pivot_rows = []
-        if self.extra_dimensions is not None:
-            last_pivot_rows += [m.last_pivot_row() for m in self.extra_dimensions if isinstance(m, Mapping)]
-        return max(last_pivot_rows, default=None)
-
-    def is_pivoted(self):
-        if self.extra_dimensions is not None:
-            return any(ed.is_pivoted() for ed in self.extra_dimensions if isinstance(ed, Mapping))
-        return False
-
-    @property
-    def parameters(self):
-        return self._parameters
+    def __init__(self, name=None, value=None, extra_dimension=None):
+        super(ParameterListMapping, self).__init__(name, value)
+        self._extra_dimensions = [mappingbase_from_dict_int_str(None) for _ in range(self.NUM_EXTRA_DIMENSIONS)]
+        self.extra_dimensions = extra_dimension
 
     @property
     def extra_dimensions(self):
         return self._extra_dimensions
 
-    @parameters.setter
-    def parameters(self, parameters=None):
-        if parameters is not None and not isinstance(parameters, list):
-            raise ValueError(f"""parameters must be a None or list, instead got {type(parameters)}""")
-        for i, parameter in enumerate(parameters):
-            if not isinstance(parameter, ParameterColumnMapping):
-                raise ValueError(
-                    f"""parameters must be a list with all ParameterColumnMapping, instead got {type(parameter)} on index {i}"""
-                )
-        self._parameters = parameters
-
     @extra_dimensions.setter
-    def extra_dimensions(self, extra_dimensions=None):
-        if extra_dimensions is not None and not all(isinstance(ex, (Mapping, str)) for ex in extra_dimensions):
-            ed_types = [type(ed) for ed in extra_dimensions]
-            raise TypeError(f"""extra_dimensions must be a list of Mapping or str, instead got {ed_types}""")
-        self._extra_dimensions = extra_dimensions
-
-    @staticmethod
-    def from_dict(map_dict):
-        if not isinstance(map_dict, dict):
-            raise TypeError("map_dict must be a dict, instead got {type(map_dict)}")
-        parameters = map_dict.get("parameters", None)
-        if isinstance(parameters, list):
-            for i, parameter in enumerate(parameters):
-                if isinstance(parameter, int):
-                    parameters[i] = ParameterColumnMapping(column=parameter)
-                else:
-                    parameters[i] = ParameterColumnMapping.from_dict(parameter)
-        extra_dimensions = map_dict.get("extra_dimensions", None)
-        if isinstance(extra_dimensions, list):
-            extra_dimensions = [mapping_from_dict_int_str(ed) for ed in extra_dimensions]
-        return ParameterColumnCollectionMapping(parameters, extra_dimensions)
-
-    def to_dict(self):
-        map_dict = {"map_type": self._map_type}
-        if self.parameters is not None:
-            parameter = [p if isinstance(p, str) else p.to_dict() for p in self.parameters]
-            map_dict.update({"parameters": parameter})
-        if self.extra_dimensions is not None:
-            extra_dim = [ed if isinstance(ed, str) else ed.to_dict() for ed in self.extra_dimensions]
-            map_dict.update({"extra_dimensions": extra_dim})
-        return map_dict
-
-
-class ParameterColumnMapping:
-    """
-    Class for holding and validating Mapping specification::
-    
-        ParameterColumnMapping {
-            map_type: 'parameter_column'
-            name: str | None #overrides column name
-            column: str | int
-            append_str: str | None
-            prepend_str: str | None]
-        }
-    """
-
-    def __init__(self, name=None, column=None, append_str=None, prepend_str=None):
-        self._name = None
-        self._column = None
-        self._append_str = None
-        self._prepend_str = None
-
-        self.name = name
-        self.column = column
-        self.append_str = append_str
-        self.prepend_str = prepend_str
-        self._map_type = PARAMETERCOLUMN
+    def extra_dimensions(self, extra_dimensions):
+        if extra_dimensions is None:
+            extra_dimensions = [mappingbase_from_dict_int_str(None) for _ in range(self.NUM_EXTRA_DIMENSIONS)]
+        if not isinstance(extra_dimensions, (list, tuple)):
+            raise TypeError(
+                f"extra_dimensions must be a list or tuple of MappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
+            )
+        if len(extra_dimensions) != self.NUM_EXTRA_DIMENSIONS:
+            raise ValueError(
+                f"extra_dimensions must be of length: {self.NUM_EXTRA_DIMENSIONS} instead got len: {len(extra_dimensions)}"
+            )
+        self._extra_dimensions = [mappingbase_from_dict_int_str(ed) for ed in extra_dimensions]
 
     def non_pivoted_columns(self):
-        non_pivoted_columns = []
-        if self.column is not None:
-            non_pivoted_columns = [self.column]
+        non_pivoted_columns = super().non_pivoted_columns()
+        non_pivoted_columns.extend(ed.reference for ed in self.extra_dimensions if isinstance(ed, ColumnMapping) and ed.returns_value())
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        return -1
+        return max(super().last_pivot_row(), max(ed.last_pivot_row() for ed in self.extra_dimensions))
 
     def is_pivoted(self):
-        return False
+        return super().is_pivoted() or any(ed.is_pivoted() for ed in self.extra_dimensions)
 
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def column(self):
-        return self._column
-
-    @property
-    def append_str(self):
-        return self._append_str
-
-    @property
-    def prepend_str(self):
-        return self._prepend_str
-
-    @name.setter
-    def name(self, name=None):
-        if name is not None and not isinstance(name, (str,)):
-            raise ValueError(f"""name must be a None or str, instead got {type(name)}""")
-        self._name = name
-
-    @column.setter
-    def column(self, column=None):
-        if column is not None and not isinstance(column, (str, int)):
-            raise ValueError(f"""column must be a None, str or int, instead got {type(column)}""")
-        self._column = column
-
-    @append_str.setter
-    def append_str(self, append_str=None):
-        if append_str is not None and not isinstance(append_str, (str,)):
-            raise TypeError(f"""append_str must be a None or str, instead got {type(append_str)}""")
-        self._append_str = append_str
-
-    @prepend_str.setter
-    def prepend_str(self, prepend_str=None):
-        if prepend_str is not None and not isinstance(prepend_str, (str,)):
-            raise TypeError(f"""prepend_str must be a None or str, instead got {type(prepend_str)}""")
-        self._prepend_str = prepend_str
-
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise ValueError("map_dict must be a dict")
+        map_type = map_dict.get("map_type", None)
+        parameter_type = map_dict.get("parameter_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        if parameter_type is not None and parameter_type != cls.PARAMETER_TYPE:
+            raise ValueError(
+                f"If field 'parameter_type' is specified, it must be {cls.PARAMETER_TYPE}, instead got {parameter_type}"
+            )
+
         name = map_dict.get("name", None)
-        column = map_dict.get("column", None)
-        append_str = map_dict.get("append_str", None)
-        prepend_str = map_dict.get("prepend_str", None)
-        return ParameterColumnMapping(name, column, append_str, prepend_str)
+        value = map_dict.get("value", None)
+        extra_dimensions = map_dict.get("extra_dimensions", None)
+        return cls(name, value, extra_dimensions)
 
     def to_dict(self):
-        map_dict = {"map_type": self._map_type}
-        if self.name is not None:
-            map_dict.update({"name": self.name})
-        if self.column is not None:
-            map_dict.update({"column": self.column})
-        if self.append_str is not None:
-            map_dict.update({"append_str": self.append_str})
-        if self.prepend_str is not None:
-            map_dict.update({"prepend_str": self.prepend_str})
+        map_dict = super().to_dict()
+        map_dict["map_type"] = self.MAP_TYPE
+        map_dict.update({"parameter_type": self.PARAMETER_TYPE})
+        map_dict.update({"extra_dimensions": [ed.to_dict() for ed in self.extra_dimensions]})
         return map_dict
 
+    def is_valid(self, parent_pivot: bool):
+        # check that parameter mapping has a valid name mapping
+        valid, msg = super().is_valid(parent_pivot)
+        if not valid:
+            return False, msg
+        if not all(ed.returns_value() for ed in self.extra_dimensions):
+            return False, "All mappings in extra_dimensions must be valid and return a value"
+        return True, ""
 
-class ObjectClassMapping:
+    def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
+        getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
+        value_getter, value_num, value_reads = getters["value"]
+        if value_getter is None:
+            return getters
+        has_ed = False
+        if all(ed.returns_value() for ed in self.extra_dimensions):
+            # create functions to get extra_dimensions if there is a value getter
+            ed_getters, ed_num, ed_reads_data = create_getter_list(
+                self.extra_dimensions, pivoted_columns, pivoted_data, data_header
+            )
+            value_getter = ed_getters + [value_getter]
+            value_num = ed_num + [value_num]
+            value_reads = ed_reads_data + [value_reads]
+            # create a function that returns a tuple with extra dimensions and value
+            value_getter, value_num, value_reads = create_getter_function_from_function_list(
+                value_getter, value_num, value_reads
+            )
+            has_ed = True
+
+        getters["value"] = (value_getter, value_num, value_reads)
+        getters["has_extra_dimensions"]: has_ed
+
+        return getters
+    
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [value[-1] for value in values if value[-1] is not None]
+            if values:
+                out.append(keys + (values,))
+        return out
+
+
+class ParameterTimeSeriesMapping(ParameterListMapping):
+    NUM_EXTRA_DIMENSIONS = 1
+    PARAMETER_TYPE = "time series"
+
+    def __init__(self, name=None, value=None, extra_dimension=None, options=None):
+        super(ParameterTimeSeriesMapping, self).__init__(name, value, extra_dimension)
+        self._options = TimeSeriesOptions()
+        self.options = options
+
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, options):
+        if options is None:
+            options = TimeSeriesOptions()
+        if not isinstance(options, TimeSeriesOptions):
+            raise TypeError(
+                f"options must be a TimeSeriesOptions, instead got: {type(options).__name__}"
+            )
+        self._options = options
+    
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise ValueError("map_dict must be a dict")
+        map_type = map_dict.get("map_type", None)
+        parameter_type = map_dict.get("parameter_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        if parameter_type is not None and parameter_type != cls.PARAMETER_TYPE:
+            raise ValueError(
+                f"If field 'parameter_type' is specified, it must be {cls.PARAMETER_TYPE}, instead got {parameter_type}"
+            )
+
+        name = map_dict.get("name", None)
+        value = map_dict.get("value", None)
+        extra_dimensions = map_dict.get("extra_dimensions", None)
+        options = map_dict.get("options", None)
+        if options:
+            options = TimeSeriesOptions.from_dict(options)
+        return cls(name, value, extra_dimensions, options)
+
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict["options"] = self.options.to_dict()
+        return map_dict
+
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+            if values:
+                indexes = [items[0] for items in values]
+                values = [items[1] for items in values]
+                out.append(keys + (TimeSeriesVariableResolution(indexes, values, self.options.ignore_year, self.options.repeat),))
+        return out
+
+
+class ParameterTimePatternMapping(ParameterListMapping):
+    NUM_EXTRA_DIMENSIONS = 1
+    PARAMETER_TYPE = "time pattern"
+
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+            if values:
+                indexes = [items[0] for items in values]
+                values = [items[1] for items in values]
+                out.append(keys + (TimePattern(indexes, values),))
+        return out
+
+
+class EntityClassMapping:
     """
     Class for holding and validating Mapping specification::
 
@@ -577,14 +737,14 @@ class ObjectClassMapping:
         }
     """
 
-    def __init__(self, name=None, obj=None, parameters=None, skip_columns=None, read_start_row=0):
-        self._name = None
-        self._object = None
-        self._parameters = None
-        self._skip_columns = None
-        self._read_start_row = None
+    MAP_TYPE = "EnitityClass"
+
+    def __init__(self, name=None, parameters=None, skip_columns=None, read_start_row=0):
+        self._name = NoneMapping()
+        self._parameters = NoneMapping()
+        self._skip_columns = []
+        self._read_start_row = 0
         self.name = name
-        self.object = obj
         self.parameters = parameters
         self.skip_columns = skip_columns
         self.read_start_row = read_start_row
@@ -592,34 +752,20 @@ class ObjectClassMapping:
 
     def non_pivoted_columns(self):
         non_pivoted_columns = []
-        if self.name is not None:
-            if isinstance(self.name, Mapping) and self.name.map_type == COLUMN:
-                non_pivoted_columns.append(self.name.value_reference)
-        if self.object is not None:
-            if isinstance(self.object, Mapping) and self.object.map_type == COLUMN:
-                non_pivoted_columns.append(self.object.value_reference)
-        if self.parameters is not None:
+        if isinstance(self.name, ColumnMapping) and self.name.returns_value():
+            non_pivoted_columns.append(self.name.reference)
+        if isinstance(self.parameters, ParameterDefinitionMapping):
             non_pivoted_columns.extend(self.parameters.non_pivoted_columns())
         return non_pivoted_columns
 
     def last_pivot_row(self):
         last_pivot_row = -1
-        if isinstance(self.name, Mapping):
-            last_pivot_row = self.name.last_pivot_row()
-        if isinstance(self.object, Mapping):
-            last_pivot_row = max(last_pivot_row, self.object.last_pivot_row())
-        if isinstance(self.parameters, (ParameterMapping, ParameterColumnCollectionMapping)):
-            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row())
+        last_pivot_row = max(self.name.last_pivot_row(), last_pivot_row)
+        last_pivot_row = max(self.parameters.last_pivot_row(), last_pivot_row)
         return last_pivot_row
 
     def is_pivoted(self):
-        if isinstance(self.name, Mapping) and self.name.is_pivoted():
-            return True
-        if isinstance(self.object, Mapping) and self.object.is_pivoted():
-            return True
-        if isinstance(self.parameters, (ParameterMapping, ParameterColumnCollectionMapping)) and self.parameters.is_pivoted():
-            return True
-        return False
+        return self.name.is_pivoted() or self.parameters.is_pivoted()
 
     @property
     def read_start_row(self):
@@ -632,10 +778,6 @@ class ObjectClassMapping:
     @property
     def name(self):
         return self._name
-
-    @property
-    def object(self):
-        return self._object
 
     @property
     def parameters(self):
@@ -650,37 +792,25 @@ class ObjectClassMapping:
         self._read_start_row = row
 
     @name.setter
-    def name(self, name=None):
-        if name is not None and not isinstance(name, (str, Mapping)):
-            raise TypeError(
-                f"""name must be a None, str or Mapping,
-                            instead got {type(name)}"""
-            )
-        self._name = name
-
-    @object.setter
-    def object(self, obj=None):
-        if obj is not None and not isinstance(obj, (str, Mapping)):
-            raise ValueError(
-                f"""obj must be None, str or Mapping,
-                             instead got {type(obj)}"""
-            )
-        self._object = obj
+    def name(self, name):
+        self._name = mappingbase_from_dict_int_str(name)
 
     @parameters.setter
     def parameters(self, parameters=None):
-        if parameters is not None and not isinstance(parameters, (ParameterMapping, ParameterColumnCollectionMapping)):
+        if parameters is None:
+            parameters = NoneMapping()
+        if not isinstance(parameters, (ParameterDefinitionMapping, NoneMapping)):
             raise ValueError(
-                f"""parameters must be a None, ParameterMapping or
-                             ParameterColumnCollectionMapping, instead got
-                             {type(parameters)}"""
+                f"""parameters must be a None, ParameterDefinition or
+                             NoneMapping, instead got
+                             {type(parameters).__name__}"""
             )
         self._parameters = parameters
 
     @skip_columns.setter
     def skip_columns(self, skip_columns=None):
         if skip_columns is None:
-            self._skip_columns = None
+            self._skip_columns = []
         else:
             if isinstance(skip_columns, (str, int)):
                 skip_columns = [skip_columns]
@@ -699,557 +829,488 @@ class ObjectClassMapping:
                 )
             self._skip_columns = skip_columns
 
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
-            raise TypeError("map_dict must be a dict, instead got {type(map_dict)}")
-        if map_dict.get("map_type", None) != OBJECTCLASS:
-            raise ValueError(
-                f'''map_dict must contain field "map_type"
-                             with value: "{OBJECTCLASS}"'''
-            )
-        name = mapping_from_dict_int_str(map_dict.get("name", None))
-        obj = mapping_from_dict_int_str(map_dict.get("object", None))
-        parameters = map_dict.get("parameters", None)
-        skip_columns = map_dict.get("skip_columns", None)
-        read_start_row = map_dict.get("read_start_row", 0)
-        if isinstance(parameters, dict):
-            p_type = parameters.get("map_type", None)
-            if p_type == PARAMETER:
-                parameters = ParameterMapping.from_dict(parameters)
-            elif p_type == PARAMETERCOLUMNCOLLECTION:
-                parameters = ParameterColumnCollectionMapping.from_dict(parameters)
-        elif isinstance(parameters, list) and all(isinstance(p, (int, dict)) for p in parameters):
-            parameters = {"map_type": PARAMETERCOLUMNCOLLECTION, "parameters": list(parameters)}
-            parameters = ParameterColumnCollectionMapping.from_dict(parameters)
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
 
-        return ObjectClassMapping(name, obj, parameters, skip_columns, read_start_row)
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        parameters = map_dict.get("parameters", None)
+        skip_columns = map_dict.get("skip_columns", [])
+        read_start_row = map_dict.get("read_start_row", 0)
+        return EntityClassMapping(name, parameters, skip_columns, read_start_row)
 
     def to_dict(self):
-        map_dict = {"map_type": self._map_type}
-        if self.name is not None:
-            if isinstance(self.name, Mapping):
-                map_dict.update(name=self.name.to_dict())
-            else:
-                map_dict.update(name=self.name)
-        if self.object is not None:
-            map_dict.update(object=self.object if isinstance(self.object, str) else self.object.to_dict())
-        if self.parameters is not None:
-            map_dict.update(parameters=self.parameters.to_dict())
-        if self.skip_columns:
-            map_dict.update(skip_columns=self.skip_columns)
+        map_dict = {"map_type": self.MAP_TYPE}
+        map_dict.update(name=self.name.to_dict())
+        map_dict.update(parameters=self.parameters.to_dict())
+        map_dict.update(skip_columns=self.skip_columns)
         map_dict.update(read_start_row=self.read_start_row)
         return map_dict
-    
+
     def is_valid(self):
         # check that parameter mapping has a valid name mapping
-        name_valid, msg = valid_mapping_or_value(self.name)
-        if not name_valid:
-            return False, "Object class mapping must have a valid name mapping, current name mapping is not valid: " + msg
-        
-        #check that object mapping is valid if it exists:
-        if isinstance(self.object, Mapping):
-            object_valid, msg = self.object.is_valid()
-            if not object_valid:
-                return False, "Object class mapping has an invalid object mapping: " + msg
-
-        if self.parameters is not None:
-            # check if parameter mapping is valid if of definition type:
-            param_valid, msg = self.parameters.is_valid(self.is_pivoted())
-            if not param_valid:
-                return False, "Object class mapping has an invalid parameters mapping: " + msg
-
-            # check that object is valid if we have a parameter mapping that has a value mapping
-            if self.parameters.parameter_type != 'definition':
-                object_valid, msg = valid_mapping_or_value(self.object)
-                if not object_valid:
-                    return False, "Object class mapping has a parameter mapping but object mapping is not valid: " + msg
+        if not self.name.is_valid():
+            return False, "name mapping must be valid"
+        if not isinstance(self.parameters, NoneMapping):
+            valid, msg = self.parameters.is_valid(self.is_pivoted())
+            if not valid:
+                return False, "Parameter mapping must be valid, parameter mapping error: " + msg
         return True, ""
 
+    def pivoted_columns(self, data_header, num_cols):
+        # make sure all column references are found
+        non_pivoted_columns = self.non_pivoted_columns()
+        int_non_piv_cols = []
+        for pc in non_pivoted_columns:
+            if isinstance(pc, str):
+                if pc not in data_header:
+                    raise IndexError(
+                        f"""mapping contains string reference to data header but reference "{pc}"
+                        could not be found in header."""
+                    )
+                pc = data_header.index(pc)
+            if pc >= num_cols:
+                raise IndexError(f"""mapping contains invalid index: {pc}, data column number: {num_cols}""")
+            int_non_piv_cols.append(pc)
+        if self.is_pivoted():
+            # paramater column mapping is not in use and we have a pivoted mapping
+            pivoted_cols = set(range(num_cols)).difference(set(int_non_piv_cols))
+            # remove skipped columns
+            for skip_c in self.skip_columns:
+                if isinstance(skip_c, str):
+                    if skip_c in data_header:
+                        skip_c = data_header.index(skip_c)
+                pivoted_cols.discard(skip_c)
+        else:
+            # no pivoted mapping
+            pivoted_cols = []
+        return pivoted_cols
 
-class RelationshipClassMapping:
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        """Creates a list of getter functions from a list of Mappings"""
+        readers = dict()
+        getter, num, reads = (None, None, None)
+        if self.name.returns_value():
+            getter, num, reads = self.name.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        readers["class_name"] = (getter, num, reads)
+        if isinstance(self.parameters, ParameterDefinitionMapping):
+            par_readers = self.parameters.create_getter_list(self.is_pivoted(), pivoted_columns, pivoted_data, data_header)
+            if "name" in par_readers:
+                par_readers["parameter name"] = par_readers.pop("name")
+            if "value" in par_readers:
+                par_readers["parameter value"] = par_readers.pop("value")
+            readers.update(**par_readers)
+        return readers
+
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        return []
+
+
+class ObjectClassMapping(EntityClassMapping):
     """
     Class for holding and validating Mapping specification::
-    
-        RelationshipClassMapping {
-            map_type: 'relationship'
-            name:  str | Mapping
-            object_classes: [str | Mapping] | None
-            objects: [str | Mapping] | None
+
+        ObjectClassMapping {
+            map_type: 'object'
+            name: str | Mapping
+            objects: Mapping | str | None
             parameters: ParameterMapping | ParameterColumnCollectionMapping | None
         }
     """
 
-    def __init__(
-        self, name=None, object_classes=None, objects=None, parameters=None, skip_columns=None, import_objects=False, read_start_row=0
-    ):
-        self._map_type = RELATIONSHIPCLASS
-        self._name = None
-        self._object_classes = None
-        self._objects = None
-        self._parameters = None
-        self._skip_columns = None
-        self._import_objects = None
-        self._read_start_row = None
-        self.name = name
-        self.object_classes = object_classes
+    MAP_TYPE = "ObjectClass"
+
+    def __init__(self, *args, objects=None, **kwargs):
+        super(ObjectClassMapping, self).__init__(*args, **kwargs)
+        self._objects = NoneMapping()
         self.objects = objects
-        self.parameters = parameters
-        self.skip_columns = skip_columns
-        self.import_objects = import_objects
-        self.read_start_row = read_start_row
 
     def non_pivoted_columns(self):
-        non_pivoted_columns = []
-        if self.name is not None:
-            if isinstance(self.name, Mapping) and self.name.map_type == COLUMN:
-                non_pivoted_columns.append(self.name.value_reference)
-        if self.object_classes is not None:
-            for object_class in self.object_classes:
-                if isinstance(object_class, Mapping) and object_class.map_type == COLUMN:
-                    non_pivoted_columns.append(object_class.value_reference)
-        if self.objects is not None:
-            for obj in self.objects:
-                if isinstance(obj, Mapping) and obj.map_type == COLUMN:
-                    non_pivoted_columns.append(obj.value_reference)
-        if self.parameters is not None:
-            non_pivoted_columns.extend(self.parameters.non_pivoted_columns())
+        non_pivoted_columns = super().non_pivoted_columns()
+        if isinstance(self.objects, ColumnMapping) and self.objects.returns_value():
+            non_pivoted_columns.append(self.objects.reference)
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        """Gets the highest rownumber of pivoted mapping, returns None if not pivoted
-        
-        Returns:
-            [int] -- highest pivoted row
-        """
-        last_pivot_row = -1
-        if isinstance(self.name, Mapping):
-            last_pivot_row = self.name.last_pivot_row()
-        if self.object_classes is not None:
-            for object_class in self.object_classes:
-                if isinstance(object_class, Mapping):
-                    last_pivot_row = max(last_pivot_row, object_class.last_pivot_row())
-        if self.objects is not None:
-            for obj in self.objects:
-                if isinstance(obj, Mapping):
-                    last_pivot_row = max(last_pivot_row, obj.last_pivot_row())
-        if self.parameters is not None:
-            last_pivot_row = max(last_pivot_row, self.parameters.last_pivot_row())
-        return last_pivot_row
+        return max(super().last_pivot_row(), self.objects.last_pivot_row())
 
     def is_pivoted(self):
-        """Check if mapping is pivoted
-        
-        Returns:
-            [bool] -- True/False if mapping is pivoted
-        """
-        if isinstance(self.name, Mapping) and self.name.is_pivoted():
-            return True
-        if self.object_classes is not None and any(oc.is_pivoted() for oc in self.object_classes if isinstance(oc, Mapping)):
-            return True
-        if self.objects is not None and any(o.is_pivoted() for o in self.objects if isinstance(o, Mapping)):
-            return True
-        if self.parameters is not None and self.parameters.is_pivoted():
-            return True
-        return False
-
-    @property
-    def read_start_row(self):
-        return self._read_start_row
-
-    @property
-    def import_objects(self):
-        return self._import_objects
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def object_classes(self):
-        return self._object_classes
+        return super().is_pivoted() or self.objects.is_pivoted()
 
     @property
     def objects(self):
         return self._objects
 
-    @property
-    def parameters(self):
-        return self._parameters
-
-    @property
-    def skip_columns(self):
-        return self._skip_columns
-
-    @read_start_row.setter
-    def read_start_row(self, row):
-        if not isinstance(row, int):
-            raise TypeError(f"row must be int, instead got {type(row)}")
-        if row < 0:
-            raise ValueError(f"row must be >= 0, instead was: {row}")
-        self._read_start_row = row
-
-    @import_objects.setter
-    def import_objects(self, import_objects):
-        if import_objects:
-            self._import_objects = True
-        else:
-            self._import_objects = False
-
-    @skip_columns.setter
-    def skip_columns(self, skip_columns=None):
-        if skip_columns is None:
-            self._skip_columns = None
-        else:
-            if isinstance(skip_columns, (str, int)):
-                skip_columns = [skip_columns]
-            if isinstance(skip_columns, list):
-                for i, column in enumerate(skip_columns):
-                    if not isinstance(column, (str, int)):
-                        raise TypeError(
-                            f"""skip_columns must be str, int or
-                                        list of str, int, instead got list
-                                        with {type(column)} on index {i}"""
-                        )
-            else:
-                raise TypeError(
-                    f"""skip_columns must be str, int or list of
-                                str, int, instead {type(skip_columns)}"""
-                )
-            self._skip_columns = skip_columns
-
-    @name.setter
-    def name(self, name=None):
-        if name is not None and not isinstance(name, (str, Mapping)):
-            raise ValueError(
-                f"""name must be a None, str or Mapping,
-                             instead got {type(name)}"""
-            )
-        self._name = name
-
-    @object_classes.setter
-    def object_classes(self, object_classes=None):
-        if object_classes is not None and not all(isinstance(o, (Mapping, str)) or o is None for o in object_classes):
-            raise TypeError("name must be a None, str or Mapping | str}")
-        self._object_classes = object_classes
-
     @objects.setter
-    def objects(self, objects=None):
-        if objects is not None and not all(isinstance(o, (Mapping, str)) or o is None for o in objects):
-            raise TypeError("objects must be a None, or list of Mapping | str")
-        self._objects = objects
+    def objects(self, objects):
+        self._objects = mappingbase_from_dict_int_str(objects)
 
-    @parameters.setter
-    def parameters(self, parameters=None):
-        if parameters is not None and not isinstance(parameters, (ParameterMapping, ParameterColumnCollectionMapping)):
-            raise ValueError(
-                f"""parameters must be a None, ParameterMapping or
-                             ParameterColumnCollectionMapping,
-                             instead got {type(parameters)}"""
-            )
-        self._parameters = parameters
-
-    @staticmethod
-    def from_dict(map_dict):
+    @classmethod
+    def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
-            raise ValueError("map_dict must be a dict")
-        if map_dict.get("map_type", None) != RELATIONSHIPCLASS:
-            raise ValueError(
-                f'''map_dict must contain field "map_type"
-                             with value: "{RELATIONSHIPCLASS}"'''
-            )
-        name = mapping_from_dict_int_str(map_dict.get("name", None))
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
         objects = map_dict.get("objects", None)
-        if isinstance(objects, list):
-            objects = [mapping_from_dict_int_str(o) for o in objects]
-        object_classes = map_dict.get("object_classes", None)
-        if isinstance(object_classes, list):
-            object_classes = [mapping_from_dict_int_str(o, COLUMN_NAME) for o in object_classes]
-        parameters = map_dict.get("parameters", None)
-        if isinstance(parameters, dict):
-            p_type = parameters.get("map_type", None)
-            if p_type == PARAMETER:
-                parameters = ParameterMapping.from_dict(parameters)
-            elif p_type == PARAMETERCOLUMNCOLLECTION:
-                parameters = ParameterColumnCollectionMapping.from_dict(parameters)
-        elif isinstance(parameters, list) and all(isinstance(p, (int, dict)) for p in parameters):
-            parameters = {"map_type": PARAMETERCOLUMNCOLLECTION, "parameters": list(parameters)}
-            parameters = ParameterColumnCollectionMapping.from_dict(parameters)
-        skip_columns = map_dict.get("skip_columns", None)
-        import_objects = map_dict.get("import_objects", False)
-        read_start_row = map_dict.get("read_start_row", False)
-        return RelationshipClassMapping(name, object_classes, objects, parameters, skip_columns, import_objects, read_start_row)
+        if objects is None:
+            # previous versions saved "object" instead of "objects"
+            objects = map_dict.get("object", None)
+        parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
+        skip_columns = map_dict.get("skip_columns", [])
+        read_start_row = map_dict.get("read_start_row", 0)
+        return ObjectClassMapping(name=name, objects=objects, parameters=parameters, skip_columns=skip_columns, read_start_row=read_start_row)
 
     def to_dict(self):
-        map_dict = {"map_type": self._map_type, "import_objects": self._import_objects}
-        if self.name is not None:
-            if isinstance(self.name, Mapping):
-                map_dict.update(name=self.name.to_dict())
-            else:
-                map_dict.update(name=self.name)
-        if self.object_classes is not None:
-            map_dict.update(object_classes=[o if isinstance(o, str) else o.to_dict() for o in self.object_classes])
-        if self.objects is not None:
-            map_dict.update(objects=[o if isinstance(o, str) else o.to_dict() for o in self.objects])
-        if self.parameters is not None:
-            map_dict.update(parameters=self.parameters.to_dict())
-        if self.skip_columns:
-            map_dict.update(skip_columns=self.skip_columns)
-        map_dict.update(read_start_row=self.read_start_row)
+        map_dict = super().to_dict()
+        map_dict.update(objects=self.objects.to_dict())
         return map_dict
-    
+
     def is_valid(self):
         # check that parameter mapping has a valid name mapping
-        name_valid, msg = valid_mapping_or_value(self.name)
-        if not name_valid:
-            return False, "Relationship class mapping must have a valid name mapping, current name mapping is not valid: " + msg
-        
-        #check that object class mapping is valid:
-        if not self.object_classes:
-            return False, "Relationship class mapping must have object class mappings."
-        for i, obj_class in enumerate(self.object_classes):
-            oc_valid, msg = valid_mapping_or_value(obj_class)
-            if not oc_valid:
-                return False, "Relationship class mapping must have valid object class mappings. Object class mapping {i} is not valid: " + msg
-
-        has_objects = False
-        all_objects_valid = True
-        if self.objects:
-            has_objects = True
-            all_objects_valid = True
-            for i, obj in enumerate(self.objects):
-                obj_valid, msg = valid_mapping_or_value(obj)
-                if not obj_valid:
-                    all_objects_valid = False
-                    obj_msg = "Object mapping {i} is not valid: " + msg
-            
-        if self.objects:
-            if len(self.object_classes) != len(self.objects):
-                return False, "Relationship class mapping must have same number of object class mappings as object mappings."
-            if not all_objects_valid:
-                return False, "Relationship class mapping must have all valid object mappings. " + obj_msg
-
-        if self.parameters is not None:
-            # check if parameter mapping is valid if of definition type:
-            param_valid, msg = self.parameters.is_valid(self.is_pivoted())
-            if not param_valid:
-                return False, "Relationship class mapping has an invalid parameters mapping: " + msg
-
-            # check that object is valid if we have a parameter mapping that has a value mapping
-            if self.parameters.parameter_type != 'definition' and not all_objects_valid:
-                return False, "Relationship class mapping has a parameter mapping but all object mappings are not valid: " + msg
+        valid, msg = super().is_valid()
+        if not valid:
+            return valid, msg
+        if not self.objects.is_valid():
+            return False, "object mapping must be valid"
+        if isinstance(self.parameters, ParameterValueMapping):
+            if not self.objects.returns_value():
+                return False, "A parameter value mapping needs a valid object mapping"
         return True, ""
 
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        """Creates a list of getter functions from a list of Mappings"""
+        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        getter, num, reads = (None, None, None)
+        if self.objects.returns_value():
+            getter, num, reads = self.objects.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        readers["objects"] = (getter, num, reads)
+        return readers
 
-class DataMapping:
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        pivoted_columns = self.pivoted_columns(data_header, num_columns)
+        readers = super().create_mapping_readers(pivoted_columns, pivoted_data, data_header)
+        component_readers = self.create_getter_list(pivoted_columns, pivoted_data, data_header)
+        name_getter, name_num, name_reads = component_readers["class_name"]
+        o_getter, o_num, o_reads = component_readers["objects"]
+        readers.append(
+            ("object_classes",)
+            + create_final_getter_function([name_getter], [name_num], [name_reads])
+        )
+        readers.append(
+            ("objects",)
+            + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
+        )
+        if isinstance(self.parameters, ParameterDefinitionMapping):
+            par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
+            readers.append(
+                ("object_parameters",)
+                + create_final_getter_function(
+                    [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
+                )
+            )
+        if isinstance(self.parameters, ParameterValueMapping):
+            par_val_name = "object_parameter_values"
+            par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
+            readers.append(
+                (par_val_name,)
+                + create_final_getter_function(
+                    [name_getter, o_getter, par_name_getter, par_value_getter],
+                    [name_num, o_num, par_name_num, par_value_num],
+                    [name_reads, o_reads, par_name_reads, par_value_reads],
+                )
+            )
+        return readers
+
+
+class RelationshipClassMapping(EntityClassMapping):
     """
     Class for holding and validating Mapping specification::
-    
-        DataMapping {
-            map_type: 'collection'
-            mappings: List[ObjectClassMapping | RelationshipClassMapping]
+
+        ObjectClassMapping {
+            map_type: 'object'
+            name: str | Mapping
+            objects: Mapping | str | None
+            parameters: ParameterMapping | ParameterColumnCollectionMapping | None
         }
     """
 
-    def __init__(self, mappings=None, has_header=False):
-        if mappings is None:
-            mappings = []
-        self._mappings = []
-        self._has_header = False
-        self.mappings = mappings
-        self.has_header = has_header
+    MAP_TYPE = "RelationshipClass"
+
+    def __init__(self, *args, object_classes=None, objects=None, import_objects=False, **kwargs):
+        super(RelationshipClassMapping, self).__init__(*args, **kwargs)
+        self._objects = NoneMapping()
+        self._object_classes = NoneMapping()
+        self._import_objects = False
+        self.object_classes = object_classes
+        self.objects = objects
+        self.import_objects = import_objects
 
     def non_pivoted_columns(self):
-        non_pivoted_columns = []
-        if self.mappings is not None:
-            for mapping in self.mappings:
-                non_pivoted_columns.extend(mapping.non_pivoted_columns())
+        non_pivoted_columns = super().non_pivoted_columns()
+        non_pivoted_columns.extend(o.reference for o in self.objects if isinstance(o, ColumnMapping) and o.returns_value())
+        non_pivoted_columns.extend(oc.reference for oc in self.object_classes if isinstance(oc, ColumnMapping) and oc.returns_value())
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_rows = [-1]
-        if self.mappings is not None:
-            last_pivot_rows += [m.last_pivot_row() for m in self.mappings if m is not None]
-        return max(last_pivot_rows)
+        o_last_pivot = max(o.last_pivot_row() for o in self.objects)
+        oc_last_pivot = max(oc.last_pivot_row() for oc in self.object_classes)
+        return max(super().last_pivot_row(), o_last_pivot, oc_last_pivot)
 
     def is_pivoted(self):
-        if self.mappings is not None:
-            return any(m.is_pivoted() for m in self.mappings)
-        return False
+        o_pivoted = any(o.is_pivoted() for o in self.objects)
+        oc_pivoted = any(oc.is_pivoted() for oc in self.object_classes)
+        return super().is_pivoted() or o_pivoted or oc_pivoted
 
     @property
-    def mappings(self):
-        return self._mappings
+    def objects(self):
+        return self._objects
 
-    @mappings.setter
-    def mappings(self, mappings):
-        if not isinstance(mappings, list):
-            raise TypeError("mappings must be list")
-        if mappings and not all(isinstance(m, (RelationshipClassMapping, ObjectClassMapping)) for m in mappings):
-            raise TypeError("""All mappings must be RelationshipClassMapping or ObjectClassMapping""")
-        self._mappings = mappings
+    @objects.setter
+    def objects(self, objects):
+        if objects is None:
+            objects = [NoneMapping()]
+        if not isinstance(objects, (list, tuple)):
+            raise TypeError(
+                f"objects must be a list or tuple of MappingBase, int, str, dict, instead got: {type(objects).__name__}"
+            )
+        if len(objects) != len(self.object_classes):
+            raise ValueError(
+                f"objects must be same of as object_classes: {len(self.object_classes)} instead got len: {len(objects)}"
+            )
+        self._objects = [mappingbase_from_dict_int_str(o) for o in objects]
 
     @property
-    def has_header(self):
-        return self._has_header
+    def import_objects(self):
+        return self._import_objects
 
-    @has_header.setter
-    def has_header(self, has_header):
-        self._has_header = bool(has_header)
+    @import_objects.setter
+    def import_objects(self, import_objects):
+        if not isinstance(import_objects, bool):
+            raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
+        self._import_objects = import_objects
+
+    @property
+    def object_classes(self):
+        return self._object_classes
+
+    @object_classes.setter
+    def object_classes(self, object_classes):
+        if object_classes is None:
+            object_classes = [NoneMapping()]
+        if not isinstance(object_classes, (list, tuple)):
+            raise TypeError(
+                f"object_classes must be a list or tuple of MappingBase, int, str, dict, instead got: {type(object_classes).__name__}"
+            )
+        self._object_classes = [mappingbase_from_dict_int_str(oc) for oc in object_classes]
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        object_classes = map_dict.get("object_classes", None)
+        objects = map_dict.get("objects", None)
+        parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
+        skip_columns = map_dict.get("skip_columns", [])
+        import_objects = map_dict.get("import_objects", False)
+        read_start_row = map_dict.get("read_start_row", 0)
+        return RelationshipClassMapping(
+            name=name,
+            object_classes=object_classes,
+            objects=objects,
+            parameters=parameters,
+            skip_columns=skip_columns,
+            read_start_row=read_start_row,
+            import_objects=import_objects
+        )
 
     def to_dict(self):
-        map_dict = {"has_header": self.has_header}
-        if self.mappings:
-            map_dict.update(mappings=[m.to_dict() for m in self.mappings])
+        map_dict = super().to_dict()
+        map_dict.update(objects=[o.to_dict() for o in self.objects])
+        map_dict.update(object_classes=[oc.to_dict() for oc in self.object_classes])
+        map_dict.update(import_objects=self.import_objects)
         return map_dict
 
-    @staticmethod
-    def from_dict(map_dict):
-        if not isinstance(map_dict, dict):
-            raise ValueError("map_dict must be a dict")
-        has_header = map_dict.get("has_header", False)
-        mappings = map_dict.get("mappings", [])
-        parsed_mappings = []
-        for mapping in mappings:
-            map_type = mapping.get("map_type", None)
-            if map_type == OBJECTCLASS:
-                parsed_mappings.append(ObjectClassMapping.from_dict(mapping))
-            elif map_type == RELATIONSHIPCLASS:
-                parsed_mappings.append(RelationshipClassMapping.from_dict(mapping))
-            else:
-                raise TypeError(
-                    f"""Invalid 'map_type', expected RelationshipClassMapping, ObjectClassMapping, or
-                    compatible dictionary, got {map_type}"""
-                )
-        return DataMapping(parsed_mappings, has_header)
-    
     def is_valid(self):
-        msg = ""
-        is_valid = True
-        for mapping in self.mappings:
-            mapping_valid, mapping_msg = mapping.is_valid()
-            msg = msg + mapping_msg
-            is_valid = is_valid and mapping_valid
-        return is_valid, msg
+        # check that parameter mapping has a valid name mapping
+        valid, msg = super().is_valid()
+        if not valid:
+            return valid, msg
+        if not all(o.is_valid() for o in self.objects):
+            return False, "all object mappings must be valid"
+        if not all(oc.is_valid() for oc in self.object_classes):
+            return False, "all object class mappings must be valid"
+        if isinstance(self.parameters, ParameterValueMapping):
+            # if we have a parameter value mapping we need to have objects and object classes mapping
+            # that returns data.
+            if not all(o.returns_value() for o in self.objects) or not all(oc.returns_value() for oc in self.object_classes):
+                return False, "parameter value mapping need all object or object_class mappings to return values"
+        return True, ""
 
-
-def create_read_parameter_functions(mapping, pivoted_data, pivoted_cols, data_header, is_pivoted):
-    """Creates functions for reading parameter name, field and value from
-    ParameterColumnCollectionMapping or ParameterMapping objects"""
-    if mapping is None:
-        return {"name": (None, None, None), "value": (None, None, None)}
-    if not isinstance(mapping, (ParameterColumnCollectionMapping, ParameterMapping)):
-        raise ValueError(
-            f"""mapping must be ParameterColumnCollectionMapping or ParameterMapping, instead got {type(mapping)}"""
-        )
-    if isinstance(mapping, ParameterColumnCollectionMapping):
-        # parameter names from header or mapping name.
-        p_n_reads = False
-        p_n_num = len(pivoted_cols)
-        p_n = []
-        if mapping.parameters:
-            for parameter, column in zip(mapping.parameters, pivoted_cols):
-                if parameter.name is None:
-                    p_n.append(data_header[column])
-                else:
-                    p_n.append(parameter.name)
-            if len(p_n) == 1:
-                p_n = p_n[0]
-
-            def p_n_getter(_):
-                return p_n
-
-            p_v_num = len(pivoted_cols)
-            p_v_getter = itemgetter(*pivoted_cols)
-            p_v_reads = True
-        else:
-            # no data
-            return {"name": (None, None, None), "value": (None, None, None)}
-    else:
-        # general ParameterMapping type
-        p_n_getter, p_n_num, p_n_reads = create_pivot_getter_function(
-            mapping.name, pivoted_data, pivoted_cols, data_header
-        )
-
-        if is_pivoted:
-            # if mapping is pivoted values for parameters are read from
-            # pivoted columns
-            if pivoted_cols:
-                p_v_num = len(pivoted_cols)
-                p_v_getter = itemgetter(*pivoted_cols)
-                p_v_reads = True
-            else:
-                p_v_num = None
-                p_v_getter = None
-                p_v_reads = None
-        else:
-            p_v_getter, p_v_num, p_v_reads = create_pivot_getter_function(
-                mapping.value, pivoted_data, pivoted_cols, data_header
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        """Creates a list of getter functions from a list of Mappings"""
+        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        oc_getter, oc_num, oc_reads = (None, None, None)
+        if all(oc.returns_value() for oc in self.object_classes):
+            # create functions to get object_classes
+            oc_getter, oc_num, oc_reads = create_getter_function_from_function_list(
+                *create_getter_list(self.object_classes, pivoted_columns, pivoted_data, data_header),
+                list_wrap=len(self.object_classes) == 1,
             )
-        if mapping.parameter_type == "definition":
-            p_v_num = None
-            p_v_getter = None
-            p_v_reads = None
+        o_getter, o_num, o_reads = (None, None, None)
+        if all(o.returns_value() for o in self.objects):
+            # create functions to get objects
+            o_getter, o_num, o_reads = create_getter_function_from_function_list(
+                *create_getter_list(self.objects, pivoted_columns, pivoted_data, data_header),
+                list_wrap=len(self.objects) == 1,
+            )
+        
+        readers["objects"] = (o_getter, o_num, o_reads)
+        readers["object_classes"] = (oc_getter, oc_num, oc_reads)
+        return readers
 
-    # extra dimensions for parameter
-    if mapping.extra_dimensions and p_v_getter is not None:
-        # create functions to get extra_dimensions if there is a value getter
-        ed_getters, ed_num, ed_reads_data = create_getter_list(
-            mapping.extra_dimensions, pivoted_data, pivoted_cols, data_header
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        pivoted_columns = self.pivoted_columns(data_header, num_columns)
+        readers = super().create_mapping_readers(pivoted_columns, pivoted_data, data_header)
+        component_readers = self.create_getter_list(pivoted_columns, pivoted_data, data_header)
+        name_getter, name_num, name_reads = component_readers["class_name"]
+        o_getter, o_num, o_reads = component_readers["objects"]
+        oc_getter, oc_num, oc_reads = component_readers["object_classes"]
+        readers.append(
+            ("relationship_classes",)
+            + create_final_getter_function([name_getter, oc_getter], [name_num, oc_num], [name_reads, oc_reads])
         )
-        p_v_getter = ed_getters + [p_v_getter]
-        p_v_num = ed_num + [p_v_num]
-        p_v_reads = ed_reads_data + [p_v_reads]
-        # create a function that returns a tuple with extra dimensions and value
-        p_v_getter, p_v_num, p_v_reads = create_getter_function_from_function_list(p_v_getter, p_v_num, p_v_reads)
-        has_ed = True
-    else:
-        p_v_getter = p_v_getter
-        p_v_num = p_v_num
-        p_v_reads = p_v_reads
-        has_ed = False
+        readers.append(
+            ("relationships",)
+            + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
+        )
+        if self.import_objects:
+            for oc, o in zip(self.object_classes, self.objects):
+                oc_getter, oc_num, oc_reads = oc.create_getter_function(pivoted_columns, pivoted_data, data_header)
+                single_o_getter, single_o_num, single_o_reads = o.create_getter_function(pivoted_columns, pivoted_data, data_header)
+                readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
+                readers.append(
+                    ("objects",)
+                    + create_final_getter_function([oc_getter, single_o_getter], [oc_num, single_o_num], [oc_reads, single_o_reads])
+                )
+        par_val_name = "relationship_parameter_values"
+        if isinstance(self.parameters, ParameterDefinitionMapping):
+            par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
+            readers.append(
+                ("relationship_parameters",)
+                + create_final_getter_function(
+                    [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
+                )
+            )
+        if isinstance(self.parameters, ParameterValueMapping):
+            par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
+            par_val_name = "relationship_parameter_values"
+            readers.append(
+                (par_val_name,)
+                + create_final_getter_function(
+                    [name_getter, o_getter, par_name_getter, par_value_getter],
+                    [name_num, o_num, par_name_num, par_value_num],
+                    [name_reads, o_reads, par_name_reads, par_value_reads],
+                )
+            )
+        return readers
 
-    getters = {
-        "name": (p_n_getter, p_n_num, p_n_reads),
-        "value": (p_v_getter, p_v_num, p_v_reads),
-        "has_extra_dimensions": has_ed,
+
+def mappingbase_from_value(value, default_map=NoneMapping):
+    if value is None:
+        return ColumnMapping()
+    if isinstance(value, MappingBase):
+        return value
+    if isinstance(value, int):
+        try:
+            return ColumnMapping(value)
+        except ValueError:
+            pass
+    if isinstance(value, str):
+        return ConstantMapping(value)
+    raise TypeError(f"Can't convert {type(value).__name__} to MappingBase")
+
+
+def mapping_from_dict(map_dict, default_map=NoneMapping):
+    type_str_to_class = {
+        "row": RowMapping,
+        "column": ColumnMapping,
+        "column_name": ColumnHeaderMapping,
+        "column_header": ColumnHeaderMapping,
+        "constant": ConstantMapping,
+        "None": NoneMapping,
     }
-    return getters
+    map_type_str = map_dict.get("map_type", None)
+    if map_type_str == "column_name":
+        map_dict["map_type"] = "column_header"
+    if "value_reference" in map_dict and "reference" not in map_dict:
+        map_dict["reference"] = map_dict["value_reference"]
+    map_class = type_str_to_class.get(map_type_str, default_map)
+    return map_class.from_dict(map_dict)
 
 
-def create_getter_list(mapping, pivoted_data, pivoted_cols, data_header):
-    """Creates a list of getter functions from a list of Mappings"""
-    if mapping is None:
-        return [], [], []
+def mappingbase_from_dict_int_str(value, default_map=NoneMapping):
+    """Creates Mapping object if `value` is a `dict` or `int`;
+    if `str` or `None` returns same value. If `int`, the Mapping is created
+    with map_type == column (default) unless other type is specified
+    """
+    if value is None:
+        return default_map()
+    if isinstance(value, MappingBase):
+        return value
+    if isinstance(value, dict):
+        return mapping_from_dict(value)
+    elif isinstance(value, (int, str)):
+        return mappingbase_from_value(value)
+    else:
+        raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
 
-    obj_getters = []
-    obj_num = []
-    obj_reads = []
-    for o in mapping:
-        o, num, reads = create_pivot_getter_function(o, pivoted_data, pivoted_cols, data_header)
-        obj_getters.append(o)
-        obj_num.append(num)
-        obj_reads.append(reads)
-    return obj_getters, obj_num, obj_reads
+
+def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
+    if map_dict is None:
+        return NoneMapping()
+    if map_dict.get("map_type", "") == "None":
+        return NoneMapping()
+
+    parameter_type_to_class = {
+        "definition": ParameterDefinitionMapping,
+        "single value": ParameterValueMapping,
+        "1d array": ParameterListMapping,
+        "time series": ParameterTimeSeriesMapping,
+        "time pattern": ParameterTimePatternMapping,
+    }
+    parameter_type = map_dict.get("parameter_type", None)
+    map_class = parameter_type_to_class.get(parameter_type, default_map)
+    if parameter_type is None:
+        map_dict.update(parameter_type=map_class.PARAMETER_TYPE)
+        
+    return parameter_type_to_class.get(parameter_type, default_map).from_dict(map_dict)
 
 
 def dict_to_map(map_dict):
     """Creates Mapping object from a dict"""
-    if isinstance(map_dict, dict):
-        map_type = map_dict.get("map_type", None)
-        if map_type == MAPPINGCOLLECTION:
-            mapping = DataMapping.from_dict(map_dict)
-        elif map_type == RELATIONSHIPCLASS:
-            mapping = RelationshipClassMapping.from_dict(map_dict)
-        elif map_type == OBJECTCLASS:
-            mapping = ObjectClassMapping.from_dict(map_dict)
-        else:
-            raise ValueError(
-                f"""invalid "map_type" value, expected "{MAPPINGCOLLECTION}", "{RELATIONSHIPCLASS}"
-                or "{OBJECTCLASS}", got {map_type}"""
-            )
-    else:
+    if not isinstance(map_dict, dict):
         raise TypeError(f"map_dict must be a dict, instead it was: {type(map_dict)}")
+    map_type = map_dict.get("map_type", None)
+    if map_type == RELATIONSHIPCLASS:
+        mapping = RelationshipClassMapping.from_dict(map_dict)
+    elif map_type == OBJECTCLASS:
+        mapping = ObjectClassMapping.from_dict(map_dict)
+    else:
+        raise ValueError(
+            f"""invalid "map_type" value, expected "{RELATIONSHIPCLASS}"
+            or "{OBJECTCLASS}", got {map_type}"""
+        )
     return mapping
 
 
@@ -1267,6 +1328,7 @@ def type_class_list_from_spec(types, num_sections, skip_sections=None):
         type_conv_list.append(type_class)
     return type_conv_list
 
+
 def convert_value(value, type_converter):
     try:
         if isinstance(value, str) and not value:
@@ -1275,9 +1337,8 @@ def convert_value(value, type_converter):
             value = type_converter(value)
         return value
     except (ValueError, ParameterValueFormatError):
-        raise TypeConversionError(
-            f"Could not convert value: '{value}' to type: '{type_converter.__name__}'",
-        )
+        raise TypeConversionError(f"Could not convert value: '{value}' to type: '{type_converter.__name__}'")
+
 
 def convert_function_from_spec(column_types, num_cols, skip_cols=None):
     """Creates a function that converts a list of data with length num_cols to the
@@ -1296,11 +1357,13 @@ def convert_function_from_spec(column_types, num_cols, skip_cols=None):
     """
     if column_types:
         type_conv_list = type_class_list_from_spec(column_types, num_cols, skip_cols)
+
         def convert_row_data(row):
             row_list = []
             for row_item, col_type in zip(row, type_conv_list):
                 row_list.append(convert_value(row_item, col_type))
             return row_list
+
     else:
         convert_row_data = lambda x: x
     return convert_row_data
@@ -1311,10 +1374,7 @@ def get_pivoted_data(data_source, mapping, num_cols, data_header, row_types):
     errors = []
 
     # find used columns
-    if isinstance(mapping, DataMapping):
-        map_list = mapping.mappings
-    else:
-        map_list = [mapping]
+    map_list = [mapping]
     used_columns = set()
     for map_ in map_list:
         skip_columns = set(mapping_non_pivoted_columns(map_, num_cols, data_header))
@@ -1351,24 +1411,25 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         row_types = {}
 
     errors = []
-
-    if isinstance(mapping, dict):
-        mapping = dict_to_map(mapping)
-    elif isinstance(mapping, list):
-        # NOTE: No need to check types here, DataMapping.@mappings.setter does it already
-        mapping = DataMapping(mappings=[dict_to_map(m) if isinstance(m, dict) else m for m in mapping])
-
-    if isinstance(mapping, DataMapping):
-        mappings = mapping.mappings
-    else:
-        mappings = [mapping]
+    mappings = []
+    if not isinstance(mapping, (list, tuple)):
+        mapping = [mapping]
+    for map_ in mapping:
+        if isinstance(map_, dict):
+            mappings.append(dict_to_map(map_))
+        elif isinstance(map_, EntityClassMapping):
+            mappings = [map_]
+        else:
+            raise TypeError(f"mapping must be a dict, ObjectClassMapping, RelationshipClassMapping or list of those, instead was: {type(map_).__name__}")
 
     # find max pivot row since mapping can have different number of pivoted rows.
-    has_pivot = mapping.is_pivoted()
-    if has_pivot:
-        last_pivot_row = max(-1, mapping.last_pivot_row())
-    else:
-        last_pivot_row = -1
+    last_pivot_row = -1
+    has_pivot = False
+    for map_ in mappings:
+        if map_.is_pivoted():
+            has_pivot = True
+            last_pivot_row = max(last_pivot_row, map_.last_pivot_row())
+
     # get pivoted rows of data.
     raw_pivoted_data = []
     if has_pivot:
@@ -1378,14 +1439,14 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
     # get a list of reader functions
     readers = []
     min_read_data_from_row = math.inf
-    for m in mappings:
+    for map_index, m in enumerate(mappings):
         pivoted_data, pivot_type_errors = get_pivoted_data(iter(raw_pivoted_data), m, num_cols, data_header, row_types)
         errors.extend(pivot_type_errors)
         read_data_from_row = max(m.last_pivot_row() + 1, m.read_start_row)
-        r = create_mapping_readers(m, num_cols, pivoted_data, data_header)
-        readers.extend([(key, reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
+        r = m.create_mapping_readers(num_cols, pivoted_data, data_header)
+        readers.extend([((map_index, key), reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
         min_read_data_from_row = min(min_read_data_from_row, read_data_from_row)
-    data = {
+    merged_data = {
         "object_classes": [],
         "objects": [],
         "object_parameters": [],
@@ -1395,6 +1456,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationship_parameters": [],
         "relationship_parameter_values": [],
     }
+    data = dict()
     # run functions that read from header or pivoted area first
     # select only readers that actually need to read row data
     row_readers = []
@@ -1411,7 +1473,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
 
     if raw_pivoted_data:
         data_source = itertools.chain(raw_pivoted_data, data_source)
-    
+
     data_source = itertools.islice(data_source, min_read_data_from_row, None)
     skipped_rows = min_read_data_from_row
 
@@ -1428,69 +1490,21 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                 # read the row with each reader
                 for key, reader, read_data_from_row in row_readers:
                     if row_number >= read_data_from_row:
-                        data[key].extend([row_value for row_value in reader(row_data) if all(v is not None for v in row_value)])
+                        data[key].extend(
+                            [row_value for row_value in reader(row_data) if all(v is not None for v in row_value)]
+                        )
             except IndexError as e:
                 errors.append((row_number, e))
-    # pack extra dimensions into list of list
-    # FIXME: This should probably be moved somewhere else
+    # convert parameter values to right class and put all data in one dict
     new_data = {}
-    for k, v in data.items():
-        if any(parameter_type in k for parameter_type in ("time series", "time pattern", "1d array", "2d array")) and v:
-            v = sorted(v, key=lambda x: x[:-1])
-            new = []
-            if "time series" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [items[-1] for items in values if all(i is not None for i in items[-1])]
-                    if values:
-                        indexes = [items[0] for items in values]
-                        values = [items[1] for items in values]
-                        parameter_options = _parameter_options_from_mapping(mappings, keys)
-                        ignore_year = False
-                        repeat = parameter_options.repeat if parameter_options is not None else False
-                        new.append(keys + (TimeSeriesVariableResolution(indexes, values, ignore_year, repeat),))
-            if "time pattern" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [items[-1] for items in values if all(i is not None for i in items[-1])]
-                    if values:
-                        indexes = [items[0] for items in values]
-                        values = [items[1] for items in values]
-                        new.append(keys + (TimePattern(indexes, values),))
-            if "1d array" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [value[-1] for value in values if value[-1] is not None]
-                    if values:
-                        new.append(keys + (values,))
-            if "2d array" in k:
-                for keys, values in itertools.groupby(v, key=lambda x: x[:-1]):
-                    values = [value[-1] for value in values if all(v is not None in value[-1])]
-                    if values:
-                        new.append(keys + (values,))
-
-            if "object_parameter_values" in k:
-                if "object_parameter_values" in new_data:
-                    new_data["object_parameter_values"] = new_data["object_parameter_values"].extend(new)
-                else:
-                    new_data["object_parameter_values"] = new
-            else:
-                if "relationship_parameter_values" in new_data:
-                    new_data["relationship_parameter_values"] = new_data["relationship_parameter_values"].extend(new)
-                else:
-                    new_data["relationship_parameter_values"] = new
-
-    if "object_parameter_values" not in data:
-        data["object_parameter_values"] = []
-    if "relationship_parameter_values" not in data:
-        data["relationship_parameter_values"] = []
-    data["object_parameter_values"].extend(new_data.get("object_parameter_values", []))
-    data["relationship_parameter_values"].extend(new_data.get("relationship_parameter_values", []))
-
-    # remove time series and time pattern raw data
-    existing_keys = list(data.keys())
-    for key in ["time series", "time pattern", "2d array", "1d array"]:
-        for existing_key in existing_keys:
-            if key in existing_key:
-                data.pop(existing_key, None)
-    return data, errors
+    for key, v in data.items():
+        map_i, k = key
+        if "parameter_values" in k:
+            current_mapping = mappings[map_i]
+            merged_data[k].extend(current_mapping.parameters.raw_data_to_type(v))
+        else:
+            merged_data[k].extend(v)
+    return merged_data, errors
 
 
 def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):
@@ -1522,141 +1536,17 @@ def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):
     return set(int_non_piv_cols)
 
 
-def create_mapping_readers(mapping, num_cols, pivoted_data, data_header=None):
-    """Creates a list of functions that return data from a row of a data source
-    from ObjectClassMapping or RelationshipClassMapping objects."""
-    if data_header is None:
-        data_header = []
-
-    # make sure all column references are found
-    non_pivoted_columns = mapping.non_pivoted_columns()
-    int_non_piv_cols = []
-    for pc in non_pivoted_columns:
-        if isinstance(pc, str):
-            if pc not in data_header:
-                raise IndexError(
-                    f"""mapping contains string reference to data header but reference "{pc}"
-                    could not be found in header."""
-                )
-            pc = data_header.index(pc)
-        if pc >= num_cols:
-            raise IndexError(f"""mapping contains invalid index: {pc}, data column number: {num_cols}""")
-        int_non_piv_cols.append(pc)
-
-    if isinstance(mapping.parameters, ParameterColumnCollectionMapping) and mapping.parameters.parameters:
-        # if we are using a parameter column collection and we have column
-        # references then only use those columns for pivoting
-        pivoted_cols = []
-        for p in mapping.parameters.parameters:
-            pc = p.column
-            if isinstance(pc, str):
-                pc = data_header.index(pc)
-            pivoted_cols.append(pc)
-
-    elif mapping.is_pivoted():
-        # paramater column mapping is not in use and we have a pivoted mapping
-        pivoted_cols = set(range(num_cols)).difference(set(int_non_piv_cols))
-        # remove skipped columns
-        if mapping.skip_columns:
-            for skip_c in mapping.skip_columns:
-                if isinstance(skip_c, str):
-                    if skip_c in data_header:
-                        skip_c = data_header.index(skip_c)
-                pivoted_cols.discard(skip_c)
-    else:
-        # no pivoted mapping
-        pivoted_cols = []
-
-    parameter_getters = create_read_parameter_functions(
-        mapping.parameters, pivoted_data, pivoted_cols, data_header, mapping.is_pivoted()
-    )
-    p_n_getter, p_n_num, p_n_reads = parameter_getters["name"]
-    p_v_getter, p_v_num, p_v_reads = parameter_getters["value"]
-
-    readers = []
-
-    if mapping.parameters is not None and mapping.parameters.parameter_type in ["time series", "time pattern", "1d array", "2d array"]:
-        pv_key = "object_parameter_values" + mapping.parameters.parameter_type
-        pv_r_key = "relationship_parameter_values" + mapping.parameters.parameter_type
-    else:
-        pv_key = "object_parameter_values"
-        pv_r_key = "relationship_parameter_values"
-
-    if isinstance(mapping, ObjectClassMapping):
-        # getter for object class and objects
-        oc_getter, oc_num, oc_reads = create_pivot_getter_function(
-            mapping.name, pivoted_data, pivoted_cols, data_header
-        )
-        readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
-        o_getter, o_num, o_reads = create_pivot_getter_function(mapping.object, pivoted_data, pivoted_cols, data_header)
-
-        readers.append(
-            ("objects",) + create_final_getter_function([oc_getter, o_getter], [oc_num, o_num], [oc_reads, o_reads])
-        )
-
-        readers.append(
-            ("object_parameters",)
-            + create_final_getter_function([oc_getter, p_n_getter], [oc_num, p_n_num], [oc_reads, p_n_reads])
-        )
-
-        readers.append(
-            (pv_key,)
-            + create_final_getter_function(
-                [oc_getter, o_getter, p_n_getter, p_v_getter],
-                [oc_num, o_num, p_n_num, p_v_num],
-                [oc_reads, o_reads, p_n_reads, p_v_reads],
-            )
-        )
-    else:
-        # getters for relationship class and relationships
-        rc_getter, rc_num, rc_reads = create_pivot_getter_function(
-            mapping.name, pivoted_data, pivoted_cols, data_header
-        )
-        list_wrap = True if len(mapping.object_classes) == 1 else False
-        rc_oc_getter, rc_oc_num, rc_oc_reads = create_getter_function_from_function_list(
-            *create_getter_list(mapping.object_classes, pivoted_data, pivoted_cols, data_header), list_wrap=list_wrap
-        )
-        readers.append(
-            ("relationship_classes",)
-            + create_final_getter_function([rc_getter, rc_oc_getter], [rc_num, rc_oc_num], [rc_reads, rc_oc_reads])
-        )
-        list_wrap = True if len(mapping.objects) == 1 else False
-        r_getter, r_num, r_reads = create_getter_function_from_function_list(
-            *create_getter_list(mapping.objects, pivoted_data, pivoted_cols, data_header), list_wrap=list_wrap
-        )
-        readers.append(
-            ("relationships",)
-            + create_final_getter_function([rc_getter, r_getter], [rc_num, r_num], [rc_reads, r_reads])
-        )
-
-        readers.append(
-            ("relationship_parameters",)
-            + create_final_getter_function([rc_getter, p_n_getter], [rc_num, p_n_num], [rc_reads, p_n_reads])
-        )
-        readers.append(
-            (pv_r_key,)
-            + create_final_getter_function(
-                [rc_getter, r_getter, p_n_getter, p_v_getter],
-                [rc_num, r_num, p_n_num, p_v_num],
-                [rc_reads, r_reads, p_n_reads, p_v_reads],
-            )
-        )
-
-        # add readers to object classes an objects
-        if mapping.import_objects and mapping.object_classes and mapping.objects:
-            for oc, o in zip(mapping.object_classes, mapping.objects):
-                oc_getter, oc_num, oc_reads = create_pivot_getter_function(oc, pivoted_data, pivoted_cols, data_header)
-                o_getter, o_num, o_reads = create_pivot_getter_function(o, pivoted_data, pivoted_cols, data_header)
-                readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
-                readers.append(
-                    ("objects",)
-                    + create_final_getter_function([oc_getter, o_getter], [oc_num, o_num], [oc_reads, o_reads])
-                )
-
-    # remove any readers that doesn't read anything.
-    readers = [r for r in readers if r[1] is not None]
-
-    return readers
+def create_getter_list(mapping, pivoted_columns, pivoted_data, data_header):
+    """Creates a list of getter functions from a list of Mappings"""
+    getter_list = []
+    num_list = []
+    reads_list = []
+    for map_ in mapping:
+        o, num, reads = map_.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        getter_list.append(o)
+        num_list.append(num)
+        reads_list.append(reads)
+    return getter_list, num_list, reads_list
 
 
 def create_final_getter_function(function_list, function_output_len_list, reads_data_list):
@@ -1772,111 +1662,3 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
 
     reads_data = any(reads_data_list)
     return getter, return_len, reads_data
-
-
-def create_pivot_getter_function(mapping, pivoted_data, pivoted_cols, data_header):
-    """Creates a function that returns data given a list of data,
-    ex. a row in a csv, from a Mapping or constant. If mapping is a constant
-    then that value will be returned, if Mapping is a pivoted row header reference
-    then thoose values will be returned.
-
-    mapping = "constant" will return::
-
-        def getter(row):
-            return "constant"
-
-    mapping.value_reference = 0 and mapping.map_type = COLUMN::
-
-        def getter(row):
-            return row[0]
-
-    etc...
-
-    Returns:
-
-        A tuple (getter, num, reads_data).
-        
-        * getter: function that takes a row and returns data, getter(row)
-        * num: number of elements in the list of data the function returns.
-          If 1 it returns the value instead of a list
-        * reads_data: boolean if getter actually reads data from input
-    """
-    if mapping is None:
-        return None, None, None
-
-    if data_header is None:
-        data_header = []
-
-    if type(mapping) == Mapping:
-        if mapping.map_type == ROW:
-            # pivoted values, read from row of pivoted_data or data_header
-            if mapping.value_reference == -1:
-                # special case, read pivoted rows from data header instead
-                # of pivoted data.
-                read_from = data_header
-            else:
-                read_from = pivoted_data[mapping.value_reference]
-            if pivoted_cols:
-                piv_values = [read_from[i] for i in pivoted_cols]
-                num = len(piv_values)
-                if len(piv_values) == 1:
-                    piv_values = piv_values[0]
-
-                def getter_fcn(x):
-                    return piv_values
-
-                getter = getter_fcn
-                reads_data = False
-            else:
-                # no data
-                getter = None
-                num = None
-                reads_data = None
-        elif mapping.map_type == COLUMN:
-            # column value
-            ref = mapping.value_reference
-            if type(ref) == str:
-                ref = data_header.index(ref)
-            getter = itemgetter(ref)
-            num = 1
-            reads_data = True
-        else:
-            # column name ref
-            ref = mapping.value_reference
-            if type(ref) == str:
-                ref = data_header.index(ref)
-            ref = data_header[ref]
-
-            def getter_fcn(x):
-                return ref
-
-            getter = getter_fcn
-            num = 1
-            reads_data = False
-    elif type(mapping) == str:
-        # constant, just return str
-        def getter_fcn(x):
-            return mapping
-
-        getter = getter_fcn
-        num = 1
-        reads_data = False
-
-    return getter, num, reads_data
-
-
-def _parameter_options_from_mapping(mappings, keys):
-    """
-    Returns parameter's options from given mapping.
-
-    Args:
-        mappings (Sequence): a sequence of mappings
-        keys (Sequence): a sequence where the first element is the object/relationship class name
-            and last element the parameter's name
-    Returns:
-        TimeSeriesOptions: parameter's options or None.
-    """
-    for m in mappings:
-        if m.name == keys[0] and m.parameters.name == keys[-1]:
-            return m.parameters.options
-    return None
