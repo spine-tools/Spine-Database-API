@@ -541,6 +541,7 @@ class ParameterValueMapping(ParameterDefinitionMapping):
 
 class ParameterListMapping(ParameterValueMapping):
     NUM_EXTRA_DIMENSIONS = 1
+    ALLOW_EXTRA_DIMENSION_NO_RETURN = True
     PARAMETER_TYPE = "1d array"
 
     def __init__(self, name=None, value=None, extra_dimension=None):
@@ -630,6 +631,9 @@ class ParameterListMapping(ParameterValueMapping):
                 value_getter, value_num, value_reads
             )
             has_ed = True
+        elif not self.ALLOW_EXTRA_DIMENSION_NO_RETURN:
+            # extra dimensions doesn't return anything so don't read anything from the data source
+            value_getter, value_num, value_reads = (None, None, None)
 
         getters["value"] = (value_getter, value_num, value_reads)
         getters["has_extra_dimensions"]: has_ed
@@ -639,16 +643,24 @@ class ParameterListMapping(ParameterValueMapping):
     def raw_data_to_type(self, data):
         out = []
         data = sorted(data, key=lambda x: x[:-1])
-        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-            values = [value[-1][-1] for value in values if value[-1][-1] is not None]
-            if values:
-                out.append(keys + (values,))
+        if self.extra_dimensions[0].returns_value():
+            for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+                values = [value[-1][-1] for value in values if value[-1][-1] is not None]
+                if values:
+                    out.append(keys + (values,))
+        else:
+            for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+                values = [value[-1] for value in values if value[-1] is not None]
+                if values:
+                    out.append(keys + (values,))
+
         return out
 
 
 class ParameterTimeSeriesMapping(ParameterListMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time series"
+    ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
     def __init__(self, name=None, value=None, extra_dimension=None, options=None):
         super(ParameterTimeSeriesMapping, self).__init__(name, value, extra_dimension)
@@ -710,6 +722,7 @@ class ParameterTimeSeriesMapping(ParameterListMapping):
 class ParameterTimePatternMapping(ParameterListMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time pattern"
+    ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
     def raw_data_to_type(self, data):
         out = []
