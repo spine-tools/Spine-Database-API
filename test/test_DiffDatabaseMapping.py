@@ -64,7 +64,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             pass
 
     def setUp(self):
-        """Overridden method. Runs before each test. Makes instances of TreeViewForm and GraphViewForm classes.
+        """Overridden method. Runs before each test.
         """
         # Set logging level to Error to silence "Logging level: All messages" print
         logging.disable(level=logging.ERROR)  # Disable logging
@@ -249,7 +249,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             pass
 
     def setUp(self):
-        """Overridden method. Runs before each test. Makes instances of TreeViewForm and GraphViewForm classes.
+        """Overridden method. Runs before each test.
         """
         # Set logging level to Error to silence "Logging level: All messages" print
         logging.disable(level=logging.ERROR)  # Disable logging
@@ -827,7 +827,7 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
             pass
 
     def setUp(self):
-        """Overridden method. Runs before each test. Makes instances of TreeViewForm and GraphViewForm classes.
+        """Overridden method. Runs before each test.
         """
         # Set logging level to Error to silence "Logging level: All messages" print
         logging.disable(level=logging.ERROR)  # Disable logging

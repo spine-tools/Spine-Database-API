@@ -649,6 +649,45 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, mapping, num_cols, data_header)
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
+    
+    def test_read_flat_file_1d_array_with_ed(self):
+        input_data = [
+            ["object_class", "object", "parameter", "value", "value_order"],
+            ["oc1", "obj1", "parameter_name1", 1, 0],
+            ["oc1", "obj1", "parameter_name1", 2, 1],
+        ]
+        self.empty_data.update(
+            {
+                "object_classes": ["oc1", "oc1"],
+                "objects": [("oc1", "obj1"), ("oc1", "obj1")],
+                "object_parameters": [
+                    ("oc1", "parameter_name1"),("oc1", "parameter_name1")
+                ],
+                "object_parameter_values": [
+                    ("oc1", "obj1", "parameter_name1", [1, 2]),
+                ],
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": 0,
+            "objects": 1,
+            "parameters": {
+                "map_type": "parameter",
+                "name": "parameter_name1",
+                "value": 3,
+                "extra_dimension": [None],
+                "parameter_type": "1d array"},
+        }
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
 
     def test_read_flat_file_with_column_name_reference(self):
         input_data = [
@@ -787,24 +826,11 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_flat_file_with_extra_value_dimensions(self):
-        # FIXME: right now the read_with_mapping only keeps the value for
-        # mappings with extra dimensions until the data spec is final.
         input_data = [
             ["object", "time", "parameter_name1"],
             ["obj1", "2018-01-01", 1],
             ["obj1", "2018-01-02", 2],
         ]
-        # original test data
-        # self.empty_data.update(
-        #    {
-        #        "object_classes": ["object"],
-        #        "objects": [("object", "obj1"), ("object", "obj1")],
-        #        "object_parameters": [("object", "parameter_name1")],
-        #        "object_parameter_values": [
-        #            ("object", "obj1", "parameter_name1", '[["scenario1", "t1", 1], ["scenario1", "t2", 2]]')
-        #        ],
-        #    }
-        # )
 
         self.empty_data.update(
             {
@@ -831,6 +857,42 @@ class TestMappingIntegration(unittest.TestCase):
                 "value": 2,
                 "parameter_type": "time series",
                 "extra_dimensions": [1],
+            },
+        }
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
+
+    def test_read_flat_file_with_none_extra_dimensions(self):
+        input_data = [
+            ["object", "time", "parameter_name1"],
+            ["obj1", "2018-01-01", 1],
+            ["obj1", "2018-01-02", 2],
+        ]
+
+        self.empty_data.update(
+            {
+                "object_classes": ["object"],
+                "objects": [("object", "obj1"), ("object", "obj1")],
+                "object_parameters": [("object", "parameter_name1")]
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object",
+            "object": 0,
+            "parameters": {
+                "map_type": "parameter",
+                "name": {"map_type": "column_name", "value_reference": 2},
+                "value": 2,
+                "parameter_type": "time series",
+                "extra_dimensions": [None],
             },
         }
 
