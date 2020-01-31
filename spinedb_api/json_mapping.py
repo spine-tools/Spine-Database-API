@@ -635,12 +635,12 @@ class ParameterListMapping(ParameterValueMapping):
         getters["has_extra_dimensions"]: has_ed
 
         return getters
-    
+
     def raw_data_to_type(self, data):
         out = []
         data = sorted(data, key=lambda x: x[:-1])
         for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-            values = [value[-1] for value in values if value[-1] is not None]
+            values = [value[-1][-1] for value in values if value[-1][-1] is not None]
             if values:
                 out.append(keys + (values,))
         return out
@@ -655,7 +655,6 @@ class ParameterTimeSeriesMapping(ParameterListMapping):
         self._options = TimeSeriesOptions()
         self.options = options
 
-
     @property
     def options(self):
         return self._options
@@ -669,7 +668,6 @@ class ParameterTimeSeriesMapping(ParameterListMapping):
                 f"options must be a TimeSeriesOptions, instead got: {type(options).__name__}"
             )
         self._options = options
-    
 
     @classmethod
     def from_dict(cls, map_dict):
