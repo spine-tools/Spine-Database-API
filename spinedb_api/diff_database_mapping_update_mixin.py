@@ -29,9 +29,8 @@ class DiffDatabaseMappingUpdateMixin:
 
     def _handle_items(self, tablename, checked_kwargs_list, filter_key=("id",)):
         """Return lists of items for update and insert.
-        Items found in the diff classes should be updated,
-        whereas items found in the orig classes should be marked as dirty and
-        inserted into the corresponding diff class."""
+        Items found in the diff classes should be updated, whereas items found in the orig classes
+        should be marked as dirty and inserted into the corresponding diff class."""
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
@@ -41,14 +40,17 @@ class DiffDatabaseMappingUpdateMixin:
         dirty_ids = set()
         updated_ids = set()
         for kwargs in checked_kwargs_list:
-            if any(k not in kwargs for k in filter_key):
+            try:
+                filter_ = {k: kwargs[k] for k in filter_key}
+            except KeyError:
                 continue
-            filter_ = {k: kwargs.pop(k) for k in filter_key}
-            if not kwargs:
+            if len(filter_) == len(kwargs):
                 continue
             diff_query = self.query(diff_class).filter_by(**filter_)
             for diff_item in diff_query:
                 updated_kwargs = attr_dict(diff_item)
+                if all(kwargs[k] == updated_kwargs.get(k) for k in kwargs.keys()):
+                    continue
                 updated_kwargs.update(kwargs)
                 items_for_update.append(updated_kwargs)
                 updated_ids.add(updated_kwargs[primary_id])
@@ -57,6 +59,8 @@ class DiffDatabaseMappingUpdateMixin:
                 continue
             for orig_item in self.query(orig_class).filter_by(**filter_):
                 updated_kwargs = attr_dict(orig_item)
+                if all(kwargs[k] == updated_kwargs.get(k) for k in kwargs.keys()):
+                    continue
                 updated_kwargs.update(kwargs)
                 items_for_insert.append(updated_kwargs)
                 dirty_ids.add(updated_kwargs[primary_id])
@@ -155,10 +159,11 @@ class DiffDatabaseMappingUpdateMixin:
         ent_kwargs_list = []
         rel_ent_kwargs_list = []
         for wide_kwargs in checked_wide_kwargs_list:
-            object_id_list = wide_kwargs.pop("object_id_list", [])
-            ent_kwargs_list.append(wide_kwargs)
+            ent_kwargs = dict(wide_kwargs)
+            object_id_list = ent_kwargs.pop("object_id_list", [])
+            ent_kwargs_list.append(ent_kwargs)
             for dimension, member_id in enumerate(object_id_list):
-                rel_ent_kwargs = dict(wide_kwargs)
+                rel_ent_kwargs = dict(ent_kwargs)
                 rel_ent_kwargs["entity_id"] = rel_ent_kwargs.pop("id", None)
                 rel_ent_kwargs["dimension"] = dimension
                 rel_ent_kwargs["member_id"] = member_id
@@ -190,13 +195,13 @@ class DiffDatabaseMappingUpdateMixin:
     def update_parameter_definitions(self, *kwargs_list, strict=False):
         """Update parameter definitions."""
         checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_update(*kwargs_list, strict=strict)
-        updated_ids = self._update_parameters(*checked_kwargs_list)
+        updated_ids = self._update_parameter_definitions(*checked_kwargs_list)
         updated_item_list = self.query(self.parameter_definition_sq).filter(
             self.parameter_definition_sq.c.id.in_(updated_ids)
         )
         return updated_item_list, intgr_error_log
 
-    def _update_parameters(self, *checked_kwargs_list):
+    def _update_parameter_definitions(self, *checked_kwargs_list):
         """Update parameter definitions without checking integrity."""
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
@@ -212,10 +217,6 @@ class DiffDatabaseMappingUpdateMixin:
             self.session.rollback()
             msg = "DBAPIError while updating parameter definitions: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
-
-    def update_parameters(self, *kwargs_list, strict=False):
-        warnings.warn("update_parameters is deprecated, use update_parameter_definitions instead", DeprecationWarning)
-        return self.update_parameter_definitions(*kwargs_list, strict=strict)
 
     def update_parameter_values(self, *kwargs_list, strict=False):
         """Update parameter values."""
@@ -301,28 +302,29 @@ class DiffDatabaseMappingUpdateMixin:
 
     def update_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False):
         """Update parameter value_lists.
-        NOTE: It's too difficult to do it the usual way, so we just remove and then add.
         """
+        # NOTE: Since the value list can actually change size, we proceed by removing the entire list and then
+        # inserting the new one to avoid unnecessary headaches
         checked_wide_kwargs_list, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
             *wide_kwargs_list, strict=strict
         )
-        wide_parameter_value_list_dict = {x.id: x._asdict() for x in self.wide_parameter_value_list_list()}
+        wide_parameter_value_lists = {x.id: x._asdict() for x in self.query(self.wide_parameter_value_list_sq)}
         updated_ids = set()
         item_list = list()
         for wide_kwargs in checked_wide_kwargs_list:
-            id = wide_kwargs.pop("id")
-            if not id or not wide_kwargs:
+            if "id" not in wide_kwargs:
                 continue
-            updated_ids.add(id)
-            try:
-                updated_wide_kwargs = wide_parameter_value_list_dict[id]
-            except KeyError:
+            if len(wide_kwargs) == 1:
                 continue
-            # Split value_list so it's actually a list
+            id_ = wide_kwargs["id"]
+            if id_ not in wide_parameter_value_lists:
+                continue
+            updated_ids.add(id_)
+            updated_wide_kwargs = wide_parameter_value_lists[id_]
             updated_wide_kwargs["value_list"] = updated_wide_kwargs["value_list"].split(",")
             updated_wide_kwargs.update(wide_kwargs)
             for k, value in enumerate(updated_wide_kwargs["value_list"]):
-                narrow_kwargs = {"id": id, "name": updated_wide_kwargs["name"], "value_index": k, "value": value}
+                narrow_kwargs = {"id": id_, "name": updated_wide_kwargs["name"], "value_index": k, "value": value}
                 item_list.append(narrow_kwargs)
         try:
             self.query(self.DiffParameterValueList).filter(self.DiffParameterValueList.id.in_(updated_ids)).delete(
