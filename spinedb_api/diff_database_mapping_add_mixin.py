@@ -16,8 +16,8 @@
 """
 # TODO: improve docstrings
 
-from datetime import datetime, timezone
-from sqlalchemy import func, MetaData, Table, Column, Integer, String, DateTime, null
+from datetime import datetime
+from sqlalchemy import func, MetaData, Table, Column, Integer, String, null
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.exc import DBAPIError, NoSuchTableError
 from .exception import SpineDBAPIError, SpineTableNotFoundError
@@ -76,539 +76,590 @@ class DiffDatabaseMappingAddMixin:
             # TODO: Find a way to try this again, or wait till unlocked
             # Maybe listen for an event?
             self.session.rollback()
-            raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
+            raise SpineDBAPIError("Unable to get next id_: {}".format(e.orig.args))
         return self.query(self.NextId).one_or_none()
 
-    def add_object_classes(self, *item_list, strict=False, return_dups=False):
+    def _items_with_ids(self, tablename, *items):
+        next_id_fieldname = {
+            "object_class": "entity_class_id",
+            "object": "entity_id",
+            "relationship_class": "entity_class_id",
+            "relationship": "entity_id",
+            "parameter_definition": "parameter_definition_id",
+            "parameter_value": "parameter_value_id",
+            "parameter_tag": "parameter_tag_id",
+            "parameter_value_list": "parameter_value_list_id",
+            "parameter_definition_tag": "parameter_definition_tag_id",
+        }[tablename]
+        next_id = self._next_id_with_lock()
+        id_ = getattr(next_id, next_id_fieldname)
+        if not id_:
+            classname = {
+                "object_class": "EntityClass",
+                "object": "Entity",
+                "relationship_class": "EntityClass",
+                "relationship": "Entity",
+                "parameter_definition": "ParameterDefinition",
+                "parameter_value": "ParameterValue",
+                "parameter_tag": "ParameterTag",
+                "parameter_definition_tag": "ParameterDefinitionTag",
+                "parameter_value_list": "ParameterValueList",
+            }[tablename]
+            class_ = getattr(self, classname)
+            max_id = self.query(func.max(class_.id)).scalar()
+            id_ = max_id + 1 if max_id else 1
+        ids = list(range(id_, id_ + len(items)))
+        items_to_add = list()
+        for id_, item in zip(ids, items):
+            item["id"] = id_
+            items_to_add.append(item)
+        setattr(next_id, next_id_fieldname, ids[-1] + 1)
+        return items_to_add, set(ids)
+
+    def add_object_classes(self, *items, strict=False, return_dups=False):
         """Stage object class items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_object_classes_for_insert(*item_list, strict=strict)
-        id_list = self._add_object_classes(*checked_item_list)
+        checked_items, intgr_error_log = self.check_object_classes_for_insert(*items, strict=strict)
+        ids = self._add_object_classes(*checked_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.object_class_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_object_classes(self, *item_list):
+    def _add_object_classes(self, *items):
         """Add object classes to database without checking integrity.
 
         Args:
-            item_list (iter): list of dictionaries which correspond to the instances to add
+            items (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.entity_class_id:
-            id = next_id.entity_class_id
-        else:
-            max_id = self.query(func.max(self.EntityClass.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        items_to_add, ids = self._items_with_ids("object_class", *items)
+        self._do_add_object_classes(*items_to_add)
+        self.added_item_id["entity_class"].update(ids)
+        self.added_item_id["object_class"].update(ids)
+        return ids
+
+    def _do_add_object_classes(self, *items_to_add):
+        oc_to_add = list()
+        for item in items_to_add:
+            item["type_id"] = self.object_class_type
+            oc_to_add.append({"entity_class_id": item["id"], "type_id": self.object_class_type})
         try:
-            items_to_add = list()
-            oc_to_add = list()
-            id_list = set(range(id, id + len(item_list)))
-            for item in item_list:
-                item["id"] = id
-                items_to_add.append(item)
-                oc_to_add.append({"entity_class_id": item["id"], "type_id": item["type_id"]})
-                id += 1
             self.session.bulk_insert_mappings(self.DiffEntityClass, items_to_add)
             self.session.bulk_insert_mappings(self.DiffObjectClass, oc_to_add)
-            next_id.entity_class_id = id
             self.session.commit()
-            self.added_item_id["entity_class"].update(id_list)
-            self.added_item_id["object_class"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_objects(self, *item_list, strict=False, return_dups=False):
+    def readd_object_classes(self, *items):
+        """Add known object classes to database.
+        """
+        self._do_add_object_classes(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.object_class_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_objects(self, *items, strict=False, return_dups=False):
         """Stage object items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_objects_for_insert(*item_list, strict=strict)
-        id_list = self._add_objects(*checked_item_list)
+        checked_items, intgr_error_log = self.check_objects_for_insert(*items, strict=strict)
+        ids = self._add_objects(*checked_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.object_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_objects(self, *item_list):
+    def _add_objects(self, *items):
         """Add objects to database without checking integrity.
 
         Args:
-            item_list (iter): list of dictionaries which correspond to the instances to add
+            items (iter): list of dictionaries which correspond to the instances to add
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.entity_id:
-            id = next_id.entity_id
-        else:
-            max_id = self.query(func.max(self.Entity.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        items_to_add, ids = self._items_with_ids("object", *items)
+        self._do_add_objects(*items_to_add)
+        self.added_item_id["entity"].update(ids)
+        self.added_item_id["object"].update(ids)
+        return ids
+
+    def _do_add_objects(self, *items_to_add):
+        objects_to_add = list()
+        for item in items_to_add:
+            item["type_id"] = self.object_entity_type
+            objects_to_add.append({"entity_id": item["id"], "type_id": item["type_id"]})
         try:
-            items_to_add = list()
-            object_to_add = list()
-            id_list = set(range(id, id + len(item_list)))
-            for item in item_list:
-                item["id"] = id
-                item["type_id"] = self.object_entity_type
-                items_to_add.append(item)
-                object_to_add.append({"entity_id": item["id"], "type_id": item["type_id"]})
-                id += 1
             self.session.bulk_insert_mappings(self.DiffEntity, items_to_add)
-            self.session.bulk_insert_mappings(self.DiffObject, object_to_add)
-            next_id.entity_id = id
+            self.session.bulk_insert_mappings(self.DiffObject, objects_to_add)
             self.session.commit()
-            self.added_item_id["entity"].update(id_list)
-            self.added_item_id["object"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationship_classes(self, *wide_item_list, strict=False, return_dups=False):
+    def readd_objects(self, *items):
+        """Add known objects to database.
+        """
+        self._do_add_objects(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.object_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_wide_relationship_classes(self, *wide_items, strict=False, return_dups=False):
         """Stage relationship class items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_wide_item_list, intgr_error_log = self.check_wide_relationship_classes_for_insert(
-            *wide_item_list, strict=strict
+        checked_wide_items, intgr_error_log = self.check_wide_relationship_classes_for_insert(
+            *wide_items, strict=strict
         )
-        id_list = self._add_wide_relationship_classes(*checked_wide_item_list)
+        ids = self._add_wide_relationship_classes(*checked_wide_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.wide_relationship_class_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_wide_relationship_classes(self, *wide_item_list):
+    def _add_wide_relationship_classes(self, *wide_items):
         """Add relationship classes to database without checking integrity.
 
         Args:
-            wide_item_list (iter): list of dictionaries which correspond to the instances to add
+            wide_items (iter): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.entity_class_id:
-            id = next_id.entity_class_id
-        else:
-            max_id = self.query(func.max(self.EntityClass.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        wide_items_to_add, ids = self._items_with_ids("relationship_class", *wide_items)
+        self._do_add_wide_relationship_classes(*wide_items_to_add)
+        self.added_item_id["entity_class"].update(ids)
+        self.added_item_id["relationship_class"].update(ids)
+        self.added_item_id["relationship_entity_class"].update(ids)
+        return ids
+
+    def _do_add_wide_relationship_classes(self, *wide_items_to_add):
+        rel_ent_clss_to_add = list()
+        rel_clss_to_add = list()
+        for wide_item in wide_items_to_add:
+            wide_item["type_id"] = self.relationship_class_type
+            rel_clss_to_add.append({"entity_class_id": wide_item["id"], "type_id": self.relationship_class_type})
+            for dimension, object_class_id in enumerate(wide_item["object_class_id_list"]):
+                rel_ent_cls = {
+                    "entity_class_id": wide_item["id"],
+                    "dimension": dimension,
+                    "member_class_id": object_class_id,
+                    "member_class_type_id": self.object_class_type,
+                }
+                rel_ent_clss_to_add.append(rel_ent_cls)
         try:
-            rel_ent_clss_to_add = list()
-            ent_clss_to_add = list()
-            rel_clss_to_add = list()
-            id_list = set(range(id, id + len(wide_item_list)))
-            for wide_item in wide_item_list:
-                ent_clss_to_add.append({"id": id, "name": wide_item["name"], "type_id": self.relationship_class_type})
-                rel_clss_to_add.append({"entity_class_id": id, "type_id": self.relationship_class_type})
-                for dimension, object_class_id in enumerate(wide_item["object_class_id_list"]):
-                    rel_ent_cls = {
-                        "entity_class_id": id,
-                        "dimension": dimension,
-                        "member_class_id": object_class_id,
-                        "member_class_type_id": self.object_class_type,
-                    }
-                    rel_ent_clss_to_add.append(rel_ent_cls)
-                id += 1
-            self.session.bulk_insert_mappings(self.DiffEntityClass, ent_clss_to_add)
+            self.session.bulk_insert_mappings(self.DiffEntityClass, wide_items_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationshipClass, rel_clss_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationshipEntityClass, rel_ent_clss_to_add)
-            next_id.entity_class_id = id
             self.session.commit()
-            self.added_item_id["entity_class"].update(id_list)
-            self.added_item_id["relationship_class"].update(id_list)
-            self.added_item_id["relationship_entity_class"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_relationships(self, *wide_item_list, strict=False, return_dups=False):
+    def readd_wide_relationship_classes(self, *items):
+        """Add known relationship classes to database.
+        """
+        self._do_add_wide_relationship_classes(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.wide_relationship_class_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_wide_relationships(self, *wide_items, strict=False, return_dups=False):
         """Stage relationship items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_wide_item_list, intgr_error_log = self.check_wide_relationships_for_insert(
-            *wide_item_list, strict=strict
-        )
-        id_list = self._add_wide_relationships(*checked_wide_item_list)
+        checked_wide_items, intgr_error_log = self.check_wide_relationships_for_insert(*wide_items, strict=strict)
+        ids = self._add_wide_relationships(*checked_wide_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.wide_relationship_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_wide_relationships(self, *wide_item_list):
+    def _add_wide_relationships(self, *wide_items):
         """Add relationships to database without checking integrity.
 
         Args:
-            wide_item_list (iter): list of dictionaries which correspond to the instances to add
+            wide_items (iter): list of dictionaries which correspond to the instances to add
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.entity_id:
-            id = next_id.entity_id
-        else:
-            max_id = self.query(func.max(self.Entity.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        wide_items_to_add, ids = self._items_with_ids("relationship", *wide_items)
+        self._do_add_wide_relationships(*wide_items_to_add)
+        self.added_item_id["entity"].update(ids)
+        self.added_item_id["relationship"].update(ids)
+        self.added_item_id["relationship_entity"].update(ids)
+        return ids
+
+    def _do_add_wide_relationships(self, *wide_items_to_add):
+        rel_ent_to_add = list()
+        rel_to_add = list()
+        for wide_item in wide_items_to_add:
+            wide_item["type_id"] = self.relationship_entity_type
+            rel_to_add.append(
+                {
+                    "entity_id": wide_item["id"],
+                    "entity_class_id": wide_item["class_id"],
+                    "type_id": self.relationship_entity_type,
+                }
+            )
+            for dimension, (object_id, object_class_id) in enumerate(
+                zip(wide_item["object_id_list"], wide_item["object_class_id_list"])
+            ):
+                narrow_item = {
+                    "entity_id": wide_item["id"],
+                    "type_id": self.relationship_entity_type,
+                    "entity_class_id": wide_item["class_id"],
+                    "dimension": dimension,
+                    "member_id": object_id,
+                    "member_class_type_id": self.object_entity_type,
+                    "member_class_id": object_class_id,
+                }
+                rel_ent_to_add.append(narrow_item)
         try:
-            items_to_add = list()
-            entities_to_add = list()
-            rel_to_add = list()
-            id_list = set(range(id, id + len(wide_item_list)))
-            for wide_item in wide_item_list:
-                entities_to_add.append(
-                    {
-                        "id": id,
-                        "type_id": self.relationship_entity_type,
-                        "class_id": wide_item["class_id"],
-                        "name": wide_item["name"],
-                    }
-                )
-                rel_to_add.append(
-                    {
-                        "entity_id": id,
-                        "entity_class_id": wide_item["class_id"],
-                        "type_id": self.relationship_entity_type,
-                    }
-                )
-                for dimension, (object_id, object_class_id) in enumerate(
-                    zip(wide_item["object_id_list"], wide_item["object_class_id_list"])
-                ):
-                    narrow_item = {
-                        "entity_id": id,
-                        "type_id": self.relationship_entity_type,
-                        "entity_class_id": wide_item["class_id"],
-                        "dimension": dimension,
-                        "member_id": object_id,
-                        "member_class_type_id": self.object_entity_type,
-                        "member_class_id": object_class_id,
-                    }
-                    items_to_add.append(narrow_item)
-                id += 1
-            self.session.bulk_insert_mappings(self.DiffEntity, entities_to_add)
+            self.session.bulk_insert_mappings(self.DiffEntity, wide_items_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationship, rel_to_add)
-            self.session.bulk_insert_mappings(self.DiffRelationshipEntity, items_to_add)
-            next_id.entity_id = id
+            self.session.bulk_insert_mappings(self.DiffRelationshipEntity, rel_ent_to_add)
             self.session.commit()
-            self.added_item_id["entity"].update(id_list)
-            self.added_item_id["relationship"].update(id_list)
-            self.added_item_id["relationship_entity"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_definitions(self, *item_list, strict=False, return_dups=False):
+    def readd_wide_relationships(self, *items):
+        """Add known relationships to database.
+        """
+        self._do_add_wide_relationships(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.wide_relationship_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_parameter_definitions(self, *items, strict=False, return_dups=False):
         """Stage parameter definition items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_definitions_for_insert(*item_list, strict=strict)
-        id_list = self._add_parameter_definitions(*checked_item_list)
+        checked_items, intgr_error_log = self.check_parameter_definitions_for_insert(*items, strict=strict)
+        ids = self._add_parameter_definitions(*checked_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.parameter_definition_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_parameter_definitions(self, *item_list):
+    def _add_parameter_definitions(self, *items):
         """Add parameters to database without checking integrity.
 
         Args:
-            item_list (iter): list of dictionaries which correspond to the instances to add
+            items (iter): list of dictionaries which correspond to the instances to add
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.parameter_definition_id:
-            id = next_id.parameter_definition_id
-        else:
-            max_id = self.query(func.max(self.ParameterDefinition.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        items_to_add, ids = self._items_with_ids("parameter_definition", *items)
+        self._do_add_parameter_definitions(*items_to_add)
+        self.added_item_id["parameter_definition"].update(ids)
+        return ids
+
+    def _do_add_parameter_definitions(self, *items_to_add):
+        for item in items_to_add:
+            item["entity_class_id"] = (
+                item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
+            )
         try:
-            items_to_add = list()
-            id_list = set(range(id, id + len(item_list)))
-            for item in item_list:
-                item["id"] = id
-                items_to_add.append(item)
-                id += 1
             self.session.bulk_insert_mappings(self.DiffParameterDefinition, items_to_add)
-            next_id.parameter_definition_id = id
             self.session.commit()
-            self.added_item_id["parameter_definition"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_values(self, *item_list, strict=False, return_dups=False):
+    def readd_parameter_definitions(self, *items):
+        """Add known parameter definitions to database.
+        """
+        self._do_add_parameter_definitions(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.parameter_definition_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_parameter_values(self, *items, strict=False, return_dups=False):
         """Stage parameter values items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_values_for_insert(*item_list, strict=strict)
-        id_list = self._add_parameter_values(*checked_item_list)
+        checked_items, intgr_error_log = self.check_parameter_values_for_insert(*items, strict=strict)
+        ids = self._add_parameter_values(*checked_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.parameter_value_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_parameter_values(self, *item_list):
+    def _add_parameter_values(self, *items):
         """Add parameter values to database without checking integrity.
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.parameter_value_id:
-            id = next_id.parameter_value_id
-        else:
-            max_id = self.query(func.max(self.ParameterValue.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        items_to_add, ids = self._items_with_ids("parameter_value", *items)
+        self._do_add_parameter_values(*items_to_add)
+        self.added_item_id["parameter_value"].update(ids)
+        return ids
+
+    def _do_add_parameter_values(self, *items_to_add):
+        for item in items_to_add:
+            item["entity_id"] = item.get("object_id") or item.get("relationship_id") or item.get("entity_id")
+            item["entity_class_id"] = (
+                item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
+            )
         try:
-            items_to_add = list()
-            id_list = set(range(id, id + len(item_list)))
-            for item in item_list:
-                item["id"] = id
-                items_to_add.append(item)
-                id += 1
             self.session.bulk_insert_mappings(self.DiffParameterValue, items_to_add)
-            next_id.parameter_value_id = id
             self.session.commit()
-            self.added_item_id["parameter_value"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_tags(self, *item_list, strict=False, return_dups=False):
+    def readd_parameter_values(self, *items):
+        """Add known parameter values to database.
+        """
+        self._do_add_parameter_values(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.parameter_value_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_parameter_tags(self, *items, strict=False, return_dups=False):
         """Stage parameter tag items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_tags_for_insert(*item_list, strict=strict)
-        id_list = self._add_parameter_tags(*checked_item_list)
+        checked_items, intgr_error_log = self.check_parameter_tags_for_insert(*items, strict=strict)
+        ids = self._add_parameter_tags(*checked_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.parameter_tag_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_parameter_tags(self, *item_list):
+    def _add_parameter_tags(self, *items):
         """Add parameter tags to database without checking integrity.
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.parameter_tag_id:
-            id = next_id.parameter_tag_id
-        else:
-            max_id = self.query(func.max(self.ParameterTag.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        items_to_add, ids = self._items_with_ids("parameter_tag", *items)
+        self._do_add_parameter_tags(*items_to_add)
+        self.added_item_id["parameter_tag"].update(ids)
+        return ids
+
+    def _do_add_parameter_tags(self, *items_to_add):
         try:
-            items_to_add = list()
-            id_list = set(range(id, id + len(item_list)))
-            for item in item_list:
-                item["id"] = id
-                items_to_add.append(item)
-                id += 1
             self.session.bulk_insert_mappings(self.DiffParameterTag, items_to_add)
-            next_id.parameter_tag_id = id
             self.session.commit()
-            self.added_item_id["parameter_tag"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_parameter_definition_tags(self, *item_list, strict=False, return_dups=False):
+    def readd_parameter_tags(self, *items):
+        """Add known parameter tags to database.
+        """
+        self._do_add_parameter_tags(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.parameter_tag_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
         """Stage parameter definition tag items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_item_list, intgr_error_log = self.check_parameter_definition_tags_for_insert(*item_list, strict=strict)
-        id_list = self._add_parameter_definition_tags(*checked_item_list)
+        checked_items, intgr_error_log = self.check_parameter_definition_tags_for_insert(*items, strict=strict)
+        ids = self._add_parameter_definition_tags(*checked_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.parameter_definition_tag_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_parameter_definition_tags(self, *item_list):
+    def _add_parameter_definition_tags(self, *items):
+        items_to_add, ids = self._items_with_ids("parameter_definition_tag", *items)
+        self._do_add_parameter_definition_tags(*items_to_add)
+        self.added_item_id["parameter_definition_tag"].update(ids)
+        return ids
+
+    def _do_add_parameter_definition_tags(self, *items_to_add):
         """Add parameter definition tags to database without checking integrity.
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.parameter_definition_tag_id:
-            id = next_id.parameter_definition_tag_id
-        else:
-            max_id = self.query(func.max(self.ParameterDefinitionTag.id)).scalar()
-            id = max_id + 1 if max_id else 1
         try:
-            items_to_add = list()
-            id_list = set(range(id, id + len(item_list)))
-            for item in item_list:
-                item["id"] = id
-                items_to_add.append(item)
-                id += 1
             self.session.bulk_insert_mappings(self.DiffParameterDefinitionTag, items_to_add)
-            next_id.parameter_definition_tag_id = id
             self.session.commit()
-            self.added_item_id["parameter_definition_tag"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def add_wide_parameter_value_lists(self, *wide_item_list, strict=False, return_dups=False):
+    def readd_parameter_definition_tags(self, *items):
+        """Add known parameter definition tags to database.
+        """
+        self._do_add_parameter_definition_tags(*items)
+        ids = set(x["id"] for x in items)
+        sq = self.parameter_definition_tag_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
+    def add_wide_parameter_value_lists(self, *wide_items, strict=False, return_dups=False):
         """Stage parameter value-list items for insertion.
 
-        :param Iterable item_list: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_item_list** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items succesfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_wide_item_list, intgr_error_log = self.check_wide_parameter_value_lists_for_insert(
-            *wide_item_list, strict=strict
+        checked_wide_items, intgr_error_log = self.check_wide_parameter_value_lists_for_insert(
+            *wide_items, strict=strict
         )
-        id_list = self._add_wide_parameter_value_lists(*checked_wide_item_list)
+        ids = self._add_wide_parameter_value_lists(*checked_wide_items)
         if return_dups:
-            id_list.update(set(x.id for x in intgr_error_log if x.id))
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         sq = self.wide_parameter_value_list_sq
-        new_item_list = self.query(sq).filter(sq.c.id.in_(id_list))
-        return new_item_list, intgr_error_log
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, intgr_error_log
 
-    def _add_wide_parameter_value_lists(self, *wide_item_list):
+    def _add_wide_parameter_value_lists(self, *wide_items):
         """Add wide parameter value_lists to database without checking integrity.
 
         Returns:
-            id_list (set): added instances' ids
+            ids (set): added instances' ids
         """
-        next_id = self._next_id_with_lock()
-        if next_id.parameter_value_list_id:
-            id = next_id.parameter_value_list_id
-        else:
-            max_id = self.query(func.max(self.ParameterValueList.id)).scalar()
-            id = max_id + 1 if max_id else 1
+        wide_items_to_add, ids = self._items_with_ids("parameter_value_list", *wide_items)
+        self._do_add_wide_parameter_value_lists(*wide_items_to_add)
+        self.added_item_id["parameter_value_list"].update(ids)
+        return ids
+
+    def _do_add_wide_parameter_value_lists(self, *wide_items_to_add):
+        items_to_add = list()
+        for wide_item in wide_items_to_add:
+            for k, value in enumerate(wide_item["value_list"]):
+                narrow_item = {"id": wide_item["id"], "name": wide_item["name"], "value_index": k, "value": value}
+                items_to_add.append(narrow_item)
         try:
-            items_to_add = list()
-            id_list = set(range(id, id + len(wide_item_list)))
-            for wide_item in wide_item_list:
-                for k, value in enumerate(wide_item["value_list"]):
-                    narrow_item = {"id": id, "name": wide_item["name"], "value_index": k, "value": value}
-                    items_to_add.append(narrow_item)
-                id += 1
             self.session.bulk_insert_mappings(self.DiffParameterValueList, items_to_add)
-            next_id.parameter_value_list_id = id
             self.session.commit()
-            self.added_item_id["parameter_value_list"].update(id_list)
-            return id_list
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def readd_wide_parameter_value_lists(self, *wide_items):
+        """Add known parameter value lists to database.
+        """
+        print(wide_items)
+        self._do_add_wide_parameter_value_lists(*wide_items)
+        ids = set(x["id"] for x in wide_items)
+        sq = self.wide_parameter_value_list_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
 
     def add_object_class(self, **kwargs):
         """Stage an object class item for insertion.
