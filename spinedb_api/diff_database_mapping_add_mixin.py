@@ -469,6 +469,12 @@ class DiffDatabaseMappingAddMixin:
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, intgr_error_log
 
+    def add_checked_parameter_values(self, *checked_items):
+        ids = self._add_parameter_values(*checked_items)
+        sq = self.parameter_value_sq
+        new_items = self.query(sq).filter(sq.c.id.in_(ids))
+        return new_items, []
+
     def _add_parameter_values(self, *items):
         """Add parameter values to database without checking integrity.
 
