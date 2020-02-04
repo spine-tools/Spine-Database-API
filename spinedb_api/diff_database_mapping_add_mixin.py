@@ -80,6 +80,8 @@ class DiffDatabaseMappingAddMixin:
         return self.query(self.NextId).one_or_none()
 
     def _items_with_ids(self, tablename, *items):
+        if not items:
+            return [], set()
         next_id_fieldname = {
             "object_class": "entity_class_id",
             "object": "entity_id",
