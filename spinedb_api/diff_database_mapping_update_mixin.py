@@ -225,6 +225,12 @@ class DiffDatabaseMappingUpdateMixin:
         updated_item_list = self.query(self.parameter_value_sq).filter(self.parameter_value_sq.c.id.in_(updated_ids))
         return updated_item_list, intgr_error_log
 
+    def update_checked_parameter_values(self, *checked_kwargs_list):
+        """Update checked parameter values."""
+        updated_ids = self._update_parameter_values(*checked_kwargs_list)
+        updated_item_list = self.query(self.parameter_value_sq).filter(self.parameter_value_sq.c.id.in_(updated_ids))
+        return updated_item_list, []
+
     def _update_parameter_values(self, *checked_kwargs_list):
         """Update parameter values.
 

@@ -639,7 +639,8 @@ class DatabaseMappingBase:
                 r.class_id,
                 r.name,
                 o.id AS object_id,
-                o.name AS object_name
+                o.name AS object_name,
+                o.class_id AS object_class_id,
             FROM relationship as r, object AS o
             WHERE r.object_id = o.id
             ORDER BY r.id, r.dimension
@@ -655,6 +656,7 @@ class DatabaseMappingBase:
                     self.wide_relationship_class_sq.c.name.label("class_name"),
                     self.object_sq.c.id.label("object_id"),
                     self.object_sq.c.name.label("object_name"),
+                    self.object_sq.c.class_id.label("object_class_id"),
                 )
                 .filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
                 .filter(self.relationship_sq.c.class_id == self.wide_relationship_class_sq.c.id)
@@ -699,6 +701,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.class_name,
                     func.group_concat(self.ext_relationship_sq.c.object_id).label("object_id_list"),
                     func.group_concat(self.ext_relationship_sq.c.object_name).label("object_name_list"),
+                    func.group_concat(self.ext_relationship_sq.c.object_class_id).label("object_class_id_list"),
                 )
                 .group_by(
                     self.ext_relationship_sq.c.id, self.ext_relationship_sq.c.class_id, self.ext_relationship_sq.c.name

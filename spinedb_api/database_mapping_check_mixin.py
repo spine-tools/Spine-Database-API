@@ -67,7 +67,6 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 check_object_class(item, object_class_names, self.object_class_type)
-                item["type_id"] = self.object_class_type
                 checked_items.append(item)
                 # If the check passes, append item to `object_class_names` for next iteration.
                 object_class_names[item["name"]] = None
@@ -151,7 +150,6 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 check_object(item, object_names, object_class_id_list, self.object_entity_type)
-                item["type_id"] = self.object_entity_type
                 checked_items.append(item)
                 object_names[item["class_id"], item["name"]] = None
             except SpineIntegrityError as e:
@@ -466,12 +464,9 @@ class DatabaseMappingCheckMixin:
                 object_class_id = item.get("object_class_id", None)
                 relationship_class_id = item.get("relationship_class_id", None)
                 if object_class_id is not None:
-                    class_id = object_class_id
                     obj_parameter_definition_names[object_class_id, item["name"]] = None
                 elif relationship_class_id is not None:
-                    class_id = relationship_class_id
                     rel_parameter_definition_names[relationship_class_id, item["name"]] = None
-                item["entity_class_id"] = class_id
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -622,19 +617,12 @@ class DatabaseMappingCheckMixin:
                     parameter_value_list_dict,
                 )
                 # Update sets of tuples (object_id, parameter_definition_id)
-                # and (relationship_id, parameter_definition_id)
                 object_id = item.get("object_id", None)
                 relationship_id = item.get("relationship_id", None)
                 if object_id is not None:
-                    entity_id = object_id
-                    entity_class_id = object_dict[object_id]["class_id"]
                     object_parameter_values[object_id, item["parameter_definition_id"]] = None
                 elif relationship_id is not None:
-                    entity_id = relationship_id
-                    entity_class_id = relationship_dict[relationship_id]["class_id"]
                     relationship_parameter_values[relationship_id, item["parameter_definition_id"]] = None
-                item["entity_id"] = entity_id
-                item["entity_class_id"] = entity_class_id
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
