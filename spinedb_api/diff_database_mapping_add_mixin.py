@@ -662,7 +662,6 @@ class DiffDatabaseMappingAddMixin:
     def readd_wide_parameter_value_lists(self, *wide_items):
         """Add known parameter value lists to database.
         """
-        print(wide_items)
         self._do_add_wide_parameter_value_lists(*wide_items)
         ids = set(x["id"] for x in wide_items)
         sq = self.wide_parameter_value_list_sq
