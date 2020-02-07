@@ -175,6 +175,8 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_object_classes(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["entity_class"].update(ids)
+        self.added_item_id["object_class"].update(ids)
         sq = self.object_class_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -234,6 +236,8 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_objects(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["entity"].update(ids)
+        self.added_item_id["object"].update(ids)
         sq = self.object_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -308,6 +312,9 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_wide_relationship_classes(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["entity_class"].update(ids)
+        self.added_item_id["relationship_class"].update(ids)
+        self.added_item_id["relationship_entity_class"].update(ids)
         sq = self.wide_relationship_class_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -389,6 +396,9 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_wide_relationships(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["entity"].update(ids)
+        self.added_item_id["relationship"].update(ids)
+        self.added_item_id["relationship_entity"].update(ids)
         sq = self.wide_relationship_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -446,6 +456,7 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_parameter_definitions(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["parameter_definition"].update(ids)
         sq = self.parameter_definition_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -507,6 +518,7 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_parameter_values(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["parameter_value"].update(ids)
         sq = self.parameter_value_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -557,6 +569,7 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_parameter_tags(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["parameter_tag"].update(ids)
         sq = self.parameter_tag_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -607,6 +620,7 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_parameter_definition_tags(*items)
         ids = set(x["id"] for x in items)
+        self.added_item_id["parameter_definition_tag"].update(ids)
         sq = self.parameter_definition_tag_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
@@ -664,6 +678,7 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_wide_parameter_value_lists(*wide_items)
         ids = set(x["id"] for x in wide_items)
+        self.added_item_id["parameter_value_list"].update(ids)
         sq = self.wide_parameter_value_list_sq
         new_items = self.query(sq).filter(sq.c.id.in_(ids))
         return new_items, []
