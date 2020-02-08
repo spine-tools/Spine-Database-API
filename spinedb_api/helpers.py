@@ -37,18 +37,16 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
 )
 from sqlalchemy.ext.automap import generate_relationship
-from sqlalchemy.engine import reflection
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
-from sqlalchemy.orm import interfaces
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
+from spinedb_api.parameter_value import Duration, DateTime as Date
 from .exception import SpineDBAPIError, SpineDBVersionError
 from .import_functions import import_data
-from spinedb_api.parameter_value import Duration, DateTime as Date
 
 # Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
 # - sqlite works
@@ -189,6 +187,8 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
     """Make all relationships view only to avoid warnings."""
     kw["viewonly"] = True
+    kw["cascade"] = ""
+    kw["passive_deletes"] = False
     return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 

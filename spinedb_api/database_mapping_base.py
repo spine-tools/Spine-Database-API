@@ -184,8 +184,6 @@ class DatabaseMappingBase:
 
     def _create_mapping(self):
         """Create ORM."""
-        # For some reason, automap_base doesn't seem to be able to map the object_class table
-        # ...it works now...???
         Base = automap_base()
         Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
         not_found = []
