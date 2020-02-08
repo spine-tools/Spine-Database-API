@@ -277,8 +277,8 @@ class DiffDatabaseMappingUpdateMixin:
 
     def set_parameter_definition_tags(self, *items, strict=False):
         """Set tags for parameter definitions."""
-        tag_id_lists = {
-            x.parameter_definition_id: [int(y) for y in x.parameter_tag_id_list.split(",")]
+        current_tag_id_lists = {
+            x.parameter_definition_id: x.parameter_tag_id_list
             for x in self.query(self.wide_parameter_definition_tag_sq)
         }
         definition_tag_id_dict = {
@@ -291,14 +291,15 @@ class DiffDatabaseMappingUpdateMixin:
             definition_id = item["parameter_definition_id"]
             definition_ids.add(definition_id)
             tag_id_list = item["parameter_tag_id_list"]
-            target_tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
-            current_tag_id_list = tag_id_lists.get(definition_id, [])
-            for tag_id in target_tag_id_list:
+            tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
+            current_tag_id_list = current_tag_id_lists[definition_id]
+            current_tag_id_list = [int(x) for x in current_tag_id_list.split(",")] if current_tag_id_list else []
+            for tag_id in tag_id_list:
                 if tag_id not in current_tag_id_list:
                     item = {"parameter_definition_id": definition_id, "parameter_tag_id": tag_id}
                     new_items.append(item)
             for tag_id in current_tag_id_list:
-                if tag_id not in target_tag_id_list:
+                if tag_id not in tag_id_list:
                     deleted_ids.add(definition_tag_id_dict[definition_id, tag_id])
         self.remove_items(parameter_definition_tag_ids=deleted_ids)
         _, error_log = self.add_parameter_definition_tags(*new_items, strict=strict)
