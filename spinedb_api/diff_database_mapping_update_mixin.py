@@ -15,7 +15,6 @@
 :date:   11.8.2018
 """
 
-import warnings
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import attr_dict
@@ -49,7 +48,7 @@ class DiffDatabaseMappingUpdateMixin:
             diff_query = self.query(diff_class).filter_by(**filter_)
             for diff_item in diff_query:
                 updated_kwargs = attr_dict(diff_item)
-                if all(kwargs[k] == updated_kwargs.get(k) for k in kwargs.keys()):
+                if all(updated_kwargs[k] == kwargs[k] for k in updated_kwargs.keys() & kwargs.keys()):
                     continue
                 updated_kwargs.update(kwargs)
                 items_for_update.append(updated_kwargs)
@@ -59,7 +58,7 @@ class DiffDatabaseMappingUpdateMixin:
                 continue
             for orig_item in self.query(orig_class).filter_by(**filter_):
                 updated_kwargs = attr_dict(orig_item)
-                if all(kwargs[k] == updated_kwargs.get(k) for k in kwargs.keys()):
+                if all(updated_kwargs[k] == kwargs[k] for k in updated_kwargs.keys() & kwargs.keys()):
                     continue
                 updated_kwargs.update(kwargs)
                 items_for_insert.append(updated_kwargs)
