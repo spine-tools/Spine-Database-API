@@ -16,7 +16,6 @@ Classes for reading data with json mapping specifications
 :date:   22.02.2018
 """
 
-from collections import Sequence
 import itertools
 import math
 from operator import itemgetter
@@ -390,6 +389,7 @@ class TimeSeriesOptions:
     Attributes:
         repeat (bool): time series repeat flag
     """
+
     def __init__(self, repeat=False, ignore_year=False, fixed_resolution=False):
         self.repeat = repeat
         self.ignore_year = ignore_year
@@ -534,7 +534,7 @@ class ParameterValueMapping(ParameterDefinitionMapping):
             getter, num, reads = self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
         getters["value"] = (getter, num, reads)
         return getters
-    
+
     def raw_data_to_type(self, data):
         return data
 
@@ -569,7 +569,9 @@ class ParameterListMapping(ParameterValueMapping):
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
-        non_pivoted_columns.extend(ed.reference for ed in self.extra_dimensions if isinstance(ed, ColumnMapping) and ed.returns_value())
+        non_pivoted_columns.extend(
+            ed.reference for ed in self.extra_dimensions if isinstance(ed, ColumnMapping) and ed.returns_value()
+        )
         return non_pivoted_columns
 
     def last_pivot_row(self):
@@ -676,9 +678,7 @@ class ParameterTimeSeriesMapping(ParameterListMapping):
         if options is None:
             options = TimeSeriesOptions()
         if not isinstance(options, TimeSeriesOptions):
-            raise TypeError(
-                f"options must be a TimeSeriesOptions, instead got: {type(options).__name__}"
-            )
+            raise TypeError(f"options must be a TimeSeriesOptions, instead got: {type(options).__name__}")
         self._options = options
 
     @classmethod
@@ -715,7 +715,10 @@ class ParameterTimeSeriesMapping(ParameterListMapping):
             if values:
                 indexes = [items[0] for items in values]
                 values = [items[1] for items in values]
-                out.append(keys + (TimeSeriesVariableResolution(indexes, values, self.options.ignore_year, self.options.repeat),))
+                out.append(
+                    keys
+                    + (TimeSeriesVariableResolution(indexes, values, self.options.ignore_year, self.options.repeat),)
+                )
         return out
 
 
@@ -909,7 +912,9 @@ class EntityClassMapping:
             getter, num, reads = self.name.create_getter_function(pivoted_columns, pivoted_data, data_header)
         readers["class_name"] = (getter, num, reads)
         if isinstance(self.parameters, ParameterDefinitionMapping):
-            par_readers = self.parameters.create_getter_list(self.is_pivoted(), pivoted_columns, pivoted_data, data_header)
+            par_readers = self.parameters.create_getter_list(
+                self.is_pivoted(), pivoted_columns, pivoted_data, data_header
+            )
             if "name" in par_readers:
                 par_readers["parameter name"] = par_readers.pop("name")
             if "value" in par_readers:
@@ -976,7 +981,9 @@ class ObjectClassMapping(EntityClassMapping):
         parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
-        return ObjectClassMapping(name=name, objects=objects, parameters=parameters, skip_columns=skip_columns, read_start_row=read_start_row)
+        return ObjectClassMapping(
+            name=name, objects=objects, parameters=parameters, skip_columns=skip_columns, read_start_row=read_start_row
+        )
 
     def to_dict(self):
         map_dict = super().to_dict()
@@ -1010,10 +1017,7 @@ class ObjectClassMapping(EntityClassMapping):
         component_readers = self.create_getter_list(pivoted_columns, pivoted_data, data_header)
         name_getter, name_num, name_reads = component_readers["class_name"]
         o_getter, o_num, o_reads = component_readers["objects"]
-        readers.append(
-            ("object_classes",)
-            + create_final_getter_function([name_getter], [name_num], [name_reads])
-        )
+        readers.append(("object_classes",) + create_final_getter_function([name_getter], [name_num], [name_reads]))
         readers.append(
             ("objects",)
             + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
@@ -1065,8 +1069,12 @@ class RelationshipClassMapping(EntityClassMapping):
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
-        non_pivoted_columns.extend(o.reference for o in self.objects if isinstance(o, ColumnMapping) and o.returns_value())
-        non_pivoted_columns.extend(oc.reference for oc in self.object_classes if isinstance(oc, ColumnMapping) and oc.returns_value())
+        non_pivoted_columns.extend(
+            o.reference for o in self.objects if isinstance(o, ColumnMapping) and o.returns_value()
+        )
+        non_pivoted_columns.extend(
+            oc.reference for oc in self.object_classes if isinstance(oc, ColumnMapping) and oc.returns_value()
+        )
         return non_pivoted_columns
 
     def last_pivot_row(self):
@@ -1142,7 +1150,7 @@ class RelationshipClassMapping(EntityClassMapping):
             parameters=parameters,
             skip_columns=skip_columns,
             read_start_row=read_start_row,
-            import_objects=import_objects
+            import_objects=import_objects,
         )
 
     def to_dict(self):
@@ -1164,7 +1172,9 @@ class RelationshipClassMapping(EntityClassMapping):
         if isinstance(self.parameters, ParameterValueMapping):
             # if we have a parameter value mapping we need to have objects and object classes mapping
             # that returns data.
-            if not all(o.returns_value() for o in self.objects) or not all(oc.returns_value() for oc in self.object_classes):
+            if not all(o.returns_value() for o in self.objects) or not all(
+                oc.returns_value() for oc in self.object_classes
+            ):
                 return False, "parameter value mapping need all object or object_class mappings to return values"
         return True, ""
 
@@ -1185,7 +1195,7 @@ class RelationshipClassMapping(EntityClassMapping):
                 *create_getter_list(self.objects, pivoted_columns, pivoted_data, data_header),
                 list_wrap=len(self.objects) == 1,
             )
-        
+
         readers["objects"] = (o_getter, o_num, o_reads)
         readers["object_classes"] = (oc_getter, oc_num, oc_reads)
         return readers
@@ -1208,11 +1218,15 @@ class RelationshipClassMapping(EntityClassMapping):
         if self.import_objects:
             for oc, o in zip(self.object_classes, self.objects):
                 oc_getter, oc_num, oc_reads = oc.create_getter_function(pivoted_columns, pivoted_data, data_header)
-                single_o_getter, single_o_num, single_o_reads = o.create_getter_function(pivoted_columns, pivoted_data, data_header)
+                single_o_getter, single_o_num, single_o_reads = o.create_getter_function(
+                    pivoted_columns, pivoted_data, data_header
+                )
                 readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
                 readers.append(
                     ("objects",)
-                    + create_final_getter_function([oc_getter, single_o_getter], [oc_num, single_o_num], [oc_reads, single_o_reads])
+                    + create_final_getter_function(
+                        [oc_getter, single_o_getter], [oc_num, single_o_num], [oc_reads, single_o_reads]
+                    )
                 )
         par_val_name = "relationship_parameter_values"
         if isinstance(self.parameters, ParameterDefinitionMapping):
@@ -1281,10 +1295,9 @@ def mappingbase_from_dict_int_str(value, default_map=NoneMapping):
         return value
     if isinstance(value, dict):
         return mapping_from_dict(value)
-    elif isinstance(value, (int, str)):
+    if isinstance(value, (int, str)):
         return mappingbase_from_value(value)
-    else:
-        raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
+    raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
 
 
 def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
@@ -1304,7 +1317,7 @@ def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
     map_class = parameter_type_to_class.get(parameter_type, default_map)
     if parameter_type is None:
         map_dict.update(parameter_type=map_class.PARAMETER_TYPE)
-        
+
     return parameter_type_to_class.get(parameter_type, default_map).from_dict(map_dict)
 
 
@@ -1431,7 +1444,9 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         elif isinstance(map_, EntityClassMapping):
             mappings = [map_]
         else:
-            raise TypeError(f"mapping must be a dict, ObjectClassMapping, RelationshipClassMapping or list of those, instead was: {type(map_).__name__}")
+            raise TypeError(
+                f"mapping must be a dict, ObjectClassMapping, RelationshipClassMapping or list of those, instead was: {type(map_).__name__}"
+            )
 
     # find max pivot row since mapping can have different number of pivoted rows.
     last_pivot_row = -1
@@ -1507,7 +1522,6 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             except IndexError as e:
                 errors.append((row_number, e))
     # convert parameter values to right class and put all data in one dict
-    new_data = {}
     for key, v in data.items():
         map_i, k = key
         if "parameter_values" in k:
@@ -1564,7 +1578,7 @@ def create_final_getter_function(function_list, function_output_len_list, reads_
     """Creates a single function that will return a list of items
     If there are any None in the function_list then return an empty list
     """
-    if any(f is None for f in function_list):
+    if None in function_list:
         # invalid data return empty list
         def getter(row):
             return []
@@ -1603,15 +1617,12 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
     if not function_list:
         # empty list
         return None, None, None
-    if any(f is None for f in function_list):
+    if None in function_list:
         # incomplete list
         return None, None, None
 
     if not all(l in (l, max(len_output_list)) for l in len_output_list):
-        raise ValueError(
-            """len_output_list each element in list must be 1
-                         or max(len_output_list)"""
-        )
+        raise ValueError("""len_output_list each element in list must be 1 or max(len_output_list)""")
 
     if any(n > 1 for n in len_output_list):
         # not all getters return one value, some will return more. repeat the
