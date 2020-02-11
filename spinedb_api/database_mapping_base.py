@@ -184,8 +184,6 @@ class DatabaseMappingBase:
 
     def _create_mapping(self):
         """Create ORM."""
-        # For some reason, automap_base doesn't seem to be able to map the object_class table
-        # ...it works now...???
         Base = automap_base()
         Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
         not_found = []
@@ -774,10 +772,8 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.default_value,
                 )
                 .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
-                .outerjoin(
-                    self.wide_parameter_definition_tag_sq,
-                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id
-                    == self.parameter_definition_sq.c.id,
+                .filter(
+                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id
                 )
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
@@ -874,10 +870,8 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.default_value,
                 )
                 .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
-                .outerjoin(
-                    self.wide_parameter_definition_tag_sq,
-                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id
-                    == self.parameter_definition_sq.c.id,
+                .filter(
+                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id
                 )
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
@@ -961,11 +955,18 @@ class DatabaseMappingBase:
         if self._ext_parameter_definition_tag_sq is None:
             self._ext_parameter_definition_tag_sq = (
                 self.query(
-                    self.parameter_definition_tag_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    self.parameter_definition_sq.c.id.label("parameter_definition_id"),
                     self.parameter_definition_tag_sq.c.parameter_tag_id.label("parameter_tag_id"),
                     self.parameter_tag_sq.c.tag.label("parameter_tag"),
                 )
-                .filter(self.parameter_definition_tag_sq.c.parameter_tag_id == self.parameter_tag_sq.c.id)
+                .outerjoin(
+                    self.parameter_definition_tag_sq,
+                    self.parameter_definition_tag_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id,
+                )
+                .outerjoin(
+                    self.parameter_tag_sq,
+                    self.parameter_tag_sq.c.id == self.parameter_definition_tag_sq.c.parameter_tag_id,
+                )
                 .subquery()
             )
         return self._ext_parameter_definition_tag_sq
