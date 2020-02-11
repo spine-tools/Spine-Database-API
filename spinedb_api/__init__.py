@@ -82,11 +82,12 @@ from .parameter_value import (
     to_database,
     DateTime,
     Duration,
-    IndexedValue,
+    IndexedNumberArray,
     TimePattern,
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    Map,
 )
 from .version import __version__
 

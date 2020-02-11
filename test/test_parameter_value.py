@@ -30,10 +30,11 @@ from spinedb_api.parameter_value import (
     to_database,
     DateTime,
     Duration,
-    IndexedValue,
+    IndexedNumberArray,
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    Map,
 )
 
 
@@ -512,6 +513,61 @@ class TestParameterValue(unittest.TestCase):
             self.assertTrue(isinstance(index, np.datetime64))
         self.assertTrue(isinstance(series.values, np.ndarray))
 
+    def test_from_database_Map_dictionary_format(self):
+        database_value = '{"type":"map", "index_type":"str", "data":{"a": 1.1, "b": 2.2}}'
+        value = from_database(database_value)
+        self.assertIsInstance(value, Map)
+        self.assertEqual(value.indexes, ["a", "b"])
+        self.assertEqual(value.values, [1.1, 2.2])
+
+    def test_from_database_Map_two_column_array_format(self):
+        database_value = '{"type":"map", "index_type":"float", "data":[[1.1, "a"], [2.2, "b"]]}'
+        value = from_database(database_value)
+        self.assertIsInstance(value, Map)
+        self.assertEqual(value.indexes, [1.1, 2.2])
+        self.assertEqual(value.values, ["a", "b"])
+
+    def test_from_database_Map_nested_maps(self):
+        database_value = '''
+        {
+            "type": "map",
+             "index_type": "duration",
+              "data":[["1 hour", {"type": "map",
+                                  "index_type": "date_time",
+                                  "data": {"2020-01-01T12:00": {"type":"duration", "data":"3 hours"}}}]]
+        }'''
+        value = from_database(database_value)
+        self.assertEqual(value.indexes, [Duration("1 hour")])
+        nested_map = value.values[0]
+        self.assertIsInstance(nested_map, Map)
+        self.assertEqual(nested_map.indexes, [DateTime("2020-01-01T12:00")])
+        self.assertEqual(nested_map.values, [Duration("3 hours")])
+
+    def test_Map_to_database(self):
+        map_value = Map(["a", "b"], [1.1, 2.2])
+        as_json = to_database(map_value)
+        raw = json.loads(as_json)
+        self.assertEqual(raw, {"type": "map", "index_type": "str", "data": [["a", 1.1], ["b", 2.2]]})
+
+    def test_Map_to_database_nested_maps(self):
+        nested_map = Map([Duration("2 months")], [Duration("5 days")])
+        map_value = Map([DateTime("2020-01-01T13:00")], [nested_map])
+        as_json = to_database(map_value)
+        raw = json.loads(as_json)
+        self.assertEqual(
+            raw,
+            {
+                "type": "map",
+                "index_type": "date_time",
+                "data": [
+                    [
+                        "2020-01-01T13:00:00",
+                        {"type": "map", "index_type": "duration", "data": [["2M", {"type": "duration", "data": "5D"}]]},
+                    ]
+                ],
+            },
+        )
+
     def test_DateTime_equality(self):
         date_time = DateTime(dateutil.parser.parse("2019-07-03T09:09:09"))
         self.assertEqual(date_time, date_time)
@@ -553,10 +609,10 @@ class TestParameterValue(unittest.TestCase):
         self.assertNotEqual(series, inequal_series)
 
     def test_IndexedValue_constructor_converts_values_to_floats(self):
-        value = IndexedValue([4, -9, 11])
+        value = IndexedNumberArray([4, -9, 11])
         self.assertEqual(value.values.dtype, np.dtype(float))
         numpy.testing.assert_equal(value.values, numpy.array([4.0, -9.0, 11.0]))
-        value = IndexedValue(numpy.array([16, -251, 99]))
+        value = IndexedNumberArray(numpy.array([16, -251, 99]))
         self.assertEqual(value.values.dtype, np.dtype(float))
         numpy.testing.assert_equal(value.values, numpy.array([16.0, -251.0, 99.0]))
 
