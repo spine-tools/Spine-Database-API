@@ -844,6 +844,11 @@ class Map(IndexedValue):
         self._index_type = index_type if index_type is not None else type(indexes[0])
         self._values = values
 
+    def __eq__(self, other):
+        if not isinstance(other, Map):
+            return NotImplemented
+        return other._indexes == self._indexes and other._values == self._values
+
     def __len__(self):
         """Returns the length of map."""
         return len(self._indexes)

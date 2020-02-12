@@ -584,6 +584,13 @@ class TestParameterValue(unittest.TestCase):
         inequal_duration = Duration(duration_to_relativedelta("3 seconds"))
         self.assertNotEqual(duration, inequal_duration)
 
+    def test_Map_equality(self):
+        map_value = Map(["a"], [-2.3])
+        self.assertEqual(map_value, Map(["a"], [-2.3]))
+        nested_map = Map(["a"], [-2.3])
+        map_value = Map(["A"], [nested_map])
+        self.assertEqual(map_value, Map(["A"], [Map(["a"], [-2.3])]))
+
     def test_TimePattern_equality(self):
         pattern = TimePattern(["1d", "2-7d"], np.array([-2.3, -5.0]))
         self.assertEqual(pattern, pattern)
