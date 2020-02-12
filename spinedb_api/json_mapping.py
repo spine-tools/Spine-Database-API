@@ -16,11 +16,10 @@ Classes for reading data with json mapping specifications
 :date:   22.02.2018
 """
 
-from collections import Sequence
 import itertools
 import math
 from operator import itemgetter
-from .parameter_value import TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
+from .parameter_value import Map, TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
 from .exception import TypeConversionError
 
 
@@ -34,7 +33,7 @@ PARAMETER = "parameter"
 PARAMETERCOLUMN = "parameter_column"
 PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
 MAPPINGCOLLECTION = "collection"
-VALID_PARAMETER_TYPES = ['time series', 'time pattern', '1d array', 'single value', 'definition']
+VALID_PARAMETER_TYPES = ['map', 'time series', 'time pattern', '1d array', 'single value', 'definition']
 
 
 class MappingBase:
@@ -657,6 +656,23 @@ class ParameterListMapping(ParameterValueMapping):
                 if values:
                     out.append(keys + (values,))
 
+        return out
+
+
+class ParameterMapMapping(ParameterListMapping):
+    NUM_EXTRA_DIMENSIONS = 1
+    PARAMETER_TYPE = "map"
+    ALLOW_EXTRA_DIMENSION_NO_RETURN = False
+
+    def raw_data_to_type(self, data):
+        out = []
+        data = sorted(data, key=lambda x: x[:-1])
+        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
+            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+            if values:
+                indexes = [items[0] for items in values]
+                values = [items[1] for items in values]
+                out.append(keys + (Map(indexes, values),))
         return out
 
 
@@ -1312,6 +1328,7 @@ def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
         "definition": ParameterDefinitionMapping,
         "single value": ParameterValueMapping,
         "1d array": ParameterListMapping,
+        "map": ParameterMapMapping,
         "time series": ParameterTimeSeriesMapping,
         "time pattern": ParameterTimePatternMapping,
     }

@@ -65,6 +65,7 @@ from .json_mapping import (
     parameter_mapping_from_dict,
     ParameterDefinitionMapping,
     ParameterValueMapping,
+    ParameterMapMapping,
     ParameterTimeSeriesMapping,
     ParameterTimePatternMapping,
     ParameterListMapping,

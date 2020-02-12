@@ -19,12 +19,9 @@ Unit tests for import_functions.py.
 import unittest
 from spinedb_api.json_mapping import (
     read_with_mapping,
-    ColumnMapping,
-    ConstantMapping,
     ObjectClassMapping,
     RelationshipClassMapping,
-    ParameterDefinitionMapping,
-    ParameterValueMapping,
+    ParameterMapMapping,
     ParameterTimeSeriesMapping,
     RowMapping,
     ColumnMapping,
@@ -187,6 +184,45 @@ class TestMappingIO(unittest.TestCase):
             "skip_columns": [],
         }
         self.assertEqual(out, expected)
+
+    def test_ParameterDictionaryMapping_from_dict(self):
+        mapping_value = RowMapping(reference=23)
+        extra_dimension = ColumnMapping(reference="fifth column")
+        parameter_mapping = ParameterMapMapping("mapping name", value=mapping_value, extra_dimension=[extra_dimension])
+        mapping_dict = parameter_mapping.to_dict()
+        expected = {
+                "map_type": "parameter",
+                "name": {'map_type': 'constant', 'reference': 'mapping name'},
+                "parameter_type": "map",
+                "value": {"reference": 23, "map_type": "row"},
+                "extra_dimensions": [
+                    {"reference": "fifth column", "map_type": "column"},
+                ],
+            }
+        self.assertEqual(mapping_dict, expected)
+
+    def test_ParameterDictionaryMapping_to_dict(self):
+        mapping_dict = {
+                "map_type": "parameter",
+                "name": {'map_type': 'constant', 'reference': 'mapping name'},
+                "parameter_type": "map",
+                "value": {"reference": 23, "map_type": "row"},
+                "extra_dimensions": [
+                    {"value_reference": "fifth column", "map_type": "column"},
+                ],
+                "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
+            }
+        parameter_mapping = ParameterMapMapping.from_dict(mapping_dict)
+        self.assertEqual(parameter_mapping.name.reference, "mapping name")
+        self.assertTrue(isinstance(parameter_mapping, ParameterMapMapping))
+        value = parameter_mapping.value
+        self.assertTrue(isinstance(value, RowMapping))
+        self.assertEqual(value.reference, 23)
+        extra_dimensions = parameter_mapping.extra_dimensions
+        self.assertEqual(len(extra_dimensions), 1)
+        dimension = extra_dimensions[0]
+        self.assertTrue(isinstance(dimension, ColumnMapping))
+        self.assertEqual(dimension.reference, "fifth column")
 
     def test_TimeSeriesOptions_to_dict(self):
         options = TimeSeriesOptions(repeat=True)
