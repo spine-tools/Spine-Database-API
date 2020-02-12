@@ -30,11 +30,12 @@ numpy.ndarray arrays holding numpy.datetime64 objects.
 """
 
 from collections.abc import Iterable, Sequence
-import json
-from json.decoder import JSONDecodeError
-import re
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
+import json
+from json.decoder import JSONDecodeError
+from numbers import Number
+import re
 import numpy as np
 from .exception import ParameterValueFormatError
 
@@ -155,6 +156,8 @@ def from_database(database_value):
             raise ParameterValueFormatError('Unknown parameter value type "{}"'.format(value_type))
         except KeyError as error:
             raise ParameterValueFormatError('"{}" is missing in the parameter value description'.format(error.args[0]))
+    if isinstance(value, Number):
+        return float(value)
     return value
 
 
@@ -477,7 +480,7 @@ class Duration:
         return self._value == other._value
 
     def to_text(self):
-        """Returns a coma separated str representation of the duration"""
+        """Returns a comma separated str representation of the duration"""
         return ", ".join(relativedelta_to_duration(delta) for delta in self.value)
 
     def value_to_database_data(self):
