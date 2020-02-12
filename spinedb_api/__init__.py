@@ -83,6 +83,7 @@ from .parameter_value import (
     DateTime,
     Duration,
     IndexedNumberArray,
+    IndexedValue,
     TimePattern,
     TimeSeries,
     TimeSeriesFixedResolution,
