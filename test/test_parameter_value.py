@@ -623,6 +623,13 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value.values.dtype, np.dtype(float))
         numpy.testing.assert_equal(value.values, numpy.array([16.0, -251.0, 99.0]))
 
+    def test_Map_is_nested(self):
+        map_value = Map(["a"], [-2.3])
+        self.assertFalse(map_value.is_nested())
+        nested_map = Map(["a"], [-2.3])
+        map_value = Map(["A"], [nested_map])
+        self.assertTrue(map_value.is_nested())
+
 
 if __name__ == "__main__":
     unittest.main()

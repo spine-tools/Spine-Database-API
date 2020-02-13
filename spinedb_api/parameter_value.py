@@ -863,6 +863,10 @@ class Map(IndexedValue):
         """Map's values."""
         return self._values
 
+    def is_nested(self):
+        """Returns True if any of the values is also a map."""
+        return any(isinstance(value, Map) for value in self._values)
+
     def value_to_database_data(self):
         """Returns map's database representation's 'data' dictionary."""
         data = list()
