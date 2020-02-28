@@ -1312,10 +1312,9 @@ def mappingbase_from_dict_int_str(value, default_map=NoneMapping):
         return value
     if isinstance(value, dict):
         return mapping_from_dict(value)
-    elif isinstance(value, (int, str)):
+    if isinstance(value, (int, str)):
         return mappingbase_from_value(value)
-    else:
-        raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
+    raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
 
 
 def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
@@ -1526,6 +1525,8 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
     if row_readers:
         for row_number, row_data in enumerate(data_source):
             row_number = row_number + skipped_rows
+            if not row_data:
+                continue
             try:
                 row_data = convert_row_types(row_data)
             except TypeConversionError as e:
@@ -1536,12 +1537,11 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                 for key, reader, read_data_from_row in row_readers:
                     if row_number >= read_data_from_row:
                         data[key].extend(
-                            [row_value for row_value in reader(row_data) if all(v is not None for v in row_value)]
+                            [row_value for row_value in reader(row_data) if row_value is not None and all(v is not None for v in row_value)]
                         )
             except IndexError as e:
                 errors.append((row_number, e))
     # convert parameter values to right class and put all data in one dict
-    new_data = {}
     for key, v in data.items():
         map_i, k = key
         if "parameter_values" in k:
@@ -1598,7 +1598,7 @@ def create_final_getter_function(function_list, function_output_len_list, reads_
     """Creates a single function that will return a list of items
     If there are any None in the function_list then return an empty list
     """
-    if any(f is None for f in function_list):
+    if None in function_list:
         # invalid data return empty list
         def getter(row):
             return []
@@ -1637,15 +1637,12 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
     if not function_list:
         # empty list
         return None, None, None
-    if any(f is None for f in function_list):
+    if None in function_list:
         # incomplete list
         return None, None, None
 
     if not all(l in (l, max(len_output_list)) for l in len_output_list):
-        raise ValueError(
-            """len_output_list each element in list must be 1
-                         or max(len_output_list)"""
-        )
+        raise ValueError("""len_output_list each element in list must be 1 or max(len_output_list)""")
 
     if any(n > 1 for n in len_output_list):
         # not all getters return one value, some will return more. repeat the
