@@ -1507,6 +1507,8 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
     if row_readers:
         for row_number, row_data in enumerate(data_source):
             row_number = row_number + skipped_rows
+            if not row_data:
+                continue
             try:
                 row_data = convert_row_types(row_data)
             except TypeConversionError as e:
