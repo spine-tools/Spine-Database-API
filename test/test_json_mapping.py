@@ -576,6 +576,31 @@ class TestMappingIntegration(unittest.TestCase):
             mapping = [{"map_type": "ObjectClass", "name": 0}, [1, 2, 3]]
             out, errors = read_with_mapping(data, mapping, num_cols, data_header)
 
+    def test_read_iterator_with_row_with_all_Nones(self):
+        input_data = [
+            ["object_class", "object", "parameter", "value"],
+            [None,None,None,None],
+            ["oc2", "obj2", "parameter_name2", 2],
+        ]
+        self.empty_data.update(
+            {
+                "object_classes": ["oc2"],
+            }
+        )
+
+        data = iter(input_data)
+        data_header = next(data)
+        num_cols = len(data_header)
+
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": 0,
+        }
+
+        out, errors = read_with_mapping(data, mapping, num_cols, data_header)
+        self.assertEqual(out, self.empty_data)
+        self.assertEqual(errors, [])
+
     def test_read_iterator_with_None(self):
         input_data = [
             ["object_class", "object", "parameter", "value"],
