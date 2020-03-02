@@ -1507,6 +1507,8 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
     if row_readers:
         for row_number, row_data in enumerate(data_source):
             row_number = row_number + skipped_rows
+            if not row_data:
+                continue
             try:
                 row_data = convert_row_types(row_data)
             except TypeConversionError as e:
@@ -1517,7 +1519,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                 for key, reader, read_data_from_row in row_readers:
                     if row_number >= read_data_from_row:
                         data[key].extend(
-                            [row_value for row_value in reader(row_data) if all(v is not None for v in row_value)]
+                            [row_value for row_value in reader(row_data) if row_value is not None and all(v is not None for v in row_value)]
                         )
             except IndexError as e:
                 errors.append((row_number, e))
