@@ -162,7 +162,11 @@ def import_object_classes(db_map, object_classes):
             check_object_class(new_oc, existing_classes, db_map.object_class_type)
             new_classes.append(new_oc)
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object class"))
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import object class '{object_class_name}': {e.msg}", db_type="object class"
+                )
+            )
     added = db_map._add_object_classes(*new_classes)
     return len(added), error_log
 
@@ -201,7 +205,11 @@ def import_objects(db_map, object_data):
             new_objects.append(db_object)
             seen_objects.add((oc_id, name))
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="object"))
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import object'{name}' with class '{oc_name}': {e.msg}", db_type="object"
+                )
+            )
     added = db_map._add_objects(*new_objects)
     return len(added), error_log
 
@@ -245,7 +253,12 @@ def import_relationship_classes(db_map, relationship_classes):
             relationship_class_names[name] = None
             seen_classes.add((name, oc_ids))
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship class"))
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import relationship class '{name}' with object classes class '{oc_names}': {e.msg}",
+                    db_type="relationship class",
+                )
+            )
     added = db_map._add_wide_relationship_classes(*new_rc)
     return len(added), error_log
 
@@ -296,7 +309,12 @@ def import_object_parameters(db_map, parameter_data):
             seen_parameters.add((oc_id, parameter_name))
         except SpineIntegrityError as e:
             # Object class doesn't exists
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter '{parameter_name}' with class '{oc_name}': {e.msg}",
+                    db_type="parameter",
+                )
+            )
     added = db_map._add_parameter_definitions(*new_parameters)
     return len(added), error_log
 
@@ -349,7 +367,12 @@ def import_relationship_parameters(db_map, parameter_data):
             seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter"))
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import parameter '{param_name}' with class '{rel_class_name}': {e.msg}",
+                    db_type="parameter",
+                )
+            )
     added = db_map._add_parameter_definitions(*new_parameters)
     return len(added), error_log
 
@@ -415,7 +438,12 @@ def import_relationships(db_map, relationship_data):
             new_relationships.append(new_rel)
             seen_relationships.add((rc_id, o_ids))
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="relationship"))
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import relationship with entities '{object_names}' into '{rel_class_name}': {e.msg}",
+                    db_type="relationship",
+                )
+            )
 
     added = db_map._add_wide_relationships(*new_relationships)
     return len(added), error_log
@@ -483,7 +511,12 @@ def import_object_parameter_values(db_map, data):
             new_value["entity_class_id"] = oc_id
             new_value.pop("object_id", None)
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter value for '{object_name}', class '{object_class}', parameter '{param_name}': {e.msg}",
+                    db_type="parameter value",
+                )
+            )
             continue
         checked_key = (p_id, o_id)
         if checked_key not in checked_new_values:
@@ -500,9 +533,7 @@ def import_object_parameter_values(db_map, data):
             # duplicate new value
             error_log.append(
                 ImportErrorLogItem(
-                    "Duplicate parameter value for '{}: {}', "
-                    "only first value will be considered."
-                    "".format(object_name, param_name),
+                    f"Could not import parameter value for '{object_name}', class '{object_class}', parameter '{param_name}': Duplicate value, only first will be considered",
                     "parameter_value",
                 )
             )
@@ -598,7 +629,12 @@ def import_relationship_parameter_values(db_map, data):
             new_value["entity_class_id"] = rc_id
             new_value.pop("relationship_id", None)
         except SpineIntegrityError as e:
-            error_log.append(ImportErrorLogItem(msg=e.msg, db_type="parameter value"))
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import parameter value for '{object_names}', class '{class_name}', parameter '{param_name}': {e.msg}",
+                    db_type="parameter value",
+                )
+            )
             continue
 
         checked_key = (p_id, r_id)
@@ -616,9 +652,7 @@ def import_relationship_parameter_values(db_map, data):
             # duplicate new value
             error_log.append(
                 ImportErrorLogItem(
-                    "Duplicate parameter value for '{0}: "
-                    "{1}: {2}', only first value will be "
-                    "considered".format(class_name, ",".join(object_names), param_name),
+                    f"Could not import parameter value for '{object_names}', class '{class_name}', parameter '{param_name}': Duplicate parameter value only first value will be considered",
                     "parameter_value",
                 )
             )
