@@ -33,6 +33,8 @@ def check_object_class(item, current_items, object_class_type):
         name = item["name"]
     except KeyError:
         raise SpineIntegrityError("Missing object class name.")
+    if not name:
+        raise SpineIntegrityError(f"Name '{name}' is not valid")
     if "type_id" in item and item["type_id"] != object_class_type:
         raise SpineIntegrityError("Object class '{}' must have correct type_id.".format(name), id=current_items[name])
     if name in current_items:
@@ -62,6 +64,8 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
         name = item["name"]
     except KeyError:
         raise SpineIntegrityError("Missing object name.")
+    if not name:
+        raise SpineIntegrityError(f"Name '{name}' is not valid")
     if "type_id" in item and item["type_id"] != object_entity_type:
         raise SpineIntegrityError("Object '{}' must have correct type_id.".format(name), id=current_items[name])
     if (class_id, name) in current_items:
@@ -93,6 +97,8 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         name = wide_item["name"]
     except KeyError:
         raise SpineIntegrityError("Missing relationship class name.")
+    if not name:
+        raise SpineIntegrityError(f"Name '{name}' is not valid")
     if "type_id" in wide_item and wide_item["type_id"] != relationship_class_type:
         raise SpineIntegrityError(
             "Relationship class '{}' must have correct type_id .".format(name), id=current_items[name]
@@ -124,6 +130,8 @@ def check_wide_relationship(
         name = wide_item["name"]
     except KeyError:
         raise SpineIntegrityError("Missing relationship name.")
+    if not name:
+        raise SpineIntegrityError(f"Name '{name}' is not valid")
     try:
         class_id = wide_item["class_id"]
     except KeyError:
@@ -187,6 +195,9 @@ def check_parameter_definition(
     """
     object_class_id = item.get("object_class_id", None)
     relationship_class_id = item.get("relationship_class_id", None)
+    name = item.get("name")
+    if not name:
+        raise SpineIntegrityError("Missing parameter name.")
     if object_class_id and relationship_class_id:
         try:
             object_class_name = object_class_names[object_class_id]
@@ -204,9 +215,6 @@ def check_parameter_definition(
     if object_class_id:
         if object_class_id not in object_class_names:
             raise SpineIntegrityError("Object class not found.")
-        name = item.get("name")
-        if not name:
-            raise SpineIntegrityError("Missing parameter name.")
         if (object_class_id, name) in current_obj_items:
             raise SpineIntegrityError(
                 "There's already a parameter called '{}' in this class.".format(name),
@@ -215,9 +223,6 @@ def check_parameter_definition(
     elif relationship_class_id:
         if relationship_class_id not in relationship_class_names:
             raise SpineIntegrityError("Relationship class not found.")
-        name = item.get("name")
-        if not name:
-            raise SpineIntegrityError("Missing parameter name.")
         if (relationship_class_id, name) in current_rel_items:
             raise SpineIntegrityError(
                 "There's already a parameter called '{}' in this class.".format(name),
@@ -347,6 +352,8 @@ def check_parameter_tag(item, current_items):
         tag = item["tag"]
     except KeyError:
         raise SpineIntegrityError("Missing parameter tag.")
+    if not tag:
+        raise SpineIntegrityError(f"Tag '{tag}' is not valid")
     if tag in current_items:
         raise SpineIntegrityError("There can't be more than one '{}' tag.".format(tag), id=current_items[tag])
 
