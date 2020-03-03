@@ -287,7 +287,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(object_classes), 2)
         self.assertEqual(object_classes[0].name, "fish")
         self.assertEqual(object_classes[1].name, "dog")
-    
+
     def test_add_object_class_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
         with self.assertRaises(SpineIntegrityError):
@@ -333,7 +333,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(objects[0].class_id, 1)
         self.assertEqual(objects[1].name, "dory")
         self.assertEqual(objects[1].class_id, 1)
-    
+
     def test_add_object_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
         self.db_map.add_object_classes({"name": "fish"})
@@ -394,7 +394,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(rel_clss[1].name, "rc2")
         self.assertEqual(rel_ent_clss[2].member_class_id, 2)
         self.assertEqual(rel_ent_clss[3].member_class_id, 1)
-    
+
     def test_add_relationship_classes_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
         self.db_map.add_object_classes({"name": "fish"})
@@ -467,7 +467,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(rel_ents[0].member_id, 1)
         self.assertEqual(rel_ents[1].entity_class_id, 3)
         self.assertEqual(rel_ents[1].member_id, 2)
-    
+
     def test_add_relationship_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
         self.db_map.add_object_classes({"name": "oc1"}, strict=True)
@@ -475,7 +475,6 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "class_id": 1}, strict=True)
         with self.assertRaises(SpineIntegrityError):
             self.db_map.add_wide_relationships({"name": "", "class_id": 1, "object_id_list": [1]}, strict=True)
-            
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one.
@@ -555,15 +554,18 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.add_parameter_definitions(
-            {"name": "color", "object_class_id": 1}, {"name": "relative_speed", "relationship_class_id": 3}
+            {"name": "color", "object_class_id": 1, "description": "test1"},
+            {"name": "relative_speed", "relationship_class_id": 3, "description": "test2"},
         )
         parameter_definitions = self.db_map.session.query(self.db_map.DiffParameterDefinition).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
         self.assertEqual(parameter_definitions[0].entity_class_id, 1)
+        self.assertEqual(parameter_definitions[0].description, "test1")
         self.assertEqual(parameter_definitions[1].name, "relative_speed")
         self.assertEqual(parameter_definitions[1].entity_class_id, 3)
-    
+        self.assertEqual(parameter_definitions[1].description, "test2")
+
     def test_add_parameter_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
         self.db_map.add_object_classes({"name": "oc1"}, strict=True)
