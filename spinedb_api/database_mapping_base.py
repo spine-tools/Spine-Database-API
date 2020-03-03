@@ -770,6 +770,7 @@ class DatabaseMappingBase:
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
+                    self.parameter_definition_sq.c.description,
                 )
                 .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
                 .filter(
@@ -868,6 +869,7 @@ class DatabaseMappingBase:
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
                     self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
+                    self.parameter_definition_sq.c.description,
                 )
                 .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
                 .filter(
