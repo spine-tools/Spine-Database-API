@@ -65,6 +65,7 @@ from .json_mapping import (
     parameter_mapping_from_dict,
     ParameterDefinitionMapping,
     ParameterValueMapping,
+    ParameterMapMapping,
     ParameterTimeSeriesMapping,
     ParameterTimePatternMapping,
     ParameterListMapping,
@@ -82,11 +83,13 @@ from .parameter_value import (
     to_database,
     DateTime,
     Duration,
+    IndexedNumberArray,
     IndexedValue,
     TimePattern,
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    Map,
 )
 from .version import __version__
 

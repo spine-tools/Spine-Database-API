@@ -240,11 +240,9 @@ class TestImportRelationshipClass(unittest.TestCase):
         )
         self.mock_db_map._add_wide_relationship_classes.assert_called_once_with()
         self.assertEqual(len(errors), 0)
-    
+
     def test_import_relationship_class_with_one_object_class_as_None(self):
-        num_imported, errors = import_relationship_classes(
-            self.mock_db_map, [["new_rc1", ["new_oc1", None]]]
-        )
+        num_imported, errors = import_relationship_classes(self.mock_db_map, [["new_rc1", ["new_oc1", None]]])
         self.mock_db_map._add_wide_relationship_classes.assert_called_once_with()
         self.assertEqual(len(errors), 1)
 
@@ -376,11 +374,9 @@ class TestImportRelationship(unittest.TestCase):
         )
         self.mock_db_map._add_wide_relationships.assert_called_once_with()
         self.assertEqual(len(errors), 0)
-    
+
     def test_import_relationship_with_one_None_object(self):
-        num_imported, errors = import_relationships(
-            self.mock_db_map, [["existing_rc1", [None, "existing_o2"]]]
-        )
+        num_imported, errors = import_relationships(self.mock_db_map, [["existing_rc1", [None, "existing_o2"]]])
         self.mock_db_map._add_wide_relationships.assert_called_once_with()
         self.assertEqual(len(errors), 1)
 
