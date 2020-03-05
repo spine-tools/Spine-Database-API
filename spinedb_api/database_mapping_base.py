@@ -457,6 +457,7 @@ class DatabaseMappingBase:
                     par_def_sq.c.name.label("name"),
                     par_def_sq.c.description.label("description"),
                     par_def_sq.c.data_type.label("data_type"),
+                    par_def_sq.c.entity_class_id,
                     label("object_class_id", object_class_case),
                     label("relationship_class_id", rel_class_case),
                     par_def_sq.c.default_value.label("default_value"),
@@ -499,6 +500,7 @@ class DatabaseMappingBase:
                 self.query(
                     par_val_sq.c.id.label("id"),
                     par_val_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    par_val_sq.c.entity_id,
                     label("object_class_id", object_class_case),
                     label("relationship_class_id", rel_class_case),
                     label("object_id", object_entity_case),
@@ -762,6 +764,7 @@ class DatabaseMappingBase:
             self._object_parameter_definition_sq = (
                 self.query(
                     self.parameter_definition_sq.c.id.label("id"),
+                    self.parameter_definition_sq.c.entity_class_id,
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
@@ -859,6 +862,7 @@ class DatabaseMappingBase:
             self._relationship_parameter_definition_sq = (
                 self.query(
                     self.parameter_definition_sq.c.id.label("id"),
+                    self.parameter_definition_sq.c.entity_class_id,
                     self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
                     self.wide_relationship_class_sq.c.name.label("relationship_class_name"),
                     self.wide_relationship_class_sq.c.object_class_id_list,
@@ -894,8 +898,10 @@ class DatabaseMappingBase:
             self._object_parameter_value_sq = (
                 self.query(
                     self.parameter_value_sq.c.id.label("id"),
+                    self.parameter_definition_sq.c.entity_class_id,
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
+                    self.parameter_value_sq.c.entity_id,
                     self.object_sq.c.id.label("object_id"),
                     self.object_sq.c.name.label("object_name"),
                     self.parameter_definition_sq.c.id.label("parameter_id"),
@@ -921,10 +927,12 @@ class DatabaseMappingBase:
             self._relationship_parameter_value_sq = (
                 self.query(
                     self.parameter_value_sq.c.id.label("id"),
+                    self.parameter_definition_sq.c.entity_class_id,
                     self.wide_relationship_class_sq.c.id.label("relationship_class_id"),
                     self.wide_relationship_class_sq.c.name.label("relationship_class_name"),
                     self.wide_relationship_class_sq.c.object_class_id_list,
                     self.wide_relationship_class_sq.c.object_class_name_list,
+                    self.parameter_value_sq.c.entity_id,
                     self.wide_relationship_sq.c.id.label("relationship_id"),
                     self.wide_relationship_sq.c.object_id_list,
                     self.wide_relationship_sq.c.object_name_list,
