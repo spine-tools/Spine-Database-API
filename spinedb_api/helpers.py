@@ -654,10 +654,10 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("storage", "A storage", 4, 280376899531934),
         ("commodity", "A commodity", 5, 281473533932880),
         ("node", "An entity where an energy balance takes place", 6, 280740554077951),
-        ("model", "A modelling time horizon", 7, 280376891207703),
+        ("model", "A modelling time horizon", 7, 281107035648412),
         ("temporal_block", "A temporal block", 8, 280376891207703),
-        ("output", "Results", 10),
-        ("report", "Results", 10),
+        ("output", "Results", 9, 280743406202948),
+        ("report", "Results", 10, 281108461711708),
 
     )
     db_map.add_object_classes(
