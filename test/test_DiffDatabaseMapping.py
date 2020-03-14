@@ -86,8 +86,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        rel, _ = self.db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
-        self.db_map.remove_items(relationship_ids=[r.id for r in rel])
+        ids, _ = self.db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
+        self.db_map.remove_items(relationship_ids=ids)
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
@@ -97,10 +97,10 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        rel, _ = self.db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
+        ids, _ = self.db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 1)
-        self.db_map.remove_items(relationship_ids=[r.id for r in rel])
+        self.db_map.remove_items(relationship_ids=ids)
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
@@ -108,8 +108,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
     def test_remove_object(self):
         """Test adding and removing an relationship and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        obj, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        self.db_map.remove_items(object_ids=[o.id for o in obj])
+        ids, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        self.db_map.remove_items(object_ids=ids)
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
@@ -117,10 +117,10 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
     def test_remove_object_from_commited_session(self):
         """Test removing an relationship from an commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        obj, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        ids, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.object_list().all()), 2)
-        self.db_map.remove_items(object_ids=[o.id for o in obj])
+        self.db_map.remove_items(object_ids=ids)
         self.assertEqual(len(self.db_map.object_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.object_list().all()), 0)
@@ -128,8 +128,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
     def test_remove_relationship_class(self):
         """Test adding and removing an relationship and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        relc, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
-        self.db_map.remove_items(relationship_class_ids=[r.id for r in relc])
+        ids, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        self.db_map.remove_items(relationship_class_ids=ids)
         self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
@@ -137,28 +137,28 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
     def test_remove_relationship_class_from_commited_session(self):
         """Test removing an relationship from an commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        relc, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        ids, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 1)
-        self.db_map.remove_items(relationship_class_ids=[r.id for r in relc])
+        self.db_map.remove_items(relationship_class_ids=ids)
         self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
 
     def test_remove_object_class(self):
         """Test adding and removing an relationship and commiting"""
-        objc, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self.db_map.remove_items(object_class_ids=[o.id for o in objc])
+        ids, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self.db_map.remove_items(object_class_ids=ids)
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
         self.db_map.commit_session("delete")
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
 
     def test_remove_object_class_from_commited_session(self):
         """Test removing an relationship from an commited session"""
-        objc, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        ids, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.object_class_list().all()), 2)
-        self.db_map.remove_items(object_class_ids=[o.id for o in objc])
+        self.db_map.remove_items(object_class_ids=ids)
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.object_class_list().all()), 0)
@@ -266,9 +266,10 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_and_retrieve_many_objects(self):
         """Tests add many objects into db and retrieving them."""
-        c_id = self.db_map.add_object_classes({"name": "testclass"})[0].first().id
-        objects = self.db_map.add_objects(*[{"name": str(i), "class_id": c_id} for i in range(1001)])[0]
-        self.assertEqual(objects.count(), 1001)
+        ids, _ = self.db_map.add_object_classes({"name": "testclass"})
+        class_id = next(iter(ids))
+        added = self.db_map.add_objects(*[{"name": str(i), "class_id": class_id} for i in range(1001)])[0]
+        self.assertEqual(len(added), 1001)
         self.db_map.commit_session("test_commit")
         self.assertEqual(self.db_map.session.query(self.db_map.Entity).count(), 1001)
 
@@ -879,10 +880,9 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
     def test_update_object_classes(self):
         """Test that updating object classes works."""
         self.db_map.add_object_classes({"id": 1, "name": "fish"}, {"id": 2, "name": "dog"})
-        object_classes, intgr_error_log = self.db_map.update_object_classes(
-            {"id": 1, "name": "octopus"}, {"id": 2, "name": "god"}
-        )
-        object_classes = {x.id: x.name for x in object_classes}
+        ids, intgr_error_log = self.db_map.update_object_classes({"id": 1, "name": "octopus"}, {"id": 2, "name": "god"})
+        sq = self.db_map.object_class_sq
+        object_classes = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(object_classes[1], "octopus")
         self.assertEqual(object_classes[2], "god")
@@ -895,10 +895,11 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
             mock_query.side_effect = self.query_wrapper
             mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             self.db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1}, {"id": 2, "name": "dory", "class_id": 1})
-            objects, intgr_error_log = self.db_map.update_objects(
+            ids, intgr_error_log = self.db_map.update_objects(
                 {"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"}
             )
-        objects = {x.id: x.name for x in objects}
+        sq = self.db_map.object_sq
+        objects = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
         self.assertEqual(objects[2], "squidward")
@@ -907,21 +908,23 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         """Test that updating objects works."""
         self.db_map.add_object_classes({"id": 1, "name": "some_class"})
         self.db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
-        objects, intgr_error_log = self.db_map.update_objects({"id": 1, "name": "klaus"})
-        objects = {x.id: x.name for x in objects}
+        ids, intgr_error_log = self.db_map.update_objects({"id": 1, "name": "klaus"})
+        sq = self.db_map.object_sq
+        objects = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
         self.db_map.commit_session("update")
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
 
-    def test_update_comitted_object(self):
+    def test_update_committed_object(self):
         """Test that updating objects works."""
         self.db_map.add_object_classes({"id": 1, "name": "some_class"})
         self.db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
         self.db_map.commit_session("update")
-        objects, intgr_error_log = self.db_map.update_objects({"id": 1, "name": "klaus"})
-        objects = {x.id: x.name for x in objects}
+        ids, intgr_error_log = self.db_map.update_objects({"id": 1, "name": "klaus"})
+        sq = self.db_map.object_sq
+        objects = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
         self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
@@ -935,10 +938,11 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
             {"id": 3, "name": "dog__fish", "object_class_id_list": [1, 2]},
             {"id": 4, "name": "fish__dog", "object_class_id_list": [2, 1]},
         )
-        rel_clss, intgr_error_log = self.db_map.update_wide_relationship_classes(
+        ids, intgr_error_log = self.db_map.update_wide_relationship_classes(
             {"id": 3, "name": "god__octopus"}, {"id": 4, "name": "octopus__dog"}
         )
-        rel_clss = {x.id: x.name for x in rel_clss}
+        sq = self.db_map.wide_relationship_class_sq
+        rel_clss = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(rel_clss[3], "god__octopus")
         self.assertEqual(rel_clss[4], "octopus__dog")
@@ -953,10 +957,14 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
             {"name": "scooby", "id": 3, "class_id": 2},
         )
         self.db_map.add_wide_relationships({"id": 4, "name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
-        rels, intgr_error_log = self.db_map.update_wide_relationships(
+        ids, intgr_error_log = self.db_map.update_wide_relationships(
             {"id": 4, "name": "nemo__scooby", "object_id_list": [1, 3]}
         )
-        rels = {x.id: {"name": x.name, "object_id_list": x.object_id_list} for x in rels}
+        sq = self.db_map.wide_relationship_sq
+        rels = {
+            x.id: {"name": x.name, "object_id_list": x.object_id_list}
+            for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))
+        }
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(rels[4]["name"], "nemo__scooby")
         self.assertEqual(rels[4]["object_id_list"], "1,3")
