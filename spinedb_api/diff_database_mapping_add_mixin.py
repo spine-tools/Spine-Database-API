@@ -79,7 +79,7 @@ class DiffDatabaseMappingAddMixin:
             raise SpineDBAPIError("Unable to get next id_: {}".format(e.orig.args))
         return self.query(self.NextId).one_or_none()
 
-    def _items_with_ids(self, tablename, *items):
+    def _items_and_ids(self, tablename, *items):
         if not items:
             return [], set()
         next_id_fieldname = {
@@ -135,9 +135,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_object_classes(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.object_class_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_object_classes(self, *items):
         """Add object classes to database without checking integrity.
@@ -150,7 +148,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("object_class", *items)
+        items_to_add, ids = self._items_and_ids("object_class", *items)
         self._do_add_object_classes(*items_to_add)
         self.added_item_id["entity_class"].update(ids)
         self.added_item_id["object_class"].update(ids)
@@ -177,9 +175,7 @@ class DiffDatabaseMappingAddMixin:
         ids = set(x["id"] for x in items)
         self.added_item_id["entity_class"].update(ids)
         self.added_item_id["object_class"].update(ids)
-        sq = self.object_class_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_objects(self, *items, strict=False, return_dups=False):
         """Stage object items for insertion.
@@ -198,9 +194,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_objects(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.object_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_objects(self, *items):
         """Add objects to database without checking integrity.
@@ -211,7 +205,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("object", *items)
+        items_to_add, ids = self._items_and_ids("object", *items)
         self._do_add_objects(*items_to_add)
         self.added_item_id["entity"].update(ids)
         self.added_item_id["object"].update(ids)
@@ -238,9 +232,7 @@ class DiffDatabaseMappingAddMixin:
         ids = set(x["id"] for x in items)
         self.added_item_id["entity"].update(ids)
         self.added_item_id["object"].update(ids)
-        sq = self.object_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_wide_relationship_classes(self, *wide_items, strict=False, return_dups=False):
         """Stage relationship class items for insertion.
@@ -261,9 +253,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_wide_relationship_classes(*checked_wide_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.wide_relationship_class_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_wide_relationship_classes(self, *wide_items):
         """Add relationship classes to database without checking integrity.
@@ -276,7 +266,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        wide_items_to_add, ids = self._items_with_ids("relationship_class", *wide_items)
+        wide_items_to_add, ids = self._items_and_ids("relationship_class", *wide_items)
         self._do_add_wide_relationship_classes(*wide_items_to_add)
         self.added_item_id["entity_class"].update(ids)
         self.added_item_id["relationship_class"].update(ids)
@@ -315,9 +305,7 @@ class DiffDatabaseMappingAddMixin:
         self.added_item_id["entity_class"].update(ids)
         self.added_item_id["relationship_class"].update(ids)
         self.added_item_id["relationship_entity_class"].update(ids)
-        sq = self.wide_relationship_class_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_wide_relationships(self, *wide_items, strict=False, return_dups=False):
         """Stage relationship items for insertion.
@@ -336,9 +324,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_wide_relationships(*checked_wide_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.wide_relationship_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_wide_relationships(self, *wide_items):
         """Add relationships to database without checking integrity.
@@ -349,7 +335,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        wide_items_to_add, ids = self._items_with_ids("relationship", *wide_items)
+        wide_items_to_add, ids = self._items_and_ids("relationship", *wide_items)
         self._do_add_wide_relationships(*wide_items_to_add)
         self.added_item_id["entity"].update(ids)
         self.added_item_id["relationship"].update(ids)
@@ -399,9 +385,7 @@ class DiffDatabaseMappingAddMixin:
         self.added_item_id["entity"].update(ids)
         self.added_item_id["relationship"].update(ids)
         self.added_item_id["relationship_entity"].update(ids)
-        sq = self.wide_relationship_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_parameter_definitions(self, *items, strict=False, return_dups=False):
         """Stage parameter definition items for insertion.
@@ -420,9 +404,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_parameter_definitions(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.parameter_definition_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_parameter_definitions(self, *items):
         """Add parameters to database without checking integrity.
@@ -433,7 +415,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("parameter_definition", *items)
+        items_to_add, ids = self._items_and_ids("parameter_definition", *items)
         self._do_add_parameter_definitions(*items_to_add)
         self.added_item_id["parameter_definition"].update(ids)
         return ids
@@ -457,9 +439,7 @@ class DiffDatabaseMappingAddMixin:
         self._do_add_parameter_definitions(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["parameter_definition"].update(ids)
-        sq = self.parameter_definition_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_parameter_values(self, *items, strict=False, return_dups=False):
         """Stage parameter values items for insertion.
@@ -478,15 +458,11 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_parameter_values(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.parameter_value_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def add_checked_parameter_values(self, *checked_items):
         ids = self._add_parameter_values(*checked_items)
-        sq = self.parameter_value_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def _add_parameter_values(self, *items):
         """Add parameter values to database without checking integrity.
@@ -494,7 +470,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("parameter_value", *items)
+        items_to_add, ids = self._items_and_ids("parameter_value", *items)
         self._do_add_parameter_values(*items_to_add)
         self.added_item_id["parameter_value"].update(ids)
         return ids
@@ -519,9 +495,7 @@ class DiffDatabaseMappingAddMixin:
         self._do_add_parameter_values(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["parameter_value"].update(ids)
-        sq = self.parameter_value_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_parameter_tags(self, *items, strict=False, return_dups=False):
         """Stage parameter tag items for insertion.
@@ -540,9 +514,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_parameter_tags(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.parameter_tag_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_parameter_tags(self, *items):
         """Add parameter tags to database without checking integrity.
@@ -550,7 +522,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("parameter_tag", *items)
+        items_to_add, ids = self._items_and_ids("parameter_tag", *items)
         self._do_add_parameter_tags(*items_to_add)
         self.added_item_id["parameter_tag"].update(ids)
         return ids
@@ -570,9 +542,7 @@ class DiffDatabaseMappingAddMixin:
         self._do_add_parameter_tags(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["parameter_tag"].update(ids)
-        sq = self.parameter_tag_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
         """Stage parameter definition tag items for insertion.
@@ -591,12 +561,10 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_parameter_definition_tags(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.parameter_definition_tag_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_parameter_definition_tags(self, *items):
-        items_to_add, ids = self._items_with_ids("parameter_definition_tag", *items)
+        items_to_add, ids = self._items_and_ids("parameter_definition_tag", *items)
         self._do_add_parameter_definition_tags(*items_to_add)
         self.added_item_id["parameter_definition_tag"].update(ids)
         return ids
@@ -621,9 +589,7 @@ class DiffDatabaseMappingAddMixin:
         self._do_add_parameter_definition_tags(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["parameter_definition_tag"].update(ids)
-        sq = self.parameter_definition_tag_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_wide_parameter_value_lists(self, *wide_items, strict=False, return_dups=False):
         """Stage parameter value-list items for insertion.
@@ -644,9 +610,7 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_wide_parameter_value_lists(*checked_wide_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.wide_parameter_value_list_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
+        return ids, intgr_error_log
 
     def _add_wide_parameter_value_lists(self, *wide_items):
         """Add wide parameter value_lists to database without checking integrity.
@@ -654,7 +618,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        wide_items_to_add, ids = self._items_with_ids("parameter_value_list", *wide_items)
+        wide_items_to_add, ids = self._items_and_ids("parameter_value_list", *wide_items)
         self._do_add_wide_parameter_value_lists(*wide_items_to_add)
         self.added_item_id["parameter_value_list"].update(ids)
         return ids
@@ -679,9 +643,7 @@ class DiffDatabaseMappingAddMixin:
         self._do_add_wide_parameter_value_lists(*wide_items)
         ids = set(x["id"] for x in wide_items)
         self.added_item_id["parameter_value_list"].update(ids)
-        sq = self.wide_parameter_value_list_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, []
+        return ids, []
 
     def add_object_class(self, **kwargs):
         """Stage an object class item for insertion.
@@ -693,7 +655,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_object_classes(kwargs, strict=True)[0].one_or_none()
+        sq = self.object_class_sq
+        ids, _ = self.add_object_classes(kwargs, strict=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def add_object(self, **kwargs):
         """Stage an object item for insertion.
@@ -705,7 +669,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_objects(kwargs, strict=True)[0].one_or_none()
+        sq = self.object_sq
+        ids, _ = self.add_objects(kwargs, strict=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def add_wide_relationship_class(self, **kwargs):
         """Stage a relationship class item for insertion.
@@ -717,7 +683,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_wide_relationship_classes(kwargs, strict=True)[0].one_or_none()
+        sq = self.wide_relationship_class_sq
+        ids, _ = self.add_wide_relationship_classes(kwargs, strict=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def add_wide_relationship(self, **kwargs):
         """Stage a relationship item for insertion.
@@ -729,7 +697,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_wide_relationships(kwargs, strict=True)[0].one_or_none()
+        sq = self.wide_relationship_sq
+        ids, _ = self.add_wide_relationships(kwargs, strict=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def add_parameter_definition(self, **kwargs):
         """Stage a parameter definition item for insertion.
@@ -741,7 +711,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_parameter_definitions(kwargs, strict=True)[0].one_or_none()
+        sq = self.parameter_definition_sq
+        ids, _ = self.add_parameter_definitions(kwargs, strict=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def add_parameter_value(self, **kwargs):
         """Stage a parameter value item for insertion.
@@ -753,7 +725,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_parameter_values(kwargs, strict=True)[0].one_or_none()
+        sq = self.parameter_value_sq
+        ids, _ = self.add_parameter_values(kwargs, strict=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def get_or_add_object_class(self, **kwargs):
         """Stage an object class item for insertion if it doesn't already exists in the db.
@@ -763,7 +737,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_object_classes(kwargs, return_dups=True)[0].one_or_none()
+        sq = self.object_class_sq
+        ids, _ = self.add_object_classes(kwargs, return_dups=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def get_or_add_object(self, **kwargs):
         """Stage an object item for insertion if it doesn't already exists in the db.
@@ -773,7 +749,9 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_objects(kwargs, return_dups=True)[0].one_or_none()
+        sq = self.object_sq
+        ids, _ = self.add_objects(kwargs, return_dups=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
 
     def get_or_add_parameter_definition(self, **kwargs):
         """Stage a parameter definition item for insertion if it doesn't already exists in the db.
@@ -783,4 +761,6 @@ class DiffDatabaseMappingAddMixin:
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
-        return self.add_parameter_definitions(kwargs, return_dups=True)[0].one_or_none()
+        sq = self.parameter_definition_sq
+        ids, _ = self.add_parameter_definitions(kwargs, return_dups=True)
+        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
