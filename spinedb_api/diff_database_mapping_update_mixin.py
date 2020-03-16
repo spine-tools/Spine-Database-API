@@ -70,8 +70,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update parameter values."""
         checked_kwargs_list, intgr_error_log = self.check_object_classes_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_object_classes(*checked_kwargs_list)
-        updated_item_list = self.query(self.object_class_sq).filter(self.object_class_sq.c.id.in_(updated_ids))
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_object_classes(self, *checked_kwargs_list, strict=False):
         """Update object classes without checking integrity."""
@@ -94,8 +93,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update objects."""
         checked_kwargs_list, intgr_error_log = self.check_objects_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_objects(*checked_kwargs_list)
-        updated_item_list = self.query(self.object_sq).filter(self.object_sq.c.id.in_(updated_ids))
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_objects(self, *checked_kwargs_list):
         """Update objects without checking integrity."""
@@ -120,10 +118,7 @@ class DiffDatabaseMappingUpdateMixin:
             *wide_kwargs_list, strict=strict
         )
         updated_ids = self._update_wide_relationship_classes(*checked_wide_kwargs_list)
-        updated_item_list = self.query(self.wide_relationship_class_sq).filter(
-            self.wide_relationship_class_sq.c.id.in_(updated_ids)
-        )
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_wide_relationship_classes(self, *checked_wide_kwargs_list):
         """Update relationship classes without checking integrity."""
@@ -148,10 +143,7 @@ class DiffDatabaseMappingUpdateMixin:
             *wide_kwargs_list, strict=strict
         )
         updated_ids = self._update_wide_relationships(*checked_wide_kwargs_list)
-        updated_item_list = self.query(self.wide_relationship_sq).filter(
-            self.wide_relationship_sq.c.id.in_(updated_ids)
-        )
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_wide_relationships(self, *checked_wide_kwargs_list):
         """Update relationships without checking integrity."""
@@ -195,10 +187,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update parameter definitions."""
         checked_kwargs_list, intgr_error_log = self.check_parameter_definitions_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_parameter_definitions(*checked_kwargs_list)
-        updated_item_list = self.query(self.parameter_definition_sq).filter(
-            self.parameter_definition_sq.c.id.in_(updated_ids)
-        )
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_parameter_definitions(self, *checked_kwargs_list):
         """Update parameter definitions without checking integrity."""
@@ -221,14 +210,12 @@ class DiffDatabaseMappingUpdateMixin:
         """Update parameter values."""
         checked_kwargs_list, intgr_error_log = self.check_parameter_values_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_parameter_values(*checked_kwargs_list)
-        updated_item_list = self.query(self.parameter_value_sq).filter(self.parameter_value_sq.c.id.in_(updated_ids))
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def update_checked_parameter_values(self, *checked_kwargs_list):
         """Update checked parameter values."""
         updated_ids = self._update_parameter_values(*checked_kwargs_list)
-        updated_item_list = self.query(self.parameter_value_sq).filter(self.parameter_value_sq.c.id.in_(updated_ids))
-        return updated_item_list, []
+        return updated_ids, []
 
     def _update_parameter_values(self, *checked_kwargs_list):
         """Update parameter values.
@@ -255,8 +242,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update parameter tags."""
         checked_kwargs_list, intgr_error_log = self.check_parameter_tags_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_parameter_tags(*checked_kwargs_list)
-        updated_item_list = self.query(self.parameter_tag_sq).filter(self.parameter_tag_sq.c.id.in_(updated_ids))
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_parameter_tags(self, *checked_kwargs_list):
         """Update parameter tags without checking integrity."""
@@ -278,8 +264,7 @@ class DiffDatabaseMappingUpdateMixin:
     def set_parameter_definition_tags(self, *items, strict=False):
         """Set tags for parameter definitions."""
         current_tag_id_lists = {
-            x.parameter_definition_id: x.parameter_tag_id_list
-            for x in self.query(self.wide_parameter_definition_tag_sq)
+            x.id: x.parameter_tag_id_list for x in self.query(self.wide_parameter_definition_tag_sq)
         }
         definition_tag_id_dict = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
@@ -303,8 +288,7 @@ class DiffDatabaseMappingUpdateMixin:
                     deleted_ids.add(definition_tag_id_dict[definition_id, tag_id])
         self.remove_items(parameter_definition_tag_ids=deleted_ids)
         _, error_log = self.add_parameter_definition_tags(*new_items, strict=strict)
-        sq = self.wide_parameter_definition_tag_sq
-        return self.query(sq).filter(sq.c.parameter_definition_id.in_(definition_ids)), error_log
+        return definition_ids, error_log
 
     def update_wide_parameter_value_lists(self, *wide_kwargs_list, strict=False):
         """Update parameter value_lists.
@@ -341,9 +325,7 @@ class DiffDatabaseMappingUpdateMixin:
             self.added_item_id["parameter_value_list"].update(updated_ids)
             self.removed_item_id["parameter_value_list"].update(updated_ids)
             self._mark_as_dirty("parameter_value_list", updated_ids)
-            sq = self.wide_parameter_value_list_sq
-            updated_item_list = self.query(sq).filter(sq.c.id.in_(updated_ids))
-            return updated_item_list, intgr_error_log
+            return updated_ids, intgr_error_log
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while updating parameter value lists: {}".format(e.orig.args)
