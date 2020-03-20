@@ -125,21 +125,17 @@ def from_database(database_value):
     Converts a (relationship) parameter value from its database representation to a Python object.
 
     Args:
-        database_value (object): a value in the database; can be either a JSON string or a plain Python object
+        database_value (NoneType,str): a value in the database; can be either None or a JSON string
 
     Returns:
         the encoded (relationship) parameter value
     """
     if database_value is None:
-        # NOTE: Our database can have NULL parameter values at the moment so I believe we need this
         return None
-    if isinstance(database_value, str):
-        try:
-            value = json.loads(database_value)
-        except JSONDecodeError:
-            raise ParameterValueFormatError("Could not decode the value")
-    else:
-        value = database_value
+    try:
+        value = json.loads(database_value)
+    except JSONDecodeError as err:
+        raise ParameterValueFormatError(f"Could not decode the value: {err}")
     if isinstance(value, dict):
         try:
             value_type = value["type"]
@@ -156,6 +152,8 @@ def from_database(database_value):
             raise ParameterValueFormatError('Unknown parameter value type "{}"'.format(value_type))
         except KeyError as error:
             raise ParameterValueFormatError('"{}" is missing in the parameter value description'.format(error.args[0]))
+    if isinstance(value, bool):
+        return value
     if isinstance(value, Number):
         return float(value)
     return value
@@ -487,8 +485,7 @@ class Duration:
         """Returns the 'data' attribute part of Duration's database representation."""
         if len(self._value) == 1:
             return relativedelta_to_duration(self._value[0])
-        else:
-            return [relativedelta_to_duration(v) for v in self._value]
+        return [relativedelta_to_duration(v) for v in self._value]
 
     def to_dict(self):
         """Returns the database representation of the duration."""
@@ -779,11 +776,11 @@ class TimeSeriesVariableResolution(TimeSeries):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
         if not isinstance(indexes, np.ndarray):
             date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
-            for i in range(len(indexes)):
-                if isinstance(indexes[i], DateTime):
-                    date_times[i] = np.datetime64(indexes[i].value, _NUMPY_DATETIME64_UNIT)
+            for i, index in enumerate(indexes):
+                if isinstance(index, DateTime):
+                    date_times[i] = np.datetime64(index.value, _NUMPY_DATETIME64_UNIT)
                 else:
-                    date_times[i] = np.datetime64(indexes[i], _NUMPY_DATETIME64_UNIT)
+                    date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
             indexes = date_times
         self._indexes = indexes
 
