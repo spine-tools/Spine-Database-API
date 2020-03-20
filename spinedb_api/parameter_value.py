@@ -30,6 +30,7 @@ numpy.ndarray arrays holding numpy.datetime64 objects.
 """
 
 from collections.abc import Iterable, Sequence
+from copy import copy
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import json
@@ -125,17 +126,20 @@ def from_database(database_value):
     Converts a (relationship) parameter value from its database representation to a Python object.
 
     Args:
-        database_value (NoneType,str): a value in the database; can be either None or a JSON string
+        database_value (str or dict): a value in the database; can be either a JSON string or Python dict
 
     Returns:
         the encoded (relationship) parameter value
     """
     if database_value is None:
         return None
-    try:
-        value = json.loads(database_value)
-    except JSONDecodeError as err:
-        raise ParameterValueFormatError(f"Could not decode the value: {err}")
+    if isinstance(database_value, str):
+        try:
+            value = json.loads(database_value)
+        except JSONDecodeError as err:
+            raise ParameterValueFormatError(f"Could not decode the value: {err}")
+    else:
+        value = database_value
     if isinstance(value, dict):
         try:
             value_type = value["type"]
@@ -422,6 +426,8 @@ class DateTime:
                 value = dateutil.parser.parse(value)
             except ValueError:
                 raise ParameterValueFormatError('Could not parse datetime from "{}"'.format(value))
+        elif isinstance(value, DateTime):
+            value = copy(value._value)
         self._value = value
 
     def __eq__(self, other):
@@ -467,6 +473,8 @@ class Duration:
             for index, element in enumerate(value):
                 if isinstance(element, str):
                     value[index] = duration_to_relativedelta(element)
+        elif isinstance(value, Duration):
+            value = copy(value._value)
         else:
             raise ParameterValueFormatError('Could not parse duration from "{}"'.format(value))
         self._value = value
