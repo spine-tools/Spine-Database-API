@@ -16,8 +16,10 @@ to the violation of integrity constraints.
 :date:   4.6.2019
 """
 
-import json
+from .parameter_value import from_database, ParameterValueFormatError
 from .exception import SpineIntegrityError
+
+# NOTE: We parse each parameter value or default value before accepting it. Is it too much?
 
 
 def check_alternative(item, current_items):
@@ -276,11 +278,10 @@ def check_parameter_definition(
     if parameter_value_list_id is not None and parameter_value_list_id not in parameter_value_lists:
         raise SpineIntegrityError("Invalid parameter value list.")
     default_value = item.get("default_value")
-    if default_value is not None:
-        try:
-            json.loads(default_value)
-        except json.JSONDecodeError as err:
-            raise SpineIntegrityError("Couldn't decode default value '{}' as JSON: {}".format(default_value, err))
+    try:
+        _ = from_database(default_value)
+    except ParameterValueFormatError as err:
+        raise SpineIntegrityError("Invalid default value '{}': {}".format(default_value, err))
 
 
 def check_parameter_value(
@@ -320,15 +321,16 @@ def check_parameter_value(
     alt_id = item.get("alternative_id")
     if alt_id not in alternatives:
         raise SpineIntegrityError("Alternative not found.")
+    try:
+        _ = from_database(value)
+    except ParameterValueFormatError as err:
+        raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
     if value is not None:
-        try:
-            json.loads(value)
-        except json.JSONDecodeError as err:
-            raise SpineIntegrityError("Couldn't decode '{}' as JSON: {}".format(value, err))
         parameter_value_list_id = parameter_definition["parameter_value_list_id"]
-        if parameter_value_list_id in parameter_value_lists:
-            value_list = parameter_value_lists[parameter_value_list_id].split(",")
-            if value and value not in value_list:
+        value_list = parameter_value_lists.get(parameter_value_list_id)
+        if value_list is not None:
+            value_list = value_list.split(",")
+            if value not in value_list:
                 valid_values = ", ".join(value_list)
                 raise SpineIntegrityError(
                     "The value '{}' is not a valid value for parameter '{}' (valid values are: {})".format(
@@ -470,9 +472,7 @@ def check_wide_parameter_value_list(wide_item, current_items):
     if len(value_list) != len(set(value_list)):
         raise SpineIntegrityError("Values must be unique.")
     for value in value_list:
-        if value is None:
-            continue
         try:
-            json.loads(value)
-        except json.JSONDecodeError as err:
-            raise SpineIntegrityError("Unable to decode value '{}' as JSON: {}".format(value, err))
+            _ = from_database(value)
+        except ParameterValueFormatError as err:
+            raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))

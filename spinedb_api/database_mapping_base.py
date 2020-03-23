@@ -804,9 +804,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
-                .filter(
-                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id
-                )
+                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
                     self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -904,9 +902,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
-                .filter(
-                    self.wide_parameter_definition_tag_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id
-                )
+                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
                     self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -1036,7 +1032,7 @@ class DatabaseMappingBase:
         if self._wide_parameter_definition_tag_sq is None:
             self._wide_parameter_definition_tag_sq = (
                 self.query(
-                    self.ext_parameter_definition_tag_sq.c.parameter_definition_id,
+                    self.ext_parameter_definition_tag_sq.c.parameter_definition_id.label("id"),
                     func.group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag_id).label(
                         "parameter_tag_id_list"
                     ),
@@ -1092,10 +1088,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
-                    func.group_concat(
-                        # self.parameter_value_list_sq.c.value.op("ORDER BY")(self.parameter_value_list_sq.c.value_index)
-                        self.parameter_value_list_sq.c.value
-                    ).label("value_list"),
+                    func.group_concat(self.parameter_value_list_sq.c.value).label("value_list"),
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq
