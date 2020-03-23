@@ -36,6 +36,9 @@ class DiffDatabaseMappingRemoveMixin:
         parameter_tag_ids=(),
         parameter_definition_tag_ids=(),
         parameter_value_list_ids=(),
+        alternative_ids=(),
+        scenario_ids=(),
+        scenario_alternative_ids=(),
     ):
         """Removes items by id."""
         item_id, diff_item_id = self.cascading_ids(
@@ -48,6 +51,9 @@ class DiffDatabaseMappingRemoveMixin:
             parameter_tag_ids=parameter_tag_ids,
             parameter_definition_tag_ids=parameter_definition_tag_ids,
             parameter_value_list_ids=parameter_value_list_ids,
+            alternative_ids=alternative_ids,
+            scenario_ids=scenario_ids,
+            scenario_alternative_ids=scenario_alternative_ids,
         )
         self.do_remove_items(item_id, diff_item_id)
 
@@ -78,6 +84,9 @@ class DiffDatabaseMappingRemoveMixin:
         parameter_tag_ids=(),
         parameter_definition_tag_ids=(),
         parameter_value_list_ids=(),
+        alternative_ids=(),
+        scenario_ids=(),
+        scenario_alternative_ids=(),
     ):
         """Returns cascading ids.
 
@@ -87,6 +96,28 @@ class DiffDatabaseMappingRemoveMixin:
         """
         item_id = {}
         diff_item_id = {}
+        # alternative
+        item_list = self.query(self.Alternative.id).filter(self.Alternative.id.in_(alternative_ids))
+        diff_item_list = self.query(self.DiffAlternative.id).filter(self.DiffAlternative.id.in_(alternative_ids))
+        self._collect_alternative_cascading_ids(
+            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        )
+        # scenario
+        item_list = self.query(self.Scenario.id).filter(self.Scenario.id.in_(scenario_ids))
+        diff_item_list = self.query(self.DiffScenario.id).filter(self.DiffScenario.id.in_(scenario_ids))
+        self._collect_scenario_cascading_ids(
+            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        )
+        # scenario alternatives
+        item_list = self.query(self.ScenarioAlternatives.id).filter(
+            self.ScenarioAlternatives.id.in_(scenario_alternative_ids)
+        )
+        diff_item_list = self.query(self.DiffScenarioAlternatives.id).filter(
+            self.DiffScenarioAlternatives.id.in_(scenario_alternative_ids)
+        )
+        self._collect_scenario_alternatives_cascading_ids(
+            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        )
         # object_class
         item_list = self.query(self.ObjectClass.entity_class_id).filter(
             self.ObjectClass.entity_class_id.in_(object_class_ids)
@@ -166,6 +197,44 @@ class DiffDatabaseMappingRemoveMixin:
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         return item_id, diff_item_id
+
+    def _collect_alternative_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
+        """Finds object class cascading ids and adds them to the given dictionaries."""
+        # Touch
+        item_id.setdefault("alternative", set()).update(ids)
+        diff_item_id.setdefault("alternative", set()).update(diff_ids)
+        # parameter values
+        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.alternative_id.in_(ids))
+        diff_item_list = self.query(self.DiffParameterValue.id).filter(self.DiffParameterValue.alternative_id.in_(ids))
+        self._collect_parameter_value_cascading_ids(
+            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        )
+        # scenario alternatives
+        item_list = self.query(self.ScenarioAlternatives.alternative_id).filter(
+            self.ScenarioAlternatives.alternative_id.in_(ids)
+        )
+        diff_item_list = self.query(self.DiffScenarioAlternatives.alternative_id).filter(
+            self.DiffScenarioAlternatives.alternative_id.in_(diff_ids)
+        )
+        self._collect_scenario_alternatives_cascading_ids(
+            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        )
+
+    def _collect_scenario_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
+        """Finds object class cascading ids and adds them to the given dictionaries."""
+        # Touch
+        item_id.setdefault("scenario", set()).update(ids)
+        diff_item_id.setdefault("scenario", set()).update(diff_ids)
+        # scenario alternatives
+        item_list = self.query(self.ScenarioAlternatives.scenario_id).filter(
+            self.ScenarioAlternatives.scenario_id.in_(ids)
+        )
+        diff_item_list = self.query(self.DiffScenarioAlternatives.scenario_id).filter(
+            self.DiffScenarioAlternatives.scenario_id.in_(diff_ids)
+        )
+        self._collect_scenario_alternatives_cascading_ids(
+            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        )
 
     def _collect_object_class_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
         """Finds object class cascading ids and adds them to the given dictionaries."""
@@ -337,3 +406,7 @@ class DiffDatabaseMappingRemoveMixin:
         """
         item_id.setdefault("parameter_value_list", set()).update(ids)
         diff_item_id.setdefault("parameter_value_list", set()).update(diff_ids)
+
+    def _collect_scenario_alternatives_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
+        item_id.setdefault("scenario_alternatives", set()).update(ids)
+        diff_item_id.setdefault("scenario_alternatives", set()).update(diff_ids)

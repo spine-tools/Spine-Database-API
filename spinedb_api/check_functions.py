@@ -20,6 +20,48 @@ import json
 from .exception import SpineIntegrityError
 
 
+def check_alternative(item, current_items):
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("Missing alternative name.")
+    if name in current_items:
+        raise SpineIntegrityError(f"There can't be more than one alternative called '{name}'.", id=current_items[name])
+
+
+def check_scenario(item, current_items):
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("Missing scenario name.")
+    if name in current_items:
+        raise SpineIntegrityError(f"There can't be more than one scenario called '{name}'.", id=current_items[name])
+
+
+def check_scenario_alternative(item, scenario_alternatives, scenarios, alternatives):
+    try:
+        scen_id = item["scenario_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing scenario identifier.")
+    try:
+        alt_id = item["alternative_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing alternative identifier.")
+    try:
+        rank = item["rank"]
+    except KeyError:
+        raise SpineIntegrityError("Missing scenario alternative rank.")
+    if scen_id not in scenarios:
+        raise SpineIntegrityError("Scenario not found.")
+    if alt_id not in alternatives:
+        raise SpineIntegrityError("Alternative not found.")
+    if scen_id in scenario_alternatives:
+        if any(sa["alternative_id"] == alt_id for sa in scenario_alternatives[scen_id]):
+            raise SpineIntegrityError("Alternative already exists in scenario alternatives.")
+        if any(sa["rank"] == rank for sa in scenario_alternatives[scen_id]):
+            raise SpineIntegrityError(f"Rank {rank} already exists in scenario alteratives.")
+
+
 def check_object_class(item, current_items, object_class_type):
     """Check whether the insertion of an object class item
     results in the violation of an integrity constraint.
@@ -242,7 +284,14 @@ def check_parameter_definition(
 
 
 def check_parameter_value(
-    item, current_obj_items, current_rel_items, parameter_definitions, objects, relationships, parameter_value_lists
+    item,
+    current_obj_items,
+    current_rel_items,
+    parameter_definitions,
+    objects,
+    relationships,
+    parameter_value_lists,
+    alternatives,
 ):
     """Check whether the insertion of a parameter value item
     results in the violation of an integrity constraint.
@@ -268,6 +317,9 @@ def check_parameter_value(
     except KeyError:
         raise SpineIntegrityError("Parameter not found.")
     value = item.get("value")
+    alt_id = item.get("alternative_id")
+    if alt_id not in alternatives:
+        raise SpineIntegrityError("Alternative not found.")
     if value is not None:
         try:
             json.loads(value)
@@ -308,12 +360,12 @@ def check_parameter_value(
             object_name = objects[object_id]["name"]
             parameter_name = parameter_definition["name"]
             raise SpineIntegrityError("Incorrect object '{}' for parameter '{}'.".format(object_name, parameter_name))
-        if (object_id, parameter_definition_id) in current_obj_items:
+        if (object_id, parameter_definition_id, alt_id) in current_obj_items:
             object_name = objects[object_id]["name"]
             parameter_name = parameter_definition["name"]
             raise SpineIntegrityError(
                 "The value of parameter '{}' for object '{}' is already specified.".format(parameter_name, object_name),
-                id=current_obj_items[object_id, parameter_definition_id],
+                id=current_obj_items[object_id, parameter_definition_id, alt_id],
             )
     elif relationship_id:
         try:
@@ -326,7 +378,7 @@ def check_parameter_value(
             raise SpineIntegrityError(
                 "Incorrect relationship '{}' for parameter '{}'.".format(relationship_name, parameter_name)
             )
-        if (relationship_id, parameter_definition_id) in current_rel_items:
+        if (relationship_id, parameter_definition_id, alt_id) in current_rel_items:
             relationship_name = relationships[relationship_id]["name"]
             parameter_name = parameter_definition["name"]
             raise SpineIntegrityError(

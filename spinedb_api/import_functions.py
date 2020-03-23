@@ -471,7 +471,7 @@ def import_object_parameter_values(db_map, data):
     """
 
     object_class_dict = {x.name: x.id for x in db_map.object_class_list()}
-    object_parameter_values = {(x.object_id, x.parameter_id): x.id for x in db_map.object_parameter_value_list()}
+    object_parameter_values = {(x.object_id, x.parameter_id, x.alternative_id): x.id for x in db_map.object_parameter_value_list()}
     parameter_dict = {
         x.id: {
             "name": x.name,
@@ -485,27 +485,36 @@ def import_object_parameter_values(db_map, data):
     parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
     existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
     existing_parameters = {(p["name"], p["object_class_id"]): p_id for p_id, p in parameter_dict.items()}
+    alternatives = set(a.id for a in db_map.alternative_list())
     error_log = []
     new_values = []
     update_values = []
     checked_new_values = set()
+    alt_id = 1
     for object_class, object_name, param_name, value in data:
         # get ids
         oc_id = object_class_dict.get(object_class, None)
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
-        pv_id = object_parameter_values.get((o_id, p_id), None)
-        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": to_database(value)}
+        pv_id = object_parameter_values.get((o_id, p_id, alt_id), None)
+        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": to_database(value), "alternative_id": alt_id}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
 
         try:
             # check integrity
-            if (o_id, p_id) in object_parameter_values:
-                object_parameter_values.pop((o_id, p_id))
+            if (o_id, p_id, alt_id) in object_parameter_values:
+                object_parameter_values.pop((o_id, p_id, alt_id))
             check_parameter_value(
-                new_value, object_parameter_values, {}, parameter_dict, object_dict, {}, parameter_value_list_dict
+                new_value,
+                object_parameter_values,
+                {},
+                parameter_dict,
+                object_dict,
+                {},
+                parameter_value_list_dict,
+                alternatives,
             )
             new_value["entity_id"] = new_value["object_id"]
             new_value["entity_class_id"] = oc_id
@@ -568,7 +577,7 @@ def import_relationship_parameter_values(db_map, data):
     }
 
     relationship_parameter_values = {
-        (x.relationship_id, x.parameter_id): x.id for x in db_map.relationship_parameter_value_list()
+        (x.relationship_id, x.parameter_id, x.alternative_id): x.id for x in db_map.relationship_parameter_value_list()
     }
     parameter_dict = {
         x.id: {
@@ -591,11 +600,13 @@ def import_relationship_parameter_values(db_map, data):
     existing_relationships = {
         (r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationship_dict.items()
     }
+    alternatives = set(a.id for a in db_map.alternative_list())
 
     error_log = []
     new_values = []
     update_values = []
     checked_new_values = set()
+    alt_id = 1
     for class_name, object_names, param_name, value in data:
         rc_id = existing_relationship_classes.get(class_name, None)
         rc_oc_id = relationship_class_dict.get(rc_id, {"object_class_id_list": []})["object_class_id_list"]
@@ -606,16 +617,16 @@ def import_relationship_parameter_values(db_map, data):
         rel_key = (rc_id, o_ids)
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
-        pv_id = relationship_parameter_values.get((r_id, p_id), None)
-        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": to_database(value)}
+        pv_id = relationship_parameter_values.get((r_id, p_id, alt_id), None)
+        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": to_database(value), "alternative_id": alt_id}
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
 
         try:
             # check integrity
-            if (r_id, p_id) in relationship_parameter_values:
-                relationship_parameter_values.pop((r_id, p_id))
+            if (r_id, p_id, alt_id) in relationship_parameter_values:
+                relationship_parameter_values.pop((r_id, p_id, alt_id))
             check_parameter_value(
                 new_value,
                 {},
@@ -624,6 +635,7 @@ def import_relationship_parameter_values(db_map, data):
                 {},
                 relationship_dict,
                 parameter_value_list_dict,
+                alternatives,
             )
             new_value["entity_id"] = new_value["relationship_id"]
             new_value["entity_class_id"] = rc_id

@@ -269,6 +269,7 @@ def alter_tables_before_update(meta):
         batch_op.alter_column("parameter_definition_id", nullable=False)
         batch_op.add_column(sa.Column("entity_id", sa.Integer))
         batch_op.add_column(sa.Column("entity_class_id", sa.Integer))
+        batch_op.create_unique_constraint(None, ["parameter_definition_id", "entity_id"])
         batch_op.create_foreign_key(
             None, "entity", ["entity_id", "entity_class_id"], ["id", "class_id"], onupdate="CASCADE", ondelete="CASCADE"
         )

@@ -169,7 +169,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         self.db_map.add_parameter_values(
-            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1, "alternative_id": 1}, strict=True
         )
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
         self.db_map.remove_items(parameter_value_ids=[1])
@@ -183,7 +183,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         self.db_map.add_parameter_values(
-            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1, "alternative_id": 1}, strict=True
         )
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
@@ -198,7 +198,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         self.db_map.add_parameter_values(
-            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1, "alternative_id": 1}, strict=True
         )
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
         self.db_map.remove_items(object_ids=[1])
@@ -212,7 +212,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         self.db_map.add_parameter_values(
-            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
+            {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1, "alternative_id": 1}, strict=True
         )
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
@@ -651,8 +651,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 ),
             ]
             self.db_map.add_parameter_values(
-                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"orange"'},
-                {"parameter_definition_id": 2, "relationship_id": 2, "relationship_class_id": 100, "value": "125"},
+                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"orange"', "alternative_id": 1},
+                {"parameter_definition_id": 2, "relationship_id": 2, "relationship_class_id": 100, "value": "125", "alternative_id": 1},
             )
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 2)
@@ -787,8 +787,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 )
             ]
             self.db_map.add_parameter_values(
-                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"orange"'},
-                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"blue"'},
+                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"orange"', "alternative_id": 1},
+                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"blue"', "alternative_id": 1},
             )
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 1)
@@ -824,13 +824,13 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             ]
             mock_parameter_value_sq.value = [
                 KeyedTuple(
-                    [1, 1, 1, None, "orange"],
-                    labels=["id", "parameter_definition_id", "object_id", "relationship_id", "value"],
+                    [1, 1, 1, None, "orange", 1],
+                    labels=["id", "parameter_definition_id", "object_id", "relationship_id", "value", "alternative_id"],
                 )
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_definition_id": 1, "object_id": 1, "value": "blue"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 1, "value": "blue", "alternative_id": 1}, strict=True
                 )
 
 
