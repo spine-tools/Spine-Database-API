@@ -32,6 +32,9 @@ from .helpers import (
     forward_sweep,
 )
 from .check_functions import (
+    check_alternative,
+    check_scenario,
+    check_scenario_alternative,
     check_object_class,
     check_object,
     check_wide_relationship_class,
