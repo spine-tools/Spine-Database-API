@@ -568,6 +568,16 @@ class TestParameterValue(unittest.TestCase):
             },
         )
 
+    def test_DateTime_copy_construction(self):
+        date_time = DateTime("2019-07-03T09:09:09")
+        copied = DateTime(date_time)
+        self.assertEqual(copied, date_time)
+
+    def test_Duration_copy_construction(self):
+        duration = Duration("3 minutes")
+        copied = Duration(duration)
+        self.assertEqual(copied, duration)
+
     def test_DateTime_equality(self):
         date_time = DateTime(dateutil.parser.parse("2019-07-03T09:09:09"))
         self.assertEqual(date_time, date_time)
