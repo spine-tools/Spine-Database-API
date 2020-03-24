@@ -126,41 +126,18 @@ def from_database(database_value):
     Converts a (relationship) parameter value from its database representation to a Python object.
 
     Args:
-        database_value (str or dict): a value in the database; can be either a JSON string or Python dict
+        database_value (str): a value in the database; a JSON string or None
 
     Returns:
         the encoded (relationship) parameter value
     """
     if database_value is None:
         return None
-    if isinstance(database_value, str):
-        try:
-            value = json.loads(database_value)
-        except JSONDecodeError as err:
-            raise ParameterValueFormatError(f"Could not decode the value: {err}")
-    else:
-        value = database_value
-    if isinstance(value, dict):
-        try:
-            value_type = value["type"]
-            if value_type == "date_time":
-                return _datetime_from_database(value["data"])
-            if value_type == "duration":
-                return _duration_from_database(value["data"])
-            if value_type == "map":
-                return _map_from_database(value)
-            if value_type == "time_pattern":
-                return _time_pattern_from_database(value)
-            if value_type == "time_series":
-                return _time_series_from_database(value)
-            raise ParameterValueFormatError('Unknown parameter value type "{}"'.format(value_type))
-        except KeyError as error:
-            raise ParameterValueFormatError('"{}" is missing in the parameter value description'.format(error.args[0]))
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, Number):
-        return float(value)
-    return value
+    try:
+        value = json.loads(database_value)
+    except JSONDecodeError as err:
+        raise ParameterValueFormatError(f"Could not decode the value: {err}")
+    return _from_parsed(value)
 
 
 def to_database(value):
@@ -176,6 +153,35 @@ def to_database(value):
     if hasattr(value, "to_database"):
         return value.to_database()
     return json.dumps(value)
+
+
+def _from_parsed(parsed_value):
+    """
+
+    :param parsed_value:
+    :return:
+    """
+    if isinstance(parsed_value, dict):
+        try:
+            value_type = parsed_value["type"]
+            if value_type == "date_time":
+                return _datetime_from_database(parsed_value["data"])
+            if value_type == "duration":
+                return _duration_from_database(parsed_value["data"])
+            if value_type == "map":
+                return _map_from_database(parsed_value)
+            if value_type == "time_pattern":
+                return _time_pattern_from_database(parsed_value)
+            if value_type == "time_series":
+                return _time_series_from_database(parsed_value)
+            raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
+        except KeyError as error:
+            raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
+    if isinstance(parsed_value, bool):
+        return parsed_value
+    if isinstance(parsed_value, Number):
+        return float(parsed_value)
+    return parsed_value
 
 
 def _break_dictionary(data):
@@ -405,7 +411,7 @@ def _map_values_from_database(values_in_db):
         return list()
     values = list()
     for value_in_db in values_in_db:
-        value = from_database(value_in_db) if isinstance(value_in_db, dict) else value_in_db
+        value = _from_parsed(value_in_db) if isinstance(value_in_db, dict) else value_in_db
         if not isinstance(value, (float, Duration, Map, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
