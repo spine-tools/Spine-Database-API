@@ -68,7 +68,7 @@ from .json_mapping import (
     ParameterMapMapping,
     ParameterTimeSeriesMapping,
     ParameterTimePatternMapping,
-    ParameterListMapping,
+    ParameterArrayMapping,
     TimeSeriesOptions,
     ObjectClassMapping,
     RelationshipClassMapping,
@@ -81,15 +81,16 @@ from .parameter_value import (
     relativedelta_to_duration,
     from_database,
     to_database,
+    Array,
     DateTime,
     Duration,
     IndexedNumberArray,
     IndexedValue,
+    Map,
     TimePattern,
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    Map,
 )
 from .version import __version__
 

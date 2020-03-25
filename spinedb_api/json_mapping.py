@@ -19,7 +19,7 @@ Classes for reading data with json mapping specifications
 import itertools
 import math
 from operator import itemgetter
-from .parameter_value import Map, TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
+from .parameter_value import Array, Map, TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
 from .exception import TypeConversionError
 
 
@@ -33,7 +33,7 @@ PARAMETER = "parameter"
 PARAMETERCOLUMN = "parameter_column"
 PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
 MAPPINGCOLLECTION = "collection"
-VALID_PARAMETER_TYPES = ['map', 'time series', 'time pattern', '1d array', 'single value', 'definition']
+VALID_PARAMETER_TYPES = ['array', 'map', 'time series', 'time pattern', 'single value', 'definition']
 
 
 class MappingBase:
@@ -145,7 +145,7 @@ class NoneMapping(MappingBase):
     MAP_TYPE = "None"
 
     def __init__(self, *args, **kwargs):
-        super(NoneMapping, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @MappingBase.reference.setter
     def reference(self, reference):
@@ -470,7 +470,7 @@ class ParameterValueMapping(ParameterDefinitionMapping):
     PARAMETER_TYPE = "single value"
 
     def __init__(self, name=None, value=None):
-        super(ParameterValueMapping, self).__init__(name)
+        super().__init__(name)
         self._value = ColumnMapping(None)
         self.value = value
 
@@ -539,13 +539,13 @@ class ParameterValueMapping(ParameterDefinitionMapping):
         return data
 
 
-class ParameterListMapping(ParameterValueMapping):
+class ParameterArrayMapping(ParameterValueMapping):
     NUM_EXTRA_DIMENSIONS = 1
     ALLOW_EXTRA_DIMENSION_NO_RETURN = True
-    PARAMETER_TYPE = "1d array"
+    PARAMETER_TYPE = "array"
 
     def __init__(self, name=None, value=None, extra_dimension=None):
-        super(ParameterListMapping, self).__init__(name, value)
+        super().__init__(name, value)
         self._extra_dimensions = [mappingbase_from_dict_int_str(None) for _ in range(self.NUM_EXTRA_DIMENSIONS)]
         self.extra_dimensions = extra_dimension
 
@@ -654,12 +654,11 @@ class ParameterListMapping(ParameterValueMapping):
             for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
                 values = [value[-1] for value in values if value[-1] is not None]
                 if values:
-                    out.append(keys + (values,))
-
+                    out.append(keys + (Array(values),))
         return out
 
 
-class ParameterMapMapping(ParameterListMapping):
+class ParameterMapMapping(ParameterArrayMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "map"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
@@ -676,13 +675,13 @@ class ParameterMapMapping(ParameterListMapping):
         return out
 
 
-class ParameterTimeSeriesMapping(ParameterListMapping):
+class ParameterTimeSeriesMapping(ParameterArrayMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time series"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
     def __init__(self, name=None, value=None, extra_dimension=None, options=None):
-        super(ParameterTimeSeriesMapping, self).__init__(name, value, extra_dimension)
+        super().__init__(name, value, extra_dimension)
         self._options = TimeSeriesOptions()
         self.options = options
 
@@ -739,7 +738,7 @@ class ParameterTimeSeriesMapping(ParameterListMapping):
         return out
 
 
-class ParameterTimePatternMapping(ParameterListMapping):
+class ParameterTimePatternMapping(ParameterArrayMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time pattern"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
@@ -958,7 +957,7 @@ class ObjectClassMapping(EntityClassMapping):
     MAP_TYPE = "ObjectClass"
 
     def __init__(self, *args, objects=None, **kwargs):
-        super(ObjectClassMapping, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._objects = NoneMapping()
         self.objects = objects
 
@@ -1076,7 +1075,7 @@ class RelationshipClassMapping(EntityClassMapping):
     MAP_TYPE = "RelationshipClass"
 
     def __init__(self, *args, object_classes=None, objects=None, import_objects=False, **kwargs):
-        super(RelationshipClassMapping, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._objects = NoneMapping()
         self._object_classes = NoneMapping()
         self._import_objects = False
@@ -1326,7 +1325,7 @@ def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
     parameter_type_to_class = {
         "definition": ParameterDefinitionMapping,
         "single value": ParameterValueMapping,
-        "1d array": ParameterListMapping,
+        "array": ParameterArrayMapping,
         "map": ParameterMapMapping,
         "time series": ParameterTimeSeriesMapping,
         "time pattern": ParameterTimePatternMapping,
