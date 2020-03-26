@@ -207,7 +207,7 @@ class TestParameterValue(unittest.TestCase):
         """
         value = from_database(database_value)
         self.assertEqual(len(value), 2)
-        numpy.testing.assert_equal(value.indexes, ["m1-4,m9-12", "m5-8"])
+        self.assertEqual(value.indexes, ["m1-4,m9-12", "m5-8"])
         numpy.testing.assert_equal(value.values, numpy.array([300.0, 221.5]))
 
     def test_TimePattern_to_database(self):
@@ -232,7 +232,7 @@ class TestParameterValue(unittest.TestCase):
                           }
                       }"""
         time_series = from_database(releases)
-        numpy.testing.assert_equal(
+        self.assertEqual(
             time_series.indexes,
             numpy.array(
                 [numpy.datetime64("1977-05-25"), numpy.datetime64("1980-05-21"), numpy.datetime64("1983-05-25")],
@@ -253,7 +253,7 @@ class TestParameterValue(unittest.TestCase):
                           ]
                       }"""
         time_series = from_database(releases)
-        numpy.testing.assert_equal(
+        self.assertEqual(
             time_series.indexes,
             numpy.array(
                 [numpy.datetime64("1977-05-25"), numpy.datetime64("1980-05-21"), numpy.datetime64("1983-05-25")],
@@ -313,7 +313,7 @@ class TestParameterValue(unittest.TestCase):
                                }"""
         time_series = from_database(days_of_our_lives)
         self.assertEqual(len(time_series), 3)
-        numpy.testing.assert_equal(
+        self.assertEqual(
             time_series.indexes,
             numpy.array(
                 [numpy.datetime64("2019-03-23"), numpy.datetime64("2019-03-24"), numpy.datetime64("2019-03-25")],
@@ -336,7 +336,7 @@ class TestParameterValue(unittest.TestCase):
         """
         time_series = from_database(database_value)
         self.assertEqual(len(time_series), 6)
-        numpy.testing.assert_equal(
+        self.assertEqual(
             time_series.indexes,
             numpy.array(
                 [
@@ -370,7 +370,7 @@ class TestParameterValue(unittest.TestCase):
                             }"""
         time_series = from_database(database_value)
         self.assertEqual(len(time_series), 4)
-        numpy.testing.assert_equal(
+        self.assertEqual(
             time_series.indexes,
             numpy.array(
                 [
@@ -622,7 +622,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(series, series)
         equal_series = TimeSeriesVariableResolution(["2000-01-01T00:00", "2001-01-01T00:00"], [4.2, 2.4], True, True)
         self.assertEqual(series, equal_series)
-        inequal_series = TimeSeriesVariableResolution(["2000-01-01T00:00", "2002-01-01T00:00"], [4.2, 2.4], True, True)
+        inequal_series = TimeSeriesVariableResolution(["2000-01-01T00:00", "2002-01-01T00:00"], [4.2, 2.4], False, True)
         self.assertNotEqual(series, inequal_series)
 
     def test_IndexedValue_constructor_converts_values_to_floats(self):

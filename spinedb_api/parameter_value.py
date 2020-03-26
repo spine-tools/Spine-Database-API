@@ -553,7 +553,7 @@ class _Indexes(np.ndarray):
         return np.all(super().__eq__(other))
 
     def __bool__(self):
-        return any(self)
+        return np.size(self) != 0
 
 
 class IndexedValue:
@@ -693,7 +693,7 @@ class TimePattern(IndexedNumberArray):
         """Returns True if other is equal to this object."""
         if not isinstance(other, TimePattern):
             return NotImplemented
-        return np.all(self._indexes == other._indexes) and np.all(self._values == other._values)
+        return self._indexes == other._indexes and np.all(self._values == other._values)
 
     def to_database(self):
         """Returns the database representation of this time pattern."""
@@ -863,7 +863,7 @@ class TimeSeriesVariableResolution(TimeSeries):
         if not isinstance(other, TimeSeriesVariableResolution):
             return NotImplemented
         return (
-            np.all(self._indexes == other._indexes)
+            self._indexes == other._indexes
             and np.all(self._values == other._values)
             and self._ignore_year == other._ignore_year
             and self._repeat == other._repeat
@@ -914,7 +914,7 @@ class Map(IndexedValue):
     def __eq__(self, other):
         if not isinstance(other, Map):
             return NotImplemented
-        return np.all(other._indexes == self._indexes) and other._values == self._values
+        return other._indexes == self._indexes and other._values == self._values
 
     def __len__(self):
         """Returns the length of map."""
