@@ -370,8 +370,10 @@ def _map_index_type_from_database(index_type_in_db):
 
 def _map_index_type_to_database(index_type):
     """Returns the string corresponding to given index type."""
-    if index_type in (str, float):
-        return index_type.__name__
+    if issubclass(index_type, str):
+        return "str"
+    if issubclass(index_type, float):
+        return "float"
     if index_type == DateTime:
         return "date_time"
     if index_type == Duration:
