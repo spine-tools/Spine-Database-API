@@ -442,6 +442,9 @@ class DateTime:
             return NotImplemented
         return self._value == other._value
 
+    def __hash__(self):
+        return hash(self._value)
+
     def value_to_database_data(self):
         """Returns the database representation of the duration."""
         return self._value.isoformat()
@@ -491,6 +494,9 @@ class Duration:
             return NotImplemented
         return self._value == other._value
 
+    def __hash__(self):
+        return hash(tuple(self._value))
+
     def to_text(self):
         """Returns a comma separated str representation of the duration"""
         return ", ".join(relativedelta_to_duration(delta) for delta in self.value)
@@ -515,13 +521,46 @@ class Duration:
         return self._value
 
 
+class _Indexes(np.ndarray):
+    """
+    A subclass of numpy.ndarray that keeps a lookup dictionary from elements to positions.
+    Used by methods get_value and set_value of IndexedValue, to avoid something like
+
+        position = indexes.index(element)
+
+    which might be too slow compared to dictionary lookup.
+    """
+
+    def __new__(cls, other):
+        obj = np.asarray(other).view(cls)
+        obj.position_lookup = {index: k for k, index in enumerate(other)}
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+        # pylint: disable=attribute-defined-outside-init
+        self.position_lookup = getattr(obj, 'position_lookup', {})
+
+    def __setitem__(self, position, index):
+        old_index = self.__getitem__(position)
+        self.position_lookup[index] = self.position_lookup.pop(old_index)
+        super().__setitem__(position, index)
+
+    def __eq__(self, other):
+        return np.all(super().__eq__(other))
+
+    def __bool__(self):
+        return any(self)
+
+
 class IndexedValue:
     """
     An abstract base class for indexed values.
     """
 
     def __init__(self):
-        self._index_pos_lookup = {}
+        self._indexes = None
 
     def __len__(self):
         """Returns the length of the index"""
@@ -530,7 +569,12 @@ class IndexedValue:
     @property
     def indexes(self):
         """Returns the indexes."""
-        raise NotImplementedError()
+        return self._indexes
+
+    @indexes.setter
+    def indexes(self, indexes):
+        """Sets the indexes."""
+        self._indexes = _Indexes(indexes)
 
     def to_database(self):
         """Return the database representation of the value."""
@@ -541,20 +585,16 @@ class IndexedValue:
         """Returns the data values."""
         raise NotImplementedError()
 
-    def get_index(self, index):
+    def get_value(self, index):
         """Returns the value at the given index."""
-        if not self._index_pos_lookup:
-            self._index_pos_lookup = {index: k for k, index in enumerate(self.indexes)}
-        pos = self._index_pos_lookup.get(index)
+        pos = self.indexes.position_lookup.get(index)
         if pos is None:
             return None
         return self.values[pos]
 
-    def set_index(self, index, value):
+    def set_value(self, index, value):
         """Sets the value at the given index."""
-        if not self._index_pos_lookup:
-            self._index_pos_lookup = {index: k for k, index in enumerate(self.indexes)}
-        pos = self._index_pos_lookup.get(index)
+        pos = self.indexes.position_lookup.get(index)
         if pos is not None:
             self.values[pos] = value
 
@@ -579,11 +619,6 @@ class IndexedNumberArray(IndexedValue):
     def __len__(self):
         """Returns the length of the index"""
         return len(self.values)
-
-    @property
-    def indexes(self):
-        """Returns the indexes as a numpy.ndarray."""
-        raise NotImplementedError()
 
     def to_database(self):
         """Return the database representation of the value."""
@@ -611,11 +646,6 @@ class TimeSeries(IndexedNumberArray):
         super().__init__(values)
         self._ignore_year = ignore_year
         self._repeat = repeat
-
-    @property
-    def indexes(self):
-        """Returns the indexes as a numpy.ndarray."""
-        raise NotImplementedError()
 
     @property
     def ignore_year(self):
@@ -655,13 +685,13 @@ class TimePattern(IndexedNumberArray):
         if not indexes:
             raise ParameterValueFormatError("Empty time pattern not allowed")
         super().__init__(values)
-        self._indexes = indexes
+        self.indexes = indexes
 
     def __eq__(self, other):
         """Returns True if other is equal to this object."""
         if not isinstance(other, TimePattern):
             return NotImplemented
-        return self._indexes == other._indexes and np.all(self._values == other._values)
+        return np.all(self._indexes == other._indexes) and np.all(self._values == other._values)
 
     def to_database(self):
         """Returns the database representation of this time pattern."""
@@ -669,11 +699,6 @@ class TimePattern(IndexedNumberArray):
         for index, value in zip(self._indexes, self._values):
             data[index] = value
         return json.dumps({"type": "time_pattern", "data": data})
-
-    @property
-    def indexes(self):
-        """Returns the indexes."""
-        return self._indexes
 
 
 class TimeSeriesFixedResolution(TimeSeries):
@@ -695,7 +720,6 @@ class TimeSeriesFixedResolution(TimeSeries):
 
     def __init__(self, start, resolution, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
-        self._indexes = None
         self._start = None
         self._resolution = None
         self.start = start
@@ -730,8 +754,14 @@ class TimeSeriesFixedResolution(TimeSeries):
                 duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
                 stamps[stamp_index] = self._start + duration_from_start
                 step_index += 1
-            self._indexes = np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
-        return self._indexes
+            self.indexes = np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+        return IndexedValue.indexes.fget(self)
+
+    @indexes.setter
+    def indexes(self, indexes):
+        """Sets the indexes."""
+        # Needed because we redefine the setter
+        self._indexes = _Indexes(indexes)
 
     @property
     def start(self):
@@ -824,7 +854,7 @@ class TimeSeriesVariableResolution(TimeSeries):
                 else:
                     date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
             indexes = date_times
-        self._indexes = indexes
+        self.indexes = indexes
 
     def __eq__(self, other):
         """Returns True if other is equal to this object."""
@@ -836,11 +866,6 @@ class TimeSeriesVariableResolution(TimeSeries):
             and self._ignore_year == other._ignore_year
             and self._repeat == other._repeat
         )
-
-    @property
-    def indexes(self):
-        """Returns the indexes."""
-        return self._indexes
 
     def to_database(self):
         """Returns the value in its database representation"""
@@ -880,23 +905,18 @@ class Map(IndexedValue):
         if len(indexes) != len(values):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
         super().__init__()
-        self._indexes = indexes
+        self.indexes = indexes
         self._index_type = index_type if index_type is not None else type(indexes[0])
         self._values = values
 
     def __eq__(self, other):
         if not isinstance(other, Map):
             return NotImplemented
-        return other._indexes == self._indexes and other._values == self._values
+        return np.all(other._indexes == self._indexes) and other._values == self._values
 
     def __len__(self):
         """Returns the length of map."""
         return len(self._indexes)
-
-    @property
-    def indexes(self):
-        """Map's indexes."""
-        return self._indexes
 
     @property
     def values(self):
