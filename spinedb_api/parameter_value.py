@@ -520,6 +520,9 @@ class IndexedValue:
     An abstract base class for indexed values.
     """
 
+    def __init__(self):
+        self._index_pos_lookup = {}
+
     def __len__(self):
         """Returns the length of the index"""
         raise NotImplementedError()
@@ -538,6 +541,23 @@ class IndexedValue:
         """Returns the data values."""
         raise NotImplementedError()
 
+    def get_index(self, index):
+        """Returns the value at the given index."""
+        if not self._index_pos_lookup:
+            self._index_pos_lookup = {index: k for k, index in enumerate(self.indexes)}
+        pos = self._index_pos_lookup.get(index)
+        if pos is None:
+            return None
+        return self.values[pos]
+
+    def set_index(self, index, value):
+        """Sets the value at the given index."""
+        if not self._index_pos_lookup:
+            self._index_pos_lookup = {index: k for k, index in enumerate(self.indexes)}
+        pos = self._index_pos_lookup.get(index)
+        if pos is not None:
+            self.values[pos] = value
+
 
 class IndexedNumberArray(IndexedValue):
     """
@@ -551,6 +571,7 @@ class IndexedNumberArray(IndexedValue):
         Args:
             values (Sequence): array's values; index handling should be implemented by subclasses
         """
+        super().__init__()
         if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
             values = np.array(values, dtype=float)
         self._values = values
@@ -674,6 +695,9 @@ class TimeSeriesFixedResolution(TimeSeries):
 
     def __init__(self, start, resolution, values, ignore_year, repeat):
         super().__init__(values, ignore_year, repeat)
+        self._indexes = None
+        self._start = None
+        self._resolution = None
         self.start = start
         self.resolution = resolution
 
@@ -692,20 +716,22 @@ class TimeSeriesFixedResolution(TimeSeries):
     @property
     def indexes(self):
         """Returns the time stamps as a numpy.ndarray of numpy.datetime64 objects."""
-        step_index = 0
-        step_cycle_index = 0
-        full_cycle_duration = sum(self._resolution, relativedelta())
-        stamps = np.empty(len(self), dtype=_NUMPY_DATETIME_DTYPE)
-        stamps[0] = self._start
-        for stamp_index in range(1, len(self._values)):
-            if step_index >= len(self._resolution):
-                step_index = 0
-                step_cycle_index += 1
-            current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
-            duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
-            stamps[stamp_index] = self._start + duration_from_start
-            step_index += 1
-        return np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+        if self._indexes is None:
+            step_index = 0
+            step_cycle_index = 0
+            full_cycle_duration = sum(self._resolution, relativedelta())
+            stamps = np.empty(len(self), dtype=_NUMPY_DATETIME_DTYPE)
+            stamps[0] = self._start
+            for stamp_index in range(1, len(self._values)):
+                if step_index >= len(self._resolution):
+                    step_index = 0
+                    step_cycle_index += 1
+                current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
+                duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
+                stamps[stamp_index] = self._start + duration_from_start
+                step_index += 1
+            self._indexes = np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+        return self._indexes
 
     @property
     def start(self):
@@ -727,6 +753,7 @@ class TimeSeriesFixedResolution(TimeSeries):
                 raise ParameterValueFormatError('Cannot parse start time "{}"'.format(start))
         else:
             self._start = start
+        self._indexes = None
 
     @property
     def resolution(self):
@@ -752,6 +779,7 @@ class TimeSeriesFixedResolution(TimeSeries):
         if not resolution:
             raise ParameterValueFormatError("Resolution cannot be zero.")
         self._resolution = resolution
+        self._indexes = None
 
     def to_database(self):
         """Returns the value in its database representation."""
@@ -851,6 +879,7 @@ class Map(IndexedValue):
             raise ParameterValueFormatError('Type of index does not match "index_type" argument.')
         if len(indexes) != len(values):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
+        super().__init__()
         self._indexes = indexes
         self._index_type = index_type if index_type is not None else type(indexes[0])
         self._values = values
