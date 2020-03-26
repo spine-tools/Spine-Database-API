@@ -547,6 +547,12 @@ class _Indexes(np.ndarray):
         self.position_lookup[index] = self.position_lookup.pop(old_index)
         super().__setitem__(position, index)
 
+    def __eq__(self, other):
+        return np.all(super().__eq__(other))
+
+    def __bool__(self):
+        return any(self)
+
 
 class IndexedValue:
     """
