@@ -517,14 +517,14 @@ class TestParameterValue(unittest.TestCase):
         database_value = '{"type":"map", "index_type":"str", "data":{"a": 1.1, "b": 2.2}}'
         value = from_database(database_value)
         self.assertIsInstance(value, Map)
-        self.assertEqual(value.indexes, ["a", "b"])
+        self.assertTrue(np.all(value.indexes == ["a", "b"]))
         self.assertEqual(value.values, [1.1, 2.2])
 
     def test_from_database_Map_two_column_array_format(self):
         database_value = '{"type":"map", "index_type":"float", "data":[[1.1, "a"], [2.2, "b"]]}'
         value = from_database(database_value)
         self.assertIsInstance(value, Map)
-        self.assertEqual(value.indexes, [1.1, 2.2])
+        self.assertTrue(np.all(value.indexes == [1.1, 2.2]))
         self.assertEqual(value.values, ["a", "b"])
 
     def test_from_database_Map_nested_maps(self):

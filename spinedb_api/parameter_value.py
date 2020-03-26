@@ -442,6 +442,9 @@ class DateTime:
             return NotImplemented
         return self._value == other._value
 
+    def __hash__(self):
+        return hash(self._value)
+
     def value_to_database_data(self):
         """Returns the database representation of the duration."""
         return self._value.isoformat()
@@ -490,6 +493,9 @@ class Duration:
         if not isinstance(other, Duration):
             return NotImplemented
         return self._value == other._value
+
+    def __hash__(self):
+        return hash(tuple(self._value))
 
     def to_text(self):
         """Returns a comma separated str representation of the duration"""
@@ -679,7 +685,7 @@ class TimePattern(IndexedNumberArray):
         """Returns True if other is equal to this object."""
         if not isinstance(other, TimePattern):
             return NotImplemented
-        return self._indexes == other._indexes and np.all(self._values == other._values)
+        return np.all(self._indexes == other._indexes) and np.all(self._values == other._values)
 
     def to_database(self):
         """Returns the database representation of this time pattern."""
@@ -893,14 +899,14 @@ class Map(IndexedValue):
         if len(indexes) != len(values):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
         super().__init__()
-        self._indexes = indexes
+        self.indexes = indexes
         self._index_type = index_type if index_type is not None else type(indexes[0])
         self._values = values
 
     def __eq__(self, other):
         if not isinstance(other, Map):
             return NotImplemented
-        return other._indexes == self._indexes and other._values == self._values
+        return np.all(other._indexes == self._indexes) and other._values == self._values
 
     def __len__(self):
         """Returns the length of map."""
