@@ -952,7 +952,12 @@ class TimeSeriesVariableResolution(TimeSeries):
                 if isinstance(index, DateTime):
                     date_times[i] = np.datetime64(index.value, _NUMPY_DATETIME64_UNIT)
                 else:
-                    date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
+                    try:
+                        date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
+                    except ValueError:
+                        raise ParameterValueFormatError(
+                            f'Cannot convert "{index}" of type {type(index).__name__} to time stamp.'
+                        )
             indexes = date_times
         self.indexes = indexes
 
