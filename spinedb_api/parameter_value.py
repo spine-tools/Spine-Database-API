@@ -440,8 +440,8 @@ def _array_from_database(value_dict):
         raise ParameterValueFormatError(f'Unsupported value type for Array: "{value_type_id}".')
     try:
         data = [value_type(x) for x in value_dict["data"]]
-    except (TypeError, ParameterValueFormatError):
-        raise ParameterValueFormatError('Failed to read values for Array.')
+    except (TypeError, ParameterValueFormatError) as error:
+        raise ParameterValueFormatError(f'Failed to read values for Array: {error}')
     else:
         return Array(data, value_type)
 
