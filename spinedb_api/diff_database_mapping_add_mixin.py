@@ -423,7 +423,9 @@ class DiffDatabaseMappingAddMixin:
     def _do_add_parameter_definitions(self, *items_to_add):
         for item in items_to_add:
             item["entity_class_id"] = (
-                item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
+                item.pop("object_class_id", None)
+                or item.pop("relationship_class_id", None)
+                or item.get("entity_class_id")
             )
         try:
             self.session.bulk_insert_mappings(self.DiffParameterDefinition, items_to_add)
@@ -477,9 +479,13 @@ class DiffDatabaseMappingAddMixin:
 
     def _do_add_parameter_values(self, *items_to_add):
         for item in items_to_add:
-            item["entity_id"] = item.get("object_id") or item.get("relationship_id") or item.get("entity_id")
+            item["entity_id"] = (
+                item.pop("object_id", None) or item.pop("relationship_id", None) or item.get("entity_id")
+            )
             item["entity_class_id"] = (
-                item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
+                item.pop("object_class_id", None)
+                or item.pop("relationship_class_id", None)
+                or item.get("entity_class_id")
             )
         try:
             self.session.bulk_insert_mappings(self.DiffParameterValue, items_to_add)
