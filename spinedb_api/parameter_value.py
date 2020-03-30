@@ -667,9 +667,6 @@ class Array(IndexedValue):
         """See base class."""
         return len(self._values)
 
-    def index_type(self):
-        """Returns"""
-
     def to_database(self):
         """See base class."""
         value_type_id = {
