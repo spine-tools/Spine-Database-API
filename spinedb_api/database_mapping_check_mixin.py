@@ -97,7 +97,7 @@ class DatabaseMappingCheckMixin:
         object_class_names = {x.name: x.id for x in self.query(self.object_class_sq)}
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing object class identifier."
                 if strict:
@@ -106,7 +106,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # Simulate removal of current instance
-                updated_item = object_class_dict.pop(id)
+                updated_item = object_class_dict.pop(id_)
                 del object_class_names[updated_item["name"]]
             except KeyError:
                 msg = "Object class not found."
@@ -120,8 +120,8 @@ class DatabaseMappingCheckMixin:
                 check_object_class(updated_item, object_class_names, self.object_class_type)
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
-                object_class_dict[id] = updated_item
-                object_class_names[updated_item["name"]] = id
+                object_class_dict[id_] = updated_item
+                object_class_names[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -181,7 +181,7 @@ class DatabaseMappingCheckMixin:
         object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing object identifier."
                 if strict:
@@ -189,7 +189,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = object_dict.pop(id)
+                updated_item = object_dict.pop(id_)
                 del object_names[updated_item["class_id"], updated_item["name"]]
             except KeyError:
                 msg = "Object not found."
@@ -202,8 +202,8 @@ class DatabaseMappingCheckMixin:
                 updated_item.update(item)
                 check_object(updated_item, object_names, object_class_id_list, self.object_entity_type)
                 checked_items.append(item)
-                object_dict[id] = updated_item
-                object_names[updated_item["class_id"], updated_item["name"]] = id
+                object_dict[id_] = updated_item
+                object_names[updated_item["class_id"], updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -269,7 +269,7 @@ class DatabaseMappingCheckMixin:
         object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
         for wide_item in wide_items:
             try:
-                id = wide_item["id"]
+                id_ = wide_item["id"]
             except KeyError:
                 msg = "Missing relationship class identifier."
                 if strict:
@@ -277,7 +277,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_wide_item = relationship_class_dict.pop(id)
+                updated_wide_item = relationship_class_dict.pop(id_)
                 del relationship_class_names[updated_wide_item["name"]]
             except KeyError:
                 msg = "Relationship class not found."
@@ -292,8 +292,8 @@ class DatabaseMappingCheckMixin:
                     updated_wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type
                 )
                 checked_wide_items.append(wide_item)
-                relationship_class_dict[id] = updated_wide_item
-                relationship_class_names[updated_wide_item["name"]] = id
+                relationship_class_dict[id_] = updated_wide_item
+                relationship_class_names[updated_wide_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -336,7 +336,9 @@ class DatabaseMappingCheckMixin:
                     self.relationship_entity_type,
                 )
                 wide_item["type_id"] = self.relationship_entity_type
-                wide_item["object_class_id_list"] = [object_dict[id]["class_id"] for id in wide_item["object_id_list"]]
+                wide_item["object_class_id_list"] = [
+                    object_dict[id_]["class_id"] for id_ in wide_item["object_id_list"]
+                ]
                 checked_wide_items.append(wide_item)
                 relationship_names[wide_item["class_id"], wide_item["name"]] = None
                 join_object_id_list = ",".join([str(x) for x in wide_item["object_id_list"]])
@@ -382,7 +384,7 @@ class DatabaseMappingCheckMixin:
         object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
         for wide_item in wide_items:
             try:
-                id = wide_item["id"]
+                id_ = wide_item["id"]
             except KeyError:
                 msg = "Missing relationship identifier."
                 if strict:
@@ -390,7 +392,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_wide_item = relationship_dict.pop(id)
+                updated_wide_item = relationship_dict.pop(id_)
                 del relationship_names[updated_wide_item["class_id"], updated_wide_item["name"]]
                 join_object_id_list = ",".join([str(x) for x in updated_wide_item["object_id_list"]])
                 del relationship_objects[updated_wide_item["class_id"], join_object_id_list]
@@ -412,12 +414,14 @@ class DatabaseMappingCheckMixin:
                     self.relationship_entity_type,
                 )
                 wide_item["type_id"] = self.relationship_entity_type
-                wide_item["object_class_id_list"] = [object_dict[id]["class_id"] for id in wide_item["object_id_list"]]
+                wide_item["object_class_id_list"] = [
+                    object_dict[id_]["class_id"] for id_ in wide_item["object_id_list"]
+                ]
                 checked_wide_items.append(wide_item)
-                relationship_dict[id] = updated_wide_item
-                relationship_names[updated_wide_item["class_id"], updated_wide_item["name"]] = id
+                relationship_dict[id_] = updated_wide_item
+                relationship_names[updated_wide_item["class_id"], updated_wide_item["name"]] = id_
                 join_object_id_list = ",".join([str(x) for x in updated_wide_item["object_id_list"]])
-                relationship_objects[updated_wide_item["class_id"], join_object_id_list] = id
+                relationship_objects[updated_wide_item["class_id"], join_object_id_list] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -441,33 +445,38 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        obj_parameter_definition_names = {}
-        rel_parameter_definition_names = {}
-        for x in self.query(self.parameter_definition_sq):
-            if x.object_class_id:
-                obj_parameter_definition_names[x.object_class_id, x.name] = x.id
-            elif x.relationship_class_id:
-                rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
-        object_class_dict = {x.id: x.name for x in self.query(self.object_class_sq)}
-        relationship_class_dict = {x.id: x.name for x in self.query(self.wide_relationship_class_sq)}
+        parameter_definition_names = {
+            (x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)
+        }
+        object_class_ids = {x.id for x in self.query(self.object_class_sq)}
+        relationship_class_ids = {x.id for x in self.query(self.wide_relationship_class_sq)}
+        entity_class_ids = object_class_ids | relationship_class_ids
         parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
+            checked_item = item.copy()
+            object_class_id = checked_item.pop("object_class_id", None)
+            relationship_class_id = checked_item.pop("relationship_class_id", None)
+            if object_class_id and relationship_class_id:
+                e = SpineIntegrityError("Can't associate a parameter to both an object and a relationship class.")
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+                continue
+            if object_class_id:
+                class_ids = object_class_ids
+            elif relationship_class_id:
+                class_ids = relationship_class_ids
+            else:
+                class_ids = entity_class_ids
+            entity_class_id = checked_item["entity_class_id"] = (
+                object_class_id or relationship_class_id or checked_item.get("entity_class_id")
+            )
             try:
                 check_parameter_definition(
-                    item,
-                    obj_parameter_definition_names,
-                    rel_parameter_definition_names,
-                    object_class_dict,
-                    relationship_class_dict,
-                    parameter_value_list_dict,
+                    checked_item, parameter_definition_names, class_ids, parameter_value_list_dict
                 )
-                object_class_id = item.get("object_class_id", None)
-                relationship_class_id = item.get("relationship_class_id", None)
-                if object_class_id is not None:
-                    obj_parameter_definition_names[object_class_id, item["name"]] = None
-                elif relationship_class_id is not None:
-                    rel_parameter_definition_names[relationship_class_id, item["name"]] = None
-                checked_items.append(item)
+                parameter_definition_names[entity_class_id, checked_item["name"]] = None
+                checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -491,30 +500,23 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_qry = self.query(self.parameter_definition_sq)  # Query db only once
-        obj_parameter_definition_names = {}
-        rel_parameter_definition_names = {}
-        for x in parameter_definition_qry:
-            if x.object_class_id:
-                obj_parameter_definition_names[x.object_class_id, x.name] = x.id
-            elif x.relationship_class_id:
-                rel_parameter_definition_names[x.relationship_class_id, x.name] = x.id
+        parameter_definition_names = {
+            (x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)
+        }
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
-                "object_class_id": x.object_class_id,
-                "relationship_class_id": x.relationship_class_id,
+                "entity_class_id": x.entity_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
                 "default_value": x.default_value,
             }
-            for x in parameter_definition_qry
+            for x in self.query(self.parameter_definition_sq)
         }
-        object_class_dict = {x.id: x.name for x in self.query(self.object_class_sq)}
-        relationship_class_dict = {x.id: x.name for x in self.query(self.wide_relationship_class_sq)}
+        entity_class_ids = {x.id for x in self.query(self.entity_class_sq)}
         parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing parameter definition identifier."
                 if strict:
@@ -522,13 +524,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = parameter_definition_dict.pop(id)
-                object_class_id = updated_item["object_class_id"]
-                relationship_class_id = updated_item["relationship_class_id"]
-                if object_class_id:
-                    del obj_parameter_definition_names[object_class_id, updated_item["name"]]
-                elif relationship_class_id:
-                    del rel_parameter_definition_names[relationship_class_id, updated_item["name"]]
+                updated_item = parameter_definition_dict.pop(id_)
+                del parameter_definition_names[updated_item["entity_class_id"], updated_item["name"]]
             except KeyError:
                 msg = "Parameter not found."
                 if strict:
@@ -536,30 +533,15 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                # Allow turning an object class parameter into a relationship class parameter, and viceversa
-                if "object_class_id" in item:
-                    item.setdefault("relationship_class_id", None)
-                if "relationship_class_id" in item:
-                    item.setdefault("object_class_id", None)
-                self.check_immutable_fields(updated_item, item, ("object_class_id", "relationship_class_id"))
+                self.check_immutable_fields(
+                    updated_item, item, ("entity_class_id", "object_class_id", "relationship_class_id")
+                )
                 updated_item.update(item)
                 check_parameter_definition(
-                    updated_item,
-                    obj_parameter_definition_names,
-                    rel_parameter_definition_names,
-                    object_class_dict,
-                    relationship_class_dict,
-                    parameter_value_list_dict,
+                    updated_item, parameter_definition_names, entity_class_ids, parameter_value_list_dict
                 )
-                object_class_id = item.get("object_class_id", None)
-                relationship_class_id = item.get("relationship_class_id", None)
-                if object_class_id is not None:
-                    item["entity_class_id"] = object_class_id
-                    obj_parameter_definition_names[object_class_id, item["name"]] = id
-                elif relationship_class_id is not None:
-                    item["entity_class_id"] = relationship_class_id
-                    rel_parameter_definition_names[relationship_class_id, item["name"]] = id
-                parameter_definition_dict[id] = updated_item
+                parameter_definition_names[updated_item["entity_class_id"], updated_item["name"]] = id_
+                parameter_definition_dict[id_] = updated_item
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -584,46 +566,35 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_parameter_values = {}
-        relationship_parameter_values = {}
-        for x in self.query(self.parameter_value_sq):
-            if x.object_id:
-                object_parameter_values[x.object_id, x.parameter_definition_id] = x.id
-            elif x.relationship_id:
-                relationship_parameter_values[x.relationship_id, x.parameter_definition_id] = x.id
+        parameter_values = {(x.entity_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq)}
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
-                "object_class_id": x.object_class_id,
-                "relationship_class_id": x.relationship_class_id,
+                "entity_class_id": x.entity_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
             for x in self.query(self.parameter_definition_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
-        relationship_dict = {
-            x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.wide_relationship_sq)
-        }
+        entity_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
         parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
+            checked_item = item.copy()
+            checked_item["entity_class_id"] = (
+                checked_item.pop("object_class_id", None)
+                or checked_item.pop("relationship_class_id", None)
+                or checked_item.get("entity_class_id")
+            )
+            entity_id = checked_item["entity_id"] = (
+                checked_item.pop("object_id", None)
+                or checked_item.pop("relationship_id", None)
+                or checked_item.get("entity_id")
+            )
             try:
                 check_parameter_value(
-                    item,
-                    object_parameter_values,
-                    relationship_parameter_values,
-                    parameter_definition_dict,
-                    object_dict,
-                    relationship_dict,
-                    parameter_value_list_dict,
+                    checked_item, parameter_values, parameter_definition_dict, entity_dict, parameter_value_list_dict
                 )
-                # Update sets of tuples (object_id, parameter_definition_id)
-                object_id = item.get("object_id", None)
-                relationship_id = item.get("relationship_id", None)
-                if object_id is not None:
-                    object_parameter_values[object_id, item["parameter_definition_id"]] = None
-                elif relationship_id is not None:
-                    relationship_parameter_values[relationship_id, item["parameter_definition_id"]] = None
-                checked_items.append(item)
+                parameter_values[entity_id, checked_item["parameter_definition_id"]] = None
+                checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -650,36 +621,25 @@ class DatabaseMappingCheckMixin:
         parameter_value_dict = {
             x.id: {
                 "parameter_definition_id": x.parameter_definition_id,
-                "object_id": x.object_id,
-                "relationship_id": x.relationship_id,
+                "entity_id": x.entity_id,
+                "entity_class_id": x.entity_class_id,
             }
             for x in self.query(self.parameter_value_sq)
         }
-        object_parameter_values = {
-            (x.object_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq) if x.object_id
-        }
-        relationship_parameter_values = {
-            (x.relationship_id, x.parameter_definition_id): x.id
-            for x in self.query(self.parameter_value_sq)
-            if x.relationship_id
-        }
+        parameter_values = {(x.entity_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq)}
         parameter_definition_dict = {
             x.id: {
                 "name": x.name,
-                "object_class_id": x.object_class_id,
-                "relationship_class_id": x.relationship_class_id,
+                "entity_class_id": x.entity_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
             for x in self.query(self.parameter_definition_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
-        relationship_dict = {
-            x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.wide_relationship_sq)
-        }
+        entity_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
         parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing parameter value identifier."
                 if strict:
@@ -687,15 +647,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = parameter_value_dict.pop(id)
-                # Remove current tuples (object_id, parameter_definition_id)
-                # and (relationship_id, parameter_definition_id)
-                object_id = updated_item.get("object_id", None)
-                relationship_id = updated_item.get("relationship_id", None)
-                if object_id:
-                    del object_parameter_values[object_id, updated_item["parameter_definition_id"]]
-                elif relationship_id:
-                    del relationship_parameter_values[relationship_id, updated_item["parameter_definition_id"]]
+                updated_item = parameter_value_dict.pop(id_)
+                del parameter_values[updated_item["entity_id"], updated_item["parameter_definition_id"]]
             except KeyError:
                 msg = "Parameter value not found."
                 if strict:
@@ -703,37 +656,25 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                # Allow turning an object parameter value into a relationship parameter value, and viceversa
-                if "object_id" in item:
-                    item.setdefault("relationship_id", None)
-                if "relationship_id" in item:
-                    item.setdefault("object_id", None)
                 self.check_immutable_fields(
-                    updated_item, item, ("object_id", "relationship_id", "parameter_definition_id")
+                    updated_item,
+                    item,
+                    (
+                        "entity_class_id",
+                        "object_class_id",
+                        "relationship_class_id",
+                        "entity_id",
+                        "object_id",
+                        "relationship_id",
+                        "parameter_definition_id",
+                    ),
                 )
                 updated_item.update(item)
                 check_parameter_value(
-                    updated_item,
-                    object_parameter_values,
-                    relationship_parameter_values,
-                    parameter_definition_dict,
-                    object_dict,
-                    relationship_dict,
-                    parameter_value_list_dict,
+                    updated_item, parameter_values, parameter_definition_dict, entity_dict, parameter_value_list_dict
                 )
-                parameter_value_dict[id] = updated_item
-                # Add updated tuples (object_id, parameter_definition_id)
-                # and (relationship_id, parameter_definition_id)
-                object_id = updated_item.get("object_id", None)
-                relationship_id = updated_item.get("relationship_id", None)
-                if object_id is not None:
-                    item["entity_id"] = object_id
-                    item["entity_class_id"] = object_dict[object_id]["class_id"]
-                    object_parameter_values[object_id, updated_item["parameter_definition_id"]] = id
-                elif relationship_id is not None:
-                    item["entity_id"] = relationship_id
-                    item["entity_class_id"] = relationship_dict[relationship_id]["class_id"]
-                    relationship_parameter_values[relationship_id, updated_item["parameter_definition_id"]] = id
+                parameter_value_dict[id_] = updated_item
+                parameter_values[updated_item["entity_id"], updated_item["parameter_definition_id"]] = id_
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -791,7 +732,7 @@ class DatabaseMappingCheckMixin:
         parameter_tags = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing parameter tag identifier."
                 if strict:
@@ -800,7 +741,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # 'Remove' current instance
-                updated_item = parameter_tag_dict.pop(id)
+                updated_item = parameter_tag_dict.pop(id_)
                 del parameter_tags[updated_item["tag"]]
             except KeyError:
                 msg = "Parameter tag not found."
@@ -813,8 +754,8 @@ class DatabaseMappingCheckMixin:
                 updated_item.update(item)
                 check_parameter_tag(updated_item, parameter_tags)
                 checked_items.append(item)
-                parameter_tag_dict[id] = updated_item
-                parameter_tags[updated_item["tag"]] = id
+                parameter_tag_dict[id_] = updated_item
+                parameter_tags[updated_item["tag"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -907,7 +848,7 @@ class DatabaseMappingCheckMixin:
         parameter_value_list_names = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
         for wide_item in wide_items:
             try:
-                id = wide_item["id"]
+                id_ = wide_item["id"]
             except KeyError:
                 msg = "Missing parameter value list identifier."
                 if strict:
@@ -916,7 +857,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # 'Remove' current instance
-                updated_wide_item = parameter_value_list_dict.pop(id)
+                updated_wide_item = parameter_value_list_dict.pop(id_)
                 del parameter_value_list_names[updated_wide_item["name"]]
             except KeyError:
                 msg = "Parameter value list not found."
@@ -929,8 +870,8 @@ class DatabaseMappingCheckMixin:
                 updated_wide_item.update(wide_item)
                 check_wide_parameter_value_list(updated_wide_item, parameter_value_list_names)
                 checked_wide_items.append(wide_item)
-                parameter_value_list_dict[id] = updated_wide_item
-                parameter_value_list_names[updated_wide_item["name"]] = id
+                parameter_value_list_dict[id_] = updated_wide_item
+                parameter_value_list_names[updated_wide_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e

@@ -499,7 +499,8 @@ class DatabaseMappingBase:
             self._parameter_value_sq = (
                 self.query(
                     par_val_sq.c.id.label("id"),
-                    par_val_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    par_val_sq.c.parameter_definition_id,
+                    par_val_sq.c.entity_class_id,
                     par_val_sq.c.entity_id,
                     label("object_class_id", object_class_case),
                     label("relationship_class_id", rel_class_case),

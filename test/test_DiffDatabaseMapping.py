@@ -627,33 +627,25 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding parameter values works."""
 
         with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_sq"
-        ) as mock_object_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_sq"
-        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "entity_sq"
+        ) as mock_entity_sq, mock.patch.object(
             DiffDatabaseMapping, "parameter_definition_sq"
         ) as mock_parameter_definition_sq:
             mock_query.side_effect = self.query_wrapper
-            mock_object_sq.value = [
+            mock_entity_sq.value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
-            ]
-            mock_wide_rel_sq.value = [
-                KeyedTuple([2, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple([3, 100, "nemo__pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_parameter_definition_sq.value = [
+                KeyedTuple([1, 10, "color", None], labels=["id", "entity_class_id", "name", "parameter_value_list_id"]),
                 KeyedTuple(
-                    [1, 10, None, "color", None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
-                ),
-                KeyedTuple(
-                    [2, None, 100, "rel_speed", None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
+                    [2, 100, "rel_speed", None], labels=["id", "entity_class_id", "name", "parameter_value_list_id"]
                 ),
             ]
             self.db_map.add_parameter_values(
-                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"orange"'},
-                {"parameter_definition_id": 2, "relationship_id": 2, "relationship_class_id": 100, "value": "125"},
+                {"parameter_definition_id": 1, "entity_id": 1, "entity_class_id": 10, "value": '"orange"'},
+                {"parameter_definition_id": 2, "entity_id": 3, "entity_class_id": 100, "value": "125"},
             )
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 2)
@@ -661,7 +653,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(parameter_values[0].entity_id, 1)
         self.assertEqual(parameter_values[0].value, '"orange"')
         self.assertEqual(parameter_values[1].parameter_definition_id, 2)
-        self.assertEqual(parameter_values[1].entity_id, 2)
+        self.assertEqual(parameter_values[1].entity_id, 3)
         self.assertEqual(parameter_values[1].value, "125")
 
     def test_add_parameter_value_for_both_object_and_relationship(self):
@@ -767,29 +759,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding a parameter value twice only adds the first one."""
 
         with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_sq"
-        ) as mock_object_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_sq"
-        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "entity_sq"
+        ) as mock_entity_sq, mock.patch.object(
             DiffDatabaseMapping, "parameter_definition_sq"
         ) as mock_parameter_definition_sq:
             mock_query.side_effect = self.query_wrapper
-            mock_object_sq.value = [
+            mock_entity_sq.value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
-            ]
-            mock_wide_rel_sq.value = [
-                KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple([3, 100, "nemo__pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_parameter_definition_sq.value = [
-                KeyedTuple(
-                    [1, 10, None, "color", None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
-                )
+                KeyedTuple([1, 10, "color", None], labels=["id", "entity_class_id", "name", "parameter_value_list_id"])
             ]
             self.db_map.add_parameter_values(
-                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"orange"'},
-                {"parameter_definition_id": 1, "object_id": 1, "object_class_id": 10, "value": '"blue"'},
+                {"parameter_definition_id": 1, "entity_id": 1, "entity_class_id": 10, "value": '"orange"'},
+                {"parameter_definition_id": 1, "entity_id": 1, "entity_class_id": 10, "value": '"blue"'},
             )
         parameter_values = self.db_map.session.query(self.db_map.DiffParameterValue).all()
         self.assertEqual(len(parameter_values), 1)
@@ -801,37 +786,27 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding an existing parameter value raises an integrity error."""
 
         with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_sq"
-        ) as mock_object_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_sq"
-        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "entity_sq"
+        ) as mock_entity_sq, mock.patch.object(
             DiffDatabaseMapping, "parameter_definition_sq"
         ) as mock_parameter_definition_sq, mock.patch.object(
             DiffDatabaseMapping, "parameter_value_sq"
         ) as mock_parameter_value_sq:
             mock_query.side_effect = self.query_wrapper
-            mock_object_sq.value = [
+            mock_entity_sq.value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
-            ]
-            mock_wide_rel_sq.value = [
-                KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
+                KeyedTuple([3, 100, "nemo__pluto"], labels=["id", "class_id", "name"]),
             ]
             mock_parameter_definition_sq.value = [
-                KeyedTuple(
-                    [1, 10, None, "color", None],
-                    labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
-                )
+                KeyedTuple([1, 10, "color", None], labels=["id", "entity_class_id", "name", "parameter_value_list_id"])
             ]
             mock_parameter_value_sq.value = [
-                KeyedTuple(
-                    [1, 1, 1, None, "orange"],
-                    labels=["id", "parameter_definition_id", "object_id", "relationship_id", "value"],
-                )
+                KeyedTuple([1, 1, 1, "orange"], labels=["id", "parameter_definition_id", "entity_id", "value"])
             ]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_parameter_values(
-                    {"parameter_definition_id": 1, "object_id": 1, "value": "blue"}, strict=True
+                    {"parameter_definition_id": 1, "entity_id": 1, "value": "blue"}, strict=True
                 )
 
 

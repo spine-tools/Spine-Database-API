@@ -177,61 +177,31 @@ def check_wide_relationship(
         )
 
 
-def check_parameter_definition(
-    item, current_obj_items, current_rel_items, object_class_names, relationship_class_names, parameter_value_lists
-):
+def check_parameter_definition(item, current_items, entity_class_ids, parameter_value_lists):
     """Check whether the insertion of a parameter definition item
     results in the violation of an integrity constraint.
 
     :param dict item: A parameter definition item to be checked.
-    :param dict current_obj_items: A dictionary mapping tuples (object_class_id, name) to ids
-        of object parameter definitions already in the database.
-    :param dict current_rel_items: A dictionary mapping tuples (relationship_class_id, name) to ids
-        of relationship parameter definitions already in the database.
-    :param dict object_class_names: A dictionary of object class names in the database keyed by id.
-    :param dict relationship_class_names: A dictionary of relationship class names in the database
-        keyed by id.
+    :param dict current_items: A dictionary mapping tuples (entity_class_id, name) to ids
+        of parameter definitions already in the database.
+    :param dict entity_class_ids: A set of entity class ids in the database.
     :param dict parameter_value_lists: A dictionary of value-lists in the database keyed by id.
 
     :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
-    object_class_id = item.get("object_class_id", None)
-    relationship_class_id = item.get("relationship_class_id", None)
     name = item.get("name")
     if not name:
         raise SpineIntegrityError("Missing parameter name.")
-    if object_class_id and relationship_class_id:
-        try:
-            object_class_name = object_class_names[object_class_id]
-        except KeyError:
-            object_class_name = "id " + object_class_id
-        try:
-            relationship_class_name = relationship_class_names[relationship_class_id]
-        except KeyError:
-            relationship_class_name = "id " + relationship_class_id
+    entity_class_id = item.get("entity_class_id")
+    if not entity_class_id:
+        raise SpineIntegrityError("Missing entity class identifier.")
+    if entity_class_id not in entity_class_ids:
+        raise SpineIntegrityError("Entity class not found.")
+    if (entity_class_id, name) in current_items:
         raise SpineIntegrityError(
-            "Can't associate a parameter to both object class '{}' and relationship class '{}'.".format(
-                object_class_name, relationship_class_name
-            )
+            "There's already a parameter called '{}' in this class.".format(name),
+            id=current_items[entity_class_id, name],
         )
-    if object_class_id:
-        if object_class_id not in object_class_names:
-            raise SpineIntegrityError("Object class not found.")
-        if (object_class_id, name) in current_obj_items:
-            raise SpineIntegrityError(
-                "There's already a parameter called '{}' in this class.".format(name),
-                id=current_obj_items[object_class_id, name],
-            )
-    elif relationship_class_id:
-        if relationship_class_id not in relationship_class_names:
-            raise SpineIntegrityError("Relationship class not found.")
-        if (relationship_class_id, name) in current_rel_items:
-            raise SpineIntegrityError(
-                "There's already a parameter called '{}' in this class.".format(name),
-                id=current_rel_items[relationship_class_id, name],
-            )
-    else:
-        raise SpineIntegrityError("Missing object class or relationship class identifier.")
     parameter_value_list_id = item.get("parameter_value_list_id")
     if parameter_value_list_id is not None and parameter_value_list_id not in parameter_value_lists:
         raise SpineIntegrityError("Invalid parameter value list.")
@@ -242,20 +212,14 @@ def check_parameter_definition(
         raise SpineIntegrityError("Invalid default value '{}': {}".format(default_value, err))
 
 
-def check_parameter_value(
-    item, current_obj_items, current_rel_items, parameter_definitions, objects, relationships, parameter_value_lists
-):
-    """Check whether the insertion of a parameter value item
-    results in the violation of an integrity constraint.
+def check_parameter_value(item, current_items, parameter_definitions, entities, parameter_value_lists):
+    """Check whether the insertion of a parameter value item results in the violation of an integrity constraint.
 
     :param dict item: A parameter value item to be checked.
-    :param dict current_obj_items: A dictionary mapping tuples (object_id, parameter_definition_id) to ids of
-        object parameter values already in the database.
-    :param dict current_rel_items: A dictionary mapping tuples (relationship_id, parameter_definition_id) to ids
-        of relationship parameter values already in the database.
+    :param dict current_items: A dictionary mapping tuples (entity_id, parameter_definition_id) to ids of
+        parameter values already in the database.
     :param dict parameter_definitions: A dictionary of parameter definition items in the database keyed by id.
-    :param dict objects: A dictionary of object items already in the database keyed by id.
-    :param dict relationships: A dictionary of relationship items in the database keyed by id.
+    :param dict entities: A dictionary of entity items already in the database keyed by id.
     :param dict parameter_value_lists: A dictionary of value-lists in the database keyed by id.
 
     :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
@@ -285,60 +249,24 @@ def check_parameter_value(
                         value, parameter_definition["name"], valid_values
                     )
                 )
-    object_id = item.get("object_id", None)
-    relationship_id = item.get("relationship_id", None)
-    if object_id and relationship_id:
-        try:
-            object_name = objects[object_id]["name"]
-        except KeyError:
-            object_name = "object id " + object_id
-        try:
-            relationship_name = relationships[relationship_id]["name"]
-        except KeyError:
-            relationship_name = "relationship id " + relationship_id
-        raise SpineIntegrityError(
-            "Can't associate a parameter value to both object '{}' and relationship '{}'.".format(
-                object_name, relationship_name
-            )
-        )
-    if object_id:
-        try:
-            object_class_id = objects[object_id]["class_id"]
-        except KeyError:
-            raise SpineIntegrityError("Object not found")
-        if object_class_id != parameter_definition["object_class_id"]:
-            object_name = objects[object_id]["name"]
-            parameter_name = parameter_definition["name"]
-            raise SpineIntegrityError("Incorrect object '{}' for parameter '{}'.".format(object_name, parameter_name))
-        if (object_id, parameter_definition_id) in current_obj_items:
-            object_name = objects[object_id]["name"]
-            parameter_name = parameter_definition["name"]
-            raise SpineIntegrityError(
-                "The value of parameter '{}' for object '{}' is already specified.".format(parameter_name, object_name),
-                id=current_obj_items[object_id, parameter_definition_id],
-            )
-    elif relationship_id:
-        try:
-            relationship_class_id = relationships[relationship_id]["class_id"]
-        except KeyError:
-            raise SpineIntegrityError("Relationship not found")
-        if relationship_class_id != parameter_definition["relationship_class_id"]:
-            relationship_name = relationships[relationship_id]["name"]
-            parameter_name = parameter_definition["name"]
-            raise SpineIntegrityError(
-                "Incorrect relationship '{}' for parameter '{}'.".format(relationship_name, parameter_name)
-            )
-        if (relationship_id, parameter_definition_id) in current_rel_items:
-            relationship_name = relationships[relationship_id]["name"]
-            parameter_name = parameter_definition["name"]
-            raise SpineIntegrityError(
-                "The value of parameter '{}' for relationship '{}' is already specified.".format(
-                    parameter_name, relationship_name
-                ),
-                id=current_rel_items[relationship_id, parameter_definition_id],
-            )
-    else:
+    entity_id = item.get("entity_id")
+    if not entity_id:
         raise SpineIntegrityError("Missing object or relationship identifier.")
+    try:
+        entity_class_id = entities[entity_id]["class_id"]
+    except KeyError:
+        raise SpineIntegrityError("Entity not found")
+    if entity_class_id != parameter_definition["entity_class_id"]:
+        entity_name = entities[entity_id]["name"]
+        parameter_name = parameter_definition["name"]
+        raise SpineIntegrityError("Incorrect entity '{}' for parameter '{}'.".format(entity_name, parameter_name))
+    if (entity_id, parameter_definition_id) in current_items:
+        entity_name = entities[entity_id]["name"]
+        parameter_name = parameter_definition["name"]
+        raise SpineIntegrityError(
+            "The value of parameter '{}' for entity '{}' is already specified.".format(parameter_name, entity_name),
+            id=current_items[entity_id, parameter_definition_id],
+        )
 
 
 def check_parameter_tag(item, current_items):
