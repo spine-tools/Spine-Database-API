@@ -690,6 +690,8 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("unit", "min_up_time", None),
             ("unit", "online_variable_type", "binary"),
             ("unit", "fix_units_on", None),
+            ("unit", "max_cum_in_unit_flow_bound", None),
+            # Temporary setting to avoid warnings. This parameter is supposed to be defined under unit_group__commodity_group.
             ("connection", "connection_availability_factor", 1),
             ("temporal_block", "block_start", None),
             ("temporal_block", "block_end", None),
@@ -705,6 +707,8 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("model", "model_end", Date("2000-01-02T00:00:00")),
             ("model", "roll_forward", None),
             ("model", "duration_unit", "Minute"),
+            ("report", "output_db_url", None),
+            # This function is claimed in run_spinemodel.jl line 181 and documented in missing_item_handlers.jl line 151
         ),
         relationship_parameters=(
             ("unit__node__direction", "fix_unit_flow", None),
