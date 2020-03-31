@@ -29,7 +29,7 @@ from spinedb_api.json_mapping import (
     parameter_mapping_from_dict,
     TimeSeriesOptions,
 )
-from spinedb_api.parameter_value import TimeSeriesVariableResolution, TimePattern
+from spinedb_api.parameter_value import Array, TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError
 
 
@@ -160,7 +160,7 @@ class TestMappingIO(unittest.TestCase):
                 "map_type": "parameter",
                 "name": "test",
                 "value": 2,
-                "parameter_type": "1d array",
+                "parameter_type": "array",
                 "extra_dimensions": ["test"],
             },
         }
@@ -176,7 +176,7 @@ class TestMappingIO(unittest.TestCase):
             "parameters": {
                 "map_type": "parameter",
                 "name": {"map_type": "constant", "reference": "test"},
-                "parameter_type": "1d array",
+                "parameter_type": "array",
                 "value": {"reference": 2, "map_type": "column"},
                 "extra_dimensions": [{"map_type": "constant", "reference": "test"}],
             },
@@ -604,7 +604,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
-    def test_read_flat_file_1d_array(self):
+    def test_read_flat_file_array(self):
         input_data = [
             ["object_class", "object", "parameter", "value"],
             ["oc1", "obj1", "parameter_name1", 1],
@@ -615,7 +615,7 @@ class TestMappingIntegration(unittest.TestCase):
                 "object_classes": ["oc1", "oc1"],
                 "objects": [("oc1", "obj1"), ("oc1", "obj1")],
                 "object_parameters": [("oc1", "parameter_name1"), ("oc1", "parameter_name1")],
-                "object_parameter_values": [("oc1", "obj1", "parameter_name1", [1, 2])],
+                "object_parameter_values": [("oc1", "obj1", "parameter_name1", Array([1, 2]))],
             }
         )
 
@@ -631,7 +631,7 @@ class TestMappingIntegration(unittest.TestCase):
                 "map_type": "parameter",
                 "name": "parameter_name1",
                 "value": 3,
-                "parameter_type": "1d array",
+                "parameter_type": "array",
             },
         }
 
@@ -639,7 +639,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
-    def test_read_flat_file_1d_array_with_ed(self):
+    def test_read_flat_file_array_with_ed(self):
         input_data = [
             ["object_class", "object", "parameter", "value", "value_order"],
             ["oc1", "obj1", "parameter_name1", 1, 0],
@@ -650,7 +650,7 @@ class TestMappingIntegration(unittest.TestCase):
                 "object_classes": ["oc1", "oc1"],
                 "objects": [("oc1", "obj1"), ("oc1", "obj1")],
                 "object_parameters": [("oc1", "parameter_name1"), ("oc1", "parameter_name1")],
-                "object_parameter_values": [("oc1", "obj1", "parameter_name1", [1, 2])],
+                "object_parameter_values": [("oc1", "obj1", "parameter_name1", Array([1, 2]))],
             }
         )
 
@@ -667,7 +667,7 @@ class TestMappingIntegration(unittest.TestCase):
                 "name": "parameter_name1",
                 "value": 3,
                 "extra_dimension": [None],
-                "parameter_type": "1d array",
+                "parameter_type": "array",
             },
         }
 

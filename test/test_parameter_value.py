@@ -28,13 +28,14 @@ from spinedb_api.parameter_value import (
     relativedelta_to_duration,
     from_database,
     to_database,
+    Array,
     DateTime,
     Duration,
     IndexedNumberArray,
+    Map,
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    Map,
 )
 
 
@@ -567,6 +568,86 @@ class TestParameterValue(unittest.TestCase):
                 ],
             },
         )
+
+    def test_Array_of_floats_to_database(self):
+        array = Array([-1.1, -2.2, -3.3])
+        as_json = to_database(array)
+        raw = json.loads(as_json)
+        self.assertEqual(raw, {"type": "array", "value_type": "float", "data": [-1.1, -2.2, -3.3]})
+
+    def test_Array_of_strings_to_database(self):
+        array = Array(["a", "b"])
+        as_json = to_database(array)
+        raw = json.loads(as_json)
+        self.assertEqual(raw, {"type": "array", "value_type": "str", "data": ["a", "b"]})
+
+    def test_Array_of_DateTimes_to_database(self):
+        array = Array([DateTime("2020-01-01T13:00")])
+        as_json = to_database(array)
+        raw = json.loads(as_json)
+        self.assertEqual(
+            raw,
+            {
+                "type": "array",
+                "value_type": "date_time",
+                "data": ["2020-01-01T13:00:00"],
+            },
+        )
+
+    def test_Array_of_Durations_to_database(self):
+        array = Array([Duration("4 months")])
+        as_json = to_database(array)
+        raw = json.loads(as_json)
+        self.assertEqual(raw, {"type": "array", "value_type": "duration", "data": ["4M"]})
+
+    def test_Array_of_floats_from_database(self):
+        database_value = """{
+            "type": "array",
+            "value_type": "float",
+            "data": [1.2, 2.3]
+        }"""
+        array = from_database(database_value)
+        self.assertEqual(array.values, [1.2, 2.3])
+        self.assertEqual(array.indexes, [0, 1])
+
+    def test_Array_of_default_value_type_from_database(self):
+        database_value = """{
+            "type": "array",
+            "data": [1.2, 2.3]
+        }"""
+        array = from_database(database_value)
+        self.assertEqual(array.values, [1.2, 2.3])
+        self.assertEqual(array.indexes, [0, 1])
+
+    def test_Array_of_strings_from_database(self):
+        database_value = """{
+            "type": "array",
+            "value_type": "str",
+            "data": ["A", "B"]
+        }"""
+        array = from_database(database_value)
+        self.assertEqual(array.values, ["A", "B"])
+        self.assertEqual(array.indexes, [0, 1])
+
+    def test_Array_of_DateTimes_from_database(self):
+        database_value = """{
+            "type": "array",
+            "value_type": "date_time",
+            "data": ["2020-03-25T10:34:00"]
+        }"""
+        array = from_database(database_value)
+        self.assertEqual(array.values, [DateTime("2020-03-25T10:34:00")])
+        self.assertEqual(array.indexes, [0])
+
+    def test_Array_of_Durations_from_database(self):
+        database_value = """{
+            "type": "array",
+            "value_type": "duration",
+            "data": ["2 years", "7 seconds"]
+        }"""
+        array = from_database(database_value)
+        self.assertEqual(array.values, [Duration("2 years"), Duration("7s")])
+        self.assertEqual(array.indexes, [0, 1])
 
     def test_DateTime_copy_construction(self):
         date_time = DateTime("2019-07-03T09:09:09")

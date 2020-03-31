@@ -31,6 +31,7 @@ numpy.ndarray arrays holding numpy.datetime64 objects.
 
 from collections.abc import Iterable, Sequence
 from copy import copy
+from datetime import datetime
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import json
@@ -66,7 +67,7 @@ def duration_to_relativedelta(duration):
         count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
         count = int(count)
     except ValueError:
-        raise ParameterValueFormatError('Could not parse duration "{}"'.format(duration))
+        raise ParameterValueFormatError(f'Could not parse duration "{duration}"')
     unit = abbreviation if abbreviation is not None else full_unit
     if unit in ["s", "second", "seconds"]:
         return relativedelta(seconds=count)
@@ -80,7 +81,7 @@ def duration_to_relativedelta(duration):
         return relativedelta(months=count)
     if unit in ["Y", "year", "years"]:
         return relativedelta(years=count)
-    raise ParameterValueFormatError('Could not parse duration "{}"'.format(duration))
+    raise ParameterValueFormatError(f'Could not parse duration "{duration}"')
 
 
 def relativedelta_to_duration(delta):
@@ -100,24 +101,24 @@ def relativedelta_to_duration(delta):
         seconds += 60 * 60 * 24 * delta.days
         # Skipping months and years since dateutil does not use them here
         # and they wouldn't make much sense anyway.
-        return "{}s".format(seconds)
+        return f"{seconds}s"
     if delta.minutes > 0:
         minutes = delta.minutes
         minutes += 60 * delta.hours
         minutes += 60 * 24 * delta.days
-        return "{}m".format(minutes)
+        return f"{minutes}m"
     if delta.hours > 0:
         hours = delta.hours
         hours += 24 * delta.days
-        return "{}h".format(hours)
+        return f"{hours}h"
     if delta.days > 0:
-        return "{}D".format(delta.days)
+        return f"{delta.days}D"
     if delta.months > 0:
         months = delta.months
         months += 12 * delta.years
-        return "{}M".format(months)
+        return f"{months}M"
     if delta.years > 0:
-        return "{}Y".format(delta.years)
+        return f"{delta.years}Y"
     return "0h"
 
 
@@ -137,8 +138,13 @@ def from_database(database_value):
         value = json.loads(database_value)
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}")
-    return _from_parsed(value)
-
+    if isinstance(value, dict):
+        return _from_dict(value)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, Number):
+        return float(value)
+    return value
 
 def to_database(value):
     """
@@ -155,33 +161,33 @@ def to_database(value):
     return json.dumps(value)
 
 
-def _from_parsed(parsed_value):
+def _from_dict(value_dict):
     """
+    Converts complex a (relationship) parameter value from its dictionary representation to a Python object.
 
-    :param parsed_value:
-    :return:
+    Args:
+        value_dict (dict): value's dictionary; a parsed JSON object
+
+    Returns:
+        the encoded (relationship) parameter value
     """
-    if isinstance(parsed_value, dict):
-        try:
-            value_type = parsed_value["type"]
-            if value_type == "date_time":
-                return _datetime_from_database(parsed_value["data"])
-            if value_type == "duration":
-                return _duration_from_database(parsed_value["data"])
-            if value_type == "map":
-                return _map_from_database(parsed_value)
-            if value_type == "time_pattern":
-                return _time_pattern_from_database(parsed_value)
-            if value_type == "time_series":
-                return _time_series_from_database(parsed_value)
-            raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
-        except KeyError as error:
-            raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
-    if isinstance(parsed_value, bool):
-        return parsed_value
-    if isinstance(parsed_value, Number):
-        return float(parsed_value)
-    return parsed_value
+    try:
+        value_type = value_dict["type"]
+        if value_type == "date_time":
+            return _datetime_from_database(value_dict["data"])
+        if value_type == "duration":
+            return _duration_from_database(value_dict["data"])
+        if value_type == "map":
+            return _map_from_database(value_dict)
+        if value_type == "time_pattern":
+            return _time_pattern_from_database(value_dict)
+        if value_type == "time_series":
+            return _time_series_from_database(value_dict)
+        if value_type == "array":
+            return _array_from_database(value_dict)
+        raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
+    except KeyError as error:
+        raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
 
 
 def _break_dictionary(data):
@@ -199,7 +205,7 @@ def _datetime_from_database(value):
     try:
         stamp = dateutil.parser.parse(value)
     except ValueError:
-        raise ParameterValueFormatError('Could not parse datetime from "{}"'.format(value))
+        raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
     return DateTime(stamp)
 
 
@@ -208,11 +214,11 @@ def _duration_from_database(value):
     if isinstance(value, (str, int)):
         # Set default unit to minutes if value is a plain number.
         if not isinstance(value, str):
-            value = "{}m".format(value)
+            value = f"{value}m"
         value = [duration_to_relativedelta(value)]
     elif isinstance(value, Sequence):  # It is a list of durations.
         # Set default unit to minutes for plain numbers in value.
-        value = [v if isinstance(v, str) else "{}m".format(v) for v in value]
+        value = [v if isinstance(v, str) else f"{v}m" for v in value]
         value = [duration_to_relativedelta(v) for v in value]
     else:
         raise ParameterValueFormatError("Duration value is of unsupported type")
@@ -238,11 +244,11 @@ def _variable_resolution_time_series_info_from_index(value):
         try:
             ignore_year = bool(data_index.get("ignore_year", False))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode ignore_year from "{}"'.format(data_index["ignore_year"]))
+            raise ParameterValueFormatError(f'Could not decode ignore_year from "{data_index["ignore_year"]}"')
         try:
             repeat = bool(data_index.get("repeat", False))
         except ValueError:
-            raise ParameterValueFormatError('Could not decode repeat from "{}"'.format(data_index["repeat"]))
+            raise ParameterValueFormatError(f'Could not decode repeat from "{data_index["repeat"]}"')
     else:
         ignore_year = False
         repeat = False
@@ -258,7 +264,7 @@ def _time_series_from_dictionary(value):
         try:
             stamp = np.datetime64(stamp, _NUMPY_DATETIME64_UNIT)
         except ValueError:
-            raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(stamp))
+            raise ParameterValueFormatError(f'Could not decode time stamp "{stamp}"')
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
@@ -277,7 +283,7 @@ def _time_series_from_single_column(value):
                 ignore_year = bool(value_index["ignore_year"])
             except ValueError:
                 raise ParameterValueFormatError(
-                    'Could not decode ignore_year value "{}"'.format(value_index["ignore_year"])
+                    f'Could not decode ignore_year value "{value_index["ignore_year"]}"'
                 )
         else:
             ignore_year = "start" not in value_index
@@ -285,7 +291,7 @@ def _time_series_from_single_column(value):
             try:
                 repeat = bool(value_index["repeat"])
             except ValueError:
-                raise ParameterValueFormatError('Could not decode repeat value "{}"'.format(value_index["ignore_year"]))
+                raise ParameterValueFormatError(f'Could not decode repeat value "{value_index["ignore_year"]}"')
         else:
             repeat = "start" not in value_index
     else:
@@ -304,7 +310,7 @@ def _time_series_from_single_column(value):
     try:
         start = dateutil.parser.parse(start)
     except ValueError:
-        raise ParameterValueFormatError('Could not decode start value "{}"'.format(start))
+        raise ParameterValueFormatError(f'Could not decode start value "{start}"')
     values = np.array(value["data"])
     return TimeSeriesFixedResolution(start, relativedeltas, values, ignore_year, repeat)
 
@@ -320,7 +326,7 @@ def _time_series_from_two_columns(value):
         try:
             stamp = np.datetime64(element[0], _NUMPY_DATETIME64_UNIT)
         except ValueError:
-            raise ParameterValueFormatError('Could not decode time stamp "{}"'.format(element[0]))
+            raise ParameterValueFormatError(f'Could not decode time stamp "{element[0]}"')
         stamps.append(stamp)
         values[index] = element[1]
     stamps = np.array(stamps)
@@ -356,7 +362,7 @@ def _map_from_database(value):
             indexes = _map_indexes_from_database(indexes_in_db, index_type)
             values = _map_values_from_database(values_in_db)
     else:
-        raise ParameterValueFormatError(f'"data" attribute is not a dict or array.')
+        raise ParameterValueFormatError('"data" attribute is not a dict or array.')
     return Map(indexes, values, index_type)
 
 
@@ -413,11 +419,31 @@ def _map_values_from_database(values_in_db):
         return list()
     values = list()
     for value_in_db in values_in_db:
-        value = _from_parsed(value_in_db) if isinstance(value_in_db, dict) else value_in_db
+        value = _from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
         if not isinstance(value, (float, Duration, Map, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
     return values
+
+
+def _array_from_database(value_dict):
+    """Converts a parsed dict to a Python list."""
+    value_type_id = value_dict.get("value_type", "float")
+    value_type = {
+        "float": float,
+        "str": str,
+        "date_time": DateTime,
+        "duration": Duration,
+        "time_period": str
+    }.get(value_type_id, None)
+    if value_type is None:
+        raise ParameterValueFormatError(f'Unsupported value type for Array: "{value_type_id}".')
+    try:
+        data = [value_type(x) for x in value_dict["data"]]
+    except (TypeError, ParameterValueFormatError) as error:
+        raise ParameterValueFormatError(f'Failed to read values for Array: {error}')
+    else:
+        return Array(data, value_type)
 
 
 class DateTime:
@@ -425,17 +451,21 @@ class DateTime:
     A single datetime value.
 
     Attributes:
-        value (str, datetime.datetime): a timestamp
+        value (DataTime or str or datetime.datetime): a timestamp
     """
 
-    def __init__(self, value):
-        if isinstance(value, str):
+    def __init__(self, value=None):
+        if value is None:
+            value = datetime(year=2000, month=1, day=1)
+        elif isinstance(value, str):
             try:
                 value = dateutil.parser.parse(value)
             except ValueError:
-                raise ParameterValueFormatError('Could not parse datetime from "{}"'.format(value))
+                raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
         elif isinstance(value, DateTime):
             value = copy(value._value)
+        elif not isinstance(value, datetime):
+            raise ParameterValueFormatError(f'"{type(value).__name__}" cannot be converted to DateTime.')
         self._value = value
 
     def __eq__(self, other):
@@ -446,6 +476,9 @@ class DateTime:
 
     def __hash__(self):
         return hash(self._value)
+
+    def __str__(self):
+        return str(self._value)
 
     def value_to_database_data(self):
         """Returns the database representation of the duration."""
@@ -475,8 +508,10 @@ class Duration:
         value (str, relativedelta, list): the time step(s)
     """
 
-    def __init__(self, value):
-        if isinstance(value, str):
+    def __init__(self, value=None):
+        if value is None:
+            value = [relativedelta(hours=1)]
+        elif isinstance(value, str):
             value = [duration_to_relativedelta(value)]
         elif isinstance(value, relativedelta):
             value = [value]
@@ -487,7 +522,7 @@ class Duration:
         elif isinstance(value, Duration):
             value = copy(value._value)
         else:
-            raise ParameterValueFormatError('Could not parse duration from "{}"'.format(value))
+            raise ParameterValueFormatError(f'Could not parse duration from "{value}"')
         self._value = value
 
     def __eq__(self, other):
@@ -498,6 +533,9 @@ class Duration:
 
     def __hash__(self):
         return hash(tuple(self._value))
+
+    def __str__(self):
+        return ", ".join(relativedelta_to_duration(delta) for delta in self._value)
 
     def to_text(self):
         """Returns a comma separated str representation of the duration"""
@@ -565,7 +603,7 @@ class IndexedValue:
         self._indexes = None
 
     def __len__(self):
-        """Returns the length of the index"""
+        """Returns the number of values."""
         raise NotImplementedError()
 
     @property
@@ -601,11 +639,66 @@ class IndexedValue:
             self.values[pos] = value
 
 
+class Array(IndexedValue):
+    """An one dimensional array with zero based indexing."""
+
+    def __init__(self, values, value_type=None):
+        """
+        Args:
+            values (Sequence): array's values
+            value_type (Type, optional): array element type; will be deduced from the array if not given
+                and defaults to float if ``values`` is empty
+        """
+        super().__init__()
+        if value_type is None:
+            value_type = type(values[0]) if values else float
+        if any(not isinstance(x, value_type) for x in values):
+            raise ParameterValueFormatError("Not all array's values are of the same type.")
+        self.indexes = range(len(values))
+        self._values = list(values)
+        self._value_type = value_type
+
+    def __eq__(self, other):
+        if not isinstance(other, Array):
+            return NotImplemented
+        return self._values == other._values
+
+    def __len__(self):
+        """See base class."""
+        return len(self._values)
+
+    def to_database(self):
+        """See base class."""
+        value_type_id = {
+            float: "float",
+            str: "str",  # String could also mean time_period but we don't have any way to distinguish that, yet.
+            DateTime: "date_time",
+            Duration: "duration"
+        }.get(self._value_type)
+        if value_type_id is None:
+            raise ParameterValueFormatError(f"Cannot write unsupported array value type: {self._value_type.__name__}")
+        if value_type_id in ("float", "str"):
+            data = self._values
+        else:
+            data = [x.value_to_database_data() for x in self._values]
+        return json.dumps({"type": "array", "value_type": value_type_id, "data": data})
+
+    @property
+    def value_type(self):
+        """Returns the type of array's elements."""
+        return self._value_type
+
+    @property
+    def values(self):
+        """See base class."""
+        return self._values
+
+
 class IndexedNumberArray(IndexedValue):
     """
-    An abstract base class for string indexed floats.
+    An abstract base class for indexed floats.
 
-    The strings and numbers are accessed through a numpy.ndarray object.
+    The indexes and numbers are stored in numpy.ndarrays.
     """
 
     def __init__(self, values):
@@ -713,7 +806,7 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
 
     Attributes:
-        start (str, datetime): the first time stamp
+        start (str or datetime or datetime64): the first time stamp
         resolution (str, relativedelta, list): duration(s) between the time stamps
         values (Sequence): data values at each time stamp
         ignore_year (bool): whether or not the time-series should apply to any year
@@ -776,13 +869,15 @@ class TimeSeriesFixedResolution(TimeSeries):
         Sets the start datetime.
 
         Args:
-            start (datetime, str): the start of the series
+            start (datetime or datetime64 or str): the start of the series
         """
         if isinstance(start, str):
             try:
                 self._start = dateutil.parser.parse(start)
             except ValueError:
-                raise ParameterValueFormatError('Cannot parse start time "{}"'.format(start))
+                raise ParameterValueFormatError(f'Cannot parse start time "{start}"')
+        elif isinstance(start, np.datetime64):
+            self._start = start.tolist()
         else:
             self._start = start
         self._indexes = None
@@ -854,7 +949,12 @@ class TimeSeriesVariableResolution(TimeSeries):
                 if isinstance(index, DateTime):
                     date_times[i] = np.datetime64(index.value, _NUMPY_DATETIME64_UNIT)
                 else:
-                    date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
+                    try:
+                        date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
+                    except ValueError:
+                        raise ParameterValueFormatError(
+                            f'Cannot convert "{index}" of type {type(index).__name__} to time stamp.'
+                        )
             indexes = date_times
         self.indexes = indexes
 
