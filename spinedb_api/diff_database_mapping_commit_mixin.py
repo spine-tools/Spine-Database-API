@@ -16,10 +16,10 @@ Provides :class:`DiffDatabaseMappingCommitMixin`.
 :date:   11.8.2018
 """
 
+from datetime import datetime, timezone
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import attr_dict
-from datetime import datetime, timezone
 
 
 # TODO: improve docstrings
@@ -106,8 +106,10 @@ class DiffDatabaseMappingCommitMixin:
 
     def has_pending_changes(self):
         """True if this mapping has any staged changes."""
-        if any([v for v in self.added_item_id.values()]):
+        if any(self.updated_item_id.values()):
             return True
-        if any([v for v in self.dirty_item_id.values()]):
+        if (
+            any(self.added_item_id.values()) or any(self.removed_item_id.values())
+        ) and self.added_item_id != self.removed_item_id:
             return True
         return False

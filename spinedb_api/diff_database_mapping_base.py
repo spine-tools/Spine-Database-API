@@ -86,12 +86,11 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         metadata = MetaData(self.engine)
         metadata.reflect()
         diff_metadata = MetaData()
-        diff_tables = list()
         for t in metadata.sorted_tables:
             if t.name.startswith(diff_name_prefix) or t.name == "next_id":
                 continue
             diff_columns = [c.copy() for c in t.columns]
-            diff_table = Table(self.diff_prefix + t.name, diff_metadata, *diff_columns, prefixes=["TEMPORARY"])
+            Table(self.diff_prefix + t.name, diff_metadata, *diff_columns, prefixes=["TEMPORARY"])
         diff_metadata.drop_all(self.engine)
         # NOTE: Using `self.connection` below allows `self.session` to see the temp tables
         diff_metadata.create_all(self.connection)

@@ -63,6 +63,8 @@ class DiffDatabaseMappingRemoveMixin:
             self.session.rollback()
             msg = "DBAPIError while removing items: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+        for tablename, ids in diff_item_id.items():
+            self.added_item_id[tablename].difference_update(ids)
         for tablename, ids in item_id.items():
             self.removed_item_id[tablename].update(ids)
             self._mark_as_dirty(tablename, ids)
