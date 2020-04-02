@@ -507,6 +507,8 @@ class DatabaseMappingCheckMixin:
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
+                "object_class_id": x.object_class_id,
+                "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
                 "default_value": x.default_value,
             }
@@ -622,7 +624,11 @@ class DatabaseMappingCheckMixin:
             x.id: {
                 "parameter_definition_id": x.parameter_definition_id,
                 "entity_id": x.entity_id,
+                "object_id": x.object_id,
+                "relationship_id": x.relationship_id,
                 "entity_class_id": x.entity_class_id,
+                "object_class_id": x.object_class_id,
+                "relationship_class_id": x.relationship_class_id,
             }
             for x in self.query(self.parameter_value_sq)
         }
@@ -631,6 +637,8 @@ class DatabaseMappingCheckMixin:
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
+                "object_class_id": x.object_class_id,
+                "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
             for x in self.query(self.parameter_definition_sq)
