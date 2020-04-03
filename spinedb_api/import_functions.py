@@ -292,19 +292,21 @@ def import_object_parameters(db_map, parameter_data):
     seen_parameters = set()
     error_log = []
     new_parameters = []
+    update_parameters = []
     for parameter in parameter_data:
         oc_name = parameter[0]
         parameter_name = parameter[1]
         oc_id = existing_classes.get(oc_name, None)
-        if (oc_id, parameter_name) in seen_parameters or (oc_id, parameter_name) in obj_parameter_names:
-            continue
+        p_id = obj_parameter_names.get((oc_id, parameter_name), None)
         param = {"name": parameter_name, "entity_class_id": oc_id}
         if len(parameter) > 2:
             param["default_value"] = to_database(parameter[2])
+        if p_id is not None:
+            # existing param
+            param.update({"id": p_id})
         try:
+            obj_parameter_names.pop((oc_id, parameter_name), None)
             check_parameter_definition(param, obj_parameter_names, object_class_dict.keys(), parameter_value_list_dict)
-            new_parameters.append(param)
-            seen_parameters.add((oc_id, parameter_name))
         except SpineIntegrityError as e:
             # Object class doesn't exists
             error_log.append(
@@ -313,8 +315,24 @@ def import_object_parameters(db_map, parameter_data):
                     db_type="parameter",
                 )
             )
+        checked_key = (oc_id, parameter_name)
+        if checked_key not in seen_parameters:
+            if p_id is not None:
+                update_parameters.append(param)
+            else:
+                new_parameters.append(param)
+            # add to check new values to avoid duplicates
+            seen_parameters.add(checked_key)
+        else:
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter '{parameter_name}' for class '{oc_name}': Duplicate parameter, only first will be considered",
+                    "parameter_definition",
+                )
+            )
     added = db_map._add_parameter_definitions(*new_parameters)
-    return len(added), error_log
+    updated = db_map._update_parameter_definitions(*update_parameters)
+    return len(added) + len(updated), error_log
 
 
 def import_relationship_parameters(db_map, parameter_data):
@@ -348,21 +366,23 @@ def import_relationship_parameters(db_map, parameter_data):
 
     error_log = []
     new_parameters = []
+    update_parameters = []
     for parameter in parameter_data:
         rel_class_name = parameter[0]
         param_name = parameter[1]
         rc_id = existing_classes.get(rel_class_name, None)
-        if (rc_id, param_name) in seen_parameters or (rc_id, param_name) in rel_parameter_names:
-            continue
+        p_id = rel_parameter_names.get((rc_id, param_name), None)
         new_param = {"name": param_name, "entity_class_id": rc_id}
         if len(parameter) > 2:
             new_param["default_value"] = to_database(parameter[2])
+        if p_id is not None:
+            # existing param
+            new_param.update({"id": p_id})
         try:
+            rel_parameter_names.pop((rc_id, param_name), None)
             check_parameter_definition(
                 new_param, rel_parameter_names, relationship_class_dict.keys(), parameter_value_list_dict
             )
-            new_parameters.append(new_param)
-            seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
             error_log.append(
@@ -371,8 +391,24 @@ def import_relationship_parameters(db_map, parameter_data):
                     db_type="parameter",
                 )
             )
+        checked_key = (rc_id, param_name)
+        if checked_key not in seen_parameters:
+            if p_id is not None:
+                update_parameters.append(new_param)
+            else:
+                new_parameters.append(new_param)
+            # add to check new values to avoid duplicates
+            seen_parameters.add(checked_key)
+        else:
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter '{param_name}' for class '{rel_class_name}': Duplicate parameter, only first will be considered",
+                    "parameter_definition",
+                )
+            )
     added = db_map._add_parameter_definitions(*new_parameters)
-    return len(added), error_log
+    updated = db_map._update_parameter_definitions(*update_parameters)
+    return len(added) + len(updated), error_log
 
 
 def import_relationships(db_map, relationship_data):
@@ -501,8 +537,7 @@ def import_object_parameter_values(db_map, data):
 
         try:
             # check integrity
-            if (o_id, p_id) in object_parameter_values:
-                object_parameter_values.pop((o_id, p_id))
+            object_parameter_values.pop((o_id, p_id), None)
             check_parameter_value(
                 new_value, object_parameter_values, parameter_dict, object_dict, parameter_value_list_dict
             )
@@ -610,8 +645,7 @@ def import_relationship_parameter_values(db_map, data):
 
         try:
             # check integrity
-            if (r_id, p_id) in relationship_parameter_values:
-                relationship_parameter_values.pop((r_id, p_id))
+            relationship_parameter_values.pop((r_id, p_id), None)
             check_parameter_value(
                 new_value, relationship_parameter_values, parameter_dict, relationship_dict, parameter_value_list_dict
             )
