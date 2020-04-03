@@ -656,22 +656,22 @@ def add_specifc_data_structure_for_spine_model(db_url):
         ("temporal_block", "A temporal block", 6, 280376891207703),
         ("output", "Desired output variables", 7, 280743406202948),
         ("report", "Group of output variables", 8, 281108461711708),
-
     )
     db_map.add_object_classes(
         *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
     )
     import_data(
         db_map,
-        objects=(("output", "unit_flow"),
-                 ("output", "units_on"),
-                 ("output", "units_started_up"),
-                 ("output", "units_shut_down"),
-                 ("output", "units_available"),
-                 ("output", "connection_flow"),
-                 ("output", "node_state"),
-                 ("report", "result"),
-                 ),
+        objects=(
+            ("output", "unit_flow"),
+            ("output", "units_on"),
+            ("output", "units_started_up"),
+            ("output", "units_shut_down"),
+            ("output", "units_available"),
+            ("output", "connection_flow"),
+            ("output", "node_state"),
+            ("report", "result"),
+        ),
         relationship_classes=(
             ("unit__from_node", ("unit", "node")),
             ("unit__to_node", ("unit", "node")),
