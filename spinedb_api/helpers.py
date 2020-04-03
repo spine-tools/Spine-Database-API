@@ -706,7 +706,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("node", "node_state_cap", None),
             ("node", "node_state_min", 0),
             ("node", "state_coeff", 1),
-            ("node", "has_state", "false"),
+            ("node", "has_state", "False"),
             ("model", "model_start", Date("2000-01-01T00:00:00")),
             ("model", "model_end", Date("2000-01-02T00:00:00")),
             ("model", "roll_forward", None),
@@ -714,6 +714,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("temporal_block", "block_start", None),
             ("temporal_block", "block_end", None),
             ("temporal_block", "resolution", Duration("1 hours")),
+            ("report", "output_db_url", None),
         ),
         relationship_parameters=(
             ("unit__from_node", "fix_unit_flow", None),
@@ -753,7 +754,7 @@ def add_specifc_data_structure_for_spine_model(db_url):
             ("connection__node__node", "min_ratio_out_in_connection_flow", None),
             ("connection__node__node", "connection_flow_delay", Duration("0 hours")),
             ("node__node", "diff_coeff", 0),
-            ("unit_group__commodity_group", "max_cum_in_flow_bound", None),
+            ("unit_group__commodity_group", "max_cum_in_unit_flow_bound", None),
         ),
     )
     db_map.commit_session("Add specific data structure for Spine Model.")
