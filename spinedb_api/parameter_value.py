@@ -53,6 +53,13 @@ _TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 
 
+class ParameterValueEncoder(json.JSONEncoder):
+    """A class to serialize Spine parameter values."""
+
+    def default(self, o):
+        return o.to_dict()
+
+
 def duration_to_relativedelta(duration):
     """
     Converts a duration to a relativedelta object.
@@ -145,6 +152,7 @@ def from_database(database_value):
     if isinstance(value, Number):
         return float(value)
     return value
+
 
 def to_database(value):
     """
@@ -282,9 +290,7 @@ def _time_series_from_single_column(value):
             try:
                 ignore_year = bool(value_index["ignore_year"])
             except ValueError:
-                raise ParameterValueFormatError(
-                    f'Could not decode ignore_year value "{value_index["ignore_year"]}"'
-                )
+                raise ParameterValueFormatError(f'Could not decode ignore_year value "{value_index["ignore_year"]}"')
         else:
             ignore_year = "start" not in value_index
         if "repeat" in value_index:
@@ -429,13 +435,9 @@ def _map_values_from_database(values_in_db):
 def _array_from_database(value_dict):
     """Converts a parsed dict to a Python list."""
     value_type_id = value_dict.get("value_type", "float")
-    value_type = {
-        "float": float,
-        "str": str,
-        "date_time": DateTime,
-        "duration": Duration,
-        "time_period": str
-    }.get(value_type_id, None)
+    value_type = {"float": float, "str": str, "date_time": DateTime, "duration": Duration, "time_period": str}.get(
+        value_type_id, None
+    )
     if value_type is None:
         raise ParameterValueFormatError(f'Unsupported value type for Array: "{value_type_id}".')
     try:
@@ -618,7 +620,7 @@ class IndexedValue:
 
     def to_database(self):
         """Return the database representation of the value."""
-        raise NotImplementedError()
+        return json.dumps(self.to_dict())
 
     @property
     def values(self):
@@ -667,13 +669,13 @@ class Array(IndexedValue):
         """See base class."""
         return len(self._values)
 
-    def to_database(self):
+    def to_dict(self):
         """See base class."""
         value_type_id = {
             float: "float",
             str: "str",  # String could also mean time_period but we don't have any way to distinguish that, yet.
             DateTime: "date_time",
-            Duration: "duration"
+            Duration: "duration",
         }.get(self._value_type)
         if value_type_id is None:
             raise ParameterValueFormatError(f"Cannot write unsupported array value type: {self._value_type.__name__}")
@@ -681,7 +683,7 @@ class Array(IndexedValue):
             data = self._values
         else:
             data = [x.value_to_database_data() for x in self._values]
-        return json.dumps({"type": "array", "value_type": value_type_id, "data": data})
+        return {"type": "array", "value_type": value_type_id, "data": data}
 
     @property
     def value_type(self):
@@ -715,7 +717,7 @@ class IndexedNumberArray(IndexedValue):
         """Returns the length of the index"""
         return len(self.values)
 
-    def to_database(self):
+    def to_dict(self):
         """Return the database representation of the value."""
         raise NotImplementedError()
 
@@ -760,7 +762,7 @@ class TimeSeries(IndexedNumberArray):
     def repeat(self, repeat):
         self._repeat = bool(repeat)
 
-    def to_database(self):
+    def to_dict(self):
         """Return the database representation of the value."""
         raise NotImplementedError()
 
@@ -788,12 +790,12 @@ class TimePattern(IndexedNumberArray):
             return NotImplemented
         return self._indexes == other._indexes and np.all(self._values == other._values)
 
-    def to_database(self):
+    def to_dict(self):
         """Returns the database representation of this time pattern."""
         data = dict()
         for index, value in zip(self._indexes, self._values):
             data[index] = value
-        return json.dumps({"type": "time_pattern", "data": data})
+        return {"type": "time_pattern", "data": data}
 
 
 class TimeSeriesFixedResolution(TimeSeries):
@@ -908,24 +910,22 @@ class TimeSeriesFixedResolution(TimeSeries):
         self._resolution = resolution
         self._indexes = None
 
-    def to_database(self):
+    def to_dict(self):
         """Returns the value in its database representation."""
         if len(self._resolution) > 1:
             resolution_as_json = [relativedelta_to_duration(step) for step in self._resolution]
         else:
             resolution_as_json = relativedelta_to_duration(self._resolution[0])
-        return json.dumps(
-            {
-                "type": "time_series",
-                "index": {
-                    "start": str(self._start),
-                    "resolution": resolution_as_json,
-                    "ignore_year": self._ignore_year,
-                    "repeat": self._repeat,
-                },
-                "data": self._values.tolist(),
-            }
-        )
+        return {
+            "type": "time_series",
+            "index": {
+                "start": str(self._start),
+                "resolution": resolution_as_json,
+                "ignore_year": self._ignore_year,
+                "repeat": self._repeat,
+            },
+            "data": self._values.tolist(),
+        }
 
 
 class TimeSeriesVariableResolution(TimeSeries):
@@ -969,7 +969,7 @@ class TimeSeriesVariableResolution(TimeSeries):
             and self._repeat == other._repeat
         )
 
-    def to_database(self):
+    def to_dict(self):
         """Returns the value in its database representation"""
         database_value = {"type": "time_series"}
         data = dict()
@@ -985,7 +985,7 @@ class TimeSeriesVariableResolution(TimeSeries):
             if "index" not in database_value:
                 database_value["index"] = dict()
             database_value["index"]["repeat"] = self._repeat
-        return json.dumps(database_value)
+        return database_value
 
 
 class Map(IndexedValue):
@@ -1045,10 +1045,6 @@ class Map(IndexedValue):
             "index_type": _map_index_type_to_database(self._index_type),
             "data": self.value_to_database_data(),
         }
-
-    def to_database(self):
-        """Return map's database representation as JSON."""
-        return json.dumps(self.to_dict())
 
 
 # List of scalar types that are supported by the spinedb_api

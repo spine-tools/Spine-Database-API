@@ -91,6 +91,7 @@ from .parameter_value import (
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    ParameterValueEncoder,
 )
 from .version import __version__
 
