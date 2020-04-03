@@ -312,7 +312,7 @@ def import_object_parameters(db_map, parameter_data):
             error_log.append(
                 ImportErrorLogItem(
                     f"Could not import parameter '{parameter_name}' with class '{oc_name}': {e.msg}",
-                    db_type="parameter",
+                    db_type="parameter_definition",
                 )
             )
         checked_key = (oc_id, parameter_name)
@@ -321,15 +321,7 @@ def import_object_parameters(db_map, parameter_data):
                 update_parameters.append(param)
             else:
                 new_parameters.append(param)
-            # add to check new values to avoid duplicates
             seen_parameters.add(checked_key)
-        else:
-            error_log.append(
-                ImportErrorLogItem(
-                    f"Could not import parameter '{parameter_name}' for class '{oc_name}': Duplicate parameter, only first will be considered",
-                    "parameter_definition",
-                )
-            )
     added = db_map._add_parameter_definitions(*new_parameters)
     updated = db_map._update_parameter_definitions(*update_parameters)
     return len(added) + len(updated), error_log
@@ -388,7 +380,7 @@ def import_relationship_parameters(db_map, parameter_data):
             error_log.append(
                 ImportErrorLogItem(
                     msg=f"Could not import parameter '{param_name}' with class '{rel_class_name}': {e.msg}",
-                    db_type="parameter",
+                    db_type="parameter_definition",
                 )
             )
         checked_key = (rc_id, param_name)
@@ -397,15 +389,7 @@ def import_relationship_parameters(db_map, parameter_data):
                 update_parameters.append(new_param)
             else:
                 new_parameters.append(new_param)
-            # add to check new values to avoid duplicates
             seen_parameters.add(checked_key)
-        else:
-            error_log.append(
-                ImportErrorLogItem(
-                    f"Could not import parameter '{param_name}' for class '{rel_class_name}': Duplicate parameter, only first will be considered",
-                    "parameter_definition",
-                )
-            )
     added = db_map._add_parameter_definitions(*new_parameters)
     updated = db_map._update_parameter_definitions(*update_parameters)
     return len(added) + len(updated), error_log
