@@ -33,44 +33,46 @@ def export_data(db_map):
 
 
 def export_object_classes(db_map):
-    return [x.name for x in db_map.query(db_map.object_class_sq)]
+    return sorted(x.name for x in db_map.query(db_map.object_class_sq))
 
 
 def export_objects(db_map):
-    return [(x.class_name, x.name) for x in db_map.query(db_map.ext_object_sq)]
+    return sorted((x.class_name, x.name) for x in db_map.query(db_map.ext_object_sq))
 
 
 def export_relationship_classes(db_map):
-    return [(x.name, x.object_class_name_list.split(",")) for x in db_map.query(db_map.wide_relationship_class_sq)]
+    return sorted(
+        (x.name, x.object_class_name_list.split(",")) for x in db_map.query(db_map.wide_relationship_class_sq)
+    )
 
 
 def export_object_parameters(db_map):
-    return [
+    return sorted(
         (x.object_class_name, x.parameter_name, from_database(x.default_value))
         for x in db_map.query(db_map.object_parameter_definition_sq)
-    ]
+    )
 
 
 def export_relationship_parameters(db_map):
-    return [
+    return sorted(
         (x.relationship_class_name, x.parameter_name, from_database(x.default_value))
         for x in db_map.query(db_map.relationship_parameter_definition_sq)
-    ]
+    )
 
 
 def export_relationships(db_map):
-    return [(x.class_name, x.object_name_list.split(",")) for x in db_map.query(db_map.wide_relationship_sq)]
+    return sorted((x.class_name, x.object_name_list.split(",")) for x in db_map.query(db_map.wide_relationship_sq))
 
 
 def export_object_parameter_values(db_map):
-    return [
+    return sorted(
         (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value))
         for x in db_map.query(db_map.object_parameter_value_sq)
-    ]
+    )
 
 
 def export_relationship_parameter_values(db_map):
-    return [
+    return sorted(
         (x.relationship_class_name, x.object_name_list.split(","), x.parameter_name, from_database(x.value))
         for x in db_map.query(db_map.relationship_parameter_value_sq)
-    ]
+    )
