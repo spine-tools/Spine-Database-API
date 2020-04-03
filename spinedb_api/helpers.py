@@ -237,7 +237,7 @@ def is_empty(db_url):
     return True
 
 
-def create_new_spine_database(db_url, for_spine_model=False):
+def create_new_spine_database(db_url):
     """Create a new Spine database at the given url."""
     try:
         engine = create_engine(db_url)
@@ -480,8 +480,6 @@ def create_new_spine_database(db_url, for_spine_model=False):
         engine.execute("INSERT INTO alembic_version VALUES ('070a0eb89e88')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
-    if for_spine_model:
-        add_specifc_data_structure_for_spine_model(db_url)
     return engine
 
 
@@ -636,129 +634,6 @@ def _create_first_spine_database(db_url):
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
     return engine
-
-
-def add_specifc_data_structure_for_spine_model(db_url):
-    """Add as much of the specific data structure for spine model as possible.
-    If called on a database which already has some content, it will add what's missing.
-    This can be useful for eg updating a db to the latest version of spine model, in case
-    we added stuff on the go (which we'll probably do).
-    """
-    from .diff_database_mapping import DiffDatabaseMapping
-
-    db_map = DiffDatabaseMapping(db_url)
-    object_classes = (
-        ("unit", "An entity where an energy conversion process takes place", 1, 281470681805429),
-        ("connection", "An entity where an energy transfer takes place", 2, 280378317271233),
-        ("commodity", "A commodity", 3, 281473533932880),
-        ("node", "An entity where an energy balance takes place", 4, 280740554077951),
-        ("model", "A modelling time horizon", 5, 281107035648412),
-        ("temporal_block", "A temporal block", 6, 280376891207703),
-        ("output", "Desired output variables", 7, 280743406202948),
-        ("report", "Group of output variables", 8, 281108461711708),
-    )
-    db_map.add_object_classes(
-        *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
-    )
-    import_data(
-        db_map,
-        objects=(
-            ("output", "unit_flow"),
-            ("output", "units_on"),
-            ("output", "units_started_up"),
-            ("output", "units_shut_down"),
-            ("output", "units_available"),
-            ("output", "connection_flow"),
-            ("output", "node_state"),
-            ("report", "result"),
-        ),
-        relationship_classes=(
-            ("unit__from_node", ("unit", "node")),
-            ("unit__to_node", ("unit", "node")),
-            ("unit__node__node", ("unit", "node", "node")),
-            ("connection__from_node", ("connection", "node")),
-            ("connection__to_node", ("connection", "node")),
-            ("connection__node__node", ("connection", "node", "node")),
-            ("node__commodity", ("node", "commodity")),
-            ("node__node", ("node", "node")),
-            ("node__temporal_block", ("node", "temporal_block")),
-            ("unit_group__unit", ("unit", "unit")),
-            ("commodity_group__commodity", ("commodity", "commodity")),
-            ("node_group__node", ("node", "node")),
-            ("unit_group__commodity_group", ("unit", "commodity")),
-            ("commodity_group__node_group", ("commodity", "node")),
-            ("report__output", ("report", "output")),
-        ),
-        object_parameters=(
-            ("unit", "fom_cost", None),
-            ("unit", "start_up_cost", None),
-            ("unit", "shut_down_cost", None),
-            ("unit", "number_of_units", 1),
-            ("unit", "unit_availability_factor", 1),
-            ("unit", "min_down_time", None),
-            ("unit", "min_up_time", None),
-            ("unit", "online_variable_type", "binary"),
-            ("unit", "fix_units_on", None),
-            ("connection", "connection_availability_factor", 1),
-            ("node", "demand", 0),
-            ("node", "fix_node_state", None),
-            ("node", "frac_state_loss", 0),
-            ("node", "node_state_cap", None),
-            ("node", "node_state_min", 0),
-            ("node", "state_coeff", 1),
-            ("node", "has_state", "False"),
-            ("model", "model_start", Date("2000-01-01T00:00:00")),
-            ("model", "model_end", Date("2000-01-02T00:00:00")),
-            ("model", "roll_forward", None),
-            ("model", "duration_unit", "Minute"),
-            ("temporal_block", "block_start", None),
-            ("temporal_block", "block_end", None),
-            ("temporal_block", "resolution", Duration("1 hours")),
-            ("report", "output_db_url", None),
-        ),
-        relationship_parameters=(
-            ("unit__from_node", "fix_unit_flow", None),
-            ("unit__from_node", "unit_conv_cap_to_flow", 1),
-            ("unit__from_node", "minimum_operating_point", None),
-            ("unit__from_node", "unit_capacity", None),
-            ("unit__from_node", "operating_cost", None),
-            ("unit__from_node", "fuel_cost", None),
-            ("unit__from_node", "vom_cost", None),
-            ("unit__to_node", "fix_unit_flow", None),
-            ("unit__to_node", "unit_conv_cap_to_flow", 1),
-            ("unit__to_node", "minimum_operating_point", None),
-            ("unit__to_node", "unit_capacity", None),
-            ("unit__to_node", "operating_cost", None),
-            ("unit__to_node", "fuel_cost", None),
-            ("unit__to_node", "vom_cost", None),
-            ("commodity_group__node_group", "tax_net_unit_flow", None),
-            ("commodity_group__node_group", "tax_out_unit_flow", None),
-            ("commodity_group__node_group", "tax_in_unit_flow", None),
-            ("unit__node__node", "fix_ratio_in_in_unit_flow", None),
-            ("unit__node__node", "max_ratio_in_in_unit_flow", None),
-            ("unit__node__node", "min_ratio_in_in_unit_flow", None),
-            ("unit__node__node", "fix_ratio_out_in_unit_flow", None),
-            ("unit__node__node", "max_ratio_out_in_unit_flow", None),
-            ("unit__node__node", "min_ratio_out_in_unit_flow", None),
-            ("unit__node__node", "fix_ratio_out_out_unit_flow", None),
-            ("unit__node__node", "max_ratio_out_out_unit_flow", None),
-            ("unit__node__node", "min_ratio_out_out_unit_flow", None),
-            ("connection__from_node", "fix_connection_flow", None),
-            ("connection__from_node", "connection_capacity", None),
-            ("connection__from_node", "connection_conv_cap_to_flow", 1),
-            ("connection__to_node", "fix_connection_flow", None),
-            ("connection__to_node", "connection_capacity", None),
-            ("connection__to_node", "connection_conv_cap_to_flow", 1),
-            ("connection__node__node", "fix_ratio_out_in_connection_flow", None),
-            ("connection__node__node", "max_ratio_out_in_connection_flow", None),
-            ("connection__node__node", "min_ratio_out_in_connection_flow", None),
-            ("connection__node__node", "connection_flow_delay", Duration("0 hours")),
-            ("node__node", "diff_coeff", 0),
-            ("unit_group__commodity_group", "max_cum_in_unit_flow_bound", None),
-        ),
-    )
-    db_map.commit_session("Add specific data structure for Spine Model.")
-    db_map.connection.close()
 
 
 def forward_sweep(root, func):
