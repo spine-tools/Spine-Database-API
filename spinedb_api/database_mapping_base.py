@@ -91,6 +91,7 @@ class DatabaseMappingBase:
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
         # Special convenience subqueries that join two or more tables
+        self._ext_object_sq = None
         self._ext_relationship_class_sq = None
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
@@ -559,6 +560,37 @@ class DatabaseMappingBase:
         return self._parameter_value_list_sq
 
     @property
+    def ext_object_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT
+                o.id,
+                o.class_id,
+                oc.name AS class_name,
+                o.name,
+                o.description,
+            FROM object AS o, object_class AS oc
+            WHERE o.class_id = oc.id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_object_sq is None:
+            self._ext_object_sq = (
+                self.query(
+                    self.object_sq.c.id.label("id"),
+                    self.object_sq.c.class_id.label("class_id"),
+                    self.object_class_sq.c.name.label("class_name"),
+                    self.object_sq.c.name.label("name"),
+                    self.object_sq.c.description.label("description"),
+                )
+                .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
+                .subquery()
+            )
+        return self._ext_object_sq
+
+    @property
     def ext_relationship_class_sq(self):
         """A subquery of the form:
 
@@ -675,6 +707,7 @@ class DatabaseMappingBase:
             SELECT
                 id,
                 class_id,
+                class_name,
                 name,
                 GROUP_CONCAT(object_id) AS object_id_list,
                 GROUP_CONCAT(object_name) AS object_name_list

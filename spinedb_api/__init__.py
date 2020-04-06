@@ -53,6 +53,17 @@ from .import_functions import (
     import_relationship_parameters,
     import_relationships,
 )
+from .export_functions import (
+    export_data,
+    export_object_classes,
+    export_objects,
+    export_object_parameters,
+    export_object_parameter_values,
+    export_relationship_classes,
+    export_relationship_parameter_values,
+    export_relationship_parameters,
+    export_relationships,
+)
 from .json_mapping import (
     mappingbase_from_dict_int_str,
     MappingBase,
@@ -91,6 +102,7 @@ from .parameter_value import (
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    ParameterValueEncoder,
 )
 from .version import __version__
 
