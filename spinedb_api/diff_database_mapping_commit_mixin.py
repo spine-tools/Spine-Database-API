@@ -106,10 +106,4 @@ class DiffDatabaseMappingCommitMixin:
 
     def has_pending_changes(self):
         """True if this mapping has any staged changes."""
-        if any(self.updated_item_id.values()):
-            return True
-        if (
-            any(self.added_item_id.values()) or any(self.removed_item_id.values())
-        ) and self.added_item_id != self.removed_item_id:
-            return True
-        return False
+        return any(self.added_item_id.values()) or any(self.dirty_item_id.values())
