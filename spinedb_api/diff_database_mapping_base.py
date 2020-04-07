@@ -17,14 +17,13 @@ Provides :class:`.DiffDatabaseMappingBase`.
 """
 
 from .database_mapping_base import DatabaseMappingBase
-from sqlalchemy import MetaData, Table, inspect
+from sqlalchemy import MetaData, Table, inspect, or_, and_
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.sql.expression import Alias
 from .exception import SpineTableNotFoundError
 from .helpers import forward_sweep
 from datetime import datetime, timezone
-from sqlalchemy.orm.util import AliasedInsp
 
 # TODO: improve docstrings
 
@@ -61,6 +60,10 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffParameterTag = None
         self.DiffParameterDefinitionTag = None
         self.DiffParameterValueList = None
+        self.composite_pks = {
+            "relationship_entity": ("entity_id", "dimension"),
+            "relationship_entity_class": ("entity_class_id", "dimension"),
+        }
         # Diff dictionaries
         self.added_item_id = {}
         self.updated_item_id = {}
@@ -126,6 +129,18 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             if any(t in tables for t in tablenames):
                 setattr(self, attr, None)
 
+    def _get_filter(self, tablename, orig_class):
+        composite_pk = self.composite_pks.get(tablename)
+        if composite_pk is None:
+            pk = self.table_ids.get(tablename, "id")
+            return ~getattr(orig_class, pk).in_(self.dirty_item_id[tablename])
+        return and_(
+            *[
+                or_(*[getattr(orig_class, key) != value for key, value in zip(composite_pk, values)])
+                for values in self.dirty_item_id[tablename]
+            ]
+        )
+
     def _subquery(self, tablename):
         """Overriden method to
             (i) filter dirty items from original tables, and
@@ -138,10 +153,9 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
-        id_col = self.table_ids.get(tablename, "id")
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(~getattr(orig_class, id_col).in_(self.dirty_item_id[tablename]))
+            .filter(self._get_filter(tablename, orig_class))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )
