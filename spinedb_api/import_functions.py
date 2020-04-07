@@ -45,6 +45,7 @@ def import_data(
     db_map,
     object_classes=(),
     relationship_classes=(),
+    parameter_value_lists=(),
     object_parameters=(),
     relationship_parameters=(),
     objects=(),
@@ -108,6 +109,10 @@ def import_data(
         error_log.extend(errors)
     if relationship_classes:
         new, errors = import_relationship_classes(db_map, relationship_classes)
+        num_imports = num_imports + new
+        error_log.extend(errors)
+    if parameter_value_lists:
+        new, errors = import_parameter_value_lists(db_map, parameter_value_lists)
         num_imports = num_imports + new
         error_log.extend(errors)
     if object_parameters:
@@ -270,7 +275,7 @@ def import_object_parameters(db_map, parameter_data):
 
             data = [
                 ('object_class_1', 'new_parameter'),
-                ('object_class_2', 'other_parameter', 'default_value')
+                ('object_class_2', 'other_parameter', 'default_value', 'value_list_name')
             ]
             import_object_parameters(db_map, data)
 
@@ -288,7 +293,11 @@ def import_object_parameters(db_map, parameter_data):
     }
     object_class_dict = {x.id: x.name for x in db_map.query(db_map.object_class_sq)}
     existing_classes = {oc_name: oc_id for oc_id, oc_name in object_class_dict.items()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.query(db_map.wide_parameter_value_list_sq)}
+    parameter_value_list_dict = {}
+    existing_value_lists = {}
+    for x in db_map.query(db_map.wide_parameter_value_list_sq):
+        parameter_value_list_dict[x.id] = x.value_list
+        existing_value_lists[x.name] = x.id
     seen_parameters = set()
     error_log = []
     new_parameters = []
@@ -301,6 +310,10 @@ def import_object_parameters(db_map, parameter_data):
         param = {"name": parameter_name, "entity_class_id": oc_id}
         if len(parameter) > 2:
             param["default_value"] = to_database(parameter[2])
+        if len(parameter) > 3:
+            value_list_id = existing_value_lists.get(parameter[3])
+            if value_list_id is not None:
+                param["parameter_value_list_id"] = value_list_id
         if p_id is not None:
             # existing param
             param.update({"id": p_id})
@@ -334,7 +347,7 @@ def import_relationship_parameters(db_map, parameter_data):
 
             data = [
                 ('relationship_class_1', 'new_parameter'),
-                ('relationship_class_2', 'other_parameter', 'default_value')
+                ('relationship_class_2', 'other_parameter', 'default_value', 'value_list_name')
             ]
             import_object_parameters(db_map, data)
 
@@ -353,7 +366,11 @@ def import_relationship_parameters(db_map, parameter_data):
     }
     relationship_class_dict = {x.id: x.name for x in db_map.query(db_map.wide_relationship_class_sq)}
     existing_classes = {rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.query(db_map.wide_parameter_value_list_sq)}
+    parameter_value_list_dict = {}
+    existing_value_lists = {}
+    for x in db_map.query(db_map.wide_parameter_value_list_sq):
+        parameter_value_list_dict[x.id] = x.value_list
+        existing_value_lists[x.name] = x.id
     seen_parameters = set()
 
     error_log = []
@@ -367,6 +384,10 @@ def import_relationship_parameters(db_map, parameter_data):
         new_param = {"name": param_name, "entity_class_id": rc_id}
         if len(parameter) > 2:
             new_param["default_value"] = to_database(parameter[2])
+        if len(parameter) > 3:
+            value_list_id = existing_value_lists.get(parameter[3])
+            if value_list_id is not None:
+                new_param["parameter_value_list_id"] = value_list_id
         if p_id is not None:
             # existing param
             new_param.update({"id": p_id})
@@ -667,4 +688,56 @@ def import_relationship_parameter_values(db_map, data):
     added = db_map._add_parameter_values(*new_values)
     # Try and update whatever wasn't added
     updated = db_map._update_parameter_values(*update_values)
+    return len(added) + len(updated), error_log
+
+
+def import_parameter_value_lists(db_map, data):
+    """Imports list of parameter value lists:
+
+    Example::
+
+            data = [
+                ['value_list_name', ['value1', 'value2', 'value3'],
+                ['another_value_list_name', ['value5', 'value4'],
+            ]
+            import_parameter_value_lists(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 value list name, list of values
+
+    Returns:
+        (Int, List) Number of successful inserted objects, list of errors
+    """
+    parameter_value_list_dict = {}
+    existing_ids = {}
+    for x in db_map.query(db_map.wide_parameter_value_list_sq):
+        parameter_value_list_dict[x.id] = x.value_list
+        existing_ids[x.name] = x.id
+    seen = set()
+    error_log = []
+    to_add = []
+    to_update = []
+    for name, value_list in data:
+        if name in seen:
+            continue
+        seen.add(name)
+        item = {"name": name, "value_list": value_list}
+        id_ = existing_ids.get(name)
+        if id_ is not None:
+            item["id"] = id_
+            to_update.append(item)
+            continue
+        try:
+            check_wide_parameter_value_list(item, parameter_value_list_dict)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter value list '{name}' with values '{value_list}': {e.msg}",
+                    db_type="parameter value list",
+                )
+            )
+    added = db_map._add_wide_parameter_value_lists(*to_add)
+    updated = db_map.update_wide_parameter_value_lists(*to_update)
     return len(added) + len(updated), error_log
