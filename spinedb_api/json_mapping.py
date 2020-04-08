@@ -24,9 +24,6 @@ from .exception import TypeConversionError
 
 
 # Constants for json spec
-ROW = "row"
-COLUMN = "column"
-COLUMN_NAME = "column_name"
 OBJECTCLASS = "ObjectClass"
 RELATIONSHIPCLASS = "RelationshipClass"
 PARAMETER = "parameter"
@@ -41,7 +38,7 @@ class MappingBase:
     Class for holding and validating Mapping specification:
     
         Mapping {
-            map_type: 'column' | 'row' | 'column_name'
+            map_type: 'column' | 'row'
             value_reference: str | int
             append_str: str
             prepend_str: str
@@ -89,11 +86,11 @@ class MappingBase:
     def reference(self, reference):
         """Setter method for reference, should be implemented in subclasses
         """
-        NotImplementedError()
+        raise NotImplementedError()
 
     def is_pivoted(self):
         """Should return True if Mapping type is reading columns in a row, pivoted."""
-        NotImplementedError()
+        raise NotImplementedError()
 
     def last_pivot_row(self):
         """Returns the last row that is pivoted"""
@@ -116,31 +113,34 @@ class MappingBase:
         
         Should return an instance of the subclass
         """
-        NotImplementedError()
+        raise NotImplementedError()
 
     def is_valid(self):
         """Should return True or False if mapping is ready to read data.
         """
-        if self.reference is None:
-            return False
-        return True
+        return self.reference is not None
 
     def returns_value(self):
         return self.is_valid()
 
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        """
+        Creates a callable that maps a reference to a value.
+
+        Args:
+            pivoted_columns
+            pivoted_data
+            data_header (list): a list of header names
+        Returns:
+            tuple: the getter callable or None; total reference count or None;
+                True if the getter read data, False or None otherwise
+        """
+        raise NotImplementedError()
+
 
 class NoneMapping(MappingBase):
     """Class for holding a reference to a column by number or header string
-    
-    Arguments:
-        MappingBase {[type]} -- [description]
-    
-    Raises:
-        TypeError: [description]
-    
-    Returns:
-        [type] -- [description]
-    """
+        """
 
     MAP_TYPE = "None"
 
@@ -149,7 +149,7 @@ class NoneMapping(MappingBase):
 
     @MappingBase.reference.setter
     def reference(self, reference):
-        """Setter method for reference, should be implemented in subclasses
+        """Setter method for reference, ignored by NoneMapping.
         """
 
     def is_pivoted(self):
@@ -187,24 +187,13 @@ class NoneMapping(MappingBase):
 
 
 class ConstantMapping(MappingBase):
-    """Class for holding a reference to a column by number or header string
-    
-    Arguments:
-        MappingBase {[type]} -- [description]
-    
-    Raises:
-        TypeError: [description]
-    
-    Returns:
-        [type] -- [description]
+    """Class for holding a reference to a string.
     """
 
     MAP_TYPE = "constant"
 
     @MappingBase.reference.setter
     def reference(self, reference):
-        """Setter method for reference, should be implemented in subclasses
-        """
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
         self._reference = reference
@@ -246,18 +235,10 @@ class ConstantMapping(MappingBase):
 
 class ColumnMapping(ConstantMapping):
     """Class for holding a reference to a column by number or header string
-    
-    Arguments:
-        MappingBase {[type]} -- [description]
-    
-    Raises:
-        TypeError: [description]
-    
-    Returns:
-        [type] -- [description]
     """
 
     MAP_TYPE = "column"
+    """Type of ``ColumnMapping``."""
 
     @MappingBase.reference.setter
     def reference(self, reference):
@@ -280,18 +261,10 @@ class ColumnMapping(ConstantMapping):
 
 
 class ColumnHeaderMapping(ColumnMapping):
-    MAP_TYPE = "column_header"
     """Class for holding a reference to a column header by number or header string
-    
-    Arguments:
-        MappingBase {[type]} -- [description]
-    
-    Raises:
-        TypeError: [description]
-    
-    Returns:
-        [type] -- [description]
     """
+
+    MAP_TYPE = "column_header"
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
@@ -308,18 +281,11 @@ class ColumnHeaderMapping(ColumnMapping):
 
 
 class RowMapping(MappingBase):
-    MAP_TYPE = "row"
     """Class for holding a reference to a row number or headers
-    
-    Arguments:
-        MappingBase {[type]} -- [description]
-    
-    Raises:
-        TypeError: [description]
-    
-    Returns:
-        [type] -- [description]
     """
+
+    MAP_TYPE = "row"
+    """The type of ``RowMapping``."""
 
     @MappingBase.reference.setter
     def reference(self, reference):
@@ -382,12 +348,64 @@ class RowMapping(MappingBase):
         return getter, num, reads_data
 
 
+class TableNameMapping(MappingBase):
+    """A mapping for table names."""
+    MAP_TYPE = "table_name"
+
+    def __init__(self, table_name):
+        super().__init__(table_name)
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        if reference is not None and not isinstance(reference, str):
+            raise TypeError(f"reference must be a string or None, instead got {type(reference).__name__}")
+        self._reference = reference
+
+    def is_pivoted(self):
+        """Returns False."""
+        return False
+
+    def to_dict(self):
+        """Creates a dict representation of mapping, should be compatible with json.dumps and json.loads"""
+        map_dict = {"map_type": self.MAP_TYPE}
+        if self._reference is not None:
+            map_dict.update({"reference": self._reference})
+        return map_dict
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        """Creates a mapping object from dict representation of mapping."""
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        reference = map_dict.get("reference", None)
+        return cls(reference)
+
+    def is_valid(self):
+        return True
+
+    def returns_value(self):
+        return True
+
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        table_name = str(self._reference)
+
+        def getter(_):
+            return table_name
+
+        return getter, 1, False
+
+
 class TimeSeriesOptions:
     """
     Class for holding parameter type-specific options for time series parameter values.
 
     Attributes:
         repeat (bool): time series repeat flag
+        ignore_year (bool): time series ignore year flag
+        fixed_resolution (bool): True for fixed resolution time series, False for variable resolution
     """
 
     def __init__(self, repeat=False, ignore_year=False, fixed_resolution=False):
@@ -767,7 +785,7 @@ class EntityClassMapping:
         }
     """
 
-    MAP_TYPE = "EnitityClass"
+    MAP_TYPE = "EntityClass"
 
     def __init__(self, name=None, parameters=None, skip_columns=None, read_start_row=0):
         self._name = NoneMapping()
@@ -1018,9 +1036,9 @@ class ObjectClassMapping(EntityClassMapping):
                 return False, "A parameter value mapping needs a valid object mapping"
         return True, ""
 
-    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header,):
         """Creates a list of getter functions from a list of Mappings"""
-        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header,)
         getter, num, reads = (None, None, None)
         if self.objects.returns_value():
             getter, num, reads = self.objects.create_getter_function(pivoted_columns, pivoted_data, data_header)
@@ -1046,17 +1064,17 @@ class ObjectClassMapping(EntityClassMapping):
                     [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
                 )
             )
-        if isinstance(self.parameters, ParameterValueMapping):
-            par_val_name = "object_parameter_values"
-            par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
-            readers.append(
-                (par_val_name,)
-                + create_final_getter_function(
-                    [name_getter, o_getter, par_name_getter, par_value_getter],
-                    [name_num, o_num, par_name_num, par_value_num],
-                    [name_reads, o_reads, par_name_reads, par_value_reads],
+            if isinstance(self.parameters, ParameterValueMapping):
+                par_val_name = "object_parameter_values"
+                par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
+                readers.append(
+                    (par_val_name,)
+                    + create_final_getter_function(
+                        [name_getter, o_getter, par_name_getter, par_value_getter],
+                        [name_num, o_num, par_name_num, par_value_num],
+                        [name_reads, o_reads, par_name_reads, par_value_reads],
+                    )
                 )
-            )
         return readers
 
 
@@ -1244,7 +1262,6 @@ class RelationshipClassMapping(EntityClassMapping):
                         [oc_getter, single_o_getter], [oc_num, single_o_num], [oc_reads, single_o_reads]
                     )
                 )
-        par_val_name = "relationship_parameter_values"
         if isinstance(self.parameters, ParameterDefinitionMapping):
             par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
             readers.append(
@@ -1253,21 +1270,21 @@ class RelationshipClassMapping(EntityClassMapping):
                     [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
                 )
             )
-        if isinstance(self.parameters, ParameterValueMapping):
-            par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
-            par_val_name = "relationship_parameter_values"
-            readers.append(
-                (par_val_name,)
-                + create_final_getter_function(
-                    [name_getter, o_getter, par_name_getter, par_value_getter],
-                    [name_num, o_num, par_name_num, par_value_num],
-                    [name_reads, o_reads, par_name_reads, par_value_reads],
+            if isinstance(self.parameters, ParameterValueMapping):
+                par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
+                par_val_name = "relationship_parameter_values"
+                readers.append(
+                    (par_val_name,)
+                    + create_final_getter_function(
+                        [name_getter, o_getter, par_name_getter, par_value_getter],
+                        [name_num, o_num, par_name_num, par_value_num],
+                        [name_reads, o_reads, par_name_reads, par_value_reads],
+                    )
                 )
-            )
         return readers
 
 
-def mappingbase_from_value(value, default_map=NoneMapping):
+def mappingbase_from_value(value):
     if value is None:
         return ColumnMapping()
     if isinstance(value, MappingBase):
@@ -1282,31 +1299,32 @@ def mappingbase_from_value(value, default_map=NoneMapping):
     raise TypeError(f"Can't convert {type(value).__name__} to MappingBase")
 
 
-def mapping_from_dict(map_dict, default_map=NoneMapping):
+def mapping_from_dict(map_dict):
     type_str_to_class = {
-        "row": RowMapping,
-        "column": ColumnMapping,
+        RowMapping.MAP_TYPE: RowMapping,
+        ColumnMapping.MAP_TYPE: ColumnMapping,
         "column_name": ColumnHeaderMapping,
-        "column_header": ColumnHeaderMapping,
-        "constant": ConstantMapping,
-        "None": NoneMapping,
+        ColumnHeaderMapping.MAP_TYPE: ColumnHeaderMapping,
+        ConstantMapping.MAP_TYPE: ConstantMapping,
+        TableNameMapping.MAP_TYPE: TableNameMapping,
+        NoneMapping.MAP_TYPE: NoneMapping,
     }
     map_type_str = map_dict.get("map_type", None)
     if map_type_str == "column_name":
-        map_dict["map_type"] = "column_header"
+        map_dict["map_type"] = ColumnHeaderMapping.MAP_TYPE
     if "value_reference" in map_dict and "reference" not in map_dict:
         map_dict["reference"] = map_dict["value_reference"]
-    map_class = type_str_to_class.get(map_type_str, default_map)
+    map_class = type_str_to_class.get(map_type_str, NoneMapping)
     return map_class.from_dict(map_dict)
 
 
-def mappingbase_from_dict_int_str(value, default_map=NoneMapping):
+def mappingbase_from_dict_int_str(value):
     """Creates Mapping object if `value` is a `dict` or `int`;
     if `str` or `None` returns same value. If `int`, the Mapping is created
     with map_type == column (default) unless other type is specified
     """
     if value is None:
-        return default_map()
+        return NoneMapping()
     if isinstance(value, MappingBase):
         return value
     if isinstance(value, dict):
@@ -1316,10 +1334,10 @@ def mappingbase_from_dict_int_str(value, default_map=NoneMapping):
     raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
 
 
-def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
+def parameter_mapping_from_dict(map_dict):
     if map_dict is None:
         return NoneMapping()
-    if map_dict.get("map_type", "") == "None":
+    if map_dict.get("map_type", "") == NoneMapping.MAP_TYPE:
         return NoneMapping()
 
     parameter_type_to_class = {
@@ -1331,6 +1349,7 @@ def parameter_mapping_from_dict(map_dict, default_map=ParameterValueMapping):
         "time pattern": ParameterTimePatternMapping,
     }
     parameter_type = map_dict.get("parameter_type", None)
+    default_map = ParameterValueMapping
     map_class = parameter_type_to_class.get(parameter_type, default_map)
     if parameter_type is None:
         map_dict.update(parameter_type=map_class.PARAMETER_TYPE)
