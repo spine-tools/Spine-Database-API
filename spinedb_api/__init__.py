@@ -72,6 +72,7 @@ from .json_mapping import (
     ColumnHeaderMapping,
     ColumnMapping,
     RowMapping,
+    TableNameMapping,
     mapping_from_dict,
     parameter_mapping_from_dict,
     ParameterDefinitionMapping,
