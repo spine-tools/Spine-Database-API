@@ -35,6 +35,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
+    or_,
 )
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
@@ -44,9 +45,8 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
-from spinedb_api.parameter_value import Duration, DateTime as Date
+from spinedb_api.parameter_value import DateTime as Date
 from .exception import SpineDBAPIError, SpineDBVersionError
-from .import_functions import import_data
 
 # Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
 # - sqlite works
@@ -92,6 +92,16 @@ def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
+
+
+def ored_in(column, values, chunk_size=499):
+    """Returns an IN statement split in several OR statements to circumvent 'too many sql variables':
+
+        column IN first_chunk OR column IN second_chunk OR ... OR column IN last_chunk
+    """
+    if not isinstance(values, list):
+        values = list(values)
+    return or_(*[column.in_(values[i : i + chunk_size]) for i in range(0, len(values), chunk_size)])
 
 
 def attr_dict(item):

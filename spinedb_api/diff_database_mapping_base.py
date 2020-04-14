@@ -129,18 +129,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             if any(t in tables for t in tablenames):
                 setattr(self, attr, None)
 
-    def _get_filter(self, tablename, orig_class):
-        composite_pk = self.composite_pks.get(tablename)
-        if composite_pk is None:
-            pk = self.table_ids.get(tablename, "id")
-            return ~getattr(orig_class, pk).in_(self.dirty_item_id[tablename])
-        return and_(
-            *[
-                or_(*[getattr(orig_class, key) != value for key, value in zip(composite_pk, values)])
-                for values in self.dirty_item_id[tablename]
-            ]
-        )
-
     def _subquery(self, tablename):
         """Overriden method to
             (i) filter dirty items from original tables, and
@@ -153,9 +141,10 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
+        table_id = self.table_ids.get(tablename, "id")
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(self._get_filter(tablename, orig_class))
+            .filter(~getattr(orig_class, table_id).in_(self.dirty_item_id[tablename]))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )

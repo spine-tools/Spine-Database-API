@@ -34,44 +34,49 @@ class DiffDatabaseMappingUpdateMixin:
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
         items_for_update = list()
-        items_for_insert = list()
+        items_for_insert = dict()
         dirty_ids = set()
         updated_ids = set()
+        table_id = self.table_ids.get(tablename, "id")
         pk = self.composite_pks.get(tablename)
         if pk is None:
-            id_column = self.table_ids.get(tablename, "id")
-            pk = (id_column,)
-            _get_id = lambda updated_item: updated_item[id_column]
-        else:
-            _get_id = lambda updated_item: tuple(updated_item[field] for field in pk)
+            pk = (table_id,)
         for item in checked_items:
             try:
-                filter_ = {k: item[k] for k in pk}
+                filter_expr = {k: item[k] for k in pk}
             except KeyError:
                 continue
-            if len(filter_) == len(item):
+            if len(filter_expr) == len(item):
                 continue
-            diff_query = self.query(diff_class).filter_by(**filter_)
-            for diff_item in diff_query:
+            diff_item = self.query(diff_class).filter_by(**filter_expr).one_or_none()
+            if diff_item is not None:
                 updated_item = attr_dict(diff_item)
                 if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                     continue
                 updated_item.update(item)
                 items_for_update.append(updated_item)
-                updated_ids.add(_get_id(updated_item))
-            if diff_query.count() > 0:
-                # Don't look in orig_class if found in diff_class
+                updated_ids.add(updated_item[table_id])
                 continue
-            for orig_item in self.query(orig_class).filter_by(**filter_):
+            orig_item = self.query(orig_class).filter_by(**filter_expr).one_or_none()
+            if orig_item is not None:
                 updated_item = attr_dict(orig_item)
                 if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                     continue
                 updated_item.update(item)
-                items_for_insert.append(updated_item)
-                updated_id = _get_id(updated_item)
+                key = tuple(item[k] for k in pk)
+                items_for_insert[key] = updated_item
+                updated_id = updated_item[table_id]
                 dirty_ids.add(updated_id)
                 updated_ids.add(updated_id)
-        return items_for_update, items_for_insert, dirty_ids, updated_ids
+        # Handle tables where a single id spans multiple rows, notably relationship_entity_class and relationship_entity
+        # Basically we need to bring all rows having dirty ids, even if only one of those rows was updated.
+        all_items_for_insert = {}
+        for orig_item in self.query(orig_class).filter(getattr(orig_class, table_id).in_(dirty_ids)):
+            dirty_item = attr_dict(orig_item)
+            key = tuple(dirty_item[k] for k in pk)
+            all_items_for_insert[key] = dirty_item
+        all_items_for_insert.update(items_for_insert)
+        return items_for_update, list(all_items_for_insert.values()), dirty_ids, updated_ids
 
     def update_object_classes(self, *items, strict=False):
         """Update parameter values."""
@@ -179,8 +184,8 @@ class DiffDatabaseMappingUpdateMixin:
             self._mark_as_dirty("entity", dirty_ent_ids)
             self.updated_item_id["entity"].update(updated_ent_ids)
             self._mark_as_dirty("relationship_entity", dirty_rel_ent_ids)
-            self.updated_item_id["relationship_entity"].update(x[0] for x in updated_rel_ent_ids)
-            return updated_ent_ids.union(x[0] for x in updated_rel_ent_ids)
+            self.updated_item_id["relationship_entity"].update(updated_rel_ent_ids)
+            return updated_ent_ids.union(updated_rel_ent_ids)
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while updating relationships: {}".format(e.orig.args)
