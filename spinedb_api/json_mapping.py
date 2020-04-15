@@ -269,7 +269,23 @@ class ColumnHeaderMapping(ColumnMapping):
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
         if isinstance(ref, str):
-            ref = data_header.index(ref)
+            try:
+                ref = data_header.index(ref)
+            except ValueError:
+                if not ref.isdigit():
+                    raise IndexError(
+                        f'mapping contains string reference to data header but reference "{ref}"'
+                        ' could not be found in header.'
+                    )
+                try:
+                    ref = int(ref)
+                except ValueError:
+                    raise IndexError(
+                        f'mapping contains string reference to data header but reference "{ref}"'
+                        ' could not be found in header.'
+                    )
+        if not 0 <= ref < len(data_header):
+            raise IndexError(f'Reference index to column header should be between 0 and {len(data_header)}, got {ref}.')
         constant = data_header[ref]
 
         def getter(_):
@@ -350,6 +366,7 @@ class RowMapping(MappingBase):
 
 class TableNameMapping(MappingBase):
     """A mapping for table names."""
+
     MAP_TYPE = "table_name"
 
     def __init__(self, table_name):
@@ -910,32 +927,39 @@ class EntityClassMapping:
         return True, ""
 
     def pivoted_columns(self, data_header, num_cols):
+        if not self.is_pivoted():
+            return []
         # make sure all column references are found
         non_pivoted_columns = self.non_pivoted_columns()
         int_non_piv_cols = []
         for pc in non_pivoted_columns:
             if isinstance(pc, str):
-                if pc not in data_header:
-                    raise IndexError(
-                        f"""mapping contains string reference to data header but reference "{pc}"
-                        could not be found in header."""
-                    )
-                pc = data_header.index(pc)
-            if pc >= num_cols:
-                raise IndexError(f"""mapping contains invalid index: {pc}, data column number: {num_cols}""")
+                try:
+                    pc = data_header.index(pc)
+                except ValueError:
+                    if not pc.isdigit():
+                        raise IndexError(
+                            f'mapping contains string reference to data header but reference "{pc}"'
+                            ' could not be found in header.'
+                        )
+                    try:
+                        pc = int(pc)
+                    except ValueError:
+                        raise IndexError(
+                            f'mapping contains string reference to data header but reference "{pc}"'
+                            ' could not be found in header.'
+                        )
+            if not 0 <= pc < num_cols:
+                raise IndexError(f'mapping contains invalid index: {pc}, data column number: {num_cols}')
             int_non_piv_cols.append(pc)
-        if self.is_pivoted():
-            # paramater column mapping is not in use and we have a pivoted mapping
-            pivoted_cols = set(range(num_cols)).difference(set(int_non_piv_cols))
-            # remove skipped columns
-            for skip_c in self.skip_columns:
-                if isinstance(skip_c, str):
-                    if skip_c in data_header:
-                        skip_c = data_header.index(skip_c)
-                pivoted_cols.discard(skip_c)
-        else:
-            # no pivoted mapping
-            pivoted_cols = []
+        # parameter column mapping is not in use and we have a pivoted mapping
+        pivoted_cols = set(range(num_cols)).difference(set(int_non_piv_cols))
+        # remove skipped columns
+        for skip_c in self.skip_columns:
+            if isinstance(skip_c, str):
+                if skip_c in data_header:
+                    skip_c = data_header.index(skip_c)
+            pivoted_cols.discard(skip_c)
         return pivoted_cols
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
@@ -1036,9 +1060,9 @@ class ObjectClassMapping(EntityClassMapping):
                 return False, "A parameter value mapping needs a valid object mapping"
         return True, ""
 
-    def create_getter_list(self, pivoted_columns, pivoted_data, data_header,):
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         """Creates a list of getter functions from a list of Mappings"""
-        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header,)
+        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
         getter, num, reads = (None, None, None)
         if self.objects.returns_value():
             getter, num, reads = self.objects.create_getter_function(pivoted_columns, pivoted_data, data_header)
@@ -1555,7 +1579,11 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                 for key, reader, read_data_from_row in row_readers:
                     if row_number >= read_data_from_row:
                         data[key].extend(
-                            [row_value for row_value in reader(row_data) if row_value is not None and all(v is not None for v in row_value)]
+                            [
+                                row_value
+                                for row_value in reader(row_data)
+                                if row_value is not None and all(v is not None for v in row_value)
+                            ]
                         )
             except IndexError as e:
                 errors.append((row_number, e))
