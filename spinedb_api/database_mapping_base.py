@@ -17,7 +17,7 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, case
+from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
@@ -70,6 +70,7 @@ class DatabaseMappingBase:
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
+        self.IdsForIn = None
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -135,6 +136,7 @@ class DatabaseMappingBase:
             "relationship_entity": "entity_id",
         }
         self._create_mapping()
+        self._create_ids_for_in()
 
     @staticmethod
     def _create_engine(db_url):
@@ -198,6 +200,26 @@ class DatabaseMappingBase:
 
     def reconnect(self):
         self.connection = self.engine.connect()
+
+    def _create_ids_for_in(self):
+        """Create `ids_for_in` table if not exists and map it."""
+        metadata = MetaData()
+        ids_for_in_table = Table(
+            "ids_for_in", metadata, Column("id", Integer, primary_key=True), prefixes=["TEMPORARY"]
+        )
+        ids_for_in_table.create(self.engine, checkfirst=True)
+        metadata.create_all(self.connection)
+        Base = automap_base(metadata=metadata)
+        Base.prepare()
+        self.IdsForIn = Base.classes.ids_for_in
+
+    def in_(self, column, ids):
+        """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
+        The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
+        """
+        self.query(self.IdsForIn).delete(synchronize_session=False)
+        self.session.bulk_insert_mappings(self.IdsForIn, ({"id": id_} for id_ in ids))
+        return column.in_(self.query(self.IdsForIn.id))
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied

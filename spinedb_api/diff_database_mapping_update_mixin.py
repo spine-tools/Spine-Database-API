@@ -17,7 +17,7 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import attr_dict, ored_in
+from .helpers import attr_dict
 
 # TODO: improve docstrings
 
@@ -71,7 +71,7 @@ class DiffDatabaseMappingUpdateMixin:
         # Handle tables where a single id spans multiple rows, notably relationship_entity_class and relationship_entity
         # Basically we need to bring all rows having dirty ids, even if only one of those rows was updated.
         all_items_for_insert = {}
-        for orig_item in self.query(orig_class).filter(ored_in(getattr(orig_class, table_id), dirty_ids)):
+        for orig_item in self.query(orig_class).filter(self.in_(getattr(orig_class, table_id), dirty_ids)):
             dirty_item = attr_dict(orig_item)
             key = tuple(dirty_item[k] for k in pk)
             all_items_for_insert[key] = dirty_item
@@ -325,9 +325,9 @@ class DiffDatabaseMappingUpdateMixin:
                 narrow_item = {"id": id_, "name": updated_wide_item["name"], "value_index": k, "value": value}
                 items.append(narrow_item)
         try:
-            self.query(self.DiffParameterValueList).filter(ored_in(self.DiffParameterValueList.id, updated_ids)).delete(
-                synchronize_session=False
-            )
+            self.query(self.DiffParameterValueList).filter(
+                self.in_(self.DiffParameterValueList.id, updated_ids)
+            ).delete(synchronize_session=False)
             self.session.bulk_insert_mappings(self.DiffParameterValueList, items)
             self.session.commit()
             self.added_item_id["parameter_value_list"].update(updated_ids)

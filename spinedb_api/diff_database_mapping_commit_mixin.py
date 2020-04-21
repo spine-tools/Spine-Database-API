@@ -19,7 +19,7 @@ Provides :class:`DiffDatabaseMappingCommitMixin`.
 from datetime import datetime, timezone
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import attr_dict, ored_in
+from .helpers import attr_dict
 
 
 # TODO: improve docstrings
@@ -47,7 +47,7 @@ class DiffDatabaseMappingCommitMixin:
                 classname = self.table_to_class[tablename]
                 id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
-                self.query(orig_class).filter(ored_in(getattr(orig_class, id_col), ids)).delete(
+                self.query(orig_class).filter(self.in_(getattr(orig_class, id_col), ids)).delete(
                     synchronize_session=False
                 )
 
@@ -58,7 +58,7 @@ class DiffDatabaseMappingCommitMixin:
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
                 updated_items = []
-                for item in self.query(diff_class).filter(ored_in(getattr(diff_class, id_col), ids)):
+                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
                     kwargs = attr_dict(item)
                     kwargs["commit_id"] = commit.id
                     updated_items.append(kwargs)
@@ -70,7 +70,7 @@ class DiffDatabaseMappingCommitMixin:
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
                 new_items = []
-                for item in self.query(diff_class).filter(ored_in(getattr(diff_class, id_col), ids)):
+                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
                     kwargs = attr_dict(item)
                     kwargs["commit_id"] = commit.id
                     new_items.append(kwargs)

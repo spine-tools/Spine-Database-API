@@ -22,7 +22,7 @@ from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.sql.expression import Alias
 from .exception import SpineTableNotFoundError
-from .helpers import forward_sweep, anded_notin
+from .helpers import forward_sweep
 from datetime import datetime, timezone
 
 # TODO: improve docstrings
@@ -144,7 +144,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         table_id = self.table_ids.get(tablename, "id")
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(anded_notin(getattr(orig_class, table_id), self.dirty_item_id[tablename]))
+            .filter(~self.in_(getattr(orig_class, table_id), self.dirty_item_id[tablename]))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )
