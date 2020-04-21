@@ -17,12 +17,12 @@ Provides :class:`.DiffDatabaseMappingBase`.
 """
 
 from .database_mapping_base import DatabaseMappingBase
-from sqlalchemy import MetaData, Table, inspect, or_, and_
+from sqlalchemy import MetaData, Table, inspect
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.sql.expression import Alias
 from .exception import SpineTableNotFoundError
-from .helpers import forward_sweep
+from .helpers import forward_sweep, anded_notin
 from datetime import datetime, timezone
 
 # TODO: improve docstrings
@@ -144,7 +144,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         table_id = self.table_ids.get(tablename, "id")
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(~getattr(orig_class, table_id).in_(self.dirty_item_id[tablename]))
+            .filter(anded_notin(getattr(orig_class, table_id), self.dirty_item_id[tablename]))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )

@@ -17,6 +17,7 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
+from .helpers import ored_in
 
 # TODO: improve docstrings
 
@@ -57,7 +58,9 @@ class DiffDatabaseMappingRemoveMixin:
                 id_col = self.table_ids.get(tablename, "id")
                 classname = self.table_to_class[tablename]
                 diff_class = getattr(self, "Diff" + classname)
-                self.query(diff_class).filter(getattr(diff_class, id_col).in_(ids)).delete(synchronize_session=False)
+                self.query(diff_class).filter(ored_in(getattr(diff_class, id_col), ids)).delete(
+                    synchronize_session=False
+                )
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()
@@ -91,78 +94,82 @@ class DiffDatabaseMappingRemoveMixin:
         diff_item_id = {}
         # object_class
         item_list = self.query(self.ObjectClass.entity_class_id).filter(
-            self.ObjectClass.entity_class_id.in_(object_class_ids)
+            ored_in(self.ObjectClass.entity_class_id, object_class_ids)
         )
         diff_item_list = self.query(self.DiffObjectClass.entity_class_id).filter(
-            self.DiffObjectClass.entity_class_id.in_(object_class_ids)
+            ored_in(self.DiffObjectClass.entity_class_id, object_class_ids)
         )
         self._collect_object_class_cascading_ids(
             [x.entity_class_id for x in item_list], [x.entity_class_id for x in diff_item_list], item_id, diff_item_id
         )
         # object
-        item_list = self.query(self.Object.entity_id).filter(self.Object.entity_id.in_(object_ids))
-        diff_item_list = self.query(self.DiffObject.entity_id).filter(self.DiffObject.entity_id.in_(object_ids))
+        item_list = self.query(self.Object.entity_id).filter(ored_in(self.Object.entity_id, object_ids))
+        diff_item_list = self.query(self.DiffObject.entity_id).filter(ored_in(self.DiffObject.entity_id, object_ids))
         self._collect_object_cascading_ids(
             [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
         )
         # relationship_class
         item_list = self.query(self.RelationshipClass.entity_class_id).filter(
-            self.RelationshipClass.entity_class_id.in_(relationship_class_ids)
+            ored_in(self.RelationshipClass.entity_class_id, relationship_class_ids)
         )
         diff_item_list = self.query(self.DiffRelationshipClass.entity_class_id).filter(
-            self.DiffRelationshipClass.entity_class_id.in_(relationship_class_ids)
+            ored_in(self.DiffRelationshipClass.entity_class_id, relationship_class_ids)
         )
         self._collect_relationship_class_cascading_ids(
             [x.entity_class_id for x in item_list], [x.entity_class_id for x in diff_item_list], item_id, diff_item_id
         )
         # relationship
-        item_list = self.query(self.Relationship.entity_id).filter(self.Relationship.entity_id.in_(relationship_ids))
+        item_list = self.query(self.Relationship.entity_id).filter(
+            ored_in(self.Relationship.entity_id, relationship_ids)
+        )
         diff_item_list = self.query(self.DiffRelationship.entity_id).filter(
-            self.DiffRelationship.entity_id.in_(relationship_ids)
+            ored_in(self.DiffRelationship.entity_id, relationship_ids)
         )
         self._collect_relationship_cascading_ids(
             [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter
         item_list = self.query(self.ParameterDefinition.id).filter(
-            self.ParameterDefinition.id.in_(parameter_definition_ids)
+            ored_in(self.ParameterDefinition.id, parameter_definition_ids)
         )
         diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.id.in_(parameter_definition_ids)
+            ored_in(self.DiffParameterDefinition.id, parameter_definition_ids)
         )
         self._collect_parameter_definition_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.id.in_(parameter_value_ids))
+        item_list = self.query(self.ParameterValue.id).filter(ored_in(self.ParameterValue.id, parameter_value_ids))
         diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.id.in_(parameter_value_ids)
+            ored_in(self.DiffParameterValue.id, parameter_value_ids)
         )
         self._collect_parameter_value_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter_tag
-        item_list = self.query(self.ParameterTag.id).filter(self.ParameterTag.id.in_(parameter_tag_ids))
-        diff_item_list = self.query(self.DiffParameterTag.id).filter(self.DiffParameterTag.id.in_(parameter_tag_ids))
+        item_list = self.query(self.ParameterTag.id).filter(ored_in(self.ParameterTag.id, parameter_tag_ids))
+        diff_item_list = self.query(self.DiffParameterTag.id).filter(
+            ored_in(self.DiffParameterTag.id, parameter_tag_ids)
+        )
         self._collect_parameter_tag_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter_definition_tag
         item_list = self.query(self.ParameterDefinitionTag.id).filter(
-            self.ParameterDefinitionTag.id.in_(parameter_definition_tag_ids)
+            ored_in(self.ParameterDefinitionTag.id, parameter_definition_tag_ids)
         )
         diff_item_list = self.query(self.DiffParameterDefinitionTag.id).filter(
-            self.DiffParameterDefinitionTag.id.in_(parameter_definition_tag_ids)
+            ored_in(self.DiffParameterDefinitionTag.id, parameter_definition_tag_ids)
         )
         self._collect_parameter_definition_tag_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter_value_list
         item_list = self.query(self.ParameterValueList.id).filter(
-            self.ParameterValueList.id.in_(parameter_value_list_ids)
+            ored_in(self.ParameterValueList.id, parameter_value_list_ids)
         )
         diff_item_list = self.query(self.DiffParameterValueList.id).filter(
-            self.DiffParameterValueList.id.in_(parameter_value_list_ids)
+            ored_in(self.DiffParameterValueList.id, parameter_value_list_ids)
         )
         self._collect_parameter_value_list_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
@@ -177,25 +184,27 @@ class DiffDatabaseMappingRemoveMixin:
         item_id.setdefault("object_class", set()).update(ids)
         diff_item_id.setdefault("object_class", set()).update(diff_ids)
         # object
-        item_list = self.query(self.Entity.id).filter(self.Entity.class_id.in_(ids))
-        diff_item_list = self.query(self.DiffEntity.id).filter(self.DiffEntity.class_id.in_(ids + diff_ids))
+        item_list = self.query(self.Entity.id).filter(ored_in(self.Entity.class_id, ids))
+        diff_item_list = self.query(self.DiffEntity.id).filter(ored_in(self.DiffEntity.class_id, ids + diff_ids))
         self._collect_object_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         # relationship_class
         item_list = self.query(self.RelationshipEntityClass.entity_class_id).filter(
-            self.RelationshipEntityClass.member_class_id.in_(ids)
+            ored_in(self.RelationshipEntityClass.member_class_id, ids)
         )
         diff_item_list = self.query(self.DiffRelationshipEntityClass.entity_class_id).filter(
-            self.DiffRelationshipEntityClass.member_class_id.in_(ids + diff_ids)
+            ored_in(self.DiffRelationshipEntityClass.member_class_id, ids + diff_ids)
         )
         self._collect_relationship_class_cascading_ids(
             [x.entity_class_id for x in item_list], [x.entity_class_id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter
-        item_list = self.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.entity_class_id.in_(ids))
+        item_list = self.query(self.ParameterDefinition.id).filter(
+            ored_in(self.ParameterDefinition.entity_class_id, ids)
+        )
         diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.entity_class_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterDefinition.entity_class_id, ids + diff_ids)
         )
         self._collect_parameter_definition_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
@@ -209,17 +218,19 @@ class DiffDatabaseMappingRemoveMixin:
         item_id.setdefault("object", set()).update(ids)
         diff_item_id.setdefault("object", set()).update(diff_ids)
         # relationship
-        item_list = self.query(self.RelationshipEntity.entity_id).filter(self.RelationshipEntity.member_id.in_(ids))
+        item_list = self.query(self.RelationshipEntity.entity_id).filter(
+            ored_in(self.RelationshipEntity.member_id, ids)
+        )
         diff_item_list = self.query(self.DiffRelationshipEntity.entity_id).filter(
-            self.DiffRelationshipEntity.member_id.in_(ids + diff_ids)
+            ored_in(self.DiffRelationshipEntity.member_id, ids + diff_ids)
         )
         self._collect_relationship_cascading_ids(
             [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.entity_id.in_(ids))
+        item_list = self.query(self.ParameterValue.id).filter(ored_in(self.ParameterValue.entity_id, ids))
         diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.entity_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterValue.entity_id, ids + diff_ids)
         )
         self._collect_parameter_value_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
@@ -237,17 +248,19 @@ class DiffDatabaseMappingRemoveMixin:
         item_id.setdefault("entity_class", set()).update(ids)
         diff_item_id.setdefault("entity_class", set()).update(diff_ids)
         # relationship
-        item_list = self.query(self.Relationship.entity_id).filter(self.Relationship.entity_class_id.in_(ids))
+        item_list = self.query(self.Relationship.entity_id).filter(ored_in(self.Relationship.entity_class_id, ids))
         diff_item_list = self.query(self.DiffRelationship.entity_id).filter(
-            self.DiffRelationship.entity_class_id.in_(ids + diff_ids)
+            ored_in(self.DiffRelationship.entity_class_id, ids + diff_ids)
         )
         self._collect_relationship_cascading_ids(
             [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter
-        item_list = self.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.entity_class_id.in_(ids))
+        item_list = self.query(self.ParameterDefinition.id).filter(
+            ored_in(self.ParameterDefinition.entity_class_id, ids)
+        )
         diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.entity_class_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterDefinition.entity_class_id, ids + diff_ids)
         )
         self._collect_parameter_definition_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
@@ -265,9 +278,9 @@ class DiffDatabaseMappingRemoveMixin:
         item_id.setdefault("relationship_entity", set()).update(ids)
         diff_item_id.setdefault("relationship_entity", set()).update(diff_ids)
         # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.entity_id.in_(ids))
+        item_list = self.query(self.ParameterValue.id).filter(ored_in(self.ParameterValue.entity_id, ids))
         diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.entity_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterValue.entity_id, ids + diff_ids)
         )
         self._collect_parameter_value_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
@@ -281,19 +294,19 @@ class DiffDatabaseMappingRemoveMixin:
         item_id.setdefault("parameter_definition", set()).update(ids)
         diff_item_id.setdefault("parameter_definition", set()).update(diff_ids)
         # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.parameter_definition_id.in_(ids))
+        item_list = self.query(self.ParameterValue.id).filter(ored_in(self.ParameterValue.parameter_definition_id, ids))
         diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.parameter_definition_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterValue.parameter_definition_id, ids + diff_ids)
         )
         self._collect_parameter_value_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
         )
         # parameter_definition_tag
         item_list = self.query(self.ParameterDefinitionTag.id).filter(
-            self.ParameterDefinitionTag.parameter_definition_id.in_(ids)
+            ored_in(self.ParameterDefinitionTag.parameter_definition_id, ids)
         )
         diff_item_list = self.query(self.DiffParameterDefinitionTag.id).filter(
-            self.DiffParameterDefinitionTag.parameter_definition_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterDefinitionTag.parameter_definition_id, ids + diff_ids)
         )
         self._collect_parameter_definition_tag_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
@@ -315,10 +328,10 @@ class DiffDatabaseMappingRemoveMixin:
         diff_item_id.setdefault("parameter_tag", set()).update(diff_ids)
         # parameter_definition_tag
         item_list = self.query(self.ParameterDefinitionTag.id).filter(
-            self.ParameterDefinitionTag.parameter_tag_id.in_(ids)
+            ored_in(self.ParameterDefinitionTag.parameter_tag_id, ids)
         )
         diff_item_list = self.query(self.DiffParameterDefinitionTag.id).filter(
-            self.DiffParameterDefinitionTag.parameter_tag_id.in_(ids + diff_ids)
+            ored_in(self.DiffParameterDefinitionTag.parameter_tag_id, ids + diff_ids)
         )
         self._collect_parameter_definition_tag_cascading_ids(
             [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id

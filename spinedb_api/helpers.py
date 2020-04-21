@@ -36,6 +36,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     or_,
+    and_,
 )
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
@@ -99,9 +100,25 @@ def ored_in(column, values, chunk_size=499):
 
         column IN first_chunk OR column IN second_chunk OR ... OR column IN last_chunk
     """
+    return joined_clause(or_, column, "in_", values, chunk_size=chunk_size)
+
+
+def anded_notin(column, values, chunk_size=499):
+    """Returns an IN statement split in several OR statements to circumvent 'too many sql variables':
+
+        column NOT IN first_chunk AND column NOT IN second_chunk AND ... AND column NOT IN last_chunk
+    """
+    return joined_clause(and_, column, "notin_", values, chunk_size=chunk_size)
+
+
+def joined_clause(join, column, clause, values, chunk_size=499):
+    """Returns a clause split in several OR statements to circumvent 'too many sql variables':
+
+        column X first_chunk OR column X second_chunk OR ... OR column X last_chunk
+    """
     if not isinstance(values, list):
         values = list(values)
-    return or_(*[column.in_(values[i : i + chunk_size]) for i in range(0, len(values), chunk_size)])
+    return join(*[getattr(column, clause)(values[i : i + chunk_size]) for i in range(0, len(values), chunk_size)])
 
 
 def attr_dict(item):
