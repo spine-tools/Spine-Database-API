@@ -710,27 +710,18 @@ def import_parameter_value_lists(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    parameter_value_list_dict = {}
-    existing_ids = {}
+    existing_ids_by_name = {}
     for x in db_map.query(db_map.wide_parameter_value_list_sq):
-        parameter_value_list_dict[x.id] = x.value_list
-        existing_ids[x.name] = x.id
+        existing_ids_by_name[x.name] = x.id
     seen = set()
     error_log = []
     to_add = []
     to_update = []
     for name, value_list in data:
-        if name in seen:
-            continue
-        seen.add(name)
         item = {"name": name, "value_list": value_list}
-        id_ = existing_ids.get(name)
-        if id_ is not None:
-            item["id"] = id_
-            to_update.append(item)
-            continue
+        id_ = existing_ids_by_name.pop(name, None)
         try:
-            check_wide_parameter_value_list(item, parameter_value_list_dict)
+            check_wide_parameter_value_list(item, existing_ids_by_name)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -738,6 +729,25 @@ def import_parameter_value_lists(db_map, data):
                     db_type="parameter value list",
                 )
             )
+            continue
+        finally:
+            if id_ is not None:
+                # Restablish ids
+                existing_ids_by_name[name] = id_
+        if name in seen:
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter value list '{name}': Duplicate list, only first will be considered",
+                    "parameter value list",
+                )
+            )
+            continue
+        seen.add(name)
+        if id_ is not None:
+            item["id"] = id_
+            to_update.append(item)
+        else:
+            to_add.append(item)
     added = db_map._add_wide_parameter_value_lists(*to_add)
     updated = db_map.update_wide_parameter_value_lists(*to_update)
     return len(added) + len(updated), error_log
