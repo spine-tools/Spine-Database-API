@@ -87,7 +87,6 @@ class DiffDatabaseMappingRemoveMixin:
         """
         cascading_ids = {}
         self._merge(cascading_ids, self._object_class_cascading_ids(object_class_ids))
-        self._merge(cascading_ids, self._object_class_cascading_ids(object_class_ids))
         self._merge(cascading_ids, self._object_cascading_ids(object_ids))
         self._merge(cascading_ids, self._relationship_class_cascading_ids(relationship_class_ids))
         self._merge(cascading_ids, self._relationship_cascading_ids(relationship_ids))
