@@ -71,6 +71,7 @@ class DatabaseMappingBase:
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
         self.IdsForIn = None
+        self._ids_for_in_clause_id = 0
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -205,7 +206,12 @@ class DatabaseMappingBase:
         """Create `ids_for_in` table if not exists and map it."""
         metadata = MetaData()
         ids_for_in_table = Table(
-            "ids_for_in", metadata, Column("id", Integer, primary_key=True), prefixes=["TEMPORARY"]
+            "ids_for_in",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("clause_id", Integer),
+            Column("id_for_in", Integer),
+            prefixes=["TEMPORARY"],
         )
         ids_for_in_table.create(self.engine, checkfirst=True)
         metadata.create_all(self.connection)
@@ -217,9 +223,12 @@ class DatabaseMappingBase:
         """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
         The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
         """
-        self.query(self.IdsForIn).delete(synchronize_session=False)
-        self.session.bulk_insert_mappings(self.IdsForIn, ({"id": id_} for id_ in ids))
-        return column.in_(self.query(self.IdsForIn.id))
+        # NOTE: We need to isolate ids by tr (transaction), since there might be multiple clauses using this function in the same qry.
+        # TODO: Try to find something better
+        self._ids_for_in_clause_id += 1
+        clause_id = self._ids_for_in_clause_id
+        self.session.bulk_insert_mappings(self.IdsForIn, ({"id_for_in": id_, "clause_id": clause_id} for id_ in ids))
+        return column.in_(self.query(self.IdsForIn.id_for_in).filter_by(clause_id=clause_id))
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
