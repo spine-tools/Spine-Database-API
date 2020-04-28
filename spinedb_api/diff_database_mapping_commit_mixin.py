@@ -50,7 +50,6 @@ class DiffDatabaseMappingCommitMixin:
                 self.query(orig_class).filter(self.in_(getattr(orig_class, id_col), ids)).delete(
                     synchronize_session=False
                 )
-
             # Update
             for tablename, ids in self.updated_item_id.items():
                 classname = self.table_to_class[tablename]
