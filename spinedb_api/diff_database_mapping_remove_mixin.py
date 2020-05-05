@@ -86,15 +86,15 @@ class DiffDatabaseMappingRemoveMixin:
             cascading_ids (dict): cascading ids keyed by table name
         """
         cascading_ids = {}
-        self._merge(cascading_ids, self._object_class_cascading_ids(object_class_ids))
-        self._merge(cascading_ids, self._object_cascading_ids(object_ids))
-        self._merge(cascading_ids, self._relationship_class_cascading_ids(relationship_class_ids))
-        self._merge(cascading_ids, self._relationship_cascading_ids(relationship_ids))
-        self._merge(cascading_ids, self._parameter_definition_cascading_ids(parameter_definition_ids))
-        self._merge(cascading_ids, self._parameter_value_cascading_ids(parameter_value_ids))
-        self._merge(cascading_ids, self._parameter_tag_cascading_ids(parameter_tag_ids))
-        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids(parameter_definition_tag_ids))
-        self._merge(cascading_ids, self._parameter_value_list_cascading_ids(parameter_value_list_ids))
+        self._merge(cascading_ids, self._object_class_cascading_ids(set(object_class_ids)))
+        self._merge(cascading_ids, self._object_cascading_ids(set(object_ids)))
+        self._merge(cascading_ids, self._relationship_class_cascading_ids(set(relationship_class_ids)))
+        self._merge(cascading_ids, self._relationship_cascading_ids(set(relationship_ids)))
+        self._merge(cascading_ids, self._parameter_definition_cascading_ids(set(parameter_definition_ids)))
+        self._merge(cascading_ids, self._parameter_value_cascading_ids(set(parameter_value_ids)))
+        self._merge(cascading_ids, self._parameter_tag_cascading_ids(set(parameter_tag_ids)))
+        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids(set(parameter_definition_tag_ids)))
+        self._merge(cascading_ids, self._parameter_value_list_cascading_ids(set(parameter_value_list_ids)))
         return cascading_ids
 
     @staticmethod

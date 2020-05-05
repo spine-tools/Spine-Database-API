@@ -223,7 +223,7 @@ class DatabaseMappingBase:
         """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
         The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
         """
-        # NOTE: We need to isolate ids by tr (transaction), since there might be multiple clauses using this function in the same qry.
+        # NOTE: We need to isolate ids by clause, since there might be multiple clauses using this function in the same query.
         # TODO: Try to find something better
         self._ids_for_in_clause_id += 1
         clause_id = self._ids_for_in_clause_id
