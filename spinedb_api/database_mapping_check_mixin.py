@@ -867,7 +867,7 @@ class DatabaseMappingCheckMixin:
                     parameter_value_list_dict,
                     alternatives,
                 )
-                parameter_values[entity_id, checked_item["parameter_definition_id", alt_id]] = None
+                parameter_values[entity_id, checked_item["parameter_definition_id"], alt_id] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
