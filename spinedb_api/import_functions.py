@@ -45,6 +45,7 @@ def import_data(
     db_map,
     object_classes=(),
     relationship_classes=(),
+    parameter_value_lists=(),
     object_parameters=(),
     relationship_parameters=(),
     objects=(),
@@ -110,6 +111,10 @@ def import_data(
         new, errors = import_relationship_classes(db_map, relationship_classes)
         num_imports = num_imports + new
         error_log.extend(errors)
+    if parameter_value_lists:
+        new, errors = import_parameter_value_lists(db_map, parameter_value_lists)
+        num_imports = num_imports + new
+        error_log.extend(errors)
     if object_parameters:
         new, errors = import_object_parameters(db_map, object_parameters)
         num_imports = num_imports + new
@@ -153,7 +158,7 @@ def import_object_classes(db_map, object_classes):
     Returns:
         (Int, List) Number of successful inserted object classes, list of errors
     """
-    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
+    existing_classes = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
     new_classes = []
     error_log = []
     for object_class_name in set(object_classes).difference(existing_classes):
@@ -188,8 +193,8 @@ def import_objects(db_map, object_data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
-    existing_objects = {(o.class_id, o.name): o.id for o in db_map.object_list()}
+    existing_classes = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
+    existing_objects = {(o.class_id, o.name): o.id for o in db_map.query(db_map.object_sq)}
     existing_class_ids = set(existing_classes.values())
     # Check that class exists for each object we want to insert
     error_log = []
@@ -230,10 +235,10 @@ def import_relationship_classes(db_map, relationship_classes):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    existing_classes = {oc.name: oc.id for oc in db_map.object_class_list()}
+    existing_classes = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
     existing_classes_ids = set(existing_classes.values())
-    existing_rel_classes = {x.name: x for x in db_map.wide_relationship_class_list()}
-    relationship_class_names = {x.name: x.id for x in db_map.wide_relationship_class_list()}
+    existing_rel_classes = {x.name: x for x in db_map.query(db_map.wide_relationship_class_sq)}
+    relationship_class_names = {name: x.id for name, x in existing_rel_classes.items()}
     seen_classes = set()
     error_log = []
     new_rc = []
@@ -270,7 +275,7 @@ def import_object_parameters(db_map, parameter_data):
 
             data = [
                 ('object_class_1', 'new_parameter'),
-                ('object_class_2', 'other_parameter', 'default_value')
+                ('object_class_2', 'other_parameter', 'default_value', 'value_list_name')
             ]
             import_object_parameters(db_map, data)
 
@@ -284,39 +289,55 @@ def import_object_parameters(db_map, parameter_data):
     """
 
     obj_parameter_names = {
-        (x.object_class_id, x.name): x.id for x in db_map.parameter_definition_list() if x.object_class_id
+        (x.object_class_id, x.name): x.id for x in db_map.query(db_map.parameter_definition_sq) if x.object_class_id
     }
-    object_class_dict = {x.id: x.name for x in db_map.object_class_list()}
+    object_class_dict = {x.id: x.name for x in db_map.query(db_map.object_class_sq)}
     existing_classes = {oc_name: oc_id for oc_id, oc_name in object_class_dict.items()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    parameter_value_list_dict = {}
+    existing_value_lists = {}
+    for x in db_map.query(db_map.wide_parameter_value_list_sq):
+        parameter_value_list_dict[x.id] = x.value_list
+        existing_value_lists[x.name] = x.id
     seen_parameters = set()
     error_log = []
     new_parameters = []
+    update_parameters = []
     for parameter in parameter_data:
         oc_name = parameter[0]
         parameter_name = parameter[1]
         oc_id = existing_classes.get(oc_name, None)
-        if (oc_id, parameter_name) in seen_parameters or (oc_id, parameter_name) in obj_parameter_names:
-            continue
-        param = {"name": parameter_name, "object_class_id": oc_id}
+        p_id = obj_parameter_names.get((oc_id, parameter_name), None)
+        param = {"name": parameter_name, "entity_class_id": oc_id}
         if len(parameter) > 2:
             param["default_value"] = to_database(parameter[2])
+        if len(parameter) > 3:
+            value_list_id = existing_value_lists.get(parameter[3])
+            if value_list_id is not None:
+                param["parameter_value_list_id"] = value_list_id
+        if p_id is not None:
+            # existing param
+            param.update({"id": p_id})
         try:
-            check_parameter_definition(param, obj_parameter_names, {}, object_class_dict, {}, parameter_value_list_dict)
-            param["entity_class_id"] = param["object_class_id"]
-            param.pop("object_class_id", None)
-            new_parameters.append(param)
-            seen_parameters.add((oc_id, parameter_name))
+            obj_parameter_names.pop((oc_id, parameter_name), None)
+            check_parameter_definition(param, obj_parameter_names, object_class_dict.keys(), parameter_value_list_dict)
         except SpineIntegrityError as e:
             # Object class doesn't exists
             error_log.append(
                 ImportErrorLogItem(
                     f"Could not import parameter '{parameter_name}' with class '{oc_name}': {e.msg}",
-                    db_type="parameter",
+                    db_type="parameter_definition",
                 )
             )
+        checked_key = (oc_id, parameter_name)
+        if checked_key not in seen_parameters:
+            if p_id is not None:
+                update_parameters.append(param)
+            else:
+                new_parameters.append(param)
+            seen_parameters.add(checked_key)
     added = db_map._add_parameter_definitions(*new_parameters)
-    return len(added), error_log
+    updated = db_map._update_parameter_definitions(*update_parameters)
+    return len(added) + len(updated), error_log
 
 
 def import_relationship_parameters(db_map, parameter_data):
@@ -326,7 +347,7 @@ def import_relationship_parameters(db_map, parameter_data):
 
             data = [
                 ('relationship_class_1', 'new_parameter'),
-                ('relationship_class_2', 'other_parameter', 'default_value')
+                ('relationship_class_2', 'other_parameter', 'default_value', 'value_list_name')
             ]
             import_object_parameters(db_map, data)
 
@@ -339,42 +360,60 @@ def import_relationship_parameters(db_map, parameter_data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     rel_parameter_names = {
-        (x.relationship_class_id, x.name): x.id for x in db_map.parameter_definition_list() if x.relationship_class_id
+        (x.relationship_class_id, x.name): x.id
+        for x in db_map.query(db_map.parameter_definition_sq)
+        if x.relationship_class_id
     }
-    relationship_class_dict = {x.id: x.name for x in db_map.wide_relationship_class_list()}
+    relationship_class_dict = {x.id: x.name for x in db_map.query(db_map.wide_relationship_class_sq)}
     existing_classes = {rc_name: rc_id for rc_id, rc_name in relationship_class_dict.items()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    parameter_value_list_dict = {}
+    existing_value_lists = {}
+    for x in db_map.query(db_map.wide_parameter_value_list_sq):
+        parameter_value_list_dict[x.id] = x.value_list
+        existing_value_lists[x.name] = x.id
     seen_parameters = set()
 
     error_log = []
     new_parameters = []
+    update_parameters = []
     for parameter in parameter_data:
         rel_class_name = parameter[0]
         param_name = parameter[1]
         rc_id = existing_classes.get(rel_class_name, None)
-        if (rc_id, param_name) in seen_parameters or (rc_id, param_name) in rel_parameter_names:
-            continue
-        new_param = {"name": param_name, "relationship_class_id": rc_id}
+        p_id = rel_parameter_names.get((rc_id, param_name), None)
+        new_param = {"name": param_name, "entity_class_id": rc_id}
         if len(parameter) > 2:
             new_param["default_value"] = to_database(parameter[2])
+        if len(parameter) > 3:
+            value_list_id = existing_value_lists.get(parameter[3])
+            if value_list_id is not None:
+                new_param["parameter_value_list_id"] = value_list_id
+        if p_id is not None:
+            # existing param
+            new_param.update({"id": p_id})
         try:
+            rel_parameter_names.pop((rc_id, param_name), None)
             check_parameter_definition(
-                new_param, {}, rel_parameter_names, {}, relationship_class_dict, parameter_value_list_dict
+                new_param, rel_parameter_names, relationship_class_dict.keys(), parameter_value_list_dict
             )
-            new_parameters.append(new_param)
-            new_param["entity_class_id"] = new_param["relationship_class_id"]
-            new_param.pop("relationship_class_id", None)
-            seen_parameters.add((rc_id, param_name))
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
             error_log.append(
                 ImportErrorLogItem(
                     msg=f"Could not import parameter '{param_name}' with class '{rel_class_name}': {e.msg}",
-                    db_type="parameter",
+                    db_type="parameter_definition",
                 )
             )
+        checked_key = (rc_id, param_name)
+        if checked_key not in seen_parameters:
+            if p_id is not None:
+                update_parameters.append(new_param)
+            else:
+                new_parameters.append(new_param)
+            seen_parameters.add(checked_key)
     added = db_map._add_parameter_definitions(*new_parameters)
-    return len(added), error_log
+    updated = db_map._update_parameter_definitions(*update_parameters)
+    return len(added) + len(updated), error_log
 
 
 def import_relationships(db_map, relationship_data):
@@ -394,14 +433,14 @@ def import_relationships(db_map, relationship_data):
         (Int, List) Number of successful inserted objects, list of errors
     """
 
-    relationships = {x.name: x for x in db_map.wide_relationship_list()}
+    relationships = {x.name: x for x in db_map.query(db_map.wide_relationship_sq)}
     relationship_names = {(x.class_id, x.name): x.id for x in relationships.values()}
     relationship_objects = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
     relationship_class_dict = {
         x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-        for x in db_map.wide_relationship_class_list()
+        for x in db_map.query(db_map.wide_relationship_class_sq)
     }
-    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
+    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.query(db_map.object_sq)}
     existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
     existing_relationship_classes = {rc["name"]: rc_id for rc_id, rc in relationship_class_dict.items()}
     error_log = []
@@ -470,22 +509,23 @@ def import_object_parameter_values(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
 
-    object_class_dict = {x.name: x.id for x in db_map.object_class_list()}
-    object_parameter_values = {(x.object_id, x.parameter_id, x.alternative_id): x.id for x in db_map.object_parameter_value_list()}
+    object_class_dict = {x.name: x.id for x in db_map.query(db_map.object_class_sq)}
+    object_parameter_values = {
+        (x.object_id, x.parameter_id): x.id for x in db_map.query(db_map.object_parameter_value_sq)
+    }
     parameter_dict = {
         x.id: {
             "name": x.name,
-            "object_class_id": x.object_class_id,
-            "relationship_class_id": x.relationship_class_id,
+            "entity_class_id": x.entity_class_id,
             "parameter_value_list_id": x.parameter_value_list_id,
         }
-        for x in db_map.parameter_definition_list()
+        for x in db_map.query(db_map.parameter_definition_sq)
     }
-    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.query(db_map.object_sq)}
+    parameter_value_list_dict = {x.id: x.value_list for x in db_map.query(db_map.wide_parameter_value_list_sq)}
     existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
-    existing_parameters = {(p["name"], p["object_class_id"]): p_id for p_id, p in parameter_dict.items()}
-    alternatives = set(a.id for a in db_map.alternative_list())
+    existing_parameters = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameter_dict.items()}
+    alternatives = set(a.id for a in db_map.query(db_map.alternative_sq()))
     error_log = []
     new_values = []
     update_values = []
@@ -496,29 +536,24 @@ def import_object_parameter_values(db_map, data):
         oc_id = object_class_dict.get(object_class, None)
         o_id = existing_objects.get((object_name, oc_id), None)
         p_id = existing_parameters.get((param_name, oc_id), None)
-        pv_id = object_parameter_values.get((o_id, p_id, alt_id), None)
-        new_value = {"parameter_definition_id": p_id, "object_id": o_id, "value": to_database(value), "alternative_id": alt_id}
+        pv_id = object_parameter_values.get((o_id, p_id), None)
+        new_value = {
+            "parameter_definition_id": p_id,
+            "entity_id": o_id,
+            "value": to_database(value),
+            "alternative_id": alt_id,
+        }
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
 
         try:
             # check integrity
-            if (o_id, p_id, alt_id) in object_parameter_values:
-                object_parameter_values.pop((o_id, p_id, alt_id))
+            object_parameter_values.pop((o_id, p_id), None)
             check_parameter_value(
-                new_value,
-                object_parameter_values,
-                {},
-                parameter_dict,
-                object_dict,
-                {},
-                parameter_value_list_dict,
-                alternatives,
+                new_value, object_parameter_values, parameter_dict, object_dict, parameter_value_list_dict, alternatives
             )
-            new_value["entity_id"] = new_value["object_id"]
             new_value["entity_class_id"] = oc_id
-            new_value.pop("object_id", None)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -573,30 +608,30 @@ def import_relationship_parameter_values(db_map, data):
 
     relationship_class_dict = {
         x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-        for x in db_map.wide_relationship_class_list()
+        for x in db_map.query(db_map.wide_relationship_class_sq)
     }
 
     relationship_parameter_values = {
-        (x.relationship_id, x.parameter_id, x.alternative_id): x.id for x in db_map.relationship_parameter_value_list()
+        (x.relationship_id, x.parameter_id, x.alternative_id): x.id
+        for x in db_map.query(db_map.relationship_parameter_value_sq)
     }
     parameter_dict = {
         x.id: {
             "name": x.name,
-            "object_class_id": x.object_class_id,
-            "relationship_class_id": x.relationship_class_id,
+            "entity_class_id": x.entity_class_id,
             "parameter_value_list_id": x.parameter_value_list_id,
         }
-        for x in db_map.parameter_definition_list()
+        for x in db_map.query(db_map.parameter_definition_sq)
     }
-    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.object_list()}
+    object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in db_map.query(db_map.object_sq)}
     relationship_dict = {
         x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": [int(i) for i in x.object_id_list.split(",")]}
-        for x in db_map.wide_relationship_list()
+        for x in db_map.query(db_map.wide_relationship_sq)
     }
-    parameter_value_list_dict = {x.id: x.value_list for x in db_map.wide_parameter_value_list_list()}
+    parameter_value_list_dict = {x.id: x.value_list for x in db_map.query(db_map.wide_parameter_value_list_sq)}
     existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
-    existing_parameters = {(p["name"], p["relationship_class_id"]): p_id for p_id, p in parameter_dict.items()}
-    existing_relationship_classes = {oc.name: oc.id for oc in db_map.wide_relationship_class_list()}
+    existing_parameters = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameter_dict.items()}
+    existing_relationship_classes = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
     existing_relationships = {
         (r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationship_dict.items()
     }
@@ -618,28 +653,28 @@ def import_relationship_parameter_values(db_map, data):
         r_id = existing_relationships.get(rel_key, None)
         p_id = existing_parameters.get((param_name, rc_id), None)
         pv_id = relationship_parameter_values.get((r_id, p_id, alt_id), None)
-        new_value = {"parameter_definition_id": p_id, "relationship_id": r_id, "value": to_database(value), "alternative_id": alt_id}
+        new_value = {
+            "parameter_definition_id": p_id,
+            "entity_id": r_id,
+            "value": to_database(value),
+            "alternative_id": alt_id,
+        }
         if pv_id is not None:
             # existing value
             new_value.update({"id": pv_id})
 
         try:
             # check integrity
-            if (r_id, p_id, alt_id) in relationship_parameter_values:
-                relationship_parameter_values.pop((r_id, p_id, alt_id))
+            relationship_parameter_values.pop((r_id, p_id, alt_id), None)
             check_parameter_value(
                 new_value,
-                {},
                 relationship_parameter_values,
                 parameter_dict,
-                {},
                 relationship_dict,
                 parameter_value_list_dict,
                 alternatives,
             )
-            new_value["entity_id"] = new_value["relationship_id"]
             new_value["entity_class_id"] = rc_id
-            new_value.pop("relationship_id", None)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -673,4 +708,66 @@ def import_relationship_parameter_values(db_map, data):
     added = db_map._add_parameter_values(*new_values)
     # Try and update whatever wasn't added
     updated = db_map._update_parameter_values(*update_values)
+    return len(added) + len(updated), error_log
+
+
+def import_parameter_value_lists(db_map, data):
+    """Imports list of parameter value lists:
+
+    Example::
+
+            data = [
+                ['value_list_name', ['value1', 'value2', 'value3'],
+                ['another_value_list_name', ['value5', 'value4'],
+            ]
+            import_parameter_value_lists(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+                                 value list name, list of values
+
+    Returns:
+        (Int, List) Number of successful inserted objects, list of errors
+    """
+    existing_ids_by_name = {}
+    for x in db_map.query(db_map.wide_parameter_value_list_sq):
+        existing_ids_by_name[x.name] = x.id
+    seen = set()
+    error_log = []
+    to_add = []
+    to_update = []
+    for name, value_list in data:
+        item = {"name": name, "value_list": value_list}
+        id_ = existing_ids_by_name.pop(name, None)
+        try:
+            check_wide_parameter_value_list(item, existing_ids_by_name)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter value list '{name}' with values '{value_list}': {e.msg}",
+                    db_type="parameter value list",
+                )
+            )
+            continue
+        finally:
+            if id_ is not None:
+                # Restablish ids
+                existing_ids_by_name[name] = id_
+        if name in seen:
+            error_log.append(
+                ImportErrorLogItem(
+                    f"Could not import parameter value list '{name}': Duplicate list, only first will be considered",
+                    "parameter value list",
+                )
+            )
+            continue
+        seen.add(name)
+        if id_ is not None:
+            item["id"] = id_
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    added = db_map._add_wide_parameter_value_lists(*to_add)
+    updated = db_map.update_wide_parameter_value_lists(*to_update)
     return len(added) + len(updated), error_log

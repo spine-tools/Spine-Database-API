@@ -44,9 +44,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
-from spinedb_api.parameter_value import Duration, DateTime as Date
 from .exception import SpineDBAPIError, SpineDBVersionError
-from .import_functions import import_data
 
 # Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
 # - sqlite works
@@ -237,7 +235,7 @@ def is_empty(db_url):
     return True
 
 
-def create_new_spine_database(db_url, for_spine_model=False):
+def create_new_spine_database(db_url):
     """Create a new Spine database at the given url."""
     try:
         engine = create_engine(db_url)
@@ -504,8 +502,6 @@ def create_new_spine_database(db_url, for_spine_model=False):
         engine.execute("INSERT INTO alembic_version VALUES ('39e860a11b05')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
-    if for_spine_model:
-        add_specifc_data_structure_for_spine_model(db_url)
     return engine
 
 
@@ -660,112 +656,6 @@ def _create_first_spine_database(db_url):
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
     return engine
-
-
-def add_specifc_data_structure_for_spine_model(db_url):
-    """Add as much of the specific data structure for spine model as possible.
-    If called on a database which already has some content, it will add what's missing.
-    This can be useful for eg updating a db to the latest version of spine model, in case
-    we added stuff on the go (which we'll probably do).
-    """
-    from .diff_database_mapping import DiffDatabaseMapping
-
-    db_map = DiffDatabaseMapping(db_url)
-    object_classes = (
-        ("direction", "A flow direction", 1, 281105626296654),
-        ("unit", "An entity where an energy conversion process takes place", 2, 281470681805429),
-        ("connection", "An entity where an energy transfer takes place", 3, 280378317271233),
-        ("storage", "A storage", 4, 280376899531934),
-        ("commodity", "A commodity", 5, 281473533932880),
-        ("node", "An entity where an energy balance takes place", 6, 280740554077951),
-        ("temporal_block", "A temporal block", 7, 280376891207703),
-        ("rolling", "A rolling horizon", 9, 281107043971546),
-        ("model", "A modelling time horizon", 8, 280376891207703),
-    )
-    db_map.add_object_classes(
-        *[dict(zip(("name", "description", "display_order", "display_icon"), x)) for x in object_classes]
-    )
-    import_data(
-        db_map,
-        objects=(("direction", "from_node"), ("direction", "to_node")),
-        relationship_classes=(
-            ("unit__node__direction", ("unit", "node", "direction")),
-            ("connection__node__direction", ("connection", "node", "direction")),
-            ("node__commodity", ("node", "commodity")),
-            ("unit_group__unit", ("unit", "unit")),
-            ("commodity_group__commodity", ("commodity", "commodity")),
-            ("node_group__node", ("node", "node")),
-            ("unit_group__commodity_group", ("unit", "commodity")),
-            ("commodity_group__node_group", ("commodity", "node")),
-            ("unit__commodity", ("unit", "commodity")),
-            ("unit__commodity__direction", ("unit", "commodity", "direction")),
-            ("unit__commodity__commodity", ("unit", "commodity", "commodity")),
-            ("connection__node__node", ("connection", "node", "node")),
-            ("connection__node", ("connection", "node")),
-            ("node__temporal_block", ("node", "temporal_block")),
-            ("storage__unit", ("storage", "unit")),
-            ("storage__connection", ("storage", "connection")),
-            ("storage__commodity", ("storage", "commodity")),
-            ("storage__storage", ("storage", "storage")),
-        ),
-        object_parameters=(
-            ("unit", "fom_cost", None),
-            ("unit", "start_up_cost", None),
-            ("unit", "shut_down_cost", None),
-            ("unit", "number_of_units", 1),
-            ("unit", "avail_factor", 1),
-            ("unit", "min_down_time", None),
-            ("unit", "min_up_time", None),
-            ("unit", "online_variable_type", "no_online_variable"),
-            ("unit", "fix_units_on", None),
-            ("temporal_block", "block_start", None),
-            ("temporal_block", "block_end", None),
-            ("temporal_block", "resolution", Duration("1 hours")),
-            ("node", "demand", 0),
-            ("storage", "stor_state_cap", None),
-            ("storage", "stor_state_min", 0),
-            ("storage", "frac_state_loss", 0),
-            ("storage", "state_coeff", 1),
-            ("model", "model_start", Date("2000-01-01T00:00:00")),
-            ("model", "model_end", Date("2000-01-02T00:00:00")),
-            ("model", "roll_forward", None),
-        ),
-        relationship_parameters=(
-            ("unit__commodity", "unit_conv_cap_to_flow", 1),
-            ("unit__commodity", "minimum_operating_point", None),
-            ("unit__commodity__direction", "unit_capacity", None),
-            ("unit__commodity__direction", "operating_cost", None),
-            ("unit__commodity__direction", "vom_cost", None),
-            ("commodity_group__node_group", "tax_net_flow", None),
-            ("commodity_group__node_group", "tax_out_flow", None),
-            ("commodity_group__node_group", "tax_in_flow", None),
-            ("unit__commodity__commodity", "fix_ratio_in_in_flow", None),
-            ("unit__commodity__commodity", "max_ratio_in_in_flow", None),
-            ("unit__commodity__commodity", "min_ratio_in_in_flow", None),
-            ("unit__commodity__commodity", "fix_ratio_out_in_flow", None),
-            ("unit__commodity__commodity", "max_ratio_out_in_flow", None),
-            ("unit__commodity__commodity", "min_ratio_out_in_flow", None),
-            ("unit__commodity__commodity", "fix_ratio_out_out_flow", None),
-            ("unit__commodity__commodity", "max_ratio_out_out_flow", None),
-            ("unit__commodity__commodity", "min_ratio_out_out_flow", None),
-            ("connection__node__direction", "fix_ratio_out_in_trans", None),
-            ("connection__node__direction", "max_ratio_out_in_trans", None),
-            ("connection__node__direction", "min_ratio_out_in_trans", None),
-            ("connection__node__direction", "fix_trans", None),
-            ("connection__node__direction", "conn_capacity", None),
-            ("connection__node", "conn_avail_factor", 1),
-            ("connection__node", "conn_conv_cap_to_trans", 1),
-            ("storage__unit", "stor_unit_discharg_eff", 1),
-            ("storage__unit", "stor_unit_charg_eff", 1),
-            ("storage__connection", "stor_conn_discharg_eff", 1),
-            ("storage__connection", "stor_conn_charg_eff", 1),
-            ("storage__storage", "diff_coeff", None),
-            ("unit_group__commodity_group", "max_cum_in_flow_bound", None),
-            ("unit__node__direction", "fix_flow", None),
-        ),
-    )
-    db_map.commit_session("Add specific data structure for Spine Model.")
-    db_map.connection.close()
 
 
 def forward_sweep(root, func):

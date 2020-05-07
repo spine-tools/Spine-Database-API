@@ -24,7 +24,6 @@ from sqlalchemy.sql.expression import Alias
 from .exception import SpineTableNotFoundError
 from .helpers import forward_sweep
 from datetime import datetime, timezone
-from sqlalchemy.orm.util import AliasedInsp
 
 # TODO: improve docstrings
 
@@ -64,6 +63,10 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffParameterTag = None
         self.DiffParameterDefinitionTag = None
         self.DiffParameterValueList = None
+        self.composite_pks = {
+            "relationship_entity": ("entity_id", "dimension"),
+            "relationship_entity_class": ("entity_class_id", "dimension"),
+        }
         # Diff dictionaries
         self.added_item_id = {}
         self.updated_item_id = {}
@@ -89,12 +92,11 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         metadata = MetaData(self.engine)
         metadata.reflect()
         diff_metadata = MetaData()
-        diff_tables = list()
         for t in metadata.sorted_tables:
             if t.name.startswith(diff_name_prefix) or t.name == "next_id":
                 continue
             diff_columns = [c.copy() for c in t.columns]
-            diff_table = Table(self.diff_prefix + t.name, diff_metadata, *diff_columns, prefixes=["TEMPORARY"])
+            Table(self.diff_prefix + t.name, diff_metadata, *diff_columns, prefixes=["TEMPORARY"])
         diff_metadata.drop_all(self.engine)
         # NOTE: Using `self.connection` below allows `self.session` to see the temp tables
         diff_metadata.create_all(self.connection)
@@ -142,10 +144,10 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         classname = self.table_to_class[tablename]
         orig_class = getattr(self, classname)
         diff_class = getattr(self, "Diff" + classname)
-        id_col = self.table_ids.get(tablename, "id")
+        table_id = self.table_ids.get(tablename, "id")
         return (
             self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(~getattr(orig_class, id_col).in_(self.dirty_item_id[tablename]))
+            .filter(~self.in_(getattr(orig_class, table_id), self.dirty_item_id[tablename]))
             .union_all(self.query(*inspect(diff_class).mapper.columns))
             .subquery()
         )

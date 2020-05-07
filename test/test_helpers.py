@@ -20,11 +20,7 @@ Unit tests for helpers.py.
 
 
 import unittest
-from unittest.mock import MagicMock
 import os
-
-from sqlalchemy import create_engine
-
 from spinedb_api.helpers import compare_schemas, create_new_spine_database
 
 
@@ -37,14 +33,14 @@ class TestImportObjectClass(unittest.TestCase):
 
     def test_same_schema(self):
         """Test that importing object class works"""
-        engine1 = create_new_spine_database('sqlite://', for_spine_model=False)
-        engine2 = create_new_spine_database('sqlite://', for_spine_model=False)
+        engine1 = create_new_spine_database('sqlite://')
+        engine2 = create_new_spine_database('sqlite://')
         self.assertTrue(compare_schemas(engine1, engine2))
 
     def test_different_schema(self):
         """Test that importing object class works"""
-        engine1 = create_new_spine_database('sqlite://', for_spine_model=False)
-        engine2 = create_new_spine_database('sqlite://', for_spine_model=False)
+        engine1 = create_new_spine_database('sqlite://')
+        engine2 = create_new_spine_database('sqlite://')
         engine2.execute("drop table entity_type")
         self.assertFalse(compare_schemas(engine1, engine2))
 

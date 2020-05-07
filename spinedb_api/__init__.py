@@ -56,6 +56,17 @@ from .import_functions import (
     import_relationship_parameters,
     import_relationships,
 )
+from .export_functions import (
+    export_data,
+    export_object_classes,
+    export_objects,
+    export_object_parameters,
+    export_object_parameter_values,
+    export_relationship_classes,
+    export_relationship_parameter_values,
+    export_relationship_parameters,
+    export_relationships,
+)
 from .json_mapping import (
     mappingbase_from_dict_int_str,
     MappingBase,
@@ -64,6 +75,7 @@ from .json_mapping import (
     ColumnHeaderMapping,
     ColumnMapping,
     RowMapping,
+    TableNameMapping,
     mapping_from_dict,
     parameter_mapping_from_dict,
     ParameterDefinitionMapping,
@@ -71,7 +83,7 @@ from .json_mapping import (
     ParameterMapMapping,
     ParameterTimeSeriesMapping,
     ParameterTimePatternMapping,
-    ParameterListMapping,
+    ParameterArrayMapping,
     TimeSeriesOptions,
     ObjectClassMapping,
     RelationshipClassMapping,
@@ -84,15 +96,17 @@ from .parameter_value import (
     relativedelta_to_duration,
     from_database,
     to_database,
+    Array,
     DateTime,
     Duration,
     IndexedNumberArray,
     IndexedValue,
+    Map,
     TimePattern,
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    Map,
+    ParameterValueEncoder,
 )
 from .version import __version__
 

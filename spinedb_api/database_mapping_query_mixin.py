@@ -73,7 +73,7 @@ class DatabaseMappingQueryMixin:
                     self.wide_relationship_class_sq.c.object_class_id_list.like(f"%,{object_class_id},%"),
                     self.wide_relationship_class_sq.c.object_class_id_list.like(f"{object_class_id},%"),
                     self.wide_relationship_class_sq.c.object_class_id_list.like(f"%,{object_class_id}"),
-                    self.wide_relationship_class_sq.c.object_class_id_list == object_class_id,
+                    self.wide_relationship_class_sq.c.object_class_id_list == str(object_class_id),
                 )
             )
         return qry

@@ -17,7 +17,7 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, case
+from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
@@ -73,6 +73,8 @@ class DatabaseMappingBase:
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
+        self.IdsForIn = None
+        self._ids_for_in_clause_id = 0
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -97,6 +99,7 @@ class DatabaseMappingBase:
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
         # Special convenience subqueries that join two or more tables
+        self._ext_object_sq = None
         self._ext_relationship_class_sq = None
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
@@ -143,6 +146,7 @@ class DatabaseMappingBase:
             "relationship_entity": "entity_id",
         }
         self._create_mapping()
+        self._create_ids_for_in()
 
     @staticmethod
     def _create_engine(db_url):
@@ -206,6 +210,34 @@ class DatabaseMappingBase:
 
     def reconnect(self):
         self.connection = self.engine.connect()
+
+    def _create_ids_for_in(self):
+        """Create `ids_for_in` table if not exists and map it."""
+        metadata = MetaData()
+        ids_for_in_table = Table(
+            "ids_for_in",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("clause_id", Integer),
+            Column("id_for_in", Integer),
+            prefixes=["TEMPORARY"],
+        )
+        ids_for_in_table.create(self.engine, checkfirst=True)
+        metadata.create_all(self.connection)
+        Base = automap_base(metadata=metadata)
+        Base.prepare()
+        self.IdsForIn = Base.classes.ids_for_in
+
+    def in_(self, column, ids):
+        """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
+        The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
+        """
+        # NOTE: We need to isolate ids by clause, since there might be multiple clauses using this function in the same query.
+        # TODO: Try to find something better
+        self._ids_for_in_clause_id += 1
+        clause_id = self._ids_for_in_clause_id
+        self.session.bulk_insert_mappings(self.IdsForIn, ({"id_for_in": id_, "clause_id": clause_id} for id_ in ids))
+        return column.in_(self.query(self.IdsForIn.id_for_in).filter_by(clause_id=clause_id))
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
@@ -526,7 +558,8 @@ class DatabaseMappingBase:
             self._parameter_value_sq = (
                 self.query(
                     par_val_sq.c.id.label("id"),
-                    par_val_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    par_val_sq.c.parameter_definition_id,
+                    par_val_sq.c.entity_class_id,
                     par_val_sq.c.entity_id,
                     label("object_class_id", object_class_case),
                     label("relationship_class_id", rel_class_case),
@@ -584,6 +617,37 @@ class DatabaseMappingBase:
         if self._parameter_value_list_sq is None:
             self._parameter_value_list_sq = self._subquery("parameter_value_list")
         return self._parameter_value_list_sq
+
+    @property
+    def ext_object_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT
+                o.id,
+                o.class_id,
+                oc.name AS class_name,
+                o.name,
+                o.description,
+            FROM object AS o, object_class AS oc
+            WHERE o.class_id = oc.id
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_object_sq is None:
+            self._ext_object_sq = (
+                self.query(
+                    self.object_sq.c.id.label("id"),
+                    self.object_sq.c.class_id.label("class_id"),
+                    self.object_class_sq.c.name.label("class_name"),
+                    self.object_sq.c.name.label("name"),
+                    self.object_sq.c.description.label("description"),
+                )
+                .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
+                .subquery()
+            )
+        return self._ext_object_sq
 
     @property
     def ext_relationship_class_sq(self):
@@ -702,6 +766,7 @@ class DatabaseMappingBase:
             SELECT
                 id,
                 class_id,
+                class_name,
                 name,
                 GROUP_CONCAT(object_id) AS object_id_list,
                 GROUP_CONCAT(object_name) AS object_name_list

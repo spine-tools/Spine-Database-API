@@ -16,10 +16,10 @@ Provides :class:`DiffDatabaseMappingCommitMixin`.
 :date:   11.8.2018
 """
 
+from datetime import datetime, timezone
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import attr_dict
-from datetime import datetime, timezone
 
 
 # TODO: improve docstrings
@@ -42,31 +42,25 @@ class DiffDatabaseMappingCommitMixin:
             commit = self.Commit(comment=comment, date=date, user=user)
             self.session.add(commit)
             self.session.flush()
-            n = 499  # Maximum number of sql variables
             # Remove
             for tablename, ids in self.removed_item_id.items():
                 classname = self.table_to_class[tablename]
                 id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
-                removed_ids = list(ids)
-                for i in range(0, len(removed_ids), n):
-                    self.query(orig_class).filter(getattr(orig_class, id_col).in_(removed_ids[i : i + n])).delete(
-                        synchronize_session=False
-                    )
-
+                self.query(orig_class).filter(self.in_(getattr(orig_class, id_col), ids)).delete(
+                    synchronize_session=False
+                )
             # Update
             for tablename, ids in self.updated_item_id.items():
                 classname = self.table_to_class[tablename]
                 id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
-                dirty_ids = list(ids)
                 updated_items = []
-                for i in range(0, len(dirty_ids), n):
-                    for item in self.query(diff_class).filter(getattr(diff_class, id_col).in_(dirty_ids[i : i + n])):
-                        kwargs = attr_dict(item)
-                        kwargs["commit_id"] = commit.id
-                        updated_items.append(kwargs)
+                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
+                    kwargs = attr_dict(item)
+                    kwargs["commit_id"] = commit.id
+                    updated_items.append(kwargs)
                 self.session.bulk_update_mappings(orig_class, updated_items)
             # Add
             for tablename, ids in self.added_item_id.items():
@@ -74,13 +68,11 @@ class DiffDatabaseMappingCommitMixin:
                 id_col = self.table_ids.get(tablename, "id")
                 orig_class = getattr(self, classname)
                 diff_class = getattr(self, "Diff" + classname)
-                new_ids = list(ids)
                 new_items = []
-                for i in range(0, len(new_ids), n):
-                    for item in self.query(diff_class).filter(getattr(diff_class, id_col).in_(new_ids[i : i + n])):
-                        kwargs = attr_dict(item)
-                        kwargs["commit_id"] = commit.id
-                        new_items.append(kwargs)
+                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
+                    kwargs = attr_dict(item)
+                    kwargs["commit_id"] = commit.id
+                    new_items.append(kwargs)
                 self.session.bulk_insert_mappings(orig_class, new_items)
             self._reset_diff_mapping()
             self.session.commit()
@@ -106,8 +98,4 @@ class DiffDatabaseMappingCommitMixin:
 
     def has_pending_changes(self):
         """True if this mapping has any staged changes."""
-        if any([v for v in self.added_item_id.values()]):
-            return True
-        if any([v for v in self.dirty_item_id.values()]):
-            return True
-        return False
+        return any(self.added_item_id.values()) or any(self.dirty_item_id.values())

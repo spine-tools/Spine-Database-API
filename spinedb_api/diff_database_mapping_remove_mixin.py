@@ -41,7 +41,7 @@ class DiffDatabaseMappingRemoveMixin:
         scenario_alternative_ids=(),
     ):
         """Removes items by id."""
-        item_id, diff_item_id = self.cascading_ids(
+        cascading_ids = self._cascading_ids(
             object_class_ids=object_class_ids,
             object_ids=object_ids,
             relationship_class_ids=relationship_class_ids,
@@ -55,25 +55,26 @@ class DiffDatabaseMappingRemoveMixin:
             scenario_ids=scenario_ids,
             scenario_alternative_ids=scenario_alternative_ids,
         )
-        self.do_remove_items(item_id, diff_item_id)
-
-    def do_remove_items(self, item_id, diff_item_id):
         try:
-            for tablename, ids in diff_item_id.items():
-                id_col = self.table_ids.get(tablename, "id")
+            for tablename, ids in cascading_ids.items():
+                table_id = self.table_ids.get(tablename, "id")
                 classname = self.table_to_class[tablename]
                 diff_class = getattr(self, "Diff" + classname)
-                self.query(diff_class).filter(getattr(diff_class, id_col).in_(ids)).delete(synchronize_session=False)
+                self.query(diff_class).filter(self.in_(getattr(diff_class, table_id), ids)).delete(
+                    synchronize_session=False
+                )
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while removing items: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
-        for tablename, ids in item_id.items():
+        for tablename, ids in cascading_ids.items():
+            self.added_item_id[tablename].difference_update(ids)
+            self.updated_item_id[tablename].difference_update(ids)
             self.removed_item_id[tablename].update(ids)
             self._mark_as_dirty(tablename, ids)
 
-    def cascading_ids(
+    def _cascading_ids(
         self,
         object_class_ids=(),
         object_ids=(),
@@ -91,322 +92,129 @@ class DiffDatabaseMappingRemoveMixin:
         """Returns cascading ids.
 
         Returns:
-            item_id (dict): cascading ids in the original tables
-            diff_item_id (dict): cascading ids in the difference tables
+            cascading_ids (dict): cascading ids keyed by table name
         """
-        item_id = {}
-        diff_item_id = {}
-        # alternative
-        item_list = self.query(self.Alternative.id).filter(self.Alternative.id.in_(alternative_ids))
-        diff_item_list = self.query(self.DiffAlternative.id).filter(self.DiffAlternative.id.in_(alternative_ids))
-        self._collect_alternative_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # scenario
-        item_list = self.query(self.Scenario.id).filter(self.Scenario.id.in_(scenario_ids))
-        diff_item_list = self.query(self.DiffScenario.id).filter(self.DiffScenario.id.in_(scenario_ids))
-        self._collect_scenario_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # scenario alternatives
-        item_list = self.query(self.ScenarioAlternatives.id).filter(
-            self.ScenarioAlternatives.id.in_(scenario_alternative_ids)
-        )
-        diff_item_list = self.query(self.DiffScenarioAlternatives.id).filter(
-            self.DiffScenarioAlternatives.id.in_(scenario_alternative_ids)
-        )
-        self._collect_scenario_alternatives_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # object_class
-        item_list = self.query(self.ObjectClass.entity_class_id).filter(
-            self.ObjectClass.entity_class_id.in_(object_class_ids)
-        )
-        diff_item_list = self.query(self.DiffObjectClass.entity_class_id).filter(
-            self.DiffObjectClass.entity_class_id.in_(object_class_ids)
-        )
-        self._collect_object_class_cascading_ids(
-            [x.entity_class_id for x in item_list], [x.entity_class_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # object
-        item_list = self.query(self.Object.entity_id).filter(self.Object.entity_id.in_(object_ids))
-        diff_item_list = self.query(self.DiffObject.entity_id).filter(self.DiffObject.entity_id.in_(object_ids))
-        self._collect_object_cascading_ids(
-            [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # relationship_class
-        item_list = self.query(self.RelationshipClass.entity_class_id).filter(
-            self.RelationshipClass.entity_class_id.in_(relationship_class_ids)
-        )
-        diff_item_list = self.query(self.DiffRelationshipClass.entity_class_id).filter(
-            self.DiffRelationshipClass.entity_class_id.in_(relationship_class_ids)
-        )
-        self._collect_relationship_class_cascading_ids(
-            [x.entity_class_id for x in item_list], [x.entity_class_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # relationship
-        item_list = self.query(self.Relationship.entity_id).filter(self.Relationship.entity_id.in_(relationship_ids))
-        diff_item_list = self.query(self.DiffRelationship.entity_id).filter(
-            self.DiffRelationship.entity_id.in_(relationship_ids)
-        )
-        self._collect_relationship_cascading_ids(
-            [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter
-        item_list = self.query(self.ParameterDefinition.id).filter(
-            self.ParameterDefinition.id.in_(parameter_definition_ids)
-        )
-        diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.id.in_(parameter_definition_ids)
-        )
-        self._collect_parameter_definition_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.id.in_(parameter_value_ids))
-        diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.id.in_(parameter_value_ids)
-        )
-        self._collect_parameter_value_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter_tag
-        item_list = self.query(self.ParameterTag.id).filter(self.ParameterTag.id.in_(parameter_tag_ids))
-        diff_item_list = self.query(self.DiffParameterTag.id).filter(self.DiffParameterTag.id.in_(parameter_tag_ids))
-        self._collect_parameter_tag_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter_definition_tag
-        item_list = self.query(self.ParameterDefinitionTag.id).filter(
-            self.ParameterDefinitionTag.id.in_(parameter_definition_tag_ids)
-        )
-        diff_item_list = self.query(self.DiffParameterDefinitionTag.id).filter(
-            self.DiffParameterDefinitionTag.id.in_(parameter_definition_tag_ids)
-        )
-        self._collect_parameter_definition_tag_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter_value_list
-        item_list = self.query(self.ParameterValueList.id).filter(
-            self.ParameterValueList.id.in_(parameter_value_list_ids)
-        )
-        diff_item_list = self.query(self.DiffParameterValueList.id).filter(
-            self.DiffParameterValueList.id.in_(parameter_value_list_ids)
-        )
-        self._collect_parameter_value_list_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-        return item_id, diff_item_id
+        cascading_ids = {}
+        self._merge(cascading_ids, self._object_class_cascading_ids(set(object_class_ids)))
+        self._merge(cascading_ids, self._object_cascading_ids(set(object_ids)))
+        self._merge(cascading_ids, self._relationship_class_cascading_ids(set(relationship_class_ids)))
+        self._merge(cascading_ids, self._relationship_cascading_ids(set(relationship_ids)))
+        self._merge(cascading_ids, self._parameter_definition_cascading_ids(set(parameter_definition_ids)))
+        self._merge(cascading_ids, self._parameter_value_cascading_ids(set(parameter_value_ids)))
+        self._merge(cascading_ids, self._parameter_tag_cascading_ids(set(parameter_tag_ids)))
+        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids(set(parameter_definition_tag_ids)))
+        self._merge(cascading_ids, self._parameter_value_list_cascading_ids(set(parameter_value_list_ids)))
+        self._merge(cascading_ids, self._alternative_cascading_ids(set(alternative_ids)))
+        self._merge(cascading_ids, self._scenario_cascading_ids(set(scenario_ids)))
+        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids(set(scenario_alternative_ids)))
+        return cascading_ids
 
-    def _collect_alternative_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
+    @staticmethod
+    def _merge(left, right):
+        for tablename, ids in right.items():
+            left.setdefault(tablename, set()).update(ids)
+
+    def _alternative_cascading_ids(self, ids):
         """Finds object class cascading ids and adds them to the given dictionaries."""
-        # Touch
-        item_id.setdefault("alternative", set()).update(ids)
-        diff_item_id.setdefault("alternative", set()).update(diff_ids)
-        # parameter values
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.alternative_id.in_(ids))
-        diff_item_list = self.query(self.DiffParameterValue.id).filter(self.DiffParameterValue.alternative_id.in_(ids))
-        self._collect_parameter_value_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        cascading_ids = {"alternative": ids}
+        parameter_values = self.query(self.parameter_value_sq.c.id).filter(self.in_(self.parameter_value_sq.c.id, ids))
+        scenario_alternatives = self.query(self.scenario_alternatives_sq.c.id).filter(
+            self.in_(self.scenario_alternatives_sq.c.alternative_id, ids)
         )
-        # scenario alternatives
-        item_list = self.query(self.ScenarioAlternatives.alternative_id).filter(
-            self.ScenarioAlternatives.alternative_id.in_(ids)
-        )
-        diff_item_list = self.query(self.DiffScenarioAlternatives.alternative_id).filter(
-            self.DiffScenarioAlternatives.alternative_id.in_(diff_ids)
-        )
-        self._collect_scenario_alternatives_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
+        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
+        return cascading_ids
 
-    def _collect_scenario_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Finds object class cascading ids and adds them to the given dictionaries."""
-        # Touch
-        item_id.setdefault("scenario", set()).update(ids)
-        diff_item_id.setdefault("scenario", set()).update(diff_ids)
-        # scenario alternatives
-        item_list = self.query(self.ScenarioAlternatives.scenario_id).filter(
-            self.ScenarioAlternatives.scenario_id.in_(ids)
+    def _scenario_cascading_ids(self, ids):
+        cascading_ids = {"scenario": ids}
+        scenario_alternatives = self.query(self.scenario_alternatives_sq.c.id).filter(
+            self.in_(self.scenario_alternatives_sq.c.scenario_id, ids)
         )
-        diff_item_list = self.query(self.DiffScenarioAlternatives.scenario_id).filter(
-            self.DiffScenarioAlternatives.scenario_id.in_(diff_ids)
-        )
-        self._collect_scenario_alternatives_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
+        return cascading_ids
 
-    def _collect_object_class_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Finds object class cascading ids and adds them to the given dictionaries."""
-        # Touch
-        item_id.setdefault("entity_class", set()).update(ids)
-        diff_item_id.setdefault("entity_class", set()).update(diff_ids)
-        item_id.setdefault("object_class", set()).update(ids)
-        diff_item_id.setdefault("object_class", set()).update(diff_ids)
-        # object
-        item_list = self.query(self.Entity.id).filter(self.Entity.class_id.in_(ids))
-        diff_item_list = self.query(self.DiffEntity.id).filter(self.DiffEntity.class_id.in_(ids + diff_ids))
-        self._collect_object_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+    def _object_class_cascading_ids(self, ids):
+        """Returns object class cascading ids."""
+        cascading_ids = {"entity_class": ids, "object_class": ids}
+        objects = self.query(self.object_sq.c.id).filter(self.in_(self.object_sq.c.class_id, ids))
+        relationship_classes = self.query(self.relationship_class_sq.c.id).filter(
+            self.in_(self.relationship_class_sq.c.object_class_id, ids)
         )
-        # relationship_class
-        item_list = self.query(self.RelationshipEntityClass.entity_class_id).filter(
-            self.RelationshipEntityClass.member_class_id.in_(ids)
+        paramerer_definitions = self.query(self.parameter_definition_sq.c.id).filter(
+            self.in_(self.parameter_definition_sq.c.object_class_id, ids)
         )
-        diff_item_list = self.query(self.DiffRelationshipEntityClass.entity_class_id).filter(
-            self.DiffRelationshipEntityClass.member_class_id.in_(ids + diff_ids)
-        )
-        self._collect_relationship_class_cascading_ids(
-            [x.entity_class_id for x in item_list], [x.entity_class_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter
-        item_list = self.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.entity_class_id.in_(ids))
-        diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.entity_class_id.in_(ids + diff_ids)
-        )
-        self._collect_parameter_definition_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._object_cascading_ids({x.id for x in objects}))
+        self._merge(cascading_ids, self._relationship_class_cascading_ids({x.id for x in relationship_classes}))
+        self._merge(cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}))
+        return cascading_ids
 
-    def _collect_object_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Finds object cascading ids and adds them to the given dictionaries."""
-        # Touch
-        item_id.setdefault("entity", set()).update(ids)
-        diff_item_id.setdefault("entity", set()).update(diff_ids)
-        item_id.setdefault("object", set()).update(ids)
-        diff_item_id.setdefault("object", set()).update(diff_ids)
-        # relationship
-        item_list = self.query(self.RelationshipEntity.entity_id).filter(self.RelationshipEntity.member_id.in_(ids))
-        diff_item_list = self.query(self.DiffRelationshipEntity.entity_id).filter(
-            self.DiffRelationshipEntity.member_id.in_(ids + diff_ids)
+    def _object_cascading_ids(self, ids):
+        """Returns object cascading ids."""
+        cascading_ids = {"entity": ids, "object": ids}
+        relationships = self.query(self.relationship_sq.c.id).filter(self.in_(self.relationship_sq.c.object_id, ids))
+        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
+            self.in_(self.parameter_value_sq.c.object_id, ids)
         )
-        self._collect_relationship_cascading_ids(
-            [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.entity_id.in_(ids))
-        diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.entity_id.in_(ids + diff_ids)
-        )
-        self._collect_parameter_value_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}))
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
+        return cascading_ids
 
-    def _collect_relationship_class_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of relationship classes
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`."""
-        # Touch
-        item_id.setdefault("relationship_class", set()).update(ids)
-        diff_item_id.setdefault("relationship_class", set()).update(diff_ids)
-        item_id.setdefault("relationship_entity_class", set()).update(ids)
-        diff_item_id.setdefault("relationship_entity_class", set()).update(diff_ids)
-        item_id.setdefault("entity_class", set()).update(ids)
-        diff_item_id.setdefault("entity_class", set()).update(diff_ids)
-        # relationship
-        item_list = self.query(self.Relationship.entity_id).filter(self.Relationship.entity_class_id.in_(ids))
-        diff_item_list = self.query(self.DiffRelationship.entity_id).filter(
-            self.DiffRelationship.entity_class_id.in_(ids + diff_ids)
+    def _relationship_class_cascading_ids(self, ids):
+        """Returns relationship class cascading ids."""
+        cascading_ids = {"relationship_class": ids, "relationship_entity_class": ids, "entity_class": ids}
+        relationships = self.query(self.relationship_sq.c.id).filter(self.in_(self.relationship_sq.c.class_id, ids))
+        paramerer_definitions = self.query(self.parameter_definition_sq.c.id).filter(
+            self.in_(self.parameter_definition_sq.c.relationship_class_id, ids)
         )
-        self._collect_relationship_cascading_ids(
-            [x.entity_id for x in item_list], [x.entity_id for x in diff_item_list], item_id, diff_item_id
-        )
-        # parameter
-        item_list = self.query(self.ParameterDefinition.id).filter(self.ParameterDefinition.entity_class_id.in_(ids))
-        diff_item_list = self.query(self.DiffParameterDefinition.id).filter(
-            self.DiffParameterDefinition.entity_class_id.in_(ids + diff_ids)
-        )
-        self._collect_parameter_definition_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}))
+        self._merge(cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}))
+        return cascading_ids
 
-    def _collect_relationship_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of relationships
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`."""
-        # Touch
-        item_id.setdefault("relationship", set()).update(ids)
-        diff_item_id.setdefault("relationship", set()).update(diff_ids)
-        item_id.setdefault("entity", set()).update(ids)
-        diff_item_id.setdefault("entity", set()).update(diff_ids)
-        item_id.setdefault("relationship_entity", set()).update(ids)
-        diff_item_id.setdefault("relationship_entity", set()).update(diff_ids)
-        # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.entity_id.in_(ids))
-        diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.entity_id.in_(ids + diff_ids)
+    def _relationship_cascading_ids(self, ids):
+        """Returns relationship cascading ids."""
+        cascading_ids = {"relationship": ids, "entity": ids, "relationship_entity": ids}
+        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
+            self.in_(self.parameter_value_sq.c.relationship_id, ids)
         )
-        self._collect_parameter_value_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
+        return cascading_ids
 
-    def _collect_parameter_definition_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of parameter definitions
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`."""
-        # Touch
-        item_id.setdefault("parameter_definition", set()).update(ids)
-        diff_item_id.setdefault("parameter_definition", set()).update(diff_ids)
-        # parameter_value
-        item_list = self.query(self.ParameterValue.id).filter(self.ParameterValue.parameter_definition_id.in_(ids))
-        diff_item_list = self.query(self.DiffParameterValue.id).filter(
-            self.DiffParameterValue.parameter_definition_id.in_(ids + diff_ids)
+    def _parameter_definition_cascading_ids(self, ids):
+        """Returns parameter definition cascading ids."""
+        cascading_ids = {"parameter_definition": ids}
+        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
+            self.in_(self.parameter_value_sq.c.parameter_definition_id, ids)
         )
-        self._collect_parameter_value_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
+        param_def_tags = self.query(self.parameter_definition_tag_sq.c.id).filter(
+            self.in_(self.parameter_definition_tag_sq.c.parameter_definition_id, ids)
         )
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
+        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids({x.id for x in param_def_tags}))
+        return cascading_ids
+
+    def _parameter_value_cascading_ids(self, ids):  # pylint: disable=no-self-use
+        """Returns parameter value cascading ids."""
+        return {"parameter_value": ids}
+
+    def _parameter_tag_cascading_ids(self, ids):
+        """Returns parameter tag cascading ids."""
+        cascading_ids = {"parameter_tag": ids}
         # parameter_definition_tag
-        item_list = self.query(self.ParameterDefinitionTag.id).filter(
-            self.ParameterDefinitionTag.parameter_definition_id.in_(ids)
+        param_def_tags = self.query(self.parameter_definition_tag_sq.c.id).filter(
+            self.in_(self.parameter_definition_tag_sq.c.parameter_tag_id, ids)
         )
-        diff_item_list = self.query(self.DiffParameterDefinitionTag.id).filter(
-            self.DiffParameterDefinitionTag.parameter_definition_id.in_(ids + diff_ids)
-        )
-        self._collect_parameter_definition_tag_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
+        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids({x.id for x in param_def_tags}))
+        return cascading_ids
 
-    def _collect_parameter_value_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of parameter values
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`."""
-        item_id.setdefault("parameter_value", set()).update(ids)
-        diff_item_id.setdefault("parameter_value", set()).update(diff_ids)
+    def _parameter_definition_tag_cascading_ids(self, ids):  # pylint: disable=no-self-use
+        """Returns parameter definition tag cascading ids."""
+        return {"parameter_definition_tag": ids}
 
-    def _collect_parameter_tag_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of parameter tags
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`."""
-        # Touch
-        item_id.setdefault("parameter_tag", set()).update(ids)
-        diff_item_id.setdefault("parameter_tag", set()).update(diff_ids)
-        # parameter_definition_tag
-        item_list = self.query(self.ParameterDefinitionTag.id).filter(
-            self.ParameterDefinitionTag.parameter_tag_id.in_(ids)
-        )
-        diff_item_list = self.query(self.DiffParameterDefinitionTag.id).filter(
-            self.DiffParameterDefinitionTag.parameter_tag_id.in_(ids + diff_ids)
-        )
-        self._collect_parameter_definition_tag_cascading_ids(
-            [x.id for x in item_list], [x.id for x in diff_item_list], item_id, diff_item_id
-        )
-
-    def _collect_parameter_definition_tag_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of parameter definition tag pairs
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`."""
-        item_id.setdefault("parameter_definition_tag", set()).update(ids)
-        diff_item_id.setdefault("parameter_definition_tag", set()).update(diff_ids)
-
-    def _collect_parameter_value_list_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        """Find out which items need to be removed due to the removal of parameter value lists
-        given by `ids` and `diff_ids`,
-        and add their ids to `item_id` and `diff_item_id`.
+    def _parameter_value_list_cascading_ids(self, ids):  # pylint: disable=no-self-use
+        """Returns parameter value list cascading ids and adds them to the given dictionaries.
         TODO: Should we remove parameter definitions here? Set their parameter_value_list_id to NULL?
         """
-        item_id.setdefault("parameter_value_list", set()).update(ids)
-        diff_item_id.setdefault("parameter_value_list", set()).update(diff_ids)
+        return {"parameter_value_list": ids}
 
-    def _collect_scenario_alternatives_cascading_ids(self, ids, diff_ids, item_id, diff_item_id):
-        item_id.setdefault("scenario_alternatives", set()).update(ids)
-        diff_item_id.setdefault("scenario_alternatives", set()).update(diff_ids)
+    def _scenario_alternatives_cascading_ids(self, ids):
+        return {"scenario_alternative": ids}
