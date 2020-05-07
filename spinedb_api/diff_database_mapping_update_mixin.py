@@ -70,8 +70,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update alternatives."""
         checked_kwargs_list, intgr_error_log = self.check_alternatives_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_alternatives(*checked_kwargs_list)
-        updated_item_list = self.query(self.alternative_sq).filter(self.alternative_sq.c.id.in_(updated_ids))
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_alternatives(self, *checked_kwargs_list, strict=False):
         """Update object classes without checking integrity."""
@@ -94,8 +93,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update scenarios."""
         checked_kwargs_list, intgr_error_log = self.check_scenarios_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_scenarios(*checked_kwargs_list)
-        updated_item_list = self.query(self.scenario_sq).filter(self.scenario_sq.c.id.in_(updated_ids))
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_scenarios(self, *checked_kwargs_list, strict=False):
         """Update scenarios without checking integrity."""
@@ -119,10 +117,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update scenario_alternatives."""
         checked_kwargs_list, intgr_error_log = self.check_scenario_alternatives_for_update(*kwargs_list, strict=strict)
         updated_ids = self._update_scenario_alternatives(*checked_kwargs_list)
-        updated_item_list = self.query(self.scenario_alternatives_sq).filter(
-            self.scenario_alternatives_sq.c.id.in_(updated_ids)
-        )
-        return updated_item_list, intgr_error_log
+        return updated_ids, intgr_error_log
 
     def _update_scenario_alternatives(self, *checked_kwargs_list, strict=False):
         """Update scenario_alternatives without checking integrity."""

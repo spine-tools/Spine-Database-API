@@ -97,7 +97,7 @@ class DiffDatabaseMappingAddMixin:
             "parameter_definition_tag": "parameter_definition_tag_id",
             "alternative": "alternative_id",
             "scenario": "scenario_id",
-            "scenario_alternatives": "scenario_alternatives_id"
+            "scenario_alternatives": "scenario_alternatives_id",
         }[tablename]
         next_id = self._next_id_with_lock()
         id_ = getattr(next_id, next_id_fieldname)
@@ -141,10 +141,8 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_alternatives(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.alternative_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
-    
+        return ids, intgr_error_log
+
     def _add_alternatives(self, *items):
         """Add object classes to database without checking integrity.
 
@@ -156,7 +154,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("alternative", *items)
+        items_to_add, ids = self._items_and_ids("alternative", *items)
         self._do_add_alternatives(*items_to_add)
         self.added_item_id["alternative"].update(ids)
         return ids
@@ -187,10 +185,8 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_scenarios(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.scenario_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
-    
+        return ids, intgr_error_log
+
     def _add_scenarios(self, *items):
         """Add object classes to database without checking integrity.
 
@@ -202,7 +198,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("scenario", *items)
+        items_to_add, ids = self._items_and_ids("scenario", *items)
         self._do_add_scenarios(*items_to_add)
         self.added_item_id["scenario"].update(ids)
         return ids
@@ -233,10 +229,8 @@ class DiffDatabaseMappingAddMixin:
         ids = self._add_scenario_alternatives(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
-        sq = self.scenario_alternatives_sq
-        new_items = self.query(sq).filter(sq.c.id.in_(ids))
-        return new_items, intgr_error_log
-    
+        return ids, intgr_error_log
+
     def _add_scenario_alternatives(self, *items):
         """Add object classes to database without checking integrity.
 
@@ -248,7 +242,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_with_ids("scenario_alternatives", *items)
+        items_to_add, ids = self._items_and_ids("scenario_alternatives", *items)
         self._do_add_scenario_alternatives(*items_to_add)
         self.added_item_id["scenario_alternatives"].update(ids)
         return ids
