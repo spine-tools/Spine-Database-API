@@ -218,16 +218,20 @@ def _datetime_from_database(value):
 
 
 def _duration_from_database(value):
-    """Converts a duration database value into a Duration object."""
+    """
+    Converts a duration database value into a Duration object.
+
+    The deprecated 'variable durations' will be converted to Arrays.
+    """
     if isinstance(value, (str, int)):
         # Set default unit to minutes if value is a plain number.
         if not isinstance(value, str):
             value = f"{value}m"
-        value = [duration_to_relativedelta(value)]
-    elif isinstance(value, Sequence):  # It is a list of durations.
+    elif isinstance(value, Sequence):  # It is a deprecate list of durations.
+        # This type of 'variable duration' is deprecated. We make an Array instead.
         # Set default unit to minutes for plain numbers in value.
         value = [v if isinstance(v, str) else f"{v}m" for v in value]
-        value = [duration_to_relativedelta(v) for v in value]
+        return Array([Duration(v) for v in value])
     else:
         raise ParameterValueFormatError("Duration value is of unsupported type")
     return Duration(value)
@@ -483,11 +487,11 @@ class DateTime:
         return str(self._value)
 
     def value_to_database_data(self):
-        """Returns the database representation of the duration."""
+        """Returns the database representation of the datetime."""
         return self._value.isoformat()
 
     def to_dict(self):
-        """Retturns the database representation of this object."""
+        """Returns the database representation of this object."""
         return {"type": "date_time", "data": self.value_to_database_data()}
 
     def to_database(self):
@@ -504,26 +508,20 @@ class Duration:
     """
     This class represents a duration in time.
 
-    Durations are always handled as variable durations, that is, as lists of relativedeltas.
+    Durations are always handled as relativedeltas.
 
     Attributes:
-        value (str, relativedelta, list): the time step(s)
+        value (str or relativedelta): the time step
     """
 
     def __init__(self, value=None):
         if value is None:
-            value = [relativedelta(hours=1)]
+            value = relativedelta(hours=1)
         elif isinstance(value, str):
-            value = [duration_to_relativedelta(value)]
-        elif isinstance(value, relativedelta):
-            value = [value]
-        elif isinstance(value, Iterable):
-            for index, element in enumerate(value):
-                if isinstance(element, str):
-                    value[index] = duration_to_relativedelta(element)
+            value = duration_to_relativedelta(value)
         elif isinstance(value, Duration):
             value = copy(value._value)
-        else:
+        if not isinstance(value, relativedelta):
             raise ParameterValueFormatError(f'Could not parse duration from "{value}"')
         self._value = value
 
@@ -534,20 +532,14 @@ class Duration:
         return self._value == other._value
 
     def __hash__(self):
-        return hash(tuple(self._value))
+        return hash(self._value)
 
     def __str__(self):
-        return ", ".join(relativedelta_to_duration(delta) for delta in self._value)
-
-    def to_text(self):
-        """Returns a comma separated str representation of the duration"""
-        return ", ".join(relativedelta_to_duration(delta) for delta in self.value)
+        return str(relativedelta_to_duration(self._value))
 
     def value_to_database_data(self):
         """Returns the 'data' attribute part of Duration's database representation."""
-        if len(self._value) == 1:
-            return relativedelta_to_duration(self._value[0])
-        return [relativedelta_to_duration(v) for v in self._value]
+        return relativedelta_to_duration(self._value)
 
     def to_dict(self):
         """Returns the database representation of the duration."""
@@ -559,7 +551,7 @@ class Duration:
 
     @property
     def value(self):
-        """Returns the duration as a list of relativedeltas."""
+        """Returns the duration as a :class:`relativedelta`."""
         return self._value
 
 
