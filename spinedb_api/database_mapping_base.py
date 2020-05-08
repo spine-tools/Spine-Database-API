@@ -427,6 +427,7 @@ class DatabaseMappingBase:
                     rel_ent_cls_sq.c.dimension.label("dimension"),
                     rel_ent_cls_sq.c.member_class_id.label("object_class_id"),
                     self.entity_class_sq.c.name.label("name"),
+                    self.entity_class_sq.c.description.label("description"),
                     self.entity_class_sq.c.hidden.label("hidden"),
                     self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
@@ -643,6 +644,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.relationship_class_sq.c.id.label("id"),
                     self.relationship_class_sq.c.name.label("name"),
+                    self.relationship_class_sq.c.description.label("description"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                 )
@@ -682,6 +684,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
+                    self.ext_relationship_class_sq.c.description,
                     func.group_concat(self.ext_relationship_class_sq.c.object_class_id).label("object_class_id_list"),
                     func.group_concat(self.ext_relationship_class_sq.c.object_class_name).label(
                         "object_class_name_list"
