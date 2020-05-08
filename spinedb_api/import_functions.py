@@ -525,7 +525,7 @@ def import_object_parameter_values(db_map, data):
     parameter_value_list_dict = {x.id: x.value_list for x in db_map.query(db_map.wide_parameter_value_list_sq)}
     existing_objects = {(o["name"], o["class_id"]): o_id for o_id, o in object_dict.items()}
     existing_parameters = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameter_dict.items()}
-    alternatives = set(a.id for a in db_map.query(db_map.alternative_sq()))
+    alternatives = set(a.id for a in db_map.query(db_map.alternative_sq))
     error_log = []
     new_values = []
     update_values = []
@@ -635,7 +635,7 @@ def import_relationship_parameter_values(db_map, data):
     existing_relationships = {
         (r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationship_dict.items()
     }
-    alternatives = set(a.id for a in db_map.alternative_list())
+    alternatives = set(a.id for a in db_map.query(db_map.alternative_sq))
 
     error_log = []
     new_values = []
