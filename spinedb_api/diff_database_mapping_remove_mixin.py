@@ -217,4 +217,4 @@ class DiffDatabaseMappingRemoveMixin:
         return {"parameter_value_list": ids}
 
     def _scenario_alternatives_cascading_ids(self, ids):
-        return {"scenario_alternative": ids}
+        return {"scenario_alternatives": ids}
