@@ -87,7 +87,7 @@ class DiffDatabaseMappingUpdateMixin:
     def _update_alternatives(self, *checked_kwargs_list, strict=False):
         """Update object classes without checking integrity."""
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
                 "alternative", checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffAlternative, items_for_update)
@@ -111,7 +111,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update scenarios without checking integrity."""
 
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
                 "scenario", checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffScenario, items_for_update)
@@ -135,7 +135,7 @@ class DiffDatabaseMappingUpdateMixin:
         """Update scenario_alternatives without checking integrity."""
 
         try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self._handle_items(
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
                 "scenario_alternatives", checked_kwargs_list
             )
             self.session.bulk_update_mappings(self.DiffScenarioAlternatives, items_for_update)
