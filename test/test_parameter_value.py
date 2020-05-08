@@ -171,30 +171,24 @@ class TestParameterValue(unittest.TestCase):
     def test_from_database_Duration(self):
         database_value = '{"type": "duration", "data": "4 seconds"}'
         value = from_database(database_value)
-        self.assertEqual(value.value, [relativedelta(seconds=4)])
+        self.assertEqual(value.value, relativedelta(seconds=4))
 
     def test_from_database_Duration_default_units(self):
         database_value = '{"type": "duration", "data": 23}'
         value = from_database(database_value)
-        self.assertEqual(value.value, [relativedelta(minutes=23)])
+        self.assertEqual(value.value, relativedelta(minutes=23))
 
-    def test_from_database_Duration_as_list(self):
+    def test_from_database_Duration_legacy_list_format_converted_to_Array(self):
         database_value = '{"type": "duration", "data": ["1 hour", "1h", 60, "2 hours"]}'
         value = from_database(database_value)
-        expected = [relativedelta(hours=1), relativedelta(hours=1), relativedelta(minutes=60), relativedelta(hours=2)]
-        self.assertEqual(value.value, expected)
+        expected = Array([relativedelta(hours=1), relativedelta(hours=1), relativedelta(minutes=60), relativedelta(hours=2)])
+        self.assertEqual(value, expected)
 
     def test_Duration_to_database(self):
         value = Duration(duration_to_relativedelta("8 years"))
         database_value = value.to_database()
         value_as_dict = json.loads(database_value)
         self.assertEqual(value_as_dict, {"type": "duration", "data": "8Y"})
-
-    def test_Duration_to_database_as_list(self):
-        value = Duration([relativedelta(years=1), "3 minutes"])
-        database_value = value.to_database()
-        value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"type": "duration", "data": ["1Y", "3m"]})
 
     def test_from_database_TimePattern(self):
         database_value = """
