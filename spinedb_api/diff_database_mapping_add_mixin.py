@@ -112,6 +112,9 @@ class DiffDatabaseMappingAddMixin:
                 "parameter_tag": "ParameterTag",
                 "parameter_definition_tag": "ParameterDefinitionTag",
                 "parameter_value_list": "ParameterValueList",
+                "alternative": "Alternative",
+                "scenario": "Scenario",
+                "scenario_alternatives": "ScenarioAlternatives",
             }[tablename]
             class_ = getattr(self, classname)
             max_id = self.query(func.max(class_.id)).scalar()
