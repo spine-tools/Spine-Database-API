@@ -142,6 +142,64 @@ def import_data(
     return num_imports, error_log
 
 
+def get_data_for_import(
+    db_map,
+    object_classes=(),
+    relationship_classes=(),
+    parameter_value_lists=(),
+    object_parameters=(),
+    relationship_parameters=(),
+    objects=(),
+    relationships=(),
+    object_parameter_values=(),
+    relationship_parameter_values=(),
+):
+    """Returns an iterator of data for import, that the user can call instead of `import_data`
+    if they want to add and update the data by themselves.
+    Especially intended to be used with the toolbox undo/redo functionality.
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        object_classes (List[str]): List of object class names
+        relationship_classes (List[List[str, List(str)]):
+            List of lists with relationship class names and list of object class names
+        object_parameters (List[List[str, str]]):
+            list of lists with object class name and parameter name
+        relationship_parameters (List[List[str, str]]):
+            list of lists with relationship class name and parameter name
+        objects (List[List[str, str]]):
+            list of lists with object class name and object name
+        relationships: (List[List[str,List(String)]]):
+            list of lists with relationship class name and list of object names
+        object_parameter_values (List[List[str, str, str|numeric]]):
+            list of lists with object name, parameter name, parameter value
+        relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
+            list of lists with relationship class name, list of object names, parameter name,
+            parameter value
+
+    Returns:
+        dict(str, list)
+    """
+    if object_classes:
+        yield ("object class", _get_object_classes_for_import(db_map, object_classes))
+    if relationship_classes:
+        yield ("relationship class", _get_relationship_classes_for_import(db_map, relationship_classes))
+    if parameter_value_lists:
+        yield ("parameter value list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
+    if object_parameters:
+        yield ("parameter definition", _get_object_parameters_for_import(db_map, object_parameters))
+    if relationship_parameters:
+        yield ("parameter definition", _get_relationship_parameters_for_import(db_map, relationship_parameters))
+    if objects:
+        yield ("object", _get_objects_for_import(db_map, objects))
+    if relationships:
+        yield ("relationship", _get_relationships_for_import(db_map, relationships))
+    if object_parameter_values:
+        yield ("parameter value", _get_object_parameter_values_for_import(db_map, object_parameter_values))
+    if relationship_parameter_values:
+        yield ("parameter value", _get_relationship_parameter_values_for_import(db_map, relationship_parameter_values))
+
+
 def import_object_classes(db_map, data):
     """Imports object classes.
 
@@ -158,6 +216,13 @@ def import_object_classes(db_map, data):
     Returns:
         (Int, List) Number of successful inserted object classes, list of errors
     """
+    to_add, to_update, error_log = _get_object_classes_for_import(db_map, data)
+    added = db_map._add_object_classes(*to_add)
+    updated = db_map._update_object_classes(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_object_classes_for_import(db_map, data):
     object_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
     checked = set()
     to_add = []
@@ -201,9 +266,7 @@ def import_object_classes(db_map, data):
             to_update.append(item)
         else:
             to_add.append(item)
-    added = db_map._add_object_classes(*to_add)
-    updated = db_map._update_object_classes(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
 
 
 def import_relationship_classes(db_map, data):
@@ -225,6 +288,13 @@ def import_relationship_classes(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, to_update, error_log = _get_relationship_classes_for_import(db_map, data)
+    added = db_map._add_wide_relationship_classes(*to_add)
+    updated = db_map._update_wide_relationship_classes(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_relationship_classes_for_import(db_map, data):
     object_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
     relationship_class_ids = {x.name: x.id for x in db_map.query(db_map.wide_relationship_class_sq)}
     checked = set()
@@ -270,9 +340,7 @@ def import_relationship_classes(db_map, data):
             to_update.append(item)
         else:
             to_add.append(item)
-    added = db_map._add_wide_relationship_classes(*to_add)
-    updated = db_map._update_wide_relationship_classes(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
 
 
 def import_objects(db_map, data):
@@ -291,6 +359,12 @@ def import_objects(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, _, error_log = _get_objects_for_import(db_map, data)
+    added = db_map._add_objects(*to_add)
+    return len(added), error_log
+
+
+def _get_objects_for_import(db_map, data):
     object_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
     object_ids = {(o.class_id, o.name): o.id for o in db_map.query(db_map.object_sq)}
     error_log = []
@@ -311,8 +385,7 @@ def import_objects(db_map, data):
                     msg=f"Could not import object '{name}' with class '{oc_name}': {e.msg}", db_type="object"
                 )
             )
-    added = db_map._add_objects(*to_add)
-    return len(added), error_log
+    return to_add, [], error_log
 
 
 def import_relationships(db_map, data):
@@ -331,6 +404,12 @@ def import_relationships(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, _, error_log = _get_relationships_for_import(db_map, data)
+    added = db_map._add_wide_relationships(*to_add)
+    return len(added), error_log
+
+
+def _get_relationships_for_import(db_map, data):
     relationships = {x.name: x for x in db_map.query(db_map.wide_relationship_sq)}
     relationship_ids_per_name = {(x.class_id, x.name): x.id for x in relationships.values()}
     relationship_ids_per_obj_lst = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
@@ -380,8 +459,7 @@ def import_relationships(db_map, data):
                     db_type="relationship",
                 )
             )
-    added = db_map._add_wide_relationships(*to_add)
-    return len(added), error_log
+    return to_add, [], error_log
 
 
 def import_object_parameters(db_map, data):
@@ -403,6 +481,13 @@ def import_object_parameters(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, to_update, error_log = _get_object_parameters_for_import(db_map, data)
+    added = db_map._add_parameter_definitions(*to_add)
+    updated = db_map._update_parameter_definitions(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_object_parameters_for_import(db_map, data):
     parameter_ids = {
         (x.object_class_id, x.name): x.id for x in db_map.query(db_map.parameter_definition_sq) if x.object_class_id
     }
@@ -462,9 +547,7 @@ def import_object_parameters(db_map, data):
             to_update.append(item)
         else:
             to_add.append(item)
-    added = db_map._add_parameter_definitions(*to_add)
-    updated = db_map._update_parameter_definitions(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
 
 
 def import_relationship_parameters(db_map, data):
@@ -486,6 +569,13 @@ def import_relationship_parameters(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, to_update, error_log = _get_relationship_parameters_for_import(db_map, data)
+    added = db_map._add_parameter_definitions(*to_add)
+    updated = db_map._update_parameter_definitions(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_relationship_parameters_for_import(db_map, data):
     parameter_ids = {
         (x.relationship_class_id, x.name): x.id
         for x in db_map.query(db_map.parameter_definition_sq)
@@ -547,9 +637,7 @@ def import_relationship_parameters(db_map, data):
             to_update.append(item)
         else:
             to_add.append(item)
-    added = db_map._add_parameter_definitions(*to_add)
-    updated = db_map._update_parameter_definitions(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
 
 
 def import_object_parameter_values(db_map, data):
@@ -570,6 +658,13 @@ def import_object_parameter_values(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, to_update, error_log = _get_object_parameter_values_for_import(db_map, data)
+    added = db_map._add_parameter_values(*to_add)
+    updated = db_map._update_parameter_values(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_object_parameter_values_for_import(db_map, data):
     object_class_ids = {x.name: x.id for x in db_map.query(db_map.object_class_sq)}
     parameter_value_ids = {(x.object_id, x.parameter_id): x.id for x in db_map.query(db_map.object_parameter_value_sq)}
     parameters = {x.id: x._asdict() for x in db_map.query(db_map.parameter_definition_sq)}
@@ -626,9 +721,7 @@ def import_object_parameter_values(db_map, data):
             to_update.append({"id": pv_id, "value": item["value"]})
         else:
             to_add.append(item)
-    added = db_map._add_parameter_values(*to_add)
-    updated = db_map._update_parameter_values(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
 
 
 def import_relationship_parameter_values(db_map, data):
@@ -647,6 +740,13 @@ def import_relationship_parameter_values(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, to_update, error_log = _get_relationship_parameter_values_for_import(db_map, data)
+    added = db_map._add_parameter_values(*to_add)
+    updated = db_map._update_parameter_values(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_relationship_parameter_values_for_import(db_map, data):
     object_class_id_lists = {
         x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
         for x in db_map.query(db_map.wide_relationship_class_sq)
@@ -718,9 +818,7 @@ def import_relationship_parameter_values(db_map, data):
             to_update.append({"id": pv_id, "value": item["value"]})
         else:
             to_add.append(item)
-    added = db_map._add_parameter_values(*to_add)
-    updated = db_map._update_parameter_values(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
 
 
 def import_parameter_value_lists(db_map, data):
@@ -742,6 +840,13 @@ def import_parameter_value_lists(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
+    to_add, to_update, error_log = _get_parameter_value_lists_for_import(db_map, data)
+    added = db_map._add_wide_parameter_value_lists(*to_add)
+    updated = db_map.update_wide_parameter_value_lists(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_parameter_value_lists_for_import(db_map, data):
     parameter_value_list_ids = {x.name: x.id for x in db_map.query(db_map.wide_parameter_value_list_sq)}
     seen = set()
     error_log = []
@@ -777,6 +882,4 @@ def import_parameter_value_lists(db_map, data):
             to_update.append(item)
         else:
             to_add.append(item)
-    added = db_map._add_wide_parameter_value_lists(*to_add)
-    updated = db_map.update_wide_parameter_value_lists(*to_update)
-    return len(added) + len(updated), error_log
+    return to_add, to_update, error_log
