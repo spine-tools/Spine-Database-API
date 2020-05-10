@@ -17,7 +17,7 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer
+from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
@@ -223,6 +223,10 @@ class DatabaseMappingBase:
         """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
         The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
         """
+        if ids is None:
+            return true()
+        if not ids:
+            return false()
         # NOTE: We need to isolate ids by clause, since there might be multiple clauses using this function in the same query.
         # TODO: Try to find something better
         self._ids_for_in_clause_id += 1
