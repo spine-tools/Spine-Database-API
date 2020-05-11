@@ -21,16 +21,25 @@ from .parameter_value import from_database
 
 def export_data(
     db_map,
-    object_class_ids=(),
-    relationship_class_ids=(),
-    parameter_value_list_ids=(),
-    object_parameter_ids=(),
-    relationship_parameter_ids=(),
-    object_ids=(),
-    relationship_ids=(),
-    object_parameter_value_ids=(),
-    relationship_parameter_value_ids=(),
+    object_class_ids=None,
+    relationship_class_ids=None,
+    parameter_value_list_ids=None,
+    object_parameter_ids=None,
+    relationship_parameter_ids=None,
+    object_ids=None,
+    relationship_ids=None,
+    object_parameter_value_ids=None,
+    relationship_parameter_value_ids=None,
 ):
+    """
+    Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
+
+    Args:
+        ...ids (Iterable): A collection of ids to pick from each corresponding table. ``None`` (the default) means pick them all.
+
+    Returns:
+        dict
+    """
     data = {
         "object_classes": export_object_classes(db_map, object_class_ids),
         "relationship_classes": export_relationship_classes(db_map, relationship_class_ids),
