@@ -40,6 +40,9 @@ class ImportErrorLogItem:
         self.imported_from = imported_from
         self.other = other
 
+    def __str__(self):
+        return self.msg
+
 
 def import_data(
     db_map,
@@ -297,7 +300,7 @@ def _get_relationship_classes_for_import(db_map, data):
         name = relationship_class[0]
         oc_names = relationship_class[1]
         oc_ids = tuple(object_class_ids.get(oc, None) for oc in oc_names)
-        item = {"name": name, "object_class_id_list": oc_ids, "type_id": db_map.relationship_class_type}
+        item = {"name": name, "object_class_id_list": list(oc_ids), "type_id": db_map.relationship_class_type}
         if len(relationship_class) > 2:
             item["description"] = relationship_class[2]
         rc_id = relationship_class_ids.pop(name, None)
@@ -421,7 +424,7 @@ def _get_relationships_for_import(db_map, data):
         item = {
             "name": class_name + "_" + "__".join(object_names),
             "class_id": rc_id,
-            "object_id_list": o_ids,
+            "object_id_list": list(o_ids),
             "object_class_id_list": oc_ids,
             "type_id": db_map.relationship_entity_type,
         }
@@ -821,7 +824,7 @@ def _get_parameter_value_lists_for_import(db_map, data):
     to_add = []
     to_update = []
     for name, value_list in data:
-        item = {"name": name, "value_list": value_list}
+        item = {"name": name, "value_list": list(value_list)}
         pvl_id = parameter_value_list_ids.pop(name, None)
         try:
             check_wide_parameter_value_list(item, parameter_value_list_ids)

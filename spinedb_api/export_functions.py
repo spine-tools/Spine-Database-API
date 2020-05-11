@@ -35,6 +35,7 @@ def export_data(
     Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
 
     Args:
+        db_map (DiffDatabaseMapping): The db to pull stuff from.
         ...ids (Iterable): A collection of ids to pick from each corresponding table. ``None`` (the default) means pick them all.
 
     Returns:
