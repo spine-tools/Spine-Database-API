@@ -17,7 +17,7 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer
+from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
@@ -44,12 +44,12 @@ class DatabaseMappingBase:
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 
-    def __init__(self, db_url, username=None, upgrade=False, codename=None):
+    def __init__(self, db_url, username=None, upgrade=False, codename=None, _create_engine=None):
         """Initialize class."""
         self.db_url = db_url
         self.username = username if username else "anon"
         self.codename = str(codename) if codename else str(db_url)
-        self.engine = self._create_engine(db_url)
+        self.engine = _create_engine(db_url) if _create_engine is not None else self._create_engine(db_url)
         self._check_db_version(upgrade=upgrade)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
@@ -232,6 +232,10 @@ class DatabaseMappingBase:
         """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
         The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
         """
+        if ids is None:
+            return true()
+        if not ids:
+            return false()
         # NOTE: We need to isolate ids by clause, since there might be multiple clauses using this function in the same query.
         # TODO: Try to find something better
         self._ids_for_in_clause_id += 1
@@ -454,6 +458,7 @@ class DatabaseMappingBase:
                     rel_ent_cls_sq.c.dimension.label("dimension"),
                     rel_ent_cls_sq.c.member_class_id.label("object_class_id"),
                     self.entity_class_sq.c.name.label("name"),
+                    self.entity_class_sq.c.description.label("description"),
                     self.entity_class_sq.c.hidden.label("hidden"),
                     self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
@@ -671,6 +676,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.relationship_class_sq.c.id.label("id"),
                     self.relationship_class_sq.c.name.label("name"),
+                    self.relationship_class_sq.c.description.label("description"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                 )
@@ -710,6 +716,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
+                    self.ext_relationship_class_sq.c.description,
                     func.group_concat(self.ext_relationship_class_sq.c.object_class_id).label("object_class_id_list"),
                     func.group_concat(self.ext_relationship_class_sq.c.object_class_name).label(
                         "object_class_name_list"

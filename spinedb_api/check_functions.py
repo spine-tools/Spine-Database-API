@@ -135,7 +135,7 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         raise SpineIntegrityError("Missing object class identifiers.")
     if not given_object_class_id_list:
         raise SpineIntegrityError("At least one object class is needed.")
-    if not all([id in object_class_ids for id in given_object_class_id_list]):
+    if not all([id_ in object_class_ids for id_ in given_object_class_id_list]):
         raise SpineIntegrityError("Object class not found.")
     try:
         name = wide_item["name"]
