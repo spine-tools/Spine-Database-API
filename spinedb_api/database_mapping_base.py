@@ -38,14 +38,20 @@ class DatabaseMappingBase:
     """Base class for all database mappings.
 
     It provides the :meth:`query` method for custom db querying.
-
-    :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
-    :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
-    :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 
     def __init__(self, db_url, username=None, upgrade=False, codename=None, _create_engine=None):
-        """Initialize class."""
+        """Initialize class.
+
+
+        :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
+        :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
+        :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
+        :param str codename: A name that uniquely identifies the class instance within a client application.
+        :param function _create_engine: A function that given the url, returns the engine.
+            It defaults to SQLAlchemy ``create_engine``. Mainly intended to pass ``spinedb_api.create_new_spine_database``
+            together with an in-memory SQLite ``db_url``.
+        """
         self.db_url = db_url
         self.username = username if username else "anon"
         self.codename = str(codename) if codename else str(db_url)

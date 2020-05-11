@@ -251,14 +251,6 @@ def _get_object_classes_for_import(db_map, data):
             if oc_id is not None:
                 object_class_ids[name] = oc_id
         if name in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import object class '{0}': {1}".format(
-                        name, "Duplicate object class, only first will be considered."
-                    ),
-                    db_type="object class",
-                )
-            )
             continue
         checked.add(name)
         if oc_id is not None:
@@ -325,14 +317,6 @@ def _get_relationship_classes_for_import(db_map, data):
             if rc_id is not None:
                 relationship_class_ids[name] = rc_id
         if name in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import relationship class '{0}' with object classes '{1}': {2}".format(
-                        name, oc_names, "Duplicate relationship class, only first will be considered."
-                    ),
-                    db_type="relationship class",
-                )
-            )
             continue
         checked.add(name)
         if rc_id is not None:
@@ -532,14 +516,6 @@ def _get_object_parameters_for_import(db_map, data):
                 parameter_ids[oc_id, parameter_name] = p_id
         checked_key = (oc_id, parameter_name)
         if checked_key in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import parameter '{0}' with class '{1}': {2}".format(
-                        parameter_name, class_name, "Duplicate parameter, only first will be considered."
-                    ),
-                    db_type="parameter definition",
-                )
-            )
             continue
         checked.add(checked_key)
         if p_id is not None:
@@ -622,14 +598,6 @@ def _get_relationship_parameters_for_import(db_map, data):
                 parameter_ids[rc_id, parameter_name] = p_id
         checked_key = (rc_id, parameter_name)
         if checked_key in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import parameter '{0}' with class '{1}': {2}".format(
-                        parameter_name, class_name, "Duplicate parameter, only first will be considered."
-                    ),
-                    db_type="parameter definition",
-                )
-            )
             continue
         checked.add(checked_key)
         if p_id is not None:
