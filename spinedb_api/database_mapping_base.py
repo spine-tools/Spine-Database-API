@@ -44,12 +44,12 @@ class DatabaseMappingBase:
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
 
-    def __init__(self, db_url, username=None, upgrade=False, codename=None):
+    def __init__(self, db_url, username=None, upgrade=False, codename=None, _create_engine=None):
         """Initialize class."""
         self.db_url = db_url
         self.username = username if username else "anon"
         self.codename = str(codename) if codename else str(db_url)
-        self.engine = self._create_engine(db_url)
+        self.engine = _create_engine(db_url) if _create_engine is not None else self._create_engine(db_url)
         self._check_db_version(upgrade=upgrade)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
