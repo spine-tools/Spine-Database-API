@@ -30,6 +30,9 @@ from .check_functions import (
 )
 from .parameter_value import to_database
 
+# TODO: Now `import_data` and `get_data_for_import` are called more openly from user provided data, we may want to
+# distrust the input a little bit more and insert some try excepts
+
 
 class ImportErrorLogItem:
     """Class to hold log data for import errors"""
@@ -236,12 +239,11 @@ def _get_object_classes_for_import(db_map, data):
             name = object_class
             item = {"name": name, "type_id": db_map.object_class_type}
         else:
-            name = object_class[0]
+            name, *optionals = object_class
             item = {"name": name, "type_id": db_map.object_class_type}
-            if len(object_class) > 1:
-                item["description"] = object_class[1]
-            if len(object_class) > 2:
-                item["display_icon"] = object_class[2]
+            item.update(dict(zip(("description", "display_icon"), optionals)))
+        if name in checked:
+            continue
         oc_id = object_class_ids.pop(name, None)
         try:
             check_object_class(item, object_class_ids, db_map.object_class_type)
@@ -253,8 +255,6 @@ def _get_object_classes_for_import(db_map, data):
         finally:
             if oc_id is not None:
                 object_class_ids[name] = oc_id
-        if name in checked:
-            continue
         checked.add(name)
         if oc_id is not None:
             item["id"] = oc_id
@@ -296,13 +296,12 @@ def _get_relationship_classes_for_import(db_map, data):
     error_log = []
     to_add = []
     to_update = []
-    for relationship_class in data:
-        name = relationship_class[0]
-        oc_names = relationship_class[1]
+    for name, oc_names, *optionals in data:
+        if name in checked:
+            continue
         oc_ids = tuple(object_class_ids.get(oc, None) for oc in oc_names)
         item = {"name": name, "object_class_id_list": list(oc_ids), "type_id": db_map.relationship_class_type}
-        if len(relationship_class) > 2:
-            item["description"] = relationship_class[2]
+        item.update(dict(zip(("description",), optionals)))
         rc_id = relationship_class_ids.pop(name, None)
         try:
             check_wide_relationship_class(
@@ -319,8 +318,6 @@ def _get_relationship_classes_for_import(db_map, data):
         finally:
             if rc_id is not None:
                 relationship_class_ids[name] = rc_id
-        if name in checked:
-            continue
         checked.add(name)
         if rc_id is not None:
             item["id"] = rc_id
@@ -336,7 +333,10 @@ def import_objects(db_map, data):
 
     Example::
 
-            data = [('object_class_name', 'new_object')]
+            data = [
+                ('object_class_name', 'new_object'),
+                ('object_class_name', 'other_object', 'description')
+            ]
             import_objects(db_map, data)
 
     Args:
@@ -354,25 +354,36 @@ def import_objects(db_map, data):
 def _get_objects_for_import(db_map, data):
     object_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
     object_ids = {(o.class_id, o.name): o.id for o in db_map.query(db_map.object_sq)}
+    checked = set()
     error_log = []
     to_add = []
-    seen = set()
-    for oc_name, name in data:
+    to_update = []
+    for oc_name, name, *optionals in data:
         oc_id = object_class_ids.get(oc_name, None)
-        if (oc_id, name) in seen or (oc_id, name) in object_ids:
+        if (oc_id, name) in checked:
             continue
-        db_object = {"name": name, "class_id": oc_id, "type_id": db_map.object_entity_type}
+        item = {"name": name, "class_id": oc_id, "type_id": db_map.object_entity_type}
+        item.update(dict(zip(("description",), optionals)))
+        o_id = object_ids.pop((oc_id, name), None)
         try:
-            check_object(db_object, object_ids, set(object_class_ids.values()), db_map.object_entity_type)
-            to_add.append(db_object)
-            seen.add((oc_id, name))
+            check_object(item, object_ids, set(object_class_ids.values()), db_map.object_entity_type)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
                     msg=f"Could not import object '{name}' with class '{oc_name}': {e.msg}", db_type="object"
                 )
             )
-    return to_add, [], error_log
+            continue
+        finally:
+            if o_id is not None:
+                object_ids[oc_id, name] = o_id
+        checked.add((oc_id, name))
+        if o_id is not None:
+            item["id"] = o_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
 
 
 def import_relationships(db_map, data):
@@ -489,19 +500,15 @@ def _get_object_parameters_for_import(db_map, data):
     error_log = []
     to_add = []
     to_update = []
-    for parameter in data:
-        class_name = parameter[0]
-        parameter_name = parameter[1]
+    functions = [to_database, parameter_value_list_ids.get, lambda x: x]
+    for class_name, parameter_name, *optionals in data:
         oc_id = object_class_ids.get(class_name, None)
+        checked_key = (oc_id, parameter_name)
+        if checked_key in checked:
+            continue
         item = {"name": parameter_name, "entity_class_id": oc_id}
-        if len(parameter) > 2:
-            item["default_value"] = to_database(parameter[2])
-        if len(parameter) > 3:
-            value_list_id = parameter_value_list_ids.get(parameter[3])
-            if value_list_id is not None:
-                item["parameter_value_list_id"] = value_list_id
-        if len(parameter) > 4:
-            item["description"] = parameter[4]
+        optionals = [f(x) for f, x in zip(functions, optionals)]
+        item.update(dict(zip(("default_value", "parameter_value_list_id", "description"), optionals)))
         p_id = parameter_ids.pop((oc_id, parameter_name), None)
         try:
             check_parameter_definition(item, parameter_ids, object_class_names.keys(), parameter_value_lists)
@@ -517,9 +524,6 @@ def _get_object_parameters_for_import(db_map, data):
         finally:
             if p_id is not None:
                 parameter_ids[oc_id, parameter_name] = p_id
-        checked_key = (oc_id, parameter_name)
-        if checked_key in checked:
-            continue
         checked.add(checked_key)
         if p_id is not None:
             item["id"] = p_id
@@ -571,19 +575,15 @@ def _get_relationship_parameters_for_import(db_map, data):
     to_add = []
     to_update = []
     checked = set()
-    for parameter in data:
-        class_name = parameter[0]
-        parameter_name = parameter[1]
+    functions = [to_database, parameter_value_list_ids.get, lambda x: x]
+    for class_name, parameter_name, *optionals in data:
         rc_id = relationship_class_ids.get(class_name, None)
+        checked_key = (rc_id, parameter_name)
+        if checked_key in checked:
+            continue
         item = {"name": parameter_name, "entity_class_id": rc_id}
-        if len(parameter) > 2:
-            item["default_value"] = to_database(parameter[2])
-        if len(parameter) > 3:
-            value_list_id = parameter_value_list_ids.get(parameter[3])
-            if value_list_id is not None:
-                item["parameter_value_list_id"] = value_list_id
-        if len(parameter) > 4:
-            item["description"] = parameter[4]
+        optionals = [f(x) for f, x in zip(functions, optionals)]
+        item.update(dict(zip(("default_value", "parameter_value_list_id", "description"), optionals)))
         p_id = parameter_ids.pop((rc_id, parameter_name), None)
         try:
             check_parameter_definition(item, parameter_ids, relationship_class_names.keys(), parameter_value_lists)
@@ -599,9 +599,6 @@ def _get_relationship_parameters_for_import(db_map, data):
         finally:
             if p_id is not None:
                 parameter_ids[rc_id, parameter_name] = p_id
-        checked_key = (rc_id, parameter_name)
-        if checked_key in checked:
-            continue
         checked.add(checked_key)
         if p_id is not None:
             item["id"] = p_id
@@ -651,6 +648,20 @@ def _get_object_parameter_values_for_import(db_map, data):
         oc_id = object_class_ids.get(class_name, None)
         o_id = object_ids.get((object_name, oc_id), None)
         p_id = parameter_ids.get((parameter_name, oc_id), None)
+        checked_key = (o_id, p_id)
+        if checked_key in checked:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg="Could not import parameter value for '{0}', class '{1}', parameter '{2}': {3}".format(
+                        object_name,
+                        class_name,
+                        parameter_name,
+                        "Duplicate parameter value, only first value will be considered.",
+                    ),
+                    db_type="parameter value",
+                )
+            )
+            continue
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": oc_id,
@@ -673,20 +684,6 @@ def _get_object_parameter_values_for_import(db_map, data):
         finally:
             if pv_id is not None:
                 parameter_value_ids[o_id, p_id] = pv_id
-        checked_key = (o_id, p_id)
-        if checked_key in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import parameter value for '{0}', class '{1}', parameter '{2}': {3}".format(
-                        object_name,
-                        class_name,
-                        parameter_name,
-                        "Duplicate parameter value, only first value will be considered.",
-                    ),
-                    db_type="parameter value",
-                )
-            )
-            continue
         checked.add(checked_key)
         if pv_id is not None:
             to_update.append({"id": pv_id, "value": item["value"]})
@@ -748,6 +745,20 @@ def _get_relationship_parameter_values_for_import(db_map, data):
             o_ids = tuple(None for _ in object_names)
         r_id = relationship_ids.get((rc_id, o_ids), None)
         p_id = parameter_ids.get((rc_id, parameter_name), None)
+        checked_key = (r_id, p_id)
+        if checked_key in checked:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg="Could not import parameter value for '{0}', class '{1}', parameter '{2}': {3}".format(
+                        object_names,
+                        class_name,
+                        parameter_name,
+                        "Duplicate parameter value, only first value will be considered.",
+                    ),
+                    db_type="parameter value",
+                )
+            )
+            continue
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": rc_id,
@@ -770,20 +781,6 @@ def _get_relationship_parameter_values_for_import(db_map, data):
         finally:
             if pv_id is not None:
                 parameter_value_ids[r_id, p_id] = pv_id
-        checked_key = (r_id, p_id)
-        if checked_key in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import parameter value for '{0}', class '{1}', parameter '{2}': {3}".format(
-                        object_names,
-                        class_name,
-                        parameter_name,
-                        "Duplicate parameter value, only first value will be considered.",
-                    ),
-                    db_type="parameter value",
-                )
-            )
-            continue
         checked.add(checked_key)
         if pv_id is not None:
             to_update.append({"id": pv_id, "value": item["value"]})
@@ -824,6 +821,14 @@ def _get_parameter_value_lists_for_import(db_map, data):
     to_add = []
     to_update = []
     for name, value_list in data:
+        if name in seen:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import parameter value list '{name}': Duplicate list, only first will be considered",
+                    db_type="parameter value list",
+                )
+            )
+            continue
         item = {"name": name, "value_list": list(value_list)}
         pvl_id = parameter_value_list_ids.pop(name, None)
         try:
@@ -839,14 +844,6 @@ def _get_parameter_value_lists_for_import(db_map, data):
         finally:
             if pvl_id is not None:
                 parameter_value_list_ids[name] = pvl_id
-        if name in seen:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg=f"Could not import parameter value list '{name}': Duplicate list, only first will be considered",
-                    db_type="parameter value list",
-                )
-            )
-            continue
         seen.add(name)
         if pvl_id is not None:
             item["id"] = pvl_id
