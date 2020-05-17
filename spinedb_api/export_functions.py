@@ -62,7 +62,7 @@ def export_object_classes(db_map, ids):
 
 def export_objects(db_map, ids):
     sq = db_map.ext_object_sq
-    return sorted((x.class_name, x.name) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.class_name, x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
 
 
 def export_relationship_classes(db_map, ids):
