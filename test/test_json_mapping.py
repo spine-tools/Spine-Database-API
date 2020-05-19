@@ -828,7 +828,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
-    def test_read_flat_file_with_none_extra_dimensions(self):
+    def test_read_flat_file_with_parameter_definition(self):
         input_data = [["object", "time", "parameter_name1"], ["obj1", "2018-01-01", 1], ["obj1", "2018-01-02", 2]]
 
         self.empty_data.update(
@@ -851,8 +851,7 @@ class TestMappingIntegration(unittest.TestCase):
                 "map_type": "parameter",
                 "name": {"map_type": "column_header", "reference": 2},
                 "value": 2,
-                "parameter_type": "time series",
-                "extra_dimensions": [None],
+                "parameter_type": "definition",
             },
         }
 
