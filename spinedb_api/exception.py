@@ -97,8 +97,16 @@ class TypeConversionError(SpineDBAPIError):
 
     Attributes:
         msg (str): an error message
-        row_number (int): row of data that failed.
     """
 
     def __init__(self, msg):
-        super(TypeConversionError, self).__init__(msg)
+        super().__init__(msg)
+
+
+class InvalidMapping(SpineDBAPIError):
+    """
+    Failure in reading tabulated data with invalid mapping
+    """
+
+    def __init__(self, msg):
+        super().__init__(msg)

@@ -20,6 +20,7 @@ from .exception import (
     ParameterValueError,
     ParameterValueFormatError,
     TypeConversionError,
+    InvalidMapping
 )
 from .helpers import (
     naming_convention,
