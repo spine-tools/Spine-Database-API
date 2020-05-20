@@ -76,6 +76,9 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self._init_diff_dicts()
         self._create_diff_tables_and_mapping()
 
+    def diff_ids(self):
+        return {x: self.added_item_id[x] | self.updated_item_id[x] for x in self.table_to_class}
+
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
         self.added_item_id = {x: set() for x in self.table_to_class}
