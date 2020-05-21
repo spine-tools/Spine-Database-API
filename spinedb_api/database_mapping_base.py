@@ -731,11 +731,12 @@ class DatabaseMappingBase:
                     self.relationship_sq.c.name.label("name"),
                     self.relationship_sq.c.class_id.label("class_id"),
                     self.wide_relationship_class_sq.c.name.label("class_name"),
-                    self.object_sq.c.id.label("object_id"),
-                    self.object_sq.c.name.label("object_name"),
-                    self.object_sq.c.class_id.label("object_class_id"),
+                    self.ext_object_sq.c.id.label("object_id"),
+                    self.ext_object_sq.c.name.label("object_name"),
+                    self.ext_object_sq.c.class_id.label("object_class_id"),
+                    self.ext_object_sq.c.class_name.label("object_class_name"),
                 )
-                .filter(self.relationship_sq.c.object_id == self.object_sq.c.id)
+                .filter(self.relationship_sq.c.object_id == self.ext_object_sq.c.id)
                 .filter(self.relationship_sq.c.class_id == self.wide_relationship_class_sq.c.id)
                 .order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
                 .subquery()
@@ -780,6 +781,7 @@ class DatabaseMappingBase:
                     func.group_concat(self.ext_relationship_sq.c.object_id).label("object_id_list"),
                     func.group_concat(self.ext_relationship_sq.c.object_name).label("object_name_list"),
                     func.group_concat(self.ext_relationship_sq.c.object_class_id).label("object_class_id_list"),
+                    func.group_concat(self.ext_relationship_sq.c.object_class_name).label("object_class_name_list"),
                 )
                 .group_by(
                     self.ext_relationship_sq.c.id, self.ext_relationship_sq.c.class_id, self.ext_relationship_sq.c.name
