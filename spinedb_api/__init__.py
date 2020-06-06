@@ -20,7 +20,7 @@ from .exception import (
     ParameterValueError,
     ParameterValueFormatError,
     TypeConversionError,
-    InvalidMapping
+    InvalidMapping,
 )
 from .helpers import (
     naming_convention,
@@ -44,6 +44,7 @@ from .check_functions import (
     check_wide_parameter_value_list,
 )
 from .import_functions import (
+    import_data_to_url,
     import_data,
     import_object_classes,
     import_objects,

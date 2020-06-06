@@ -16,6 +16,7 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
+from .diff_database_mapping import DiffDatabaseMapping
 from .exception import SpineIntegrityError
 from .check_functions import (
     check_object_class,
@@ -45,6 +46,12 @@ class ImportErrorLogItem:
 
     def __str__(self):
         return self.msg
+
+
+def import_data_to_url(url, upgrade=False, **kwargs):
+    db_map = DiffDatabaseMapping(url, upgrade=upgrade)
+    import_data(db_map, **kwargs)
+    db_map.commit_session("Import data using `import_data_to_url`")
 
 
 def import_data(
