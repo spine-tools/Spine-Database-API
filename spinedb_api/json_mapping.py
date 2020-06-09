@@ -196,6 +196,8 @@ class ConstantMapping(MappingBase):
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
+        if not reference:
+            reference = None
         self._reference = reference
 
     def is_pivoted(self):
@@ -246,14 +248,25 @@ class ColumnMapping(ConstantMapping):
         """
         if reference is not None and not isinstance(reference, (str, int)):
             raise TypeError(f"reference must be int, str or None, instead got: {type(reference).__name__}")
+        if isinstance(reference, str):
+            if not reference:
+                reference = None
+            else:
+                try:
+                    reference = int(reference)
+                except ValueError:
+                    pass
         if isinstance(reference, int) and reference < 0:
-            raise ValueError(f"If reference is an int, it must be >= 0, instead got: {reference}")
+            reference = 0
         self._reference = reference
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
         if isinstance(ref, str):
-            ref = data_header.index(ref)
+            try:
+                ref = data_header.index(ref)
+            except ValueError:
+                raise InvalidMapping(f"Column header '{ref}' not found")
         getter = itemgetter(ref)
         num = 1
         reads_data = True
@@ -265,6 +278,16 @@ class ColumnHeaderMapping(ColumnMapping):
     """
 
     MAP_TYPE = "column_header"
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        if reference is not None and not isinstance(reference, (str, int)):
+            raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
+        if isinstance(reference, str) and not reference:
+            reference = None
+        if isinstance(reference, int) and reference < 0:
+            reference = 0
+        self._reference = reference
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
@@ -307,10 +330,19 @@ class RowMapping(MappingBase):
     def reference(self, reference):
         """Setter method for reference, should be implemented in subclasses
         """
-        if reference is not None and not isinstance(reference, int):
+        if reference is not None and not isinstance(reference, (int, str)):
             raise TypeError(f"reference must be int or None, instead got: {type(reference).__name__}")
-        if isinstance(reference, int) and reference < -1:
-            raise ValueError(f"If reference is an int, it must be >= -1, instead got: {reference}")
+        if isinstance(reference, str):
+            if not reference:
+                reference = None
+            elif reference.isdigit():
+                reference = int(reference)
+            else:
+                if reference.lower() != "header":
+                    raise ValueError(f"If reference is a string, it must be 'header'. Instead got '{reference}'")
+                reference = -1
+        if reference is not None and reference < -1:
+            reference = 0
         self._reference = reference
 
     def is_pivoted(self):
@@ -376,6 +408,8 @@ class TableNameMapping(MappingBase):
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be a string or None, instead got {type(reference).__name__}")
+        if not reference:
+            reference = None
         self._reference = reference
 
     def is_pivoted(self):
