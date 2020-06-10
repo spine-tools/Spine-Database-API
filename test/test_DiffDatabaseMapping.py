@@ -88,9 +88,9 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         ids, _ = self.db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
         self.db_map.remove_items(relationship_ids=ids)
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_relationship_from_commited_session(self):
         """Test removing an relationship from an commited session"""
@@ -99,69 +99,69 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         ids, _ = self.db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 1)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 1)
         self.db_map.remove_items(relationship_ids=ids)
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
         self.db_map.commit_session("")
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_object(self):
         """Test adding and removing an relationship and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self.db_map.remove_items(object_ids=ids)
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.wide_relationship_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_object_from_commited_session(self):
         """Test removing an relationship from an commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.object_list().all()), 2)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_sq).all()), 2)
         self.db_map.remove_items(object_ids=ids)
-        self.assertEqual(len(self.db_map.object_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_sq).all()), 0)
         self.db_map.commit_session("")
-        self.assertEqual(len(self.db_map.object_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_sq).all()), 0)
 
     def test_remove_relationship_class(self):
         """Test adding and removing an relationship and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.remove_items(relationship_class_ids=ids)
-        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 0)
 
     def test_remove_relationship_class_from_commited_session(self):
         """Test removing an relationship from an commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 1)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 1)
         self.db_map.remove_items(relationship_class_ids=ids)
-        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 0)
         self.db_map.commit_session("")
-        self.assertEqual(len(self.db_map.wide_relationship_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 0)
 
     def test_remove_object_class(self):
         """Test adding and removing an relationship and commiting"""
         ids, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.remove_items(object_class_ids=ids)
-        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
 
     def test_remove_object_class_from_commited_session(self):
         """Test removing an relationship from an commited session"""
         ids, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.object_class_list().all()), 2)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 2)
         self.db_map.remove_items(object_class_ids=ids)
-        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
         self.db_map.commit_session("")
-        self.assertEqual(len(self.db_map.object_class_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
 
     def test_remove_parameter_value(self):
         """Test adding and removing an parameter value and commiting"""
@@ -171,11 +171,11 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_parameter_values(
             {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
         )
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 1)
         self.db_map.remove_items(parameter_value_ids=[1])
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
 
     def test_remove_parameter_value_from_commited_session(self):
         """Test adding and commiting a parmaeter value and then removing it"""
@@ -186,11 +186,11 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
         )
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 1)
         self.db_map.remove_items(parameter_value_ids=[1])
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
 
     def test_remove_object_with_parameter_value(self):
         """Test adding and removing an parameter value and commiting"""
@@ -200,11 +200,11 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.add_parameter_values(
             {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
         )
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 1)
         self.db_map.remove_items(object_ids=[1])
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
 
     def test_remove_object_with_parameter_value_from_commited_session(self):
         """Test adding and commiting a parmaeter value and then removing it"""
@@ -215,11 +215,11 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             {"value": "0", "id": 1, "parameter_definition_id": 1, "object_id": 1, "object_class_id": 1}, strict=True
         )
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 1)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 1)
         self.db_map.remove_items(object_ids=[1])
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.parameter_value_list().all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
 
 
 class TestDiffDatabaseMappingAdd(unittest.TestCase):
@@ -361,18 +361,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_object_with_same_name_as_existing_one(self):
         """Test that adding an object with an already taken name raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, mock.patch.object(
-            DiffDatabaseMapping, "object_list"
-        ) as mock_object_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            mock_object_list.return_value = [KeyedTuple([1, 1, "nemo"], labels=["id", "class_id", "name"])]
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq, mock.patch.object(DiffDatabaseMapping, "object_sq") as mock_object_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+            mock_object_sq.return_value = [KeyedTuple([1, 1, "nemo"], labels=["id", "class_id", "name"])]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_objects({"name": "nemo", "class_id": 1}, strict=True)
 
     def test_add_object_with_invalid_class(self):
         """Test that adding an object with a non existing class raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list:
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_objects({"name": "pluto", "class_id": 2}, strict=True)
 
@@ -422,14 +426,17 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list:
-            mock_object_class_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_sq"
+        ) as mock_wide_rel_cls_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.return_value = [
                 KeyedTuple([1, "fish"], labels=["id", "name"]),
                 KeyedTuple([2, "dog"], labels=["id", "name"]),
             ]
-            mock_wide_rel_cls_list.return_value = [
+            mock_wide_rel_cls_sq.return_value = [
                 KeyedTuple([1, "1,2", "fish__dog"], labels=["id", "object_class_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
@@ -439,10 +446,11 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_class_with_invalid_object_class(self):
         """Test that adding a relationship class with a non existing object class raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_class_list") as mock_object_class_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ):
-            mock_object_class_list.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq, mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_sq"):
+            mock_query.side_effect = self.query_wrapper
+            mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             with self.assertRaises(SpineIntegrityError):
                 self.db_map.add_wide_relationship_classes(
                     {"name": "fish__dog", "object_class_id_list": [1, 2]}, strict=True
@@ -494,19 +502,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding a relationship with the same class and same objects as an existing one
         raises an integrity error.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list:
-            mock_object_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_sq"
+        ) as mock_wide_rel_cls_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_cls_list.return_value = [
+            mock_wide_rel_cls_sq.return_value = [
                 KeyedTuple([1, "10,20", "fish__dog"], labels=["id", "object_class_id_list", "name"])
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.return_value = [
                 KeyedTuple([1, 1, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
@@ -517,14 +528,19 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_class(self):
         """Test that adding a relationship with an invalid class raises an integrity error.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list, mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
-            mock_object_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_sq"
+        ) as mock_wide_rel_cls_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ):
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_cls_list.return_value = [
+            mock_wide_rel_cls_sq.return_value = [
                 KeyedTuple([1, "10,20", "fish__dog"], labels=["id", "object_class_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
@@ -535,14 +551,19 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_object(self):
         """Test that adding a relationship with an invalid object raises an integrity error.
         """
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_list"
-        ) as mock_wide_rel_cls_list, mock.patch.object(DiffDatabaseMapping, "wide_relationship_list"):
-            mock_object_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_class_sq"
+        ) as mock_wide_rel_cls_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ):
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_cls_list.return_value = [
+            mock_wide_rel_cls_sq.return_value = [
                 KeyedTuple([1, "10,20", "fish__dog"], labels=["id", "object_class_id_list", "name"])
             ]
             with self.assertRaises(SpineIntegrityError):
@@ -659,19 +680,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_parameter_value_for_both_object_and_relationship(self):
         """Test that adding a parameter value for both an object and a relationship raises an
         integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_definition_list"
-        ) as mock_parameter_definition_list:
-            mock_object_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_sq"
+        ) as mock_parameter_definition_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.return_value = [
                 KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
-            mock_parameter_definition_list.return_value = [
+            mock_parameter_definition_sq.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
@@ -689,19 +713,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_parameter_value_with_invalid_object_or_relationship(self):
         """Test that adding a parameter value with an invalid object or relationship raises an
         integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_definition_list"
-        ) as mock_parameter_definition_list:
-            mock_object_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_sq"
+        ) as mock_parameter_definition_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.return_value = [
                 KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"])
             ]
-            mock_parameter_definition_list.return_value = [
+            mock_parameter_definition_sq.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
@@ -723,20 +750,23 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_parameter_value_with_object_or_relationship_of_invalid_class(self):
         """Test that adding a parameter value with an object or relationship invalid for
         the parameter class raises an integrity error."""
-        with mock.patch.object(DiffDatabaseMapping, "object_list") as mock_object_list, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_list"
-        ) as mock_wide_rel_list, mock.patch.object(
-            DiffDatabaseMapping, "parameter_definition_list"
-        ) as mock_parameter_definition_list:
-            mock_object_list.return_value = [
+        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
+            DiffDatabaseMapping, "object_sq"
+        ) as mock_object_sq, mock.patch.object(
+            DiffDatabaseMapping, "wide_relationship_sq"
+        ) as mock_wide_rel_sq, mock.patch.object(
+            DiffDatabaseMapping, "parameter_definition_sq"
+        ) as mock_parameter_definition_sq:
+            mock_query.side_effect = self.query_wrapper
+            mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
                 KeyedTuple([2, 20, "pluto"], labels=["id", "class_id", "name"]),
             ]
-            mock_wide_rel_list.return_value = [
+            mock_wide_rel_sq.return_value = [
                 KeyedTuple([1, 100, "1,2", "nemo__pluto"], labels=["id", "class_id", "object_id_list", "name"]),
                 KeyedTuple([2, 200, "2,1", "pluto__nemo"], labels=["id", "class_id", "object_id_list", "name"]),
             ]
-            mock_parameter_definition_list.return_value = [
+            mock_parameter_definition_sq.return_value = [
                 KeyedTuple(
                     [1, 10, None, "color", None],
                     labels=["id", "object_class_id", "relationship_class_id", "name", "parameter_value_list_id"],
@@ -888,9 +918,9 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         objects = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
-        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+        self.assertEqual(self.db_map.query(self.db_map.object_sq).filter_by(id=1).first().name, "klaus")
         self.db_map.commit_session("update")
-        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+        self.assertEqual(self.db_map.query(self.db_map.object_sq).filter_by(id=1).first().name, "klaus")
 
     def test_update_committed_object(self):
         """Test that updating objects works."""
@@ -902,9 +932,9 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         objects = {x.id: x.name for x in self.db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
-        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+        self.assertEqual(self.db_map.query(self.db_map.object_sq).filter_by(id=1).first().name, "klaus")
         self.db_map.commit_session("update")
-        self.assertEqual(self.db_map.object_list(id_list=[1]).first().name, "klaus")
+        self.assertEqual(self.db_map.query(self.db_map.object_sq).filter_by(id=1).first().name, "klaus")
 
     def test_update_relationship_classes(self):
         """Test that updating relationship classes works."""
