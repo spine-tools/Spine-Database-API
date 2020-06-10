@@ -45,6 +45,7 @@ class DiffDatabaseMappingAddMixin:
             Column("date", String(155), primary_key=True),
             Column("entity_id", Integer, server_default=null()),
             Column("entity_class_id", Integer, server_default=null()),
+            Column("group_entity_id", Integer, server_default=null()),
             Column("parameter_definition_id", Integer, server_default=null()),
             Column("parameter_value_id", Integer, server_default=null()),
             Column("parameter_tag_id", Integer, server_default=null()),
@@ -87,6 +88,7 @@ class DiffDatabaseMappingAddMixin:
             "object": "entity_id",
             "relationship_class": "entity_class_id",
             "relationship": "entity_id",
+            "group_entity": "group_entity_id",
             "parameter_definition": "parameter_definition_id",
             "parameter_value": "parameter_value_id",
             "parameter_tag": "parameter_tag_id",
@@ -101,6 +103,7 @@ class DiffDatabaseMappingAddMixin:
                 "object": "Entity",
                 "relationship_class": "EntityClass",
                 "relationship": "Entity",
+                "group_entity": "GroupEntity",
                 "parameter_definition": "ParameterDefinition",
                 "parameter_value": "ParameterValue",
                 "parameter_tag": "ParameterTag",
@@ -385,6 +388,62 @@ class DiffDatabaseMappingAddMixin:
         self.added_item_id["entity"].update(ids)
         self.added_item_id["relationship"].update(ids)
         self.added_item_id["relationship_entity"].update(ids)
+        return ids, []
+
+    def add_group_entities(self, *items, strict=False, return_dups=False):
+        """Stage group object items for insertion.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if the insertion of one of the items violates an integrity constraint.
+        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
+
+        :returns:
+            - **new_items** -- A list of items succesfully staged for insertion.
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        checked_items, intgr_error_log = self.check_group_entities_for_insert(*items, strict=strict)
+        ids = self._add_group_entities(*checked_items)
+        if return_dups:
+            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+        return ids, intgr_error_log
+
+    def _add_group_entities(self, *items):
+        """Add group objects to database without checking integrity.
+
+        Args:
+            items (iter): list of dictionaries which correspond to the instances to add
+
+        Returns:
+            ids (set): added instances' ids
+        """
+        items_to_add, ids = self._items_and_ids("group_entity", *items)
+        self._do_add_group_entities(*items_to_add)
+        self.added_item_id["group_entity"].update(ids)
+        return ids
+
+    def _do_add_group_entities(self, *items):
+        try:
+            self.session.bulk_insert_mappings(self.DiffGroupEntity, items)
+            self.session.commit()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting group entities: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def readd_group_entities(self, *items):
+        """Add known group objects to the database.
+
+        Args:
+            items (iter): list of dictionaries which correspond to the instances to add
+
+        Returns:
+            ids (set): added instances' ids
+        """
+        self._do_add_group_entities(*items)
+        ids = set(x["id"] for x in items)
+        self.added_item_id["group_entity"].update(ids)
         return ids, []
 
     def add_parameter_definitions(self, *items, strict=False, return_dups=False):

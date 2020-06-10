@@ -71,6 +71,7 @@ class DatabaseMappingBase:
         self.Relationship = None
         self.RelationshipEntity = None
         self.RelationshipEntityClass = None
+        self.GroupEntity = None
         self.ParameterDefinition = None
         self.ParameterValue = None
         self.ParameterTag = None
@@ -93,6 +94,7 @@ class DatabaseMappingBase:
         self._object_sq = None
         self._relationship_class_sq = None
         self._relationship_sq = None
+        self._group_entity_sq = None
         self._parameter_definition_sq = None
         self._parameter_value_sq = None
         self._parameter_tag_sq = None
@@ -104,6 +106,8 @@ class DatabaseMappingBase:
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
+        self._ext_group_entity_sq = None
+        self._wide_group_entity_sq = None
         self._object_parameter_definition_sq = None
         self._relationship_parameter_definition_sq = None
         self._object_parameter_value_sq = None
@@ -127,6 +131,7 @@ class DatabaseMappingBase:
             "relationship": "Relationship",
             "relationship_entity": "RelationshipEntity",
             "relationship_entity_class": "RelationshipEntityClass",
+            "group_entity": "GroupEntity",
             "parameter_definition": "ParameterDefinition",
             "parameter_value": "ParameterValue",
             "parameter_tag": "ParameterTag",
@@ -473,6 +478,20 @@ class DatabaseMappingBase:
         return self._relationship_sq
 
     @property
+    def group_entity_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM group_entity
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._group_entity_sq is None:
+            self._group_entity_sq = self._subquery("group_entity")
+        return self._group_entity_sq
+
+    @property
     def parameter_definition_sq(self):
         """A subquery of the form:
 
@@ -626,8 +645,10 @@ class DatabaseMappingBase:
                     self.object_class_sq.c.name.label("class_name"),
                     self.object_sq.c.name.label("name"),
                     self.object_sq.c.description.label("description"),
+                    self.wide_group_entity_sq.c.group_entity_id_list.label("group_entity_id_list"),
                 )
                 .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
+                .outerjoin(self.wide_group_entity_sq, self.wide_group_entity_sq.c.id == self.object_sq.c.id)
                 .subquery()
             )
         return self._ext_object_sq
@@ -789,6 +810,46 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._wide_relationship_sq
+
+    @property
+    def ext_group_entity_sq(self):
+        if self._ext_group_entity_sq is None:
+            self._ext_group_entity_sq = (
+                self.query(
+                    self.group_entity_sq.c.id.label("id"),
+                    self.group_entity_sq.c.entity_id.label("entity_id"),
+                    self.group_entity_sq.c.entity_class_id.label("entity_class_id"),
+                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.group_entity_sq.c.member_id.label("member_id"),
+                    self.entity_sq.c.name.label("member_name"),
+                )
+                .filter(self.group_entity_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .filter(self.group_entity_sq.c.member_id == self.entity_sq.c.id)
+                .order_by(self.group_entity_sq.c.entity_id, self.group_entity_sq.c.member_id)
+                .subquery()
+            )
+        return self._ext_group_entity_sq
+
+    @property
+    def wide_group_entity_sq(self):
+        if self._wide_group_entity_sq is None:
+            self._wide_group_entity_sq = (
+                self.query(
+                    self.ext_group_entity_sq.c.entity_id.label("id"),
+                    self.ext_group_entity_sq.c.entity_class_id,
+                    self.ext_group_entity_sq.c.entity_class_name,
+                    func.group_concat(self.ext_group_entity_sq.c.id).label("group_entity_id_list"),
+                    func.group_concat(self.ext_group_entity_sq.c.member_id).label("member_id_list"),
+                    func.group_concat(self.ext_group_entity_sq.c.member_name).label("member_name_list"),
+                )
+                .group_by(
+                    self.ext_group_entity_sq.c.entity_id,
+                    self.ext_group_entity_sq.c.entity_class_id,
+                    self.ext_group_entity_sq.c.entity_class_name,
+                )
+                .subquery()
+            )
+        return self._wide_group_entity_sq
 
     @property
     def object_parameter_definition_sq(self):
@@ -1155,6 +1216,7 @@ class DatabaseMappingBase:
         self.query(self.RelationshipClass).delete(synchronize_session=False)
         self.query(self.Relationship).delete(synchronize_session=False)
         self.query(self.RelationshipEntity).delete(synchronize_session=False)
+        self.query(self.GroupEntity).delete(synchronize_session=False)
         self.query(self.ParameterDefinition).delete(synchronize_session=False)
         self.query(self.ParameterValue).delete(synchronize_session=False)
         self.query(self.ParameterTag).delete(synchronize_session=False)

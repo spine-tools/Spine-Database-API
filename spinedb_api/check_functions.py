@@ -177,6 +177,44 @@ def check_wide_relationship(
         )
 
 
+def check_group_entity(item, current_items, entities):
+    """Check whether the insertion of a group entity item
+    results in the violation of an integrity constraint.
+
+    :param dict item: A group entity item to be checked.
+    :param dict current_items: A dictionary mapping tuples (entity_id, member_id) to ids
+        of group entities already in the database.
+    :param dict entities: A dictionary mapping entity class ids, to entity ids, to entity items
+        already in the db
+    """
+    try:
+        entity_id = item["entity_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing entity identifier.")
+    try:
+        member_id = item["member_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing member identifier.")
+    try:
+        entity_class_id = item["entity_class_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing entity class identifier.")
+    ents = entities.get(entity_class_id)
+    if ents is None:
+        raise SpineIntegrityError("Entity class not found.")
+    entity = ents.get(entity_id)
+    if not entity:
+        raise SpineIntegrityError("Entity not found.")
+    member = ents.get(member_id)
+    if not member:
+        raise SpineIntegrityError("Member not found.")
+    if (entity_id, member_id) in current_items:
+        raise SpineIntegrityError(
+            "{0} is already a member in {1}.".format(member["name"], entity["name"]),
+            id=current_items[entity_id, member_id],
+        )
+
+
 def check_parameter_definition(item, current_items, entity_class_ids, parameter_value_lists):
     """Check whether the insertion of a parameter definition item
     results in the violation of an integrity constraint.

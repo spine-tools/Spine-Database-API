@@ -22,6 +22,7 @@ from .check_functions import (
     check_object,
     check_wide_relationship_class,
     check_wide_relationship,
+    check_group_entity,
     check_parameter_definition,
     check_parameter_value,
     check_parameter_tag,
@@ -30,8 +31,9 @@ from .check_functions import (
 )
 
 
-# NOTE: To check for an update we simulate the removal of the current instance,
-# and then check for an insert of the updated instance.
+# NOTE: To check for an update we remove the current instance from our lookup dictionary,
+# check for an insert of the updated instance,
+# and finally reinsert the instance to the dictionary
 class DatabaseMappingCheckMixin:
     """Provides methods to check whether insert and update operations violate Spine db integrity constraints.
     """
@@ -63,13 +65,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_class_names = {x.name: x.id for x in self.query(self.object_class_sq)}
+        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
         for item in items:
             try:
-                check_object_class(item, object_class_names, self.object_class_type)
+                check_object_class(item, object_class_ids, self.object_class_type)
                 checked_items.append(item)
-                # If the check passes, append item to `object_class_names` for next iteration.
-                object_class_names[item["name"]] = None
+                # If the check passes, append item to `object_class_ids` for next iteration.
+                object_class_ids[item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -93,8 +95,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_class_dict = {x.id: {"name": x.name} for x in self.query(self.object_class_sq)}
-        object_class_names = {x.name: x.id for x in self.query(self.object_class_sq)}
+        object_classes = {x.id: {"name": x.name} for x in self.query(self.object_class_sq)}
+        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
         for item in items:
             try:
                 id_ = item["id"]
@@ -106,8 +108,8 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # Simulate removal of current instance
-                updated_item = object_class_dict.pop(id_)
-                del object_class_names[updated_item["name"]]
+                updated_item = object_classes.pop(id_)
+                del object_class_ids[updated_item["name"]]
             except KeyError:
                 msg = "Object class not found."
                 if strict:
@@ -117,11 +119,11 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_object_class(updated_item, object_class_names, self.object_class_type)
+                check_object_class(updated_item, object_class_ids, self.object_class_type)
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
-                object_class_dict[id_] = updated_item
-                object_class_names[updated_item["name"]] = id_
+                object_classes[id_] = updated_item
+                object_class_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -145,13 +147,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_names = {(x.class_id, x.name): x.id for x in self.query(self.object_sq)}
-        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
+        object_ids = {(x.class_id, x.name): x.id for x in self.query(self.object_sq)}
+        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
         for item in items:
             try:
-                check_object(item, object_names, object_class_id_list, self.object_entity_type)
+                check_object(item, object_ids, object_class_ids, self.object_entity_type)
                 checked_items.append(item)
-                object_names[item["class_id"], item["name"]] = None
+                object_ids[item["class_id"], item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -176,9 +178,9 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         object_qry = self.query(self.object_sq)
-        object_names = {(x.class_id, x.name): x.id for x in object_qry}
-        object_dict = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_qry}
-        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
+        object_ids = {(x.class_id, x.name): x.id for x in object_qry}
+        objects = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_qry}
+        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
         for item in items:
             try:
                 id_ = item["id"]
@@ -189,8 +191,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = object_dict.pop(id_)
-                del object_names[updated_item["class_id"], updated_item["name"]]
+                updated_item = objects.pop(id_)
+                del object_ids[updated_item["class_id"], updated_item["name"]]
             except KeyError:
                 msg = "Object not found."
                 if strict:
@@ -200,10 +202,10 @@ class DatabaseMappingCheckMixin:
             try:
                 self.check_immutable_fields(updated_item, item, ("class_id",))
                 updated_item.update(item)
-                check_object(updated_item, object_names, object_class_id_list, self.object_entity_type)
+                check_object(updated_item, object_ids, object_class_ids, self.object_entity_type)
                 checked_items.append(item)
-                object_dict[id_] = updated_item
-                object_names[updated_item["class_id"], updated_item["name"]] = id_
+                objects[id_] = updated_item
+                object_ids[updated_item["class_id"], updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -227,16 +229,16 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_class_names = {x.name: x.id for x in self.query(self.wide_relationship_class_sq)}
-        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
+        relationship_class_ids = {x.name: x.id for x in self.query(self.wide_relationship_class_sq)}
+        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
         for wide_item in wide_items:
             try:
                 check_wide_relationship_class(
-                    wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type
+                    wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
                 )
                 wide_item["type_id"] = self.relationship_class_type
                 checked_wide_items.append(wide_item)
-                relationship_class_names[wide_item["name"]] = None
+                relationship_class_ids[wide_item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -261,12 +263,12 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         wide_relationship_class_qry = self.query(self.wide_relationship_class_sq)
-        relationship_class_names = {x.name: x.id for x in wide_relationship_class_qry}
-        relationship_class_dict = {
+        relationship_class_ids = {x.name: x.id for x in wide_relationship_class_qry}
+        relationship_classes = {
             x.id: {"name": x.name, "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")]}
             for x in wide_relationship_class_qry
         }
-        object_class_id_list = [x.id for x in self.query(self.object_class_sq)]
+        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -277,8 +279,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_wide_item = relationship_class_dict.pop(id_)
-                del relationship_class_names[updated_wide_item["name"]]
+                updated_wide_item = relationship_classes.pop(id_)
+                del relationship_class_ids[updated_wide_item["name"]]
             except KeyError:
                 msg = "Relationship class not found."
                 if strict:
@@ -289,11 +291,11 @@ class DatabaseMappingCheckMixin:
                 self.check_immutable_fields(updated_wide_item, wide_item, ("object_class_id_list",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship_class(
-                    updated_wide_item, relationship_class_names, object_class_id_list, self.relationship_class_type
+                    updated_wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
                 )
                 checked_wide_items.append(wide_item)
-                relationship_class_dict[id_] = updated_wide_item
-                relationship_class_names[updated_wide_item["name"]] = id_
+                relationship_classes[id_] = updated_wide_item
+                relationship_class_ids[updated_wide_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -318,31 +320,29 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         wide_relationship_qry = self.query(self.wide_relationship_sq)
-        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
-        relationship_objects = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
-        relationship_class_dict = {
+        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
+        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
+        relationship_classes = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
             for x in self.query(self.wide_relationship_class_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
+        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
         for wide_item in wide_items:
             try:
                 check_wide_relationship(
                     wide_item,
-                    relationship_names,
-                    relationship_objects,
-                    relationship_class_dict,
-                    object_dict,
+                    relationship_ids_by_name,
+                    relationship_ids_by_obj_lst,
+                    relationship_classes,
+                    objects,
                     self.relationship_entity_type,
                 )
                 wide_item["type_id"] = self.relationship_entity_type
-                wide_item["object_class_id_list"] = [
-                    object_dict[id_]["class_id"] for id_ in wide_item["object_id_list"]
-                ]
+                wide_item["object_class_id_list"] = [objects[id_]["class_id"] for id_ in wide_item["object_id_list"]]
                 checked_wide_items.append(wide_item)
-                relationship_names[wide_item["class_id"], wide_item["name"]] = None
+                relationship_ids_by_name[wide_item["class_id"], wide_item["name"]] = None
                 join_object_id_list = ",".join([str(x) for x in wide_item["object_id_list"]])
-                relationship_objects[wide_item["class_id"], join_object_id_list] = None
+                relationship_ids_by_obj_lst[wide_item["class_id"], join_object_id_list] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -367,9 +367,9 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         wide_relationship_qry = self.query(self.wide_relationship_sq)
-        relationship_names = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
-        relationship_objects = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
-        relationship_dict = {
+        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
+        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
+        relationships = {
             x.id: {
                 "class_id": x.class_id,
                 "name": x.name,
@@ -377,11 +377,11 @@ class DatabaseMappingCheckMixin:
             }
             for x in wide_relationship_qry
         }
-        relationship_class_dict = {
+        relationship_classes = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
             for x in self.query(self.wide_relationship_class_sq)
         }
-        object_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
+        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -392,10 +392,10 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_wide_item = relationship_dict.pop(id_)
-                del relationship_names[updated_wide_item["class_id"], updated_wide_item["name"]]
+                updated_wide_item = relationships.pop(id_)
+                del relationship_ids_by_name[updated_wide_item["class_id"], updated_wide_item["name"]]
                 join_object_id_list = ",".join([str(x) for x in updated_wide_item["object_id_list"]])
-                del relationship_objects[updated_wide_item["class_id"], join_object_id_list]
+                del relationship_ids_by_obj_lst[updated_wide_item["class_id"], join_object_id_list]
             except KeyError:
                 msg = "Relationship not found."
                 if strict:
@@ -407,26 +407,56 @@ class DatabaseMappingCheckMixin:
                 updated_wide_item.update(wide_item)
                 check_wide_relationship(
                     updated_wide_item,
-                    relationship_names,
-                    relationship_objects,
-                    relationship_class_dict,
-                    object_dict,
+                    relationship_ids_by_name,
+                    relationship_ids_by_obj_lst,
+                    relationship_classes,
+                    objects,
                     self.relationship_entity_type,
                 )
                 wide_item["type_id"] = self.relationship_entity_type
-                wide_item["object_class_id_list"] = [
-                    object_dict[id_]["class_id"] for id_ in wide_item["object_id_list"]
-                ]
+                wide_item["object_class_id_list"] = [objects[id_]["class_id"] for id_ in wide_item["object_id_list"]]
                 checked_wide_items.append(wide_item)
-                relationship_dict[id_] = updated_wide_item
-                relationship_names[updated_wide_item["class_id"], updated_wide_item["name"]] = id_
+                relationships[id_] = updated_wide_item
+                relationship_ids_by_name[updated_wide_item["class_id"], updated_wide_item["name"]] = id_
                 join_object_id_list = ",".join([str(x) for x in updated_wide_item["object_id_list"]])
-                relationship_objects[updated_wide_item["class_id"], join_object_id_list] = id_
+                relationship_ids_by_obj_lst[updated_wide_item["class_id"], join_object_id_list] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
+
+    def check_group_entities_for_insert(self, *items, strict=False):
+        """Check whether group entities passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = list()
+        checked_items = list()
+        current_items = {(x.entity_id, x.member_id): None for x in self.query(self.group_entity_sq)}
+        entities = {}
+        for entity in self.query(self.entity_sq):
+            entities.setdefault(entity.class_id, dict())[entity.id] = entity._asdict()
+        for item in items:
+            try:
+                check_group_entity(item, current_items, entities)
+                checked_items.append(item)
+                current_items[item["entity_id"], item["member_id"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
 
     def check_parameter_definitions_for_insert(self, *items, strict=False):
         """Check whether parameter definitions passed as argument respect integrity constraints
@@ -445,13 +475,11 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_names = {
-            (x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)
-        }
+        parameter_definition_ids = {(x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)}
         object_class_ids = {x.id for x in self.query(self.object_class_sq)}
         relationship_class_ids = {x.id for x in self.query(self.wide_relationship_class_sq)}
         entity_class_ids = object_class_ids | relationship_class_ids
-        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             checked_item = item.copy()
             object_class_id = checked_item.pop("object_class_id", None)
@@ -472,10 +500,8 @@ class DatabaseMappingCheckMixin:
                 object_class_id or relationship_class_id or checked_item.get("entity_class_id")
             )
             try:
-                check_parameter_definition(
-                    checked_item, parameter_definition_names, class_ids, parameter_value_list_dict
-                )
-                parameter_definition_names[entity_class_id, checked_item["name"]] = None
+                check_parameter_definition(checked_item, parameter_definition_ids, class_ids, parameter_value_lists)
+                parameter_definition_ids[entity_class_id, checked_item["name"]] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -500,10 +526,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_names = {
-            (x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)
-        }
-        parameter_definition_dict = {
+        parameter_definition_ids = {(x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)}
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -515,7 +539,7 @@ class DatabaseMappingCheckMixin:
             for x in self.query(self.parameter_definition_sq)
         }
         entity_class_ids = {x.id for x in self.query(self.entity_class_sq)}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
                 id_ = item["id"]
@@ -526,8 +550,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = parameter_definition_dict.pop(id_)
-                del parameter_definition_names[updated_item["entity_class_id"], updated_item["name"]]
+                updated_item = parameter_definitions.pop(id_)
+                del parameter_definition_ids[updated_item["entity_class_id"], updated_item["name"]]
             except KeyError:
                 msg = "Parameter not found."
                 if strict:
@@ -540,10 +564,10 @@ class DatabaseMappingCheckMixin:
                 )
                 updated_item.update(item)
                 check_parameter_definition(
-                    updated_item, parameter_definition_names, entity_class_ids, parameter_value_list_dict
+                    updated_item, parameter_definition_ids, entity_class_ids, parameter_value_lists
                 )
-                parameter_definition_names[updated_item["entity_class_id"], updated_item["name"]] = id_
-                parameter_definition_dict[id_] = updated_item
+                parameter_definition_ids[updated_item["entity_class_id"], updated_item["name"]] = id_
+                parameter_definitions[id_] = updated_item
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -568,8 +592,10 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_values = {(x.entity_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq)}
-        parameter_definition_dict = {
+        parameter_value_ids = {
+            (x.entity_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq)
+        }
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -577,8 +603,8 @@ class DatabaseMappingCheckMixin:
             }
             for x in self.query(self.parameter_definition_sq)
         }
-        entity_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
+        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
+        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             checked_item = item.copy()
             checked_item["entity_class_id"] = (
@@ -593,9 +619,9 @@ class DatabaseMappingCheckMixin:
             )
             try:
                 check_parameter_value(
-                    checked_item, parameter_values, parameter_definition_dict, entity_dict, parameter_value_list_dict
+                    checked_item, parameter_value_ids, parameter_definitions, entities, parameter_value_lists
                 )
-                parameter_values[entity_id, checked_item["parameter_definition_id"]] = None
+                parameter_value_ids[entity_id, checked_item["parameter_definition_id"]] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -620,7 +646,7 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_value_dict = {
+        parameter_values = {
             x.id: {
                 "parameter_definition_id": x.parameter_definition_id,
                 "entity_id": x.entity_id,
@@ -632,8 +658,10 @@ class DatabaseMappingCheckMixin:
             }
             for x in self.query(self.parameter_value_sq)
         }
-        parameter_values = {(x.entity_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq)}
-        parameter_definition_dict = {
+        parameter_value_ids = {
+            (x.entity_id, x.parameter_definition_id): x.id for x in self.query(self.parameter_value_sq)
+        }
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -643,8 +671,8 @@ class DatabaseMappingCheckMixin:
             }
             for x in self.query(self.parameter_definition_sq)
         }
-        entity_dict = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
-        parameter_value_list_dict = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
+        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
+        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
         for item in items:
             try:
                 id_ = item["id"]
@@ -655,8 +683,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = parameter_value_dict.pop(id_)
-                del parameter_values[updated_item["entity_id"], updated_item["parameter_definition_id"]]
+                updated_item = parameter_values.pop(id_)
+                del parameter_value_ids[updated_item["entity_id"], updated_item["parameter_definition_id"]]
             except KeyError:
                 msg = "Parameter value not found."
                 if strict:
@@ -679,10 +707,10 @@ class DatabaseMappingCheckMixin:
                 )
                 updated_item.update(item)
                 check_parameter_value(
-                    updated_item, parameter_values, parameter_definition_dict, entity_dict, parameter_value_list_dict
+                    updated_item, parameter_value_ids, parameter_definitions, entities, parameter_value_lists
                 )
-                parameter_value_dict[id_] = updated_item
-                parameter_values[updated_item["entity_id"], updated_item["parameter_definition_id"]] = id_
+                parameter_values[id_] = updated_item
+                parameter_value_ids[updated_item["entity_id"], updated_item["parameter_definition_id"]] = id_
                 checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -707,12 +735,12 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_tags = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
+        parameter_tag_ids = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
-                check_parameter_tag(item, parameter_tags)
+                check_parameter_tag(item, parameter_tag_ids)
                 checked_items.append(item)
-                parameter_tags[item["tag"]] = None
+                parameter_tag_ids[item["tag"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -736,8 +764,8 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_tag_dict = {x.id: {"tag": x.tag} for x in self.query(self.parameter_tag_sq)}
-        parameter_tags = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
+        parameter_tags = {x.id: {"tag": x.tag} for x in self.query(self.parameter_tag_sq)}
+        parameter_tag_ids = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
                 id_ = item["id"]
@@ -749,8 +777,8 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # 'Remove' current instance
-                updated_item = parameter_tag_dict.pop(id_)
-                del parameter_tags[updated_item["tag"]]
+                updated_item = parameter_tags.pop(id_)
+                del parameter_tag_ids[updated_item["tag"]]
             except KeyError:
                 msg = "Parameter tag not found."
                 if strict:
@@ -760,10 +788,10 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_parameter_tag(updated_item, parameter_tags)
+                check_parameter_tag(updated_item, parameter_tag_ids)
                 checked_items.append(item)
-                parameter_tag_dict[id_] = updated_item
-                parameter_tags[updated_item["tag"]] = id_
+                parameter_tags[id_] = updated_item
+                parameter_tag_ids[updated_item["tag"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -787,16 +815,16 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_tags = {
+        parameter_definition_tag_ids = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
-        parameter_name_dict = {x.id: x.name for x in self.query(self.parameter_definition_sq)}
-        parameter_tag_dict = {x.id: x.tag for x in self.query(self.parameter_tag_sq)}
+        parameter_names = {x.id: x.name for x in self.query(self.parameter_definition_sq)}
+        parameter_tags = {x.id: x.tag for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
-                check_parameter_definition_tag(item, parameter_definition_tags, parameter_name_dict, parameter_tag_dict)
+                check_parameter_definition_tag(item, parameter_definition_tag_ids, parameter_names, parameter_tags)
                 checked_items.append(item)
-                parameter_definition_tags[item["parameter_definition_id"], item["parameter_tag_id"]] = None
+                parameter_definition_tag_ids[item["parameter_definition_id"], item["parameter_tag_id"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -820,12 +848,12 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        parameter_value_list_names = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_list_ids = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
         for wide_item in wide_items:
             try:
-                check_wide_parameter_value_list(wide_item, parameter_value_list_names)
+                check_wide_parameter_value_list(wide_item, parameter_value_list_ids)
                 checked_wide_items.append(wide_item)
-                parameter_value_list_names[wide_item["name"]] = None
+                parameter_value_list_ids[wide_item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -849,11 +877,11 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_wide_items = list()
-        parameter_value_list_dict = {
+        parameter_value_lists = {
             x.id: {"name": x.name, "value_list": x.value_list.split(",")}
             for x in self.query(self.wide_parameter_value_list_sq)
         }
-        parameter_value_list_names = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_list_ids = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -865,8 +893,8 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # 'Remove' current instance
-                updated_wide_item = parameter_value_list_dict.pop(id_)
-                del parameter_value_list_names[updated_wide_item["name"]]
+                updated_wide_item = parameter_value_lists.pop(id_)
+                del parameter_value_list_ids[updated_wide_item["name"]]
             except KeyError:
                 msg = "Parameter value list not found."
                 if strict:
@@ -876,10 +904,10 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_wide_item.update(wide_item)
-                check_wide_parameter_value_list(updated_wide_item, parameter_value_list_names)
+                check_wide_parameter_value_list(updated_wide_item, parameter_value_list_ids)
                 checked_wide_items.append(wide_item)
-                parameter_value_list_dict[id_] = updated_wide_item
-                parameter_value_list_names[updated_wide_item["name"]] = id_
+                parameter_value_lists[id_] = updated_wide_item
+                parameter_value_list_ids[updated_wide_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
