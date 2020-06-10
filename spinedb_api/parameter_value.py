@@ -200,12 +200,8 @@ def _from_dict(value_dict):
 
 def _break_dictionary(data):
     """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
-    indexes = list()
-    values = np.empty(len(data))
-    for index, (key, value) in enumerate(data.items()):
-        indexes.append(key)
-        values[index] = value
-    return indexes, values
+    indexes, values = zip(*data.items())
+    return list(indexes), np.array(values)
 
 
 def _datetime_from_database(value):

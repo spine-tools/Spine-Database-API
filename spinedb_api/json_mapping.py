@@ -20,7 +20,7 @@ import itertools
 import math
 from operator import itemgetter
 from .parameter_value import Array, Map, TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
-from .exception import TypeConversionError
+from .exception import InvalidMapping, TypeConversionError
 
 
 # Constants for json spec
@@ -196,6 +196,8 @@ class ConstantMapping(MappingBase):
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
+        if not reference:
+            reference = None
         self._reference = reference
 
     def is_pivoted(self):
@@ -246,14 +248,25 @@ class ColumnMapping(ConstantMapping):
         """
         if reference is not None and not isinstance(reference, (str, int)):
             raise TypeError(f"reference must be int, str or None, instead got: {type(reference).__name__}")
+        if isinstance(reference, str):
+            if not reference:
+                reference = None
+            else:
+                try:
+                    reference = int(reference)
+                except ValueError:
+                    pass
         if isinstance(reference, int) and reference < 0:
-            raise ValueError(f"If reference is an int, it must be >= 0, instead got: {reference}")
+            reference = 0
         self._reference = reference
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
         if isinstance(ref, str):
-            ref = data_header.index(ref)
+            try:
+                ref = data_header.index(ref)
+            except ValueError:
+                raise InvalidMapping(f"Column header '{ref}' not found")
         getter = itemgetter(ref)
         num = 1
         reads_data = True
@@ -265,6 +278,16 @@ class ColumnHeaderMapping(ColumnMapping):
     """
 
     MAP_TYPE = "column_header"
+
+    @MappingBase.reference.setter
+    def reference(self, reference):
+        if reference is not None and not isinstance(reference, (str, int)):
+            raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
+        if isinstance(reference, str) and not reference:
+            reference = None
+        if isinstance(reference, int) and reference < 0:
+            reference = 0
+        self._reference = reference
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
@@ -307,10 +330,19 @@ class RowMapping(MappingBase):
     def reference(self, reference):
         """Setter method for reference, should be implemented in subclasses
         """
-        if reference is not None and not isinstance(reference, int):
+        if reference is not None and not isinstance(reference, (int, str)):
             raise TypeError(f"reference must be int or None, instead got: {type(reference).__name__}")
-        if isinstance(reference, int) and reference < -1:
-            raise ValueError(f"If reference is an int, it must be >= -1, instead got: {reference}")
+        if isinstance(reference, str):
+            if not reference:
+                reference = None
+            elif reference.isdigit():
+                reference = int(reference)
+            else:
+                if reference.lower() != "header":
+                    raise ValueError(f"If reference is a string, it must be 'header'. Instead got '{reference}'")
+                reference = -1
+        if reference is not None and reference < -1:
+            reference = 0
         self._reference = reference
 
     def is_pivoted(self):
@@ -376,6 +408,8 @@ class TableNameMapping(MappingBase):
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be a string or None, instead got {type(reference).__name__}")
+        if not reference:
+            reference = None
         self._reference = reference
 
     def is_pivoted(self):
@@ -489,9 +523,17 @@ class ParameterDefinitionMapping:
 
     def is_valid(self, parent_pivot: bool):
         # check that parameter mapping has a valid name mapping
-        if not self.name.returns_value():
-            return False, "Parameter mapping must have a valid name mapping that returns a value"
+        issue = self.names_issues()
+        if issue:
+            return False, issue
         return True, ""
+
+    def names_issues(self):
+        if isinstance(self._name, NoneMapping):
+            return "The source type for parameter names cannot be None."
+        if self._name.reference != 0 and not self._name.reference:
+            return "No reference set for parameter names."
+        return ""
 
     def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
         if self.name.returns_value():
@@ -552,9 +594,18 @@ class ParameterValueMapping(ParameterDefinitionMapping):
         name_valid, msg = super().is_valid(parent_pivot)
         if not name_valid:
             return False, msg
-        if not (self.is_pivoted() or parent_pivot) and not self.value.returns_value():
-            return False, "Parameter value mapping must be a valid mapping that returns a value"
+        issue = self.values_issues(parent_pivot)
+        if issue:
+            return False, issue
         return True, ""
+
+    def values_issues(self, parent_pivot):
+        if not (self.is_pivoted() or parent_pivot):
+            if isinstance(self._value, NoneMapping):
+                return "The source type for parameter values cannot be None."
+            if self._value.reference != 0 and not self._value.reference:
+                return "No reference set for paremeter values."
+        return ""
 
     def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
@@ -581,7 +632,7 @@ class ParameterArrayMapping(ParameterValueMapping):
 
     def __init__(self, name=None, value=None, extra_dimension=None):
         super().__init__(name, value)
-        self._extra_dimensions = [mappingbase_from_dict_int_str(None) for _ in range(self.NUM_EXTRA_DIMENSIONS)]
+        self._extra_dimensions = None
         self.extra_dimensions = extra_dimension
 
     @property
@@ -640,15 +691,6 @@ class ParameterArrayMapping(ParameterValueMapping):
         map_dict.update({"extra_dimensions": [ed.to_dict() for ed in self.extra_dimensions]})
         return map_dict
 
-    def is_valid(self, parent_pivot: bool):
-        # check that parameter mapping has a valid name mapping
-        valid, msg = super().is_valid(parent_pivot)
-        if not valid:
-            return False, msg
-        if not all(ed.returns_value() for ed in self.extra_dimensions):
-            return False, "All mappings in extra_dimensions must be valid and return a value"
-        return True, ""
-
     def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
         value_getter, value_num, value_reads = getters["value"]
@@ -693,7 +735,25 @@ class ParameterArrayMapping(ParameterValueMapping):
         return out
 
 
-class ParameterMapMapping(ParameterArrayMapping):
+class ParameterIndexedMapping(ParameterArrayMapping):
+    def is_valid(self, parent_pivot: bool):
+        valid, msg = super().is_valid(parent_pivot)
+        if not valid:
+            return False, msg
+        issue = self.indexes_issues()
+        if issue:
+            return False, issue
+        return True, ""
+
+    def indexes_issues(self):
+        if isinstance(self._extra_dimensions[0], NoneMapping):
+            return "The source type for parameter indexes cannot be None."
+        if self._extra_dimensions[0].reference != 0 and not self._extra_dimensions[0].reference:
+            return "No reference set for parameter indexes."
+        return ""
+
+
+class ParameterMapMapping(ParameterIndexedMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "map"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
@@ -710,7 +770,7 @@ class ParameterMapMapping(ParameterArrayMapping):
         return out
 
 
-class ParameterTimeSeriesMapping(ParameterArrayMapping):
+class ParameterTimeSeriesMapping(ParameterIndexedMapping):
     NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time series"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
@@ -773,8 +833,7 @@ class ParameterTimeSeriesMapping(ParameterArrayMapping):
         return out
 
 
-class ParameterTimePatternMapping(ParameterArrayMapping):
-    NUM_EXTRA_DIMENSIONS = 1
+class ParameterTimePatternMapping(ParameterIndexedMapping):
     PARAMETER_TYPE = "time pattern"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
@@ -917,14 +976,22 @@ class EntityClassMapping:
         return map_dict
 
     def is_valid(self):
-        # check that parameter mapping has a valid name mapping
-        if not self.name.is_valid():
-            return False, "name mapping must be valid"
-        if not isinstance(self.parameters, NoneMapping):
-            valid, msg = self.parameters.is_valid(self.is_pivoted())
-            if not valid:
-                return False, "Parameter mapping must be valid, parameter mapping error: " + msg
+        issue = self.class_names_issues()
+        if issue:
+            return False, issue
+        if not isinstance(self._parameters, NoneMapping):
+            parameter_valid, msg = self._parameters.is_valid(self.is_pivoted())
+            if not parameter_valid:
+                return False, msg
         return True, ""
+
+    def class_names_issues(self):
+        """Returns a non-empty message string if the entity class name is invalid."""
+        if isinstance(self._name, NoneMapping):
+            return "The source type for class names cannot be None."
+        if self._name.reference != 0 and not self._name.reference:
+            return "No reference set for class names."
+        return ""
 
     def pivoted_columns(self, data_header, num_cols):
         if not self.is_pivoted():
@@ -1053,12 +1120,17 @@ class ObjectClassMapping(EntityClassMapping):
         valid, msg = super().is_valid()
         if not valid:
             return valid, msg
-        if not self.objects.is_valid():
-            return False, "object mapping must be valid"
-        if isinstance(self.parameters, ParameterValueMapping):
-            if not self.objects.returns_value():
-                return False, "A parameter value mapping needs a valid object mapping"
+        issue = self.object_names_issues()
+        if issue:
+            return False, issue
         return True, ""
+
+    def object_names_issues(self):
+        if isinstance(self._parameters, ParameterValueMapping) and isinstance(self._objects, NoneMapping):
+                return "The source type for object names cannot be None."
+        if not isinstance(self._objects, NoneMapping) and self._objects.reference != 0 and not self._objects.reference:
+                return "No reference set for object names."
+        return ""
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         """Creates a list of getter functions from a list of Mappings"""
@@ -1118,8 +1190,8 @@ class RelationshipClassMapping(EntityClassMapping):
 
     def __init__(self, *args, object_classes=None, objects=None, import_objects=False, **kwargs):
         super().__init__(*args, **kwargs)
-        self._objects = NoneMapping()
-        self._object_classes = NoneMapping()
+        self._objects = None
+        self._object_classes = None
         self._import_objects = False
         self.object_classes = object_classes
         self.objects = objects
@@ -1223,18 +1295,30 @@ class RelationshipClassMapping(EntityClassMapping):
         valid, msg = super().is_valid()
         if not valid:
             return valid, msg
-        if not all(o.is_valid() for o in self.objects):
-            return False, "all object mappings must be valid"
-        if not all(oc.is_valid() for oc in self.object_classes):
-            return False, "all object class mappings must be valid"
-        if isinstance(self.parameters, ParameterValueMapping):
-            # if we have a parameter value mapping we need to have objects and object classes mapping
-            # that returns data.
-            if not all(o.returns_value() for o in self.objects) or not all(
-                oc.returns_value() for oc in self.object_classes
-            ):
-                return False, "parameter value mapping need all object or object_class mappings to return values"
+        for i in range(len(self._object_classes)):
+            issue = self.object_class_names_issues(i)
+            if issue:
+                return False, issue
+            issue = self.object_names_issues(i)
+            if issue:
+                return False, issue
         return True, ""
+
+    def object_class_names_issues(self, class_index):
+        mapping = self._object_classes[class_index]
+        if isinstance(mapping, NoneMapping):
+            return "The source type for object class names cannot be None."
+        if not isinstance(mapping, NoneMapping) and mapping.reference != 0 and not mapping.reference:
+            return "No reference set for object class names."
+        return ""
+
+    def object_names_issues(self, object_index):
+        mapping = self._objects[object_index]
+        if isinstance(self._parameters, ParameterValueMapping) and isinstance(mapping, NoneMapping):
+            return "The source type for object names cannot be None."
+        if not isinstance(mapping, NoneMapping) and mapping.reference != 0 and not mapping.reference:
+            return "No reference set for object names."
+        return ""
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         """Creates a list of getter functions from a list of Mappings"""
@@ -1507,6 +1591,11 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             raise TypeError(
                 f"mapping must be a dict, ObjectClassMapping, RelationshipClassMapping or list of those, instead was: {type(map_).__name__}"
             )
+
+    for map_ in mappings:
+        valid, message = map_.is_valid()
+        if not valid:
+            raise InvalidMapping(message)
 
     # find max pivot row since mapping can have different number of pivoted rows.
     last_pivot_row = -1
