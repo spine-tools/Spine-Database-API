@@ -82,7 +82,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         """
 
     def test_remove_relationship(self):
-        """Test adding and removing an relationship and commiting"""
+        """Test adding and removing a relationship and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
@@ -93,7 +93,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_relationship_from_commited_session(self):
-        """Test removing an relationship from an commited session"""
+        """Test removing a relationship from a commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
@@ -106,7 +106,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_object(self):
-        """Test adding and removing an relationship and commiting"""
+        """Test adding and removing an object and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self.db_map.remove_items(object_ids=ids)
@@ -115,7 +115,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_object_from_commited_session(self):
-        """Test removing an relationship from an commited session"""
+        """Test removing an object from a commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self.db_map.commit_session("add")
@@ -125,8 +125,30 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.query(self.db_map.object_sq).all()), 0)
 
+    def test_remove_group_entity(self):
+        """Test adding and removing a group entity and commiting"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        ids, _ = self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        self.db_map.remove_items(group_entity_ids=ids)
+        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+
+    def test_remove_group_entity_from_committed_sesion(self):
+        """Test removing a group entity from a commited session"""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        ids, _ = self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        self.db_map.commit_session("add")
+        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 1)
+        self.db_map.remove_items(group_entity_ids=ids)
+        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+        self.db_map.commit_session("delete")
+        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+
     def test_remove_relationship_class(self):
-        """Test adding and removing an relationship and commiting"""
+        """Test adding and removing a relationship class and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.remove_items(relationship_class_ids=ids)
@@ -135,7 +157,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 0)
 
     def test_remove_relationship_class_from_commited_session(self):
-        """Test removing an relationship from an commited session"""
+        """Test removing a relationship class from a commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         ids, _ = self.db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self.db_map.commit_session("add")
@@ -146,7 +168,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.wide_relationship_class_sq).all()), 0)
 
     def test_remove_object_class(self):
-        """Test adding and removing an relationship and commiting"""
+        """Test adding and removing an object class and commiting"""
         ids, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.remove_items(object_class_ids=ids)
         self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
@@ -154,7 +176,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
 
     def test_remove_object_class_from_commited_session(self):
-        """Test removing an relationship from an commited session"""
+        """Test removing an object class from a commited session"""
         ids, _ = self.db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 2)
@@ -164,7 +186,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.object_class_sq).all()), 0)
 
     def test_remove_parameter_value(self):
-        """Test adding and removing an parameter value and commiting"""
+        """Test adding and removing a parameter value and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
@@ -178,7 +200,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
 
     def test_remove_parameter_value_from_commited_session(self):
-        """Test adding and commiting a parmaeter value and then removing it"""
+        """Test adding and commiting a parameter value and then removing it"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
@@ -193,7 +215,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self.db_map.query(self.db_map.parameter_value_sq).all()), 0)
 
     def test_remove_object_with_parameter_value(self):
-        """Test adding and removing an parameter value and commiting"""
+        """Test adding and removing a parameter value and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self.db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
@@ -570,6 +592,46 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 self.db_map.add_wide_relationships(
                     {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 3]}, strict=True
                 )
+
+    def test_add_group_entities(self):
+        """Test that adding group entities works."""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        group_ents = self.db_map.session.query(self.db_map.DiffGroupEntity).all()
+        self.assertEqual(len(group_ents), 1)
+        self.assertEqual(group_ents[0].entity_id, 1)
+        self.assertEqual(group_ents[0].entity_class_id, 1)
+        self.assertEqual(group_ents[0].member_id, 2)
+
+    def test_add_group_entities_with_invalid_class(self):
+        """Test that adding group entities with an invalid class fails."""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        with self.assertRaises(SpineIntegrityError):
+            self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 2}, strict=True)
+
+    def test_add_group_entities_with_invalid_entity(self):
+        """Test that adding group entities with an invalid entity fails."""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        with self.assertRaises(SpineIntegrityError):
+            self.db_map.add_group_entities({"entity_id": 3, "entity_class_id": 2, "member_id": 2}, strict=True)
+
+    def test_add_group_entities_with_invalid_member(self):
+        """Test that adding group entities with an invalid member fails."""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        with self.assertRaises(SpineIntegrityError):
+            self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 3}, strict=True)
+
+    def test_add_repeated_group_entities(self):
+        """Test that adding repeated group entities fails."""
+        self.db_map.add_object_classes({"name": "oc1", "id": 1})
+        self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
+        self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 2})
+        with self.assertRaises(SpineIntegrityError):
+            self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 2}, strict=True)
 
     def test_add_parameter_definitions(self):
         """Test that adding parameter definitions works."""
