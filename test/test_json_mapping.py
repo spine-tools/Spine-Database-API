@@ -1,5 +1,5 @@
 ######################################################################################################################
-# Copyright (C) 2017 - 2019 Spine project consortium
+# Copyright (C) 2017 - 2020 Spine project consortium
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -10,13 +10,12 @@
 ######################################################################################################################
 
 """
-Unit tests for import_functions.py.
+Unit tests for json_mapping.py.
 
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
 
-import unittest
 from spinedb_api.json_mapping import (
     read_with_mapping,
     ObjectClassMapping,
@@ -24,12 +23,16 @@ from spinedb_api.json_mapping import (
     ParameterMapMapping,
     ParameterTimeSeriesMapping,
     RowMapping,
+    ColumnHeaderMapping,
     ColumnMapping,
     TableNameMapping,
     convert_function_from_spec,
     parameter_mapping_from_dict,
     TimeSeriesOptions,
+    NoneMapping,
+    ConstantMapping,
 )
+import unittest
 from spinedb_api.parameter_value import Array, TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError
 
@@ -43,6 +46,75 @@ class TestTypeConversion(unittest.TestCase):
         convert_function = convert_function_from_spec({0: str, 1: float}, 2)
         with self.assertRaises(TypeConversionError):
             convert_function(["a", "not a float"])
+
+
+class TestMappingReferenceSetters(unittest.TestCase):
+    def test_NoneMapping_ignores_reference(self):
+        mapping = NoneMapping()
+        self.assertIsNone(mapping.reference)
+        mapping.reference = 0
+        self.assertIsNone(mapping.reference)
+
+    def test_ConstantMapping_reference(self):
+        mapping = ConstantMapping()
+        self.assertIsNone(mapping.reference)
+        mapping.reference = "a"
+        self.assertEqual(mapping.reference, "a")
+        mapping.reference = ""
+        self.assertIsNone(mapping.reference)
+
+    def test_ColumnMapping_reference(self):
+        mapping = ColumnMapping()
+        self.assertIsNone(mapping.reference)
+        mapping.reference = 3
+        self.assertEqual(mapping.reference, 3)
+        mapping.reference = -3
+        self.assertEqual(mapping.reference, 0)
+        mapping.reference = "3"
+        self.assertEqual(mapping.reference, 3)
+        mapping.reference = "-3"
+        self.assertEqual(mapping.reference, 0)
+        mapping.reference = "a"
+        self.assertEqual(mapping.reference, "a")
+        mapping.reference = ""
+        self.assertIsNone(mapping.reference)
+
+    def test_ColumnHeaderMapping_reference(self):
+        mapping = ColumnHeaderMapping()
+        self.assertIsNone(mapping.reference)
+        mapping.reference = 3
+        self.assertEqual(mapping.reference, 3)
+        mapping.reference = -3
+        self.assertEqual(mapping.reference, 0)
+        mapping.reference = "a"
+        self.assertEqual(mapping.reference, "a")
+        mapping.reference = ""
+        self.assertIsNone(mapping.reference)
+
+    def test_RowMapping_reference(self):
+        mapping = RowMapping()
+        self.assertIsNone(mapping.reference)
+        mapping.reference = 3
+        self.assertEqual(mapping.reference, 3)
+        mapping.reference = -3
+        self.assertEqual(mapping.reference, 0)
+        mapping.reference = "header"
+        self.assertEqual(mapping.reference, -1)
+        mapping.reference = ""
+        self.assertIsNone(mapping.reference)
+
+        def try_setting_reference_to_arbitrary_string():
+            mapping.reference = "a"
+
+        self.assertRaises(ValueError, try_setting_reference_to_arbitrary_string)
+
+    def test_TableNameMapping_reference(self):
+        mapping = TableNameMapping("table name")
+        self.assertEqual(mapping.reference, "table name")
+        mapping.reference = "a"
+        self.assertEqual(mapping.reference, "a")
+        mapping.reference = ""
+        self.assertIsNone(mapping.reference)
 
 
 class TestMappingIO(unittest.TestCase):
