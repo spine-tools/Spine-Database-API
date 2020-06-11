@@ -106,8 +106,6 @@ class DatabaseMappingBase:
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
-        self._ext_entity_group_sq = None
-        self._wide_entity_group_sq = None
         self._object_parameter_definition_sq = None
         self._relationship_parameter_definition_sq = None
         self._object_parameter_value_sq = None
@@ -645,10 +643,8 @@ class DatabaseMappingBase:
                     self.object_class_sq.c.name.label("class_name"),
                     self.object_sq.c.name.label("name"),
                     self.object_sq.c.description.label("description"),
-                    self.wide_entity_group_sq.c.entity_group_id_list.label("entity_group_id_list"),
                 )
                 .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
-                .outerjoin(self.wide_entity_group_sq, self.wide_entity_group_sq.c.id == self.object_sq.c.id)
                 .subquery()
             )
         return self._ext_object_sq
@@ -810,46 +806,6 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._wide_relationship_sq
-
-    @property
-    def ext_entity_group_sq(self):
-        if self._ext_entity_group_sq is None:
-            self._ext_entity_group_sq = (
-                self.query(
-                    self.entity_group_sq.c.id.label("id"),
-                    self.entity_group_sq.c.entity_id.label("entity_id"),
-                    self.entity_group_sq.c.entity_class_id.label("entity_class_id"),
-                    self.entity_class_sq.c.name.label("entity_class_name"),
-                    self.entity_group_sq.c.member_id.label("member_id"),
-                    self.entity_sq.c.name.label("member_name"),
-                )
-                .filter(self.entity_group_sq.c.entity_class_id == self.entity_class_sq.c.id)
-                .filter(self.entity_group_sq.c.member_id == self.entity_sq.c.id)
-                .order_by(self.entity_group_sq.c.entity_id, self.entity_group_sq.c.member_id)
-                .subquery()
-            )
-        return self._ext_entity_group_sq
-
-    @property
-    def wide_entity_group_sq(self):
-        if self._wide_entity_group_sq is None:
-            self._wide_entity_group_sq = (
-                self.query(
-                    self.ext_entity_group_sq.c.entity_id.label("id"),
-                    self.ext_entity_group_sq.c.entity_class_id,
-                    self.ext_entity_group_sq.c.entity_class_name,
-                    func.group_concat(self.ext_entity_group_sq.c.id).label("entity_group_id_list"),
-                    func.group_concat(self.ext_entity_group_sq.c.member_id).label("member_id_list"),
-                    func.group_concat(self.ext_entity_group_sq.c.member_name).label("member_name_list"),
-                )
-                .group_by(
-                    self.ext_entity_group_sq.c.entity_id,
-                    self.ext_entity_group_sq.c.entity_class_id,
-                    self.ext_entity_group_sq.c.entity_class_name,
-                )
-                .subquery()
-            )
-        return self._wide_entity_group_sq
 
     @property
     def object_parameter_definition_sq(self):

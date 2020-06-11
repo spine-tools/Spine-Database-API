@@ -129,7 +129,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         """Test adding and removing an entity group and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        ids, _ = self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        ids, _ = self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
         self.db_map.remove_items(entity_group_ids=ids)
         self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 0)
         self.db_map.commit_session("delete")
@@ -139,7 +139,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         """Test removing an entity group from a commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        ids, _ = self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        ids, _ = self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
         self.db_map.commit_session("add")
         self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 1)
         self.db_map.remove_items(entity_group_ids=ids)
@@ -593,45 +593,45 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                     {"name": "nemo__pluto", "class_id": 1, "object_id_list": [1, 3]}, strict=True
                 )
 
-    def test_add_group_entities(self):
+    def test_add_entity_groups(self):
         """Test that adding group entities works."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
         group_ents = self.db_map.session.query(self.db_map.DiffEntityGroup).all()
         self.assertEqual(len(group_ents), 1)
         self.assertEqual(group_ents[0].entity_id, 1)
         self.assertEqual(group_ents[0].entity_class_id, 1)
         self.assertEqual(group_ents[0].member_id, 2)
 
-    def test_add_group_entities_with_invalid_class(self):
+    def test_add_entity_groups_with_invalid_class(self):
         """Test that adding group entities with an invalid class fails."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 2}, strict=True)
+            self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 2, "member_id": 2}, strict=True)
 
-    def test_add_group_entities_with_invalid_entity(self):
+    def test_add_entity_groups_with_invalid_entity(self):
         """Test that adding group entities with an invalid entity fails."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_group_entities({"entity_id": 3, "entity_class_id": 2, "member_id": 2}, strict=True)
+            self.db_map.add_entity_groups({"entity_id": 3, "entity_class_id": 2, "member_id": 2}, strict=True)
 
-    def test_add_group_entities_with_invalid_member(self):
+    def test_add_entity_groups_with_invalid_member(self):
         """Test that adding group entities with an invalid member fails."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 3}, strict=True)
+            self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 2, "member_id": 3}, strict=True)
 
-    def test_add_repeated_group_entities(self):
+    def test_add_repeated_entity_groups(self):
         """Test that adding repeated group entities fails."""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 2})
+        self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 2, "member_id": 2})
         with self.assertRaises(SpineIntegrityError):
-            self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 2, "member_id": 2}, strict=True)
+            self.db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 2, "member_id": 2}, strict=True)
 
     def test_add_parameter_definitions(self):
         """Test that adding parameter definitions works."""
