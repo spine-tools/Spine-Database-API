@@ -422,7 +422,7 @@ def import_object_groups(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, _, error_log = _get_object_groups_for_import(db_map, data)
-    added = db_map._add_group_entities(*to_add)
+    added = db_map._add_entity_groups(*to_add)
     return len(added), error_log
 
 
@@ -432,7 +432,7 @@ def _get_object_groups_for_import(db_map, data):
     objects = {}
     for obj in db_map.query(db_map.object_sq):
         objects.setdefault(obj.class_id, dict())[obj.id] = obj._asdict()
-    group_entities = {(x.entity_id, x.member_id): x.id for x in db_map.query(db_map.entity_group_sq)}
+    entity_groups = {(x.entity_id, x.member_id): x.id for x in db_map.query(db_map.entity_group_sq)}
     error_log = []
     to_add = []
     seen = set()
@@ -441,11 +441,11 @@ def _get_object_groups_for_import(db_map, data):
         og_id = object_ids.get((oc_id, group_name))
         for member_name in member_names:
             mo_id = object_ids.get((oc_id, member_name))
-            if (og_id, mo_id) in seen | group_entities.keys():
+            if (og_id, mo_id) in seen | entity_groups.keys():
                 continue
             item = {"entity_class_id": oc_id, "entity_id": og_id, "member_id": mo_id}
             try:
-                check_entity_group(item, group_entities, objects)
+                check_entity_group(item, entity_groups, objects)
                 to_add.append(item)
                 seen.add((og_id, mo_id))
             except SpineIntegrityError as e:

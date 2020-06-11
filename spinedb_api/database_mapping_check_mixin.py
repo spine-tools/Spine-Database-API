@@ -426,8 +426,8 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
 
-    def check_group_entities_for_insert(self, *items, strict=False):
-        """Check whether group entities passed as argument respect integrity constraints
+    def check_entity_groups_for_insert(self, *items, strict=False):
+        """Check whether entity groups passed as argument respect integrity constraints
         for an insert operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.

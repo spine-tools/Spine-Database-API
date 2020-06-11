@@ -183,7 +183,7 @@ def check_entity_group(item, current_items, entities):
 
     :param dict item: An entity group item to be checked.
     :param dict current_items: A dictionary mapping tuples (entity_id, member_id) to ids
-        of group entities already in the database.
+        of entity groups already in the database.
     :param dict entities: A dictionary mapping entity class ids, to entity ids, to entity items
         already in the db
     """

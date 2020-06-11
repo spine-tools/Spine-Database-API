@@ -390,7 +390,7 @@ class DiffDatabaseMappingAddMixin:
         self.added_item_id["relationship_entity"].update(ids)
         return ids, []
 
-    def add_group_entities(self, *items, strict=False, return_dups=False):
+    def add_entity_groups(self, *items, strict=False, return_dups=False):
         """Stage group object items for insertion.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
@@ -403,13 +403,13 @@ class DiffDatabaseMappingAddMixin:
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
-        checked_items, intgr_error_log = self.check_group_entities_for_insert(*items, strict=strict)
-        ids = self._add_group_entities(*checked_items)
+        checked_items, intgr_error_log = self.check_entity_groups_for_insert(*items, strict=strict)
+        ids = self._add_entity_groups(*checked_items)
         if return_dups:
             ids.update(set(x.id_ for x in intgr_error_log if x.id_))
         return ids, intgr_error_log
 
-    def _add_group_entities(self, *items):
+    def _add_entity_groups(self, *items):
         """Add group objects to database without checking integrity.
 
         Args:
@@ -419,20 +419,20 @@ class DiffDatabaseMappingAddMixin:
             ids (set): added instances' ids
         """
         items_to_add, ids = self._items_and_ids("entity_group", *items)
-        self._do_add_group_entities(*items_to_add)
+        self._do_add_entity_groups(*items_to_add)
         self.added_item_id["entity_group"].update(ids)
         return ids
 
-    def _do_add_group_entities(self, *items):
+    def _do_add_entity_groups(self, *items):
         try:
             self.session.bulk_insert_mappings(self.DiffEntityGroup, items)
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting group entities: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting entity groups: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def readd_group_entities(self, *items):
+    def readd_entity_groups(self, *items):
         """Add known group objects to the database.
 
         Args:
@@ -441,7 +441,7 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        self._do_add_group_entities(*items)
+        self._do_add_entity_groups(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["entity_group"].update(ids)
         return ids, []
