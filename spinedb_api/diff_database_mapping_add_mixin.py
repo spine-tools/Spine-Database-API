@@ -45,7 +45,7 @@ class DiffDatabaseMappingAddMixin:
             Column("date", String(155), primary_key=True),
             Column("entity_id", Integer, server_default=null()),
             Column("entity_class_id", Integer, server_default=null()),
-            Column("group_entity_id", Integer, server_default=null()),
+            Column("entity_group_id", Integer, server_default=null()),
             Column("parameter_definition_id", Integer, server_default=null()),
             Column("parameter_value_id", Integer, server_default=null()),
             Column("parameter_tag_id", Integer, server_default=null()),
@@ -88,7 +88,7 @@ class DiffDatabaseMappingAddMixin:
             "object": "entity_id",
             "relationship_class": "entity_class_id",
             "relationship": "entity_id",
-            "group_entity": "group_entity_id",
+            "entity_group": "entity_group_id",
             "parameter_definition": "parameter_definition_id",
             "parameter_value": "parameter_value_id",
             "parameter_tag": "parameter_tag_id",
@@ -103,7 +103,7 @@ class DiffDatabaseMappingAddMixin:
                 "object": "Entity",
                 "relationship_class": "EntityClass",
                 "relationship": "Entity",
-                "group_entity": "GroupEntity",
+                "entity_group": "EntityGroup",
                 "parameter_definition": "ParameterDefinition",
                 "parameter_value": "ParameterValue",
                 "parameter_tag": "ParameterTag",
@@ -418,14 +418,14 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_and_ids("group_entity", *items)
+        items_to_add, ids = self._items_and_ids("entity_group", *items)
         self._do_add_group_entities(*items_to_add)
-        self.added_item_id["group_entity"].update(ids)
+        self.added_item_id["entity_group"].update(ids)
         return ids
 
     def _do_add_group_entities(self, *items):
         try:
-            self.session.bulk_insert_mappings(self.DiffGroupEntity, items)
+            self.session.bulk_insert_mappings(self.DiffEntityGroup, items)
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()
@@ -443,7 +443,7 @@ class DiffDatabaseMappingAddMixin:
         """
         self._do_add_group_entities(*items)
         ids = set(x["id"] for x in items)
-        self.added_item_id["group_entity"].update(ids)
+        self.added_item_id["entity_group"].update(ids)
         return ids, []
 
     def add_parameter_definitions(self, *items, strict=False, return_dups=False):

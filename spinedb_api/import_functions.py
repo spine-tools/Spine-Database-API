@@ -23,6 +23,7 @@ from .check_functions import (
     check_object,
     check_wide_relationship_class,
     check_wide_relationship,
+    check_entity_group,
     check_parameter_definition,
     check_parameter_value,
     check_parameter_tag,

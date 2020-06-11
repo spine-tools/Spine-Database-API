@@ -125,27 +125,27 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.db_map.commit_session("")
         self.assertEqual(len(self.db_map.query(self.db_map.object_sq).all()), 0)
 
-    def test_remove_group_entity(self):
-        """Test adding and removing a group entity and commiting"""
+    def test_remove_entity_group(self):
+        """Test adding and removing an entity group and commiting"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         ids, _ = self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-        self.db_map.remove_items(group_entity_ids=ids)
-        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+        self.db_map.remove_items(entity_group_ids=ids)
+        self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 0)
 
-    def test_remove_group_entity_from_committed_sesion(self):
-        """Test removing a group entity from a commited session"""
+    def test_remove_entity_group_from_committed_sesion(self):
+        """Test removing an entity group from a commited session"""
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         ids, _ = self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
         self.db_map.commit_session("add")
-        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 1)
-        self.db_map.remove_items(group_entity_ids=ids)
-        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 1)
+        self.db_map.remove_items(entity_group_ids=ids)
+        self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 0)
         self.db_map.commit_session("delete")
-        self.assertEqual(len(self.db_map.query(self.db_map.group_entity_sq).all()), 0)
+        self.assertEqual(len(self.db_map.query(self.db_map.entity_group_sq).all()), 0)
 
     def test_remove_relationship_class(self):
         """Test adding and removing a relationship class and commiting"""
@@ -598,7 +598,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.db_map.add_object_classes({"name": "oc1", "id": 1})
         self.db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         self.db_map.add_group_entities({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-        group_ents = self.db_map.session.query(self.db_map.DiffGroupEntity).all()
+        group_ents = self.db_map.session.query(self.db_map.DiffEntityGroup).all()
         self.assertEqual(len(group_ents), 1)
         self.assertEqual(group_ents[0].entity_id, 1)
         self.assertEqual(group_ents[0].entity_class_id, 1)

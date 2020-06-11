@@ -22,7 +22,7 @@ from .check_functions import (
     check_object,
     check_wide_relationship_class,
     check_wide_relationship,
-    check_group_entity,
+    check_entity_group,
     check_parameter_definition,
     check_parameter_value,
     check_parameter_tag,
@@ -443,13 +443,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = list()
         checked_items = list()
-        current_items = {(x.entity_id, x.member_id): None for x in self.query(self.group_entity_sq)}
+        current_items = {(x.entity_id, x.member_id): None for x in self.query(self.entity_group_sq)}
         entities = {}
         for entity in self.query(self.entity_sq):
             entities.setdefault(entity.class_id, dict())[entity.id] = entity._asdict()
         for item in items:
             try:
-                check_group_entity(item, current_items, entities)
+                check_entity_group(item, current_items, entities)
                 checked_items.append(item)
                 current_items[item["entity_id"], item["member_id"]] = None
             except SpineIntegrityError as e:

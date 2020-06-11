@@ -31,7 +31,7 @@ class DiffDatabaseMappingRemoveMixin:
         object_ids=(),
         relationship_class_ids=(),
         relationship_ids=(),
-        group_entity_ids=(),
+        entity_group_ids=(),
         parameter_definition_ids=(),
         parameter_value_ids=(),
         parameter_tag_ids=(),
@@ -44,7 +44,7 @@ class DiffDatabaseMappingRemoveMixin:
             object_ids=object_ids,
             relationship_class_ids=relationship_class_ids,
             relationship_ids=relationship_ids,
-            group_entity_ids=group_entity_ids,
+            entity_group_ids=entity_group_ids,
             parameter_definition_ids=parameter_definition_ids,
             parameter_value_ids=parameter_value_ids,
             parameter_tag_ids=parameter_tag_ids,
@@ -76,7 +76,7 @@ class DiffDatabaseMappingRemoveMixin:
         object_ids=(),
         relationship_class_ids=(),
         relationship_ids=(),
-        group_entity_ids=(),
+        entity_group_ids=(),
         parameter_definition_ids=(),
         parameter_value_ids=(),
         parameter_tag_ids=(),
@@ -93,7 +93,7 @@ class DiffDatabaseMappingRemoveMixin:
         self._merge(cascading_ids, self._object_cascading_ids(set(object_ids)))
         self._merge(cascading_ids, self._relationship_class_cascading_ids(set(relationship_class_ids)))
         self._merge(cascading_ids, self._relationship_cascading_ids(set(relationship_ids)))
-        self._merge(cascading_ids, self._group_entity_cascading_ids(set(group_entity_ids)))
+        self._merge(cascading_ids, self._entity_group_cascading_ids(set(entity_group_ids)))
         self._merge(cascading_ids, self._parameter_definition_cascading_ids(set(parameter_definition_ids)))
         self._merge(cascading_ids, self._parameter_value_cascading_ids(set(parameter_value_ids)))
         self._merge(cascading_ids, self._parameter_tag_cascading_ids(set(parameter_tag_ids)))
@@ -129,12 +129,12 @@ class DiffDatabaseMappingRemoveMixin:
             self.in_(self.parameter_value_sq.c.object_id, ids)
         )
         # TODO: try to use `or_` here
-        group_entities = self.query(self.group_entity_sq.c.id).filter(self.in_(self.group_entity_sq.c.entity_id, ids))
-        member_entities = self.query(self.group_entity_sq.c.id).filter(self.in_(self.group_entity_sq.c.member_id, ids))
+        group_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.entity_id, ids))
+        member_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.member_id, ids))
         self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._group_entity_cascading_ids({x.id for x in group_entities}))
-        self._merge(cascading_ids, self._group_entity_cascading_ids({x.id for x in member_entities}))
+        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in group_entities}))
+        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in member_entities}))
         return cascading_ids
 
     def _relationship_class_cascading_ids(self, ids):
@@ -155,16 +155,16 @@ class DiffDatabaseMappingRemoveMixin:
             self.in_(self.parameter_value_sq.c.relationship_id, ids)
         )
         # TODO: try to use `or_` here
-        group_entities = self.query(self.group_entity_sq.c.id).filter(self.in_(self.group_entity_sq.c.entity_id, ids))
-        member_entities = self.query(self.group_entity_sq.c.id).filter(self.in_(self.group_entity_sq.c.member_id, ids))
+        group_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.entity_id, ids))
+        member_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.member_id, ids))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._group_entity_cascading_ids({x.id for x in group_entities}))
-        self._merge(cascading_ids, self._group_entity_cascading_ids({x.id for x in member_entities}))
+        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in group_entities}))
+        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in member_entities}))
         return cascading_ids
 
-    def _group_entity_cascading_ids(self, ids):  # pylint: disable=no-self-use
-        """Returns group entity cascading ids."""
-        return {"group_entity": ids}
+    def _entity_group_cascading_ids(self, ids):  # pylint: disable=no-self-use
+        """Returns entity group cascading ids."""
+        return {"entity_group": ids}
 
     def _parameter_definition_cascading_ids(self, ids):
         """Returns parameter definition cascading ids."""

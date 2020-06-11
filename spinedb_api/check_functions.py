@@ -177,11 +177,11 @@ def check_wide_relationship(
         )
 
 
-def check_group_entity(item, current_items, entities):
-    """Check whether the insertion of a group entity item
+def check_entity_group(item, current_items, entities):
+    """Check whether the insertion of an entity group item
     results in the violation of an integrity constraint.
 
-    :param dict item: A group entity item to be checked.
+    :param dict item: An entity group item to be checked.
     :param dict current_items: A dictionary mapping tuples (entity_id, member_id) to ids
         of group entities already in the database.
     :param dict entities: A dictionary mapping entity class ids, to entity ids, to entity items

@@ -401,7 +401,7 @@ def create_new_spine_database(db_url):
         ),
     )
     Table(
-        "group_entity",
+        "entity_group",
         meta,
         Column("id", Integer, primary_key=True),
         Column("entity_id", Integer, nullable=False),

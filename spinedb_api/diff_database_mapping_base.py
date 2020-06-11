@@ -55,7 +55,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffRelationshipEntityClass = None
         self.DiffRelationship = None
         self.DiffRelationshipEntity = None
-        self.DiffGroupEntity = None
+        self.DiffEntityGroup = None
         self.DiffParameterDefinition = None
         self.DiffParameterValue = None
         self.DiffParameterTag = None
@@ -168,4 +168,4 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.query(self.DiffObjectClass).delete()
         self.query(self.DiffRelationshipEntityClass).delete()
         self.query(self.DiffRelationshipEntity).delete()
-        self.query(self.DiffGroupEntity).delete()
+        self.query(self.DiffEntityGroup).delete()

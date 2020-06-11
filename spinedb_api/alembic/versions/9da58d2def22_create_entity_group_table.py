@@ -1,4 +1,4 @@
-"""create group_entity_table
+"""create entity_group_table
 
 Revision ID: 9da58d2def22
 Revises: 070a0eb89e88
@@ -21,9 +21,9 @@ def upgrade():
     m.reflect()
     if "next_id" in m.tables:
         with op.batch_alter_table("next_id") as batch_op:
-            batch_op.add_column(sa.Column("group_entity_id", sa.Integer))
+            batch_op.add_column(sa.Column("entity_group_id", sa.Integer))
     op.create_table(
-        "group_entity",
+        "entity_group",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("entity_id", sa.Integer, nullable=False),
         sa.Column("entity_class_id", sa.Integer, nullable=False),
