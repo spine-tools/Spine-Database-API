@@ -31,6 +31,7 @@ from spinedb_api.json_mapping import (
     TimeSeriesOptions,
     NoneMapping,
     ConstantMapping,
+    Map,
 )
 import unittest
 from spinedb_api.parameter_value import Array, TimeSeriesVariableResolution, TimePattern
@@ -443,6 +444,31 @@ class TestMappingIsValid(unittest.TestCase):
         mapping = parameter_mapping_from_dict(mapping)
         is_valid, _ = mapping.is_valid(False)
         self.assertFalse(is_valid)
+
+    def test_valid_multidimensional_map_mapping(self):
+        mapping = {
+            "map_type": "parameter",
+            "name": "test",
+            "value": 2,
+            "parameter_type": "map",
+            "extra_dimensions": [0, 1],
+        }
+        mapping = parameter_mapping_from_dict(mapping)
+        is_valid, _ = mapping.is_valid(False)
+        self.assertTrue(is_valid)
+
+    def test_invalid_multidimensional_map_mapping_missing_mapping_for_extra_dimension(self):
+        mapping = {
+            "map_type": "parameter",
+            "name": "test",
+            "value": 2,
+            "parameter_type": "map",
+            "extra_dimensions": [0, None],
+        }
+        mapping = parameter_mapping_from_dict(mapping)
+        is_valid, msg = mapping.is_valid(False)
+        self.assertFalse(is_valid)
+        self.assertTrue(msg)
 
     def test_valid_pivoted_parameter_mapping(self):
         mapping = {"map_type": "parameter", "name": {"map_type": "row", "reference": 0}}
@@ -1151,21 +1177,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_read_relationships_parameter_values_with_extra_dimensions(self):
-        # FIXME: right now the read_with_mapping only keeps the value for
-        # mappings with extra dimensions until the data spec is final.
         input_data = [["", "a", "b"], ["", "c", "d"], ["", "e", "f"], ["a", 2, 3], ["b", 4, 5]]
-        # original test
-        # self.empty_data.update(
-        #    {
-        #        "relationship_classes": [("unit__node", ("unit", "node"))],
-        #        "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
-        #        "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
-        #        "relationship_parameter_values": [
-        #            ("unit__node", ("a", "c"), "e", "[[1, 2], [2, 4]]"),
-        #            ("unit__node", ("b", "d"), "f", "[[1, 3], [2, 5]]"),
-        #        ],
-        #    }
-        # )
 
         self.empty_data.update(
             {
@@ -1291,6 +1303,90 @@ class TestMappingIntegration(unittest.TestCase):
         expected = dict(self.empty_data)
         expected["object_classes"] = ["class name"]
         expected["objects"] = [("class name", "object 1"), ("class name", "object 2")]
+        self.assertFalse(errors)
+        self.assertEqual(out, expected)
+
+    def test_read_flat_map_from_columns(self):
+        input_data = [["Index", "Value"], ["key1", -2], ["key2", -1]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object_class",
+            "object": "object",
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 1,
+                "extra_dimensions": [0],
+            },
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_classes"] = ["object_class"]
+        expected["objects"] = [("object_class", "object")]
+        expected_map = Map(["key1", "key2"], [-2, -1])
+        expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
+        expected["object_parameters"] = [("object_class", "parameter")]
+        self.assertFalse(errors)
+        self.assertEqual(out, expected)
+
+    def test_read_nested_map_from_columns(self):
+        input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object_class",
+            "object": "object",
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 2,
+                "extra_dimensions": [0, 1],
+            },
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_classes"] = ["object_class"]
+        expected["objects"] = [("object_class", "object")]
+        expected_map = Map(["key11", "key21"], [Map(["key12"], [-2]), Map(["key22"], [-1])])
+        expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
+        expected["object_parameters"] = [("object_class", "parameter")]
+        self.assertFalse(errors)
+        self.assertEqual(out, expected)
+
+    def test_read_uneven_nested_map_from_columns(self):
+        input_data = [
+            ["Index", "A", "B", "C"],
+            ["key1", "key11", -2, ""],
+            ["key1", "key12", -1, ""],
+            ["key2", -23, "", ""],
+            ["key3", -33, "", ""],
+            ["key4", "key31", "key311", 50],
+            ["key4", "key31", "key312", 51],
+            ["key4", "key32", 66, ""]
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object_class",
+            "object": "object",
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 3,
+                "extra_dimensions": [0, 1, 2],
+            },
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_classes"] = ["object_class"]
+        expected["objects"] = [("object_class", "object")]
+        expected_map = Map(["key1", "key2", "key3", "key4"], [Map(["key11", "key12"], [-2, -1]), -23, -33, Map(["key31", "key32"], [Map(["key311", "key312"], [50, 51]), 66])])
+        expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
+        expected["object_parameters"] = [("object_class", "parameter")]
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 
