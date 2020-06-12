@@ -23,6 +23,7 @@ from .check_functions import (
     check_object,
     check_wide_relationship_class,
     check_wide_relationship,
+    check_entity_group,
     check_parameter_definition,
     check_parameter_value,
     check_parameter_tag,
@@ -63,6 +64,7 @@ def import_data(
     relationship_parameters=(),
     objects=(),
     relationships=(),
+    object_groups=(),
     object_parameter_values=(),
     relationship_parameter_values=(),
 ):
@@ -144,6 +146,10 @@ def import_data(
         new, errors = import_relationships(db_map, relationships)
         num_imports = num_imports + new
         error_log.extend(errors)
+    if object_groups:
+        new, errors = import_object_groups(db_map, object_groups)
+        num_imports = num_imports + new
+        error_log.extend(errors)
     if object_parameter_values:
         new, errors = import_object_parameter_values(db_map, object_parameter_values)
         num_imports = num_imports + new
@@ -164,6 +170,7 @@ def get_data_for_import(
     relationship_parameters=(),
     objects=(),
     relationships=(),
+    object_groups=(),
     object_parameter_values=(),
     relationship_parameter_values=(),
 ):
@@ -207,6 +214,8 @@ def get_data_for_import(
         yield ("object", _get_objects_for_import(db_map, objects))
     if relationships:
         yield ("relationship", _get_relationships_for_import(db_map, relationships))
+    if object_groups:
+        yield ("entity group", _get_object_groups_for_import(db_map, object_groups))
     if object_parameter_values:
         yield ("parameter value", _get_object_parameter_values_for_import(db_map, object_parameter_values))
     if relationship_parameter_values:
@@ -391,6 +400,62 @@ def _get_objects_for_import(db_map, data):
         else:
             to_add.append(item)
     return to_add, to_update, error_log
+
+
+def import_object_groups(db_map, data):
+    """Imports list of object groups by name with associated object class name into given database mapping:
+    Ignores duplicate and existing (group, member) tuples.
+
+    Example::
+
+            data = [
+                ('object_class_name', 'object_group_name', ['member_name', 'another_member_name'])
+            ]
+            import_objects(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
+            and list of member names
+
+    Returns:
+        (Int, List) Number of successful inserted objects, list of errors
+    """
+    to_add, _, error_log = _get_object_groups_for_import(db_map, data)
+    added = db_map._add_entity_groups(*to_add)
+    return len(added), error_log
+
+
+def _get_object_groups_for_import(db_map, data):
+    object_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.object_class_sq)}
+    object_ids = {(o.class_id, o.name): o.id for o in db_map.query(db_map.object_sq)}
+    objects = {}
+    for obj in db_map.query(db_map.object_sq):
+        objects.setdefault(obj.class_id, dict())[obj.id] = obj._asdict()
+    entity_groups = {(x.entity_id, x.member_id): x.id for x in db_map.query(db_map.entity_group_sq)}
+    error_log = []
+    to_add = []
+    seen = set()
+    for class_name, group_name, member_names in data:
+        oc_id = object_class_ids.get(class_name)
+        og_id = object_ids.get((oc_id, group_name))
+        for member_name in member_names:
+            mo_id = object_ids.get((oc_id, member_name))
+            if (og_id, mo_id) in seen | entity_groups.keys():
+                continue
+            item = {"entity_class_id": oc_id, "entity_id": og_id, "member_id": mo_id}
+            try:
+                check_entity_group(item, entity_groups, objects)
+                to_add.append(item)
+                seen.add((og_id, mo_id))
+            except SpineIntegrityError as e:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Could not import object '{member_name}' into group '{group_name}': {e.msg}",
+                        db_type="entity group",
+                    )
+                )
+    return to_add, [], error_log
 
 
 def import_relationships(db_map, data):

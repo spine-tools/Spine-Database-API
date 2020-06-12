@@ -423,6 +423,21 @@ def create_new_spine_database(db_url):
         ),
     )
     Table(
+        "entity_group",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("entity_id", Integer, nullable=False),
+        Column("entity_class_id", Integer, nullable=False),
+        Column("member_id", Integer, nullable=False),
+        UniqueConstraint("entity_id", "member_id"),
+        ForeignKeyConstraint(
+            ("entity_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
+        ),
+        ForeignKeyConstraint(
+            ("member_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
+        ),
+    )
+    Table(
         "parameter_definition",
         meta,
         Column("id", Integer, primary_key=True),

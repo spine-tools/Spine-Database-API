@@ -1,7 +1,7 @@
 """add alternatives and scenarios
 
 Revision ID: 39e860a11b05
-Revises: 070a0eb89e88
+Revises: 9da58d2def22
 Create Date: 2020-03-05 14:04:00.854936
 
 """
@@ -12,7 +12,7 @@ from datetime import datetime
 
 # revision identifiers, used by Alembic.
 revision = '39e860a11b05'
-down_revision = '070a0eb89e88'
+down_revision = '9da58d2def22'
 branch_labels = None
 depends_on = None
 

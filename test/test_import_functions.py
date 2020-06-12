@@ -215,7 +215,7 @@ class TestImportRelationshipClass(unittest.TestCase):
     def test_import_valid_relationship_class(self):
         _, errors = import_relationship_classes(self.mock_db_map, [["new_rc", ["existing_oc1", "existing_oc2"]]])
         self.mock_db_map._add_wide_relationship_classes.assert_called_once_with(
-            {"name": "new_rc", "object_class_id_list": (1, 2), "type_id": 2}
+            {"name": "new_rc", "object_class_id_list": [1, 2], "type_id": 2}
         )
         self.assertEqual(len(errors), 0)
 
@@ -230,7 +230,7 @@ class TestImportRelationshipClass(unittest.TestCase):
             [["new_rc", ["existing_oc1", "existing_oc2"]], ["new_rc", ["existing_oc2", "existing_oc1"]]],
         )
         self.mock_db_map._add_wide_relationship_classes.assert_called_once_with(
-            {"name": "new_rc", "object_class_id_list": (1, 2), "type_id": 2}
+            {"name": "new_rc", "object_class_id_list": [1, 2], "type_id": 2}
         )
         self.assertEqual(len(errors), 1)
 
@@ -326,7 +326,7 @@ class TestImportRelationship(unittest.TestCase):
             {
                 "name": "existing_rc2_existing_o2__existing_o1",
                 "class_id": 4,
-                "object_id_list": (2, 1),
+                "object_id_list": [2, 1],
                 "object_class_id_list": [2, 1],
                 "type_id": 2,
             }
@@ -339,7 +339,7 @@ class TestImportRelationship(unittest.TestCase):
             {
                 "name": "existing_rc1_duplicate_name__existing_o2",
                 "class_id": 3,
-                "object_id_list": (3, 2),
+                "object_id_list": [3, 2],
                 "object_class_id_list": [1, 2],
                 "type_id": 2,
             }
