@@ -626,7 +626,6 @@ class ParameterValueMapping(ParameterDefinitionMapping):
 
 
 class ParameterArrayMapping(ParameterValueMapping):
-    NUM_EXTRA_DIMENSIONS = 1
     ALLOW_EXTRA_DIMENSION_NO_RETURN = True
     PARAMETER_TYPE = "array"
 
@@ -642,16 +641,17 @@ class ParameterArrayMapping(ParameterValueMapping):
     @extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions):
         if extra_dimensions is None:
-            extra_dimensions = [mappingbase_from_dict_int_str(None) for _ in range(self.NUM_EXTRA_DIMENSIONS)]
+            self._extra_dimensions = [mappingbase_from_dict_int_str(None)]
+            return
         if not isinstance(extra_dimensions, (list, tuple)):
             raise TypeError(
                 f"extra_dimensions must be a list or tuple of MappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
             )
-        if len(extra_dimensions) != self.NUM_EXTRA_DIMENSIONS:
+        if len(extra_dimensions) != 1:
             raise ValueError(
-                f"extra_dimensions must be of length: {self.NUM_EXTRA_DIMENSIONS} instead got len: {len(extra_dimensions)}"
+                f"extra_dimensions must be of length 1 instead got len: {len(extra_dimensions)}"
             )
-        self._extra_dimensions = [mappingbase_from_dict_int_str(ed) for ed in extra_dimensions]
+        self._extra_dimensions = [mappingbase_from_dict_int_str(extra_dimensions[0])]
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
@@ -740,23 +740,50 @@ class ParameterIndexedMapping(ParameterArrayMapping):
         valid, msg = super().is_valid(parent_pivot)
         if not valid:
             return False, msg
-        issue = self.indexes_issues()
-        if issue:
-            return False, issue
+        for i in range(len(self.extra_dimensions)):
+            issue = self.indexes_issues(i)
+            if issue:
+                return False, f"Extra dimension {i + 1}: {issue}"
         return True, ""
 
-    def indexes_issues(self):
-        if isinstance(self._extra_dimensions[0], NoneMapping):
+    def indexes_issues(self, dimension_index):
+        dimension = self._extra_dimensions[dimension_index]
+        if isinstance(dimension, NoneMapping):
             return "The source type for parameter indexes cannot be None."
-        if self._extra_dimensions[0].reference != 0 and not self._extra_dimensions[0].reference:
+        if dimension.reference != 0 and not dimension.reference:
             return "No reference set for parameter indexes."
         return ""
 
 
 class ParameterMapMapping(ParameterIndexedMapping):
-    NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "map"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
+
+    @ParameterIndexedMapping.extra_dimensions.setter
+    def extra_dimensions(self, extra_dimensions):
+        if extra_dimensions is None:
+            self._extra_dimensions = [mappingbase_from_dict_int_str(None)]
+            return
+        if not isinstance(extra_dimensions, (list, tuple)):
+            raise TypeError(
+                f"extra_dimensions must be a list or tuple of MappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
+            )
+        self._extra_dimensions = [mappingbase_from_dict_int_str(ed) for ed in extra_dimensions]
+
+    def set_number_of_extra_dimensions(self, dimension_count):
+        """
+        Changes the number of dimensions in the map.
+
+        Args:
+            dimension_count (int): number of map's dimensions
+        """
+        if dimension_count < 1:
+            raise InvalidMapping("Map cannot have less than one dimension.")
+        if dimension_count <= len(self._extra_dimensions):
+            self._extra_dimensions = self._extra_dimensions[:dimension_count]
+        else:
+            diff = dimension_count - len(self._extra_dimensions)
+            self._extra_dimensions += [mappingbase_from_dict_int_str(None) for _ in range(diff)]
 
     def raw_data_to_type(self, data):
         out = []
@@ -764,20 +791,45 @@ class ParameterMapMapping(ParameterIndexedMapping):
         for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
             values = [items[-1] for items in values if all(i is not None for i in items[-1])]
             if values:
-                indexes = [items[0] for items in values]
-                values = [items[1] for items in values]
-                out.append(keys + (Map(indexes, values),))
+                map_as_dict = self._raw_data_to_dict(values)
+                map_ = self._convert_dict_to_map(map_as_dict)
+                out.append(keys + (map_,))
         return out
+
+    @staticmethod
+    def _raw_data_to_dict(values):
+        row_length = len(values[0])
+        map_as_dict = dict()
+        for row in values:
+            current_dict = map_as_dict
+            for i, cell in enumerate(row):
+                future = i + 2
+                if future == row_length or row[future] is None or row[future] == "":
+                    current_dict[cell] = row[i + 1]
+                    break
+                new_dict = current_dict.setdefault(cell, dict())
+                current_dict = new_dict
+        return map_as_dict
+
+    @staticmethod
+    def _convert_dict_to_map(map_as_dict):
+        indexes = list()
+        values = list()
+        for key, value in map_as_dict.items():
+            if isinstance(value, dict):
+                value = ParameterMapMapping._convert_dict_to_map(value)
+            indexes.append(key)
+            values.append(value)
+        return Map(indexes, values)
 
 
 class ParameterTimeSeriesMapping(ParameterIndexedMapping):
-    NUM_EXTRA_DIMENSIONS = 1
     PARAMETER_TYPE = "time series"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
     def __init__(self, name=None, value=None, extra_dimension=None, options=None):
         super().__init__(name, value, extra_dimension)
-        self._options = TimeSeriesOptions()
+        self._options = None
         self.options = options
 
     @property
