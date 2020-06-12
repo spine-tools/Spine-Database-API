@@ -71,6 +71,7 @@ class DatabaseMappingBase:
         self.Relationship = None
         self.RelationshipEntity = None
         self.RelationshipEntityClass = None
+        self.EntityGroup = None
         self.ParameterDefinition = None
         self.ParameterValue = None
         self.ParameterTag = None
@@ -93,6 +94,7 @@ class DatabaseMappingBase:
         self._object_sq = None
         self._relationship_class_sq = None
         self._relationship_sq = None
+        self._entity_group_sq = None
         self._parameter_definition_sq = None
         self._parameter_value_sq = None
         self._parameter_tag_sq = None
@@ -127,6 +129,7 @@ class DatabaseMappingBase:
             "relationship": "Relationship",
             "relationship_entity": "RelationshipEntity",
             "relationship_entity_class": "RelationshipEntityClass",
+            "entity_group": "EntityGroup",
             "parameter_definition": "ParameterDefinition",
             "parameter_value": "ParameterValue",
             "parameter_tag": "ParameterTag",
@@ -471,6 +474,20 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._relationship_sq
+
+    @property
+    def entity_group_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM entity_group
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._entity_group_sq is None:
+            self._entity_group_sq = self._subquery("entity_group")
+        return self._entity_group_sq
 
     @property
     def parameter_definition_sq(self):
@@ -1155,6 +1172,7 @@ class DatabaseMappingBase:
         self.query(self.RelationshipClass).delete(synchronize_session=False)
         self.query(self.Relationship).delete(synchronize_session=False)
         self.query(self.RelationshipEntity).delete(synchronize_session=False)
+        self.query(self.EntityGroup).delete(synchronize_session=False)
         self.query(self.ParameterDefinition).delete(synchronize_session=False)
         self.query(self.ParameterValue).delete(synchronize_session=False)
         self.query(self.ParameterTag).delete(synchronize_session=False)
