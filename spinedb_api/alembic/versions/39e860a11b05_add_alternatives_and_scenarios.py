@@ -99,6 +99,8 @@ def downgrade():
     op.delete_table("scenario_alternatives")
     op.delete_table("scenario")
     op.delete_table("alternative")
+    m = sa.MetaData(op.get_bind())
+    m.reflect()
     if "next_id" in m.tables:
         with op.batch_alter_table("next_id") as batch_op:
             batch_op.drop_column("alternative_id")
