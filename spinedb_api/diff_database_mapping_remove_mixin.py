@@ -121,7 +121,7 @@ class DiffDatabaseMappingRemoveMixin:
     def _alternative_cascading_ids(self, ids):
         """Finds object class cascading ids and adds them to the given dictionaries."""
         cascading_ids = {"alternative": ids}
-        parameter_values = self.query(self.parameter_value_sq.c.id).filter(self.in_(self.parameter_value_sq.c.id, ids))
+        parameter_values = self.query(self.parameter_value_sq.c.id).filter(self.in_(self.parameter_value_sq.c.alternative_id, ids))
         scenario_alternatives = self.query(self.scenario_alternatives_sq.c.id).filter(
             self.in_(self.scenario_alternatives_sq.c.alternative_id, ids)
         )
