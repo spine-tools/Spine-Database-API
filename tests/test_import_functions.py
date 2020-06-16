@@ -15,14 +15,12 @@ Unit tests for import_functions.py.
 :author: P. Vennström (VTT)
 :date:   17.12.2018
 """
-# import sys
-# sys.path.append('/spinedb_api')
 
-
+import os.path
+from tempfile import TemporaryDirectory
 import unittest
 from collections import namedtuple
 from unittest.mock import MagicMock
-import os
 
 from spinedb_api.diff_database_mapping import DiffDatabaseMapping
 from spinedb_api.helpers import create_new_spine_database
@@ -37,10 +35,6 @@ from spinedb_api.import_functions import (
     import_relationships,
     import_data,
 )
-
-
-UUID_STR = "e152e3ae-2301-11e9-97d6-7c7635d22f20"
-TEMP_SQLITE_FILENAME = UUID_STR + "-first.sqlite"
 
 
 def create_mock_db_map():
@@ -122,43 +116,35 @@ def create_mock_db_map():
 
 class TestIntegrationImportData(unittest.TestCase):
     def test_import_data_integration(self):
-        try:
-            os.remove(TEMP_SQLITE_FILENAME)
-        except OSError:
-            pass
+        with TemporaryDirectory() as temp_dir:
+            database_file = os.path.join(temp_dir, "test_import_data_integration.sqlite")
+            database_url = "sqlite:///" + database_file
+            create_new_spine_database(database_url)
+            db_map = DiffDatabaseMapping(database_url, username="IntegrationTest")
 
-        # create a in memory database with objects, relationship, parameters and values
-        create_new_spine_database("sqlite:///" + TEMP_SQLITE_FILENAME)
-        db_map = DiffDatabaseMapping("sqlite:///" + TEMP_SQLITE_FILENAME, username="IntegrationTest")
+            object_c = ["example_class", "other_class"]  # 2 items
+            objects = [["example_class", "example_object"], ["other_class", "other_object"]]  # 2 items
+            relationship_c = [["example_rel_class", ["example_class", "other_class"]]]  # 1 item
+            relationships = [["example_rel_class", ["example_object", "other_object"]]]  # 1 item
+            obj_parameters = [["example_class", "example_parameter"]]  # 1 item
+            rel_parameters = [["example_rel_class", "rel_parameter"]]  # 1 item
+            object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
+            rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
 
-        object_c = ["example_class", "other_class"]  # 2 items
-        objects = [["example_class", "example_object"], ["other_class", "other_object"]]  # 2 items
-        relationship_c = [["example_rel_class", ["example_class", "other_class"]]]  # 1 item
-        relationships = [["example_rel_class", ["example_object", "other_object"]]]  # 1 item
-        obj_parameters = [["example_class", "example_parameter"]]  # 1 item
-        rel_parameters = [["example_rel_class", "rel_parameter"]]  # 1 item
-        object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
-        rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
-
-        num_imports, errors = import_data(
-            db_map,
-            object_classes=object_c,
-            relationship_classes=relationship_c,
-            object_parameters=obj_parameters,
-            relationship_parameters=rel_parameters,
-            objects=objects,
-            relationships=relationships,
-            object_parameter_values=object_p_values,
-            relationship_parameter_values=rel_p_values,
-        )
-
+            num_imports, errors = import_data(
+                db_map,
+                object_classes=object_c,
+                relationship_classes=relationship_c,
+                object_parameters=obj_parameters,
+                relationship_parameters=rel_parameters,
+                objects=objects,
+                relationships=relationships,
+                object_parameter_values=object_p_values,
+                relationship_parameter_values=rel_p_values,
+            )
+            db_map.connection.close()
         self.assertEqual(num_imports, 10)
         self.assertEqual(len(errors), 0)
-
-        try:
-            os.remove(TEMP_SQLITE_FILENAME)
-        except OSError:
-            pass
 
 
 class TestImportObjectClass(unittest.TestCase):
