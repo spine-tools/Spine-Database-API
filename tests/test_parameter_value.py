@@ -181,7 +181,7 @@ class TestParameterValue(unittest.TestCase):
     def test_from_database_Duration_legacy_list_format_converted_to_Array(self):
         database_value = '{"type": "duration", "data": ["1 hour", "1h", 60, "2 hours"]}'
         value = from_database(database_value)
-        expected = Array([relativedelta(hours=1), relativedelta(hours=1), relativedelta(minutes=60), relativedelta(hours=2)])
+        expected = Array([Duration("1h"), Duration("1h"), Duration("1h"), Duration("2h")])
         self.assertEqual(value, expected)
 
     def test_Duration_to_database(self):
