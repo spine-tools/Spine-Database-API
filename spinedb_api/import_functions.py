@@ -19,6 +19,7 @@ Functions for importing data into a Spine database using entity names as referen
 from .diff_database_mapping import DiffDatabaseMapping
 from .exception import SpineIntegrityError
 from .check_functions import (
+    check_alternative,
     check_object_class,
     check_object,
     check_wide_relationship_class,
@@ -28,6 +29,8 @@ from .check_functions import (
     check_parameter_value,
     check_parameter_tag,
     check_parameter_definition_tag,
+    check_scenario,
+    check_scenario_alternative,
     check_wide_parameter_value_list,
 )
 from .parameter_value import to_database
@@ -222,6 +225,220 @@ def get_data_for_import(
         yield ("parameter value", _get_relationship_parameter_values_for_import(db_map, relationship_parameter_values))
 
 
+def import_alternatives(db_map, data):
+    """
+    Imports alternatives.
+
+    Example:
+
+        data = ['new_alternative', ('another_alternative', 'description')]
+        import_alternatives(db_map, data
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of alternative names,
+            or of lists/tuples with alternative names and optional descriptions
+
+    Returns:
+        tuple of int and list: Number of successfully inserted alternatives, list of errors
+    """
+    to_add, to_update, error_log = _get_alternatives_for_import(db_map, data)
+    added = db_map._add_alternatives(*to_add)
+    updated = db_map._update_alternatives(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_alternatives_for_import(db_map, data):
+    alternative_ids = {alternative.name: alternative.id for alternative in db_map.query(db_map.alternative_sq)}
+    checked = set()
+    to_add = []
+    to_update = []
+    error_log = []
+    for alternative in data:
+        if isinstance(alternative, str):
+            name = alternative
+            item = {"name": name}
+        else:
+            name, *optionals = alternative
+            item = {"name": name}
+            item.update(dict(zip(("description",), optionals)))
+        if name in checked:
+            continue
+        alternative_id = alternative_ids.pop(name, None)
+        try:
+            check_alternative(item, alternative_ids)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(msg=f"Could not import alternative '{name}': {e.msg}", db_type="alternative")
+            )
+            continue
+        finally:
+            if alternative_id is not None:
+                alternative_ids[name] = alternative_id
+        checked.add(name)
+        if alternative_id is not None:
+            item["id"] = alternative_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_scenarios(db_map, data):
+    """
+    Imports scenarios.
+
+    Example:
+
+        data = ['scenario', ('another_scenario', 'description')]
+        import_scenarios(db_map, data)
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of scenario names,
+            or of lists/tuples with scenario names and optional descriptions
+
+    Returns:
+        tuple of int and list: Number of successfully inserted scenarios, list of errors
+    """
+    to_add, to_update, error_log = _get_scenarios_for_import(db_map, data)
+    added = db_map._add_scenarios(*to_add)
+    updated = db_map._update_scenarios(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_scenarios_for_import(db_map, data):
+    scenario_ids = {scenario.name: scenario.id for scenario in db_map.query(db_map.scenario_sq)}
+    checked = set()
+    to_add = []
+    to_update = []
+    error_log = []
+    for scenario in data:
+        if isinstance(scenario, str):
+            name = scenario
+            item = {"name": name}
+        else:
+            name, *optionals = scenario
+            item = {"name": name}
+            item.update(dict(zip(("description",), optionals)))
+        if name in checked:
+            continue
+        scenario_id = scenario_ids.pop(name, None)
+        try:
+            check_scenario(item, scenario_ids)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(msg=f"Could not import scenario '{name}': {e.msg}", db_type="scenario")
+            )
+            continue
+        finally:
+            if scenario_id is not None:
+                scenario_ids[name] = scenario_id
+        checked.add(name)
+        if scenario_id is not None:
+            item["id"] = scenario_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_scenario_alternatives(db_map, data):
+    """
+    Imports scenario alternatives.
+
+    Example:
+
+        data = [('scenario', ['alternative']), ('another_scenario', [('alternative1', 0), ('alternative2', 1)])]
+        import_scenario_alternatives(db_map, data)
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of iterables of scenario names and iterables of alternative names or
+            iterables with alternative names and ranks
+
+    Returns:
+        tuple of int and list: Number of successfully inserted scenario alternatives, list of errors
+    """
+    to_add, to_update, error_log = _get_scenario_alternatives_for_import(db_map, data)
+    added = db_map._add_scenario_alternatives(*to_add)
+    updated = db_map._update_scenario_alternatives(*to_update)
+    return len(added) + len(updated), error_log
+
+
+def _get_scenario_alternatives_for_import(db_map, data):
+    scenario_alternatives = dict()
+    for scenario_alternative in db_map.query(db_map.scenario_alternatives_sq):
+        items = scenario_alternatives.setdefault(scenario_alternative.scenario_id, list())
+        items.append({"alternative_id": scenario_alternative.alternative_id, "rank": scenario_alternative.rank})
+    scenario_ids = {scenario.name: scenario.id for scenario in db_map.query(db_map.scenario_sq)}
+    scenario_id_set = set(scenario_ids.values())
+    alternative_ids = {alternative.name: alternative.id for alternative in db_map.query(db_map.alternative_sq)}
+    alternative_id_set = set(alternative_ids.values())
+    alternative_ranks = dict()
+    for scenario_alternative in db_map.query(db_map.scenario_alternatives_sq):
+        ranks = alternative_ranks.setdefault(scenario_alternative.scenario_id, set())
+        ranks.add(scenario_alternative.rank)
+    checked = set()
+    to_add = []
+    to_update = []
+    error_log = []
+    for scenario_name, alternatives in data:
+        try:
+            scenario_id = scenario_ids[scenario_name]
+        except KeyError:
+            error_log.append(
+                ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario_alternative")
+            )
+            continue
+        for alternative in alternatives:
+            if isinstance(alternative, str):
+                alternative_name = alternative
+                rank = None
+            else:
+                alternative_name, *optionals = alternative
+                rank = optionals[0] if optionals else None
+            if (scenario_name, alternative_name) in checked:
+                continue
+            try:
+                alternative_id = alternative_ids[alternative_name]
+            except KeyError:
+                error_log.append(
+                    ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario_alternative")
+                )
+                continue
+            if rank is None:
+                ranks = alternative_ranks.setdefault(scenario_id, set())
+                rank = max(ranks) + 1 if ranks else 0
+                ranks.add(rank)
+            item = {
+                "scenario_id": scenario_id,
+                "alternative_id": alternative_id,
+                "rank": rank,
+            }
+            try:
+                check_scenario_alternative(item, scenario_alternatives, scenario_id_set, alternative_id_set)
+            except SpineIntegrityError as e:
+                error_log.append(
+                    ImportErrorLogItem(msg=f"Could not import scenario alternative for '{scenario_name}' and '{alternative_name}': {e.msg}", db_type="scenario_alternative")
+                )
+                continue
+            checked.add((scenario_name, item["alternative_name"]))
+            existing_items = scenario_alternatives.get(scenario_id)
+            updating = False
+            if existing_items is not None:
+                for existing_item in existing_items:
+                    if existing_item["alternative_id"] == alternative_id:
+                        to_update.append(item)
+                        existing_item["rank"] = item["rank"]
+                        updating = True
+                        break
+            if not updating:
+                to_add.append(item)
+                scenario_alternatives.setdefault(scenario_id, list()).append(item)
+    return to_add, to_update, error_log
+
+
 def import_object_classes(db_map, data):
     """Imports object classes.
 
@@ -236,7 +453,7 @@ def import_object_classes(db_map, data):
             and optionally description and integer display icon reference
 
     Returns:
-        (Int, List) Number of successful inserted object classes, list of errors
+        tuple of int and list: Number of successfully inserted object classes, list of errors
     """
     to_add, to_update, error_log = _get_object_classes_for_import(db_map, data)
     added = db_map._add_object_classes(*to_add)

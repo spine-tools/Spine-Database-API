@@ -41,6 +41,21 @@ def check_scenario(item, current_items):
 
 
 def check_scenario_alternative(item, scenario_alternatives, scenarios, alternatives):
+    """
+    Checks if given scenario alternative violates a database's integrity.
+
+    :param dict item: a scenario alternative item for checking; must contain the following fields:
+
+        - "scenario_id": scenario's id
+        - "alternative_id": alternative's id
+        - "rank": alternative's rank within the scenario
+
+    :param dict scenario_alternatives: a mapping from scenario ids to scenario alternative items
+        that already exist in the database
+    :param Iterable scenarios: the ids of existing scenarios in the database
+    :param Iterable alternatives: the ids of existing alternatives in the database
+    :raises SpineIntegrityError: if insertion of ``item`` would violate database's integrity
+    """
     try:
         scen_id = item["scenario_id"]
     except KeyError:
