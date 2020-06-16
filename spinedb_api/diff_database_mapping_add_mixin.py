@@ -271,7 +271,7 @@ class DiffDatabaseMappingAddMixin:
         :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
 
         :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
+            - **new_items** -- A list of items successfully staged for insertion.
             - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
               to found violations.
         """
