@@ -486,6 +486,39 @@ class TestImportParameterValue(unittest.TestCase):
             self.assertEqual(values, expected)
             db_map.connection.close()
 
+    def test_import_object_parameter_value_with_alternative(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            import_alternatives(db_map, ["alternative"])
+            count, errors = import_object_parameter_values(
+                db_map, [["object_class1", "object1", "parameter", 1, "alternative"]]
+            )
+            self.assertFalse(errors)
+            self.assertEqual(count, 1)
+            values = {
+                v.object_name: (v.value, v.alternative_name)
+                for v in db_map.query(
+                    db_map.object_parameter_value_sq, db_map.alternative_sq.c.name.label("alternative_name")
+                )
+                .filter(db_map.object_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
+                .all()
+            }
+            expected = {"object1": ("1", "alternative")}
+            self.assertEqual(values, expected)
+            db_map.connection.close()
+
+    def test_import_object_parameter_value_fails_with_nonexistent_alternative(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_object_parameter_values(
+                db_map, [["object_class1", "object1", "parameter", 1, "nonexistent_alternative"]]
+            )
+            self.assertTrue(errors)
+            self.assertEqual(count, 0)
+            db_map.connection.close()
+
     def test_import_valid_relationship_parameter_value(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -593,6 +626,39 @@ class TestImportParameterValue(unittest.TestCase):
             values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
             expected = {"object1,object2": '"first"'}
             self.assertEqual(values, expected)
+            db_map.connection.close()
+
+    def test_import_relationship_parameter_value_with_alternative(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate_with_relationship(db_map)
+            import_alternatives(db_map, ["alternative"])
+            count, errors = import_relationship_parameter_values(
+                db_map, [["relationship_class", ["object1", "object2"], "parameter", 1, "alternative"]]
+            )
+            self.assertFalse(errors)
+            self.assertEqual(count,1)
+            values = {
+                v.object_name_list: (v.value, v.alternative_name)
+                for v in db_map.query(
+                    db_map.relationship_parameter_value_sq, db_map.alternative_sq.c.name.label("alternative_name")
+                )
+                    .filter(db_map.relationship_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
+                    .all()
+            }
+            expected = {"object1,object2": ("1", "alternative")}
+            self.assertEqual(values, expected)
+            db_map.connection.close()
+
+    def test_import_relationship_parameter_value_fails_with_nonexistent_alternative(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_relationship_parameter_values(
+                db_map, [["relationship_class", ["object1", "object2"], "parameter", 1, "alternative"]]
+            )
+            self.assertTrue(errors)
+            self.assertEqual(count, 0)
             db_map.connection.close()
 
 
@@ -764,9 +830,7 @@ class TestScenarioAlternatives(unittest.TestCase):
             self.assertEqual(count, 1)
             self.assertTrue(errors)
             scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(
-                scenario_alternatives, {"scenario": {"alternative1": 23}}
-            )
+            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 23}})
             db_map.connection.close()
 
     @staticmethod

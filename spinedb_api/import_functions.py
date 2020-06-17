@@ -388,7 +388,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
             scenario_id = scenario_ids[scenario_name]
         except KeyError:
             error_log.append(
-                ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario_alternative")
+                ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario alternative")
             )
             continue
         for alternative in alternatives:
@@ -404,7 +404,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                 alternative_id = alternative_ids[alternative_name]
             except KeyError:
                 error_log.append(
-                    ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario_alternative")
+                    ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario alternative")
                 )
                 continue
             ranks = alternative_ranks.setdefault(scenario_id, set())
@@ -420,7 +420,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                 check_scenario_alternative(item, scenario_alternatives, scenario_id_set, alternative_id_set)
             except SpineIntegrityError as e:
                 error_log.append(
-                    ImportErrorLogItem(msg=f"Could not import scenario alternative for '{scenario_name}' and '{alternative_name}': {e.msg}", db_type="scenario_alternative")
+                    ImportErrorLogItem(msg=f"Could not import scenario alternative for '{scenario_name}' and '{alternative_name}': {e.msg}", db_type="scenario alternative")
                 )
                 continue
             checked.add((scenario_name, alternative_name))
@@ -905,13 +905,16 @@ def import_object_parameter_values(db_map, data):
 
             data = [('object_class_name', 'object_name', 'parameter_name', 123.4),
                     ('object_class_name', 'object_name', 'parameter_name2',
-                        '{"type":"time_series", "data": [1,2,3]}')]
+                        '{"type":"time_series", "data": [1,2,3]}'),
+                    ('object_class_name', 'object_name', 'parameter_name',
+                        '{"type":"time_series", "data": [1,2,3]}'), 'alternative')]
             import_object_parameter_values(db_map, data)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
-            object_class_name, object name, parameter name, (deserialized) parameter value
+            object_class_name, object name, parameter name, (deserialized) parameter value,
+            optional name of an alternative
 
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
@@ -932,16 +935,31 @@ def _get_object_parameter_values_for_import(db_map, data):
     parameter_value_lists = {x.id: x.value_list for x in db_map.query(db_map.wide_parameter_value_list_sq)}
     object_ids = {(o["name"], o["class_id"]): o_id for o_id, o in objects.items()}
     parameter_ids = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameters.items()}
-    alternatives = set(a.id for a in db_map.query(db_map.alternative_sq))
+    alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
+    alternative_ids = set(alternatives.values())
     error_log = []
     to_add = []
     to_update = []
     checked = set()
-    alt_id = 1
-    for class_name, object_name, parameter_name, value in data:
+    for class_name, object_name, parameter_name, value, *optionals in data:
         oc_id = object_class_ids.get(class_name, None)
         o_id = object_ids.get((object_name, oc_id), None)
         p_id = parameter_ids.get((parameter_name, oc_id), None)
+        if optionals:
+            try:
+                alt_id = alternatives[optionals[0]]
+            except KeyError as alternative_name:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg="Could not import parameter value for "
+                            f"'{object_name}', class '{class_name}', parameter '{parameter_name}': "
+                            f"alternative '{alternative_name}' does not exist.",
+                        db_type="parameter value",
+                    )
+                )
+                continue
+        else:
+            alt_id = 1
         checked_key = (o_id, p_id, alt_id)
         if checked_key in checked:
             error_log.append(
@@ -965,7 +983,7 @@ def _get_object_parameter_values_for_import(db_map, data):
         }
         pv_id = parameter_value_ids.pop((o_id, p_id, alt_id), None)
         try:
-            check_parameter_value(item, parameter_value_ids, parameters, objects, parameter_value_lists, alternatives)
+            check_parameter_value(item, parameter_value_ids, parameters, objects, parameter_value_lists, alternative_ids)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -992,13 +1010,16 @@ def import_relationship_parameter_values(db_map, data):
 
     Example::
 
-            data = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
+            data = [['example_rel_class',
+                ['example_object', 'other_object'], 'rel_parameter', 2.718],
+                ['example_object', 'other_object'], 'rel_parameter', 5.5, 'alternative']]
             import_relationship_parameter_values(db_map, data)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with
-            relationship class name, list of object names, parameter name, (deserialized) parameter value
+            relationship class name, list of object names, parameter name, (deserialized) parameter value,
+            optional name of an alternative
 
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
@@ -1028,12 +1049,13 @@ def _get_relationship_parameter_values_for_import(db_map, data):
     relationship_ids = {(r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationships.items()}
     object_ids = {(o.name, o.class_id): o.id for o in db_map.query(db_map.object_sq)}
     relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
-    alternatives = set(a.id for a in db_map.query(db_map.alternative_sq))
+    alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
+    alternative_ids = set(alternatives.values())
     error_log = []
     to_add = []
     to_update = []
     checked = set()
-    for class_name, object_names, parameter_name, value in data:
+    for class_name, object_names, parameter_name, value, *optionals in data:
         rc_id = relationship_class_ids.get(class_name, None)
         oc_ids = object_class_id_lists.get(rc_id, [])
         if len(object_names) == len(oc_ids):
@@ -1042,7 +1064,21 @@ def _get_relationship_parameter_values_for_import(db_map, data):
             o_ids = tuple(None for _ in object_names)
         r_id = relationship_ids.get((rc_id, o_ids), None)
         p_id = parameter_ids.get((rc_id, parameter_name), None)
-        alt_id = 1
+        if optionals:
+            try:
+                alt_id = alternatives[optionals[0]]
+            except KeyError as alternative_name:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg="Could not import parameter value for "
+                            f"'{object_names}', class '{class_name}', parameter '{parameter_name}': "
+                            f"alternative {alternative_name} does not exist.",
+                        db_type="parameter value",
+                    )
+                )
+                continue
+        else:
+            alt_id = 1
         checked_key = (r_id, p_id, alt_id)
         if checked_key in checked:
             error_log.append(
@@ -1067,7 +1103,7 @@ def _get_relationship_parameter_values_for_import(db_map, data):
         pv_id = parameter_value_ids.pop((r_id, p_id, alt_id), None)
         try:
             check_parameter_value(
-                item, parameter_value_ids, parameters, relationships, parameter_value_lists, alternatives
+                item, parameter_value_ids, parameters, relationships, parameter_value_lists, alternative_ids
             )
         except SpineIntegrityError as e:
             error_log.append(
