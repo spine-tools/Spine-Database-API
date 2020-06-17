@@ -407,10 +407,10 @@ def _get_scenario_alternatives_for_import(db_map, data):
                     ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario_alternative")
                 )
                 continue
+            ranks = alternative_ranks.setdefault(scenario_id, set())
             if rank is None:
-                ranks = alternative_ranks.setdefault(scenario_id, set())
-                rank = max(ranks) + 1 if ranks else 0
-                ranks.add(rank)
+                rank = max(ranks) + 1 if ranks else 1
+            ranks.add(rank)
             item = {
                 "scenario_id": scenario_id,
                 "alternative_id": alternative_id,
@@ -423,7 +423,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                     ImportErrorLogItem(msg=f"Could not import scenario alternative for '{scenario_name}' and '{alternative_name}': {e.msg}", db_type="scenario_alternative")
                 )
                 continue
-            checked.add((scenario_name, item["alternative_name"]))
+            checked.add((scenario_name, alternative_name))
             existing_items = scenario_alternatives.get(scenario_id)
             updating = False
             if existing_items is not None:
