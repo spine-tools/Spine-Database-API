@@ -391,6 +391,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                 ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario alternative")
             )
             continue
+        existing_scenario_alternative = scenario_alternatives.get(scenario_id)
         for alternative in alternatives:
             if isinstance(alternative, str):
                 alternative_name = alternative
@@ -416,6 +417,12 @@ def _get_scenario_alternatives_for_import(db_map, data):
                 "alternative_id": alternative_id,
                 "rank": rank,
             }
+            item_in_db = None
+            if existing_scenario_alternative is not None:
+                for i, existing_item in enumerate(existing_scenario_alternative):
+                    if existing_item["alternative_id"] == alternative_id:
+                        item_in_db = existing_scenario_alternative.pop(i)
+                        break
             try:
                 check_scenario_alternative(item, scenario_alternatives, scenario_id_set, alternative_id_set)
             except SpineIntegrityError as e:
@@ -423,17 +430,14 @@ def _get_scenario_alternatives_for_import(db_map, data):
                     ImportErrorLogItem(msg=f"Could not import scenario alternative for '{scenario_name}' and '{alternative_name}': {e.msg}", db_type="scenario alternative")
                 )
                 continue
+            finally:
+                if item_in_db is not None:
+                    item_in_db["rank"] = rank
+                    existing_scenario_alternative.append(item_in_db)
             checked.add((scenario_name, alternative_name))
-            existing_items = scenario_alternatives.get(scenario_id)
-            updating = False
-            if existing_items is not None:
-                for existing_item in existing_items:
-                    if existing_item["alternative_id"] == alternative_id:
-                        to_update.append(item)
-                        existing_item["rank"] = item["rank"]
-                        updating = True
-                        break
-            if not updating:
+            if item_in_db is not None:
+                to_update.append(item)
+            else:
                 to_add.append(item)
                 scenario_alternatives.setdefault(scenario_id, list()).append(item)
     return to_add, to_update, error_log

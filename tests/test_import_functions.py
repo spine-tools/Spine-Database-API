@@ -770,6 +770,19 @@ class TestScenarioAlternatives(unittest.TestCase):
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 23, "alternative2": 24}})
             db_map.connection.close()
 
+    def test_scenario_alternative_update_rank(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            import_alternatives(db_map, ["alternative"])
+            import_scenarios(db_map, ["scenario"])
+            import_scenario_alternatives(db_map, [["scenario", [["alternative", 23]]]])
+            count, errors = import_scenario_alternatives(db_map, [["scenario", [["alternative", 24]]]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            scenario_alternatives = self.scenario_alternatives(db_map)
+            self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 24}})
+            db_map.connection.close()
+
     def test_import_multiple_alternatives(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
