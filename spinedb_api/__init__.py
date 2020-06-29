@@ -47,6 +47,7 @@ from .check_functions import (
     check_wide_parameter_value_list,
 )
 from .import_functions import (
+    import_alternatives,
     import_data_to_url,
     import_data,
     import_object_classes,
@@ -57,9 +58,12 @@ from .import_functions import (
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
+    import_scenarios,
+    import_scenario_alternatives,
     get_data_for_import,
 )
 from .export_functions import (
+    export_alternatives,
     export_data,
     export_object_classes,
     export_objects,
@@ -69,6 +73,8 @@ from .export_functions import (
     export_relationship_parameter_values,
     export_relationship_parameters,
     export_relationships,
+    export_scenarios,
+    export_scenario_alternatives,
 )
 from .json_mapping import (
     mappingbase_from_dict_int_str,

@@ -39,7 +39,7 @@ from spinedb_api.import_functions import (
 
 
 def create_diff_db_map(directory):
-    file_name = os.path.join(directory, "test_import_functions.json")
+    file_name = os.path.join(directory, "test_import_functions.sqlite")
     db_url = "sqlite:///" + file_name
     create_new_spine_database(db_url)
     return DiffDatabaseMapping(db_url, username="UnitTest")
