@@ -27,8 +27,6 @@ from .check_functions import (
     check_entity_group,
     check_parameter_definition,
     check_parameter_value,
-    check_parameter_tag,
-    check_parameter_definition_tag,
     check_scenario,
     check_scenario_alternative,
     check_wide_parameter_value_list,
@@ -70,6 +68,9 @@ def import_data(
     object_groups=(),
     object_parameter_values=(),
     relationship_parameter_values=(),
+    alternatives=(),
+    scenarios=(),
+    scenario_alternatives=()
 ):
     """Imports data into a Spine database using name references (rather than id
     references).
@@ -85,6 +86,9 @@ def import_data(
             object_p_values = [['example_object_class', 'example_object', 'example_parameter', 3.14]]
             relationships = [['example_rel_class', ['example_object', 'other_object']]]
             rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
+            alternatives = [['example_alternative', 'An example']]
+            scenarios = [['example_scenario', 'An example']]
+            scenario_alternatives = [['example_scenario', ['example_alternative']]]
 
             import_data(db_map,
                         object_classes=object_c,
@@ -94,7 +98,10 @@ def import_data(
                         objects=objects,
                         relationships=relationships,
                         object_parameter_values=object_p_values,
-                        relationship_parameter_values=rel_p_values)
+                        relationship_parameter_values=rel_p_values,
+                        alternatives=alternatives,
+                        scenarios=scenarios,
+                        scenario_alternatives=scenario_alternatives)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): database mapping
@@ -114,53 +121,36 @@ def import_data(
         relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
             list of lists with relationship class name, list of object names, parameter name,
             parameter value
+        alternatives (Iterable): alternative names or lists of two elements: alternative name and description
+        scenarios (Iterable): scenario names or lists of two elements: scenario name and description
+        scenario_alternatives (Iterable): lists of two elements: scenario name and a list of names of alternatives
 
     Returns:
-        number of inserted/changed entities and list of ImportErrorLogItem with
-        any import errors
+        tuple: number of inserted/changed entities and list of ImportErrorLogItem with
+            any import errors
     """
+    tasks = {
+        import_object_classes: object_classes,
+        import_relationship_classes: relationship_classes,
+        import_parameter_value_lists: parameter_value_lists,
+        import_object_parameters: object_parameters,
+        import_relationship_parameters: relationship_parameters,
+        import_objects: objects,
+        import_relationships: relationships,
+        import_object_groups: object_groups,
+        import_object_parameter_values: object_parameter_values,
+        import_relationship_parameter_values: relationship_parameter_values,
+        import_alternatives: alternatives,
+        import_scenarios: scenarios,
+        import_scenario_alternatives: scenario_alternatives
+    }
     error_log = []
     num_imports = 0
-    if object_classes:
-        new, errors = import_object_classes(db_map, object_classes)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if relationship_classes:
-        new, errors = import_relationship_classes(db_map, relationship_classes)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if parameter_value_lists:
-        new, errors = import_parameter_value_lists(db_map, parameter_value_lists)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if object_parameters:
-        new, errors = import_object_parameters(db_map, object_parameters)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if relationship_parameters:
-        new, errors = import_relationship_parameters(db_map, relationship_parameters)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if objects:
-        new, errors = import_objects(db_map, objects)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if relationships:
-        new, errors = import_relationships(db_map, relationships)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if object_groups:
-        new, errors = import_object_groups(db_map, object_groups)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if object_parameter_values:
-        new, errors = import_object_parameter_values(db_map, object_parameter_values)
-        num_imports = num_imports + new
-        error_log.extend(errors)
-    if relationship_parameter_values:
-        new, errors = import_relationship_parameter_values(db_map, relationship_parameter_values)
-        num_imports = num_imports + new
-        error_log.extend(errors)
+    for import_function, data in tasks.items():
+        if data:
+            new, errors = import_function(db_map, data)
+            num_imports += new
+            error_log.extend(errors)
     return num_imports, error_log
 
 

@@ -61,6 +61,9 @@ class TestIntegrationImportData(unittest.TestCase):
             rel_parameters = [["example_rel_class", "rel_parameter"]]  # 1 item
             object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
             rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
+            alternatives = [['example_alternative', 'An example']]
+            scenarios = [['example_scenario', 'An example']]
+            scenario_alternatives = [['example_scenario', ['example_alternative']]]
 
             num_imports, errors = import_data(
                 db_map,
@@ -72,10 +75,13 @@ class TestIntegrationImportData(unittest.TestCase):
                 relationships=relationships,
                 object_parameter_values=object_p_values,
                 relationship_parameter_values=rel_p_values,
+                alternatives=alternatives,
+                scenarios=scenarios,
+                scenario_alternatives=scenario_alternatives
             )
             db_map.connection.close()
-        self.assertEqual(num_imports, 10)
-        self.assertEqual(len(errors), 0)
+        self.assertEqual(num_imports, 13)
+        self.assertFalse(errors)
 
 
 class TestImportObjectClass(unittest.TestCase):
