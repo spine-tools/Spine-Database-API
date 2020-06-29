@@ -360,7 +360,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
     scenario_alternatives = dict()
     for scenario_alternative in db_map.query(db_map.scenario_alternatives_sq):
         items = scenario_alternatives.setdefault(scenario_alternative.scenario_id, list())
-        items.append({"alternative_id": scenario_alternative.alternative_id, "rank": scenario_alternative.rank})
+        items.append({"id": scenario_alternative.id, "alternative_id": scenario_alternative.alternative_id, "rank": scenario_alternative.rank})
     scenario_ids = {scenario.name: scenario.id for scenario in db_map.query(db_map.scenario_sq)}
     scenario_id_set = set(scenario_ids.values())
     alternative_ids = {alternative.name: alternative.id for alternative in db_map.query(db_map.alternative_sq)}
@@ -426,6 +426,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                     existing_scenario_alternative.append(item_in_db)
             checked.add((scenario_name, alternative_name))
             if item_in_db is not None:
+                item["id"] = item_in_db["id"]
                 to_update.append(item)
             else:
                 to_add.append(item)
