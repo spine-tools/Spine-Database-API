@@ -33,6 +33,7 @@ from spinedb_api.json_mapping import (
     NoneMapping,
     ConstantMapping,
     Map,
+    ScenarioMapping,
 )
 import unittest
 from spinedb_api.parameter_value import Array, TimeSeriesVariableResolution, TimePattern
@@ -616,6 +617,25 @@ class TestMappingIsValid(unittest.TestCase):
         is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
+    def test_valid_scenario_mapping(self):
+        mapping = {
+            "map_type": "Scenario",
+            "name": "test",
+        }
+        mapping = ScenarioMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_scenario_mapping_name_missing(self):
+        mapping = {
+            "map_type": "Scenario",
+            "name": None,
+        }
+        mapping = ScenarioMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
 
 class TestMappingIntegration(unittest.TestCase):
     # just a placeholder test for different mapping testings
@@ -630,6 +650,7 @@ class TestMappingIntegration(unittest.TestCase):
             "relationship_parameters": [],
             "relationship_parameter_values": [],
             "alternatives": [],
+            "scenarios": [],
         }
 
     def test_bad_mapping_type(self):
@@ -1427,6 +1448,24 @@ class TestMappingIntegration(unittest.TestCase):
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["alternatives"] = ["alternative1", "second_alternative", "last_one"]
+        self.assertEqual(out, expected)
+
+    def test_read_scenario(self):
+        input_data = [
+            ["Scenarios"],
+            ["scenario1"],
+            ["second_scenario"],
+            ["last_one"]
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "Scenario",
+            "name": 0,
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["scenarios"] = ["scenario1", "second_scenario", "last_one"]
         self.assertEqual(out, expected)
 
 

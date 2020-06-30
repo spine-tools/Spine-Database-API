@@ -99,6 +99,7 @@ from .json_mapping import (
     read_with_mapping,
     RelationshipClassMapping,
     RowMapping,
+    ScenarioMapping,
     TableNameMapping,
     TimeSeriesOptions,
 )

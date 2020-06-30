@@ -23,17 +23,6 @@ from .parameter_value import Array, Map, TimeSeriesVariableResolution, TimePatte
 from .exception import InvalidMapping, TypeConversionError
 
 
-# Constants for json spec
-ALTERNATIVE = "Alternative"
-OBJECTCLASS = "ObjectClass"
-RELATIONSHIPCLASS = "RelationshipClass"
-PARAMETER = "parameter"
-PARAMETERCOLUMN = "parameter_column"
-PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
-MAPPINGCOLLECTION = "collection"
-VALID_PARAMETER_TYPES = ['array', 'map', 'time series', 'time pattern', 'single value', 'definition']
-
-
 class MappingBase:
     """
     Class for holding and validating Mapping specification:
@@ -46,7 +35,7 @@ class MappingBase:
         }
     """
 
-    MAP_TYPE = ""
+    MAP_TYPE = None
 
     def __init__(self, reference=None, append_str=None, prepend_str=None):
 
@@ -1149,7 +1138,7 @@ class ObjectClassMapping(EntityClassMapping):
         }
     """
 
-    MAP_TYPE = OBJECTCLASS
+    MAP_TYPE = "ObjectClass"
 
     def __init__(self, *args, objects=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1271,7 +1260,7 @@ class RelationshipClassMapping(EntityClassMapping):
         }
     """
 
-    MAP_TYPE = RELATIONSHIPCLASS
+    MAP_TYPE = "RelationshipClass"
 
     def __init__(self, *args, object_classes=None, objects=None, import_objects=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1478,17 +1467,17 @@ class RelationshipClassMapping(EntityClassMapping):
 
 class AlternativeMapping(ItemMappingBase):
     """
-        Holds mapping for alternative.
+        Holds mapping for alternatives.
 
         specification:
 
             AlternativeMapping {
-                map_type: "AlternativeMapping'
+                map_type: 'Alternative'
                 name: str | Mapping
             }
     """
 
-    MAP_TYPE = ALTERNATIVE
+    MAP_TYPE = "Alternative"
 
     def is_valid(self):
         issue = self.alternative_names_issues()
@@ -1519,6 +1508,51 @@ class AlternativeMapping(ItemMappingBase):
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
         return AlternativeMapping(name, skip_columns, read_start_row)
+
+
+class ScenarioMapping(ItemMappingBase):
+    """
+        Holds mapping for scenarios.
+
+        specification:
+
+            ScenarioMapping {
+                map_type: 'Scenario'
+                name: str | Mapping
+            }
+    """
+
+    MAP_TYPE = "Scenario"
+
+    def is_valid(self):
+        issue = self.scenario_names_issues()
+        if issue:
+            return False, issue
+        return True, ""
+
+    def scenario_names_issues(self):
+        """Returns a non-empty message string if the scenario name is invalid."""
+        if isinstance(self._name, NoneMapping):
+            return "The source type for scenario names cannot be None."
+        if self._name.reference != 0 and not self._name.reference:
+            return "No reference set for scenario names."
+        return ""
+
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        pivoted_columns = self.pivoted_columns(data_header, num_columns)
+        getters = self._create_getters(num_columns, pivoted_columns, pivoted_data, data_header)
+        name_getter, name_num, name_reads = getters["item_name"]
+        readers = [("scenarios",) + create_final_getter_function([name_getter], [name_num], [name_reads])]
+        return readers
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        name = map_dict.get("name", None)
+        skip_columns = map_dict.get("skip_columns", [])
+        read_start_row = map_dict.get("read_start_row", 0)
+        return ScenarioMapping(name, skip_columns, read_start_row)
 
 
 def mappingbase_from_value(value):
@@ -1599,16 +1633,19 @@ def dict_to_map(map_dict):
     if not isinstance(map_dict, dict):
         raise TypeError(f"map_dict must be a dict, instead it was: {type(map_dict)}")
     map_type = map_dict.get("map_type", None)
-    if map_type == RELATIONSHIPCLASS:
+    if map_type == RelationshipClassMapping.MAP_TYPE:
         mapping = RelationshipClassMapping.from_dict(map_dict)
-    elif map_type == OBJECTCLASS:
+    elif map_type == ObjectClassMapping.MAP_TYPE:
         mapping = ObjectClassMapping.from_dict(map_dict)
-    elif map_type == ALTERNATIVE:
+    elif map_type == AlternativeMapping.MAP_TYPE:
         mapping = AlternativeMapping.from_dict(map_dict)
+    elif map_type == ScenarioMapping.MAP_TYPE:
+        mapping = ScenarioMapping.from_dict(map_dict)
     else:
         raise ValueError(
-            f"""invalid "map_type" value, expected "{RELATIONSHIPCLASS}", "{ALTERNATIVE}"
-            or "{OBJECTCLASS}", got {map_type}"""
+            f"""invalid "map_type" value, expected "{RelationshipClassMapping.MAP_TYPE}",
+            "{AlternativeMapping.MAP_TYPE}", "{ScenarioMapping.MAP_TYPE}",
+            or "{ObjectClassMapping.MAP_TYPE}", got {map_type}"""
         )
     return mapping
 
@@ -1762,6 +1799,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationship_parameters": [],
         "relationship_parameter_values": [],
         "alternatives": [],
+        "scenarios": [],
     }
     data = dict()
     # run functions that read from header or pivoted area first
