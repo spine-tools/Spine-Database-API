@@ -54,6 +54,7 @@ from .import_functions import (
     import_objects,
     import_object_parameters,
     import_object_parameter_values,
+    import_parameter_value_lists,
     import_relationship_classes,
     import_relationship_parameter_values,
     import_relationship_parameters,

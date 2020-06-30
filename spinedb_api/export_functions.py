@@ -30,16 +30,30 @@ def export_data(
     relationship_ids=None,
     object_parameter_value_ids=None,
     relationship_parameter_value_ids=None,
+    alternative_ids=None,
+    scenario_ids=None,
+    scenario_alternative_ids=None
 ):
     """
     Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
 
     Args:
         db_map (DiffDatabaseMapping): The db to pull stuff from.
-        ...ids (Iterable): A collection of ids to pick from each corresponding table. ``None`` (the default) means pick them all.
+        object_class_ids (Iterable, optional): A collection of ids to pick from the database table
+        relationship_class_ids (Iterable, optional): A collection of ids to pick from the database table
+        parameter_value_list_ids (Iterable, optional): A collection of ids to pick from the database table
+        object_parameter_ids (Iterable, optional): A collection of ids to pick from the database table
+        relationship_parameter_ids (Iterable, optional): A collection of ids to pick from the database table
+        object_ids (Iterable, optional): A collection of ids to pick from the database table
+        relationship_ids (Iterable, optional): A collection of ids to pick from the database table
+        object_parameter_value_ids (Iterable, optional): A collection of ids to pick from the database table
+        relationship_parameter_value_ids (Iterable, optional): A collection of ids to pick from the database table
+        alternative_ids (Iterable, optional): A collection of ids to pick from the database table
+        scenario_ids (Iterable, optional): A collection of ids to pick from the database table
+        scenario_alternative_ids (Iterable, optional): A collection of ids to pick from the database table
 
     Returns:
-        dict
+        dict: exported data
     """
     data = {
         "object_classes": export_object_classes(db_map, object_class_ids),
@@ -51,6 +65,9 @@ def export_data(
         "relationships": export_relationships(db_map, relationship_ids),
         "object_parameter_values": export_object_parameter_values(db_map, object_parameter_value_ids),
         "relationship_parameter_values": export_relationship_parameter_values(db_map, relationship_parameter_value_ids),
+        "alternatives": export_alternatives(db_map, alternative_ids),
+        "scenarios": export_scenarios(db_map, scenario_ids),
+        "scenario_alternatives": export_scenario_alternatives(db_map, scenario_alternative_ids),
     }
     return {key: value for key, value in data.items() if value}
 
