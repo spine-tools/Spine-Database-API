@@ -17,6 +17,7 @@ Unit tests for json_mapping.py.
 """
 
 from spinedb_api.json_mapping import (
+    AlternativeMapping,
     read_with_mapping,
     ObjectClassMapping,
     RelationshipClassMapping,
@@ -596,6 +597,25 @@ class TestMappingIsValid(unittest.TestCase):
         is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
+    def test_valid_alternative_mapping(self):
+        mapping = {
+            "map_type": "Alternative",
+            "name": "test",
+        }
+        mapping = AlternativeMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_alternative_mapping_name_missing(self):
+        mapping = {
+            "map_type": "Alternative",
+            "name": None,
+        }
+        mapping = AlternativeMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
 
 class TestMappingIntegration(unittest.TestCase):
     # just a placeholder test for different mapping testings
@@ -609,6 +629,7 @@ class TestMappingIntegration(unittest.TestCase):
             "relationships": [],
             "relationship_parameters": [],
             "relationship_parameter_values": [],
+            "alternatives": [],
         }
 
     def test_bad_mapping_type(self):
@@ -1388,6 +1409,24 @@ class TestMappingIntegration(unittest.TestCase):
         expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
         expected["object_parameters"] = [("object_class", "parameter")]
         self.assertFalse(errors)
+        self.assertEqual(out, expected)
+
+    def test_read_alternative(self):
+        input_data = [
+            ["Alternatives"],
+            ["alternative1"],
+            ["second_alternative"],
+            ["last_one"]
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "Alternative",
+            "name": 0,
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["alternatives"] = ["alternative1", "second_alternative", "last_one"]
         self.assertEqual(out, expected)
 
 
