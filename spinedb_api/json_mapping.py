@@ -1171,8 +1171,8 @@ class ObjectClassMapping(EntityClassMapping):
 
     MAP_TYPE = "ObjectClass"
 
-    def __init__(self, *args, objects=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name=None, objects=None, parameters=None, skip_columns=None, read_start_row=0):
+        super().__init__(name, parameters, skip_columns, read_start_row)
         self._objects = NoneMapping()
         self.objects = objects
 
@@ -1293,8 +1293,8 @@ class RelationshipClassMapping(EntityClassMapping):
 
     MAP_TYPE = "RelationshipClass"
 
-    def __init__(self, *args, object_classes=None, objects=None, import_objects=False, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name=None, object_classes=None, objects=None, import_objects=False, parameters=None, skip_columns=None, read_start_row=0):
+        super().__init__(name, parameters, skip_columns, read_start_row)
         self._objects = None
         self._object_classes = None
         self._import_objects = False
