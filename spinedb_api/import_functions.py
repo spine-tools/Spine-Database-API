@@ -17,7 +17,7 @@ Functions for importing data into a Spine database using entity names as referen
 """
 
 from .diff_database_mapping import DiffDatabaseMapping
-from .exception import SpineIntegrityError
+from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
     check_object_class,
     check_object,
@@ -51,8 +51,15 @@ class ImportErrorLogItem:
 
 def import_data_to_url(url, upgrade=False, **kwargs):
     db_map = DiffDatabaseMapping(url, upgrade=upgrade)
-    import_data(db_map, **kwargs)
-    db_map.commit_session("Import data using `import_data_to_url`")
+    num_imports, error_log = import_data(db_map, **kwargs)
+    if num_imports:
+        try:
+            db_map.commit_session("Import data using `import_data_to_url`")
+        except SpineDBAPIError as e:
+            db_map.rollback_session()
+            err_item = ImportErrorLogItem(msg=f"Error while committing changes: {e.msg}")
+            error_log.append(err_item)
+    return num_imports, error_log
 
 
 def import_data(
