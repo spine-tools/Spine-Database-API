@@ -33,6 +33,7 @@ from spinedb_api.json_mapping import (
     NoneMapping,
     ConstantMapping,
     Map,
+    ScenarioAlternativeMapping,
     ScenarioMapping,
 )
 import unittest
@@ -256,6 +257,44 @@ class TestMappingIO(unittest.TestCase):
                 "value": {"reference": 2, "map_type": "column"},
                 "extra_dimensions": [{"map_type": "constant", "reference": "test"}],
             },
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_Alternative_to_dict_from_dict(self):
+        mapping_dict = {"map_type": "Alternative", "name": 0}
+        mapping = AlternativeMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "Alternative",
+            "name": {"reference": 0, "map_type": "column"},
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_Scenario_to_dict_from_dict(self):
+        mapping_dict = {"map_type": "Scenario", "name": 0}
+        mapping = ScenarioMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "Scenario",
+            "name": {"reference": 0, "map_type": "column"},
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_ScenarioAlternative_to_dict_from_dict(self):
+        mapping_dict = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternatives": 1, "ranks": 2}
+        mapping = ScenarioAlternativeMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "ScenarioAlternative",
+            "scenario_name": {"reference": 0, "map_type": "column"},
+            "alternatives": {"reference": 1, "map_type": "column"},
+            "ranks": {"reference": 2, "map_type": "column"},
             "read_start_row": 0,
             "skip_columns": [],
         }
@@ -599,42 +638,44 @@ class TestMappingIsValid(unittest.TestCase):
         self.assertFalse(is_valid)
 
     def test_valid_alternative_mapping(self):
-        mapping = {
-            "map_type": "Alternative",
-            "name": "test",
-        }
+        mapping = {"map_type": "Alternative", "name": "test"}
         mapping = AlternativeMapping.from_dict(mapping)
         is_valid, msg = mapping.is_valid()
         self.assertTrue(is_valid)
         self.assertFalse(msg)
 
     def test_invalid_alternative_mapping_name_missing(self):
-        mapping = {
-            "map_type": "Alternative",
-            "name": None,
-        }
+        mapping = {"map_type": "Alternative", "name": None}
         mapping = AlternativeMapping.from_dict(mapping)
         is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_valid_scenario_mapping(self):
-        mapping = {
-            "map_type": "Scenario",
-            "name": "test",
-        }
+        mapping = {"map_type": "Scenario", "name": "test"}
         mapping = ScenarioMapping.from_dict(mapping)
         is_valid, msg = mapping.is_valid()
         self.assertTrue(is_valid)
         self.assertFalse(msg)
 
     def test_invalid_scenario_mapping_name_missing(self):
-        mapping = {
-            "map_type": "Scenario",
-            "name": None,
-        }
+        mapping = {"map_type": "Scenario", "name": None}
         mapping = ScenarioMapping.from_dict(mapping)
         is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
+
+    def test_valid_scenario_alternative(self):
+        mapping = {"map_type": "ScenarioAlternative", "scenario_name": "scenario", "alternatives": 0, "ranks": 1}
+        mapping = ScenarioAlternativeMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_scenario_alternative_scenario_name_missing(self):
+        mapping = {"map_type": "ScenarioAlternative", "scenario_name": None, "alternatives": 0, "ranks": 1}
+        mapping = ScenarioAlternativeMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertFalse(is_valid)
+        self.assertTrue(msg)
 
 
 class TestMappingIntegration(unittest.TestCase):
@@ -651,6 +692,7 @@ class TestMappingIntegration(unittest.TestCase):
             "relationship_parameter_values": [],
             "alternatives": [],
             "scenarios": [],
+            "scenario_alternatives": [],
         }
 
     def test_bad_mapping_type(self):
@@ -1356,12 +1398,7 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object_class",
             "object": "object",
-            "parameters": {
-                "name": "parameter",
-                "parameter_type": "map",
-                "value": 1,
-                "extra_dimensions": [0],
-            },
+            "parameters": {"name": "parameter", "parameter_type": "map", "value": 1, "extra_dimensions": [0]},
         }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
@@ -1381,12 +1418,7 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object_class",
             "object": "object",
-            "parameters": {
-                "name": "parameter",
-                "parameter_type": "map",
-                "value": 2,
-                "extra_dimensions": [0, 1],
-            },
+            "parameters": {"name": "parameter", "parameter_type": "map", "value": 2, "extra_dimensions": [0, 1]},
         }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
@@ -1407,7 +1439,7 @@ class TestMappingIntegration(unittest.TestCase):
             ["key3", -33, "", ""],
             ["key4", "key31", "key311", 50],
             ["key4", "key31", "key312", 51],
-            ["key4", "key32", 66, ""]
+            ["key4", "key32", 66, ""],
         ]
         data = iter(input_data)
         data_header = next(data)
@@ -1415,57 +1447,63 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object_class",
             "object": "object",
-            "parameters": {
-                "name": "parameter",
-                "parameter_type": "map",
-                "value": 3,
-                "extra_dimensions": [0, 1, 2],
-            },
+            "parameters": {"name": "parameter", "parameter_type": "map", "value": 3, "extra_dimensions": [0, 1, 2]},
         }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["object_classes"] = ["object_class"]
         expected["objects"] = [("object_class", "object")]
-        expected_map = Map(["key1", "key2", "key3", "key4"], [Map(["key11", "key12"], [-2, -1]), -23, -33, Map(["key31", "key32"], [Map(["key311", "key312"], [50, 51]), 66])])
+        expected_map = Map(
+            ["key1", "key2", "key3", "key4"],
+            [
+                Map(["key11", "key12"], [-2, -1]),
+                -23,
+                -33,
+                Map(["key31", "key32"], [Map(["key311", "key312"], [50, 51]), 66]),
+            ],
+        )
         expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
         expected["object_parameters"] = [("object_class", "parameter")]
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 
     def test_read_alternative(self):
-        input_data = [
-            ["Alternatives"],
-            ["alternative1"],
-            ["second_alternative"],
-            ["last_one"]
-        ]
+        input_data = [["Alternatives"], ["alternative1"], ["second_alternative"], ["last_one"]]
         data = iter(input_data)
         data_header = next(data)
-        mapping = {
-            "map_type": "Alternative",
-            "name": 0,
-        }
+        mapping = {"map_type": "Alternative", "name": 0}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["alternatives"] = ["alternative1", "second_alternative", "last_one"]
         self.assertEqual(out, expected)
 
     def test_read_scenario(self):
-        input_data = [
-            ["Scenarios"],
-            ["scenario1"],
-            ["second_scenario"],
-            ["last_one"]
-        ]
+        input_data = [["Scenarios"], ["scenario1"], ["second_scenario"], ["last_one"]]
         data = iter(input_data)
         data_header = next(data)
-        mapping = {
-            "map_type": "Scenario",
-            "name": 0,
-        }
+        mapping = {"map_type": "Scenario", "name": 0}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["scenarios"] = ["scenario1", "second_scenario", "last_one"]
+        self.assertEqual(out, expected)
+
+    def test_read_scenario_alternative(self):
+        input_data = [
+            ["Scenario", "Alternative", "Rank"],
+            ["scenario_A", "alternative1", 23],
+            ["scenario_A", "second_alternative", 5],
+            ["scenario_B", "last_one", -3],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternatives": 1, "ranks": 2}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["scenario_alternatives"] = [
+            ("scenario_A", [("alternative1", 23)]),
+            ("scenario_A", [("second_alternative", 5)]),
+            ("scenario_B", [("last_one", -3)]),
+        ]
         self.assertEqual(out, expected)
 
 
