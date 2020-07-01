@@ -53,7 +53,7 @@ class DiffDatabaseMappingAddMixin:
             Column("parameter_definition_tag_id", Integer, server_default=null()),
             Column("alternative_id", Integer, server_default=null()),
             Column("scenario_id", Integer, server_default=null()),
-            Column("scenario_alternatives_id", Integer, server_default=null()),
+            Column("scenario_alternative_id", Integer, server_default=null()),
         )
         next_id_table.create(self.engine, checkfirst=True)
         # Create mapping...
@@ -99,7 +99,7 @@ class DiffDatabaseMappingAddMixin:
             "parameter_definition_tag": "parameter_definition_tag_id",
             "alternative": "alternative_id",
             "scenario": "scenario_id",
-            "scenario_alternatives": "scenario_alternatives_id",
+            "scenario_alternative": "scenario_alternative_id",
         }[tablename]
         next_id = self._next_id_with_lock()
         id_ = getattr(next_id, next_id_fieldname)
@@ -117,7 +117,7 @@ class DiffDatabaseMappingAddMixin:
                 "parameter_value_list": "ParameterValueList",
                 "alternative": "Alternative",
                 "scenario": "Scenario",
-                "scenario_alternatives": "ScenarioAlternatives",
+                "scenario_alternative": "ScenarioAlternative",
             }[tablename]
             class_ = getattr(self, classname)
             max_id = self.query(func.max(class_.id)).scalar()
@@ -248,14 +248,14 @@ class DiffDatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_and_ids("scenario_alternatives", *items)
+        items_to_add, ids = self._items_and_ids("scenario_alternative", *items)
         self._do_add_scenario_alternatives(*items_to_add)
-        self.added_item_id["scenario_alternatives"].update(ids)
+        self.added_item_id["scenario_alternative"].update(ids)
         return ids
 
     def _do_add_scenario_alternatives(self, *items_to_add):
         try:
-            self.session.bulk_insert_mappings(self.DiffScenarioAlternatives, items_to_add)
+            self.session.bulk_insert_mappings(self.DiffScenarioAlternative, items_to_add)
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()

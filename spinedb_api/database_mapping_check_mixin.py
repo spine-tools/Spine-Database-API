@@ -316,7 +316,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         scenario_alternatives = {}
-        sq = self.scenario_alternatives_sq
+        sq = self.scenario_alternative_sq
         for scen_id, scen_alt in groupby(
             self.query(sq).order_by(sq.c.scenario_id, sq.c.rank), key=lambda s: s.scenario_id
         ):
@@ -352,7 +352,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         scenario_alternatives = {}
-        sq = self.scenario_alternatives_sq
+        sq = self.scenario_alternative_sq
         for scen_id, scen_alt in groupby(
             self.query(sq).order_by(sq.c.scenario_id, sq.c.rank), key=lambda s: s.scenario_id
         ):

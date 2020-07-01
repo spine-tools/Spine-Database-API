@@ -136,17 +136,17 @@ class DiffDatabaseMappingUpdateMixin:
 
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
-                "scenario_alternatives", checked_kwargs_list
+                "scenario_alternative", checked_kwargs_list
             )
-            self.session.bulk_update_mappings(self.DiffScenarioAlternatives, items_for_update)
-            self.session.bulk_insert_mappings(self.DiffScenarioAlternatives, items_for_insert)
+            self.session.bulk_update_mappings(self.DiffScenarioAlternative, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffScenarioAlternative, items_for_insert)
             self.session.commit()
-            self._mark_as_dirty("scenario_alternatives", dirty_ids)
-            self.updated_item_id["scenario_alternatives"].update(dirty_ids)
+            self._mark_as_dirty("scenario_alternative", dirty_ids)
+            self.updated_item_id["scenario_alternative"].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while updating scenario_alternatives: {}".format(e.orig.args)
+            msg = "DBAPIError while updating scenario alternatives: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def update_object_classes(self, *items, strict=False):

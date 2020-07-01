@@ -184,7 +184,7 @@ def export_scenario_alternatives(db_map, ids):
     items = dict()
     alternatives = {a.id: a.name for a in db_map.query(db_map.alternative_sq)}
     scenarios = {s.id: s.name for s in db_map.query(db_map.scenario_sq)}
-    sq = db_map.scenario_alternatives_sq
+    sq = db_map.scenario_alternative_sq
     for scenario_alternative in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)):
         alternative = alternatives[scenario_alternative.alternative_id]
         scenario = scenarios[scenario_alternative.scenario_id]

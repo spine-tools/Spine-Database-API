@@ -46,7 +46,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Diff classes
         self.DiffAlternative = None
         self.DiffScenario = None
-        self.DiffScenarioAlternatives = None
+        self.DiffScenarioAlternative = None
         self.DiffCommit = None
         self.DiffEntityClass = None
         self.DiffEntityClassType = None
@@ -173,5 +173,5 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.query(self.DiffRelationshipEntity).delete()
         self.query(self.DiffAlternative).delete()
         self.query(self.DiffScenario).delete()
-        self.query(self.DiffScenarioAlternatives).delete()
+        self.query(self.DiffScenarioAlternative).delete()
         self.query(self.DiffEntityGroup).delete()

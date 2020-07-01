@@ -358,7 +358,7 @@ def import_scenario_alternatives(db_map, data):
 
 def _get_scenario_alternatives_for_import(db_map, data):
     scenario_alternatives = dict()
-    for scenario_alternative in db_map.query(db_map.scenario_alternatives_sq):
+    for scenario_alternative in db_map.query(db_map.scenario_alternative_sq):
         items = scenario_alternatives.setdefault(scenario_alternative.scenario_id, list())
         items.append({"id": scenario_alternative.id, "alternative_id": scenario_alternative.alternative_id, "rank": scenario_alternative.rank})
     scenario_ids = {scenario.name: scenario.id for scenario in db_map.query(db_map.scenario_sq)}
@@ -366,7 +366,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
     alternative_ids = {alternative.name: alternative.id for alternative in db_map.query(db_map.alternative_sq)}
     alternative_id_set = set(alternative_ids.values())
     alternative_ranks = dict()
-    for scenario_alternative in db_map.query(db_map.scenario_alternatives_sq):
+    for scenario_alternative in db_map.query(db_map.scenario_alternative_sq):
         ranks = alternative_ranks.setdefault(scenario_alternative.scenario_id, set())
         ranks.add(scenario_alternative.rank)
     checked = set()

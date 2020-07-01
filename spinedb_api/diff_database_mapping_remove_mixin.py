@@ -122,8 +122,8 @@ class DiffDatabaseMappingRemoveMixin:
         """Finds object class cascading ids and adds them to the given dictionaries."""
         cascading_ids = {"alternative": ids}
         parameter_values = self.query(self.parameter_value_sq.c.id).filter(self.in_(self.parameter_value_sq.c.alternative_id, ids))
-        scenario_alternatives = self.query(self.scenario_alternatives_sq.c.id).filter(
-            self.in_(self.scenario_alternatives_sq.c.alternative_id, ids)
+        scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
+            self.in_(self.scenario_alternative_sq.c.alternative_id, ids)
         )
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
         self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
@@ -131,8 +131,8 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _scenario_cascading_ids(self, ids):
         cascading_ids = {"scenario": ids}
-        scenario_alternatives = self.query(self.scenario_alternatives_sq.c.id).filter(
-            self.in_(self.scenario_alternatives_sq.c.scenario_id, ids)
+        scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
+            self.in_(self.scenario_alternative_sq.c.scenario_id, ids)
         )
         self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
         return cascading_ids
@@ -235,4 +235,4 @@ class DiffDatabaseMappingRemoveMixin:
         return {"parameter_value_list": ids}
 
     def _scenario_alternatives_cascading_ids(self, ids):
-        return {"scenario_alternatives": ids}
+        return {"scenario_alternative": ids}

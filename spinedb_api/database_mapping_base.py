@@ -62,7 +62,7 @@ class DatabaseMappingBase:
         self.sa_url = make_url(self.db_url)
         self.Alternative = None
         self.Scenario = None
-        self.ScenarioAlternatives = None
+        self.ScenarioAlternative = None
         self.Commit = None
         self.EntityClassType = None
         self.EntityClass = None
@@ -90,7 +90,7 @@ class DatabaseMappingBase:
         # Subqueries that select everything from each table
         self._alternative_sq = None
         self._scenario_sq = None
-        self._scenario_alternatives_sq = None
+        self._scenario_alternative_sq = None
         self._entity_class_sq = None
         self._entity_sq = None
         self._entity_class_type_sq = None
@@ -126,7 +126,7 @@ class DatabaseMappingBase:
         self.table_to_class = {
             "alternative": "Alternative",
             "scenario": "Scenario",
-            "scenario_alternatives": "ScenarioAlternatives",
+            "scenario_alternative": "ScenarioAlternative",
             "commit": "Commit",
             "entity_class": "EntityClass",
             "entity_class_type": "EntityClassType",
@@ -306,10 +306,10 @@ class DatabaseMappingBase:
         return self._scenario_sq
 
     @property
-    def scenario_alternatives_sq(self):
-        if self._scenario_alternatives_sq is None:
-            self._scenario_alternatives_sq = self._subquery("scenario_alternatives")
-        return self._scenario_alternatives_sq
+    def scenario_alternative_sq(self):
+        if self._scenario_alternative_sq is None:
+            self._scenario_alternative_sq = self._subquery("scenario_alternative")
+        return self._scenario_alternative_sq
 
     @property
     def object_class_type(self):
@@ -1197,7 +1197,7 @@ class DatabaseMappingBase:
         self.query(self.Alternative).delete(synchronize_session=False)
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative')")
         self.query(self.Scenario).delete(synchronize_session=False)
-        self.query(self.ScenarioAlternatives).delete(synchronize_session=False)
+        self.query(self.ScenarioAlternative).delete(synchronize_session=False)
         self.query(self.EntityClass).delete(synchronize_session=False)
         self.query(self.Entity).delete(synchronize_session=False)
         self.query(self.Object).delete(synchronize_session=False)

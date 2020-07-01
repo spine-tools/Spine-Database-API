@@ -859,10 +859,10 @@ class TestScenarioAlternatives(unittest.TestCase):
             for s in db_map.query(
                 db_map.scenario_sq.c.name.label("scenario_name"),
                 db_map.alternative_sq.c.name.label("alternative_name"),
-                db_map.scenario_alternatives_sq.c.rank,
+                db_map.scenario_alternative_sq.c.rank,
             )
-            .filter(db_map.scenario_alternatives_sq.c.scenario_id == db_map.scenario_sq.c.id)
-            .filter(db_map.scenario_alternatives_sq.c.alternative_id == db_map.alternative_sq.c.id)
+            .filter(db_map.scenario_alternative_sq.c.scenario_id == db_map.scenario_sq.c.id)
+            .filter(db_map.scenario_alternative_sq.c.alternative_id == db_map.alternative_sq.c.id)
             .all()
         ]
         scenario_alternatives = dict()

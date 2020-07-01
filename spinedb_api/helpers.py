@@ -270,7 +270,7 @@ def create_new_spine_database(db_url):
         Column("description", String(255), server_default=null()),
     )
     Table(
-        "scenario_alternatives",
+        "scenario_alternative",
         meta,
         Column("id", Integer, primary_key=True),
         Column("scenario_id", Integer, ForeignKey("scenario.id"), nullable=False),

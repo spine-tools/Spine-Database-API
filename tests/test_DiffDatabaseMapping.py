@@ -49,7 +49,7 @@ def create_diff_db_map(directory):
 
 class TestDiffDatabaseMappingRemove(unittest.TestCase):
     def test_remove_relationship(self):
-        """Test adding and removing a relationship and commiting"""
+        """Test adding and removing a relationship and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -63,7 +63,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_relationship_from_commited_session(self):
-        """Test removing a relationship from a commited session"""
+        """Test removing a relationship from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -79,7 +79,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_object(self):
-        """Test adding and removing an object and commiting"""
+        """Test adding and removing an object and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -91,7 +91,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_object_from_commited_session(self):
-        """Test removing an object from a commited session"""
+        """Test removing an object from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -105,7 +105,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_entity_group(self):
-        """Test adding and removing an entity group and commiting"""
+        """Test adding and removing an entity group and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1})
@@ -117,8 +117,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             self.assertEqual(len(db_map.query(db_map.entity_group_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_entity_group_from_committed_sesion(self):
-        """Test removing an entity group from a commited session"""
+    def test_remove_entity_group_from_committed_session(self):
+        """Test removing an entity group from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1})
@@ -133,7 +133,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_relationship_class(self):
-        """Test adding and removing a relationship class and commiting"""
+        """Test adding and removing a relationship class and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -144,8 +144,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_relationship_class_from_commited_session(self):
-        """Test removing a relationship class from a commited session"""
+    def test_remove_relationship_class_from_committed_session(self):
+        """Test removing a relationship class from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -159,7 +159,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_object_class(self):
-        """Test adding and removing an object class and commiting"""
+        """Test adding and removing an object class and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             ids, _ = db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -169,8 +169,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_object_class_from_commited_session(self):
-        """Test removing an object class from a commited session"""
+    def test_remove_object_class_from_committed_session(self):
+        """Test removing an object class from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             ids, _ = db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -183,7 +183,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_parameter_value(self):
-        """Test adding and removing a parameter value and commiting"""
+        """Test adding and removing a parameter value and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
@@ -199,8 +199,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_parameter_value_from_commited_session(self):
-        """Test adding and commiting a parameter value and then removing it"""
+    def test_remove_parameter_value_from_committed_session(self):
+        """Test adding and committing a parameter value and then removing it"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
@@ -218,7 +218,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.connection.close()
 
     def test_remove_object_with_parameter_value(self):
-        """Test adding and removing a parameter value and commiting"""
+        """Test adding and removing a parameter value and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
@@ -234,8 +234,8 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_object_with_parameter_value_from_commited_session(self):
-        """Test adding and commiting a parmaeter value and then removing it"""
+    def test_remove_object_with_parameter_value_from_committed_session(self):
+        """Test adding and committing a paramater value and then removing it"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
