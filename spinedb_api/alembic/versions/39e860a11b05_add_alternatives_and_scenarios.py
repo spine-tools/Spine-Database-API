@@ -23,6 +23,7 @@ def create_new_tables():
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("description", sa.Text, nullable=True),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("name"),
     )
     op.create_table(
@@ -30,6 +31,7 @@ def create_new_tables():
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("description", sa.Text, nullable=True),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("name"),
     )
     op.create_table(
@@ -38,6 +40,7 @@ def create_new_tables():
         sa.Column("scenario_id", sa.Integer, nullable=False),
         sa.Column("alternative_id", sa.Integer, nullable=False),
         sa.Column("rank", sa.Integer, nullable=False),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("scenario_id", "rank"),
         sa.UniqueConstraint("scenario_id", "alternative_id"),
         sa.ForeignKeyConstraint(("scenario_id",), ("scenario.id",), onupdate="CASCADE", ondelete="CASCADE"),
@@ -46,7 +49,7 @@ def create_new_tables():
 
 
 def add_base_alternative():
-    op.execute("""INSERT INTO alternative (id, name, description) VALUES (1, "Base", "Base alternative")""")
+    op.execute("""INSERT INTO alternative (id, name, description) VALUES (1, "Base", "Base alternative, null")""")
 
 
 def alter_tables_after_update():

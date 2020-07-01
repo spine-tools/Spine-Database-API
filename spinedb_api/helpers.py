@@ -261,6 +261,7 @@ def create_new_spine_database(db_url):
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
     )
     Table(
         "scenario",
@@ -268,6 +269,7 @@ def create_new_spine_database(db_url):
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "scenario_alternative",
@@ -276,6 +278,7 @@ def create_new_spine_database(db_url):
         Column("scenario_id", Integer, ForeignKey("scenario.id"), nullable=False),
         Column("alternative_id", Integer, ForeignKey("alternative.id"), nullable=False),
         Column("rank", Integer, nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "entity_class_type",
@@ -511,7 +514,7 @@ def create_new_spine_database(db_url):
     )
     try:
         meta.create_all(engine)
-        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative')")
+        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', null), (2, 'relationship', null)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', null), (2, 'relationship', null)")
         engine.execute("INSERT INTO alembic_version VALUES ('39e860a11b05')")

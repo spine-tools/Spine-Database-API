@@ -1195,7 +1195,7 @@ class DatabaseMappingBase:
         Useful for writing tests
         """
         self.query(self.Alternative).delete(synchronize_session=False)
-        self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative')")
+        self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
         self.query(self.Scenario).delete(synchronize_session=False)
         self.query(self.ScenarioAlternative).delete(synchronize_session=False)
         self.query(self.EntityClass).delete(synchronize_session=False)
