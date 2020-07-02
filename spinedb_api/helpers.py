@@ -261,7 +261,7 @@ def create_new_spine_database(db_url):
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "scenario",
@@ -285,14 +285,14 @@ def create_new_spine_database(db_url):
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "entity_type",
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "entity_class",
@@ -514,12 +514,13 @@ def create_new_spine_database(db_url):
     )
     try:
         meta.create_all(engine)
-        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
-        engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', null), (2, 'relationship', null)")
-        engine.execute("INSERT INTO entity_type VALUES (1, 'object', null), (2, 'relationship', null)")
+        engine.execute("INSERT INTO [commit] VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
+        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
+        engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
+        engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO alembic_version VALUES ('39e860a11b05')")
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
+        raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine
 
 

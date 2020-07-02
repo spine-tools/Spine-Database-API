@@ -5,9 +5,11 @@ Revises: 9da58d2def22
 Create Date: 2020-03-05 14:04:00.854936
 
 """
+from datetime import datetime, timezone
 from alembic import op
 import sqlalchemy as sa
-from datetime import datetime
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import sessionmaker
 
 
 # revision identifiers, used by Alembic.
@@ -23,7 +25,7 @@ def create_new_tables():
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("description", sa.Text, nullable=True),
-        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id"), nullable=True),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("name"),
     )
     op.create_table(
@@ -48,8 +50,25 @@ def create_new_tables():
     )
 
 
-def add_base_alternative():
-    op.execute("""INSERT INTO alternative (id, name, description) VALUES (1, "Base", "Base alternative, null")""")
+def add_upgrade_comment_to_commits(session, Base):
+    commit = Base.classes.commit(comment="Upgrade database: add scenarios and alternatives.", user="alembic", date=datetime.now(timezone.utc))
+    session.add(commit)
+    session.commit()
+    return commit.id
+
+
+def add_base_alternative(commit_id, session, Base):
+    alternative = Base.classes.alternative(name="Base", description="Base alternative", commit_id=commit_id)
+    session.add(alternative)
+    session.commit()
+
+
+def commit_ids_for_types(upgrade_commit_id, session, Base):
+    for entity_type in session.query(Base.classes.entity_type).all():
+        entity_type.commit_id = upgrade_commit_id
+    for entity_class_type in session.query(Base.classes.entity_class_type).all():
+        entity_class_type.commit_id = upgrade_commit_id
+    session.commit()
 
 
 def alter_tables_after_update():
@@ -89,10 +108,21 @@ def alter_tables_after_update():
             date=date,
         )
 
+    with op.batch_alter_table("entity_type") as batch_op:
+        batch_op.alter_column('commit_id', nullable=False)
+    with op.batch_alter_table("entity_class_type") as batch_op:
+        batch_op.alter_column('commit_id', nullable=False)
+
 
 def upgrade():
     create_new_tables()
-    add_base_alternative()
+    Session = sessionmaker(bind=op.get_bind())
+    session = Session()
+    Base = automap_base()
+    Base.prepare(op.get_bind(), reflect=True)
+    upgrade_commit_id = add_upgrade_comment_to_commits(session, Base)
+    add_base_alternative(upgrade_commit_id, session, Base)
+    commit_ids_for_types(upgrade_commit_id, session, Base)
     alter_tables_after_update()
 
 
@@ -109,3 +139,7 @@ def downgrade():
             batch_op.drop_column("alternative_id")
             batch_op.drop_column("scenario_id")
             batch_op.drop_column("scenario_alternative_id")
+    with op.batch_alter_table("entity_type") as batch_op:
+        batch_op.alter_column('commit_id', nullable=True)
+    with op.batch_alter_table("entity_class_type") as batch_op:
+        batch_op.alter_column('commit_id', nullable=True)
