@@ -37,7 +37,7 @@ class DiffDatabaseMappingRemoveMixin:
 
     def remove_items(self, **kwargs):
         """Removes items by id, *not in cascade*.
-
+x
         Keyword args:
             <tablename> (set): set of ids to be removed for table
         """
