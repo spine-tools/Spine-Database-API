@@ -34,6 +34,7 @@ from spinedb_api.parameter_value import (
     IndexedNumberArray,
     Map,
     TimePattern,
+    TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
 )
@@ -538,11 +539,68 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(nested_map.indexes, [DateTime("2020-01-01T12:00")])
         self.assertEqual(nested_map.values, [Duration("3 hours")])
 
+    def test_from_database_Map_with_TimeSeries_values(self):
+        database_value = '''
+        {
+            "type": "map",
+             "index_type": "duration",
+              "data":[["1 hour", {"type": "time_series",
+                                  "data": [["2020-01-01T12:00", -3.0], ["2020-01-02T12:00", -9.3]]
+                                 }
+                     ]]
+        }'''
+        value = from_database(database_value)
+        self.assertEqual(value.indexes, [Duration("1 hour")])
+        self.assertEqual(
+            value.values,
+            [TimeSeriesVariableResolution(["2020-01-01T12:00", "2020-01-02T12:00"], [-3.0, -9.3], False, False)],
+        )
+
+    def test_from_database_Map_with_Array_values(self):
+        database_value = '''
+        {
+            "type": "map",
+             "index_type": "duration",
+              "data":[["1 hour", {"type": "array", "data": [-3.0, -9.3]}]]
+        }'''
+        value = from_database(database_value)
+        self.assertEqual(value.indexes, [Duration("1 hour")])
+        self.assertEqual(value.values, [Array([-3.0, -9.3])])
+
+    def test_from_database_Map_with_TimePattern_values(self):
+        database_value = '''
+        {
+            "type": "map",
+             "index_type": "float",
+              "data":[["2.3", {"type": "time_pattern", "data": {"1m,2m": -9.3, "3-12m": -3.9}}]]
+        }'''
+        value = from_database(database_value)
+        self.assertEqual(value.indexes, [2.3])
+        self.assertEqual(value.values, [TimePattern(["1m,2m", "3-12m"], [-9.3, -3.9])])
+
     def test_Map_to_database(self):
         map_value = Map(["a", "b"], [1.1, 2.2])
         as_json = to_database(map_value)
         raw = json.loads(as_json)
         self.assertEqual(raw, {"type": "map", "index_type": "str", "data": [["a", 1.1], ["b", 2.2]]})
+
+    def test_Map_to_database_with_TimeSeries_values(self):
+        time_series1 = TimeSeriesVariableResolution(["2020-01-01T12:00", "2020-01-02T12:00"], [2.3, 4.5], False, False)
+        time_series2 = TimeSeriesVariableResolution(
+            ["2020-01-01T12:00", "2020-01-02T12:00"], [-4.5, -2.3], False, False
+        )
+        map_value = Map(["a", "b"], [time_series1, time_series2])
+        as_json = to_database(map_value)
+        raw = json.loads(as_json)
+        expected = {
+            "type": "map",
+            "index_type": "str",
+            "data": [
+                ["a", {"type": "time_series", "data": {"2020-01-01T12:00:00": 2.3, "2020-01-02T12:00:00": 4.5}}],
+                ["b", {"type": "time_series", "data": {"2020-01-01T12:00:00": -4.5, "2020-01-02T12:00:00": -2.3}}],
+            ],
+        }
+        self.assertEqual(raw, expected)
 
     def test_Map_to_database_nested_maps(self):
         nested_map = Map([Duration("2 months")], [Duration("5 days")])
@@ -579,14 +637,7 @@ class TestParameterValue(unittest.TestCase):
         array = Array([DateTime("2020-01-01T13:00")])
         as_json = to_database(array)
         raw = json.loads(as_json)
-        self.assertEqual(
-            raw,
-            {
-                "type": "array",
-                "value_type": "date_time",
-                "data": ["2020-01-01T13:00:00"],
-            },
-        )
+        self.assertEqual(raw, {"type": "array", "value_type": "date_time", "data": ["2020-01-01T13:00:00"]})
 
     def test_Array_of_Durations_to_database(self):
         array = Array([Duration("4 months")])
