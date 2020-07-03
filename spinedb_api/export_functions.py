@@ -75,7 +75,10 @@ def export_relationship_classes(db_map, ids):
 
 def export_parameter_value_lists(db_map, ids):
     sq = db_map.wide_parameter_value_list_sq
-    return sorted((x.name, x.value_list.split(",")) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted(
+        (x.name, [from_database(value) for value in x.value_list.split(",")])
+        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+    )
 
 
 def export_object_parameters(db_map, ids):
