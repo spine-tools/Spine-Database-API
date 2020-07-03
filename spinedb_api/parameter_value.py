@@ -594,9 +594,12 @@ class IndexedValue:
     def __init__(self):
         self._indexes = None
 
+    def __bool__(self):
+        return bool(self._indexes)
+
     def __len__(self):
         """Returns the number of values."""
-        raise NotImplementedError()
+        return len(self._indexes)
 
     @property
     def indexes(self):
@@ -655,10 +658,6 @@ class Array(IndexedValue):
             return NotImplemented
         return self._values == other._values
 
-    def __len__(self):
-        """See base class."""
-        return len(self._values)
-
     def to_dict(self):
         """See base class."""
         value_type_id = {
@@ -703,10 +702,6 @@ class IndexedNumberArray(IndexedValue):
             values = np.array(values, dtype=float)
         self._values = values
 
-    def __len__(self):
-        """Returns the length of the index"""
-        return len(self.values)
-
     def to_dict(self):
         """Return the database representation of the value."""
         raise NotImplementedError()
@@ -733,6 +728,10 @@ class TimeSeries(IndexedNumberArray):
         super().__init__(values)
         self._ignore_year = ignore_year
         self._repeat = repeat
+
+    def __len__(self):
+        """Returns the number of values."""
+        return len(self._values)
 
     @property
     def ignore_year(self):
@@ -1006,10 +1005,6 @@ class Map(IndexedValue):
             return NotImplemented
         return other._indexes == self._indexes and other._values == self._values
 
-    def __len__(self):
-        """Returns the length of map."""
-        return len(self._indexes)
-
     @property
     def values(self):
         """Map's values."""
@@ -1035,6 +1030,57 @@ class Map(IndexedValue):
             "index_type": _map_index_type_to_database(self._index_type),
             "data": self.value_to_database_data(),
         }
+
+
+def convert_leaf_maps_to_specialized_containers(map_):
+    """
+    Converts suitable leaf maps to corresponding specialized containers.
+
+    Currently supported conversions:
+
+    - index_type: :class:`DateTime`, all values ``float`` -> :class"`TimeSeries`
+
+    Args:
+        map_ (Map): a map to process
+
+    Returns:
+        IndexedValue: a map with leaves converted or specialized container if map was convertible in itself
+    """
+    converted_container = _try_convert_to_container(map_)
+    if converted_container is not None:
+        return converted_container
+    indexes = list()
+    new_values = list()
+    for index, value in zip(map_.indexes, map_.values):
+        indexes.append(index)
+        if isinstance(value, Map):
+            converted = convert_leaf_maps_to_specialized_containers(value)
+            new_values.append(converted)
+        else:
+            new_values.append(value)
+    return Map(indexes, new_values)
+
+
+def _try_convert_to_container(map_):
+    """
+    Tries to convert a map to corresponding specialized container.
+
+    Args:
+        map_ (Map): a map to convert
+
+    Returns:
+        TimeSeriesVariableResolution or None: converted Map or None if the map couldn't be converted
+    """
+    if not map_:
+        return None
+    stamps = list()
+    values = list()
+    for index, value in zip(map_.indexes, map_.values):
+        if not isinstance(index, DateTime) or not isinstance(value, float):
+            return None
+        stamps.append(index)
+        values.append(value)
+    return TimeSeriesVariableResolution(stamps, values, False, False)
 
 
 # List of scalar types that are supported by the spinedb_api

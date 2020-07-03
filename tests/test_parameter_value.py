@@ -24,6 +24,7 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.testing
 from spinedb_api.parameter_value import (
+    convert_leaf_maps_to_specialized_containers,
     duration_to_relativedelta,
     relativedelta_to_duration,
     from_database,
@@ -765,6 +766,28 @@ class TestParameterValue(unittest.TestCase):
         nested_map = Map(["a"], [-2.3])
         map_value = Map(["A"], [nested_map])
         self.assertTrue(map_value.is_nested())
+
+    def test_convert_leaf_maps_to_specialized_containers_non_nested_map(self):
+        map_value = Map([DateTime("2000-01-01T00:00"), DateTime("2000-01-02T00:00")], [-3.2, -2.3])
+        converted = convert_leaf_maps_to_specialized_containers(map_value)
+        self.assertEqual(
+            converted,
+            TimeSeriesVariableResolution(["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False),
+        )
+
+    def test_convert_leaf_maps_to_specialized_containers_no_conversion(self):
+        map_value = Map(["a", "b"], [-3.2, -2.3])
+        converted = convert_leaf_maps_to_specialized_containers(map_value)
+        self.assertEqual(converted, map_value)
+
+    def test_convert_leaf_maps_to_specialized_containers_nested_map(self):
+        nested1 = Map(["a", "b"], [-3.2, -2.3])
+        nested2 = Map([DateTime("2000-01-01T00:00"), DateTime("2000-01-02T00:00")], [-3.2, -2.3])
+        map_value = Map([1.0, 2.0, 3.0], [nested1, nested2, 4.4])
+        converted = convert_leaf_maps_to_specialized_containers(map_value)
+        time_series = TimeSeriesVariableResolution(["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False)
+        expected = Map([1.0, 2.0, 3.0], [nested1, time_series, 4.4])
+        self.assertEqual(converted, expected)
 
 
 if __name__ == "__main__":
