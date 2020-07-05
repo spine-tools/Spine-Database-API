@@ -878,7 +878,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_list": x.value_list.split(",")}
+            x.id: {"name": x.name, "value_list": x.value_list.split(";")}
             for x in self.query(self.wide_parameter_value_list_sq)
         }
         parameter_value_list_ids = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}

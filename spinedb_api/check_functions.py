@@ -279,7 +279,7 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         parameter_value_list_id = parameter_definition["parameter_value_list_id"]
         value_list = parameter_value_lists.get(parameter_value_list_id)
         if value_list is not None:
-            value_list = value_list.split(",")
+            value_list = value_list.split(";")
             if value not in value_list:
                 valid_values = ", ".join(value_list)
                 raise SpineIntegrityError(

@@ -319,7 +319,7 @@ class DiffDatabaseMappingUpdateMixin:
                 continue
             updated_ids.add(id_)
             updated_wide_item = wide_parameter_value_lists[id_]
-            updated_wide_item["value_list"] = updated_wide_item["value_list"].split(",")
+            updated_wide_item["value_list"] = updated_wide_item["value_list"].split(";")
             updated_wide_item.update(wide_item)
             for k, value in enumerate(updated_wide_item["value_list"]):
                 narrow_item = {"id": id_, "name": updated_wide_item["name"], "value_index": k, "value": value}
