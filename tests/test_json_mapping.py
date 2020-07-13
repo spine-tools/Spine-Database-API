@@ -281,6 +281,7 @@ class TestMappingIO(unittest.TestCase):
         expected = {
             "map_type": "Scenario",
             "name": {"reference": 0, "map_type": "column"},
+            "active": {"map_type": "constant", "reference": "false"},
             "read_start_row": 0,
             "skip_columns": [],
         }

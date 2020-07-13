@@ -287,7 +287,8 @@ def import_scenarios(db_map, data):
 
     Example:
 
-        data = ['scenario', ('another_scenario', 'description')]
+        third_active = True
+        data = ['scenario', ('another_scenario', 'description'), ('third_scenario', 'description', third_active)]
         import_scenarios(db_map, data)
 
     Args:
@@ -317,7 +318,10 @@ def _get_scenarios_for_import(db_map, data):
         else:
             name, *optionals = scenario
             item = {"name": name}
-            item.update(dict(zip(("description",), optionals)))
+            if len(optionals) == 1:
+                default_active = False
+                optionals = (optionals[0], default_active)
+            item.update(dict(zip(("description", "active"), optionals)))
         if name in checked:
             continue
         scenario_id = scenario_ids.pop(name, None)

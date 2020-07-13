@@ -65,7 +65,7 @@ class TestExportFunctions(unittest.TestCase):
     def test_export_scenarios(self):
         import_scenarios(self._db_map, [("scenario", "Description")])
         exported = export_scenarios(self._db_map, None)
-        self.assertEqual(exported, [("scenario", "Description")])
+        self.assertEqual(exported, [("scenario", "Description", False)])
 
     def test_export_scenario_alternatives(self):
         import_alternatives(self._db_map, ["alternative"])
@@ -118,7 +118,7 @@ class TestExportFunctions(unittest.TestCase):
         self.assertIn("alternatives", exported)
         self.assertEqual(exported["alternatives"], [("Base", "Base alternative"), ("alternative", None)])
         self.assertIn("scenarios", exported)
-        self.assertEqual(exported["scenarios"], [("scenario", None)])
+        self.assertEqual(exported["scenarios"], [("scenario", None, False)])
         self.assertIn("scenario_alternatives", exported)
         self.assertEqual(exported["scenario_alternatives"], [("scenario", [("alternative", 1)])])
 

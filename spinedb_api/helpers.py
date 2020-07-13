@@ -18,7 +18,9 @@ General helper functions and classes.
 
 import warnings
 from sqlalchemy import (
+    Boolean,
     create_engine,
+    false,
     Table,
     Column,
     MetaData,
@@ -269,6 +271,7 @@ def create_new_spine_database(db_url):
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
+        Column("active", Boolean(name="active"), server_default=false(), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(

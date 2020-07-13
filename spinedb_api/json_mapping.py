@@ -1014,7 +1014,7 @@ class NamedItemMapping(ItemMappingBase):
     def __init__(self, name, skip_columns, read_start_row):
         """
         Args:
-            name (str or MappingBase, optional): mapping for the class name
+            name (str or MappingBase, optional): mapping for the item name
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
@@ -1550,10 +1550,25 @@ class ScenarioMapping(NamedItemMapping):
             ScenarioMapping {
                 map_type: 'Scenario'
                 name: str | Mapping
+                active: str | Mapping
             }
     """
 
     MAP_TYPE = "Scenario"
+
+    def __init__(self, name, active, skip_columns, read_start_row):
+        """
+        Args:
+            name (str or MappingBase, optional): mapping for the scenario name
+            active (str or Mapping, optional): mapping for scenario's active flag
+            skip_columns (list, optional): a list of columns to skip while mapping
+            read_start_row (int): skip this many rows while mapping
+        """
+        super().__init__(name, skip_columns, read_start_row)
+        if active is not None:
+            self._active = mappingbase_from_dict_int_str(active)
+        else:
+            self._active = ConstantMapping("false")
 
     def is_valid(self):
         issue = self.scenario_names_issues()
@@ -1576,14 +1591,20 @@ class ScenarioMapping(NamedItemMapping):
         readers = [("scenarios",) + create_final_getter_function([name_getter], [name_num], [name_reads])]
         return readers
 
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict["active"] = self._active.to_dict()
+        return map_dict
+
     @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
-        name = map_dict.get("name", None)
+        name = map_dict.get("name")
+        active = map_dict.get("active")
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
-        return ScenarioMapping(name, skip_columns, read_start_row)
+        return ScenarioMapping(name, active, skip_columns, read_start_row)
 
 
 class ScenarioAlternativeMapping(ItemMappingBase):

@@ -168,7 +168,7 @@ def export_scenarios(db_map, ids):
         Iterable: tuples of two elements: name of scenario and description
     """
     sq = db_map.scenario_sq
-    return sorted((x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.name, x.description, x.active) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
 
 
 def export_scenario_alternatives(db_map, ids):

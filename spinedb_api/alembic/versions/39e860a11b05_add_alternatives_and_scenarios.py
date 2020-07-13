@@ -33,6 +33,7 @@ def create_new_tables():
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("description", sa.Text, nullable=True),
+        sa.Column("active", sa.Boolean(name="active"), server_default=sa.false()),
         sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("name"),
     )
