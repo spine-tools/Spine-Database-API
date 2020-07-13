@@ -1185,7 +1185,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
-                    func.group_concat(self.parameter_value_list_sq.c.value).label("value_list"),
+                    func.group_concat(self.parameter_value_list_sq.c.value, ";").label("value_list"),
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq

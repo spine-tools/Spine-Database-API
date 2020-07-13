@@ -1168,7 +1168,7 @@ def _get_parameter_value_lists_for_import(db_map, data):
                 )
             )
             continue
-        item = {"name": name, "value_list": list(value_list)}
+        item = {"name": name, "value_list": [to_database(value) for value in value_list]}
         pvl_id = parameter_value_list_ids.pop(name, None)
         try:
             check_wide_parameter_value_list(item, parameter_value_list_ids)
