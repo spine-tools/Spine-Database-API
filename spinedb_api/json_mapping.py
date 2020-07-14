@@ -140,7 +140,7 @@ class MappingBase:
 
 class NoneMapping(MappingBase):
     """Class for holding a reference to a column by number or header string
-        """
+    """
 
     MAP_TYPE = "None"
 
@@ -648,9 +648,7 @@ class ParameterArrayMapping(ParameterValueMapping):
                 f"extra_dimensions must be a list or tuple of MappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
             )
         if len(extra_dimensions) != 1:
-            raise ValueError(
-                f"extra_dimensions must be of length 1 instead got len: {len(extra_dimensions)}"
-            )
+            raise ValueError(f"extra_dimensions must be of length 1 instead got len: {len(extra_dimensions)}")
         self._extra_dimensions = [mappingbase_from_dict_int_str(extra_dimensions[0])]
 
     def non_pivoted_columns(self):
@@ -1179,9 +1177,9 @@ class ObjectClassMapping(EntityClassMapping):
 
     def object_names_issues(self):
         if isinstance(self._parameters, ParameterValueMapping) and isinstance(self._objects, NoneMapping):
-                return "The source type for object names cannot be None."
+            return "The source type for object names cannot be None."
         if not isinstance(self._objects, NoneMapping) and self._objects.reference != 0 and not self._objects.reference:
-                return "No reference set for object names."
+            return "No reference set for object names."
         return ""
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
@@ -1221,6 +1219,162 @@ class ObjectClassMapping(EntityClassMapping):
                         [name_getter, o_getter, par_name_getter, par_value_getter],
                         [name_num, o_num, par_name_num, par_value_num],
                         [name_reads, o_reads, par_name_reads, par_value_reads],
+                    )
+                )
+        return readers
+
+
+class ObjectGroupMapping(EntityClassMapping):
+    """
+    Class for holding and validating Mapping specification::
+
+        ObjectGroupMapping {
+            map_type: 'object'
+            name: str | Mapping
+            groups: Mapping | str | None
+            members: Mapping | str | None
+            parameters: ParameterMapping | ParameterColumnCollectionMapping | None
+        }
+    """
+
+    MAP_TYPE = "ObjectGroup"
+
+    def __init__(self, *args, groups=None, members=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._groups = NoneMapping()
+        self._members = NoneMapping()
+        self.groups = groups
+        self.members = members
+
+    def non_pivoted_columns(self):
+        non_pivoted_columns = super().non_pivoted_columns()
+        if isinstance(self.groups, ColumnMapping) and self.groups.returns_value():
+            non_pivoted_columns.append(self.groups.reference)
+        if isinstance(self.members, ColumnMapping) and self.members.returns_value():
+            non_pivoted_columns.append(self.members.reference)
+        return non_pivoted_columns
+
+    def last_pivot_row(self):
+        return max(super().last_pivot_row(), self.groups.last_pivot_row(), self.members.last_pivot_row())
+
+    def is_pivoted(self):
+        return super().is_pivoted() or self.groups.is_pivoted() or self.members.is_pivoted()
+
+    @property
+    def groups(self):
+        return self._groups
+
+    @groups.setter
+    def groups(self, groups):
+        self._groups = mappingbase_from_dict_int_str(groups)
+
+    @property
+    def members(self):
+        return self._members
+
+    @members.setter
+    def members(self, members):
+        self._members = mappingbase_from_dict_int_str(members)
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        groups = map_dict.get("groups", None)
+        members = map_dict.get("members", None)
+        parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
+        skip_columns = map_dict.get("skip_columns", [])
+        read_start_row = map_dict.get("read_start_row", 0)
+        return ObjectGroupMapping(
+            name=name,
+            groups=groups,
+            members=members,
+            parameters=parameters,
+            skip_columns=skip_columns,
+            read_start_row=read_start_row,
+        )
+
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict.update(groups=self.groups.to_dict())
+        map_dict.update(members=self.members.to_dict())
+        return map_dict
+
+    def is_valid(self):
+        # check that parameter mapping has a valid name mapping
+        valid, msg = super().is_valid()
+        if not valid:
+            return valid, msg
+        issue = self.names_issues()
+        if issue:
+            return False, issue
+        return True, ""
+
+    def names_issues(self):
+        if isinstance(self._parameters, ParameterValueMapping) and isinstance(self._groups, NoneMapping):
+            return "The source type for group names cannot be None."
+        if not isinstance(self._groups, NoneMapping):
+            if self._groups.reference != 0 and not self._groups.reference:
+                return "No reference set for group names."
+            if isinstance(self._members, NoneMapping):
+                return "The source type for member names cannot be None."
+        if not isinstance(self._members, NoneMapping):
+            if self._members.reference != 0 and not self._members.reference:
+                return "No reference set for member names."
+            if isinstance(self._groups, NoneMapping):
+                return "The source type for group names cannot be None."
+
+        return ""
+
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        """Creates a list of getter functions from a list of Mappings"""
+        readers = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        g_getter, g_num, g_reads = (None, None, None)
+        if self.groups.returns_value():
+            g_getter, g_num, g_reads = self.groups.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        readers["groups"] = (g_getter, g_num, g_reads)
+        m_getter, m_num, m_reads = (None, None, None)
+        if self.members.returns_value():
+            m_getter, m_num, m_reads = self.members.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        readers["members"] = (m_getter, m_num, m_reads)
+        return readers
+
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        pivoted_columns = self.pivoted_columns(data_header, num_columns)
+        readers = super().create_mapping_readers(pivoted_columns, pivoted_data, data_header)
+        component_readers = self.create_getter_list(pivoted_columns, pivoted_data, data_header)
+        name_getter, name_num, name_reads = component_readers["class_name"]
+        g_getter, g_num, g_reads = component_readers["groups"]
+        m_getter, m_num, m_reads = component_readers["members"]
+        readers.append(("object_classes",) + create_final_getter_function([name_getter], [name_num], [name_reads]))
+        readers.append(
+            ("object_groups",)
+            + create_final_getter_function(
+                [name_getter, g_getter, m_getter], [name_num, g_num, m_num], [name_reads, g_reads, m_reads]
+            )
+        )
+        if isinstance(self.parameters, ParameterDefinitionMapping):
+            par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
+            readers.append(
+                ("object_parameters",)
+                + create_final_getter_function(
+                    [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
+                )
+            )
+            if isinstance(self.parameters, ParameterValueMapping):
+                par_val_name = "object_parameter_values"
+                par_value_getter, par_value_num, par_value_reads = component_readers["parameter value"]
+                readers.append(
+                    (par_val_name,)
+                    + create_final_getter_function(
+                        [name_getter, g_getter, par_name_getter, par_value_getter],
+                        [name_num, g_num, par_name_num, par_value_num],
+                        [name_reads, g_reads, par_name_reads, par_value_reads],
                     )
                 )
         return readers
@@ -1283,7 +1437,8 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         if len(objects) != len(self.object_classes):
             raise ValueError(
-                f"objects must be same of as object_classes: {len(self.object_classes)} instead got len: {len(objects)}"
+                f"objects must be of same length as object_classes: {len(self.object_classes)} "
+                f"instead got lenght: {len(objects)}"
             )
         self._objects = [mappingbase_from_dict_int_str(o) for o in objects]
 
@@ -1641,7 +1796,8 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             mappings = [map_]
         else:
             raise TypeError(
-                f"mapping must be a dict, ObjectClassMapping, RelationshipClassMapping or list of those, instead was: {type(map_).__name__}"
+                "mapping must be a dict, ObjectClassMapping, ObjectGroupMapping, "
+                f"RelationshipClassMapping or list of those, instead got: {type(map_).__name__}"
             )
 
     for map_ in mappings:
@@ -1682,6 +1838,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationships": [],
         "relationship_parameters": [],
         "relationship_parameter_values": [],
+        "object_groups": [],
     }
     data = dict()
     # run functions that read from header or pivoted area first
@@ -1800,7 +1957,7 @@ def create_final_getter_function(function_list, function_output_len_list, reads_
 
 
 def create_getter_function_from_function_list(function_list, len_output_list, reads_data_list, list_wrap=False):
-    """Function that take a list of getter functions and returns one function
+    """Function that takes a list of getter functions and returns one function
     that zips together the result into a list,
 
     Example::
@@ -1829,7 +1986,7 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
         return None, None, None
 
     if not all(l in (l, max(len_output_list)) for l in len_output_list):
-        raise ValueError("""len_output_list each element in list must be 1 or max(len_output_list)""")
+        raise ValueError("each element in len_output_list must be 1 or max(len_output_list)")
 
     if any(n > 1 for n in len_output_list):
         # not all getters return one value, some will return more. repeat the

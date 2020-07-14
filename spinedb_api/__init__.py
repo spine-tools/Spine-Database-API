@@ -67,6 +67,7 @@ from .export_functions import (
     export_relationship_parameter_values,
     export_relationship_parameters,
     export_relationships,
+    export_object_groups,
 )
 from .json_mapping import (
     mappingbase_from_dict_int_str,
@@ -87,6 +88,7 @@ from .json_mapping import (
     ParameterArrayMapping,
     TimeSeriesOptions,
     ObjectClassMapping,
+    ObjectGroupMapping,
     RelationshipClassMapping,
     read_with_mapping,
     dict_to_map,
