@@ -71,9 +71,9 @@ def import_data(
     relationship_parameters=(),
     objects=(),
     relationships=(),
-    object_groups=(),
     object_parameter_values=(),
     relationship_parameter_values=(),
+    object_groups=(),
 ):
     """Imports data into a Spine database using name references (rather than id
     references).
@@ -89,6 +89,7 @@ def import_data(
             object_p_values = [['example_object_class', 'example_object', 'example_parameter', 3.14]]
             relationships = [['example_rel_class', ['example_object', 'other_object']]]
             rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
+            object_groups = [['object_class_name', 'object_group_name', ['member_name', 'another_member_name']]]
 
             import_data(db_map,
                         object_classes=object_c,
@@ -97,6 +98,7 @@ def import_data(
                         relationship_parameters=rel_parameters,
                         objects=objects,
                         relationships=relationships,
+                        object_groups=object_groups,
                         object_parameter_values=object_p_values,
                         relationship_parameter_values=rel_p_values)
 
@@ -116,8 +118,9 @@ def import_data(
         object_parameter_values (List[List[str, str, str|numeric]]):
             list of lists with object name, parameter name, parameter value
         relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
-            list of lists with relationship class name, list of object names, parameter name,
-            parameter value
+            list of lists with relationship class name, list of object names, parameter name, parameter value
+        object_groups (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
+            and member name
 
     Returns:
         number of inserted/changed entities and list of ImportErrorLogItem with
@@ -203,6 +206,8 @@ def get_data_for_import(
         relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
             list of lists with relationship class name, list of object names, parameter name,
             parameter value
+        object_groups (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
+            and member name
 
     Returns:
         dict(str, list)
@@ -417,14 +422,15 @@ def import_object_groups(db_map, data):
     Example::
 
             data = [
-                ('object_class_name', 'object_group_name', ['member_name', 'another_member_name'])
+                ('object_class_name', 'object_group_name', 'member_name'),
+                ('object_class_name', 'object_group_name', 'another_member_name')
             ]
             import_objects(db_map, data)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
-            and list of member names
+            and member name
 
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
@@ -444,25 +450,24 @@ def _get_object_groups_for_import(db_map, data):
     error_log = []
     to_add = []
     seen = set()
-    for class_name, group_name, member_names in data:
+    for class_name, group_name, member_name in data:
         oc_id = object_class_ids.get(class_name)
-        og_id = object_ids.get((oc_id, group_name))
-        for member_name in member_names:
-            mo_id = object_ids.get((oc_id, member_name))
-            if (og_id, mo_id) in seen | entity_groups.keys():
-                continue
-            item = {"entity_class_id": oc_id, "entity_id": og_id, "member_id": mo_id}
-            try:
-                check_entity_group(item, entity_groups, objects)
-                to_add.append(item)
-                seen.add((og_id, mo_id))
-            except SpineIntegrityError as e:
-                error_log.append(
-                    ImportErrorLogItem(
-                        msg=f"Could not import object '{member_name}' into group '{group_name}': {e.msg}",
-                        db_type="entity group",
-                    )
+        g_id = object_ids.get((oc_id, group_name))
+        m_id = object_ids.get((oc_id, member_name))
+        if (g_id, m_id) in seen | entity_groups.keys():
+            continue
+        item = {"entity_class_id": oc_id, "entity_id": g_id, "member_id": m_id}
+        try:
+            check_entity_group(item, entity_groups, objects)
+            to_add.append(item)
+            seen.add((g_id, m_id))
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import object '{member_name}' into group '{group_name}': {e.msg}",
+                    db_type="entity group",
                 )
+            )
     return to_add, [], error_log
 
 

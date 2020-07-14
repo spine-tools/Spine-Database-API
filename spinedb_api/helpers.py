@@ -676,3 +676,11 @@ def forward_sweep(root, func):
         current = current_parent
         if current == root:
             break
+
+
+class AnyoneType:
+    def __repr__(self):
+        return "Anyone"
+
+
+Anyone = AnyoneType()

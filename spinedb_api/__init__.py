@@ -31,6 +31,7 @@ from .helpers import (
     is_head,
     is_empty,
     forward_sweep,
+    Anyone,
 )
 from .check_functions import (
     check_object_class,
