@@ -320,9 +320,10 @@ def _get_relationship_classes_for_import(db_map, data):
     to_add = []
     to_update = []
     for name, oc_names, *optionals in data:
-        if name in checked:
-            error_log.append(f"Duplicate relationship class '{name}'")
-            continue
+        ## This block is temporarliy shaded as it does not make much sense at present 
+        # if name in checked:
+        #     error_log.append(f"Duplicate relationship class '{name}'")
+        #     continue
         oc_ids = tuple(object_class_ids.get(oc, None) for oc in oc_names)
         item = {"name": name, "object_class_id_list": list(oc_ids), "type_id": db_map.relationship_class_type}
         item.update(dict(zip(("description",), optionals)))
