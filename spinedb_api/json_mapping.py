@@ -1098,6 +1098,15 @@ class EntityClassMapping(NamedItemMapping):
         """Number of dimensions in this entity class."""
         return 1
 
+    @property
+    def import_objects(self):
+        """True if this entity class also imports object entities, False otherwise."""
+        raise NotImplementedError()
+
+    @import_objects.setter
+    def import_objects(self, import_objects):
+        raise NotImplementedError()
+
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
         if isinstance(self.parameters, ParameterDefinitionMapping):
@@ -1208,6 +1217,14 @@ class ObjectClassMapping(EntityClassMapping):
 
     def is_pivoted(self):
         return super().is_pivoted() or self.objects.is_pivoted()
+
+    @property
+    def import_objects(self):
+        return True
+
+    @EntityClassMapping.import_objects.setter
+    def import_objects(self, import_objects):
+        raise NotImplementedError()
 
     @property
     def objects(self):
@@ -1364,7 +1381,7 @@ class ObjectGroupMapping(EntityClassMapping):
     def import_objects(self):
         return self._import_objects
 
-    @import_objects.setter
+    @EntityClassMapping.import_objects.setter
     def import_objects(self, import_objects):
         if not isinstance(import_objects, bool):
             raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
@@ -1602,7 +1619,7 @@ class RelationshipClassMapping(EntityClassMapping):
     def import_objects(self):
         return self._import_objects
 
-    @import_objects.setter
+    @EntityClassMapping.import_objects.setter
     def import_objects(self, import_objects):
         if not isinstance(import_objects, bool):
             raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
