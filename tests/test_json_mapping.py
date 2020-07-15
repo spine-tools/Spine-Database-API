@@ -144,6 +144,7 @@ class TestMappingIO(unittest.TestCase):
                 "value": {"reference": 3, "map_type": "column"},
                 "parameter_type": "single value",
             },
+            "import_objects": True,
             "read_start_row": 0,
             "skip_columns": [],
         }
@@ -160,6 +161,7 @@ class TestMappingIO(unittest.TestCase):
             "name": {"reference": 0, "map_type": "column"},
             "objects": {"reference": 1, "map_type": "column"},
             "parameters": {"map_type": "None"},
+            "import_objects": True,
             "read_start_row": 0,
             "skip_columns": [],
         }
@@ -176,6 +178,7 @@ class TestMappingIO(unittest.TestCase):
             "name": {"reference": "str", "map_type": "constant"},
             "objects": {"reference": "str", "map_type": "constant"},
             "read_start_row": 0,
+            "import_objects": True,
             "skip_columns": [],
         }
         self.assertEqual(out, expected)
@@ -1646,6 +1649,24 @@ class TestEntityMappings(unittest.TestCase):
         }
         mapping = RelationshipClassMapping.from_dict(mapping_dict)
         self.assertEqual(mapping.dimensions, 2)
+
+    def test_ObjectClassMapping_import_objects_is_always_True(self):
+        mapping = ObjectClassMapping()
+        self.assertTrue(mapping.import_objects)
+
+    def test_RelationshipClassMapping_import_objects_getter_and_setter(self):
+        mapping = RelationshipClassMapping()
+        self.assertFalse(mapping.import_objects)
+        mapping.import_objects = True
+        self.assertTrue(mapping.import_objects)
+
+    def test_ObjectClassMapping_has_fixed_dimensions(self):
+        mapping = ObjectClassMapping()
+        self.assertTrue(mapping.has_fixed_dimensions())
+
+    def test_RelationshipMapping_does_not_have_fixed_dimensions(self):
+        mapping = RelationshipClassMapping()
+        self.assertFalse(mapping.has_fixed_dimensions())
 
 
 if __name__ == "__main__":
