@@ -1626,5 +1626,27 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, expected)
 
 
+class TestEntityMappings(unittest.TestCase):
+    def test_ObjectClassMapping_dimensions_is_always_one(self):
+        mapping = ObjectClassMapping()
+        self.assertEqual(mapping.dimensions, 1)
+
+    def test_RelationshipClassMapping_dimensions_equals_number_of_object_classes(self):
+        mapping_dict = {
+            "map_type": "RelationshipClass",
+            "name": "unit__node",
+            "object_classes": ["unit", "node"],
+            "objects": [{"map_type": "row", "reference": i} for i in range(2)],
+            "parameters": {
+                "map_type": "parameter",
+                "parameter_type": "time pattern",
+                "name": {"map_type": "row", "reference": 2},
+                "extra_dimensions": [0],
+            },
+        }
+        mapping = RelationshipClassMapping.from_dict(mapping_dict)
+        self.assertEqual(mapping.dimensions, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

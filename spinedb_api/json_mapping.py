@@ -1093,6 +1093,11 @@ class EntityClassMapping(NamedItemMapping):
         self._parameters = None
         self.parameters = parameters
 
+    @property
+    def dimensions(self):
+        """Number of dimensions in this entity class."""
+        return 1
+
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
         if isinstance(self.parameters, ParameterDefinitionMapping):
@@ -1573,6 +1578,10 @@ class RelationshipClassMapping(EntityClassMapping):
     @property
     def objects(self):
         return self._objects
+
+    @property
+    def dimensions(self):
+        return len(self._objects)
 
     @objects.setter
     def objects(self, objects):
