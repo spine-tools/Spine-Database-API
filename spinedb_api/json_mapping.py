@@ -1425,6 +1425,13 @@ class ObjectGroupMapping(NamedItemMapping):
             return False, issue
         return True, ""
 
+    def object_class_names_issues(self):
+        if isinstance(self._object_classes, NoneMapping):
+            return "The source type for object class names cannot be None."
+        if self._object_classes.reference != 0 and not self._name.reference:
+            return "No reference set for object class names."
+        return ""
+
     def group_names_issues(self):
         if isinstance(self._name, NoneMapping):
             return "The source type for group names cannot be None."
