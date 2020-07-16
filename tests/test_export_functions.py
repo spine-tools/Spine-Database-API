@@ -21,6 +21,7 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api import (
+    Anyone,
     create_new_spine_database,
     DiffDatabaseMapping,
     export_alternatives,
@@ -59,19 +60,19 @@ class TestExportFunctions(unittest.TestCase):
 
     def test_export_alternatives(self):
         import_alternatives(self._db_map, [("alternative", "Description")])
-        exported = export_alternatives(self._db_map, None)
+        exported = export_alternatives(self._db_map, (Anyone,))
         self.assertEqual(exported, [("Base", "Base alternative"), ("alternative", "Description")])
 
     def test_export_scenarios(self):
         import_scenarios(self._db_map, [("scenario", "Description")])
-        exported = export_scenarios(self._db_map, None)
+        exported = export_scenarios(self._db_map, (Anyone,))
         self.assertEqual(exported, [("scenario", "Description", False)])
 
     def test_export_scenario_alternatives(self):
         import_alternatives(self._db_map, ["alternative"])
         import_scenarios(self._db_map, ["scenario"])
         import_scenario_alternatives(self._db_map, (("scenario", (("alternative", 23),),),))
-        exported = export_scenario_alternatives(self._db_map, None)
+        exported = export_scenario_alternatives(self._db_map, (Anyone,))
         self.assertEqual(exported, [("scenario", [("alternative", 23)])])
 
     def test_export_multiple_scenario_alternatives(self):
@@ -79,7 +80,7 @@ class TestExportFunctions(unittest.TestCase):
         import_alternatives(self._db_map, ["alternative2"])
         import_scenarios(self._db_map, ["scenario"])
         import_scenario_alternatives(self._db_map, (("scenario", (("alternative1", 23), ("alternative2", 5)),),))
-        exported = export_scenario_alternatives(self._db_map, None)
+        exported = export_scenario_alternatives(self._db_map, (Anyone,))
         self.assertEqual(exported, [("scenario", [("alternative1", 23), ("alternative2", 5)])])
 
     def test_export_data(self):

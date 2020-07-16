@@ -1,5 +1,5 @@
 ######################################################################################################################
-# Copyright (C) 2017 - 2019 Spine project consortium
+# Copyright (C) 2017 - 2020 Spine project consortium
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -130,7 +130,7 @@ class MappingBase:
 
 class NoneMapping(MappingBase):
     """Class for holding a reference to a column by number or header string
-        """
+    """
 
     MAP_TYPE = "None"
 
@@ -1007,6 +1007,11 @@ class ItemMappingBase:
     def from_dict(cls, map_dict):
         raise NotImplementedError()
 
+    @classmethod
+    def from_instance(cls, instance):
+        """Constructs a new object based on an existing object of possibly another subclass of ItemMappingBase."""
+        raise NotImplementedError()
+
 
 class NamedItemMapping(ItemMappingBase):
     """A base class for top level named item mappings such as entity classes, alternatives and scenarios."""
@@ -1060,6 +1065,11 @@ class NamedItemMapping(ItemMappingBase):
 
     @classmethod
     def from_dict(cls, map_dict):
+        raise NotImplementedError()
+
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
         raise NotImplementedError()
 
 
@@ -1154,6 +1164,11 @@ class EntityClassMapping(NamedItemMapping):
 
     @classmethod
     def from_dict(cls, map_dict):
+        raise NotImplementedError()
+
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
         raise NotImplementedError()
 
 
@@ -1278,6 +1293,215 @@ class ObjectClassMapping(EntityClassMapping):
                 )
         return readers
 
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, ObjectClassMapping):
+            return ObjectClassMapping(
+                instance.name, instance.objects, instance.parameters, instance.skip_columns, instance.read_start_row
+            )
+        if isinstance(instance, ObjectGroupMapping):
+            return ObjectClassMapping(
+                instance.object_classes,
+                instance.members,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
+            )
+        if isinstance(instance, RelationshipClassMapping):
+            return ObjectClassMapping(
+                instance.object_classes[0],
+                instance.objects[0],
+                instance.parameters,
+                instance.skip_columns,
+                instance.read_start_row,
+            )
+        if isinstance(instance, NamedItemMapping):
+            return ObjectClassMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        return ObjectClassMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+
+
+class ObjectGroupMapping(NamedItemMapping):
+    """
+    Class for holding and validating Mapping specification::
+
+        ObjectGroupMapping {
+            map_type: 'ObjectGroup'
+            object_classes: str | Mapping
+            name: Mapping | str | None
+            members: Mapping | str | None
+        }
+    """
+
+    MAP_TYPE = "ObjectGroup"
+
+    def __init__(
+        self, name=None, object_classes=None, members=None, import_objects=False, skip_columns=None, read_start_row=0
+    ):
+        super().__init__(name, skip_columns, read_start_row)
+        self._object_classes = NoneMapping()
+        self._members = NoneMapping()
+        self._import_objects = False
+        self.object_classes = object_classes
+        self.members = members
+        self.import_objects = import_objects
+
+    def non_pivoted_columns(self):
+        non_pivoted_columns = super().non_pivoted_columns()
+        if isinstance(self._object_classes, ColumnMapping) and self._object_classes.returns_value():
+            non_pivoted_columns.append(self._object_classes.reference)
+        if isinstance(self.members, ColumnMapping) and self.members.returns_value():
+            non_pivoted_columns.append(self.members.reference)
+        return non_pivoted_columns
+
+    def last_pivot_row(self):
+        return max(super().last_pivot_row(), self._object_classes.last_pivot_row(), self.members.last_pivot_row())
+
+    def is_pivoted(self):
+        return super().is_pivoted() or self._object_classes.is_pivoted() or self.members.is_pivoted()
+
+    @property
+    def import_objects(self):
+        return self._import_objects
+
+    @import_objects.setter
+    def import_objects(self, import_objects):
+        if not isinstance(import_objects, bool):
+            raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
+        self._import_objects = import_objects
+
+    @property
+    def object_classes(self):
+        return self._object_classes
+
+    @object_classes.setter
+    def object_classes(self, object_classes):
+        self._object_classes = mappingbase_from_dict_int_str(object_classes)
+
+    @property
+    def members(self):
+        return self._members
+
+    @members.setter
+    def members(self, members):
+        self._members = mappingbase_from_dict_int_str(members)
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        object_classes = map_dict.get("object_classes", None)
+        members = map_dict.get("members", None)
+        skip_columns = map_dict.get("skip_columns", [])
+        import_objects = map_dict.get("import_objects", False)
+        read_start_row = map_dict.get("read_start_row", 0)
+        return ObjectGroupMapping(
+            name=name,
+            object_classes=object_classes,
+            members=members,
+            skip_columns=skip_columns,
+            import_objects=import_objects,
+            read_start_row=read_start_row,
+        )
+
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict["object_classes"] = self._object_classes.to_dict()
+        map_dict["members"] = self._members.to_dict()
+        map_dict["import_objects"] = self._import_objects
+        return map_dict
+
+    def is_valid(self):
+        # check that parameter mapping has a valid name mapping
+        issue = self.group_names_issues()
+        if issue:
+            return False, issue
+        issue = self.member_names_issues()
+        if issue:
+            return False, issue
+        return True, ""
+
+    def group_names_issues(self):
+        if isinstance(self._name, NoneMapping):
+            return "The source type for group names cannot be None."
+        if self._name.reference != 0 and not self._name.reference:
+            return "No reference set for group names."
+        return ""
+
+    def member_names_issues(self):
+        if isinstance(self._members, NoneMapping):
+            return "The source type for member names cannot be None."
+        if self._members.reference != 0 and not self._members.reference:
+            return "No reference set for member names."
+        return ""
+
+    def _create_getters(self, pivoted_columns, pivoted_data, data_header):
+        """See base class."""
+        getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
+        oc_getter, oc_num, oc_reads = (None, None, None)
+        if self._object_classes.returns_value():
+            oc_getter, oc_num, oc_reads = self._object_classes.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
+            )
+        getters["object_classes"] = (oc_getter, oc_num, oc_reads)
+        m_getter, m_num, m_reads = (None, None, None)
+        if self._members.returns_value():
+            m_getter, m_num, m_reads = self._members.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        getters["members"] = (m_getter, m_num, m_reads)
+        return getters
+
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        pivoted_columns = self.pivoted_columns(data_header, num_columns)
+        readers = list()
+        component_readers = self._create_getters(pivoted_columns, pivoted_data, data_header)
+        oc_getter, oc_num, oc_reads = component_readers["object_classes"]
+        name_getter, name_num, name_reads = component_readers["item_name"]
+        m_getter, m_num, m_reads = component_readers["members"]
+        readers.append(
+            ("object_groups",)
+            + create_final_getter_function(
+                [oc_getter, name_getter, m_getter], [name_num, oc_num, m_num], [name_reads, oc_reads, m_reads]
+            )
+        )
+        if self.import_objects:
+            readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
+            readers.append(
+                ("objects",) + create_final_getter_function([oc_getter, m_getter], [oc_num, m_num], [oc_reads, m_reads])
+            )
+        return readers
+
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, ObjectClassMapping):
+            return ObjectGroupMapping(
+                object_classes=instance.name, members=instance.objects, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
+        if isinstance(instance, RelationshipClassMapping):
+            return ObjectGroupMapping(
+                object_classes=instance.object_classes[0],
+                members=instance.objects[0],
+                import_objects=instance.import_objects,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
+            )
+        if isinstance(instance, ObjectGroupMapping):
+            return ObjectGroupMapping(
+                instance.name,
+                instance.object_classes,
+                instance.members,
+                instance.import_objects,
+                instance.skip_columns,
+                instance.read_start_row
+            )
+        if isinstance(instance, NamedItemMapping):
+            return ObjectGroupMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        return ObjectGroupMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+
 
 class RelationshipClassMapping(EntityClassMapping):
     """
@@ -1293,7 +1517,16 @@ class RelationshipClassMapping(EntityClassMapping):
 
     MAP_TYPE = "RelationshipClass"
 
-    def __init__(self, name=None, object_classes=None, objects=None, import_objects=False, parameters=None, skip_columns=None, read_start_row=0):
+    def __init__(
+        self,
+        name=None,
+        object_classes=None,
+        objects=None,
+        import_objects=False,
+        parameters=None,
+        skip_columns=None,
+        read_start_row=0,
+    ):
         super().__init__(name, parameters, skip_columns, read_start_row)
         self._objects = None
         self._object_classes = None
@@ -1336,7 +1569,8 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         if len(objects) != len(self.object_classes):
             raise ValueError(
-                f"objects must be same of as object_classes: {len(self.object_classes)} instead got len: {len(objects)}"
+                f"objects must be of same length as object_classes: {len(self.object_classes)} "
+                f"instead got length: {len(objects)}"
             )
         self._objects = [mappingbase_from_dict_int_str(o) for o in objects]
 
@@ -1495,6 +1729,35 @@ class RelationshipClassMapping(EntityClassMapping):
                 )
         return readers
 
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, ObjectClassMapping):
+            return RelationshipClassMapping(
+                object_classes=[instance.name], objects=[instance.objects], parameters=instance.parameters, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
+        if isinstance(instance, ObjectGroupMapping):
+            return RelationshipClassMapping(
+                object_classes=[instance.object_classes],
+                objects=[instance.members],
+                import_objects=instance.import_objects,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
+            )
+        if isinstance(instance, RelationshipClassMapping):
+            return RelationshipClassMapping(
+                instance.name,
+                instance.object_classes,
+                instance.objects,
+                instance.import_objects,
+                instance.parameters,
+                instance.skip_columns,
+                instance.read_start_row,
+            )
+        if isinstance(instance, NamedItemMapping):
+            return RelationshipClassMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        return RelationshipClassMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+
 
 class AlternativeMapping(NamedItemMapping):
     """
@@ -1509,6 +1772,15 @@ class AlternativeMapping(NamedItemMapping):
     """
 
     MAP_TYPE = "Alternative"
+
+    def __init__(self, name=None, skip_columns=None, read_start_row=0):
+        """
+        Args:
+            name (str or MappingBase, optional): mapping for the item name
+            skip_columns (list, optional): a list of columns to skip while mapping
+            read_start_row (int): skip this many rows while mapping
+        """
+        super().__init__(name, skip_columns, read_start_row)
 
     def is_valid(self):
         issue = self.alternative_names_issues()
@@ -1540,6 +1812,13 @@ class AlternativeMapping(NamedItemMapping):
         read_start_row = map_dict.get("read_start_row", 0)
         return AlternativeMapping(name, skip_columns, read_start_row)
 
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, NamedItemMapping):
+            return AlternativeMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        return AlternativeMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+
 
 class ScenarioMapping(NamedItemMapping):
     """
@@ -1556,7 +1835,7 @@ class ScenarioMapping(NamedItemMapping):
 
     MAP_TYPE = "Scenario"
 
-    def __init__(self, name, active, skip_columns, read_start_row):
+    def __init__(self, name=None, active=False, skip_columns=None, read_start_row=0):
         """
         Args:
             name (str or MappingBase, optional): mapping for the scenario name
@@ -1605,6 +1884,15 @@ class ScenarioMapping(NamedItemMapping):
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
         return ScenarioMapping(name, active, skip_columns, read_start_row)
+
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, ScenarioMapping):
+            return ScenarioMapping(instance.name, instance._active, instance.skip_columns, instance.read_start_row)
+        if isinstance(instance, NamedItemMapping):
+            return ScenarioMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        return ScenarioMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
 class ScenarioAlternativeMapping(ItemMappingBase):
@@ -1782,6 +2070,8 @@ def dict_to_map(map_dict):
         mapping = RelationshipClassMapping.from_dict(map_dict)
     elif map_type == ObjectClassMapping.MAP_TYPE:
         mapping = ObjectClassMapping.from_dict(map_dict)
+    elif map_type == ObjectGroupMapping.MAP_TYPE:
+        mapping = ObjectGroupMapping.from_dict(map_dict)
     elif map_type == AlternativeMapping.MAP_TYPE:
         mapping = AlternativeMapping.from_dict(map_dict)
     elif map_type == ScenarioMapping.MAP_TYPE:
@@ -1792,7 +2082,7 @@ def dict_to_map(map_dict):
         raise ValueError(
             f"""invalid "map_type" value, expected "{RelationshipClassMapping.MAP_TYPE}",
             "{AlternativeMapping.MAP_TYPE}", "{ScenarioMapping.MAP_TYPE}",
-            or "{ObjectClassMapping.MAP_TYPE}", got {map_type}"""
+            "{ObjectClassMapping.MAP_TYPE}", or "{ObjectGroupMapping.MAP_TYPE}" got {map_type}"""
         )
     return mapping
 
@@ -1904,7 +2194,8 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             mappings = [map_]
         else:
             raise TypeError(
-                f"mapping must be a dict, ObjectClassMapping, RelationshipClassMapping or list of those, instead was: {type(map_).__name__}"
+                "mapping must be a dict, ObjectClassMapping, ObjectGroupMapping, "
+                f"RelationshipClassMapping or list of those, instead got: {type(map_).__name__}"
             )
 
     for map_ in mappings:
@@ -1945,6 +2236,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationships": [],
         "relationship_parameters": [],
         "relationship_parameter_values": [],
+        "object_groups": [],
         "alternatives": [],
         "scenarios": [],
         "scenario_alternatives": [],
@@ -2066,7 +2358,7 @@ def create_final_getter_function(function_list, function_output_len_list, reads_
 
 
 def create_getter_function_from_function_list(function_list, len_output_list, reads_data_list, list_wrap=False):
-    """Function that take a list of getter functions and returns one function
+    """Function that takes a list of getter functions and returns one function
     that zips together the result into a list,
 
     Example::
@@ -2092,7 +2384,7 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
         return None, None, None
 
     if not all(l in (l, max(len_output_list)) for l in len_output_list):
-        raise ValueError("""len_output_list each element in list must be 1 or max(len_output_list)""")
+        raise ValueError("each element in len_output_list must be 1 or max(len_output_list)")
 
     if any(n > 1 for n in len_output_list):
         # not all getters return one value, some will return more. repeat the

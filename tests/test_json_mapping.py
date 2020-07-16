@@ -20,6 +20,7 @@ from spinedb_api.json_mapping import (
     AlternativeMapping,
     read_with_mapping,
     ObjectClassMapping,
+    ObjectGroupMapping,
     RelationshipClassMapping,
     ParameterMapMapping,
     ParameterTimeSeriesMapping,
@@ -257,6 +258,21 @@ class TestMappingIO(unittest.TestCase):
                 "value": {"reference": 2, "map_type": "column"},
                 "extra_dimensions": [{"map_type": "constant", "reference": "test"}],
             },
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_ObjectGroupMapping_to_dict_from_dict(self):
+        mapping_dict = {"map_type": "ObjectGroup", "name": 0, "object_classes": 1, "members": 2}
+        mapping = ObjectGroupMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "ObjectGroup",
+            "object_classes": {"reference": 1, "map_type": "column"},
+            "name": {"reference": 0, "map_type": "column"},
+            "members": {"reference": 2, "map_type": "column"},
+            "import_objects": False,
             "read_start_row": 0,
             "skip_columns": [],
         }
@@ -684,6 +700,7 @@ class TestMappingIntegration(unittest.TestCase):
     def setUp(self):
         self.empty_data = {
             "object_classes": [],
+            "object_groups": [],
             "objects": [],
             "object_parameters": [],
             "object_parameter_values": [],
@@ -1504,6 +1521,50 @@ class TestMappingIntegration(unittest.TestCase):
             ("scenario_A", [("alternative1", 23)]),
             ("scenario_A", [("second_alternative", 5)]),
             ("scenario_B", [("last_one", -3)]),
+        ]
+        self.assertEqual(out, expected)
+
+    def test_read_object_group(self):
+        input_data = [
+            ["Object Class", "Group", "Object"],
+            ["class_A", "group1", "object1"],
+            ["class_A", "group1", "object2"],
+            ["class_A", "group2", "object3"],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "ObjectGroup", "object_classes": 0, "name": 1, "members": 2}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_groups"] = [
+            ("class_A", "group1", "object1"),
+            ("class_A", "group1", "object2"),
+            ("class_A", "group2", "object3"),
+        ]
+        self.assertEqual(out, expected)
+
+    def test_read_object_group_and_import_objects(self):
+        input_data = [
+            ["Object Class", "Group", "Object"],
+            ["class_A", "group1", "object1"],
+            ["class_A", "group1", "object2"],
+            ["class_A", "group2", "object3"],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "ObjectGroup", "object_classes": 0, "name": 1, "members": 2, "import_objects": True}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_groups"] = [
+            ("class_A", "group1", "object1"),
+            ("class_A", "group1", "object2"),
+            ("class_A", "group2", "object3"),
+        ]
+        expected["object_classes"] = ["class_A", "class_A", "class_A"]
+        expected["objects"] = [
+            ("class_A", "object1"),
+            ("class_A", "object2"),
+            ("class_A", "object3"),
         ]
         self.assertEqual(out, expected)
 

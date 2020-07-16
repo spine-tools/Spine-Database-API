@@ -27,6 +27,8 @@ from .check_functions import (
     check_entity_group,
     check_parameter_definition,
     check_parameter_value,
+    check_parameter_tag,
+    check_parameter_definition_tag,
     check_scenario,
     check_scenario_alternative,
     check_wide_parameter_value_list,
@@ -93,6 +95,7 @@ def import_data(
             object_p_values = [['example_object_class', 'example_object', 'example_parameter', 3.14]]
             relationships = [['example_rel_class', ['example_object', 'other_object']]]
             rel_p_values = [['example_rel_class', ['example_object', 'other_object'], 'rel_parameter', 2.718]]
+            object_groups = [['object_class_name', 'object_group_name', ['member_name', 'another_member_name']]]
             alternatives = [['example_alternative', 'An example']]
             scenarios = [['example_scenario', 'An example']]
             scenario_alternatives = [['example_scenario', ['example_alternative']]]
@@ -104,6 +107,7 @@ def import_data(
                         relationship_parameters=rel_parameters,
                         objects=objects,
                         relationships=relationships,
+                        object_groups=object_groups,
                         object_parameter_values=object_p_values,
                         relationship_parameter_values=rel_p_values,
                         alternatives=alternatives,
@@ -123,11 +127,12 @@ def import_data(
             list of lists with object class name and object name
         relationships: (List[List[str,List(String)]]):
             list of lists with relationship class name and list of object names
+        object_groups (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
+            and member name
         object_parameter_values (List[List[str, str, str|numeric]]):
             list of lists with object name, parameter name, parameter value
         relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
-            list of lists with relationship class name, list of object names, parameter name,
-            parameter value
+            list of lists with relationship class name, list of object names, parameter name, parameter value
         alternatives (Iterable): alternative names or lists of two elements: alternative name and description
         scenarios (Iterable): scenario names or lists of two elements: scenario name and description
         scenario_alternatives (Iterable): lists of two elements: scenario name and a list of names of alternatives
@@ -191,6 +196,8 @@ def get_data_for_import(
             list of lists with object class name and object name
         relationships: (List[List[str,List(String)]]):
             list of lists with relationship class name and list of object names
+        object_groups (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
+            and member name
         object_parameter_values (List[List[str, str, str|numeric]]):
             list of lists with object name, parameter name, parameter value
         relationship_parameter_values (List[List[str, List(str), str, str|numeric]]):
@@ -633,14 +640,15 @@ def import_object_groups(db_map, data):
     Example::
 
             data = [
-                ('object_class_name', 'object_group_name', ['member_name', 'another_member_name'])
+                ('object_class_name', 'object_group_name', 'member_name'),
+                ('object_class_name', 'object_group_name', 'another_member_name')
             ]
             import_objects(db_map, data)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
         data (List[List/Tuple]): list/set/iterable of lists/tuples with object class name, group name,
-            and list of member names
+            and member name
 
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
@@ -660,25 +668,24 @@ def _get_object_groups_for_import(db_map, data):
     error_log = []
     to_add = []
     seen = set()
-    for class_name, group_name, member_names in data:
+    for class_name, group_name, member_name in data:
         oc_id = object_class_ids.get(class_name)
-        og_id = object_ids.get((oc_id, group_name))
-        for member_name in member_names:
-            mo_id = object_ids.get((oc_id, member_name))
-            if (og_id, mo_id) in seen | entity_groups.keys():
-                continue
-            item = {"entity_class_id": oc_id, "entity_id": og_id, "member_id": mo_id}
-            try:
-                check_entity_group(item, entity_groups, objects)
-                to_add.append(item)
-                seen.add((og_id, mo_id))
-            except SpineIntegrityError as e:
-                error_log.append(
-                    ImportErrorLogItem(
-                        msg=f"Could not import object '{member_name}' into group '{group_name}': {e.msg}",
-                        db_type="entity group",
-                    )
+        g_id = object_ids.get((oc_id, group_name))
+        m_id = object_ids.get((oc_id, member_name))
+        if (g_id, m_id) in seen | entity_groups.keys():
+            continue
+        item = {"entity_class_id": oc_id, "entity_id": g_id, "member_id": m_id}
+        try:
+            check_entity_group(item, entity_groups, objects)
+            to_add.append(item)
+            seen.add((g_id, m_id))
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import object '{member_name}' into group '{group_name}': {e.msg}",
+                    db_type="entity group",
                 )
+            )
     return to_add, [], error_log
 
 

@@ -21,14 +21,14 @@ from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Colu
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import NoSuchTableError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
-from .helpers import compare_schemas, model_meta, custom_generate_relationship, _create_first_spine_database
+from .helpers import compare_schemas, model_meta, custom_generate_relationship, _create_first_spine_database, Anyone
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -112,6 +112,7 @@ class DatabaseMappingBase:
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
+        self._ext_object_group_sq = None
         self._object_parameter_definition_sq = None
         self._relationship_parameter_definition_sq = None
         self._object_parameter_value_sq = None
@@ -241,7 +242,7 @@ class DatabaseMappingBase:
         """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
         The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
         """
-        if ids is None:
+        if Anyone in ids:
             return true()
         if not ids:
             return false()
@@ -834,6 +835,32 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._wide_relationship_sq
+
+    @property
+    def ext_object_group_sq(self):
+        """A subquery of the form:
+
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_object_group_sq is None:
+            group_object = aliased(self.object_sq)
+            member_object = aliased(self.object_sq)
+            self._ext_object_group_sq = (
+                self.query(
+                    self.entity_group_sq.c.id.label("id"),
+                    self.entity_group_sq.c.entity_class_id.label("class_id"),
+                    self.entity_group_sq.c.entity_id.label("group_id"),
+                    self.entity_group_sq.c.member_id.label("member_id"),
+                    self.object_class_sq.c.name.label("class_name"),
+                    group_object.c.name.label("group_name"),
+                    member_object.c.name.label("member_name"),
+                )
+                .filter(self.entity_group_sq.c.entity_class_id == self.object_class_sq.c.id)
+                .join(group_object, self.entity_group_sq.c.entity_id == group_object.c.id)
+                .join(member_object, self.entity_group_sq.c.member_id == member_object.c.id)
+                .subquery()
+            )
+        return self._ext_object_group_sq
 
     @property
     def object_parameter_definition_sq(self):

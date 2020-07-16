@@ -17,22 +17,24 @@ Functions for exporting data into a Spine database using entity names as referen
 """
 
 from .parameter_value import from_database
+from .helpers import Anyone
 
 
 def export_data(
     db_map,
-    object_class_ids=None,
-    relationship_class_ids=None,
-    parameter_value_list_ids=None,
-    object_parameter_ids=None,
-    relationship_parameter_ids=None,
-    object_ids=None,
-    relationship_ids=None,
-    object_parameter_value_ids=None,
-    relationship_parameter_value_ids=None,
-    alternative_ids=None,
-    scenario_ids=None,
-    scenario_alternative_ids=None
+    object_class_ids=(Anyone,),
+    relationship_class_ids=(Anyone,),
+    parameter_value_list_ids=(Anyone,),
+    object_parameter_ids=(Anyone,),
+    relationship_parameter_ids=(Anyone,),
+    object_ids=(Anyone,),
+    object_group_ids=(Anyone,),
+    relationship_ids=(Anyone,),
+    object_parameter_value_ids=(Anyone,),
+    relationship_parameter_value_ids=(Anyone,),
+    alternative_ids=(Anyone,),
+    scenario_ids=(Anyone,),
+    scenario_alternative_ids=(Anyone,)
 ):
     """
     Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
@@ -63,6 +65,7 @@ def export_data(
         "relationship_parameters": export_relationship_parameters(db_map, relationship_parameter_ids),
         "objects": export_objects(db_map, object_ids),
         "relationships": export_relationships(db_map, relationship_ids),
+        "object_groups": export_object_groups(db_map, object_group_ids),
         "object_parameter_values": export_object_parameter_values(db_map, object_parameter_value_ids),
         "relationship_parameter_values": export_relationship_parameter_values(db_map, relationship_parameter_value_ids),
         "alternatives": export_alternatives(db_map, alternative_ids),
@@ -72,17 +75,17 @@ def export_data(
     return {key: value for key, value in data.items() if value}
 
 
-def export_object_classes(db_map, ids):
+def export_object_classes(db_map, ids=(Anyone,)):
     sq = db_map.object_class_sq
     return sorted((x.name, x.description, x.display_icon) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
 
 
-def export_objects(db_map, ids):
+def export_objects(db_map, ids=(Anyone,)):
     sq = db_map.ext_object_sq
     return sorted((x.class_name, x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
 
 
-def export_relationship_classes(db_map, ids):
+def export_relationship_classes(db_map, ids=(Anyone,)):
     sq = db_map.wide_relationship_class_sq
     return sorted(
         (x.name, x.object_class_name_list.split(","), x.description)
@@ -90,7 +93,7 @@ def export_relationship_classes(db_map, ids):
     )
 
 
-def export_parameter_value_lists(db_map, ids):
+def export_parameter_value_lists(db_map, ids=(Anyone,)):
     sq = db_map.wide_parameter_value_list_sq
     return sorted(
         (x.name, [from_database(value) for value in x.value_list.split(";")])
@@ -98,7 +101,7 @@ def export_parameter_value_lists(db_map, ids):
     )
 
 
-def export_object_parameters(db_map, ids):
+def export_object_parameters(db_map, ids=(Anyone,)):
     sq = db_map.object_parameter_definition_sq
     return sorted(
         (x.object_class_name, x.parameter_name, from_database(x.default_value), x.value_list_name, x.description)
@@ -106,7 +109,7 @@ def export_object_parameters(db_map, ids):
     )
 
 
-def export_relationship_parameters(db_map, ids):
+def export_relationship_parameters(db_map, ids=(Anyone,)):
     sq = db_map.relationship_parameter_definition_sq
     return sorted(
         (x.relationship_class_name, x.parameter_name, from_database(x.default_value), x.value_list_name, x.description)
@@ -114,14 +117,21 @@ def export_relationship_parameters(db_map, ids):
     )
 
 
-def export_relationships(db_map, ids):
+def export_relationships(db_map, ids=(Anyone,)):
     sq = db_map.wide_relationship_sq
     return sorted(
         (x.class_name, x.object_name_list.split(",")) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
     )
 
 
-def export_object_parameter_values(db_map, ids):
+def export_object_groups(db_map, ids=(Anyone,)):
+    sq = db_map.ext_object_group_sq
+    return sorted(
+        (x.class_name, x.group_name, x.member_name) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+    )
+
+
+def export_object_parameter_values(db_map, ids=(Anyone,)):
     sq = db_map.object_parameter_value_sq
     return sorted(
         (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value))
@@ -129,7 +139,7 @@ def export_object_parameter_values(db_map, ids):
     )
 
 
-def export_relationship_parameter_values(db_map, ids):
+def export_relationship_parameter_values(db_map, ids=(Anyone,)):
     sq = db_map.relationship_parameter_value_sq
     return sorted(
         (x.relationship_class_name, x.object_name_list.split(","), x.parameter_name, from_database(x.value))
@@ -137,7 +147,7 @@ def export_relationship_parameter_values(db_map, ids):
     )
 
 
-def export_alternatives(db_map, ids):
+def export_alternatives(db_map, ids=(Anyone,)):
     """
     Exports alternatives from database.
 
@@ -154,7 +164,7 @@ def export_alternatives(db_map, ids):
     return sorted((x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
 
 
-def export_scenarios(db_map, ids):
+def export_scenarios(db_map, ids=(Anyone,)):
     """
     Exports scenarios from database.
 
@@ -171,7 +181,7 @@ def export_scenarios(db_map, ids):
     return sorted((x.name, x.description, x.active) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
 
 
-def export_scenario_alternatives(db_map, ids):
+def export_scenario_alternatives(db_map, ids=(Anyone,)):
     """
     Exports scenario alternatives from database.
 
