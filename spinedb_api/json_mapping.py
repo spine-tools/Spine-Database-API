@@ -26,6 +26,7 @@ from .exception import InvalidMapping, TypeConversionError
 # Constants for json spec
 OBJECTCLASS = "ObjectClass"
 RELATIONSHIPCLASS = "RelationshipClass"
+OBJECTGROUP = "ObjectGroup"
 PARAMETER = "parameter"
 PARAMETERCOLUMN = "parameter_column"
 PARAMETERCOLUMNCOLLECTION = "parameter_column_collection"
@@ -1004,6 +1005,14 @@ class EntityClassMapping:
             self._skip_columns = skip_columns
 
     @classmethod
+    def from_instance(cls, instance):
+        """Returns an instance of this class, from another instance.
+        """
+        if not isinstance(instance, EntityClassMapping):
+            raise TypeError(f"Expected {EntityClassMapping}, got {type(instance)}")
+        return cls(instance.name, instance.parameters, instance.skip_columns, instance.read_start_row)
+
+    @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
@@ -1097,6 +1106,7 @@ class EntityClassMapping:
             readers.update(**par_readers)
         return readers
 
+    # pylint: disable=no-self-use
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         return []
 
@@ -1139,6 +1149,18 @@ class ObjectClassMapping(EntityClassMapping):
     @objects.setter
     def objects(self, objects):
         self._objects = mappingbase_from_dict_int_str(objects)
+
+    @classmethod
+    def from_instance(cls, instance):
+        result = super().from_instance(instance)
+        if isinstance(instance, ObjectClassMapping):
+            result.objects = instance.objects
+        elif isinstance(instance, ObjectGroupMapping):
+            result.objects = instance.groups
+        elif isinstance(instance, RelationshipClassMapping):
+            result.name = instance.object_classes[0]
+            result.objects = instance.objects[0]
+        return result
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -1239,12 +1261,14 @@ class ObjectGroupMapping(EntityClassMapping):
 
     MAP_TYPE = "ObjectGroup"
 
-    def __init__(self, *args, groups=None, members=None, **kwargs):
+    def __init__(self, *args, groups=None, members=None, import_objects=False, **kwargs):
         super().__init__(*args, **kwargs)
         self._groups = NoneMapping()
         self._members = NoneMapping()
+        self._import_objects = False
         self.groups = groups
         self.members = members
+        self.import_objects = import_objects
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
@@ -1259,6 +1283,16 @@ class ObjectGroupMapping(EntityClassMapping):
 
     def is_pivoted(self):
         return super().is_pivoted() or self.groups.is_pivoted() or self.members.is_pivoted()
+
+    @property
+    def import_objects(self):
+        return self._import_objects
+
+    @import_objects.setter
+    def import_objects(self, import_objects):
+        if not isinstance(import_objects, bool):
+            raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
+        self._import_objects = import_objects
 
     @property
     def groups(self):
@@ -1277,6 +1311,24 @@ class ObjectGroupMapping(EntityClassMapping):
         self._members = mappingbase_from_dict_int_str(members)
 
     @classmethod
+    def from_instance(cls, instance):
+        result = super().from_instance(instance)
+        if isinstance(instance, ObjectClassMapping):
+            result.groups = instance.objects
+        elif isinstance(instance, ObjectGroupMapping):
+            result.groups = instance.groups
+            result.members = instance.members
+            result.import_objects = instance.import_objects
+        elif isinstance(instance, RelationshipClassMapping):
+            result.groups = instance.objects[0]
+            try:
+                result.members = instance.objects[1]
+            except IndexError:
+                pass
+            result.import_objects = instance.import_objects
+        return result
+
+    @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
@@ -1289,6 +1341,7 @@ class ObjectGroupMapping(EntityClassMapping):
         members = map_dict.get("members", None)
         parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
         skip_columns = map_dict.get("skip_columns", [])
+        import_objects = map_dict.get("import_objects", False)
         read_start_row = map_dict.get("read_start_row", 0)
         return ObjectGroupMapping(
             name=name,
@@ -1296,6 +1349,7 @@ class ObjectGroupMapping(EntityClassMapping):
             members=members,
             parameters=parameters,
             skip_columns=skip_columns,
+            import_objects=import_objects,
             read_start_row=read_start_row,
         )
 
@@ -1303,6 +1357,7 @@ class ObjectGroupMapping(EntityClassMapping):
         map_dict = super().to_dict()
         map_dict.update(groups=self.groups.to_dict())
         map_dict.update(members=self.members.to_dict())
+        map_dict.update(import_objects=self.import_objects)
         return map_dict
 
     def is_valid(self):
@@ -1310,25 +1365,30 @@ class ObjectGroupMapping(EntityClassMapping):
         valid, msg = super().is_valid()
         if not valid:
             return valid, msg
-        issue = self.names_issues()
+        issue = self.group_names_issues()
+        if issue:
+            return False, issue
+        issue = self.member_names_issues()
         if issue:
             return False, issue
         return True, ""
 
-    def names_issues(self):
+    def group_names_issues(self):
         if isinstance(self._parameters, ParameterValueMapping) and isinstance(self._groups, NoneMapping):
             return "The source type for group names cannot be None."
-        if not isinstance(self._groups, NoneMapping):
-            if self._groups.reference != 0 and not self._groups.reference:
-                return "No reference set for group names."
-            if isinstance(self._members, NoneMapping):
-                return "The source type for member names cannot be None."
-        if not isinstance(self._members, NoneMapping):
-            if self._members.reference != 0 and not self._members.reference:
-                return "No reference set for member names."
-            if isinstance(self._groups, NoneMapping):
-                return "The source type for group names cannot be None."
+        if not isinstance(self._groups, NoneMapping) and self._groups.reference != 0 and not self._groups.reference:
+            return "No reference set for group names."
+        if not isinstance(self._members, NoneMapping) and isinstance(self._groups, NoneMapping):
+            return "The source type for group names cannot be None."
+        return ""
 
+    def member_names_issues(self):
+        if isinstance(self._parameters, ParameterValueMapping) and isinstance(self._members, NoneMapping):
+            return "The source type for member names cannot be None."
+        if not isinstance(self._groups, NoneMapping) and isinstance(self._members, NoneMapping):
+            return "The source type for member names cannot be None."
+        if not isinstance(self._members, NoneMapping) and self._members.reference != 0 and not self._members.reference:
+            return "No reference set for member names."
         return ""
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
@@ -1358,6 +1418,15 @@ class ObjectGroupMapping(EntityClassMapping):
                 [name_getter, g_getter, m_getter], [name_num, g_num, m_num], [name_reads, g_reads, m_reads]
             )
         )
+        if self.import_objects:
+            readers.append(
+                ("objects",)
+                + create_final_getter_function([name_getter, g_getter], [name_num, g_num], [name_reads, g_reads])
+            )
+            readers.append(
+                ("objects",)
+                + create_final_getter_function([name_getter, m_getter], [name_num, m_num], [name_reads, m_reads])
+            )
         if isinstance(self.parameters, ParameterDefinitionMapping):
             par_name_getter, par_name_num, par_name_reads = component_readers["parameter name"]
             readers.append(
@@ -1465,6 +1534,24 @@ class RelationshipClassMapping(EntityClassMapping):
                 f"object_classes must be a list or tuple of MappingBase, int, str, dict, instead got: {type(object_classes).__name__}"
             )
         self._object_classes = [mappingbase_from_dict_int_str(oc) for oc in object_classes]
+
+    @classmethod
+    def from_instance(cls, instance):
+        result = super().from_instance(instance)
+        if isinstance(instance, ObjectClassMapping):
+            result.name = None
+            result.object_classes = [instance.name]
+            result.objects = [instance.objects]
+        elif isinstance(instance, ObjectGroupMapping):
+            result.name = None
+            result.object_classes = [instance.name, instance.name]
+            result.objects = [instance.groups, instance.members]
+            result.import_objects = instance.import_objects
+        elif isinstance(instance, RelationshipClassMapping):
+            result.object_classes = instance.object_classes
+            result.objects = instance.objects
+            result.import_objects = instance.import_objects
+        return result
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -1681,10 +1768,12 @@ def dict_to_map(map_dict):
         mapping = RelationshipClassMapping.from_dict(map_dict)
     elif map_type == OBJECTCLASS:
         mapping = ObjectClassMapping.from_dict(map_dict)
+    elif map_type == OBJECTGROUP:
+        mapping = ObjectGroupMapping.from_dict(map_dict)
     else:
         raise ValueError(
-            f"""invalid "map_type" value, expected "{RELATIONSHIPCLASS}"
-            or "{OBJECTCLASS}", got {map_type}"""
+            f"""invalid "map_type" value, expected "{RELATIONSHIPCLASS}",
+            "{OBJECTCLASS}", or "{OBJECTGROUP}" got {map_type}"""
         )
     return mapping
 
