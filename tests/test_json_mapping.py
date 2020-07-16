@@ -1536,6 +1536,7 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {"map_type": "ObjectGroup", "object_classes": 0, "name": 1, "members": 2}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
+        expected["objects"] = [("class_A", "group1"), ("class_A", "group1"), ("class_A", "group2")]
         expected["object_groups"] = [
             ("class_A", "group1", "object1"),
             ("class_A", "group1", "object2"),
@@ -1562,8 +1563,11 @@ class TestMappingIntegration(unittest.TestCase):
         ]
         expected["object_classes"] = ["class_A", "class_A", "class_A"]
         expected["objects"] = [
+            ("class_A", "group1"),
             ("class_A", "object1"),
+            ("class_A", "group1"),
             ("class_A", "object2"),
+            ("class_A", "group2"),
             ("class_A", "object3"),
         ]
         self.assertEqual(out, expected)

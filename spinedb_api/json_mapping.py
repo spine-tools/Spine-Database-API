@@ -1316,7 +1316,9 @@ class ObjectClassMapping(EntityClassMapping):
                 instance.read_start_row,
             )
         if isinstance(instance, NamedItemMapping):
-            return ObjectClassMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return ObjectClassMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
         return ObjectClassMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
@@ -1469,6 +1471,10 @@ class ObjectGroupMapping(NamedItemMapping):
         name_getter, name_num, name_reads = component_readers["item_name"]
         m_getter, m_num, m_reads = component_readers["members"]
         readers.append(
+            ("objects",)
+            + create_final_getter_function([oc_getter, name_getter], [oc_num, name_num], [oc_reads, name_reads])
+        )
+        readers.append(
             ("object_groups",)
             + create_final_getter_function(
                 [oc_getter, name_getter, m_getter], [name_num, oc_num, m_num], [name_reads, oc_reads, m_reads]
@@ -1486,7 +1492,10 @@ class ObjectGroupMapping(NamedItemMapping):
         """See base class."""
         if isinstance(instance, ObjectClassMapping):
             return ObjectGroupMapping(
-                object_classes=instance.name, members=instance.objects, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+                object_classes=instance.name,
+                members=instance.objects,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
             )
         if isinstance(instance, RelationshipClassMapping):
             return ObjectGroupMapping(
@@ -1503,10 +1512,12 @@ class ObjectGroupMapping(NamedItemMapping):
                 instance.members,
                 instance.import_objects,
                 instance.skip_columns,
-                instance.read_start_row
+                instance.read_start_row,
             )
         if isinstance(instance, NamedItemMapping):
-            return ObjectGroupMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return ObjectGroupMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
         return ObjectGroupMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
@@ -1741,7 +1752,11 @@ class RelationshipClassMapping(EntityClassMapping):
         """See base class."""
         if isinstance(instance, ObjectClassMapping):
             return RelationshipClassMapping(
-                object_classes=[instance.name], objects=[instance.objects], parameters=instance.parameters, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+                object_classes=[instance.name],
+                objects=[instance.objects],
+                parameters=instance.parameters,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
             )
         if isinstance(instance, ObjectGroupMapping):
             return RelationshipClassMapping(
@@ -1762,7 +1777,9 @@ class RelationshipClassMapping(EntityClassMapping):
                 instance.read_start_row,
             )
         if isinstance(instance, NamedItemMapping):
-            return RelationshipClassMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return RelationshipClassMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
         return RelationshipClassMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
@@ -1823,7 +1840,9 @@ class AlternativeMapping(NamedItemMapping):
     def from_instance(cls, instance):
         """See base class."""
         if isinstance(instance, NamedItemMapping):
-            return AlternativeMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return AlternativeMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
         return AlternativeMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
@@ -1898,7 +1917,9 @@ class ScenarioMapping(NamedItemMapping):
         if isinstance(instance, ScenarioMapping):
             return ScenarioMapping(instance.name, instance._active, instance.skip_columns, instance.read_start_row)
         if isinstance(instance, NamedItemMapping):
-            return ScenarioMapping(instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return ScenarioMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
         return ScenarioMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
