@@ -596,7 +596,7 @@ class DatabaseMappingBase:
                     label("relationship_id", rel_entity_case),
                     par_val_sq.c.value.label("value"),
                     par_val_sq.c.commit_id.label("commit_id"),
-                    par_val_sq.c.alternative_id
+                    par_val_sq.c.alternative_id,
                 )
                 .join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id)
                 .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
@@ -1041,7 +1041,6 @@ class DatabaseMappingBase:
 
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
-        # TODO: Should this also bring `value_list` and `tag_list`?
         if self._object_parameter_value_sq is None:
             self._object_parameter_value_sq = (
                 self.query(
@@ -1054,12 +1053,15 @@ class DatabaseMappingBase:
                     self.object_sq.c.name.label("object_name"),
                     self.parameter_definition_sq.c.id.label("parameter_id"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_value_sq.c.alternative_id,
+                    self.alternative_sq.c.name.label("alternative_name"),
                     self.parameter_value_sq.c.value,
-                    self.parameter_value_sq.c.alternative_id
+                    self.parameter_value_sq.c.alternative_id,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
                 .filter(self.parameter_definition_sq.c.object_class_id == self.object_class_sq.c.id)
+                .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .subquery()
             )
         return self._object_parameter_value_sq
@@ -1087,12 +1089,15 @@ class DatabaseMappingBase:
                     self.wide_relationship_sq.c.object_name_list,
                     self.parameter_definition_sq.c.id.label("parameter_id"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_value_sq.c.alternative_id,
+                    self.alternative_sq.c.name.label("alternative_name"),
                     self.parameter_value_sq.c.value,
-                    self.parameter_value_sq.c.alternative_id
+                    self.parameter_value_sq.c.alternative_id,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.relationship_id == self.wide_relationship_sq.c.id)
                 .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
+                .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .subquery()
             )
         return self._relationship_parameter_value_sq
