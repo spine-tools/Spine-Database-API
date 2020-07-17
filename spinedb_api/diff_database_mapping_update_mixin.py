@@ -69,7 +69,8 @@ class DiffDatabaseMappingUpdateMixin:
                 dirty_ids.add(updated_id)
                 updated_ids.add(updated_id)
         # Handle tables where a single id spans multiple rows, notably relationship_entity_class and relationship_entity
-        # Basically we need to bring all rows having dirty ids, even if only one of those rows was updated.
+        # Basically we need to collect all rows having dirty ids into all_items_for_insert,
+        # even if only one of those rows was updated.
         all_items_for_insert = {}
         for orig_item in self.query(orig_class).filter(self.in_(getattr(orig_class, table_id), dirty_ids)):
             dirty_item = attr_dict(orig_item)

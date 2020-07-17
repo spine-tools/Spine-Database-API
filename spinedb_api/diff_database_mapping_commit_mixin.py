@@ -42,26 +42,6 @@ class DiffDatabaseMappingCommitMixin:
             commit = self.Commit(comment=comment, date=date, user=user)
             self.session.add(commit)
             self.session.flush()
-            # Remove
-            for tablename, ids in self.removed_item_id.items():
-                classname = self.table_to_class[tablename]
-                id_col = self.table_ids.get(tablename, "id")
-                orig_class = getattr(self, classname)
-                self.query(orig_class).filter(self.in_(getattr(orig_class, id_col), ids)).delete(
-                    synchronize_session=False
-                )
-            # Update
-            for tablename, ids in self.updated_item_id.items():
-                classname = self.table_to_class[tablename]
-                id_col = self.table_ids.get(tablename, "id")
-                orig_class = getattr(self, classname)
-                diff_class = getattr(self, "Diff" + classname)
-                updated_items = []
-                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
-                    kwargs = attr_dict(item)
-                    kwargs["commit_id"] = commit.id
-                    updated_items.append(kwargs)
-                self.session.bulk_update_mappings(orig_class, updated_items)
             # Add
             for tablename, ids in self.added_item_id.items():
                 classname = self.table_to_class[tablename]
@@ -74,6 +54,26 @@ class DiffDatabaseMappingCommitMixin:
                     kwargs["commit_id"] = commit.id
                     new_items.append(kwargs)
                 self.session.bulk_insert_mappings(orig_class, new_items)
+            # Update
+            for tablename, ids in self.updated_item_id.items():
+                classname = self.table_to_class[tablename]
+                id_col = self.table_ids.get(tablename, "id")
+                orig_class = getattr(self, classname)
+                diff_class = getattr(self, "Diff" + classname)
+                updated_items = []
+                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
+                    kwargs = attr_dict(item)
+                    kwargs["commit_id"] = commit.id
+                    updated_items.append(kwargs)
+                self.session.bulk_update_mappings(orig_class, updated_items)
+            # Remove
+            for tablename, ids in self.removed_item_id.items():
+                classname = self.table_to_class[tablename]
+                id_col = self.table_ids.get(tablename, "id")
+                orig_class = getattr(self, classname)
+                self.query(orig_class).filter(self.in_(getattr(orig_class, id_col), ids)).delete(
+                    synchronize_session=False
+                )
             self._reset_diff_mapping()
             self.session.commit()
             self._init_diff_dicts()
