@@ -1272,25 +1272,13 @@ class ObjectClassMapping(EntityClassMapping):
             ("objects",)
             + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
         )
-        if isinstance(self.parameters, ParameterDefinitionMapping):
-            par_name_getter, par_name_num, par_name_reads = component_readers["parameter_name"]
-            readers.append(
-                ("object_parameters",)
-                + create_final_getter_function(
-                    [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
-                )
-            )
-            if isinstance(self.parameters, ParameterValueMapping):
-                par_val_name = "object_parameter_values"
-                par_value_getter, par_value_num, par_value_reads = component_readers["parameter_value"]
-                readers.append(
-                    (par_val_name,)
-                    + create_final_getter_function(
-                        [name_getter, o_getter, par_name_getter, par_value_getter],
-                        [name_num, o_num, par_name_num, par_value_num],
-                        [name_reads, o_reads, par_name_reads, par_value_reads],
-                    )
-                )
+        readers += _parameter_readers(
+            "object",
+            self.parameters,
+            (name_getter, name_num, name_reads),
+            (o_getter, o_num, o_reads),
+            component_readers,
+        )
         return readers
 
     @classmethod
@@ -1302,10 +1290,11 @@ class ObjectClassMapping(EntityClassMapping):
             )
         if isinstance(instance, ObjectGroupMapping):
             return ObjectClassMapping(
-                instance.object_classes,
+                instance.name,
                 instance.members,
-                skip_columns=instance.skip_columns,
-                read_start_row=instance.read_start_row,
+                instance.parameters,
+                instance.skip_columns,
+                instance.read_start_row,
             )
         if isinstance(instance, RelationshipClassMapping):
             return ObjectClassMapping(
@@ -1322,44 +1311,52 @@ class ObjectClassMapping(EntityClassMapping):
         return ObjectClassMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
-class ObjectGroupMapping(NamedItemMapping):
+class ObjectGroupMapping(EntityClassMapping):
     """
     Class for holding and validating Mapping specification::
 
         ObjectGroupMapping {
             map_type: 'ObjectGroup'
-            object_classes: str | Mapping
             name: Mapping | str | None
+            groups: Mapping | str | None
             members: Mapping | str | None
+            parameters: Mapping | str | None
         }
     """
 
     MAP_TYPE = "ObjectGroup"
 
     def __init__(
-        self, name=None, object_classes=None, members=None, import_objects=False, skip_columns=None, read_start_row=0
+        self,
+        name=None,
+        groups=None,
+        members=None,
+        parameters=None,
+        import_objects=False,
+        skip_columns=None,
+        read_start_row=0,
     ):
-        super().__init__(name, skip_columns, read_start_row)
-        self._object_classes = NoneMapping()
+        super().__init__(name, parameters, skip_columns, read_start_row)
+        self._groups = NoneMapping()
         self._members = NoneMapping()
         self._import_objects = False
-        self.object_classes = object_classes
+        self.groups = groups
         self.members = members
         self.import_objects = import_objects
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
-        if isinstance(self._object_classes, ColumnMapping) and self._object_classes.returns_value():
-            non_pivoted_columns.append(self._object_classes.reference)
-        if isinstance(self.members, ColumnMapping) and self.members.returns_value():
-            non_pivoted_columns.append(self.members.reference)
+        if isinstance(self._groups, ColumnMapping) and self._groups.returns_value():
+            non_pivoted_columns.append(self._groups.reference)
+        if isinstance(self._members, ColumnMapping) and self._members.returns_value():
+            non_pivoted_columns.append(self._members.reference)
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        return max(super().last_pivot_row(), self._object_classes.last_pivot_row(), self.members.last_pivot_row())
+        return max(super().last_pivot_row(), self._groups.last_pivot_row(), self._members.last_pivot_row())
 
     def is_pivoted(self):
-        return super().is_pivoted() or self._object_classes.is_pivoted() or self.members.is_pivoted()
+        return super().is_pivoted() or self._groups.is_pivoted() or self._members.is_pivoted()
 
     @property
     def import_objects(self):
@@ -1372,12 +1369,12 @@ class ObjectGroupMapping(NamedItemMapping):
         self._import_objects = import_objects
 
     @property
-    def object_classes(self):
-        return self._object_classes
+    def groups(self):
+        return self._groups
 
-    @object_classes.setter
-    def object_classes(self, object_classes):
-        self._object_classes = mappingbase_from_dict_int_str(object_classes)
+    @groups.setter
+    def groups(self, groups):
+        self._groups = mappingbase_from_dict_int_str(groups)
 
     @property
     def members(self):
@@ -1396,15 +1393,17 @@ class ObjectGroupMapping(NamedItemMapping):
         if map_type is not None and map_type != cls.MAP_TYPE:
             raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
         name = map_dict.get("name", None)
-        object_classes = map_dict.get("object_classes", None)
+        groups = map_dict.get("groups", None)
         members = map_dict.get("members", None)
+        parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
         skip_columns = map_dict.get("skip_columns", [])
         import_objects = map_dict.get("import_objects", False)
         read_start_row = map_dict.get("read_start_row", 0)
         return ObjectGroupMapping(
             name=name,
-            object_classes=object_classes,
+            groups=groups,
             members=members,
+            parameters=parameters,
             skip_columns=skip_columns,
             import_objects=import_objects,
             read_start_row=read_start_row,
@@ -1412,7 +1411,7 @@ class ObjectGroupMapping(NamedItemMapping):
 
     def to_dict(self):
         map_dict = super().to_dict()
-        map_dict["object_classes"] = self._object_classes.to_dict()
+        map_dict["groups"] = self._groups.to_dict()
         map_dict["members"] = self._members.to_dict()
         map_dict["import_objects"] = self._import_objects
         return map_dict
@@ -1427,15 +1426,8 @@ class ObjectGroupMapping(NamedItemMapping):
             return False, issue
         return True, ""
 
-    def object_class_names_issues(self):
-        if isinstance(self._object_classes, NoneMapping):
-            return "The source type for object class names cannot be None."
-        if self._object_classes.reference != 0 and not self._name.reference:
-            return "No reference set for object class names."
-        return ""
-
     def group_names_issues(self):
-        if isinstance(self._name, NoneMapping):
+        if isinstance(self._groups, NoneMapping):
             return "The source type for group names cannot be None."
         if self._name.reference != 0 and not self._name.reference:
             return "No reference set for group names."
@@ -1451,12 +1443,10 @@ class ObjectGroupMapping(NamedItemMapping):
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
-        oc_getter, oc_num, oc_reads = (None, None, None)
-        if self._object_classes.returns_value():
-            oc_getter, oc_num, oc_reads = self._object_classes.create_getter_function(
-                pivoted_columns, pivoted_data, data_header
-            )
-        getters["object_classes"] = (oc_getter, oc_num, oc_reads)
+        g_getter, g_num, g_reads = (None, None, None)
+        if self._groups.returns_value():
+            g_getter, g_num, g_reads = self._groups.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        getters["groups"] = (g_getter, g_num, g_reads)
         m_getter, m_num, m_reads = (None, None, None)
         if self._members.returns_value():
             m_getter, m_num, m_reads = self._members.create_getter_function(pivoted_columns, pivoted_data, data_header)
@@ -1467,24 +1457,32 @@ class ObjectGroupMapping(NamedItemMapping):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
         readers = list()
         component_readers = self._create_getters(pivoted_columns, pivoted_data, data_header)
-        oc_getter, oc_num, oc_reads = component_readers["object_classes"]
         name_getter, name_num, name_reads = component_readers["item_name"]
+        g_getter, g_num, g_reads = component_readers["groups"]
         m_getter, m_num, m_reads = component_readers["members"]
-        readers.append(
-            ("objects",)
-            + create_final_getter_function([oc_getter, name_getter], [oc_num, name_num], [oc_reads, name_reads])
-        )
+        readers.append(("object_classes",) + create_final_getter_function([name_getter], [name_num], [name_reads]))
         readers.append(
             ("object_groups",)
             + create_final_getter_function(
-                [oc_getter, name_getter, m_getter], [name_num, oc_num, m_num], [name_reads, oc_reads, m_reads]
+                [name_getter, g_getter, m_getter], [name_num, g_num, m_num], [name_reads, g_reads, m_reads]
             )
         )
-        if self.import_objects:
-            readers.append(("object_classes",) + create_final_getter_function([oc_getter], [oc_num], [oc_reads]))
+        if self._import_objects:
             readers.append(
-                ("objects",) + create_final_getter_function([oc_getter, m_getter], [oc_num, m_num], [oc_reads, m_reads])
+                ("objects",)
+                + create_final_getter_function([name_getter, g_getter], [name_num, g_num], [name_reads, g_reads])
             )
+            readers.append(
+                ("objects",)
+                + create_final_getter_function([name_getter, m_getter], [name_num, m_num], [name_reads, m_reads])
+            )
+        readers += _parameter_readers(
+            "object",
+            self.parameters,
+            (name_getter, name_num, name_reads),
+            (g_getter, g_num, g_reads),
+            component_readers,
+        )
         return readers
 
     @classmethod
@@ -1492,14 +1490,15 @@ class ObjectGroupMapping(NamedItemMapping):
         """See base class."""
         if isinstance(instance, ObjectClassMapping):
             return ObjectGroupMapping(
-                object_classes=instance.name,
+                name=instance.name,
                 members=instance.objects,
+                parameters=instance.parameters,
                 skip_columns=instance.skip_columns,
                 read_start_row=instance.read_start_row,
             )
         if isinstance(instance, RelationshipClassMapping):
             return ObjectGroupMapping(
-                object_classes=instance.object_classes[0],
+                name=instance.object_classes[0],
                 members=instance.objects[0],
                 import_objects=instance.import_objects,
                 skip_columns=instance.skip_columns,
@@ -1508,8 +1507,9 @@ class ObjectGroupMapping(NamedItemMapping):
         if isinstance(instance, ObjectGroupMapping):
             return ObjectGroupMapping(
                 instance.name,
-                instance.object_classes,
+                instance.groups,
                 instance.members,
+                instance.parameters,
                 instance.import_objects,
                 instance.skip_columns,
                 instance.read_start_row,
@@ -1726,25 +1726,13 @@ class RelationshipClassMapping(EntityClassMapping):
                         [oc_getter, single_o_getter], [oc_num, single_o_num], [oc_reads, single_o_reads]
                     )
                 )
-        if isinstance(self.parameters, ParameterDefinitionMapping):
-            par_name_getter, par_name_num, par_name_reads = component_readers["parameter_name"]
-            readers.append(
-                ("relationship_parameters",)
-                + create_final_getter_function(
-                    [name_getter, par_name_getter], [name_num, par_name_num], [name_reads, par_name_reads]
-                )
-            )
-            if isinstance(self.parameters, ParameterValueMapping):
-                par_value_getter, par_value_num, par_value_reads = component_readers["parameter_value"]
-                par_val_name = "relationship_parameter_values"
-                readers.append(
-                    (par_val_name,)
-                    + create_final_getter_function(
-                        [name_getter, o_getter, par_name_getter, par_value_getter],
-                        [name_num, o_num, par_name_num, par_value_num],
-                        [name_reads, o_reads, par_name_reads, par_value_reads],
-                    )
-                )
+        readers += _parameter_readers(
+            "relationship",
+            self.parameters,
+            (name_getter, name_num, name_reads),
+            (o_getter, o_num, o_reads),
+            component_readers,
+        )
         return readers
 
     @classmethod
@@ -1760,8 +1748,9 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         if isinstance(instance, ObjectGroupMapping):
             return RelationshipClassMapping(
-                object_classes=[instance.object_classes],
+                object_classes=[instance.name],
                 objects=[instance.members],
+                parameters=instance.parameters,
                 import_objects=instance.import_objects,
                 skip_columns=instance.skip_columns,
                 read_start_row=instance.read_start_row,
@@ -1939,11 +1928,23 @@ class ScenarioAlternativeMapping(ItemMappingBase):
 
     MAP_TYPE = "ScenarioAlternative"
 
-    def __init__(self, scenario_name, alternatives, ranks, skip_columns, read_start_row):
+    def __init__(self, scenario_name=None, alternatives=None, ranks=None, skip_columns=None, read_start_row=0):
         super().__init__(skip_columns, read_start_row)
         self._scenario_name = mappingbase_from_dict_int_str(scenario_name)
         self._alternatives = mappingbase_from_dict_int_str(alternatives)
         self._ranks = mappingbase_from_dict_int_str(ranks)
+
+    @property
+    def scenario_name(self):
+        return self._scenario_name
+
+    @property
+    def alternatives(self):
+        return self.alternatives
+
+    @property
+    def ranks(self):
+        return self.ranks
 
     def is_valid(self):
         issue = self.scenario_names_issues()
@@ -2014,6 +2015,21 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         map_dict["alternatives"] = self._alternatives.to_dict()
         map_dict["ranks"] = self._ranks.to_dict()
         return map_dict
+
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, ScenarioAlternativeMapping):
+            return ScenarioAlternativeMapping(instance._scenario_name, instance._alternatives, instance._ranks, instance.skip_columns, instance.read_start_row)
+        if isinstance(instance, ObjectClassMapping):
+            return ScenarioAlternativeMapping(instance.name, instance.objects, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        if isinstance(instance, RelationshipClassMapping):
+            return ScenarioAlternativeMapping(instance.name, instance.object_classes[0], skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+        if isinstance(instance, NamedItemMapping):
+            return ScenarioAlternativeMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
+        return ScenarioAlternativeMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
 def mappingbase_from_value(value):
@@ -2474,3 +2490,42 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
 
     reads_data = any(reads_data_list)
     return getter, return_len, reads_data
+
+
+def _parameter_readers(object_or_relationship, parameters_mapping, class_getters, entity_getters, component_readers):
+    """
+    Creates a list of parameter readers.
+
+    Args:
+        object_or_relationship (str): either "object" or "relationship"
+        parameters_mapping (ParameterDefinitionMapping): mapping for parameters
+        class_getters (tuple): a tuple consisting of entity class name getters
+        entity_getters (tuple): a tuple consisting of entity name getters
+        component_readers (dict): a mapping from reader name to reader tuple
+
+    Returns:
+        list: readers for parameter definitions and (optionally) values, or empty list if not applicable
+    """
+    readers = list()
+    if isinstance(parameters_mapping, ParameterDefinitionMapping):
+        par_name_getter, par_name_num, par_name_reads = component_readers["parameter_name"]
+        readers.append(
+            (object_or_relationship + "_parameters",)
+            + create_final_getter_function(
+                [class_getters[0], par_name_getter],
+                [class_getters[1], par_name_num],
+                [class_getters[2], par_name_reads],
+            )
+        )
+        if isinstance(parameters_mapping, ParameterValueMapping):
+            par_val_name = object_or_relationship + "_parameter_values"
+            par_value_getter, par_value_num, par_value_reads = component_readers["parameter_value"]
+            readers.append(
+                (par_val_name,)
+                + create_final_getter_function(
+                    [class_getters[0], entity_getters[0], par_name_getter, par_value_getter],
+                    [class_getters[1], entity_getters[1], par_name_num, par_value_num],
+                    [class_getters[2], entity_getters[2], par_name_reads, par_value_reads],
+                )
+            )
+    return readers

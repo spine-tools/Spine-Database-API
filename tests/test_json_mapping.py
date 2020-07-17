@@ -264,14 +264,31 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(out, expected)
 
     def test_ObjectGroupMapping_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "ObjectGroup", "name": 0, "object_classes": 1, "members": 2}
+        mapping_dict = {
+            "map_type": "ObjectGroup",
+            "name": 0,
+            "groups": 1,
+            "members": 2,
+            "parameters": {
+                "map_type": "parameter",
+                "name": {"map_type": "constant", "reference": "test"},
+                "parameter_type": "single value",
+                "value": {"reference": 2, "map_type": "column"},
+            },
+        }
         mapping = ObjectGroupMapping.from_dict(mapping_dict)
         out = mapping.to_dict()
         expected = {
             "map_type": "ObjectGroup",
-            "object_classes": {"reference": 1, "map_type": "column"},
             "name": {"reference": 0, "map_type": "column"},
+            "groups": {"reference": 1, "map_type": "column"},
             "members": {"reference": 2, "map_type": "column"},
+            "parameters": {
+                "map_type": "parameter",
+                "name": {"map_type": "constant", "reference": "test"},
+                "parameter_type": "single value",
+                "value": {"reference": 2, "map_type": "column"},
+            },
             "import_objects": False,
             "read_start_row": 0,
             "skip_columns": [],
@@ -1524,7 +1541,7 @@ class TestMappingIntegration(unittest.TestCase):
         ]
         self.assertEqual(out, expected)
 
-    def test_read_object_group(self):
+    def test_read_object_group_without_parameters(self):
         input_data = [
             ["Object Class", "Group", "Object"],
             ["class_A", "group1", "object1"],
@@ -1533,10 +1550,10 @@ class TestMappingIntegration(unittest.TestCase):
         ]
         data = iter(input_data)
         data_header = next(data)
-        mapping = {"map_type": "ObjectGroup", "object_classes": 0, "name": 1, "members": 2}
+        mapping = {"map_type": "ObjectGroup", "name": 0, "groups": 1, "members": 2}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
-        expected["objects"] = [("class_A", "group1"), ("class_A", "group1"), ("class_A", "group2")]
+        expected["object_classes"] = ["class_A", "class_A", "class_A"]
         expected["object_groups"] = [
             ("class_A", "group1", "object1"),
             ("class_A", "group1", "object2"),
@@ -1553,7 +1570,7 @@ class TestMappingIntegration(unittest.TestCase):
         ]
         data = iter(input_data)
         data_header = next(data)
-        mapping = {"map_type": "ObjectGroup", "object_classes": 0, "name": 1, "members": 2, "import_objects": True}
+        mapping = {"map_type": "ObjectGroup", "name": 0, "groups": 1, "members": 2, "import_objects": True}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["object_groups"] = [
@@ -1569,6 +1586,42 @@ class TestMappingIntegration(unittest.TestCase):
             ("class_A", "object2"),
             ("class_A", "group2"),
             ("class_A", "object3"),
+        ]
+        self.assertEqual(out, expected)
+
+    def test_read_object_group_with_parameters(self):
+        input_data = [
+            ["Object Class", "Group", "Object", "Speed"],
+            ["class_A", "group1", "object1", 23.0],
+            ["class_A", "group1", "object2", 42.0],
+            ["class_A", "group2", "object3", 5.0],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectGroup",
+            "name": 0,
+            "groups": 1,
+            "members": 2,
+            "parameters": {"name": "speed", "parameter_type": "single value", "value": 3},
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_groups"] = [
+            ("class_A", "group1", "object1"),
+            ("class_A", "group1", "object2"),
+            ("class_A", "group2", "object3"),
+        ]
+        expected["object_classes"] = ["class_A", "class_A", "class_A"]
+        expected["object_parameters"] = [
+            ("class_A", "speed"),
+            ("class_A", "speed"),
+            ("class_A", "speed"),
+        ]
+        expected["object_parameter_values"] = [
+            ("class_A", "group1", "speed", 23.0),
+            ("class_A", "group1", "speed", 42.0),
+            ("class_A", "group2", "speed", 5.0),
         ]
         self.assertEqual(out, expected)
 
