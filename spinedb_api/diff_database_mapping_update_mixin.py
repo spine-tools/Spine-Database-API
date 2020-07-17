@@ -78,6 +78,77 @@ class DiffDatabaseMappingUpdateMixin:
         all_items_for_insert.update(items_for_insert)
         return items_for_update, list(all_items_for_insert.values()), dirty_ids, updated_ids
 
+    def update_alternatives(self, *kwargs_list, strict=False):
+        """Update alternatives."""
+        checked_kwargs_list, intgr_error_log = self.check_alternatives_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_alternatives(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_alternatives(self, *checked_kwargs_list, strict=False):
+        """Update object classes without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "alternative", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffAlternative, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffAlternative, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("alternative", dirty_ids)
+            self.updated_item_id["alternative"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating alternatives: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_scenarios(self, *kwargs_list, strict=False):
+        """Update scenarios."""
+        checked_kwargs_list, intgr_error_log = self.check_scenarios_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_scenarios(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_scenarios(self, *checked_kwargs_list, strict=False):
+        """Update scenarios without checking integrity."""
+
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "scenario", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffScenario, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffScenario, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("scenario", dirty_ids)
+            self.updated_item_id["scenario"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating scenarios: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_scenario_alternatives(self, *kwargs_list, strict=False):
+        """Update scenario_alternatives."""
+        checked_kwargs_list, intgr_error_log = self.check_scenario_alternatives_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_scenario_alternatives(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_scenario_alternatives(self, *checked_kwargs_list, strict=False):
+        """Update scenario_alternatives without checking integrity."""
+
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "scenario_alternative", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffScenarioAlternative, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffScenarioAlternative, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("scenario_alternative", dirty_ids)
+            self.updated_item_id["scenario_alternative"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating scenario alternatives: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
     def update_object_classes(self, *items, strict=False):
         """Update parameter values."""
         checked_items, intgr_error_log = self.check_object_classes_for_update(*items, strict=strict)

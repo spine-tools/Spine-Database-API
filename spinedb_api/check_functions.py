@@ -22,6 +22,63 @@ from .exception import SpineIntegrityError
 # NOTE: We parse each parameter value or default value before accepting it. Is it too much?
 
 
+def check_alternative(item, current_items):
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("Missing alternative name.")
+    if name in current_items:
+        raise SpineIntegrityError(f"There can't be more than one alternative called '{name}'.", id=current_items[name])
+
+
+def check_scenario(item, current_items):
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("Missing scenario name.")
+    if name in current_items:
+        raise SpineIntegrityError(f"There can't be more than one scenario called '{name}'.", id=current_items[name])
+
+
+def check_scenario_alternative(item, scenario_alternatives, scenarios, alternatives):
+    """
+    Checks if given scenario alternative violates a database's integrity.
+
+    :param dict item: a scenario alternative item for checking; must contain the following fields:
+
+        - "scenario_id": scenario's id
+        - "alternative_id": alternative's id
+        - "rank": alternative's rank within the scenario
+
+    :param dict scenario_alternatives: a mapping from scenario ids to scenario alternative items
+        that already exist in the database
+    :param Iterable scenarios: the ids of existing scenarios in the database
+    :param Iterable alternatives: the ids of existing alternatives in the database
+    :raises SpineIntegrityError: if insertion of ``item`` would violate database's integrity
+    """
+    try:
+        scen_id = item["scenario_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing scenario identifier.")
+    try:
+        alt_id = item["alternative_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing alternative identifier.")
+    try:
+        rank = item["rank"]
+    except KeyError:
+        raise SpineIntegrityError("Missing scenario alternative rank.")
+    if scen_id not in scenarios:
+        raise SpineIntegrityError("Scenario not found.")
+    if alt_id not in alternatives:
+        raise SpineIntegrityError("Alternative not found.")
+    if scen_id in scenario_alternatives:
+        if any(sa["alternative_id"] == alt_id for sa in scenario_alternatives[scen_id]):
+            raise SpineIntegrityError("Alternative already exists in scenario alternatives.")
+        if any(sa["rank"] == rank for sa in scenario_alternatives[scen_id]):
+            raise SpineIntegrityError(f"Rank {rank} already exists in scenario alteratives.")
+
+
 def check_object_class(item, current_items, object_class_type):
     """Check whether the insertion of an object class item
     results in the violation of an integrity constraint.
@@ -250,7 +307,7 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
         raise SpineIntegrityError("Invalid default value '{}': {}".format(default_value, err))
 
 
-def check_parameter_value(item, current_items, parameter_definitions, entities, parameter_value_lists):
+def check_parameter_value(item, current_items, parameter_definitions, entities, parameter_value_lists, alternatives):
     """Check whether the insertion of a parameter value item results in the violation of an integrity constraint.
 
     :param dict item: A parameter value item to be checked.
@@ -271,6 +328,9 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
     except KeyError:
         raise SpineIntegrityError("Parameter not found.")
     value = item.get("value")
+    alt_id = item.get("alternative_id")
+    if alt_id not in alternatives:
+        raise SpineIntegrityError("Alternative not found.")
     try:
         _ = from_database(value)
     except ParameterValueFormatError as err:
@@ -298,12 +358,12 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         entity_name = entities[entity_id]["name"]
         parameter_name = parameter_definition["name"]
         raise SpineIntegrityError("Incorrect entity '{}' for parameter '{}'.".format(entity_name, parameter_name))
-    if (entity_id, parameter_definition_id) in current_items:
+    if (entity_id, parameter_definition_id, alt_id) in current_items:
         entity_name = entities[entity_id]["name"]
         parameter_name = parameter_definition["name"]
         raise SpineIntegrityError(
             "The value of parameter '{}' for entity '{}' is already specified.".format(parameter_name, entity_name),
-            id=current_items[entity_id, parameter_definition_id],
+            id=current_items[entity_id, parameter_definition_id, alt_id],
         )
 
 

@@ -331,3 +331,7 @@ class DatabaseMappingQueryMixin:
     def relationship_parameter_value_fields(self):
         """Return names of columns that would be returned by :meth:`relationship_parameter_value_list`."""
         return [x["name"] for x in self.relationship_parameter_value_list().column_descriptions]
+
+    def alternative_list(self):
+        """Return names of columns that would be returned by :meth:`relationship_parameter_value_list`."""
+        return self.query(self.alternative_sq)

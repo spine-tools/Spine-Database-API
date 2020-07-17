@@ -37,6 +37,9 @@ class DiffDatabaseMappingRemoveMixin:
         parameter_tag_ids=(),
         parameter_definition_tag_ids=(),
         parameter_value_list_ids=(),
+        alternative_ids=(),
+        scenario_ids=(),
+        scenario_alternative_ids=(),
     ):
         """Removes items by id."""
         cascading_ids = self._cascading_ids(
@@ -50,6 +53,9 @@ class DiffDatabaseMappingRemoveMixin:
             parameter_tag_ids=parameter_tag_ids,
             parameter_definition_tag_ids=parameter_definition_tag_ids,
             parameter_value_list_ids=parameter_value_list_ids,
+            alternative_ids=alternative_ids,
+            scenario_ids=scenario_ids,
+            scenario_alternative_ids=scenario_alternative_ids,
         )
         try:
             for tablename, ids in cascading_ids.items():
@@ -82,6 +88,9 @@ class DiffDatabaseMappingRemoveMixin:
         parameter_tag_ids=(),
         parameter_definition_tag_ids=(),
         parameter_value_list_ids=(),
+        alternative_ids=(),
+        scenario_ids=(),
+        scenario_alternative_ids=(),
     ):
         """Returns cascading ids.
 
@@ -99,12 +108,34 @@ class DiffDatabaseMappingRemoveMixin:
         self._merge(cascading_ids, self._parameter_tag_cascading_ids(set(parameter_tag_ids)))
         self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids(set(parameter_definition_tag_ids)))
         self._merge(cascading_ids, self._parameter_value_list_cascading_ids(set(parameter_value_list_ids)))
+        self._merge(cascading_ids, self._alternative_cascading_ids(set(alternative_ids)))
+        self._merge(cascading_ids, self._scenario_cascading_ids(set(scenario_ids)))
+        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids(set(scenario_alternative_ids)))
         return cascading_ids
 
     @staticmethod
     def _merge(left, right):
         for tablename, ids in right.items():
             left.setdefault(tablename, set()).update(ids)
+
+    def _alternative_cascading_ids(self, ids):
+        """Finds object class cascading ids and adds them to the given dictionaries."""
+        cascading_ids = {"alternative": ids}
+        parameter_values = self.query(self.parameter_value_sq.c.id).filter(self.in_(self.parameter_value_sq.c.alternative_id, ids))
+        scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
+            self.in_(self.scenario_alternative_sq.c.alternative_id, ids)
+        )
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
+        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
+        return cascading_ids
+
+    def _scenario_cascading_ids(self, ids):
+        cascading_ids = {"scenario": ids}
+        scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
+            self.in_(self.scenario_alternative_sq.c.scenario_id, ids)
+        )
+        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
+        return cascading_ids
 
     def _object_class_cascading_ids(self, ids):
         """Returns object class cascading ids."""
@@ -202,3 +233,6 @@ class DiffDatabaseMappingRemoveMixin:
         TODO: Should we remove parameter definitions here? Set their parameter_value_list_id to NULL?
         """
         return {"parameter_value_list": ids}
+
+    def _scenario_alternatives_cascading_ids(self, ids):
+        return {"scenario_alternative": ids}

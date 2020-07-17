@@ -44,6 +44,9 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         super().__init__(*args, **kwargs)
         self.diff_prefix = None
         # Diff classes
+        self.DiffAlternative = None
+        self.DiffScenario = None
+        self.DiffScenarioAlternative = None
         self.DiffCommit = None
         self.DiffEntityClass = None
         self.DiffEntityClassType = None
@@ -168,4 +171,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.query(self.DiffObjectClass).delete()
         self.query(self.DiffRelationshipEntityClass).delete()
         self.query(self.DiffRelationshipEntity).delete()
+        self.query(self.DiffAlternative).delete()
+        self.query(self.DiffScenario).delete()
+        self.query(self.DiffScenarioAlternative).delete()
         self.query(self.DiffEntityGroup).delete()

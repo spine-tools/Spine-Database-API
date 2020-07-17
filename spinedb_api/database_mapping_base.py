@@ -60,6 +60,9 @@ class DatabaseMappingBase:
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
         self.sa_url = make_url(self.db_url)
+        self.Alternative = None
+        self.Scenario = None
+        self.ScenarioAlternative = None
         self.Commit = None
         self.EntityClassType = None
         self.EntityClass = None
@@ -85,6 +88,9 @@ class DatabaseMappingBase:
         self._object_entity_type = None
         self._relationship_entity_type = None
         # Subqueries that select everything from each table
+        self._alternative_sq = None
+        self._scenario_sq = None
+        self._scenario_alternative_sq = None
         self._entity_class_sq = None
         self._entity_sq = None
         self._entity_class_type_sq = None
@@ -119,6 +125,9 @@ class DatabaseMappingBase:
         self._wide_parameter_value_list_sq = None
         # Table to class map for convenience
         self.table_to_class = {
+            "alternative": "Alternative",
+            "scenario": "Scenario",
+            "scenario_alternative": "ScenarioAlternative",
             "commit": "Commit",
             "entity_class": "EntityClass",
             "entity_class_type": "EntityClassType",
@@ -284,6 +293,24 @@ class DatabaseMappingBase:
         classname = self.table_to_class[tablename]
         class_ = getattr(self, classname)
         return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+
+    @property
+    def alternative_sq(self):
+        if self._alternative_sq is None:
+            self._alternative_sq = self._subquery("alternative")
+        return self._alternative_sq
+
+    @property
+    def scenario_sq(self):
+        if self._scenario_sq is None:
+            self._scenario_sq = self._subquery("scenario")
+        return self._scenario_sq
+
+    @property
+    def scenario_alternative_sq(self):
+        if self._scenario_alternative_sq is None:
+            self._scenario_alternative_sq = self._subquery("scenario_alternative")
+        return self._scenario_alternative_sq
 
     @property
     def object_class_type(self):
@@ -569,6 +596,7 @@ class DatabaseMappingBase:
                     label("relationship_id", rel_entity_case),
                     par_val_sq.c.value.label("value"),
                     par_val_sq.c.commit_id.label("commit_id"),
+                    par_val_sq.c.alternative_id
                 )
                 .join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id)
                 .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
@@ -1027,6 +1055,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.id.label("parameter_id"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_value_sq.c.value,
+                    self.parameter_value_sq.c.alternative_id
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
@@ -1059,6 +1088,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.id.label("parameter_id"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_value_sq.c.value,
+                    self.parameter_value_sq.c.alternative_id
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.relationship_id == self.wide_relationship_sq.c.id)
@@ -1191,6 +1221,10 @@ class DatabaseMappingBase:
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
         """
+        self.query(self.Alternative).delete(synchronize_session=False)
+        self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+        self.query(self.Scenario).delete(synchronize_session=False)
+        self.query(self.ScenarioAlternative).delete(synchronize_session=False)
         self.query(self.EntityClass).delete(synchronize_session=False)
         self.query(self.Entity).delete(synchronize_session=False)
         self.query(self.Object).delete(synchronize_session=False)

@@ -18,7 +18,9 @@ General helper functions and classes.
 
 import warnings
 from sqlalchemy import (
+    Boolean,
     create_engine,
+    false,
     Table,
     Column,
     MetaData,
@@ -256,18 +258,44 @@ def create_new_spine_database(db_url):
         Column("user", String(45)),
     )
     Table(
+        "alternative",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(255), nullable=False),
+        Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "scenario",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(255), nullable=False),
+        Column("description", String(255), server_default=null()),
+        Column("active", Boolean(name="active"), server_default=false(), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "scenario_alternative",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("scenario_id", Integer, ForeignKey("scenario.id"), nullable=False),
+        Column("alternative_id", Integer, ForeignKey("alternative.id"), nullable=False),
+        Column("rank", Integer, nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
         "entity_class_type",
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "entity_type",
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id"), nullable=True),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
         "entity_class",
@@ -460,7 +488,8 @@ def create_new_spine_database(db_url):
         Column("entity_class_id", Integer, nullable=False),
         Column("value", String(155), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("parameter_definition_id", "entity_id"),
+        Column("alternative_id", Integer, ForeignKey("alternative.id"), nullable=False),
+        UniqueConstraint("parameter_definition_id", "entity_id", "alternative_id"),
         ForeignKeyConstraint(
             ("entity_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
@@ -488,11 +517,13 @@ def create_new_spine_database(db_url):
     )
     try:
         meta.create_all(engine)
-        engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', null), (2, 'relationship', null)")
-        engine.execute("INSERT INTO entity_type VALUES (1, 'object', null), (2, 'relationship', null)")
-        engine.execute("INSERT INTO alembic_version VALUES ('9da58d2def22')")
+        engine.execute("INSERT INTO [commit] VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
+        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
+        engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
+        engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
+        engine.execute("INSERT INTO alembic_version VALUES ('39e860a11b05')")
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
+        raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine
 
 
