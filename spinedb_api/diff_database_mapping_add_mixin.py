@@ -132,7 +132,7 @@ class DiffDatabaseMappingAddMixin:
 
     def add_alternatives(self, *items, strict=False, return_dups=False):
         """Stage alternatives items for insertion.
-        
+
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
@@ -174,9 +174,17 @@ class DiffDatabaseMappingAddMixin:
             msg = "DBAPIError while inserting alternatives: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    def readd_alternatives(self, *items):
+        """Add known alternatives to database.
+        """
+        self._do_add_alternatives(*items)
+        ids = set(x["id"] for x in items)
+        self.added_item_id["alternative"].update(ids)
+        return ids, []
+
     def add_scenarios(self, *items, strict=False, return_dups=False):
         """Stage scenarios items for insertion.
-        
+
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
@@ -218,9 +226,17 @@ class DiffDatabaseMappingAddMixin:
             msg = "DBAPIError while inserting scenarios: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    def readd_scenarios(self, *items):
+        """Add known scenarios to database.
+        """
+        self._do_add_scenarios(*items)
+        ids = set(x["id"] for x in items)
+        self.added_item_id["scenario"].update(ids)
+        return ids, []
+
     def add_scenario_alternatives(self, *items, strict=False, return_dups=False):
         """Stage scenarios items for insertion.
-        
+
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
         :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
             if the insertion of one of the items violates an integrity constraint.
@@ -261,6 +277,14 @@ class DiffDatabaseMappingAddMixin:
             self.session.rollback()
             msg = "DBAPIError while inserting scenario alternatives: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def readd_scenario_alternatives(self, *items):
+        """Add known scenario-alternatives to database.
+        """
+        self._do_add_scenario_alternatives(*items)
+        ids = set(x["id"] for x in items)
+        self.added_item_id["scenario_alternative"].update(ids)
+        return ids, []
 
     def add_object_classes(self, *items, strict=False, return_dups=False):
         """Stage object class items for insertion.
