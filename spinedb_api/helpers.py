@@ -264,6 +264,7 @@ def create_new_spine_database(db_url):
         Column("name", String(255), nullable=False),
         Column("description", String(255), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("name"),
     )
     Table(
         "scenario",
@@ -273,15 +274,25 @@ def create_new_spine_database(db_url):
         Column("description", String(255), server_default=null()),
         Column("active", Boolean(name="active"), server_default=false(), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("name"),
     )
     Table(
         "scenario_alternative",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("scenario_id", Integer, ForeignKey("scenario.id"), nullable=False),
-        Column("alternative_id", Integer, ForeignKey("alternative.id"), nullable=False),
+        Column(
+            "scenario_id", Integer, ForeignKey("scenario.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False
+        ),
+        Column(
+            "alternative_id",
+            Integer,
+            ForeignKey("alternative.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
         Column("rank", Integer, nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("scenario_id", "rank"),
+        UniqueConstraint("scenario_id", "alternative_id"),
     )
     Table(
         "entity_class_type",
