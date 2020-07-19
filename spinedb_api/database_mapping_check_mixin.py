@@ -315,6 +315,7 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
+        # TODO: Use `self.wide_scenario_alternative_sq` here
         scenario_alternatives = {}
         sq = self.scenario_alternative_sq
         for scen_id, scen_alt in groupby(
@@ -351,6 +352,7 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
+        # TODO: Use `self.wide_scenario_alternative_sq` here
         scenario_alternatives = {}
         sq = self.scenario_alternative_sq
         for scen_id, scen_alt in groupby(

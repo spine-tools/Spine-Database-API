@@ -107,6 +107,8 @@ class DatabaseMappingBase:
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
         # Special convenience subqueries that join two or more tables
+        self._ext_scenario_alternative_sq = None
+        self._wide_scenario_alternative_sq = None
         self._ext_object_sq = None
         self._ext_relationship_class_sq = None
         self._wide_relationship_class_sq = None
@@ -646,6 +648,53 @@ class DatabaseMappingBase:
         if self._parameter_value_list_sq is None:
             self._parameter_value_list_sq = self._subquery("parameter_value_list")
         return self._parameter_value_list_sq
+
+    @property
+    def ext_scenario_alternative_sq(self):
+        if self._ext_scenario_alternative_sq is None:
+            self._ext_scenario_alternative_sq = (
+                self.query(
+                    self.scenario_sq.c.id.label("id"),
+                    self.scenario_sq.c.name.label("name"),
+                    self.scenario_sq.c.description.label("description"),
+                    self.scenario_sq.c.active.label("active"),
+                    self.scenario_alternative_sq.c.alternative_id.label("alternative_id"),
+                    self.alternative_sq.c.name.label("alternative_name"),
+                )
+                .outerjoin(
+                    self.scenario_alternative_sq, self.scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id
+                )
+                .outerjoin(
+                    self.alternative_sq, self.alternative_sq.c.id == self.scenario_alternative_sq.c.alternative_id
+                )
+                .order_by(self.scenario_sq.c.id, self.scenario_alternative_sq.c.rank)
+                .subquery()
+            )
+        return self._ext_scenario_alternative_sq
+
+    @property
+    def wide_scenario_alternative_sq(self):
+        if self._wide_scenario_alternative_sq is None:
+            self._wide_scenario_alternative_sq = (
+                self.query(
+                    self.ext_scenario_alternative_sq.c.id.label("id"),
+                    self.ext_scenario_alternative_sq.c.name.label("name"),
+                    self.ext_scenario_alternative_sq.c.description.label("description"),
+                    self.ext_scenario_alternative_sq.c.active.label("active"),
+                    func.group_concat(self.ext_scenario_alternative_sq.c.alternative_id).label("alternative_id_list"),
+                    func.group_concat(self.ext_scenario_alternative_sq.c.alternative_name).label(
+                        "alternative_name_list"
+                    ),
+                )
+                .group_by(
+                    self.ext_scenario_alternative_sq.c.id,
+                    self.ext_scenario_alternative_sq.c.name,
+                    self.ext_scenario_alternative_sq.c.description,
+                    self.ext_scenario_alternative_sq.c.active,
+                )
+                .subquery()
+            )
+        return self._wide_scenario_alternative_sq
 
     @property
     def ext_object_sq(self):

@@ -56,6 +56,7 @@ def check_scenario_alternative(item, scenario_alternatives, scenarios, alternati
     :param Iterable alternatives: the ids of existing alternatives in the database
     :raises SpineIntegrityError: if insertion of ``item`` would violate database's integrity
     """
+    # FIXME: `scenarios` and `alternatives` should map ids to names so we can improve error messages
     try:
         scen_id = item["scenario_id"]
     except KeyError:
@@ -73,9 +74,9 @@ def check_scenario_alternative(item, scenario_alternatives, scenarios, alternati
     if alt_id not in alternatives:
         raise SpineIntegrityError("Alternative not found.")
     if scen_id in scenario_alternatives:
-        if any(sa["alternative_id"] == alt_id for sa in scenario_alternatives[scen_id]):
+        if alt_id in (sa["alternative_id"] for sa in scenario_alternatives[scen_id]):
             raise SpineIntegrityError("Alternative already exists in scenario alternatives.")
-        if any(sa["rank"] == rank for sa in scenario_alternatives[scen_id]):
+        if rank in (sa["rank"] for sa in scenario_alternatives[scen_id]):
             raise SpineIntegrityError(f"Rank {rank} already exists in scenario alteratives.")
 
 
