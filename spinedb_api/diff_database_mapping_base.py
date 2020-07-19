@@ -156,6 +156,34 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             .subquery()
         )
 
+    def _orig_subquery(self, tablename):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM {tablename}
+
+        :param str tablename: A string indicating the table to be queried.
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        classname = self.table_to_class[tablename]
+        class_ = getattr(self, classname)
+        return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+
+    def _diff_subquery(self, tablename):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM {tablename}
+
+        :param str tablename: A string indicating the table to be queried.
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        classname = self.table_to_class[tablename]
+        class_ = getattr(self, "Diff" + classname)
+        return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+
     def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
         self.query(self.DiffEntityClass).delete()

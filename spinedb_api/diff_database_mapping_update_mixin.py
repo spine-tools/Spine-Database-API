@@ -17,7 +17,6 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import attr_dict
 
 # TODO: improve docstrings
 
@@ -30,9 +29,8 @@ class DiffDatabaseMappingUpdateMixin:
         """Return lists of items for update and insert.
         Items found in the diff classes should be updated, whereas items found in the orig classes
         should be marked as dirty and inserted into the corresponding diff class."""
-        classname = self.table_to_class[tablename]
-        orig_class = getattr(self, classname)
-        diff_class = getattr(self, "Diff" + classname)
+        orig_sq = self._orig_subquery(tablename)
+        diff_sq = self._diff_subquery(tablename)
         items_for_update = list()
         items_for_insert = dict()
         dirty_ids = set()
@@ -48,18 +46,19 @@ class DiffDatabaseMappingUpdateMixin:
                 continue
             if len(filter_expr) == len(item):
                 continue
-            diff_item = self.query(diff_class).filter_by(**filter_expr).one_or_none()
+            diff_item = self.query(diff_sq).filter_by(**filter_expr).one_or_none()
             if diff_item is not None:
-                updated_item = attr_dict(diff_item)
+                updated_item = diff_item._asdict()
+                # updated_item = attr_dict(diff_item)
                 if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                     continue
                 updated_item.update(item)
                 items_for_update.append(updated_item)
                 updated_ids.add(updated_item[table_id])
                 continue
-            orig_item = self.query(orig_class).filter_by(**filter_expr).one_or_none()
+            orig_item = self.query(orig_sq).filter_by(**filter_expr).one_or_none()
             if orig_item is not None:
-                updated_item = attr_dict(orig_item)
+                updated_item = orig_item._asdict()
                 if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                     continue
                 updated_item.update(item)
@@ -72,8 +71,8 @@ class DiffDatabaseMappingUpdateMixin:
         # Basically we need to collect all rows having dirty ids into all_items_for_insert,
         # even if only one of those rows was updated.
         all_items_for_insert = {}
-        for orig_item in self.query(orig_class).filter(self.in_(getattr(orig_class, table_id), dirty_ids)):
-            dirty_item = attr_dict(orig_item)
+        for orig_item in self.query(orig_sq).filter(self.in_(getattr(orig_sq.c, table_id), dirty_ids)):
+            dirty_item = orig_item._asdict()
             key = tuple(dirty_item[k] for k in pk)
             all_items_for_insert[key] = dirty_item
         all_items_for_insert.update(items_for_insert)
@@ -134,7 +133,6 @@ class DiffDatabaseMappingUpdateMixin:
 
     def _update_scenario_alternatives(self, *checked_kwargs_list, strict=False):
         """Update scenario_alternatives without checking integrity."""
-
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
                 "scenario_alternative", checked_kwargs_list
@@ -341,16 +339,53 @@ class DiffDatabaseMappingUpdateMixin:
             msg = "DBAPIError while updating parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    def set_scenario_alternatives(self, *items, strict=False):
+        """Sets alternatives for scenarios."""
+        current_alternative_id_lists = {
+            x.id: x.alternative_id_list for x in self.query(self.wide_scenario_alternative_sq)
+        }
+        scenario_alternative_ids = {
+            (x.scenario_id, x.alternative_id): x.id for x in self.query(self.scenario_alternative_sq)
+        }
+        items_to_add = list()
+        items_to_update = list()
+        ids_to_remove = set()
+        scenario_ids = set()
+        for item in items:
+            scenario_id = item["scenario_id"]
+            scenario_ids.add(scenario_id)
+            alternative_id_list = item["alternative_id_list"]
+            alternative_id_list = [int(x) for x in alternative_id_list.split(",")] if alternative_id_list else []
+            current_alternative_id_list = current_alternative_id_lists[scenario_id]
+            current_alternative_id_list = (
+                [int(x) for x in current_alternative_id_list.split(",")] if current_alternative_id_list else []
+            )
+            for k, alternative_id in enumerate(alternative_id_list):
+                scen_alt_id = scenario_alternative_ids.get((scenario_id, alternative_id))
+                if scen_alt_id is None:
+                    item = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
+                    items_to_add.append(item)
+                else:
+                    item = {"id": scen_alt_id, "rank": k + 1}
+                    items_to_update.append(item)
+            for alternative_id in current_alternative_id_list:
+                if alternative_id not in alternative_id_list:
+                    ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
+        self.remove_items(scenario_alternative_ids=ids_to_remove)
+        _ = self._update_scenario_alternatives(*items_to_update, strict=strict)
+        _, add_error_log = self.add_scenario_alternatives(*items_to_add, strict=strict)
+        return scenario_ids, add_error_log
+
     def set_parameter_definition_tags(self, *items, strict=False):
         """Set tags for parameter definitions."""
         current_tag_id_lists = {
             x.id: x.parameter_tag_id_list for x in self.query(self.wide_parameter_definition_tag_sq)
         }
-        definition_tag_id_dict = {
+        definition_tag_ids = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
-        new_items = list()
-        deleted_ids = set()
+        items_to_add = list()
+        ids_to_remove = set()
         definition_ids = set()
         for item in items:
             definition_id = item["parameter_definition_id"]
@@ -362,12 +397,12 @@ class DiffDatabaseMappingUpdateMixin:
             for tag_id in tag_id_list:
                 if tag_id not in current_tag_id_list:
                     item = {"parameter_definition_id": definition_id, "parameter_tag_id": tag_id}
-                    new_items.append(item)
+                    items_to_add.append(item)
             for tag_id in current_tag_id_list:
                 if tag_id not in tag_id_list:
-                    deleted_ids.add(definition_tag_id_dict[definition_id, tag_id])
-        self.remove_items(parameter_definition_tag_ids=deleted_ids)
-        _, error_log = self.add_parameter_definition_tags(*new_items, strict=strict)
+                    ids_to_remove.add(definition_tag_ids[definition_id, tag_id])
+        self.remove_items(parameter_definition_tag_ids=ids_to_remove)
+        _, error_log = self.add_parameter_definition_tags(*items_to_add, strict=strict)
         return definition_ids, error_log
 
     def update_wide_parameter_value_lists(self, *wide_items, strict=False):
