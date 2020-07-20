@@ -252,9 +252,9 @@ class DiffDatabaseMappingUpdateMixin:
             self.session.bulk_insert_mappings(self.DiffRelationshipEntity, rel_ents_for_insert)
             self.session.commit()
             self._mark_as_dirty("entity", dirty_ent_ids)
-            self.updated_item_id["entity"].update(updated_ent_ids)
+            self.updated_item_id["entity"].update(dirty_ent_ids)
             self._mark_as_dirty("relationship_entity", dirty_rel_ent_ids)
-            self.updated_item_id["relationship_entity"].update(updated_rel_ent_ids)
+            self.updated_item_id["relationship_entity"].update(dirty_rel_ent_ids)
             return updated_ent_ids.union(updated_rel_ent_ids)
         except DBAPIError as e:
             self.session.rollback()
