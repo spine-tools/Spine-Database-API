@@ -401,7 +401,7 @@ class DiffDatabaseMappingUpdateMixin:
             for tag_id in current_tag_id_list:
                 if tag_id not in tag_id_list:
                     ids_to_remove.add(definition_tag_ids[definition_id, tag_id])
-        self.remove_items(parameter_definition_tag_ids=ids_to_remove)
+        self.remove_items(parameter_definition_tag=ids_to_remove)
         _, error_log = self.add_parameter_definition_tags(*items_to_add, strict=strict)
         return definition_ids, error_log
 
