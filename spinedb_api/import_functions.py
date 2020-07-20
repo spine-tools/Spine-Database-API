@@ -208,25 +208,25 @@ def get_data_for_import(
         dict(str, list)
     """
     if object_classes:
-        yield ("object class", _get_object_classes_for_import(db_map, object_classes))
+        yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
     if relationship_classes:
-        yield ("relationship class", _get_relationship_classes_for_import(db_map, relationship_classes))
+        yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes))
     if parameter_value_lists:
-        yield ("parameter value list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
+        yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
     if object_parameters:
-        yield ("parameter definition", _get_object_parameters_for_import(db_map, object_parameters))
+        yield ("parameter_definition", _get_object_parameters_for_import(db_map, object_parameters))
     if relationship_parameters:
-        yield ("parameter definition", _get_relationship_parameters_for_import(db_map, relationship_parameters))
+        yield ("parameter_definition", _get_relationship_parameters_for_import(db_map, relationship_parameters))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects))
     if relationships:
         yield ("relationship", _get_relationships_for_import(db_map, relationships))
     if object_groups:
-        yield ("entity group", _get_object_groups_for_import(db_map, object_groups))
+        yield ("entity_group", _get_object_groups_for_import(db_map, object_groups))
     if object_parameter_values:
-        yield ("parameter value", _get_object_parameter_values_for_import(db_map, object_parameter_values))
+        yield ("parameter_value", _get_object_parameter_values_for_import(db_map, object_parameter_values))
     if relationship_parameter_values:
-        yield ("parameter value", _get_relationship_parameter_values_for_import(db_map, relationship_parameter_values))
+        yield ("parameter_value", _get_relationship_parameter_values_for_import(db_map, relationship_parameter_values))
 
 
 def import_alternatives(db_map, data):
