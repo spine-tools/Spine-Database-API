@@ -76,7 +76,7 @@ class DiffDatabaseMappingCommitMixin:
                 self.session.bulk_insert_mappings(orig_class, new_items)
             self._reset_diff_mapping()
             self.session.commit()
-            self._init_diff_dicts()
+            self._reset_diff_dicts()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
@@ -90,7 +90,7 @@ class DiffDatabaseMappingCommitMixin:
         try:
             self._reset_diff_mapping()
             self.session.commit()
-            self._init_diff_dicts()
+            self._reset_diff_dicts()
         except DBAPIError as e:
             self.session.rollback()
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)

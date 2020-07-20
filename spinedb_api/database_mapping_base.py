@@ -121,8 +121,6 @@ class DatabaseMappingBase:
         self._relationship_parameter_value_sq = None
         self._ext_parameter_definition_tag_sq = None
         self._wide_parameter_definition_tag_sq = None
-        self._ext_parameter_tag_definition_sq = None
-        self._wide_parameter_tag_definition_sq = None
         self._ord_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
         # Table to class map for convenience
