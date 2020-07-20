@@ -25,41 +25,24 @@ class DiffDatabaseMappingRemoveMixin:
     """Provides the :meth:`remove_items` method to stage ``REMOVE`` operations over a Spine db.
     """
 
-    def remove_items(
-        self,
-        object_class_ids=(),
-        object_ids=(),
-        relationship_class_ids=(),
-        relationship_ids=(),
-        entity_group_ids=(),
-        parameter_definition_ids=(),
-        parameter_value_ids=(),
-        parameter_tag_ids=(),
-        parameter_definition_tag_ids=(),
-        parameter_value_list_ids=(),
-        alternative_ids=(),
-        scenario_ids=(),
-        scenario_alternative_ids=(),
-    ):
-        """Removes items by id."""
-        cascading_ids = self._cascading_ids(
-            object_class_ids=object_class_ids,
-            object_ids=object_ids,
-            relationship_class_ids=relationship_class_ids,
-            relationship_ids=relationship_ids,
-            entity_group_ids=entity_group_ids,
-            parameter_definition_ids=parameter_definition_ids,
-            parameter_value_ids=parameter_value_ids,
-            parameter_tag_ids=parameter_tag_ids,
-            parameter_definition_tag_ids=parameter_definition_tag_ids,
-            parameter_value_list_ids=parameter_value_list_ids,
-            alternative_ids=alternative_ids,
-            scenario_ids=scenario_ids,
-            scenario_alternative_ids=scenario_alternative_ids,
-        )
-        cascading_ids = {key: value for key, value in cascading_ids.items() if value}
+    # pylint: disable=redefined-builtin
+    def cascade_remove_items(self, **kwargs):
+        """Removes items by id in cascade.
+
+        Keyword args:
+            <tablename> (set): set of ids to be removed for table
+        """
+        cascading_ids = self.cascading_ids(**kwargs)
+        self.remove_items(**cascading_ids)
+
+    def remove_items(self, **kwargs):
+        """Removes items by id, *not in cascade*.
+
+        Keyword args:
+            <tablename> (set): set of ids to be removed for table
+        """
         try:
-            for tablename, ids in cascading_ids.items():
+            for tablename, ids in kwargs.items():
                 table_id = self.table_ids.get(tablename, "id")
                 classname = self.table_to_class[tablename]
                 diff_class = getattr(self, "Diff" + classname)
@@ -71,48 +54,37 @@ class DiffDatabaseMappingRemoveMixin:
             self.session.rollback()
             msg = "DBAPIError while removing items: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
-        for tablename, ids in cascading_ids.items():
+        for tablename, ids in kwargs.items():
             self.added_item_id[tablename].difference_update(ids)
             self.updated_item_id[tablename].difference_update(ids)
             self.removed_item_id[tablename].update(ids)
             self._mark_as_dirty(tablename, ids)
 
-    def _cascading_ids(
-        self,
-        object_class_ids=(),
-        object_ids=(),
-        relationship_class_ids=(),
-        relationship_ids=(),
-        entity_group_ids=(),
-        parameter_definition_ids=(),
-        parameter_value_ids=(),
-        parameter_tag_ids=(),
-        parameter_definition_tag_ids=(),
-        parameter_value_list_ids=(),
-        alternative_ids=(),
-        scenario_ids=(),
-        scenario_alternative_ids=(),
-    ):
+    # pylint: disable=redefined-builtin
+    def cascading_ids(self, **kwargs):
         """Returns cascading ids.
+
+        Keyword args:
+            <tablename> (set): set of ids to be removed for table
 
         Returns:
             cascading_ids (dict): cascading ids keyed by table name
         """
-        cascading_ids = {}
-        self._merge(cascading_ids, self._object_class_cascading_ids(set(object_class_ids)))
-        self._merge(cascading_ids, self._object_cascading_ids(set(object_ids)))
-        self._merge(cascading_ids, self._relationship_class_cascading_ids(set(relationship_class_ids)))
-        self._merge(cascading_ids, self._relationship_cascading_ids(set(relationship_ids)))
-        self._merge(cascading_ids, self._entity_group_cascading_ids(set(entity_group_ids)))
-        self._merge(cascading_ids, self._parameter_definition_cascading_ids(set(parameter_definition_ids)))
-        self._merge(cascading_ids, self._parameter_value_cascading_ids(set(parameter_value_ids)))
-        self._merge(cascading_ids, self._parameter_tag_cascading_ids(set(parameter_tag_ids)))
-        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids(set(parameter_definition_tag_ids)))
-        self._merge(cascading_ids, self._parameter_value_list_cascading_ids(set(parameter_value_list_ids)))
-        self._merge(cascading_ids, self._alternative_cascading_ids(set(alternative_ids)))
-        self._merge(cascading_ids, self._scenario_cascading_ids(set(scenario_ids)))
-        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids(set(scenario_alternative_ids)))
-        return cascading_ids
+        ids = {}
+        self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set())))
+        self._merge(ids, self._object_cascading_ids(kwargs.get("object", set())))
+        self._merge(ids, self._relationship_class_cascading_ids(kwargs.get("relationship_class", set())))
+        self._merge(ids, self._relationship_cascading_ids(kwargs.get("relationship", set())))
+        self._merge(ids, self._entity_group_cascading_ids(kwargs.get("entity_group", set())))
+        self._merge(ids, self._parameter_definition_cascading_ids(kwargs.get("parameter_definition", set())))
+        self._merge(ids, self._parameter_value_cascading_ids(kwargs.get("parameter_value", set())))
+        self._merge(ids, self._parameter_tag_cascading_ids(kwargs.get("parameter_tag", set())))
+        self._merge(ids, self._parameter_definition_tag_cascading_ids(kwargs.get("parameter_definition_tag", set())))
+        self._merge(ids, self._parameter_value_list_cascading_ids(kwargs.get("parameter_value_list", set())))
+        self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set())))
+        self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set())))
+        self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set())))
+        return {key: value for key, value in ids.items() if value}
 
     @staticmethod
     def _merge(left, right):
@@ -120,8 +92,8 @@ class DiffDatabaseMappingRemoveMixin:
             left.setdefault(tablename, set()).update(ids)
 
     def _alternative_cascading_ids(self, ids):
-        """Finds object class cascading ids and adds them to the given dictionaries."""
-        cascading_ids = {"alternative": ids}
+        """Returns alternative cascading ids."""
+        cascading_ids = {"alternative": ids.copy()}
         parameter_values = self.query(self.parameter_value_sq.c.id).filter(
             self.in_(self.parameter_value_sq.c.alternative_id, ids)
         )
@@ -133,7 +105,7 @@ class DiffDatabaseMappingRemoveMixin:
         return cascading_ids
 
     def _scenario_cascading_ids(self, ids):
-        cascading_ids = {"scenario": ids}
+        cascading_ids = {"scenario": ids.copy()}
         scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
             self.in_(self.scenario_alternative_sq.c.scenario_id, ids)
         )
@@ -142,7 +114,7 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _object_class_cascading_ids(self, ids):
         """Returns object class cascading ids."""
-        cascading_ids = {"entity_class": ids, "object_class": ids}
+        cascading_ids = {"entity_class": ids.copy(), "object_class": ids.copy()}
         objects = self.query(self.object_sq.c.id).filter(self.in_(self.object_sq.c.class_id, ids))
         relationship_classes = self.query(self.relationship_class_sq.c.id).filter(
             self.in_(self.relationship_class_sq.c.object_class_id, ids)
@@ -157,7 +129,7 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _object_cascading_ids(self, ids):
         """Returns object cascading ids."""
-        cascading_ids = {"entity": ids, "object": ids}
+        cascading_ids = {"entity": ids.copy(), "object": ids.copy()}
         relationships = self.query(self.relationship_sq.c.id).filter(self.in_(self.relationship_sq.c.object_id, ids))
         parameter_values = self.query(self.parameter_value_sq.c.id).filter(
             self.in_(self.parameter_value_sq.c.object_id, ids)
@@ -173,7 +145,11 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _relationship_class_cascading_ids(self, ids):
         """Returns relationship class cascading ids."""
-        cascading_ids = {"relationship_class": ids, "relationship_entity_class": ids, "entity_class": ids}
+        cascading_ids = {
+            "relationship_class": ids.copy(),
+            "relationship_entity_class": ids.copy(),
+            "entity_class": ids.copy(),
+        }
         relationships = self.query(self.relationship_sq.c.id).filter(self.in_(self.relationship_sq.c.class_id, ids))
         paramerer_definitions = self.query(self.parameter_definition_sq.c.id).filter(
             self.in_(self.parameter_definition_sq.c.relationship_class_id, ids)
@@ -184,7 +160,7 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _relationship_cascading_ids(self, ids):
         """Returns relationship cascading ids."""
-        cascading_ids = {"relationship": ids, "entity": ids, "relationship_entity": ids}
+        cascading_ids = {"relationship": ids.copy(), "entity": ids.copy(), "relationship_entity": ids.copy()}
         parameter_values = self.query(self.parameter_value_sq.c.id).filter(
             self.in_(self.parameter_value_sq.c.relationship_id, ids)
         )
@@ -198,11 +174,11 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _entity_group_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns entity group cascading ids."""
-        return {"entity_group": ids}
+        return {"entity_group": ids.copy()}
 
     def _parameter_definition_cascading_ids(self, ids):
         """Returns parameter definition cascading ids."""
-        cascading_ids = {"parameter_definition": ids}
+        cascading_ids = {"parameter_definition": ids.copy()}
         parameter_values = self.query(self.parameter_value_sq.c.id).filter(
             self.in_(self.parameter_value_sq.c.parameter_definition_id, ids)
         )
@@ -215,11 +191,11 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _parameter_value_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns parameter value cascading ids."""
-        return {"parameter_value": ids}
+        return {"parameter_value": ids.copy()}
 
     def _parameter_tag_cascading_ids(self, ids):
         """Returns parameter tag cascading ids."""
-        cascading_ids = {"parameter_tag": ids}
+        cascading_ids = {"parameter_tag": ids.copy()}
         # parameter_definition_tag
         param_def_tags = self.query(self.parameter_definition_tag_sq.c.id).filter(
             self.in_(self.parameter_definition_tag_sq.c.parameter_tag_id, ids)
@@ -229,13 +205,12 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _parameter_definition_tag_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns parameter definition tag cascading ids."""
-        return {"parameter_definition_tag": ids}
+        return {"parameter_definition_tag": ids.copy()}
 
     def _parameter_value_list_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries.
-        TODO: Should we remove parameter definitions here? Set their parameter_value_list_id to NULL?
         """
-        return {"parameter_value_list": ids}
+        return {"parameter_value_list": ids.copy()}
 
     def _scenario_alternatives_cascading_ids(self, ids):
-        return {"scenario_alternative": ids}
+        return {"scenario_alternative": ids.copy()}

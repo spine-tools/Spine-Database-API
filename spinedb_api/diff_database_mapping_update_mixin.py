@@ -371,7 +371,7 @@ class DiffDatabaseMappingUpdateMixin:
             for alternative_id in current_alternative_id_list:
                 if alternative_id not in alternative_id_list:
                     ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
-        self.remove_items(scenario_alternative_ids=ids_to_remove)
+        self.remove_items(scenario_alternative=ids_to_remove)
         _ = self._update_scenario_alternatives(*items_to_update, strict=strict)
         _, add_error_log = self.add_scenario_alternatives(*items_to_add, strict=strict)
         return scenario_ids, add_error_log
