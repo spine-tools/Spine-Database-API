@@ -16,7 +16,7 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
-from .diff_database_mapping import DiffDatabaseMapping
+from .diff_db_mapping import DiffDatabaseMapping
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
     check_alternative,

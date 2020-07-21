@@ -16,7 +16,7 @@ Unit tests for DiffDatabaseMapping class.
 :date:   29.11.2018
 """
 
-from spinedb_api.diff_database_mapping import DiffDatabaseMapping
+from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from sqlalchemy import inspect, MetaData
 from spinedb_api.helpers import create_new_spine_database
 from spinedb_api import DatabaseMapping

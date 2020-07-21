@@ -10,36 +10,18 @@
 ######################################################################################################################
 
 """
-Provides :class:`DiffDatabaseMapping`.
+Provides :class:`.DatabaseMapping`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
 """
 
-from .database_mapping_query_mixin import DatabaseMappingQueryMixin
-from .database_mapping_check_mixin import DatabaseMappingCheckMixin
-from .diff_database_mapping_add_mixin import DiffDatabaseMappingAddMixin
-from .diff_database_mapping_update_mixin import DiffDatabaseMappingUpdateMixin
-from .diff_database_mapping_remove_mixin import DiffDatabaseMappingRemoveMixin
-from .diff_database_mapping_commit_mixin import DiffDatabaseMappingCommitMixin
-from .diff_database_mapping_base import DiffDatabaseMappingBase
+from .db_mapping_query_mixin import DatabaseMappingQueryMixin
+from .db_mapping_base import DatabaseMappingBase
 
 
-class DiffDatabaseMapping(
-    DatabaseMappingQueryMixin,
-    DatabaseMappingCheckMixin,
-    DiffDatabaseMappingAddMixin,
-    DiffDatabaseMappingUpdateMixin,
-    DiffDatabaseMappingRemoveMixin,
-    DiffDatabaseMappingCommitMixin,
-    DiffDatabaseMappingBase,
-):
-    """A read-write database mapping.
-
-    Provides methods to *stage* any number of changes (namely, ``INSERT``, ``UPDATE`` and ``REMOVE`` operations)
-    over a Spine database, as well as to commit or rollback the batch of changes.
-
-    For convenience, querying this mapping return results *as if* all the staged changes were already committed.
+class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingBase):
+    """A read-only database mapping.
 
     :param str db_url: A database URL in RFC-1738 format pointing to the database to be mapped.
     :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.

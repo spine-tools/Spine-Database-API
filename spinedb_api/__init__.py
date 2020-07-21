@@ -9,8 +9,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-from .database_mapping import DatabaseMapping
-from .diff_database_mapping import DiffDatabaseMapping
+from .db_mapping import DatabaseMapping
+from .diff_db_mapping import DiffDatabaseMapping
 from .exception import (
     SpineDBAPIError,
     SpineIntegrityError,

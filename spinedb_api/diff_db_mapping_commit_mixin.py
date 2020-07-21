@@ -42,6 +42,8 @@ class DiffDatabaseMappingCommitMixin:
             commit = self.Commit(comment=comment, date=date, user=user)
             self.session.add(commit)
             self.session.flush()
+            # NOTE: The reason for this order is to avoid integrity issues when setting scenario alternatives:
+            # We need to remove first so `rank`s become 'free'. Maybe there's another case like this one.
             # Remove
             for tablename, ids in self.removed_item_id.items():
                 classname = self.table_to_class[tablename]

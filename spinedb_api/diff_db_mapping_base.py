@@ -16,7 +16,7 @@ Provides :class:`.DiffDatabaseMappingBase`.
 :date:   11.8.2018
 """
 
-from .database_mapping_base import DatabaseMappingBase
+from .db_mapping_base import DatabaseMappingBase
 from sqlalchemy import MetaData, Table, inspect
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.ext.automap import automap_base

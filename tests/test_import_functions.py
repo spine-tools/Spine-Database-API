@@ -20,7 +20,7 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 
-from spinedb_api.diff_database_mapping import DiffDatabaseMapping
+from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.helpers import create_new_spine_database
 from spinedb_api.import_functions import (
     import_alternatives,
@@ -77,7 +77,7 @@ class TestIntegrationImportData(unittest.TestCase):
                 relationship_parameter_values=rel_p_values,
                 alternatives=alternatives,
                 scenarios=scenarios,
-                scenario_alternatives=scenario_alternatives
+                scenario_alternatives=scenario_alternatives,
             )
             db_map.connection.close()
         self.assertEqual(num_imports, 13)
@@ -643,14 +643,14 @@ class TestImportParameterValue(unittest.TestCase):
                 db_map, [["relationship_class", ["object1", "object2"], "parameter", 1, "alternative"]]
             )
             self.assertFalse(errors)
-            self.assertEqual(count,1)
+            self.assertEqual(count, 1)
             values = {
                 v.object_name_list: (v.value, v.alternative_name)
                 for v in db_map.query(
                     db_map.relationship_parameter_value_sq, db_map.alternative_sq.c.name.label("alternative_name")
                 )
-                    .filter(db_map.relationship_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
-                    .all()
+                .filter(db_map.relationship_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
+                .all()
             }
             expected = {"object1,object2": ("1", "alternative")}
             self.assertEqual(values, expected)
