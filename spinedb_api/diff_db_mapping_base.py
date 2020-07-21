@@ -16,14 +16,14 @@ Provides :class:`.DiffDatabaseMappingBase`.
 :date:   11.8.2018
 """
 
-from .db_mapping_base import DatabaseMappingBase
+from datetime import datetime, timezone
 from sqlalchemy import MetaData, Table, inspect
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.sql.expression import Alias
+from .db_mapping_base import DatabaseMappingBase
 from .exception import SpineTableNotFoundError
 from .helpers import forward_sweep
-from datetime import datetime, timezone
 
 # TODO: improve docstrings
 
@@ -78,54 +78,22 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self._create_diff_tables_and_mapping()
         self._table_to_sq_attr = self._make_table_to_sq_attr()
 
-    def _load_subqueries(self):
-        """Assigns all subquery attributes. This is needed by ``_make_table_to_sq_attr``.
-        """
-        self._alternative_sq = self.alternative_sq
-        self._scenario_sq = self.scenario_sq
-        self._scenario_alternative_sq = self.scenario_alternative_sq
-        self._entity_class_sq = self.entity_class_sq
-        self._entity_sq = self.entity_sq
-        self._entity_class_type_sq = self.entity_class_type_sq
-        self._entity_type_sq = self.entity_type_sq
-        self._object_sq = self.object_sq
-        self._object_class_sq = self.object_class_sq
-        self._object_sq = self.object_sq
-        self._relationship_class_sq = self.relationship_class_sq
-        self._relationship_sq = self.relationship_sq
-        self._entity_group_sq = self.entity_group_sq
-        self._parameter_definition_sq = self.parameter_definition_sq
-        self._parameter_value_sq = self.parameter_value_sq
-        self._parameter_tag_sq = self.parameter_tag_sq
-        self._parameter_definition_tag_sq = self.parameter_definition_tag_sq
-        self._parameter_value_list_sq = self.parameter_value_list_sq
-        self._ext_scenario_alternative_sq = self.ext_scenario_alternative_sq
-        self._wide_scenario_alternative_sq = self.wide_scenario_alternative_sq
-        self._ext_object_sq = self.ext_object_sq
-        self._ext_relationship_class_sq = self.ext_relationship_class_sq
-        self._wide_relationship_class_sq = self.wide_relationship_class_sq
-        self._ext_relationship_sq = self.ext_relationship_sq
-        self._wide_relationship_sq = self.wide_relationship_sq
-        self._ext_object_group_sq = self.ext_object_group_sq
-        self._object_parameter_definition_sq = self.object_parameter_definition_sq
-        self._relationship_parameter_definition_sq = self.relationship_parameter_definition_sq
-        self._object_parameter_value_sq = self.object_parameter_value_sq
-        self._relationship_parameter_value_sq = self.relationship_parameter_value_sq
-        self._ext_parameter_definition_tag_sq = self.ext_parameter_definition_tag_sq
-        self._wide_parameter_definition_tag_sq = self.wide_parameter_definition_tag_sq
-        self._ord_parameter_value_list_sq = self.ord_parameter_value_list_sq
-        self._wide_parameter_value_list_sq = self.wide_parameter_value_list_sq
-
     def _make_table_to_sq_attr(self):
         """Returns a dict mapping table names to subquery attribute names, involving that table.
         """
-        self._load_subqueries()
+        # This 'loads' our subquery attributes
+        for attr in dir(self):
+            getattr(self, attr)
         table_to_sq_attr = {}
-        for attr, val in self.__dict__.items():
+        for attr, val in vars(self).items():
             if not isinstance(val, Alias):
                 continue
             tables = set()
-            func = lambda x: isinstance(x, Table) and tables.add(x.name)
+
+            def func(x):
+                if isinstance(x, Table) and not x.name.startswith(self.diff_prefix):
+                    tables.add(x.name)
+
             forward_sweep(val, func)
             # Now `tables` contains all tables related to `val`
             for table in tables:
