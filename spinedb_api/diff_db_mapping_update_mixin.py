@@ -352,7 +352,7 @@ class DiffDatabaseMappingUpdateMixin:
         ids_to_remove = set()
         scenario_ids = set()
         for item in items:
-            scenario_id = item["scenario_id"]
+            scenario_id = item["id"]
             scenario_ids.add(scenario_id)
             alternative_id_list = item["alternative_id_list"]
             alternative_id_list = [int(x) for x in alternative_id_list.split(",")] if alternative_id_list else []
@@ -363,11 +363,11 @@ class DiffDatabaseMappingUpdateMixin:
             for k, alternative_id in enumerate(alternative_id_list):
                 scen_alt_id = scenario_alternative_ids.get((scenario_id, alternative_id))
                 if scen_alt_id is None:
-                    item = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
-                    items_to_add.append(item)
+                    item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
+                    items_to_add.append(item_to_add)
                 else:
-                    item = {"id": scen_alt_id, "rank": k + 1}
-                    items_to_update.append(item)
+                    item_to_update = {"id": scen_alt_id, "rank": k + 1}
+                    items_to_update.append(item_to_update)
             for alternative_id in current_alternative_id_list:
                 if alternative_id not in alternative_id_list:
                     ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
@@ -386,24 +386,24 @@ class DiffDatabaseMappingUpdateMixin:
         }
         items_to_add = list()
         ids_to_remove = set()
-        definition_ids = set()
+        param_def_ids = set()
         for item in items:
-            definition_id = item["parameter_definition_id"]
-            definition_ids.add(definition_id)
+            param_def_id = item["id"]
+            param_def_ids.add(param_def_id)
             tag_id_list = item["parameter_tag_id_list"]
             tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
-            current_tag_id_list = current_tag_id_lists[definition_id]
+            current_tag_id_list = current_tag_id_lists[param_def_id]
             current_tag_id_list = [int(x) for x in current_tag_id_list.split(",")] if current_tag_id_list else []
             for tag_id in tag_id_list:
                 if tag_id not in current_tag_id_list:
-                    item = {"parameter_definition_id": definition_id, "parameter_tag_id": tag_id}
-                    items_to_add.append(item)
+                    item_to_add = {"parameter_definition_id": param_def_id, "parameter_tag_id": tag_id}
+                    items_to_add.append(item_to_add)
             for tag_id in current_tag_id_list:
                 if tag_id not in tag_id_list:
-                    ids_to_remove.add(definition_tag_ids[definition_id, tag_id])
+                    ids_to_remove.add(definition_tag_ids[param_def_id, tag_id])
         self.remove_items(parameter_definition_tag=ids_to_remove)
         _, error_log = self.add_parameter_definition_tags(*items_to_add, strict=strict)
-        return definition_ids, error_log
+        return param_def_ids, error_log
 
     def update_wide_parameter_value_lists(self, *wide_items, strict=False):
         """Update parameter value_lists.

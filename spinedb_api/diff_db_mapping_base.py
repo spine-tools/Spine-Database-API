@@ -92,7 +92,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
 
             def func(x):
                 if isinstance(x, Table) and not x.name.startswith(self.diff_prefix):
-                    tables.add(x.name)
+                    tables.add(x.name)  # pylint: disable=cell-var-from-loop
 
             forward_sweep(val, func)
             # Now `tables` contains all tables related to `val`
