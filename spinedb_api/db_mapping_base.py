@@ -697,22 +697,22 @@ class DatabaseMappingBase:
     @property
     def linked_scenario_alternative_sq(self):
         if self._linked_scenario_alternative_sq is None:
-            scenario_alternative = aliased(self.scenario_alternative_sq)
             scenario_next_alternative = aliased(self.scenario_alternative_sq)
             self._linked_scenario_alternative_sq = (
                 self.query(
-                    scenario_alternative.c.id.label("id"),
-                    scenario_alternative.c.scenario_id.label("scenario_id"),
-                    scenario_alternative.c.alternative_id.label("alternative_id"),
+                    self.scenario_alternative_sq.c.id.label("id"),
+                    self.scenario_alternative_sq.c.scenario_id.label("scenario_id"),
+                    self.scenario_alternative_sq.c.alternative_id.label("alternative_id"),
                     scenario_next_alternative.c.alternative_id.label("next_alternative_id"),
                 )
                 .outerjoin(
                     scenario_next_alternative,
                     and_(
-                        scenario_next_alternative.c.scenario_id == scenario_alternative.c.scenario_id,
-                        scenario_next_alternative.c.rank == scenario_alternative.c.rank + 1,
+                        scenario_next_alternative.c.scenario_id == self.scenario_alternative_sq.c.scenario_id,
+                        scenario_next_alternative.c.rank == self.scenario_alternative_sq.c.rank + 1,
                     ),
                 )
+                .order_by(self.scenario_alternative_sq.c.scenario_id, self.scenario_alternative_sq.c.rank)
                 .subquery()
             )
         return self._linked_scenario_alternative_sq
@@ -720,7 +720,6 @@ class DatabaseMappingBase:
     @property
     def ext_linked_scenario_alternative_sq(self):
         if self._ext_linked_scenario_alternative_sq is None:
-            alternative = aliased(self.alternative_sq)
             next_alternative = aliased(self.alternative_sq)
             self._ext_linked_scenario_alternative_sq = (
                 self.query(
@@ -728,13 +727,13 @@ class DatabaseMappingBase:
                     self.linked_scenario_alternative_sq.c.scenario_id.label("scenario_id"),
                     self.scenario_sq.c.name.label("scenario_name"),
                     self.linked_scenario_alternative_sq.c.alternative_id.label("alternative_id"),
-                    alternative.c.name.label("alternative_name"),
+                    self.alternative_sq.c.name.label("alternative_name"),
                     self.linked_scenario_alternative_sq.c.next_alternative_id.label("next_alternative_id"),
                     next_alternative.c.name.label("next_alternative_name"),
                 )
                 .filter(self.linked_scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id)
-                .join(alternative, alternative.c.id == self.linked_scenario_alternative_sq.c.alternative_id)
-                .join(
+                .filter(self.alternative_sq.c.id == self.linked_scenario_alternative_sq.c.alternative_id)
+                .outerjoin(
                     next_alternative, next_alternative.c.id == self.linked_scenario_alternative_sq.c.next_alternative_id
                 )
                 .subquery()

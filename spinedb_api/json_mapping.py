@@ -2148,14 +2148,11 @@ def dict_to_map(map_dict):
 def type_class_list_from_spec(types, num_sections, skip_sections=None):
     if skip_sections is None:
         skip_sections = []
-    do_nothing = lambda x: x
     type_conv_list = []
     for section in range(num_sections):
         type_class = types.get(section, None)
-        if section in skip_sections:
-            type_class = do_nothing
-        elif type_class is None:
-            type_class = do_nothing
+        if section in skip_sections or type_class is None:
+            type_class = lambda x: x
         type_conv_list.append(type_class)
     return type_conv_list
 

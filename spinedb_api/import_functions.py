@@ -138,7 +138,11 @@ def import_data(
         tuple: number of inserted/changed entities and list of ImportErrorLogItem with
             any import errors
     """
-    tasks = {
+    # NOTE: The order is important, because of references
+    data_by_function = {
+        import_alternatives: alternatives,
+        import_scenarios: scenarios,
+        import_scenario_alternatives: scenario_alternatives,
         import_object_classes: object_classes,
         import_relationship_classes: relationship_classes,
         import_parameter_value_lists: parameter_value_lists,
@@ -149,13 +153,10 @@ def import_data(
         import_object_groups: object_groups,
         import_object_parameter_values: object_parameter_values,
         import_relationship_parameter_values: relationship_parameter_values,
-        import_alternatives: alternatives,
-        import_scenarios: scenarios,
-        import_scenario_alternatives: scenario_alternatives,
     }
     error_log = []
     num_imports = 0
-    for import_function, data in tasks.items():
+    for import_function, data in data_by_function.items():
         if data:
             new, errors = import_function(db_map, data)
             num_imports += new
@@ -175,6 +176,9 @@ def get_data_for_import(
     object_groups=(),
     object_parameter_values=(),
     relationship_parameter_values=(),
+    alternatives=(),
+    scenarios=(),
+    scenario_alternatives=(),
 ):
     """Returns an iterator of data for import, that the user can call instead of `import_data`
     if they want to add and update the data by themselves.
@@ -204,6 +208,13 @@ def get_data_for_import(
     Returns:
         dict(str, list)
     """
+    # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
+    if alternatives:
+        yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
+    if scenarios:
+        yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
+    if scenario_alternatives:
+        yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
     if relationship_classes:
@@ -372,7 +383,8 @@ def import_scenario_alternatives(db_map, data):
 
 def _get_scenario_alternatives_for_import(db_map, data):
     scenario_alternative_id_lists = {
-        x.id: [int(id_) for id_ in x.alternative_id_list.split(",")] for x in db_map.query(db_map.wide_scenario_sq)
+        x.id: [int(id_) for id_ in x.alternative_id_list.split(",")] if x.alternative_id_list else []
+        for x in db_map.query(db_map.wide_scenario_sq)
     }
     scenario_alternative_ids = {
         (x.scenario_id, x.alternative_id): x.id for x in db_map.query(db_map.scenario_alternative_sq)
@@ -423,7 +435,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                 item = {"id": id_, "rank": k + 1}
                 to_update.append(item)
             else:
-                item = {"scen_id": scen_id, "alt_id": alt_id, "rank": k + 1}
+                item = {"scenario_id": scen_id, "alternative_id": alt_id, "rank": k + 1}
                 to_add.append(item)
     return to_add, to_update, error_log
 

@@ -203,6 +203,9 @@ def export_scenario_alternatives(db_map, ids=(Anyone,)):
     """
     sq = db_map.ext_linked_scenario_alternative_sq
     return sorted(
-        (x.scenario_name, (x.alternative_name,), x.next_alternative_name)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        (
+            (x.scenario_name, (x.alternative_name,), x.next_alternative_name)
+            for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        ),
+        key=lambda x: x[0],
     )
