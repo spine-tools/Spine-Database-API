@@ -27,10 +27,7 @@ from .check_functions import (
     check_entity_group,
     check_parameter_definition,
     check_parameter_value,
-    check_parameter_tag,
-    check_parameter_definition_tag,
     check_scenario,
-    check_scenario_alternative,
     check_wide_parameter_value_list,
 )
 from .parameter_value import to_database
@@ -79,7 +76,7 @@ def import_data(
     relationship_parameter_values=(),
     alternatives=(),
     scenarios=(),
-    scenario_alternatives=()
+    scenario_alternatives=(),
 ):
     """Imports data into a Spine database using name references (rather than id
     references).
@@ -154,7 +151,7 @@ def import_data(
         import_relationship_parameter_values: relationship_parameter_values,
         import_alternatives: alternatives,
         import_scenarios: scenarios,
-        import_scenario_alternatives: scenario_alternatives
+        import_scenario_alternatives: scenario_alternatives,
     }
     error_log = []
     num_imports = 0
@@ -247,8 +244,8 @@ def import_alternatives(db_map, data):
         tuple of int and list: Number of successfully inserted alternatives, list of errors
     """
     to_add, to_update, error_log = _get_alternatives_for_import(db_map, data)
-    added = db_map._add_alternatives(*to_add)
     updated = db_map._update_alternatives(*to_update)
+    added = db_map._add_alternatives(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -307,8 +304,8 @@ def import_scenarios(db_map, data):
         tuple of int and list: Number of successfully inserted scenarios, list of errors
     """
     to_add, to_update, error_log = _get_scenarios_for_import(db_map, data)
-    added = db_map._add_scenarios(*to_add)
     updated = db_map._update_scenarios(*to_update)
+    added = db_map._add_scenarios(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -335,9 +332,7 @@ def _get_scenarios_for_import(db_map, data):
         try:
             check_scenario(item, scenario_ids)
         except SpineIntegrityError as e:
-            error_log.append(
-                ImportErrorLogItem(msg=f"Could not import scenario '{name}': {e.msg}", db_type="scenario")
-            )
+            error_log.append(ImportErrorLogItem(msg=f"Could not import scenario '{name}': {e.msg}", db_type="scenario"))
             continue
         finally:
             if scenario_id is not None:
@@ -357,98 +352,80 @@ def import_scenario_alternatives(db_map, data):
 
     Example:
 
-        data = [('scenario', ['alternative']), ('another_scenario', [('alternative1', 0), ('alternative2', 1)])]
+        data = [('scenario', ['alternative0']), ('another_scenario', ['alternative1', 'alternative2'], 'alternative0')]
         import_scenario_alternatives(db_map, data)
 
     Args:
         db_map (DiffDatabaseMapping): mapping for database to insert into
-        data (Iterable): an iterable of iterables of scenario names and iterables of alternative names or
-            iterables with alternative names and ranks
+        data (Iterable): an iterable of (scenario name, iterable of alternative names,
+            and optionally, 'before' alternative name). Alternatives are inserted before the 'before' alternative, or
+            at the end if not given.
 
     Returns:
         tuple of int and list: Number of successfully inserted scenario alternatives, list of errors
     """
     to_add, to_update, error_log = _get_scenario_alternatives_for_import(db_map, data)
-    added = db_map._add_scenario_alternatives(*to_add)
     updated = db_map._update_scenario_alternatives(*to_update)
+    added = db_map._add_scenario_alternatives(*to_add)
     return len(added) + len(updated), error_log
 
 
 def _get_scenario_alternatives_for_import(db_map, data):
-    scenario_alternatives = dict()
-    for scenario_alternative in db_map.query(db_map.scenario_alternative_sq):
-        items = scenario_alternatives.setdefault(scenario_alternative.scenario_id, list())
-        items.append({"id": scenario_alternative.id, "alternative_id": scenario_alternative.alternative_id, "rank": scenario_alternative.rank})
+    scenario_alternative_id_lists = {
+        x.id: [int(id_) for id_ in x.alternative_id_list.split(",")]
+        for x in db_map.query(db_map.wide_scenario_alternative_sq)
+    }
+    scenario_alternative_ids = {
+        (x.scenario_id, x.alternative_id): x.id for x in db_map.query(db_map.scenario_alternative_sq)
+    }
     scenario_ids = {scenario.name: scenario.id for scenario in db_map.query(db_map.scenario_sq)}
-    scenario_id_set = set(scenario_ids.values())
     alternative_ids = {alternative.name: alternative.id for alternative in db_map.query(db_map.alternative_sq)}
-    alternative_id_set = set(alternative_ids.values())
-    alternative_ranks = dict()
-    for scenario_alternative in db_map.query(db_map.scenario_alternative_sq):
-        ranks = alternative_ranks.setdefault(scenario_alternative.scenario_id, set())
-        ranks.add(scenario_alternative.rank)
     checked = set()
     to_add = []
     to_update = []
     error_log = []
-    for scenario_name, alternatives in data:
-        try:
-            scenario_id = scenario_ids[scenario_name]
-        except KeyError:
+    for scenario_name, alternatives, *optionals in data:
+        scenario_id = scenario_ids.get(scenario_name)
+        if not scenario_id:
             error_log.append(
                 ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario alternative")
             )
             continue
-        existing_scenario_alternative = scenario_alternatives.get(scenario_id)
-        for alternative in alternatives:
-            if isinstance(alternative, str):
-                alternative_name = alternative
-                rank = None
-            else:
-                alternative_name, *optionals = alternative
-                rank = optionals[0] if optionals else None
+        orig_alt_id_list = scenario_alternative_id_lists.get(scenario_id, [])
+        if optionals:
+            before_alt_name = optionals[0]
+            before_alt_id = alternative_ids.get(before_alt_name)
+        else:
+            before_alt_id = None
+        to_insert = []
+        for alternative_name in alternatives:
             if (scenario_name, alternative_name) in checked:
                 continue
-            try:
-                alternative_id = alternative_ids[alternative_name]
-            except KeyError:
+            alternative_id = alternative_ids.get(alternative_name)
+            if not alternative_id:
                 error_log.append(
                     ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario alternative")
                 )
                 continue
-            ranks = alternative_ranks.setdefault(scenario_id, set())
-            if rank is None:
-                rank = max(ranks) + 1 if ranks else 1
-            ranks.add(rank)
-            item = {
-                "scenario_id": scenario_id,
-                "alternative_id": alternative_id,
-                "rank": rank,
-            }
-            item_in_db = None
-            if existing_scenario_alternative is not None:
-                for i, existing_item in enumerate(existing_scenario_alternative):
-                    if existing_item["alternative_id"] == alternative_id:
-                        item_in_db = existing_scenario_alternative.pop(i)
-                        break
-            try:
-                check_scenario_alternative(item, scenario_alternatives, scenario_id_set, alternative_id_set)
-            except SpineIntegrityError as e:
-                error_log.append(
-                    ImportErrorLogItem(msg=f"Could not import scenario alternative for '{scenario_name}' and '{alternative_name}': {e.msg}", db_type="scenario alternative")
-                )
-                continue
-            finally:
-                if item_in_db is not None:
-                    item_in_db["rank"] = rank
-                    existing_scenario_alternative.append(item_in_db)
             checked.add((scenario_name, alternative_name))
-            if item_in_db is not None:
-                item["id"] = item_in_db["id"]
+            to_insert.append(alternative_id)
+        new_alt_id_list = [id_ for id_ in orig_alt_id_list if id_ not in to_insert]
+        try:
+            pos = new_alt_id_list.index(before_alt_id)
+        except ValueError:
+            pos = len(new_alt_id_list)
+        new_alt_id_list[pos:pos] = to_insert
+        scenario_alternative_id_lists[scenario_id] = new_alt_id_list
+
+    for scen_id, new_alt_id_list in scenario_alternative_id_lists.items():
+        for k, alt_id in enumerate(new_alt_id_list):
+            id_ = scenario_alternative_ids.get((scen_id, alt_id))
+            if id_ is not None:
+                item = {"id": id_, "rank": k + 1}
                 to_update.append(item)
             else:
+                item = {"scen_id": scen_id, "alt_id": alt_id, "rank": k + 1}
                 to_add.append(item)
-                scenario_alternatives.setdefault(scenario_id, list()).append(item)
     return to_add, to_update, error_log
 
 
@@ -469,8 +446,8 @@ def import_object_classes(db_map, data):
         tuple of int and list: Number of successfully inserted object classes, list of errors
     """
     to_add, to_update, error_log = _get_object_classes_for_import(db_map, data)
-    added = db_map._add_object_classes(*to_add)
     updated = db_map._update_object_classes(*to_update)
+    added = db_map._add_object_classes(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -530,8 +507,8 @@ def import_relationship_classes(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_relationship_classes_for_import(db_map, data)
-    added = db_map._add_wide_relationship_classes(*to_add)
     updated = db_map._update_wide_relationship_classes(*to_update)
+    added = db_map._add_wide_relationship_classes(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -782,8 +759,8 @@ def import_object_parameters(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_object_parameters_for_import(db_map, data)
-    added = db_map._add_parameter_definitions(*to_add)
     updated = db_map._update_parameter_definitions(*to_update)
+    added = db_map._add_parameter_definitions(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -855,8 +832,8 @@ def import_relationship_parameters(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_relationship_parameters_for_import(db_map, data)
-    added = db_map._add_parameter_definitions(*to_add)
     updated = db_map._update_parameter_definitions(*to_update)
+    added = db_map._add_parameter_definitions(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -932,8 +909,8 @@ def import_object_parameter_values(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_object_parameter_values_for_import(db_map, data)
-    added = db_map._add_parameter_values(*to_add)
     updated = db_map._update_parameter_values(*to_update)
+    added = db_map._add_parameter_values(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -958,14 +935,14 @@ def _get_object_parameter_values_for_import(db_map, data):
         o_id = object_ids.get((object_name, oc_id), None)
         p_id = parameter_ids.get((parameter_name, oc_id), None)
         if optionals:
-            try:
-                alt_id = alternatives[optionals[0]]
-            except KeyError as alternative_name:
+            alternative_name = optionals[0]
+            alt_id = alternatives.get(alternative_name)
+            if not alt_id:
                 error_log.append(
                     ImportErrorLogItem(
                         msg="Could not import parameter value for "
-                            f"'{object_name}', class '{class_name}', parameter '{parameter_name}': "
-                            f"alternative '{alternative_name}' does not exist.",
+                        f"'{object_name}', class '{class_name}', parameter '{parameter_name}': "
+                        f"alternative '{alternative_name}' does not exist.",
                         db_type="parameter value",
                     )
                 )
@@ -995,7 +972,9 @@ def _get_object_parameter_values_for_import(db_map, data):
         }
         pv_id = parameter_value_ids.pop((o_id, p_id, alt_id), None)
         try:
-            check_parameter_value(item, parameter_value_ids, parameters, objects, parameter_value_lists, alternative_ids)
+            check_parameter_value(
+                item, parameter_value_ids, parameters, objects, parameter_value_lists, alternative_ids
+            )
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -1037,8 +1016,8 @@ def import_relationship_parameter_values(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_relationship_parameter_values_for_import(db_map, data)
-    added = db_map._add_parameter_values(*to_add)
     updated = db_map._update_parameter_values(*to_update)
+    added = db_map._add_parameter_values(*to_add)
     return len(added) + len(updated), error_log
 
 
@@ -1077,14 +1056,14 @@ def _get_relationship_parameter_values_for_import(db_map, data):
         r_id = relationship_ids.get((rc_id, o_ids), None)
         p_id = parameter_ids.get((rc_id, parameter_name), None)
         if optionals:
-            try:
-                alt_id = alternatives[optionals[0]]
-            except KeyError as alternative_name:
+            alternative_name = optionals[0]
+            alt_id = alternatives.get(alternative_name)
+            if not alt_id:
                 error_log.append(
                     ImportErrorLogItem(
                         msg="Could not import parameter value for "
-                            f"'{object_names}', class '{class_name}', parameter '{parameter_name}': "
-                            f"alternative {alternative_name} does not exist.",
+                        f"'{object_names}', class '{class_name}', parameter '{parameter_name}': "
+                        f"alternative {alternative_name} does not exist.",
                         db_type="parameter value",
                     )
                 )
@@ -1158,8 +1137,8 @@ def import_parameter_value_lists(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_parameter_value_lists_for_import(db_map, data)
-    added = db_map._add_wide_parameter_value_lists(*to_add)
     updated = db_map.update_wide_parameter_value_lists(*to_update)
+    added = db_map._add_wide_parameter_value_lists(*to_add)
     return len(added) + len(updated), error_log
 
 

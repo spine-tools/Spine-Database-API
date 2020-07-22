@@ -1290,11 +1290,7 @@ class ObjectClassMapping(EntityClassMapping):
             )
         if isinstance(instance, ObjectGroupMapping):
             return ObjectClassMapping(
-                instance.name,
-                instance.members,
-                instance.parameters,
-                instance.skip_columns,
-                instance.read_start_row,
+                instance.name, instance.members, instance.parameters, instance.skip_columns, instance.read_start_row
             )
         if isinstance(instance, RelationshipClassMapping):
             return ObjectClassMapping(
@@ -1922,17 +1918,19 @@ class ScenarioAlternativeMapping(ItemMappingBase):
                 map_type: 'ScenarioAlternative'
                 scenario_name: str | Mapping
                 alternatives: str | Mapping
-                ranks: Mapping
+                before_alternative_name: str | Mapping
             }
     """
 
     MAP_TYPE = "ScenarioAlternative"
 
-    def __init__(self, scenario_name=None, alternatives=None, ranks=None, skip_columns=None, read_start_row=0):
+    def __init__(
+        self, scenario_name=None, alternatives=None, before_alternative_name=None, skip_columns=None, read_start_row=0
+    ):
         super().__init__(skip_columns, read_start_row)
         self._scenario_name = mappingbase_from_dict_int_str(scenario_name)
         self._alternatives = mappingbase_from_dict_int_str(alternatives)
-        self._ranks = mappingbase_from_dict_int_str(ranks)
+        self._before_alternative_name = mappingbase_from_dict_int_str(before_alternative_name)
 
     @property
     def scenario_name(self):
@@ -1940,11 +1938,11 @@ class ScenarioAlternativeMapping(ItemMappingBase):
 
     @property
     def alternatives(self):
-        return self.alternatives
+        return self._alternatives
 
     @property
-    def ranks(self):
-        return self.ranks
+    def before_alternative_name(self):
+        return self._before_alternative_name
 
     def is_valid(self):
         issue = self.scenario_names_issues()
@@ -1962,7 +1960,10 @@ class ScenarioAlternativeMapping(ItemMappingBase):
 
     def last_pivot_row(self):
         return max(
-            self._scenario_name.last_pivot_row(), self._alternatives.last_pivot_row(), self._ranks.last_pivot_row(), -1
+            self._scenario_name.last_pivot_row(),
+            self._alternatives.last_pivot_row(),
+            self._before_alternative_name.last_pivot_row(),
+            -1,
         )
 
     def scenario_names_issues(self):
@@ -1980,21 +1981,22 @@ class ScenarioAlternativeMapping(ItemMappingBase):
                 pivoted_columns, pivoted_data, data_header
             )
         else:
-            scenario_name_getter = None
-            scenario_name_length = None
-            scenario_name_reads = None
-        if self._alternatives.returns_value() and self._ranks.returns_value():
-            alt_and_rank_getter, alt_and_rank_length, alt_and_rank_reads = create_getter_function_from_function_list(
-                *create_getter_list([self._alternatives, self._ranks], pivoted_columns, pivoted_data, data_header),
-                list_wrap=True,
+            scenario_name_getter, scenario_name_length, scenario_name_reads = None, None, None
+        if self._alternatives.returns_value():
+            alt_getter, alt_length, alt_reads = self._alternatives.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
             )
         else:
-            alt_and_rank_getter = None
-            alt_and_rank_length = None
-            alt_and_rank_reads = None
-        functions = [scenario_name_getter, alt_and_rank_getter]
-        output_lengths = [scenario_name_length, alt_and_rank_length]
-        reads_data = [scenario_name_reads, alt_and_rank_reads]
+            alt_getter, alt_length, alt_reads = None, None, None
+        if self._before_alternative_name.returns_value():
+            before_name_getter, before_name_length, before_name_reads = self._before_alternative_name.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
+            )
+        else:
+            before_name_getter, before_name_length, before_name_reads = None, None, None
+        functions = [scenario_name_getter, alt_getter, before_name_getter]
+        output_lengths = [scenario_name_length, alt_length, before_name_length]
+        reads_data = [scenario_name_reads, alt_reads, before_name_reads]
         readers = [("scenario_alternatives",) + create_final_getter_function(functions, output_lengths, reads_data)]
         return readers
 
@@ -2004,27 +2006,45 @@ class ScenarioAlternativeMapping(ItemMappingBase):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
         scenario_name = map_dict.get("scenario_name", None)
         alternatives = map_dict.get("alternatives", None)
-        ranks = map_dict.get("ranks", None)
+        before_alternative_name = map_dict.get("before_alternative_name", None)
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
-        return ScenarioAlternativeMapping(scenario_name, alternatives, ranks, skip_columns, read_start_row)
+        return ScenarioAlternativeMapping(
+            scenario_name, alternatives, before_alternative_name, skip_columns, read_start_row
+        )
 
     def to_dict(self):
         map_dict = super().to_dict()
         map_dict["scenario_name"] = self._scenario_name.to_dict()
         map_dict["alternatives"] = self._alternatives.to_dict()
-        map_dict["ranks"] = self._ranks.to_dict()
+        map_dict["before_alternative_name"] = self._before_alternative_name.to_dict()
         return map_dict
 
     @classmethod
     def from_instance(cls, instance):
         """See base class."""
         if isinstance(instance, ScenarioAlternativeMapping):
-            return ScenarioAlternativeMapping(instance._scenario_name, instance._alternatives, instance._ranks, instance.skip_columns, instance.read_start_row)
+            return ScenarioAlternativeMapping(
+                instance._scenario_name,
+                instance._alternatives,
+                instance._before_alternative_name,
+                instance.skip_columns,
+                instance.read_start_row,
+            )
         if isinstance(instance, ObjectClassMapping):
-            return ScenarioAlternativeMapping(instance.name, instance.objects, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return ScenarioAlternativeMapping(
+                instance.name,
+                instance.objects,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
+            )
         if isinstance(instance, RelationshipClassMapping):
-            return ScenarioAlternativeMapping(instance.name, instance.object_classes[0], skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+            return ScenarioAlternativeMapping(
+                instance.name,
+                instance.object_classes[0],
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
+            )
         if isinstance(instance, NamedItemMapping):
             return ScenarioAlternativeMapping(
                 instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
@@ -2110,25 +2130,19 @@ def dict_to_map(map_dict):
     if not isinstance(map_dict, dict):
         raise TypeError(f"map_dict must be a dict, instead it was: {type(map_dict)}")
     map_type = map_dict.get("map_type", None)
-    if map_type == RelationshipClassMapping.MAP_TYPE:
-        mapping = RelationshipClassMapping.from_dict(map_dict)
-    elif map_type == ObjectClassMapping.MAP_TYPE:
-        mapping = ObjectClassMapping.from_dict(map_dict)
-    elif map_type == ObjectGroupMapping.MAP_TYPE:
-        mapping = ObjectGroupMapping.from_dict(map_dict)
-    elif map_type == AlternativeMapping.MAP_TYPE:
-        mapping = AlternativeMapping.from_dict(map_dict)
-    elif map_type == ScenarioMapping.MAP_TYPE:
-        mapping = ScenarioMapping.from_dict(map_dict)
-    elif map_type == ScenarioAlternativeMapping.MAP_TYPE:
-        mapping = ScenarioAlternativeMapping.from_dict(map_dict)
-    else:
-        raise ValueError(
-            f"""invalid "map_type" value, expected "{RelationshipClassMapping.MAP_TYPE}",
-            "{AlternativeMapping.MAP_TYPE}", "{ScenarioMapping.MAP_TYPE}",
-            "{ObjectClassMapping.MAP_TYPE}", or "{ObjectGroupMapping.MAP_TYPE}" got {map_type}"""
-        )
-    return mapping
+    mapping_classes = (
+        RelationshipClassMapping,
+        ObjectClassMapping,
+        ObjectGroupMapping,
+        AlternativeMapping,
+        ScenarioMapping,
+        ScenarioAlternativeMapping,
+    )
+    mapping_classes = {c.MAP_TYPE: c for c in mapping_classes}
+    mapping_class = mapping_classes.get(map_type)
+    if mapping_class is not None:
+        return mapping_class(map_dict)
+    raise ValueError(f"""invalid "map_type" value, expected any of {", ".join(mapping_classes)}, got {map_type}""")
 
 
 def type_class_list_from_spec(types, num_sections, skip_sections=None):
