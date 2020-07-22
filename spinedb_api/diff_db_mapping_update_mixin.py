@@ -339,8 +339,57 @@ class DiffDatabaseMappingUpdateMixin:
             msg = "DBAPIError while updating parameter tags: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def set_scenario_alternatives(self, *items, strict=False):
-        """Sets alternatives for scenarios."""
+    def update_wide_parameter_value_lists(self, *wide_items, strict=False):
+        """Update parameter value lists."""
+        checked_wide_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
+            *wide_items, strict=strict
+        )
+        updated_ids = self._update_wide_parameter_value_lists(*checked_wide_items)
+        return updated_ids, intgr_error_log
+
+    def _update_wide_parameter_value_lists(self, *checked_wide_items, strict=False):
+        """Update parameter value lists without checking integrity."""
+        wide_parameter_value_lists = {x.id: x._asdict() for x in self.query(self.wide_parameter_value_list_sq)}
+        updated_wide_items = list()
+        updated_ids = set()
+        for wide_item in checked_wide_items:
+            id_ = wide_item.get("id")
+            if "id" is None:
+                continue
+            if list(wide_item.keys()) == ["id"]:
+                continue
+            updated_wide_item = wide_parameter_value_lists.get(id_)
+            if updated_wide_item is None:
+                continue
+            updated_wide_item["value_list"] = updated_wide_item["value_list"].split(";")
+            if all(updated_wide_item[k] == wide_item[k] for k in updated_wide_item.keys() & wide_item.keys()):
+                continue
+            updated_wide_item.update(wide_item)
+            updated_wide_items.append(updated_wide_item)
+            updated_ids.add(id_)
+        try:
+            self.remove_items(parameter_value_list=updated_ids)
+            self.readd_wide_parameter_value_lists(*updated_wide_items)
+            return updated_ids
+        except SpineDBAPIError as e:
+            msg = "DBAPIError while updating parameter value lists: {}".format(e.msg)
+            raise SpineDBAPIError(msg)
+
+    def get_data_to_set_scenario_alternatives(self, *items):
+        """Returns data to add, update, and remove, in order to set wide scenario alternatives.
+
+        :param Iterable items: One or more wide scenario_alternative :class:`dict` objects to set.
+            Each item must include the following keys:
+                "id": integer scenario id
+                "alternative_id_list": string comma separated list of alternative ids for that scenario
+
+        :returns:
+            - **items_to_add** -- A list of narrow scenario_alternative :class:`dict` objects to add.
+
+            - **items_to_update** --  A list of narrow scenario_alternative :class:`dict` objects to update.
+
+            - **ids_to_remove** -- A set of integer scenario_alternative ids to remove
+        """
         current_alternative_id_lists = {
             x.id: x.alternative_id_list for x in self.query(self.wide_scenario_alternative_sq)
         }
@@ -349,11 +398,9 @@ class DiffDatabaseMappingUpdateMixin:
         }
         items_to_add = list()
         items_to_update = list()
-        removed_ids = set()
-        scenario_ids = set()
+        ids_to_remove = set()
         for item in items:
             scenario_id = item["id"]
-            scenario_ids.add(scenario_id)
             alternative_id_list = item["alternative_id_list"]
             alternative_id_list = [int(x) for x in alternative_id_list.split(",")] if alternative_id_list else []
             current_alternative_id_list = current_alternative_id_lists[scenario_id]
@@ -370,14 +417,22 @@ class DiffDatabaseMappingUpdateMixin:
                     items_to_update.append(item_to_update)
             for alternative_id in current_alternative_id_list:
                 if alternative_id not in alternative_id_list:
-                    removed_ids.add(scenario_alternative_ids[scenario_id, alternative_id])
-        self.remove_items(scenario_alternative=removed_ids)
-        updated_ids = self._update_scenario_alternatives(*items_to_update, strict=strict)
-        added_ids, add_error_log = self.add_scenario_alternatives(*items_to_add, strict=strict)
-        return (updated_ids - removed_ids) | added_ids, add_error_log
+                    ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
+        return items_to_add, items_to_update, ids_to_remove
 
-    def set_parameter_definition_tags(self, *items, strict=False):
-        """Set tags for parameter definitions."""
+    def get_data_to_set_parameter_definition_tags(self, *items):
+        """Returns data to add, and remove, in order to set wide parameter definition tags.
+
+        :param Iterable items: One or more wide parameter_definition_tag :class:`dict` objects to set.
+            Each item must include the following keys:
+                "id": parameter definition id
+                "parameter_tag_id_list": string comma separated list of tag ids for that definition
+
+        :returns:
+            - **items_to_add** -- A list of narrow parameter_definition_tag :class:`dict` objects to add.
+
+            - **ids_to_remove** -- A set of integer parameter_definition_tag ids to remove
+        """
         current_tag_id_lists = {
             x.id: x.parameter_tag_id_list for x in self.query(self.wide_parameter_definition_tag_sq)
         }
@@ -385,67 +440,18 @@ class DiffDatabaseMappingUpdateMixin:
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
         items_to_add = list()
-        kept_ids = set()
-        removed_ids = set()
-        param_def_ids = set()
+        ids_to_remove = set()
         for item in items:
             param_def_id = item["id"]
-            param_def_ids.add(param_def_id)
             tag_id_list = item["parameter_tag_id_list"]
             tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
             current_tag_id_list = current_tag_id_lists[param_def_id]
             current_tag_id_list = [int(x) for x in current_tag_id_list.split(",")] if current_tag_id_list else []
             for tag_id in tag_id_list:
-                def_tag_id = definition_tag_ids.get((param_def_id, tag_id))
-                if def_tag_id is None:
+                if (param_def_id, tag_id) not in definition_tag_ids:
                     item_to_add = {"parameter_definition_id": param_def_id, "parameter_tag_id": tag_id}
                     items_to_add.append(item_to_add)
-                else:
-                    kept_ids.add(def_tag_id)
             for tag_id in current_tag_id_list:
                 if tag_id not in tag_id_list:
-                    removed_ids.add(definition_tag_ids[param_def_id, tag_id])
-        self.remove_items(parameter_definition_tag=removed_ids)
-        added_ids, error_log = self.add_parameter_definition_tags(*items_to_add, strict=strict)
-        return (kept_ids - removed_ids) | added_ids, error_log
-
-    def update_wide_parameter_value_lists(self, *wide_items, strict=False):
-        """Update parameter value_lists.
-        """
-        # NOTE: Since the value list can actually change size, we proceed by removing the entire list and then
-        # inserting the new one to avoid unnecessary headaches
-        checked_wide_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
-            *wide_items, strict=strict
-        )
-        wide_parameter_value_lists = {x.id: x._asdict() for x in self.query(self.wide_parameter_value_list_sq)}
-        updated_ids = set()
-        items = list()
-        for wide_item in checked_wide_items:
-            if "id" not in wide_item:
-                continue
-            if len(wide_item) == 1:
-                continue
-            id_ = wide_item["id"]
-            if id_ not in wide_parameter_value_lists:
-                continue
-            updated_ids.add(id_)
-            updated_wide_item = wide_parameter_value_lists[id_]
-            updated_wide_item["value_list"] = updated_wide_item["value_list"].split(";")
-            updated_wide_item.update(wide_item)
-            for k, value in enumerate(updated_wide_item["value_list"]):
-                narrow_item = {"id": id_, "name": updated_wide_item["name"], "value_index": k, "value": value}
-                items.append(narrow_item)
-        try:
-            self.query(self.DiffParameterValueList).filter(
-                self.in_(self.DiffParameterValueList.id, updated_ids)
-            ).delete(synchronize_session=False)
-            self.session.bulk_insert_mappings(self.DiffParameterValueList, items)
-            self.session.commit()
-            self.added_item_id["parameter_value_list"].update(updated_ids)
-            self.removed_item_id["parameter_value_list"].update(updated_ids)
-            self._mark_as_dirty("parameter_value_list", updated_ids)
-            return updated_ids, intgr_error_log
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while updating parameter value lists: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
+                    ids_to_remove.add(definition_tag_ids[param_def_id, tag_id])
+        return items_to_add, ids_to_remove

@@ -16,7 +16,6 @@
 """
 # TODO: Review docstrings, they are almost good
 
-from itertools import groupby
 
 from .exception import SpineIntegrityError
 from .check_functions import (
@@ -315,20 +314,19 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        # TODO: Use `self.wide_scenario_alternative_sq` here
-        scenario_alternatives = {}
-        sq = self.scenario_alternative_sq
-        for scen_id, scen_alt in groupby(
-            self.query(sq).order_by(sq.c.scenario_id, sq.c.rank), key=lambda s: s.scenario_id
-        ):
-            scenario_alternatives.setdefault(scen_id, []).extend(list(sa._asdict() for sa in scen_alt))
-        scenarios = set(s.id for s in self.query(self.scenario_sq))
-        alternatives = set(s.id for s in self.query(self.alternative_sq))
+        ids_by_alt_id = {}
+        ids_by_rank = {}
+        for item in self.query(self.scenario_alternative_sq):
+            ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
+            ids_by_rank[item.scenario_id, item.rank] = item.id
+        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
+        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
         for item in items:
             try:
-                check_scenario_alternative(item, scenario_alternatives, scenarios, alternatives)
+                check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
                 checked_items.append(item)
-                scenario_alternatives.setdefault(item["scenario_id"], []).append(item)
+                ids_by_alt_id[item["scenario_id"], item["alternative_id"]] = None
+                ids_by_rank[item["scenario_id"], item["rank"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -352,16 +350,14 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        # TODO: Use `self.wide_scenario_alternative_sq` here
-        scenario_alternatives = {}
-        sq = self.scenario_alternative_sq
-        for scen_id, scen_alt in groupby(
-            self.query(sq).order_by(sq.c.scenario_id, sq.c.rank), key=lambda s: s.scenario_id
-        ):
-            scenario_alternatives.setdefault(scen_id, []).extend(list(sa._asdict() for sa in scen_alt))
-        sa_id = {sa.id: sa._asdict() for sa in self.query(sq)}
-        scenarios = set(s.id for s in self.query(self.scenario_sq))
-        alternatives = set(s.id for s in self.query(self.alternative_sq))
+        ids_by_alt_id = {}
+        ids_by_rank = {}
+        for item in self.query(self.scenario_alternative_sq):
+            ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
+            ids_by_rank[item.scenario_id, item.rank] = item.id
+        scenario_alternatives = {sa.id: sa._asdict() for sa in self.query(self.scenario_alternative_sq)}
+        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
+        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
         for item in items:
             try:
                 id_ = item["id"]
@@ -372,10 +368,9 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                updated_item = sa_id.pop(id_)
-                scenario_alternatives[updated_item["scenario_id"]] = [
-                    sa for sa in scenario_alternatives[updated_item["scenario_id"]] if sa["id"] != updated_item["id"]
-                ]
+                updated_item = scenario_alternatives.pop(id_)
+                del ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]]
+                del ids_by_rank[updated_item["scenario_id"], updated_item["rank"]]
             except KeyError:
                 msg = "Scenario alternative not found."
                 if strict:
@@ -384,10 +379,11 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 updated_item.update(item)
-                check_scenario_alternative(updated_item, scenario_alternatives, scenarios, alternatives)
+                check_scenario_alternative(updated_item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
                 checked_items.append(item)
-                sa_id[updated_item["id"]] = updated_item
-                scenario_alternatives.setdefault(updated_item["scenario_id"], []).append(updated_item)
+                ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]] = id_
+                ids_by_rank[updated_item["scenario_id"], updated_item["rank"]] = id_
+                scenario_alternatives[id_] = updated_item
             except SpineIntegrityError as e:
                 if strict:
                     raise e

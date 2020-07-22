@@ -40,7 +40,7 @@ def check_scenario(item, current_items):
         raise SpineIntegrityError(f"There can't be more than one scenario called '{name}'.", id=current_items[name])
 
 
-def check_scenario_alternative(item, scenario_alternatives, scenarios, alternatives):
+def check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names):
     """
     Checks if given scenario alternative violates a database's integrity.
 
@@ -50,13 +50,14 @@ def check_scenario_alternative(item, scenario_alternatives, scenarios, alternati
         - "alternative_id": alternative's id
         - "rank": alternative's rank within the scenario
 
-    :param dict scenario_alternatives: a mapping from scenario ids to scenario alternative items
+    :param dict ids_by_alt_id: a mapping from (scenario id, alternative id) tuples to scenario_alternative ids
         that already exist in the database
-    :param Iterable scenarios: the ids of existing scenarios in the database
-    :param Iterable alternatives: the ids of existing alternatives in the database
+    :param dict ids_by_rank: a mapping from (scenario id, rank) tuples to scenario_alternative ranks
+        that already exist in the database
+    :param Iterable scenario_names: the names of existing scenarios in the database keyed by id
+    :param Iterable alternative_names: the names of existing alternatives in the database keyed by id
     :raises SpineIntegrityError: if insertion of ``item`` would violate database's integrity
     """
-    # FIXME: `scenarios` and `alternatives` should map ids to names so we can improve error messages
     try:
         scen_id = item["scenario_id"]
     except KeyError:
@@ -69,15 +70,18 @@ def check_scenario_alternative(item, scenario_alternatives, scenarios, alternati
         rank = item["rank"]
     except KeyError:
         raise SpineIntegrityError("Missing scenario alternative rank.")
-    if scen_id not in scenarios:
+    scen_name = scenario_names.get(scen_id)
+    if scen_name is None:
         raise SpineIntegrityError("Scenario not found.")
-    if alt_id not in alternatives:
+    alt_name = alternative_names.get(scen_id)
+    if alt_name is None:
         raise SpineIntegrityError("Alternative not found.")
-    if scen_id in scenario_alternatives:
-        if alt_id in (sa["alternative_id"] for sa in scenario_alternatives[scen_id]):
-            raise SpineIntegrityError("Alternative already exists in scenario alternatives.")
-        if rank in (sa["rank"] for sa in scenario_alternatives[scen_id]):
-            raise SpineIntegrityError(f"Rank {rank} already exists in scenario alteratives.")
+    dup_id = ids_by_alt_id.get((scen_id, alt_id))
+    if dup_id is not None:
+        raise SpineIntegrityError(f"Alternative {alt_name} already exists in scenario {scen_name}.", id=dup_id)
+    dup_id = ids_by_rank.get((scen_id, rank))
+    if dup_id is not None:
+        raise SpineIntegrityError(f"Rank {rank} already exists in scenario {scen_name}.", id=dup_id)
 
 
 def check_object_class(item, current_items, object_class_type):
