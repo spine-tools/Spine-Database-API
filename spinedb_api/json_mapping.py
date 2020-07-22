@@ -153,7 +153,7 @@ class NoneMapping(MappingBase):
     @classmethod
     def from_dict(cls, map_dict):
         """Creates a mapping object from dict representation of mapping
-        
+
         Should return an instance of the subclass
         """
         if not isinstance(map_dict, dict):
@@ -2141,7 +2141,7 @@ def dict_to_map(map_dict):
     mapping_classes = {c.MAP_TYPE: c for c in mapping_classes}
     mapping_class = mapping_classes.get(map_type)
     if mapping_class is not None:
-        return mapping_class(map_dict)
+        return mapping_class.from_dict(map_dict)
     raise ValueError(f"""invalid "map_type" value, expected any of {", ".join(mapping_classes)}, got {map_type}""")
 
 
