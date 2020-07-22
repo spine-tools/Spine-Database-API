@@ -73,7 +73,7 @@ def check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names,
     scen_name = scenario_names.get(scen_id)
     if scen_name is None:
         raise SpineIntegrityError("Scenario not found.")
-    alt_name = alternative_names.get(scen_id)
+    alt_name = alternative_names.get(alt_id)
     if alt_name is None:
         raise SpineIntegrityError("Alternative not found.")
     dup_id = ids_by_alt_id.get((scen_id, alt_id))

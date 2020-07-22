@@ -17,7 +17,7 @@
 # TODO: Finish docstrings
 
 import logging
-from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true
+from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
@@ -107,8 +107,10 @@ class DatabaseMappingBase:
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
         # Special convenience subqueries that join two or more tables
-        self._ext_scenario_alternative_sq = None
-        self._wide_scenario_alternative_sq = None
+        self._ext_scenario_sq = None
+        self._wide_scenario_sq = None
+        self._linked_scenario_alternative_sq = None
+        self._ext_linked_scenario_alternative_sq = None
         self._ext_object_sq = None
         self._ext_relationship_class_sq = None
         self._wide_relationship_class_sq = None
@@ -648,9 +650,9 @@ class DatabaseMappingBase:
         return self._parameter_value_list_sq
 
     @property
-    def ext_scenario_alternative_sq(self):
-        if self._ext_scenario_alternative_sq is None:
-            self._ext_scenario_alternative_sq = (
+    def ext_scenario_sq(self):
+        if self._ext_scenario_sq is None:
+            self._ext_scenario_sq = (
                 self.query(
                     self.scenario_sq.c.id.label("id"),
                     self.scenario_sq.c.name.label("name"),
@@ -668,31 +670,76 @@ class DatabaseMappingBase:
                 .order_by(self.scenario_sq.c.id, self.scenario_alternative_sq.c.rank)
                 .subquery()
             )
-        return self._ext_scenario_alternative_sq
+        return self._ext_scenario_sq
 
     @property
-    def wide_scenario_alternative_sq(self):
-        if self._wide_scenario_alternative_sq is None:
-            self._wide_scenario_alternative_sq = (
+    def wide_scenario_sq(self):
+        if self._wide_scenario_sq is None:
+            self._wide_scenario_sq = (
                 self.query(
-                    self.ext_scenario_alternative_sq.c.id.label("id"),
-                    self.ext_scenario_alternative_sq.c.name.label("name"),
-                    self.ext_scenario_alternative_sq.c.description.label("description"),
-                    self.ext_scenario_alternative_sq.c.active.label("active"),
-                    func.group_concat(self.ext_scenario_alternative_sq.c.alternative_id).label("alternative_id_list"),
-                    func.group_concat(self.ext_scenario_alternative_sq.c.alternative_name).label(
-                        "alternative_name_list"
-                    ),
+                    self.ext_scenario_sq.c.id.label("id"),
+                    self.ext_scenario_sq.c.name.label("name"),
+                    self.ext_scenario_sq.c.description.label("description"),
+                    self.ext_scenario_sq.c.active.label("active"),
+                    func.group_concat(self.ext_scenario_sq.c.alternative_id).label("alternative_id_list"),
+                    func.group_concat(self.ext_scenario_sq.c.alternative_name).label("alternative_name_list"),
                 )
                 .group_by(
-                    self.ext_scenario_alternative_sq.c.id,
-                    self.ext_scenario_alternative_sq.c.name,
-                    self.ext_scenario_alternative_sq.c.description,
-                    self.ext_scenario_alternative_sq.c.active,
+                    self.ext_scenario_sq.c.id,
+                    self.ext_scenario_sq.c.name,
+                    self.ext_scenario_sq.c.description,
+                    self.ext_scenario_sq.c.active,
                 )
                 .subquery()
             )
-        return self._wide_scenario_alternative_sq
+        return self._wide_scenario_sq
+
+    @property
+    def linked_scenario_alternative_sq(self):
+        if self._linked_scenario_alternative_sq is None:
+            scenario_alternative = aliased(self.scenario_alternative_sq)
+            scenario_next_alternative = aliased(self.scenario_alternative_sq)
+            self._linked_scenario_alternative_sq = (
+                self.query(
+                    scenario_alternative.c.id.label("id"),
+                    scenario_alternative.c.scenario_id.label("scenario_id"),
+                    scenario_alternative.c.alternative_id.label("alternative_id"),
+                    scenario_next_alternative.c.alternative_id.label("next_alternative_id"),
+                )
+                .outerjoin(
+                    scenario_next_alternative,
+                    and_(
+                        scenario_next_alternative.c.scenario_id == scenario_alternative.c.scenario_id,
+                        scenario_next_alternative.c.rank == scenario_alternative.c.rank + 1,
+                    ),
+                )
+                .subquery()
+            )
+        return self._linked_scenario_alternative_sq
+
+    @property
+    def ext_linked_scenario_alternative_sq(self):
+        if self._ext_linked_scenario_alternative_sq is None:
+            alternative = aliased(self.alternative_sq)
+            next_alternative = aliased(self.alternative_sq)
+            self._ext_linked_scenario_alternative_sq = (
+                self.query(
+                    self.linked_scenario_alternative_sq.c.id.label("id"),
+                    self.linked_scenario_alternative_sq.c.scenario_id.label("scenario_id"),
+                    self.scenario_sq.c.name.label("scenario_name"),
+                    self.linked_scenario_alternative_sq.c.alternative_id.label("alternative_id"),
+                    alternative.c.name.label("alternative_name"),
+                    self.linked_scenario_alternative_sq.c.next_alternative_id.label("next_alternative_id"),
+                    next_alternative.c.name.label("next_alternative_name"),
+                )
+                .filter(self.linked_scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id)
+                .join(alternative, alternative.c.id == self.linked_scenario_alternative_sq.c.alternative_id)
+                .join(
+                    next_alternative, next_alternative.c.id == self.linked_scenario_alternative_sq.c.next_alternative_id
+                )
+                .subquery()
+            )
+        return self._ext_linked_scenario_alternative_sq
 
     @property
     def ext_object_sq(self):

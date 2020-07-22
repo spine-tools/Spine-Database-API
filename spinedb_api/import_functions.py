@@ -372,8 +372,7 @@ def import_scenario_alternatives(db_map, data):
 
 def _get_scenario_alternatives_for_import(db_map, data):
     scenario_alternative_id_lists = {
-        x.id: [int(id_) for id_ in x.alternative_id_list.split(",")]
-        for x in db_map.query(db_map.wide_scenario_alternative_sq)
+        x.id: [int(id_) for id_ in x.alternative_id_list.split(",")] for x in db_map.query(db_map.wide_scenario_sq)
     }
     scenario_alternative_ids = {
         (x.scenario_id, x.alternative_id): x.id for x in db_map.query(db_map.scenario_alternative_sq)

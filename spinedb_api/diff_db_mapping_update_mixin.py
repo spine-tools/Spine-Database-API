@@ -390,9 +390,7 @@ class DiffDatabaseMappingUpdateMixin:
 
             - **ids_to_remove** -- A set of integer scenario_alternative ids to remove
         """
-        current_alternative_id_lists = {
-            x.id: x.alternative_id_list for x in self.query(self.wide_scenario_alternative_sq)
-        }
+        current_alternative_id_lists = {x.id: x.alternative_id_list for x in self.query(self.wide_scenario_sq)}
         scenario_alternative_ids = {
             (x.scenario_id, x.alternative_id): x.id for x in self.query(self.scenario_alternative_sq)
         }

@@ -34,7 +34,7 @@ def export_data(
     relationship_parameter_value_ids=(Anyone,),
     alternative_ids=(Anyone,),
     scenario_ids=(Anyone,),
-    scenario_alternative_ids=(Anyone,)
+    scenario_alternative_ids=(Anyone,),
 ):
     """
     Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
@@ -134,7 +134,7 @@ def export_object_groups(db_map, ids=(Anyone,)):
 def export_object_parameter_values(db_map, ids=(Anyone,)):
     sq = db_map.object_parameter_value_sq
     return sorted(
-        (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value))
+        (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value), x.alternative_name)
         for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
     )
 
@@ -142,7 +142,13 @@ def export_object_parameter_values(db_map, ids=(Anyone,)):
 def export_relationship_parameter_values(db_map, ids=(Anyone,)):
     sq = db_map.relationship_parameter_value_sq
     return sorted(
-        (x.relationship_class_name, x.object_name_list.split(","), x.parameter_name, from_database(x.value))
+        (
+            x.relationship_class_name,
+            x.object_name_list.split(","),
+            x.parameter_name,
+            from_database(x.value),
+            x.alternative_name,
+        )
         for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
     )
 
@@ -192,15 +198,11 @@ def export_scenario_alternatives(db_map, ids=(Anyone,)):
         ids (Iterable, optional): ids of the scenario alternatives to export
 
     Returns:
-        Iterable: tuples of two elements: name of scenario and list containing tuples of alternative names and ranks
+        Iterable: tuples of three elements: name of scenario, tuple containing one alternative name,
+            and name of next alternative
     """
-    items = dict()
-    alternatives = {a.id: a.name for a in db_map.query(db_map.alternative_sq)}
-    scenarios = {s.id: s.name for s in db_map.query(db_map.scenario_sq)}
-    sq = db_map.scenario_alternative_sq
-    for scenario_alternative in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)):
-        alternative = alternatives[scenario_alternative.alternative_id]
-        scenario = scenarios[scenario_alternative.scenario_id]
-        rank = scenario_alternative.rank
-        items.setdefault(scenario, list()).append((alternative, rank))
-    return sorted(items.items())
+    sq = db_map.ext_linked_scenario_alternative_sq
+    return sorted(
+        (x.scenario_name, (x.alternative_name,), x.next_alternative_name)
+        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+    )
