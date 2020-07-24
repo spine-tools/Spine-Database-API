@@ -302,8 +302,9 @@ def import_scenarios(db_map, data):
 
     Example:
 
-        third_active = True
-        data = ['scenario', ('another_scenario', 'description'), ('third_scenario', 'description', third_active)]
+        second_active = True
+        third_active = False
+        data = ['scenario', ('second_scenario', second_active), ('third_scenario', third_active, 'description')]
         import_scenarios(db_map, data)
 
     Args:
@@ -333,10 +334,7 @@ def _get_scenarios_for_import(db_map, data):
         else:
             name, *optionals = scenario
             item = {"name": name}
-            if len(optionals) == 1:
-                default_active = False
-                optionals = (optionals[0], default_active)
-            item.update(dict(zip(("description", "active"), optionals)))
+            item.update(dict(zip(("active", "description"), optionals)))
         if name in checked:
             continue
         scenario_id = scenario_ids.pop(name, None)
@@ -934,6 +932,7 @@ def _get_object_parameter_values_for_import(db_map, data):
     parameter_ids = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameters.items()}
     alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
     alternative_ids = set(alternatives.values())
+    default_alt_id = alternatives.get("Base", min(alternatives.values()))
     error_log = []
     to_add = []
     to_update = []
@@ -956,7 +955,7 @@ def _get_object_parameter_values_for_import(db_map, data):
                 )
                 continue
         else:
-            alt_id = 1
+            alt_id = default_alt_id
         checked_key = (o_id, p_id, alt_id)
         if checked_key in checked:
             error_log.append(
@@ -1050,6 +1049,7 @@ def _get_relationship_parameter_values_for_import(db_map, data):
     relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
     alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
     alternative_ids = set(alternatives.values())
+    default_alt_id = alternatives.get("Base", min(alternatives.values()))
     error_log = []
     to_add = []
     to_update = []
@@ -1077,7 +1077,7 @@ def _get_relationship_parameter_values_for_import(db_map, data):
                 )
                 continue
         else:
-            alt_id = 1
+            alt_id = default_alt_id
         checked_key = (r_id, p_id, alt_id)
         if checked_key in checked:
             error_log.append(

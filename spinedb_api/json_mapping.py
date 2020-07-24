@@ -18,6 +18,7 @@ Classes for reading data with json mapping specifications
 
 import itertools
 import math
+from collections.abc import Iterable
 from operator import itemgetter
 from .parameter_value import Array, Map, TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
 from .exception import InvalidMapping, TypeConversionError
@@ -1860,6 +1861,14 @@ class ScenarioMapping(NamedItemMapping):
         else:
             self._active = ConstantMapping("false")
 
+    @property
+    def active(self):
+        return self._active
+
+    @active.setter
+    def active(self, active):
+        self._active = mappingbase_from_dict_int_str(active)
+
     def is_valid(self):
         issue = self.scenario_names_issues()
         if issue:
@@ -1874,11 +1883,25 @@ class ScenarioMapping(NamedItemMapping):
             return "No reference set for scenario names."
         return ""
 
+    def _create_getters(self, pivoted_columns, pivoted_data, data_header):
+        getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
+        if self.active.returns_value():
+            getters["active"] = self.active.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        else:
+            getters["active"] = (None, None, None)
+        return getters
+
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
         getters = self._create_getters(pivoted_columns, pivoted_data, data_header)
         name_getter, name_num, name_reads = getters["item_name"]
-        readers = [("scenarios",) + create_final_getter_function([name_getter], [name_num], [name_reads])]
+        active_getter, active_num, active_reads = getters["active"]
+        readers = [
+            ("scenarios",)
+            + create_final_getter_function(
+                [name_getter, active_getter], [name_num, active_num], [name_reads, active_reads]
+            )
+        ]
         return readers
 
     def to_dict(self):
@@ -2262,12 +2285,12 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
     for map_ in mapping:
         if isinstance(map_, dict):
             mappings.append(dict_to_map(map_))
-        elif isinstance(map_, EntityClassMapping):
+        elif isinstance(map_, ItemMappingBase):
             mappings = [map_]
         else:
             raise TypeError(
-                "mapping must be a dict, ObjectClassMapping, ObjectGroupMapping, "
-                f"RelationshipClassMapping or list of those, instead got: {type(map_).__name__}"
+                "mapping must be a dict, ItemMappingBase subclass, or list of those, "
+                f"instead got: {type(map_).__name__}"
             )
 
     for map_ in mappings:
@@ -2350,11 +2373,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                 for key, reader, read_data_from_row in row_readers:
                     if row_number >= read_data_from_row:
                         data[key].extend(
-                            [
-                                row_value
-                                for row_value in reader(row_data)
-                                if row_value is not None and all(v is not None for v in row_value)
-                            ]
+                            [row_value for row_value in reader(row_data) if _is_row_value_valid(row_value)]
                         )
             except IndexError as e:
                 errors.append((row_number, e))
@@ -2367,6 +2386,14 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         else:
             merged_data[k].extend(v)
     return merged_data, errors
+
+
+def _is_row_value_valid(row_value):
+    if row_value is None:
+        return False
+    if not isinstance(row_value, Iterable):
+        return True
+    return any(v is not None for v in row_value)
 
 
 def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):
