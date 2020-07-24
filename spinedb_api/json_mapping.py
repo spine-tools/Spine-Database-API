@@ -2393,7 +2393,7 @@ def _is_row_value_valid(row_value):
         return False
     if not isinstance(row_value, Iterable):
         return True
-    return any(v is not None for v in row_value)
+    return all(v is not None for v in row_value)
 
 
 def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):

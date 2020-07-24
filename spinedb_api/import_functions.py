@@ -32,9 +32,6 @@ from .check_functions import (
 )
 from .parameter_value import to_database
 
-# TODO: Now `import_data` and `get_data_for_import` are called more openly from user provided data, we may want to
-# distrust the input a little bit more and insert some try excepts
-
 
 class ImportErrorLogItem:
     """Class to hold log data for import errors"""
