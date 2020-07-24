@@ -95,7 +95,7 @@ def import_data(
             object_groups = [['object_class_name', 'object_group_name', ['member_name', 'another_member_name']]]
             alternatives = [['example_alternative', 'An example']]
             scenarios = [['example_scenario', 'An example']]
-            scenario_alternatives = [['example_scenario', ['example_alternative']]]
+            scenario_alternatives = [('scenario', 'alternative1'), ('scenario', 'alternative0', 'alternative1')]
 
             import_data(db_map,
                         object_classes=object_c,
@@ -363,7 +363,7 @@ def import_scenario_alternatives(db_map, data):
 
     Example:
 
-        data = [('scenario', ['alternative0']), ('another_scenario', ['alternative1', 'alternative2'], 'alternative0')]
+        data = [('scenario', 'bottom_alternative'), ('another_scenario', 'top_alternative', 'bottom_alternative')]
         import_scenario_alternatives(db_map, data)
 
     Args:
@@ -395,37 +395,34 @@ def _get_scenario_alternatives_for_import(db_map, data):
     to_add = []
     to_update = []
     error_log = []
-    for scenario_name, alternatives, *optionals in data:
+    for scenario_name, alternative_name, *optionals in data:
         scenario_id = scenario_ids.get(scenario_name)
         if not scenario_id:
             error_log.append(
                 ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario alternative")
             )
             continue
-        orig_alt_id_list = scenario_alternative_id_lists.get(scenario_id, [])
+        alternative_id = alternative_ids.get(alternative_name)
+        if not alternative_id:
+            error_log.append(
+                ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario alternative")
+            )
+            continue
+        if (scenario_name, alternative_name) in checked:
+            continue
+        checked.add((scenario_name, alternative_name))
         if optionals:
             before_alt_name = optionals[0]
             before_alt_id = alternative_ids.get(before_alt_name)
         else:
             before_alt_id = None
-        to_insert = []
-        for alternative_name in alternatives:
-            if (scenario_name, alternative_name) in checked:
-                continue
-            alternative_id = alternative_ids.get(alternative_name)
-            if not alternative_id:
-                error_log.append(
-                    ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario alternative")
-                )
-                continue
-            checked.add((scenario_name, alternative_name))
-            to_insert.append(alternative_id)
-        new_alt_id_list = [id_ for id_ in orig_alt_id_list if id_ not in to_insert]
+        orig_alt_id_list = scenario_alternative_id_lists.get(scenario_id, [])
+        new_alt_id_list = [id_ for id_ in orig_alt_id_list if id_ != alternative_id]
         try:
             pos = new_alt_id_list.index(before_alt_id)
         except ValueError:
             pos = len(new_alt_id_list)
-        new_alt_id_list[pos:pos] = to_insert
+        new_alt_id_list.insert(pos, alternative_id)
         scenario_alternative_id_lists[scenario_id] = new_alt_id_list
 
     for scen_id, new_alt_id_list in scenario_alternative_id_lists.items():

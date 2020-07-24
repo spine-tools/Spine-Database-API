@@ -1925,11 +1925,16 @@ class ScenarioAlternativeMapping(ItemMappingBase):
     MAP_TYPE = "ScenarioAlternative"
 
     def __init__(
-        self, scenario_name=None, alternatives=None, before_alternative_name=None, skip_columns=None, read_start_row=0
+        self,
+        scenario_name=None,
+        alternative_name=None,
+        before_alternative_name=None,
+        skip_columns=None,
+        read_start_row=0,
     ):
         super().__init__(skip_columns, read_start_row)
         self._scenario_name = mappingbase_from_dict_int_str(scenario_name)
-        self._alternatives = mappingbase_from_dict_int_str(alternatives)
+        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
         self._before_alternative_name = mappingbase_from_dict_int_str(before_alternative_name)
 
     @property
@@ -1937,12 +1942,24 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         return self._scenario_name
 
     @property
-    def alternatives(self):
-        return self._alternatives
+    def alternative_name(self):
+        return self._alternative_name
 
     @property
     def before_alternative_name(self):
         return self._before_alternative_name
+
+    @scenario_name.setter
+    def scenario_name(self, scenario_name):
+        self._scenario_name = mappingbase_from_dict_int_str(scenario_name)
+
+    @alternative_name.setter
+    def alternative_name(self, alternative_name):
+        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
+
+    @before_alternative_name.setter
+    def before_alternative_name(self, before_alternative_name):
+        self._before_alternative_name = mappingbase_from_dict_int_str(before_alternative_name)
 
     def is_valid(self):
         issue = self.scenario_names_issues()
@@ -1961,7 +1978,7 @@ class ScenarioAlternativeMapping(ItemMappingBase):
     def last_pivot_row(self):
         return max(
             self._scenario_name.last_pivot_row(),
-            self._alternatives.last_pivot_row(),
+            self._alternative_name.last_pivot_row(),
             self._before_alternative_name.last_pivot_row(),
             -1,
         )
@@ -1982,8 +1999,8 @@ class ScenarioAlternativeMapping(ItemMappingBase):
             )
         else:
             scenario_name_getter, scenario_name_length, scenario_name_reads = None, None, None
-        if self._alternatives.returns_value():
-            alt_getter, alt_length, alt_reads = self._alternatives.create_getter_function(
+        if self._alternative_name.returns_value():
+            alt_getter, alt_length, alt_reads = self._alternative_name.create_getter_function(
                 pivoted_columns, pivoted_data, data_header
             )
         else:
@@ -2005,18 +2022,18 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
         scenario_name = map_dict.get("scenario_name", None)
-        alternatives = map_dict.get("alternatives", None)
+        alternative_name = map_dict.get("alternative_name", None)
         before_alternative_name = map_dict.get("before_alternative_name", None)
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
         return ScenarioAlternativeMapping(
-            scenario_name, alternatives, before_alternative_name, skip_columns, read_start_row
+            scenario_name, alternative_name, before_alternative_name, skip_columns, read_start_row
         )
 
     def to_dict(self):
         map_dict = super().to_dict()
         map_dict["scenario_name"] = self._scenario_name.to_dict()
-        map_dict["alternatives"] = self._alternatives.to_dict()
+        map_dict["alternative_name"] = self._alternative_name.to_dict()
         map_dict["before_alternative_name"] = self._before_alternative_name.to_dict()
         return map_dict
 
@@ -2026,7 +2043,7 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         if isinstance(instance, ScenarioAlternativeMapping):
             return ScenarioAlternativeMapping(
                 instance._scenario_name,
-                instance._alternatives,
+                instance._alternative_name,
                 instance._before_alternative_name,
                 instance.skip_columns,
                 instance.read_start_row,
