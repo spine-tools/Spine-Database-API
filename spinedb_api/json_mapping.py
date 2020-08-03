@@ -945,6 +945,10 @@ class ItemMappingBase:
             raise ValueError(f"row must be >= 0, instead was: {row}")
         self._read_start_row = row
 
+    def has_parameters(self):
+        """Returns True if this mapping has parameters, otherwise returns False."""
+        return False
+
     def is_valid(self):
         raise NotImplementedError()
 
@@ -1125,6 +1129,10 @@ class EntityClassMapping(NamedItemMapping):
 
     def is_pivoted(self):
         return super().is_pivoted() or self._parameters.is_pivoted()
+
+    def has_parameters(self):
+        """Returns True if this mapping has parameters, otherwise returns False."""
+        return True
 
     @property
     def parameters(self):
