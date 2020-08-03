@@ -945,6 +945,10 @@ class ItemMappingBase:
             raise ValueError(f"row must be >= 0, instead was: {row}")
         self._read_start_row = row
 
+    def has_parameters(self):
+        """Returns True if this mapping has parameters, otherwise returns False."""
+        return False
+
     def is_valid(self):
         raise NotImplementedError()
 
@@ -1081,17 +1085,37 @@ class EntityClassMapping(NamedItemMapping):
 
     MAP_TYPE = None
 
-    def __init__(self, name, parameters, skip_columns, read_start_row):
+    def __init__(self, name, parameters, import_objects, skip_columns, read_start_row):
         """
         Args:
             name (str or spinedb_api.MappingBase, optional): mapping for the class name
             parameters (str or spinedb_api.ParameterDefinitionMapping, optional): mapping for the parameters of the class
+            import_objects (bool): True if this mapping imports additional objects, False otherwise
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
         super().__init__(name, skip_columns, read_start_row)
         self._parameters = None
         self.parameters = parameters
+        self._import_objects = import_objects
+
+    @property
+    def dimensions(self):
+        """Number of dimensions in this entity class."""
+        return 1
+
+    def has_fixed_dimensions(self):
+        """Returns True if the dimensions of this mapping cannot be set."""
+        raise NotImplementedError()
+
+    @property
+    def import_objects(self):
+        """True if this entity class also imports object entities, False otherwise."""
+        return self._import_objects
+
+    @import_objects.setter
+    def import_objects(self, import_objects):
+        raise NotImplementedError()
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
@@ -1106,6 +1130,10 @@ class EntityClassMapping(NamedItemMapping):
 
     def is_pivoted(self):
         return super().is_pivoted() or self._parameters.is_pivoted()
+
+    def has_parameters(self):
+        """Returns True if this mapping has parameters, otherwise returns False."""
+        return True
 
     @property
     def parameters(self):
@@ -1125,7 +1153,8 @@ class EntityClassMapping(NamedItemMapping):
 
     def to_dict(self):
         map_dict = super().to_dict()
-        map_dict.update(parameters=self.parameters.to_dict())
+        map_dict["parameters"] = self.parameters.to_dict()
+        map_dict["import_objects"] = self._import_objects
         return map_dict
 
     def is_valid(self):
@@ -1188,7 +1217,7 @@ class ObjectClassMapping(EntityClassMapping):
     MAP_TYPE = "ObjectClass"
 
     def __init__(self, name=None, objects=None, parameters=None, skip_columns=None, read_start_row=0):
-        super().__init__(name, parameters, skip_columns, read_start_row)
+        super().__init__(name, parameters, True, skip_columns, read_start_row)
         self._objects = NoneMapping()
         self.objects = objects
 
@@ -1203,6 +1232,18 @@ class ObjectClassMapping(EntityClassMapping):
 
     def is_pivoted(self):
         return super().is_pivoted() or self.objects.is_pivoted()
+
+    @property
+    def dimensions(self):
+        return 1
+
+    def has_fixed_dimensions(self):
+        """See base class."""
+        return True
+
+    @EntityClassMapping.import_objects.setter
+    def import_objects(self, import_objects):
+        raise NotImplementedError()
 
     @property
     def objects(self):
@@ -1333,14 +1374,12 @@ class ObjectGroupMapping(EntityClassMapping):
         skip_columns=None,
         read_start_row=0,
     ):
-        super().__init__(name, parameters, skip_columns, read_start_row)
+        super().__init__(name, parameters, import_objects, skip_columns, read_start_row)
         self._groups = NoneMapping()
         self._members = NoneMapping()
-        self._import_objects = False
         self.groups = groups
         self.members = members
-        self.import_objects = import_objects
-
+  
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
         if isinstance(self._groups, ColumnMapping) and self._groups.returns_value():
@@ -1355,11 +1394,11 @@ class ObjectGroupMapping(EntityClassMapping):
     def is_pivoted(self):
         return super().is_pivoted() or self._groups.is_pivoted() or self._members.is_pivoted()
 
-    @property
-    def import_objects(self):
-        return self._import_objects
+    def has_fixed_dimensions(self):
+        """Returns True if the dimensions of this mapping cannot be set."""
+        return True
 
-    @import_objects.setter
+    @EntityClassMapping.import_objects.setter
     def import_objects(self, import_objects):
         if not isinstance(import_objects, bool):
             raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
@@ -1410,7 +1449,6 @@ class ObjectGroupMapping(EntityClassMapping):
         map_dict = super().to_dict()
         map_dict["groups"] = self._groups.to_dict()
         map_dict["members"] = self._members.to_dict()
-        map_dict["import_objects"] = self._import_objects
         return map_dict
 
     def is_valid(self):
@@ -1537,18 +1575,16 @@ class RelationshipClassMapping(EntityClassMapping):
         name=None,
         object_classes=None,
         objects=None,
-        import_objects=False,
         parameters=None,
+        import_objects=False,
         skip_columns=None,
         read_start_row=0,
     ):
-        super().__init__(name, parameters, skip_columns, read_start_row)
+        super().__init__(name, parameters, import_objects, skip_columns, read_start_row)
         self._objects = None
         self._object_classes = None
-        self._import_objects = False
         self.object_classes = object_classes
         self.objects = objects
-        self.import_objects = import_objects
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
@@ -1574,6 +1610,14 @@ class RelationshipClassMapping(EntityClassMapping):
     def objects(self):
         return self._objects
 
+    @property
+    def dimensions(self):
+        return len(self._objects)
+
+    def has_fixed_dimensions(self):
+        """Returns True if the dimensions of this mapping cannot be set."""
+        return False
+
     @objects.setter
     def objects(self, objects):
         if objects is None:
@@ -1589,11 +1633,7 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         self._objects = [mappingbase_from_dict_int_str(o) for o in objects]
 
-    @property
-    def import_objects(self):
-        return self._import_objects
-
-    @import_objects.setter
+    @EntityClassMapping.import_objects.setter
     def import_objects(self, import_objects):
         if not isinstance(import_objects, bool):
             raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
@@ -1632,16 +1672,15 @@ class RelationshipClassMapping(EntityClassMapping):
             object_classes=object_classes,
             objects=objects,
             parameters=parameters,
+            import_objects=import_objects,
             skip_columns=skip_columns,
             read_start_row=read_start_row,
-            import_objects=import_objects,
         )
 
     def to_dict(self):
         map_dict = super().to_dict()
         map_dict.update(objects=[o.to_dict() for o in self.objects])
         map_dict.update(object_classes=[oc.to_dict() for oc in self.object_classes])
-        map_dict.update(import_objects=self.import_objects)
         return map_dict
 
     def is_valid(self):
