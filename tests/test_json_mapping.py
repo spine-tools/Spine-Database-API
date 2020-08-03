@@ -1629,7 +1629,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, expected)
 
 
-class TestEntityMappings(unittest.TestCase):
+class TestItemMappings(unittest.TestCase):
     def test_ObjectClassMapping_dimensions_is_always_one(self):
         mapping = ObjectClassMapping()
         self.assertEqual(mapping.dimensions, 1)
@@ -1667,6 +1667,26 @@ class TestEntityMappings(unittest.TestCase):
     def test_RelationshipMapping_does_not_have_fixed_dimensions(self):
         mapping = RelationshipClassMapping()
         self.assertFalse(mapping.has_fixed_dimensions())
+
+    def test_ObjectClassMapping_has_parameters(self):
+        mapping = ObjectClassMapping()
+        self.assertTrue(mapping.has_parameters())
+
+    def test_RelationshipClassMapping_has_parameters(self):
+        mapping = RelationshipClassMapping()
+        self.assertTrue(mapping.has_parameters())
+
+    def test_AlternativeMapping_does_not_have_parameters(self):
+        mapping = AlternativeMapping()
+        self.assertFalse(mapping.has_parameters())
+
+    def test_ScenarioMapping_does_not_have_parameters(self):
+        mapping = ScenarioMapping()
+        self.assertFalse(mapping.has_parameters())
+
+    def test_ScenarioAlternativeMapping_does_not_have_parameters(self):
+        mapping = ScenarioAlternativeMapping()
+        self.assertFalse(mapping.has_parameters())
 
 
 if __name__ == "__main__":
