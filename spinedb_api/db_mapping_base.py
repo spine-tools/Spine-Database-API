@@ -1149,7 +1149,6 @@ class DatabaseMappingBase:
                     self.parameter_value_sq.c.alternative_id,
                     self.alternative_sq.c.name.label("alternative_name"),
                     self.parameter_value_sq.c.value,
-                    self.parameter_value_sq.c.alternative_id,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
@@ -1185,7 +1184,6 @@ class DatabaseMappingBase:
                     self.parameter_value_sq.c.alternative_id,
                     self.alternative_sq.c.name.label("alternative_name"),
                     self.parameter_value_sq.c.value,
-                    self.parameter_value_sq.c.alternative_id,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.relationship_id == self.wide_relationship_sq.c.id)

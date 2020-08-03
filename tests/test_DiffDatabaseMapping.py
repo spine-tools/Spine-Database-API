@@ -48,7 +48,7 @@ def create_diff_db_map(directory):
 
 
 class TestDiffDatabaseMappingRemove(unittest.TestCase):
-    def test_remove_relationship(self):
+    def test_cascade_remove_relationship(self):
         """Test adding and removing a relationship and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -56,13 +56,13 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
             db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
             ids, _ = db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
-            db_map.remove_items(relationship_ids=ids)
+            db_map.cascade_remove_items(relationship=ids)
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_relationship_from_commited_session(self):
+    def test_cascade_remove_relationship_from_commited_session(self):
         """Test removing a relationship from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -72,7 +72,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             ids, _ = db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 1)
-            db_map.remove_items(relationship_ids=ids)
+            db_map.cascade_remove_items(relationship=ids)
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
             db_map.commit_session("")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
@@ -84,7 +84,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
             ids, _ = db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-            db_map.remove_items(object_ids=ids)
+            db_map.remove_items(object=ids)
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
@@ -98,7 +98,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             ids, _ = db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.object_sq).all()), 2)
-            db_map.remove_items(object_ids=ids)
+            db_map.remove_items(object=ids)
             self.assertEqual(len(db_map.query(db_map.object_sq).all()), 0)
             db_map.commit_session("")
             self.assertEqual(len(db_map.query(db_map.object_sq).all()), 0)
@@ -111,7 +111,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             db_map.add_object_classes({"name": "oc1", "id": 1})
             db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
             ids, _ = db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-            db_map.remove_items(entity_group_ids=ids)
+            db_map.remove_items(entity_group=ids)
             self.assertEqual(len(db_map.query(db_map.entity_group_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.entity_group_sq).all()), 0)
@@ -126,25 +126,25 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             ids, _ = db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.entity_group_sq).all()), 1)
-            db_map.remove_items(entity_group_ids=ids)
+            db_map.remove_items(entity_group=ids)
             self.assertEqual(len(db_map.query(db_map.entity_group_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.entity_group_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_relationship_class(self):
+    def test_cascade_remove_relationship_class(self):
         """Test adding and removing a relationship class and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
             ids, _ = db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
-            db_map.remove_items(relationship_class_ids=ids)
+            db_map.cascade_remove_items(relationship_class=ids)
             self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_relationship_class_from_committed_session(self):
+    def test_cascade_remove_relationship_class_from_committed_session(self):
         """Test removing a relationship class from a committed session"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -152,7 +152,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             ids, _ = db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 1)
-            db_map.remove_items(relationship_class_ids=ids)
+            db_map.cascade_remove_items(relationship_class=ids)
             self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
             db_map.commit_session("")
             self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
@@ -163,7 +163,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             ids, _ = db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-            db_map.remove_items(object_class_ids=ids)
+            db_map.remove_items(object_class=ids)
             self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
@@ -176,7 +176,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             ids, _ = db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 2)
-            db_map.remove_items(object_class_ids=ids)
+            db_map.remove_items(object_class=ids)
             self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
             db_map.commit_session("")
             self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
@@ -201,7 +201,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
                 strict=True,
             )
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 1)
-            db_map.remove_items(parameter_value_ids=[1])
+            db_map.remove_items(parameter_value=[1])
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
@@ -227,13 +227,13 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             )
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 1)
-            db_map.remove_items(parameter_value_ids=[1])
+            db_map.remove_items(parameter_value=[1])
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_object_with_parameter_value(self):
+    def test_cascade_remove_object_removes_parameter_value_as_well(self):
         """Test adding and removing a parameter value and committing"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -252,13 +252,13 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
                 strict=True,
             )
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 1)
-            db_map.remove_items(object_ids=[1])
+            db_map.cascade_remove_items(object={1})
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.connection.close()
 
-    def test_remove_object_with_parameter_value_from_committed_session(self):
+    def test_cascade_remove_object_from_committed_session_removes_parameter_value_as_well(self):
         """Test adding and committing a paramater value and then removing it"""
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -278,7 +278,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
             )
             db_map.commit_session("add")
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 1)
-            db_map.remove_items(object_ids=[1])
+            db_map.cascade_remove_items(object={1})
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
             db_map.commit_session("delete")
             self.assertEqual(len(db_map.query(db_map.parameter_value_sq).all()), 0)
