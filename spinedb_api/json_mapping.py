@@ -1090,6 +1090,7 @@ class EntityClassMapping(NamedItemMapping):
         Args:
             name (str or spinedb_api.MappingBase, optional): mapping for the class name
             parameters (str or spinedb_api.ParameterDefinitionMapping, optional): mapping for the parameters of the class
+            import_objects (bool): True if this mapping imports additional objects, False otherwise
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
