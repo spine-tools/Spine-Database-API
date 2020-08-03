@@ -31,47 +31,21 @@ class MappingBase:
         Mapping {
             map_type: 'column' | 'row'
             value_reference: str | int
-            append_str: str
-            prepend_str: str
         }
     """
 
     MAP_TYPE = None
 
-    def __init__(self, reference=None, append_str=None, prepend_str=None):
+    def __init__(self, reference=None):
 
         # this needs to be before value_reference because value_reference uses
         # self.map_type
         self._reference = None
-        self._append_str = None
-        self._prepend_str = None
         self.reference = reference
-        self.append_str = append_str
-        self.prepend_str = prepend_str
-
-    @property
-    def append_str(self):
-        return self._append_str
-
-    @property
-    def prepend_str(self):
-        return self._prepend_str
 
     @property
     def reference(self):
         return self._reference
-
-    @append_str.setter
-    def append_str(self, append_str):
-        if append_str is not None and not isinstance(append_str, str):
-            raise ValueError(f"append_str must be a None or str, instead got {type(append_str)}")
-        self._append_str = append_str
-
-    @prepend_str.setter
-    def prepend_str(self, prepend_str):
-        if prepend_str is not None and not isinstance(prepend_str, str):
-            raise ValueError(f"prepend_str must be None or str, instead got {type(prepend_str)}")
-        self._prepend_str = prepend_str
 
     @reference.setter
     def reference(self, reference):
@@ -90,12 +64,8 @@ class MappingBase:
     def to_dict(self):
         """Creates a dict representation of mapping, should be compatible with json.dumps and json.loads"""
         map_dict = {"map_type": self.MAP_TYPE}
-        if self.reference is not None:
-            map_dict.update({"reference": self.reference})
-        if self.append_str is not None:
-            map_dict.update({"append_str": self.append_str})
-        if self.prepend_str is not None:
-            map_dict.update({"prepend_str": self.prepend_str})
+        if self._reference is not None:
+            map_dict["reference"] = self._reference
         return map_dict
 
     @classmethod
@@ -210,12 +180,10 @@ class ConstantMapping(MappingBase):
         map_type = map_dict.get("map_type", None)
         if map_type is not None and map_type != cls.MAP_TYPE:
             raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
-        append_str = map_dict.get("append_str", None)
-        prepend_str = map_dict.get("prepend_str", None)
         reference = map_dict.get("reference", None)
         if reference is None:
             reference = map_dict.get("value_reference", None)
-        return cls(reference, append_str, prepend_str)
+        return cls(reference)
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         constant = str(self.reference)
@@ -357,10 +325,8 @@ class RowMapping(MappingBase):
         map_type = map_dict.get("map_type", None)
         if map_type is not None and map_type != cls.MAP_TYPE:
             raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
-        append_str = map_dict.get("append_str", None)
-        prepend_str = map_dict.get("prepend_str", None)
         reference = map_dict.get("reference", None)
-        return RowMapping(reference, append_str, prepend_str)
+        return RowMapping(reference)
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         if self.reference == -1:
