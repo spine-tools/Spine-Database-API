@@ -321,14 +321,14 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(out, expected)
 
     def test_ScenarioAlternative_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternatives": 1, "ranks": 2}
+        mapping_dict = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternative_name": 1, "before_alternative_name": 2}
         mapping = ScenarioAlternativeMapping.from_dict(mapping_dict)
         out = mapping.to_dict()
         expected = {
             "map_type": "ScenarioAlternative",
             "scenario_name": {"reference": 0, "map_type": "column"},
-            "alternatives": {"reference": 1, "map_type": "column"},
-            "ranks": {"reference": 2, "map_type": "column"},
+            "alternative_name": {"reference": 1, "map_type": "column"},
+            "before_alternative_name": {"reference": 2, "map_type": "column"},
             "read_start_row": 0,
             "skip_columns": [],
         }
@@ -1519,25 +1519,25 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {"map_type": "Scenario", "name": 0}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
-        expected["scenarios"] = ["scenario1", "second_scenario", "last_one"]
+        expected["scenarios"] = [("scenario1", "false"), ("second_scenario", "false"), ("last_one", "false")]
         self.assertEqual(out, expected)
 
     def test_read_scenario_alternative(self):
         input_data = [
-            ["Scenario", "Alternative", "Rank"],
-            ["scenario_A", "alternative1", 23],
-            ["scenario_A", "second_alternative", 5],
-            ["scenario_B", "last_one", -3],
+            ["Scenario", "Alternative", "Before alternative"],
+            ["scenario_A", "alternative1", "second_alternative"],
+            ["scenario_A", "second_alternative", "last_one"],
+            ["scenario_B", "last_one", ""],
         ]
         data = iter(input_data)
         data_header = next(data)
-        mapping = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternatives": 1, "ranks": 2}
+        mapping = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternative_name": 1, "before_alternative_name": 2}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["scenario_alternatives"] = [
-            ("scenario_A", [("alternative1", 23)]),
-            ("scenario_A", [("second_alternative", 5)]),
-            ("scenario_B", [("last_one", -3)]),
+            ("scenario_A", "alternative1", "second_alternative"),
+            ("scenario_A", "second_alternative", "last_one"),
+            ("scenario_B", "last_one", ""),
         ]
         self.assertEqual(out, expected)
 

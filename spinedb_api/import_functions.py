@@ -363,9 +363,10 @@ def import_scenario_alternatives(db_map, data):
 
     Args:
         db_map (DiffDatabaseMapping): mapping for database to insert into
-        data (Iterable): an iterable of (scenario name, iterable of alternative names,
-            and optionally, 'before' alternative name). Alternatives are inserted before the 'before' alternative, or
-            at the end if not given.
+        data (Iterable): an iterable of (scenario name, alternative name,
+            and optionally, 'before' alternative name).
+            Alternatives are inserted before the 'before' alternative,
+            or at the end if not given.
 
     Returns:
         tuple of int and list: Number of successfully inserted scenario alternatives, list of errors
@@ -406,9 +407,17 @@ def _get_scenario_alternatives_for_import(db_map, data):
         if (scenario_name, alternative_name) in checked:
             continue
         checked.add((scenario_name, alternative_name))
-        if optionals:
+        if optionals and optionals[0]:
             before_alt_name = optionals[0]
-            before_alt_id = alternative_ids.get(before_alt_name)
+            try:
+                before_alt_id = alternative_ids[before_alt_name]
+            except KeyError:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Before alternative '{before_alt_name}' not found for '{alternative_name}'"
+                    )
+                )
+                continue
         else:
             before_alt_id = None
         orig_alt_id_list = scenario_alternative_id_lists.get(scenario_id, [])
@@ -420,14 +429,14 @@ def _get_scenario_alternatives_for_import(db_map, data):
         new_alt_id_list.insert(pos, alternative_id)
         scenario_alternative_id_lists[scenario_id] = new_alt_id_list
 
-    for scen_id, new_alt_id_list in scenario_alternative_id_lists.items():
+    for scenario_id, new_alt_id_list in scenario_alternative_id_lists.items():
         for k, alt_id in enumerate(new_alt_id_list):
-            id_ = scenario_alternative_ids.get((scen_id, alt_id))
+            id_ = scenario_alternative_ids.get((scenario_id, alt_id))
             if id_ is not None:
                 item = {"id": id_, "rank": k + 1}
                 to_update.append(item)
             else:
-                item = {"scenario_id": scen_id, "alternative_id": alt_id, "rank": k + 1}
+                item = {"scenario_id": scenario_id, "alternative_id": alt_id, "rank": k + 1}
                 to_add.append(item)
     return to_add, to_update, error_log
 

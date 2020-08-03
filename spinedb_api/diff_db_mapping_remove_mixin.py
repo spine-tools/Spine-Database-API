@@ -29,8 +29,8 @@ class DiffDatabaseMappingRemoveMixin:
     def cascade_remove_items(self, **kwargs):
         """Removes items by id in cascade.
 
-        Keyword args:
-            <tablename> (set): set of ids to be removed for table
+        Args:
+            **kwargs: keyword is table name, argument is list of ids to remove
         """
         cascading_ids = self.cascading_ids(**kwargs)
         self.remove_items(**cascading_ids)
@@ -38,8 +38,8 @@ class DiffDatabaseMappingRemoveMixin:
     def remove_items(self, **kwargs):
         """Removes items by id, *not in cascade*.
 x
-        Keyword args:
-            <tablename> (set): set of ids to be removed for table
+        Args:
+            **kwargs: keyword is table name, argument is list of ids to remove
         """
         try:
             for tablename, ids in kwargs.items():

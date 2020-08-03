@@ -62,8 +62,8 @@ class TestIntegrationImportData(unittest.TestCase):
             object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
             rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
             alternatives = [['example_alternative', 'An example']]
-            scenarios = [['example_scenario', 'An example']]
-            scenario_alternatives = [['example_scenario', ['example_alternative']]]
+            scenarios = [['example_scenario', True, 'An example']]
+            scenario_alternatives = [['example_scenario', 'example_alternative']]
 
             num_imports, errors = import_data(
                 db_map,
@@ -171,7 +171,7 @@ class TestImportRelationshipClass(unittest.TestCase):
             _, errors = import_relationship_classes(
                 db_map, [["new_rc", ["object_class1", "object_class2"]], ["new_rc", ["object_class1", "object_class2"]]]
             )
-            self.assertTrue(errors)
+            self.assertFalse(errors)
             relationship_classes = {
                 rc.name: rc.object_class_name_list for rc in db_map.query(db_map.wide_relationship_class_sq)
             }
@@ -718,7 +718,7 @@ class TestImportScenarios(unittest.TestCase):
     def test_scenario_with_description(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
-            count, errors = import_scenarios(db_map, [["scenario", "description"]])
+            count, errors = import_scenarios(db_map, [["scenario", False, "description"]])
             self.assertEqual(count, 1)
             self.assertFalse(errors)
             scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
@@ -728,8 +728,8 @@ class TestImportScenarios(unittest.TestCase):
     def test_update_scenario_description(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
-            import_scenarios(db_map, [["scenario", "initial description"]])
-            count, errors = import_scenarios(db_map, [["scenario", "new description"]])
+            import_scenarios(db_map, [["scenario", False, "initial description"]])
+            count, errors = import_scenarios(db_map, [["scenario", False, "new description"]])
             self.assertEqual(count, 1)
             self.assertFalse(errors)
             scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
@@ -743,53 +743,29 @@ class TestScenarioAlternatives(unittest.TestCase):
             db_map = create_diff_db_map(temp_dir)
             import_alternatives(db_map, ["alternative"])
             import_scenarios(db_map, ["scenario"])
-            count, errors = import_scenario_alternatives(db_map, [["scenario", ["alternative"]]])
+            count, errors = import_scenario_alternatives(db_map, [["scenario", "alternative"]])
             self.assertEqual(count, 1)
             self.assertFalse(errors)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 1}})
             db_map.connection.close()
 
-    def test_scenario_alternative_import_with_rank(self):
-        with TemporaryDirectory() as temp_dir:
-            db_map = create_diff_db_map(temp_dir)
-            import_alternatives(db_map, ["alternative"])
-            import_scenarios(db_map, ["scenario"])
-            count, errors = import_scenario_alternatives(db_map, [["scenario", [["alternative", 23]]]])
-            self.assertEqual(count, 1)
-            self.assertFalse(errors)
-            scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 23}})
-            db_map.connection.close()
-
-    def test_scenario_alternative_automatic_rank_assignment(self):
+    def test_scenario_alternative_import_multiple_without_before_alternatives(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             import_alternatives(db_map, ["alternative1"])
             import_alternatives(db_map, ["alternative2"])
             import_scenarios(db_map, ["scenario"])
-            import_scenario_alternatives(db_map, [["scenario", [["alternative1", 23]]]])
-            count, errors = import_scenario_alternatives(db_map, [["scenario", ["alternative2"]]])
-            self.assertEqual(count, 1)
+            count, errors = import_scenario_alternatives(
+                db_map, [["scenario", "alternative1"], ["scenario", "alternative2"]]
+            )
+            self.assertEqual(count, 2)
             self.assertFalse(errors)
             scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 23, "alternative2": 24}})
+            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2}})
             db_map.connection.close()
 
-    def test_scenario_alternative_update_rank(self):
-        with TemporaryDirectory() as temp_dir:
-            db_map = create_diff_db_map(temp_dir)
-            import_alternatives(db_map, ["alternative"])
-            import_scenarios(db_map, ["scenario"])
-            import_scenario_alternatives(db_map, [["scenario", [["alternative", 23]]]])
-            count, errors = import_scenario_alternatives(db_map, [["scenario", [["alternative", 24]]]])
-            self.assertEqual(count, 1)
-            self.assertFalse(errors)
-            scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 24}})
-            db_map.connection.close()
-
-    def test_import_multiple_alternatives(self):
+    def test_scenario_alternative_import_multiple_with_before_alternatives(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             import_alternatives(db_map, ["alternative1"])
@@ -797,13 +773,18 @@ class TestScenarioAlternatives(unittest.TestCase):
             import_alternatives(db_map, ["alternative3"])
             import_scenarios(db_map, ["scenario"])
             count, errors = import_scenario_alternatives(
-                db_map, [["scenario", ["alternative1", ["alternative2", 23]]], ["scenario", ["alternative3"]]]
+                db_map,
+                [
+                    ["scenario", "alternative1"],
+                    ["scenario", "alternative3"],
+                    ["scenario", "alternative2", "alternative3"],
+                ],
             )
             self.assertEqual(count, 3)
             self.assertFalse(errors)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(
-                scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 23, "alternative3": 24}}
+                scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2, "alternative3": 3}}
             )
             db_map.connection.close()
 
@@ -811,7 +792,7 @@ class TestScenarioAlternatives(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             import_alternatives(db_map, ["alternative"])
-            count, errors = import_scenario_alternatives(db_map, [["nonexistent_scenario", ["alternative"]]])
+            count, errors = import_scenario_alternatives(db_map, [["nonexistent_scenario", "alternative"]])
             self.assertEqual(count, 0)
             self.assertTrue(errors)
             db_map.connection.close()
@@ -820,36 +801,21 @@ class TestScenarioAlternatives(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             import_scenarios(db_map, ["scenario"])
-            count, errors = import_scenario_alternatives(db_map, [["scenario", ["nonexistent_alternative"]]])
+            count, errors = import_scenario_alternatives(db_map, [["scenario", "nonexistent_alternative"]])
             self.assertEqual(count, 0)
             self.assertTrue(errors)
             db_map.connection.close()
 
-    def test_fails_when_rank_exists(self):
+    def test_fails_with_nonexistent_before_alternative(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
-            import_alternatives(db_map, ["alternative1"])
-            import_alternatives(db_map, ["alternative2"])
-            import_scenarios(db_map, ["scenario"])
-            import_scenario_alternatives(db_map, [["scenario", [["alternative1", 23]]]])
-            count, errors = import_scenario_alternatives(db_map, [["scenario", [["alternative2", 23]]]])
-            self.assertEqual(count, 0)
-            self.assertTrue(errors)
-            db_map.connection.close()
-
-    def test_fails_when_importing_clashing_ranks(self):
-        with TemporaryDirectory() as temp_dir:
-            db_map = create_diff_db_map(temp_dir)
-            import_alternatives(db_map, ["alternative1"])
-            import_alternatives(db_map, ["alternative2"])
+            import_alternatives(db_map, ["alternative"])
             import_scenarios(db_map, ["scenario"])
             count, errors = import_scenario_alternatives(
-                db_map, [["scenario", [["alternative1", 23], ["alternative2", 23]]]]
+                db_map, [["scenario", "alternative", "nonexistent_alternative"]]
             )
-            self.assertEqual(count, 1)
+            self.assertEqual(count, 0)
             self.assertTrue(errors)
-            scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 23}})
             db_map.connection.close()
 
     @staticmethod
