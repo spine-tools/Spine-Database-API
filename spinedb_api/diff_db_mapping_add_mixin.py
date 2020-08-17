@@ -80,7 +80,7 @@ class DiffDatabaseMappingAddMixin:
             # TODO: Find a way to try this again, or wait till unlocked
             # Maybe listen for an event?
             self.session.rollback()
-            raise SpineDBAPIError("Unable to get next id_: {}".format(e.orig.args))
+            raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
         return self.query(self.NextId).one_or_none()
 
     def _items_and_ids(self, tablename, *items):
@@ -146,7 +146,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_alternatives_for_insert(*items, strict=strict)
         ids = self._add_alternatives(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_alternatives(self, *items):
@@ -198,7 +198,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_scenarios_for_insert(*items, strict=strict)
         ids = self._add_scenarios(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_scenarios(self, *items):
@@ -250,7 +250,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_scenario_alternatives_for_insert(*items, strict=strict)
         ids = self._add_scenario_alternatives(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_scenario_alternatives(self, *items):
@@ -302,7 +302,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_object_classes_for_insert(*items, strict=strict)
         ids = self._add_object_classes(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_object_classes(self, *items):
@@ -361,7 +361,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_objects_for_insert(*items, strict=strict)
         ids = self._add_objects(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_objects(self, *items):
@@ -420,7 +420,7 @@ class DiffDatabaseMappingAddMixin:
         )
         ids = self._add_wide_relationship_classes(*checked_wide_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_wide_relationship_classes(self, *wide_items):
@@ -491,7 +491,7 @@ class DiffDatabaseMappingAddMixin:
         checked_wide_items, intgr_error_log = self.check_wide_relationships_for_insert(*wide_items, strict=strict)
         ids = self._add_wide_relationships(*checked_wide_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_wide_relationships(self, *wide_items):
@@ -571,7 +571,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_entity_groups_for_insert(*items, strict=strict)
         ids = self._add_entity_groups(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_entity_groups(self, *items):
@@ -627,7 +627,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_parameter_definitions_for_insert(*items, strict=strict)
         ids = self._add_parameter_definitions(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_parameter_definitions(self, *items):
@@ -683,7 +683,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_parameter_values_for_insert(*items, strict=strict)
         ids = self._add_parameter_values(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def add_checked_parameter_values(self, *checked_items):
@@ -743,7 +743,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_parameter_tags_for_insert(*items, strict=strict)
         ids = self._add_parameter_tags(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_parameter_tags(self, *items):
@@ -790,7 +790,7 @@ class DiffDatabaseMappingAddMixin:
         checked_items, intgr_error_log = self.check_parameter_definition_tags_for_insert(*items, strict=strict)
         ids = self._add_parameter_definition_tags(*checked_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_parameter_definition_tags(self, *items):
@@ -839,7 +839,7 @@ class DiffDatabaseMappingAddMixin:
         )
         ids = self._add_wide_parameter_value_lists(*checked_wide_items)
         if return_dups:
-            ids.update(set(x.id_ for x in intgr_error_log if x.id_))
+            ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
     def _add_wide_parameter_value_lists(self, *wide_items):
