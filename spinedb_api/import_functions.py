@@ -413,9 +413,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
                 before_alt_id = alternative_ids[before_alt_name]
             except KeyError:
                 error_log.append(
-                    ImportErrorLogItem(
-                        msg=f"Before alternative '{before_alt_name}' not found for '{alternative_name}'"
-                    )
+                    ImportErrorLogItem(msg=f"Before alternative '{before_alt_name}' not found for '{alternative_name}'")
                 )
                 continue
         else:
@@ -639,16 +637,11 @@ def import_object_groups(db_map, data):
             and member name
 
     Returns:
-        (Int, Int, List) 
-        Number of successful inserted member objects, 
-        Number of successful inserted object groups, 
-        list of errors
+        (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, _, error_log = _get_object_groups_for_import(db_map, data)
     added = db_map._add_entity_groups(*to_add)
-    n_added_members = len(added) 
-    n_added_groups = len(set(map(lambda x: x["entity_id"], to_add)))
-    return n_added_members, n_added_groups, error_log
+    return len(added), error_log
 
 
 def _get_object_groups_for_import(db_map, data):
