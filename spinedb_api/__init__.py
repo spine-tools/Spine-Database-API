@@ -11,6 +11,7 @@
 
 from .db_mapping import DatabaseMapping
 from .diff_db_mapping import DiffDatabaseMapping
+from .scenario_filter_mapping import ScenarioFilterMapping
 from .exception import (
     SpineDBAPIError,
     SpineIntegrityError,
