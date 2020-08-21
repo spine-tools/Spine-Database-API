@@ -195,6 +195,7 @@ def _alternative_filtered_parameter_value_sq(db_map, active_alternatives_subquer
     Returns:
         Alias: a subquery for parameter value filtered by active alternatives
     """
+    # Here we assume that Base alternative id = 1.
     which_alternative = case(
         [
             (
