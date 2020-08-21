@@ -11,7 +11,6 @@
 
 from .db_mapping import DatabaseMapping
 from .diff_db_mapping import DiffDatabaseMapping
-from .scenario_filter_mapping import ScenarioFilterMapping
 from .exception import (
     SpineDBAPIError,
     SpineIntegrityError,
@@ -127,6 +126,7 @@ from .parameter_value import (
     TimeSeriesVariableResolution,
     ParameterValueEncoder,
 )
+from .alternative_value_filter import apply_alternative_value_filter
 from .version import __version__
 
 name = "spinedb_api"
