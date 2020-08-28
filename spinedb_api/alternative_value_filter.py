@@ -16,7 +16,7 @@ Provides functions to add parameter value filtering by scenarios and alternative
 :date:   21.8.2020
 """
 from functools import partial
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, exists, func, literal, literal_column, or_
 from sqlalchemy.sql.expression import label
 from .exception import SpineDBAPIError
 
@@ -206,9 +206,33 @@ def _alternative_filtered_parameter_value_sq(db_map, active_alternatives_subquer
         else_=1,
     )
     selected_alternatives_subquery = db_map.query(label("alternative_id", which_alternative)).subquery()
-    subquery = state.original_parameter_value_sq
-    return (
-        db_map.query(subquery)
-        .filter(subquery.c.alternative_id == selected_alternatives_subquery.c.alternative_id)
+    value_subquery = state.original_parameter_value_sq
+    selected_and_base_suqbuery = (
+        db_map.query(value_subquery.c.parameter_definition_id, value_subquery.c.alternative_id)
+        .filter(
+            or_(
+                value_subquery.c.alternative_id == 1,
+                value_subquery.c.alternative_id == selected_alternatives_subquery.c.alternative_id,
+            )
+        )
         .subquery()
     )
+    max_alternative_id_subquery = (
+        db_map.query(
+            selected_and_base_suqbuery.c.parameter_definition_id,
+            func.max(selected_and_base_suqbuery.c.alternative_id).label("alternative_id"),
+        )
+        .group_by(selected_and_base_suqbuery.c.parameter_definition_id)
+        .subquery()
+    )
+    filtered_suqbquery = (
+        db_map.query(value_subquery)
+        .filter(
+            and_(
+                value_subquery.c.parameter_definition_id == max_alternative_id_subquery.c.parameter_definition_id,
+                value_subquery.c.alternative_id == max_alternative_id_subquery.c.alternative_id,
+            )
+        )
+        .subquery()
+    )
+    return filtered_suqbquery
