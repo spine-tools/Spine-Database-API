@@ -135,7 +135,7 @@ def _make_filtered_parameter_value_sq(db_map, state):
         return _parameter_value_sq_overridden_scenario_filtered(db_map, state)
     if state.active_alternatives is not None:
         subquery = state.original_parameter_value_sq
-        return db_map.query(subquery).filter(subquery.c.alternative_id.in_(state.active_alternatives)).subquery()
+        return db_map.query(subquery).filter(db_map.in_(subquery.c.alternative_id, state.active_alternatives)).subquery()
     return _parameter_value_sq_active_scenario_filtered(db_map, state)
 
 
@@ -154,7 +154,7 @@ def _parameter_value_sq_overridden_scenario_filtered(db_map, state):
     """
     active_alternatives_subquery = (
         db_map.query(db_map.scenario_alternative_sq.c.alternative_id, func.max(db_map.scenario_alternative_sq.c.rank))
-        .filter(db_map.scenario_alternative_sq.c.scenario_id.in_(state.active_scenarios))
+        .filter(db_map.in_(db_map.scenario_alternative_sq.c.scenario_id, state.active_scenarios))
         .group_by(db_map.scenario_alternative_sq.c.scenario_id)
         .subquery()
     )
