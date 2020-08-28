@@ -1345,7 +1345,7 @@ class ObjectGroupMapping(EntityClassMapping):
         self._members = NoneMapping()
         self.groups = groups
         self.members = members
-  
+
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
         if isinstance(self._groups, ColumnMapping) and self._groups.returns_value():

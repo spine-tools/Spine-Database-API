@@ -1280,7 +1280,14 @@ class DatabaseMappingBase:
             ).subquery()
         return self._wide_parameter_value_list_sq
 
-    def set_parameter_value_sq_maker(self, method):
+    def override_parameter_value_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``parameter_value_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns parameter value subquery as an :class:`Alias` object
+        """
         self._make_parameter_value_sq = MethodType(method, self)
         self._parameter_value_sq = None
         self._object_parameter_value_sq = None

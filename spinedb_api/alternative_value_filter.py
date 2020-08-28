@@ -36,7 +36,7 @@ def apply_alternative_value_filter(db_map, overridden_active_scenarios=None, ove
     """
     state = _FilterState(db_map, overridden_active_scenarios, overridden_active_alternatives)
     filtering = partial(_make_filtered_parameter_value_sq, state=state)
-    db_map.set_parameter_value_sq_maker(filtering)
+    db_map.override_parameter_value_sq_maker(filtering)
 
 
 class _FilterState:
@@ -135,7 +135,9 @@ def _make_filtered_parameter_value_sq(db_map, state):
         return _parameter_value_sq_overridden_scenario_filtered(db_map, state)
     if state.active_alternatives is not None:
         subquery = state.original_parameter_value_sq
-        return db_map.query(subquery).filter(db_map.in_(subquery.c.alternative_id, state.active_alternatives)).subquery()
+        return (
+            db_map.query(subquery).filter(db_map.in_(subquery.c.alternative_id, state.active_alternatives)).subquery()
+        )
     return _parameter_value_sq_active_scenario_filtered(db_map, state)
 
 
