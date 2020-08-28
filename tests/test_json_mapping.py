@@ -324,7 +324,12 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(out, expected)
 
     def test_ScenarioAlternative_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternative_name": 1, "before_alternative_name": 2}
+        mapping_dict = {
+            "map_type": "ScenarioAlternative",
+            "scenario_name": 0,
+            "alternative_name": 1,
+            "before_alternative_name": 2,
+        }
         mapping = ScenarioAlternativeMapping.from_dict(mapping_dict)
         out = mapping.to_dict()
         expected = {
@@ -1534,7 +1539,12 @@ class TestMappingIntegration(unittest.TestCase):
         ]
         data = iter(input_data)
         data_header = next(data)
-        mapping = {"map_type": "ScenarioAlternative", "scenario_name": 0, "alternative_name": 1, "before_alternative_name": 2}
+        mapping = {
+            "map_type": "ScenarioAlternative",
+            "scenario_name": 0,
+            "alternative_name": 1,
+            "before_alternative_name": 2,
+        }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
         expected["scenario_alternatives"] = [
@@ -1616,11 +1626,7 @@ class TestMappingIntegration(unittest.TestCase):
             ("class_A", "group2", "object3"),
         ]
         expected["object_classes"] = ["class_A", "class_A", "class_A"]
-        expected["object_parameters"] = [
-            ("class_A", "speed"),
-            ("class_A", "speed"),
-            ("class_A", "speed"),
-        ]
+        expected["object_parameters"] = [("class_A", "speed"), ("class_A", "speed"), ("class_A", "speed")]
         expected["object_parameter_values"] = [
             ("class_A", "group1", "speed", 23.0),
             ("class_A", "group1", "speed", 42.0),

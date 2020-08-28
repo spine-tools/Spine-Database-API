@@ -10,7 +10,8 @@
 ######################################################################################################################
 
 """
-Provides functions to add parameter value filtering by scenarios and alternatives to database maps.
+Provides :func:`apply_alternative_value_filter` which adds parameter value filtering by
+scenarios and alternatives to database maps.
 
 :author: Antti Soininen (VTT)
 :date:   21.8.2020
@@ -21,7 +22,7 @@ from sqlalchemy.sql.expression import label
 from .exception import SpineDBAPIError
 
 
-def apply_alternative_value_filter(db_map, overridden_active_scenarios=None, overridden_active_alternatives=None):
+def apply_alternative_value_filter(db_map, scenario, overridden_active_alternatives=None):
     """
     Replaces parameter value subquery properties in ``db_map`` such that they return only values of active alternatives.
 
@@ -29,61 +30,60 @@ def apply_alternative_value_filter(db_map, overridden_active_scenarios=None, ove
 
     Args:
         db_map (DatabaseMappingBase): a database map to alter
-        overridden_active_scenarios (Iterable of str or int, optional): scenario names or ids;
-            overrides active scenarios in the database
+        scenario (str or int, optional): scenario name or id
         overridden_active_alternatives (Iterable of str or int, optional): alternative names or ids;
-            overrides active scenarios in the database
+            must be provided if ``scenario`` is omitted
     """
-    state = _FilterState(db_map, overridden_active_scenarios, overridden_active_alternatives)
+    state = _FilterState(db_map, scenario, overridden_active_alternatives)
     filtering = partial(_make_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(filtering)
 
 
 class _FilterState:
-    """Internal state for :func:`_make_filtered_parameter_value_sq`"""
+    """
+    Internal state for :func:`_make_filtered_parameter_value_sq`
 
-    def __init__(self, db_map, scenarios, alternatives):
+    Attributes:
+        original_parameter_value_sq (Alias): previous ``parameter_value_sq``
+        active_scenario (int): id of active scenario
+        active_alternatives (NoneType or Iterable of int): ids of alternatives overriding the active scenario
+    """
+
+    def __init__(self, db_map, scenario, alternatives):
         """
         Args:
             db_map (DatabaseMappingBase): database the state applies to
-            scenarios (Iterable of str or int, optional): scenario names or ids;
-                overrides active scenarios in the database.
+            scenario (str or int, optional): scenario name or ids
             alternatives (Iterable of str or int, optional): alternative names of ids;
-                overrides active scenarios in the database
+                must be provided if ``scenario`` is omitted
         """
+        if scenario is None and not alternatives:
+            raise SpineDBAPIError("Cannot create filter: no scenario or alternatives provided.")
         self.original_parameter_value_sq = db_map.parameter_value_sq
-        self.active_scenarios = self._scenario_ids(db_map, scenarios) if scenarios is not None else None
+        self.active_scenario = self._scenario_id(db_map, scenario) if scenario is not None else None
         self.active_alternatives = self._alternative_ids(db_map, alternatives) if alternatives is not None else None
 
     @staticmethod
-    def _scenario_ids(db_map, scenarios):
+    def _scenario_id(db_map, scenario):
         """
-        Finds ids for given scenarios.
+        Finds id for given scenario and checks its existence.
 
         Args:
             db_map (DatabaseMappingBase): a database map
-            scenarios (Iterable): scenario names or ids
+            scenario (str or int): scenario name or id
 
         Returns:
-            list of int: scenario_ids
+            int: scenario's id
         """
-        names = {name for name in scenarios if isinstance(name, str)}
-        names_in_db = (
-            db_map.query(db_map.scenario_sq.c.id, db_map.scenario_sq.c.name)
-            .filter(db_map.in_(db_map.scenario_sq.c.name, names))
-            .all()
-        )
-        if len(names_in_db) != len(names):
-            missing_names = tuple(name for name in names if name not in [i.name for i in names_in_db])
-            raise SpineDBAPIError(f"Scenario(s) {missing_names} not found")
-        ids = [i.id for i in names_in_db]
-        given_ids = {id_ for id_ in scenarios if isinstance(id_, int)}
-        ids_in_db = db_map.query(db_map.scenario_sq.c.id).filter(db_map.in_(db_map.scenario_sq.c.id, given_ids)).all()
-        if len(ids_in_db) != len(given_ids):
-            missing_ids = tuple(id_ for id_ in given_ids if id_ not in [i.id for i in ids_in_db])
-            raise SpineDBAPIError(f"Scenario id(s) {missing_ids} not found")
-        ids += [i.id for i in ids_in_db]
-        return ids
+        if isinstance(scenario, str):
+            scenario_id = db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.name == scenario).scalar()
+            if scenario_id is None:
+                raise SpineDBAPIError(f"Scenario '{scenario}' not found")
+            return scenario_id
+        id_in_db = db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.id == scenario).scalar()
+        if id_in_db is None:
+            raise SpineDBAPIError(f"Scenario id {scenario} not found")
+        return scenario
 
     @staticmethod
     def _alternative_ids(db_map, alternatives):
@@ -97,24 +97,28 @@ class _FilterState:
         Returns:
             list of int: alternative ids
         """
-        ids = list()
-        for alternative in alternatives:
-            if isinstance(alternative, int):
-                exists = (
-                    db_map.query(db_map.alternative_sq.c.id).filter(db_map.alternative_sq.c.id == alternative).scalar()
-                )
-                if exists is None:
-                    raise SpineDBAPIError(f"Alternative id {alternative} not found")
-                ids.append(alternative)
-            else:
-                id_ = (
-                    db_map.query(db_map.alternative_sq.c.id)
-                    .filter(db_map.alternative_sq.c.name == alternative)
-                    .scalar()
-                )
-                if id_ is None:
-                    raise SpineDBAPIError(f"Alternative {alternative} not found")
-                ids.append(id_)
+        alternative_names = [name for name in alternatives if isinstance(name, str)]
+        ids_from_db = (
+            db_map.query(db_map.alternative_sq.c.id, db_map.alternative_sq.c.name)
+            .filter(db_map.in_(db_map.alternative_sq.c.name, alternative_names))
+            .all()
+        )
+        names_in_db = [i.name for i in ids_from_db]
+        if len(alternative_names) != len(names_in_db):
+            missing_names = tuple(name for name in alternative_names if name not in names_in_db)
+            raise SpineDBAPIError(f"Alternative(s) {missing_names} not found")
+        ids = [i.id for i in ids_from_db]
+        alternative_ids = [id_ for id_ in alternatives if isinstance(id_, int)]
+        ids_from_db = (
+            db_map.query(db_map.alternative_sq.c.id)
+            .filter(db_map.in_(db_map.alternative_sq.c.id, alternative_ids))
+            .all()
+        )
+        ids_in_db = [i.id for i in ids_from_db]
+        if len(alternative_ids) != len(ids_from_db):
+            missing_ids = tuple(i for i in alternative_ids if i not in ids_in_db)
+            raise SpineDBAPIError(f"Alternative id(s) {missing_ids} not found")
+        ids += ids_in_db
         return ids
 
 
@@ -131,8 +135,6 @@ def _make_filtered_parameter_value_sq(db_map, state):
     Returns:
         Alias: a subquery for parameter value filtered by active alternatives
     """
-    if state.active_scenarios is not None:
-        return _parameter_value_sq_overridden_scenario_filtered(db_map, state)
     if state.active_alternatives is not None:
         subquery = state.original_parameter_value_sq
         return (
@@ -141,33 +143,11 @@ def _make_filtered_parameter_value_sq(db_map, state):
     return _parameter_value_sq_active_scenario_filtered(db_map, state)
 
 
-def _parameter_value_sq_overridden_scenario_filtered(db_map, state):
-    """
-    Returns a filtering subquery similar to :func:`DatabaseMappingBase.parameter_value_sq`.
-
-    This function uses the scenarios in ``state`` to override the active scenarios in the database.
-
-    Args:
-        db_map (DatabaseMappingBase): a database map
-        state (_FilterState): a state bound to ``db_map``
-
-    Returns:
-        Alias: a subquery for parameter value filtered by active alternatives
-    """
-    active_alternatives_subquery = (
-        db_map.query(db_map.scenario_alternative_sq.c.alternative_id, func.max(db_map.scenario_alternative_sq.c.rank))
-        .filter(db_map.in_(db_map.scenario_alternative_sq.c.scenario_id, state.active_scenarios))
-        .group_by(db_map.scenario_alternative_sq.c.scenario_id)
-        .subquery()
-    )
-    return _alternative_filtered_parameter_value_sq(db_map, active_alternatives_subquery, state)
-
-
 def _parameter_value_sq_active_scenario_filtered(db_map, state):
     """
     Returns a filtering subquery similar to :func:`DatabaseMappingBase.parameter_value_sq`.
 
-    This function uses the active scenarios in the database.
+    This function uses the active scenario set in the state.
 
     Args:
         db_map (DatabaseMappingBase): a database map
@@ -176,30 +156,12 @@ def _parameter_value_sq_active_scenario_filtered(db_map, state):
     Returns:
         Alias: a subquery for parameter value filtered by active alternatives
     """
-    active_scenarios_subquery = (
-        db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.active == True).subquery()
-    )
     active_alternatives_subquery = (
         db_map.query(db_map.scenario_alternative_sq.c.alternative_id, func.max(db_map.scenario_alternative_sq.c.rank))
-        .filter(db_map.scenario_alternative_sq.c.scenario_id == active_scenarios_subquery.c.id)
+        .filter(db_map.scenario_alternative_sq.c.scenario_id == state.active_scenario)
         .group_by(db_map.scenario_alternative_sq.c.scenario_id)
         .subquery()
     )
-    return _alternative_filtered_parameter_value_sq(db_map, active_alternatives_subquery, state)
-
-
-def _alternative_filtered_parameter_value_sq(db_map, active_alternatives_subquery, state):
-    """
-    Returns a filtering subquery similar to :func:`DatabaseMappingBase.parameter_value_sq`.
-
-    Args:
-        db_map (DatabaseMappingBase): a database map
-        active_alternatives_subquery (Alias): a subquery for active alternatives
-        state (_FilterState): a state bound to ``db_map``
-
-    Returns:
-        Alias: a subquery for parameter value filtered by active alternatives
-    """
     # Here we assume that Base alternative id = 1.
     which_alternative = case(
         [
