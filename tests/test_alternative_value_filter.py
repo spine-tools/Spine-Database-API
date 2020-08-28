@@ -185,7 +185,7 @@ class TestAlternativeValueFilter(unittest.TestCase):
             self.assertEqual(len(parameters), 1)
             self.assertEqual(parameters[0].value, "-1.0")
 
-    def test_apply_alternative_value_filter_falls_back_to_Base_alternative2(self):
+    def test_apply_alternative_value_filter_falls_back_to_Base_alternative_with_multiple_alternatives(self):
         import_alternatives(self._out_map, ["alternative"])
         import_object_classes(self._out_map, ["object_class"])
         import_objects(self._out_map, [("object_class", "object")])
