@@ -67,19 +67,22 @@ class _FilterState:
         Returns:
             list of int: scenario_ids
         """
-        ids = list()
-        for scenario in scenarios:
-            if isinstance(scenario, int):
-                exists = db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.id == scenario).scalar()
-                if exists is None:
-                    raise SpineDBAPIError(f"Scenario id {scenario} not found")
-                ids.append(scenario)
-            else:
-                id_ = db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.name == scenario).scalar()
-                if id_ is not None:
-                    ids.append(id_)
-                else:
-                    raise SpineDBAPIError(f"Scenario '{scenario}' not found")
+        names = {name for name in scenarios if isinstance(name, str)}
+        names_in_db = (
+            db_map.query(db_map.scenario_sq.c.id, db_map.scenario_sq.c.name)
+            .filter(db_map.in_(db_map.scenario_sq.c.name, names))
+            .all()
+        )
+        if len(names_in_db) != len(names):
+            missing_names = tuple(name for name in names if name not in [i.name for i in names_in_db])
+            raise SpineDBAPIError(f"Scenario(s) {missing_names} not found")
+        ids = [i.id for i in names_in_db]
+        given_ids = {id_ for id_ in scenarios if isinstance(id_, int)}
+        ids_in_db = db_map.query(db_map.scenario_sq.c.id).filter(db_map.in_(db_map.scenario_sq.c.id, given_ids)).all()
+        if len(ids_in_db) != len(given_ids):
+            missing_ids = tuple(id_ for id_ in given_ids if id_ not in [i.id for i in ids_in_db])
+            raise SpineDBAPIError(f"Scenario id(s) {missing_ids} not found")
+        ids += [i.id for i in ids_in_db]
         return ids
 
     @staticmethod
