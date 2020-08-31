@@ -51,7 +51,7 @@ class _ScenarioFilterState:
 
     Attributes:
         original_parameter_value_sq (Alias): previous ``parameter_value_sq``
-        scenario (int): id of active scenario
+        scenario (int): id of selected scenario
     """
 
     def __init__(self, db_map, scenario):
@@ -92,14 +92,14 @@ class _AlternativeFilterState:
 
     Attributes:
         original_parameter_value_sq (Alias): previous ``parameter_value_sq``
-        alternatives (Iterable of int): ids of alternatives overriding the active scenario
+        alternatives (Iterable of int): ids of alternatives
     """
 
     def __init__(self, db_map, alternatives):
         """
         Args:
             db_map (DatabaseMappingBase): database the state applies to
-            alternatives (Iterable of str or int): alternative names of ids;
+            alternatives (Iterable of str or int): alternative names or ids;
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.alternatives = self._alternative_ids(db_map, alternatives) if alternatives is not None else None
