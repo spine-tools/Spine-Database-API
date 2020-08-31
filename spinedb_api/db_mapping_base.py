@@ -17,6 +17,7 @@
 # TODO: Finish docstrings
 
 import logging
+from types import MethodType
 from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
@@ -570,41 +571,7 @@ class DatabaseMappingBase:
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_sq is None:
-            par_val_sq = self._subquery("parameter_value")
-
-            object_class_case = case(
-                [(self.entity_class_sq.c.type_id == self.object_class_type, par_val_sq.c.entity_class_id)], else_=None
-            )
-            rel_class_case = case(
-                [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_val_sq.c.entity_class_id)],
-                else_=None,
-            )
-            object_entity_case = case(
-                [(self.entity_sq.c.type_id == self.object_entity_type, par_val_sq.c.entity_id)], else_=None
-            )
-            rel_entity_case = case(
-                [(self.entity_sq.c.type_id == self.relationship_entity_type, par_val_sq.c.entity_id)], else_=None
-            )
-
-            self._parameter_value_sq = (
-                self.query(
-                    par_val_sq.c.id.label("id"),
-                    par_val_sq.c.parameter_definition_id,
-                    par_val_sq.c.entity_class_id,
-                    par_val_sq.c.entity_id,
-                    label("object_class_id", object_class_case),
-                    label("relationship_class_id", rel_class_case),
-                    label("object_id", object_entity_case),
-                    label("relationship_id", rel_entity_case),
-                    par_val_sq.c.value.label("value"),
-                    par_val_sq.c.commit_id.label("commit_id"),
-                    par_val_sq.c.alternative_id,
-                )
-                .join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id)
-                .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
-                .subquery()
-            )
-
+            self._parameter_value_sq = self._make_parameter_value_sq()
         return self._parameter_value_sq
 
     @property
@@ -1312,6 +1279,59 @@ class DatabaseMappingBase:
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq
+
+    def override_parameter_value_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``parameter_value_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns parameter value subquery as an :class:`Alias` object
+        """
+        self._make_parameter_value_sq = MethodType(method, self)
+        self._parameter_value_sq = None
+        self._object_parameter_value_sq = None
+        self._relationship_parameter_value_sq = None
+
+    def _make_parameter_value_sq(self):
+        """
+        Creates a subquery for parameter values.
+
+        Returns:
+            Alias: a parameter value subquery
+        """
+        par_val_sq = self._subquery("parameter_value")
+
+        object_class_case = case(
+            [(self.entity_class_sq.c.type_id == self.object_class_type, par_val_sq.c.entity_class_id)], else_=None
+        )
+        rel_class_case = case(
+            [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_val_sq.c.entity_class_id)], else_=None
+        )
+        object_entity_case = case(
+            [(self.entity_sq.c.type_id == self.object_entity_type, par_val_sq.c.entity_id)], else_=None
+        )
+        rel_entity_case = case(
+            [(self.entity_sq.c.type_id == self.relationship_entity_type, par_val_sq.c.entity_id)], else_=None
+        )
+        return (
+            self.query(
+                par_val_sq.c.id.label("id"),
+                par_val_sq.c.parameter_definition_id,
+                par_val_sq.c.entity_class_id,
+                par_val_sq.c.entity_id,
+                label("object_class_id", object_class_case),
+                label("relationship_class_id", rel_class_case),
+                label("object_id", object_entity_case),
+                label("relationship_id", rel_entity_case),
+                par_val_sq.c.value.label("value"),
+                par_val_sq.c.commit_id.label("commit_id"),
+                par_val_sq.c.alternative_id,
+            )
+            .join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id)
+            .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
+            .subquery()
+        )
 
     def _reset_mapping(self):
         """Delete all records from all tables but don't drop the tables.

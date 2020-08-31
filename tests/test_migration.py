@@ -104,7 +104,9 @@ class TestMigration(unittest.TestCase):
             object_classes = {x.id: x.name for x in db_map.object_class_list()}
             objects = {x.id: (object_classes[x.class_id], x.name) for x in db_map.object_list()}
             rel_clss = {x.id: (x.name, x.object_class_name_list) for x in db_map.wide_relationship_class_list()}
-            rels = {x.id: (rel_clss[x.class_id][0], x.name, x.object_name_list) for x in db_map.wide_relationship_list()}
+            rels = {
+                x.id: (rel_clss[x.class_id][0], x.name, x.object_name_list) for x in db_map.wide_relationship_list()
+            }
             obj_par_defs = {
                 x.id: (object_classes[x.object_class_id], x.parameter_name)
                 for x in db_map.object_parameter_definition_list()

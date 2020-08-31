@@ -52,7 +52,9 @@ def create_new_tables():
 
 
 def add_upgrade_comment_to_commits(session, Base):
-    commit = Base.classes.commit(comment="Upgrade database: add scenarios and alternatives.", user="alembic", date=datetime.now(timezone.utc))
+    commit = Base.classes.commit(
+        comment="Upgrade database: add scenarios and alternatives.", user="alembic", date=datetime.now(timezone.utc)
+    )
     session.add(commit)
     session.commit()
     return commit.id

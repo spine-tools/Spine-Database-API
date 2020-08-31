@@ -201,7 +201,9 @@ def _from_dict(value_dict):
 def _break_dictionary(data):
     """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
     if not isinstance(data, dict):
-        raise ParameterValueFormatError(f"expected data to be in dictionary format, instead got '{type(data).__name__}'")
+        raise ParameterValueFormatError(
+            f"expected data to be in dictionary format, instead got '{type(data).__name__}'"
+        )
     indexes, values = zip(*data.items())
     return list(indexes), np.array(values)
 
