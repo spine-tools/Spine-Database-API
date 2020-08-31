@@ -54,13 +54,13 @@ class DatabaseMappingBase:
             together with an in-memory SQLite ``db_url``.
         """
         self.db_url = db_url
+        self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
-        self.codename = str(codename) if codename else str(db_url)
+        self.codename = str(codename) if codename else self.sa_url.database
         self.engine = _create_engine(db_url) if _create_engine is not None else self._create_engine(db_url)
         self._check_db_version(upgrade=upgrade)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
-        self.sa_url = make_url(self.db_url)
         self.Alternative = None
         self.Scenario = None
         self.ScenarioAlternative = None
@@ -191,7 +191,10 @@ class DatabaseMappingBase:
                 # a 'first' Spine db --otherwise we can't go on.
                 ref_engine = _create_first_spine_database("sqlite://")
                 if not compare_schemas(self.engine, ref_engine):
-                    raise SpineDBAPIError("The db at '{0}' doesn't seem like a valid Spine db.".format(self.db_url))
+                    raise SpineDBAPIError(
+                        "Unable to determine db revision. "
+                        "Please check that\n\n\t{0}\n\nis the URL of a valid Spine db.".format(self.db_url)
+                    )
             if current == head:
                 return
             if not upgrade:
