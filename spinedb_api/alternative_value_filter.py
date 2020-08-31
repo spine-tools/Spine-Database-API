@@ -17,8 +17,7 @@ scenarios and alternatives to database maps.
 :date:   21.8.2020
 """
 from functools import partial
-from sqlalchemy import and_, case, exists, func, literal, literal_column, or_
-from sqlalchemy.sql.expression import label
+from sqlalchemy import desc, func
 from .exception import SpineDBAPIError
 
 
@@ -156,50 +155,20 @@ def _parameter_value_sq_active_scenario_filtered(db_map, state):
     Returns:
         Alias: a subquery for parameter value filtered by active alternatives
     """
-    active_alternatives_subquery = (
-        db_map.query(db_map.scenario_alternative_sq.c.alternative_id, func.max(db_map.scenario_alternative_sq.c.rank))
-        .filter(db_map.scenario_alternative_sq.c.scenario_id == state.active_scenario)
-        .group_by(db_map.scenario_alternative_sq.c.scenario_id)
-        .subquery()
-    )
-    # Here we assume that Base alternative id = 1.
-    which_alternative = case(
-        [
-            (
-                func.count(active_alternatives_subquery.c.alternative_id) != 0,
-                active_alternatives_subquery.c.alternative_id,
-            )
-        ],
-        else_=1,
-    )
-    selected_alternatives_subquery = db_map.query(label("alternative_id", which_alternative)).subquery()
-    value_subquery = state.original_parameter_value_sq
-    selected_and_base_suqbuery = (
-        db_map.query(value_subquery.c.parameter_definition_id, value_subquery.c.alternative_id)
-        .filter(
-            or_(
-                value_subquery.c.alternative_id == 1,
-                value_subquery.c.alternative_id == selected_alternatives_subquery.c.alternative_id,
-            )
-        )
-        .subquery()
-    )
-    max_alternative_id_subquery = (
+    ext_parameter_value_sq = (
         db_map.query(
-            selected_and_base_suqbuery.c.parameter_definition_id,
-            func.max(selected_and_base_suqbuery.c.alternative_id).label("alternative_id"),
-        )
-        .group_by(selected_and_base_suqbuery.c.parameter_definition_id)
-        .subquery()
-    )
-    filtered_suqbquery = (
-        db_map.query(value_subquery)
-        .filter(
-            and_(
-                value_subquery.c.parameter_definition_id == max_alternative_id_subquery.c.parameter_definition_id,
-                value_subquery.c.alternative_id == max_alternative_id_subquery.c.alternative_id,
+            state.original_parameter_value_sq,
+            func.row_number()
+            .over(
+                partition_by=[
+                    state.original_parameter_value_sq.c.parameter_definition_id,
+                    state.original_parameter_value_sq.c.entity_id,
+                ],
+                order_by=desc(db_map.scenario_alternative_sq.c.rank),
             )
+            .label("max_rank_row_number"),
         )
-        .subquery()
-    )
-    return filtered_suqbquery
+        .filter(state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
+        .filter(db_map.scenario_alternative_sq.c.scenario_id == state.active_scenario)
+    ).subquery()
+    return db_map.query(ext_parameter_value_sq).filter(ext_parameter_value_sq.c.max_rank_row_number == 1).subquery()
