@@ -20,7 +20,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
-    apply_alternative_value_filter,
+    apply_alternative_filter_to_parameter_value_sq,
+    apply_scenario_filter_to_parameter_value_sq,
     create_new_spine_database,
     DatabaseMapping,
     DiffDatabaseMapping,
@@ -55,21 +56,19 @@ class TestAlternativeValueFilter(unittest.TestCase):
         self._db_map.connection.close()
         self._diff_db_map.connection.close()
 
-    def test_apply_alternative_value_filter_without_scenarios_or_alternatives(self):
+    def test_alternative_filter_without_scenarios_or_alternatives(self):
         self._build_data_without_scenarios_or_alternatives()
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, None, overridden_active_alternatives=["Base"])
+            apply_alternative_filter_to_parameter_value_sq(db_map, [])
             parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
+            self.assertEqual(parameters, [])
 
-    def test_apply_alternative_value_filter_without_scenarios_or_alternatives_uncommitted_data(self):
+    def test_alternative_filter_without_scenarios_or_alternatives_uncommitted_data(self):
         self._build_data_without_scenarios_or_alternatives()
-        apply_alternative_value_filter(self._out_map, None, overridden_active_alternatives=["Base"])
+        apply_alternative_filter_to_parameter_value_sq(self._out_map, alternatives=[])
         parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
-        self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
+        self.assertEqual(parameters, [])
         self._out_map.rollback_session()
 
     def _build_data_without_scenarios_or_alternatives(self):
@@ -78,18 +77,35 @@ class TestAlternativeValueFilter(unittest.TestCase):
         import_object_parameters(self._out_map, [("object_class", "parameter")])
         import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0)])
 
-    def test_apply_alternative_value_filter(self):
+    def test_scenario_filter(self):
         self._build_data_with_single_scenario()
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, "scenario")
+            apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
             self.assertEqual(parameters[0].value, "23.0")
 
-    def test_apply_alternative_value_filter_uncommitted_data(self):
+    def test_scenario_filter_uncommitted_data(self):
         self._build_data_with_single_scenario()
-        apply_alternative_value_filter(self._out_map, "scenario")
+        apply_scenario_filter_to_parameter_value_sq(self._out_map, "scenario")
+        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, "23.0")
+        self._out_map.rollback_session()
+
+    def test_alternative_filter(self):
+        self._build_data_with_single_scenario()
+        self._out_map.commit_session("Add test data")
+        for db_map in [self._db_map, self._diff_db_map]:
+            apply_alternative_filter_to_parameter_value_sq(db_map, ["alternative"])
+            parameters = db_map.query(db_map.parameter_value_sq).all()
+            self.assertEqual(len(parameters), 1)
+            self.assertEqual(parameters[0].value, "23.0")
+
+    def test_alternative_filter_uncommitted_data(self):
+        self._build_data_with_single_scenario()
+        apply_alternative_filter_to_parameter_value_sq(self._out_map, ["alternative"])
         parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, "23.0")
@@ -105,33 +121,16 @@ class TestAlternativeValueFilter(unittest.TestCase):
         import_scenarios(self._out_map, [("scenario", True)])
         import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
 
-    def test_apply_alternative_value_filter_with_single_overridden_active_alternative(self):
+    def test_scenario_filter_works_for_object_parameter_value_sq(self):
         self._build_data_with_single_scenario()
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, None, overridden_active_alternatives=["alternative"])
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
-
-    def test_apply_alternative_value_filter_with_single_overridden_active_alternative_uncommitted_data(self):
-        self._build_data_with_single_scenario()
-        apply_alternative_value_filter(self._out_map, None, overridden_active_alternatives=["alternative"])
-        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
-        self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
-        self._out_map.rollback_session()
-
-    def test_apply_alternative_value_filter_works_for_object_parameter_value_sq(self):
-        self._build_data_with_single_scenario()
-        self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, "scenario")
+            apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.object_parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
             self.assertEqual(parameters[0].value, "23.0")
 
-    def test_apply_alternative_value_filter_works_for_relationship_parameter_value_sq(self):
+    def test_scenario_filter_works_for_relationship_parameter_value_sq(self):
         self._build_data_with_single_scenario()
         import_relationship_classes(self._out_map, [("relationship_class", ["object_class"])])
         import_relationship_parameters(self._out_map, [("relationship_class", "relationship_parameter")])
@@ -144,12 +143,12 @@ class TestAlternativeValueFilter(unittest.TestCase):
         )
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, "scenario")
+            apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.relationship_parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
             self.assertEqual(parameters[0].value, "23.0")
 
-    def test_apply_alternative_value_filter_selects_highest_ranked_alternative(self):
+    def test_scenario_filter_selects_highest_ranked_alternative(self):
         import_alternatives(self._out_map, ["alternative3"])
         import_alternatives(self._out_map, ["alternative1"])
         import_alternatives(self._out_map, ["alternative2"])
@@ -171,12 +170,12 @@ class TestAlternativeValueFilter(unittest.TestCase):
         )
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, "scenario")
+            apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
             self.assertEqual(parameters[0].value, "2000.0")
 
-    def test_apply_alternative_value_filter_selects_highest_ranked_alternative_of_active_scenario(self):
+    def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
         import_alternatives(self._out_map, ["alternative3"])
         import_alternatives(self._out_map, ["alternative1"])
         import_alternatives(self._out_map, ["alternative2"])
@@ -209,12 +208,12 @@ class TestAlternativeValueFilter(unittest.TestCase):
         )
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, "scenario")
+            apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
             self.assertEqual(parameters[0].value, "2000.0")
 
-    def test_apply_alternative_value_filter_for_multiple_objects_and_parameters(self):
+    def test_scenario_filter_for_multiple_objects_and_parameters(self):
         import_alternatives(self._out_map, ["alternative"])
         import_object_classes(self._out_map, ["object_class"])
         import_objects(self._out_map, [("object_class", "object1")])
@@ -233,7 +232,7 @@ class TestAlternativeValueFilter(unittest.TestCase):
         import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_value_filter(db_map, "scenario")
+            apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 4)
             object_names = {o.id: o.name for o in db_map.query(db_map.object_sq).all()}
