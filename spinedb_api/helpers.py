@@ -521,6 +521,51 @@ def create_new_spine_database(db_url):
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
+        "tool",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(155), nullable=False),
+        Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "feature",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("parameter_definition_id", Integer, nullable=False),
+        Column("parameter_value_list_id", Integer, nullable=False),
+        Column("description", String(255), server_default=null()),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        ForeignKeyConstraint(
+            ("parameter_definition_id", "parameter_value_list_id"),
+            ("parameter_definition.id", "parameter_definition.parameter_value_list_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+    )
+    Table(
+        "tool_feature",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("tool_id", Integer, ForeignKey("tool.id")),
+        Column("feature_id", Integer, nullable=False),
+        Column("parameter_value_list_id", Integer, nullable=False),
+        Column("method", Integer),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        ForeignKeyConstraint(
+            ("feature_id", "parameter_value_list_id"),
+            ("feature.id", "feature.parameter_value_list_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ("parameter_value_list_id", "method"),
+            ("parameter_value_list.id", "parameter_value_list.value_index"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+    )
+    Table(
         "alembic_version",
         meta,
         Column("version_num", String(32), nullable=False),
@@ -532,7 +577,7 @@ def create_new_spine_database(db_url):
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('39e860a11b05')")
+        engine.execute("INSERT INTO alembic_version VALUES ('defbda3bf2b5')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine

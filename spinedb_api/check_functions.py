@@ -455,3 +455,12 @@ def check_wide_parameter_value_list(wide_item, current_items):
             _ = from_database(value)
         except ParameterValueFormatError as err:
             raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
+
+
+def check_tool(item, current_items):
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("Missing tool name.")
+    if name in current_items:
+        raise SpineIntegrityError(f"There can't be more than one tool called '{name}'.", id=current_items[name])

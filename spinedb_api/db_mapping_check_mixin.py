@@ -32,6 +32,7 @@ from .check_functions import (
     check_parameter_tag,
     check_parameter_definition_tag,
     check_wide_parameter_value_list,
+    check_tool,
 )
 
 
@@ -52,8 +53,8 @@ class DatabaseMappingCheckMixin:
             if value != current_value:
                 raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
 
-    def check_object_classes_for_insert(self, *items, strict=False):
-        """Check whether object classes passed as argument respect integrity constraints
+    def check_tools_for_insert(self, *items, strict=False):
+        """Check whether tools passed as argument respect integrity constraints
         for an insert operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
@@ -69,65 +70,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
+        tool_ids = {x.name: x.id for x in self.query(self.tool_sq)}
         for item in items:
             try:
-                check_object_class(item, object_class_ids, self.object_class_type)
+                check_tool(item, tool_ids)
                 checked_items.append(item)
-                # If the check passes, append item to `object_class_ids` for next iteration.
-                object_class_ids[item["name"]] = None
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_object_classes_for_update(self, *items, strict=False):
-        """Check whether object classes passed as argument respect integrity constraints
-        for an update operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        object_classes = {x.id: {"name": x.name} for x in self.query(self.object_class_sq)}
-        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
-        for item in items:
-            try:
-                id_ = item["id"]
-            except KeyError:
-                msg = "Missing object class identifier."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            try:
-                # Simulate removal of current instance
-                updated_item = object_classes.pop(id_)
-                del object_class_ids[updated_item["name"]]
-            except KeyError:
-                msg = "Object class not found."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            # Check for an insert of the updated instance
-            try:
-                updated_item.update(item)
-                check_object_class(updated_item, object_class_ids, self.object_class_type)
-                checked_items.append(item)
-                # If the check passes, reinject the updated instance for next iteration.
-                object_classes[id_] = updated_item
-                object_class_ids[updated_item["name"]] = id_
+                # If the check passes, append item to `object_class_names` for next iteration.
+                tool_ids[item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -151,13 +100,13 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        alternative_names = {x.name: x.id for x in self.query(self.alternative_sq)}
+        alternative_ids = {x.name: x.id for x in self.query(self.alternative_sq)}
         for item in items:
             try:
-                check_alternative(item, alternative_names)
+                check_alternative(item, alternative_ids)
                 checked_items.append(item)
                 # If the check passes, append item to `object_class_names` for next iteration.
-                alternative_names[item["name"]] = None
+                alternative_ids[item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -181,11 +130,11 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        alternative_dict = {x.id: {"name": x.name} for x in self.query(self.alternative_sq)}
-        alternative_names = {x.name: x.id for x in self.query(self.alternative_sq)}
+        alternatives = {x.id: {"name": x.name} for x in self.query(self.alternative_sq)}
+        alternative_ids = {x.name: x.id for x in self.query(self.alternative_sq)}
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing alternative identifier."
                 if strict:
@@ -194,8 +143,8 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # Simulate removal of current instance
-                updated_item = alternative_dict.pop(id)
-                del alternative_names[updated_item["name"]]
+                updated_item = alternatives.pop(id_)
+                del alternative_ids[updated_item["name"]]
             except KeyError:
                 msg = "alternative not found."
                 if strict:
@@ -205,11 +154,11 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_alternative(updated_item, alternative_names)
+                check_alternative(updated_item, alternative_ids)
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
-                alternative_dict[id] = updated_item
-                alternative_names[updated_item["name"]] = id
+                alternatives[id_] = updated_item
+                alternative_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -233,12 +182,12 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        scenario_names = {x.name: x.id for x in self.query(self.scenario_sq)}
+        scenario_ids = {x.name: x.id for x in self.query(self.scenario_sq)}
         for item in items:
             try:
-                check_scenario(item, scenario_names)
+                check_scenario(item, scenario_ids)
                 checked_items.append(item)
-                scenario_names[item["name"]] = None
+                scenario_ids[item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -262,11 +211,11 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        scenario_dict = {x.id: {"name": x.name} for x in self.query(self.scenario_sq)}
-        scenario_names = {x.name: x.id for x in self.query(self.scenario_sq)}
+        scenarios = {x.id: {"name": x.name} for x in self.query(self.scenario_sq)}
+        scenario_ids = {x.name: x.id for x in self.query(self.scenario_sq)}
         for item in items:
             try:
-                id = item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing scenario identifier."
                 if strict:
@@ -275,8 +224,8 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # Simulate removal of current instance
-                updated_item = scenario_dict.pop(id)
-                del scenario_names[updated_item["name"]]
+                updated_item = scenarios.pop(id_)
+                del scenario_ids[updated_item["name"]]
             except KeyError:
                 msg = "alternative not found."
                 if strict:
@@ -286,11 +235,11 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_scenario(updated_item, scenario_names)
+                check_scenario(updated_item, scenario_ids)
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
-                scenario_dict[id] = updated_item
-                scenario_names[updated_item["name"]] = id
+                scenarios[id_] = updated_item
+                scenario_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -384,6 +333,88 @@ class DatabaseMappingCheckMixin:
                 ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]] = id_
                 ids_by_rank[updated_item["scenario_id"], updated_item["rank"]] = id_
                 scenario_alternatives[id_] = updated_item
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_object_classes_for_insert(self, *items, strict=False):
+        """Check whether object classes passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
+        for item in items:
+            try:
+                check_object_class(item, object_class_ids, self.object_class_type)
+                checked_items.append(item)
+                # If the check passes, append item to `object_class_ids` for next iteration.
+                object_class_ids[item["name"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_object_classes_for_update(self, *items, strict=False):
+        """Check whether object classes passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        object_classes = {x.id: {"name": x.name} for x in self.query(self.object_class_sq)}
+        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing object class identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = object_classes.pop(id_)
+                del object_class_ids[updated_item["name"]]
+            except KeyError:
+                msg = "Object class not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_object_class(updated_item, object_class_ids, self.object_class_type)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                object_classes[id_] = updated_item
+                object_class_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e

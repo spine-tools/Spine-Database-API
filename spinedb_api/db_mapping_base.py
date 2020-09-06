@@ -81,6 +81,9 @@ class DatabaseMappingBase:
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
+        self.Tool = None
+        self.Feature = None
+        self.ToolFeature = None
         self.IdsForIn = None
         self._ids_for_in_clause_id = 0
         # class and entity type id
@@ -107,6 +110,9 @@ class DatabaseMappingBase:
         self._parameter_tag_sq = None
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
+        self._feature_sq = None
+        self._tool_sq = None
+        self._tool_feature_sq = None
         # Special convenience subqueries that join two or more tables
         self._ext_scenario_sq = None
         self._wide_scenario_sq = None
@@ -148,6 +154,9 @@ class DatabaseMappingBase:
             "parameter_tag": "ParameterTag",
             "parameter_definition_tag": "ParameterDefinitionTag",
             "parameter_value_list": "ParameterValueList",
+            "tool": "Tool",
+            "feature": "Feature",
+            "tool_feature": "ToolFeature",
         }
         # Table primary ids map:
         self.table_ids = {
@@ -170,8 +179,8 @@ class DatabaseMappingBase:
                 pass
         except Exception as e:
             raise SpineDBAPIError(
-                "Could not connect to '{0}': {1}. Please make sure that '{0}' is the URL "
-                "of a Spine database and try again.".format(db_url, str(e))
+                "Unable to create engine: {0}."
+                "Please check that\n\n\t{1}\n\nis the URL of a valid Spine db.".format(str(e), db_url)
             )
         return engine
 
@@ -618,6 +627,24 @@ class DatabaseMappingBase:
         if self._parameter_value_list_sq is None:
             self._parameter_value_list_sq = self._subquery("parameter_value_list")
         return self._parameter_value_list_sq
+
+    @property
+    def feature_sq(self):
+        if self._feature_sq is None:
+            self._feature_sq = self._subquery("feature")
+        return self._feature_sq
+
+    @property
+    def tool_sq(self):
+        if self._tool_sq is None:
+            self._tool_sq = self._subquery("tool")
+        return self._tool_sq
+
+    @property
+    def tool_feature_sq(self):
+        if self._tool_feature_sq is None:
+            self._tool_feature_sq = self._subquery("tool_feature")
+        return self._tool_feature_sq
 
     @property
     def ext_scenario_sq(self):
