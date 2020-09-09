@@ -37,7 +37,7 @@ class DiffDatabaseMappingRemoveMixin:
 
     def remove_items(self, **kwargs):
         """Removes items by id, *not in cascade*.
-x
+
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
@@ -84,6 +84,7 @@ x
         self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set())))
         self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set())))
         self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set())))
+        self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set())))
         return {key: value for key, value in ids.items() if value}
 
     @staticmethod
@@ -214,3 +215,12 @@ x
 
     def _scenario_alternatives_cascading_ids(self, ids):
         return {"scenario_alternative": ids.copy()}
+
+    def _tool_cascading_ids(self, ids):
+        cascading_ids = {"tool": ids.copy()}
+        tool_features = self.query(self.tool_feature_sq.c.id).filter(self.in_(self.tool_feature_sq.c.tool_id, ids))
+        self._merge(cascading_ids, self._tool_features_cascading_ids({x.id for x in tool_features}))
+        return cascading_ids
+
+    def _tool_features_cascading_ids(self, ids):
+        return {"tool_feature": ids.copy()}

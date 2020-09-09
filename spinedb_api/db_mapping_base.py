@@ -16,6 +16,7 @@
 """
 # TODO: Finish docstrings
 
+import os
 import logging
 from types import MethodType
 from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
@@ -56,7 +57,7 @@ class DatabaseMappingBase:
         self.db_url = db_url
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
-        self.codename = str(codename) if codename else self.sa_url.database
+        self.codename = self._make_codename(codename)
         self.engine = _create_engine(db_url) if _create_engine is not None else self._create_engine(db_url)
         self._check_db_version(upgrade=upgrade)
         self.connection = self.engine.connect()
@@ -132,6 +133,7 @@ class DatabaseMappingBase:
         self._wide_parameter_definition_tag_sq = None
         self._ord_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
+        self._ext_feature_sq = None
         # Table to class map for convenience
         self.table_to_class = {
             "alternative": "Alternative",
@@ -169,6 +171,13 @@ class DatabaseMappingBase:
         }
         self._create_mapping()
         self._create_ids_for_in()
+
+    def _make_codename(self, codename):
+        if codename:
+            return str(codename)
+        if self.sa_url.drivername == "sqlite":
+            return os.path.basename(self.sa_url.database)
+        return self.sa_url.database
 
     @staticmethod
     def _create_engine(db_url):
@@ -1309,6 +1318,30 @@ class DatabaseMappingBase:
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq
+
+    @property
+    def ext_feature_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_feature_sq is None:
+            self._ext_feature_sq = (
+                self.query(
+                    self.feature_sq.c.id.label("id"),
+                    self.entity_class_sq.c.id.label("entity_class_id"),
+                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.feature_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    self.parameter_definition_sq.c.name.label("parameter_definition_name"),
+                    self.feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
+                    self.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+                    self.feature_sq.c.description.label("description"),
+                )
+                .filter(self.feature_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
+                .filter(self.feature_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id)
+                .filter(self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .subquery()
+            )
+        return self._ext_feature_sq
 
     def override_parameter_value_sq_maker(self, method):
         """

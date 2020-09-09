@@ -38,6 +38,7 @@ def upgrade():
         sa.Column("parameter_value_list_id", sa.Integer, nullable=False),
         sa.Column("description", sa.String(255), server_default=sa.null()),
         sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
+        sa.UniqueConstraint("parameter_definition_id", "parameter_value_list_id"),
         sa.ForeignKeyConstraint(
             ("parameter_definition_id", "parameter_value_list_id"),
             ("parameter_definition.id", "parameter_definition.parameter_value_list_id"),

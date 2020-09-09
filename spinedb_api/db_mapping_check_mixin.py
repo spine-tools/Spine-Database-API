@@ -32,6 +32,7 @@ from .check_functions import (
     check_parameter_tag,
     check_parameter_definition_tag,
     check_wide_parameter_value_list,
+    check_feature,
     check_tool,
 )
 
@@ -52,6 +53,44 @@ class DatabaseMappingCheckMixin:
             current_value = current_item[field]
             if value != current_value:
                 raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
+
+    def check_features_for_insert(self, *items, strict=False):
+        """Check whether features passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        feature_ids = {x.parameter_definition_id: x.id for x in self.query(self.feature_sq)}
+        parameter_definitions = {
+            x.id: {
+                "name": x.name,
+                "entity_class_id": x.entity_class_id,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.parameter_definition_sq)
+        }
+        for item in items:
+            try:
+                check_feature(item, feature_ids, parameter_definitions)
+                checked_items.append(item)
+                # If the check passes, append item to `object_class_names` for next iteration.
+                feature_ids[item["parameter_definition_id"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
 
     def check_tools_for_insert(self, *items, strict=False):
         """Check whether tools passed as argument respect integrity constraints
@@ -77,6 +116,58 @@ class DatabaseMappingCheckMixin:
                 checked_items.append(item)
                 # If the check passes, append item to `object_class_names` for next iteration.
                 tool_ids[item["name"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tools_for_update(self, *items, strict=False):
+        """Check whether tools passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tools = {x.id: {"name": x.name} for x in self.query(self.tool_sq)}
+        tool_ids = {x.name: x.id for x in self.query(self.tool_sq)}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing tool identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = tools.pop(id_)
+                del tool_ids[updated_item["name"]]
+            except KeyError:
+                msg = "tool not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_tool(updated_item, tool_ids)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                tools[id_] = updated_item
+                tool_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -114,7 +205,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_alternatives_for_update(self, *items, strict=False):
-        """Check whether object classes passed as argument respect integrity constraints
+        """Check whether alternatives passed as argument respect integrity constraints
         for an update operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
@@ -166,7 +257,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_scenarios_for_insert(self, *items, strict=False):
-        """Check whether scenario passed as argument respect integrity constraints
+        """Check whether scenarios passed as argument respect integrity constraints
         for an insert operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
@@ -195,7 +286,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_scenarios_for_update(self, *items, strict=False):
-        """Check whether object classes passed as argument respect integrity constraints
+        """Check whether scenarios passed as argument respect integrity constraints
         for an update operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
@@ -247,7 +338,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_scenario_alternatives_for_insert(self, *items, strict=False):
-        """Check whether scenario passed as argument respect integrity constraints
+        """Check whether scenario alternatives passed as argument respect integrity constraints
         for an insert operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
@@ -283,7 +374,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_scenario_alternatives_for_update(self, *items, strict=False):
-        """Check whether scenario passed as argument respect integrity constraints
+        """Check whether scenario alternatives passed as argument respect integrity constraints
         for an insert operation.
 
         :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
@@ -883,11 +974,11 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_values = {
+        parameter_value_ids = {
             (x.entity_id, x.parameter_definition_id, x.alternative_id): x.id
             for x in self.query(self.parameter_value_sq)
         }
-        parameter_definition_dict = {
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -914,13 +1005,13 @@ class DatabaseMappingCheckMixin:
             try:
                 check_parameter_value(
                     checked_item,
-                    parameter_values,
-                    parameter_definition_dict,
+                    parameter_value_ids,
+                    parameter_definitions,
                     entities,
                     parameter_value_lists,
                     alternatives,
                 )
-                parameter_values[entity_id, checked_item["parameter_definition_id"], alt_id] = None
+                parameter_value_ids[entity_id, checked_item["parameter_definition_id"], alt_id] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -962,7 +1053,7 @@ class DatabaseMappingCheckMixin:
             (x.entity_id, x.parameter_definition_id, x.alternative_id): x.id
             for x in self.query(self.parameter_value_sq)
         }
-        parameter_definition_dict = {
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -1013,7 +1104,7 @@ class DatabaseMappingCheckMixin:
                 check_parameter_value(
                     updated_item,
                     parameter_values,
-                    parameter_definition_dict,
+                    parameter_definitions,
                     entities,
                     parameter_value_lists,
                     alternatives,

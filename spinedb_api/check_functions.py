@@ -464,3 +464,24 @@ def check_tool(item, current_items):
         raise SpineIntegrityError("Missing tool name.")
     if name in current_items:
         raise SpineIntegrityError(f"There can't be more than one tool called '{name}'.", id=current_items[name])
+
+
+def check_feature(item, current_items, parameter_definitions):
+    try:
+        parameter_definition_id = item["parameter_definition_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing parameter identifier.")
+    try:
+        parameter_value_list_id = item["parameter_value_list_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing parameter_value_list identifier.")
+    try:
+        parameter_definition = parameter_definitions[parameter_definition_id]
+    except KeyError:
+        raise SpineIntegrityError("Parameter not found.")
+    if parameter_value_list_id != parameter_definition["parameter_value_list_id"]:
+        raise SpineIntegrityError("Parameter definition and value list don't match.")
+    if parameter_definition_id in current_items:
+        raise SpineIntegrityError(
+            "There's already a feature for given parameter_definition.", id=current_items[parameter_definition_id],
+        )

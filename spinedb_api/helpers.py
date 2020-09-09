@@ -536,6 +536,7 @@ def create_new_spine_database(db_url):
         Column("parameter_value_list_id", Integer, nullable=False),
         Column("description", String(255), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("parameter_definition_id", "parameter_value_list_id"),
         ForeignKeyConstraint(
             ("parameter_definition_id", "parameter_value_list_id"),
             ("parameter_definition.id", "parameter_definition.parameter_value_list_id"),
