@@ -503,30 +503,41 @@ class ParameterDefinitionMapping:
 class ParameterValueMapping(ParameterDefinitionMapping):
     PARAMETER_TYPE = "single value"
 
-    def __init__(self, name=None, value=None):
+    def __init__(self, name=None, value=None, alternative_name=None):
         super().__init__(name)
         self._value = ColumnMapping(None)
+        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
         self.value = value
 
     @property
     def value(self):
         return self._value
 
+    @property
+    def alternative_name(self):
+        return self._alternative_name
+
     @value.setter
     def value(self, value):
         self._value = mappingbase_from_dict_int_str(value)
+
+    @alternative_name.setter
+    def alternative_name(self, alternative_name):
+        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
         if isinstance(self.value, ColumnMapping) and self.value.returns_value():
             non_pivoted_columns.append(self.value.reference)
+        if isinstance(self.alternative_name, ColumnMapping) and self.alternative_name.returns_value():
+            non_pivoted_columns.append(self.alternative_name.reference)
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        return max(super().last_pivot_row(), self.value.last_pivot_row())
+        return max(super().last_pivot_row(), self.value.last_pivot_row(), self.alternative_name.last_pivot_row())
 
     def is_pivoted(self):
-        return super().is_pivoted() or self.value.is_pivoted()
+        return super().is_pivoted() or self.value.is_pivoted() or self.alternative_name.is_pivoted()
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -537,13 +548,15 @@ class ParameterValueMapping(ParameterDefinitionMapping):
             raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
         name = map_dict.get("name", None)
         value = map_dict.get("value", None)
-        return ParameterValueMapping(name, value)
+        alternative_name = map_dict.get("alternative_name", None)
+        return ParameterValueMapping(name, value, alternative_name)
 
     def to_dict(self):
         map_dict = super().to_dict()
         map_dict["map_type"] = self.MAP_TYPE
         map_dict.update({"parameter_type": self.PARAMETER_TYPE})
         map_dict.update({"value": self.value.to_dict()})
+        map_dict.update({"alternative_name": self.alternative_name.to_dict()})
         return map_dict
 
     def is_valid(self, parent_pivot: bool):
@@ -566,16 +579,26 @@ class ParameterValueMapping(ParameterDefinitionMapping):
 
     def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
-        num, getter, reads = (None, None, None)
+        val_getter, val_num, val_reads = (None, None, None)
         if (is_pivoted or self.is_pivoted()) and not self.value.is_pivoted():
             # if mapping is pivoted values for parameters are read from pivoted data
             if pivoted_columns:
-                num = len(pivoted_columns)
-                getter = itemgetter(*pivoted_columns)
-                reads = True
+                val_getter = itemgetter(*pivoted_columns)
+                val_num = len(pivoted_columns)
+                val_reads = True
         elif self.value.returns_value():
-            getter, num, reads = self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        getters["value"] = (getter, num, reads)
+            val_getter, val_num, val_reads = self.value.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
+            )
+        getters["value"] = (val_getter, val_num, val_reads)
+        if (is_pivoted or self.is_pivoted()) and not self.alternative_name.is_pivoted():
+            # if mapping is pivoted values for parameters are read from pivoted data
+            if pivoted_columns:
+                getters["alternative_name"] = (itemgetter(*pivoted_columns), len(pivoted_columns), True)
+        elif self.alternative_name.returns_value():
+            getters["alternative_name"] = self.alternative_name.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
+            )
         return getters
 
     def raw_data_to_type(self, data):
@@ -2022,9 +2045,11 @@ class ScenarioAlternativeMapping(ItemMappingBase):
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
         if self._scenario_name.returns_value():
-            scenario_name_getter, scenario_name_length, scenario_name_reads = self._scenario_name.create_getter_function(
-                pivoted_columns, pivoted_data, data_header
-            )
+            (
+                scenario_name_getter,
+                scenario_name_length,
+                scenario_name_reads,
+            ) = self._scenario_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
         else:
             scenario_name_getter, scenario_name_length, scenario_name_reads = None, None, None
         if self._alternative_name.returns_value():
@@ -2034,9 +2059,11 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         else:
             alt_getter, alt_length, alt_reads = None, None, None
         if self._before_alternative_name.returns_value():
-            before_name_getter, before_name_length, before_name_reads = self._before_alternative_name.create_getter_function(
-                pivoted_columns, pivoted_data, data_header
-            )
+            (
+                before_name_getter,
+                before_name_length,
+                before_name_reads,
+            ) = self._before_alternative_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
         else:
             before_name_getter, before_name_length, before_name_reads = None, None, None
         functions = [scenario_name_getter, alt_getter, before_name_getter]
@@ -2580,12 +2607,14 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
         if isinstance(parameters_mapping, ParameterValueMapping):
             par_val_name = object_or_relationship + "_parameter_values"
             par_value_getter, par_value_num, par_value_reads = component_readers["parameter_value"]
-            readers.append(
-                (par_val_name,)
-                + create_final_getter_function(
-                    [class_getters[0], entity_getters[0], par_name_getter, par_value_getter],
-                    [class_getters[1], entity_getters[1], par_name_num, par_value_num],
-                    [class_getters[2], entity_getters[2], par_name_reads, par_value_reads],
-                )
-            )
+            getter_list = [class_getters[0], entity_getters[0], par_name_getter, par_value_getter]
+            num_list = [class_getters[1], entity_getters[1], par_name_num, par_value_num]
+            reads_list = [class_getters[2], entity_getters[2], par_name_reads, par_value_reads]
+            alt_getters = component_readers.get("alternative_name")
+            if alt_getters:
+                alt_getter, alt_num, alt_reads = component_readers["alternative_name"]
+                getter_list.append(alt_getter)
+                num_list.append(alt_num)
+                reads_list.append(alt_reads)
+            readers.append((par_val_name,) + create_final_getter_function(getter_list, num_list, reads_list))
     return readers
