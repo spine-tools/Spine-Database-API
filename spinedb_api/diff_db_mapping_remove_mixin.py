@@ -84,6 +84,7 @@ class DiffDatabaseMappingRemoveMixin:
         self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set())))
         self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set())))
         self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set())))
+        self._merge(ids, self._feature_cascading_ids(kwargs.get("feature", set())))
         self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set())))
         return {key: value for key, value in ids.items() if value}
 
@@ -215,6 +216,12 @@ class DiffDatabaseMappingRemoveMixin:
 
     def _scenario_alternatives_cascading_ids(self, ids):
         return {"scenario_alternative": ids.copy()}
+
+    def _feature_cascading_ids(self, ids):
+        cascading_ids = {"feature": ids.copy()}
+        tool_features = self.query(self.tool_feature_sq.c.id).filter(self.in_(self.tool_feature_sq.c.feature_id, ids))
+        self._merge(cascading_ids, self._tool_features_cascading_ids({x.id for x in tool_features}))
+        return cascading_ids
 
     def _tool_cascading_ids(self, ids):
         cascading_ids = {"tool": ids.copy()}

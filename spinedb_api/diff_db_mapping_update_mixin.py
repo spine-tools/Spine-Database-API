@@ -378,6 +378,29 @@ class DiffDatabaseMappingUpdateMixin:
             msg = "DBAPIError while updating parameter value lists: {}".format(e.msg)
             raise SpineDBAPIError(msg)
 
+    def update_features(self, *kwargs_list, strict=False):
+        """Update features."""
+        checked_kwargs_list, intgr_error_log = self.check_features_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_features(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_features(self, *checked_kwargs_list, strict=False):
+        """Update features without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "feature", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffFeature, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffFeature, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("feature", dirty_ids)
+            self.updated_item_id["feature"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating features: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
     def update_tools(self, *kwargs_list, strict=False):
         """Update tools."""
         checked_kwargs_list, intgr_error_log = self.check_tools_for_update(*kwargs_list, strict=strict)

@@ -1333,11 +1333,11 @@ class DatabaseMappingBase:
                     self.feature_sq.c.parameter_definition_id.label("parameter_definition_id"),
                     self.parameter_definition_sq.c.name.label("parameter_definition_name"),
                     self.feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
-                    self.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+                    self.wide_parameter_value_list_sq.c.name.label("parameter_value_list_name"),
                     self.feature_sq.c.description.label("description"),
                 )
                 .filter(self.feature_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
-                .filter(self.feature_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id)
+                .filter(self.feature_sq.c.parameter_value_list_id == self.wide_parameter_value_list_sq.c.id)
                 .filter(self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
                 .subquery()
             )

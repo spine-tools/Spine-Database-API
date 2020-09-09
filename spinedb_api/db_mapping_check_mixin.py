@@ -92,6 +92,66 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
+    def check_features_for_update(self, *items, strict=False):
+        """Check whether features passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        features = {x.id: x._asdict() for x in self.query(self.feature_sq)}
+        feature_ids = {x.parameter_definition_id: x.id for x in self.query(self.feature_sq)}
+        parameter_definitions = {
+            x.id: {
+                "name": x.name,
+                "entity_class_id": x.entity_class_id,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.parameter_definition_sq)
+        }
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing feature identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = features.pop(id_)
+                del feature_ids[updated_item["parameter_definition_id"]]
+            except KeyError:
+                msg = "feature not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_feature(updated_item, feature_ids, parameter_definitions)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                features[id_] = updated_item
+                feature_ids[updated_item["parameter_definition_id"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
     def check_tools_for_insert(self, *items, strict=False):
         """Check whether tools passed as argument respect integrity constraints
         for an insert operation.
