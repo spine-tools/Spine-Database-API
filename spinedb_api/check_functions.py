@@ -474,7 +474,7 @@ def check_feature(item, current_items, parameter_definitions):
     try:
         parameter_value_list_id = item["parameter_value_list_id"]
     except KeyError:
-        raise SpineIntegrityError("Missing parameter_value_list identifier.")
+        raise SpineIntegrityError("Missing parameter value list identifier.")
     try:
         parameter_definition = parameter_definitions[parameter_definition_id]
     except KeyError:
@@ -483,5 +483,37 @@ def check_feature(item, current_items, parameter_definitions):
         raise SpineIntegrityError("Parameter definition and value list don't match.")
     if parameter_definition_id in current_items:
         raise SpineIntegrityError(
-            "There's already a feature for given parameter_definition.", id=current_items[parameter_definition_id],
+            f"There's already a feature defined for parameter '{parameter_definition['name']}'.",
+            id=current_items[parameter_definition_id],
         )
+
+
+def check_tool_feature(item, current_items, features, parameter_value_lists):
+    try:
+        tool_id = item["tool_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing tool identifier.")
+    try:
+        feature_id = item["feature_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing feature identifier.")
+    try:
+        parameter_value_list_id = item["parameter_value_list_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing parameter value list identifier.")
+    try:
+        feature = features[feature_id]
+    except KeyError:
+        raise SpineIntegrityError("Feature not found.")
+    try:
+        parameter_value_list = parameter_value_lists[parameter_value_list_id]
+    except KeyError:
+        raise SpineIntegrityError("Parameter value list not found.")
+    dup_id = current_items.get((tool_id, feature_id))
+    if dup_id is not None:
+        raise SpineIntegrityError(f"Given tool already has the feature '{feature['name']}'.", id=dup_id)
+    if parameter_value_list_id != feature["parameter_value_list_id"]:
+        raise SpineIntegrityError("Feature and parameter value list don't match.")
+    method_index = item.get("method_index")
+    if method_index is not None and method_index not in parameter_value_list["value_index_list"]:
+        raise SpineIntegrityError(f"Invalid method for feature '{feature['name']}'.")

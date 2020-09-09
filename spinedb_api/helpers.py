@@ -20,6 +20,7 @@ import warnings
 from sqlalchemy import (
     Boolean,
     create_engine,
+    true,
     false,
     Table,
     Column,
@@ -551,8 +552,10 @@ def create_new_spine_database(db_url):
         Column("tool_id", Integer, ForeignKey("tool.id")),
         Column("feature_id", Integer, nullable=False),
         Column("parameter_value_list_id", Integer, nullable=False),
-        Column("method", Integer),
+        Column("method_index", Integer),
+        Column("required", Boolean(name="required"), server_default=false(), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("tool_id", "feature_id"),
         ForeignKeyConstraint(
             ("feature_id", "parameter_value_list_id"),
             ("feature.id", "feature.parameter_value_list_id"),
@@ -560,7 +563,7 @@ def create_new_spine_database(db_url):
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ("parameter_value_list_id", "method"),
+            ("parameter_value_list_id", "method_index"),
             ("parameter_value_list.id", "parameter_value_list.value_index"),
             onupdate="CASCADE",
             ondelete="CASCADE",

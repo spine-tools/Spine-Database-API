@@ -131,7 +131,6 @@ class DatabaseMappingBase:
         self._relationship_parameter_value_sq = None
         self._ext_parameter_definition_tag_sq = None
         self._wide_parameter_definition_tag_sq = None
-        self._ord_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
         self._ext_feature_sq = None
         # Table to class map for convenience
@@ -1270,27 +1269,6 @@ class DatabaseMappingBase:
         return self._wide_parameter_definition_tag_sq
 
     @property
-    def ord_parameter_value_list_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT *
-            FROM parameter_value_list
-            ORDER BY id, value_index
-
-        :type: :class:`~sqlalchemy.sql.expression.Alias`
-        """
-        # NOTE: Not sure what the purpose of this was
-        if self._ord_parameter_value_list_sq is None:
-            self._ord_parameter_value_list_sq = (
-                self.query(self.parameter_value_list_sq)
-                .order_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.value_index)
-                .subquery()
-            )
-        return self._ord_parameter_value_list_sq
-
-    @property
     def wide_parameter_value_list_sq(self):
         """A subquery of the form:
 
@@ -1314,6 +1292,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
+                    func.group_concat(self.parameter_value_list_sq.c.value_index, ";").label("value_index_list"),
                     func.group_concat(self.parameter_value_list_sq.c.value, ";").label("value_list"),
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()

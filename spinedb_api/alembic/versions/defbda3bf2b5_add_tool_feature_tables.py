@@ -52,8 +52,10 @@ def upgrade():
         sa.Column("tool_id", sa.Integer, sa.ForeignKey("tool.id")),
         sa.Column("feature_id", sa.Integer, nullable=False),
         sa.Column("parameter_value_list_id", sa.Integer, nullable=False),
-        sa.Column("method", sa.Integer),
+        sa.Column("method_index", sa.Integer),
+        sa.Column("required", sa.Boolean(name="required"), server_default=sa.false(), nullable=False),
         sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
+        sa.UniqueConstraint("tool_id", "feature_id"),
         sa.ForeignKeyConstraint(
             ("feature_id", "parameter_value_list_id"),
             ("feature.id", "feature.parameter_value_list_id"),
@@ -61,7 +63,7 @@ def upgrade():
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ("parameter_value_list_id", "method"),
+            ("parameter_value_list_id", "method_index"),
             ("parameter_value_list.id", "parameter_value_list.value_index"),
             onupdate="CASCADE",
             ondelete="CASCADE",

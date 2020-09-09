@@ -34,6 +34,7 @@ from .check_functions import (
     check_wide_parameter_value_list,
     check_feature,
     check_tool,
+    check_tool_feature,
 )
 
 
@@ -228,6 +229,46 @@ class DatabaseMappingCheckMixin:
                 # If the check passes, reinject the updated instance for next iteration.
                 tools[id_] = updated_item
                 tool_ids[updated_item["name"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tool_features_for_insert(self, *items, strict=False):
+        """Check whether tool features passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
+        features = {
+            x.id: {
+                "name": x.entity_class_name + "/" + x.parameter_definition_name,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.ext_feature_sq)
+        }
+        parameter_value_lists = {
+            x.id: {"name": x.name, "value_index_list": set(int(idx) for idx in x.value_index_list.split(";"))}
+            for x in self.query(self.wide_parameter_value_list_sq)
+        }
+        for item in items:
+            try:
+                check_tool_feature(item, tool_feature_ids, features, parameter_value_lists)
+                checked_items.append(item)
+                tool_feature_ids[item["tool_id"], item["feature_id"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e

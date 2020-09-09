@@ -280,11 +280,11 @@ class DiffDatabaseMappingAddMixin:
 
     def _do_add_tool_features(self, *items_to_add):
         try:
-            self.session.bulk_insert_mappings(self.DiffScenarioAlternative, items_to_add)
+            self.session.bulk_insert_mappings(self.DiffToolFeature, items_to_add)
             self.session.commit()
         except DBAPIError as e:
             self.session.rollback()
-            msg = "DBAPIError while inserting scenario alternatives: {}".format(e.orig.args)
+            msg = "DBAPIError while inserting tool features: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def readd_tool_features(self, *items):
