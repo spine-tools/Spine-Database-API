@@ -133,6 +133,7 @@ class DatabaseMappingBase:
         self._wide_parameter_definition_tag_sq = None
         self._wide_parameter_value_list_sq = None
         self._ext_feature_sq = None
+        self._ext_tool_feature_sq = None
         # Table to class map for convenience
         self.table_to_class = {
             "alternative": "Alternative",
@@ -1321,6 +1322,33 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._ext_feature_sq
+
+    @property
+    def ext_tool_feature_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_tool_feature_sq is None:
+            self._ext_tool_feature_sq = (
+                self.query(
+                    self.tool_feature_sq.c.id.label("id"),
+                    self.tool_feature_sq.c.tool_id.label("tool_id"),
+                    self.tool_feature_sq.c.feature_id.label("feature_id"),
+                    self.tool_feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
+                    self.tool_feature_sq.c.method_index.label("method_index"),
+                    self.tool_feature_sq.c.required.label("required"),
+                    self.parameter_value_list_sq.c.value.label("method"),
+                )
+                .outerjoin(
+                    self.parameter_value_list_sq,
+                    and_(
+                        self.tool_feature_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id,
+                        self.tool_feature_sq.c.method_index == self.parameter_value_list_sq.c.value_index,
+                    ),
+                )
+                .subquery()
+            )
+        return self._ext_tool_feature_sq
 
     def override_parameter_value_sq_maker(self, method):
         """

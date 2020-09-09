@@ -20,7 +20,6 @@ import warnings
 from sqlalchemy import (
     Boolean,
     create_engine,
-    true,
     false,
     Table,
     Column,
