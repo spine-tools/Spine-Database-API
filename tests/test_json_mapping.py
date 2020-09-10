@@ -15,7 +15,7 @@ Unit tests for json_mapping.py.
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
-
+import unittest
 from spinedb_api.json_mapping import (
     AlternativeMapping,
     read_with_mapping,
@@ -37,8 +37,7 @@ from spinedb_api.json_mapping import (
     ScenarioAlternativeMapping,
     ScenarioMapping,
 )
-import unittest
-from spinedb_api.parameter_value import Array, TimeSeriesVariableResolution, TimePattern
+from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError
 
 
@@ -139,6 +138,7 @@ class TestMappingIO(unittest.TestCase):
             "name": {"reference": 0, "map_type": "column"},
             "objects": {"reference": 1, "map_type": "column"},
             "parameters": {
+                "alternative_name": {"map_type": "None"},
                 "map_type": "parameter",
                 "name": {"reference": 2, "map_type": "column"},
                 "value": {"reference": 3, "map_type": "column"},
@@ -201,6 +201,7 @@ class TestMappingIO(unittest.TestCase):
             "object_classes": [{"reference": 0, "map_type": "column"}, {"reference": 1, "map_type": "column"}],
             "objects": [{"reference": 0, "map_type": "column"}, {"reference": 1, "map_type": "column"}],
             "parameters": {
+                "alternative_name": {"map_type": "None"},
                 "map_type": "parameter",
                 "name": {"map_type": "constant", "reference": "test"},
                 "parameter_type": "single value",
@@ -255,6 +256,7 @@ class TestMappingIO(unittest.TestCase):
             'object_classes': [{'map_type': 'None'}],
             'objects': [{'map_type': 'None'}],
             "parameters": {
+                "alternative_name": {"map_type": "None"},
                 "map_type": "parameter",
                 "name": {"map_type": "constant", "reference": "test"},
                 "parameter_type": "array",
@@ -287,6 +289,7 @@ class TestMappingIO(unittest.TestCase):
             "groups": {"reference": 1, "map_type": "column"},
             "members": {"reference": 2, "map_type": "column"},
             "parameters": {
+                "alternative_name": {"map_type": "None"},
                 "map_type": "parameter",
                 "name": {"map_type": "constant", "reference": "test"},
                 "parameter_type": "single value",
@@ -348,6 +351,8 @@ class TestMappingIO(unittest.TestCase):
         parameter_mapping = ParameterMapMapping("mapping name", value=mapping_value, extra_dimension=[extra_dimension])
         mapping_dict = parameter_mapping.to_dict()
         expected = {
+            "alternative_name": {"map_type": "None"},
+            "compress": False,
             "map_type": "parameter",
             "name": {'map_type': 'constant', 'reference': 'mapping name'},
             "parameter_type": "map",
@@ -363,7 +368,7 @@ class TestMappingIO(unittest.TestCase):
             "parameter_type": "map",
             "value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
-            "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
+            "compress": True,
         }
         parameter_mapping = ParameterMapMapping.from_dict(mapping_dict)
         self.assertEqual(parameter_mapping.name.reference, "mapping name")
@@ -376,6 +381,7 @@ class TestMappingIO(unittest.TestCase):
         dimension = extra_dimensions[0]
         self.assertIsInstance(dimension, ColumnMapping)
         self.assertEqual(dimension.reference, "fifth column")
+        self.assertEqual(parameter_mapping.compress, True)
 
     def test_TimeSeriesOptions_to_dict(self):
         options = TimeSeriesOptions(repeat=True)
@@ -398,6 +404,7 @@ class TestMappingIO(unittest.TestCase):
         )
         mapping_dict = parameter_mapping.to_dict()
         expected = {
+            "alternative_name": {"map_type": "None"},
             "map_type": "parameter",
             "name": {'map_type': 'constant', 'reference': 'mapping name'},
             "parameter_type": "time series",
@@ -534,6 +541,7 @@ class TestMappingIsValid(unittest.TestCase):
             "name": "test",
             "value": 2,
             "parameter_type": "map",
+            "compress": False,
             "extra_dimensions": [0, 1],
         }
         mapping = parameter_mapping_from_dict(mapping)
@@ -546,6 +554,7 @@ class TestMappingIsValid(unittest.TestCase):
             "name": "test",
             "value": 2,
             "parameter_type": "map",
+            "compress": False,
             "extra_dimensions": [0, None],
         }
         mapping = parameter_mapping_from_dict(mapping)
@@ -1441,7 +1450,13 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object_class",
             "object": "object",
-            "parameters": {"name": "parameter", "parameter_type": "map", "value": 1, "extra_dimensions": [0]},
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 1,
+                "compress": False,
+                "extra_dimensions": [0],
+            },
         }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
@@ -1461,7 +1476,13 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object_class",
             "object": "object",
-            "parameters": {"name": "parameter", "parameter_type": "map", "value": 2, "extra_dimensions": [0, 1]},
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 2,
+                "compress": False,
+                "extra_dimensions": [0, 1],
+            },
         }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
@@ -1490,7 +1511,13 @@ class TestMappingIntegration(unittest.TestCase):
             "map_type": "ObjectClass",
             "name": "object_class",
             "object": "object",
-            "parameters": {"name": "parameter", "parameter_type": "map", "value": 3, "extra_dimensions": [0, 1, 2]},
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 3,
+                "compress": False,
+                "extra_dimensions": [0, 1, 2],
+            },
         }
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
@@ -1504,6 +1531,39 @@ class TestMappingIntegration(unittest.TestCase):
                 -33,
                 Map(["key31", "key32"], [Map(["key311", "key312"], [50, 51]), 66]),
             ],
+        )
+        expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
+        expected["object_parameters"] = [("object_class", "parameter")]
+        self.assertFalse(errors)
+        self.assertEqual(out, expected)
+
+    def test_read_nested_map_with_compression(self):
+        input_data = [
+            ["Index 1", "Time stamp", "Value"],
+            ["key", DateTime("2020-09-10T08:00"), -2.0],
+            ["key", DateTime("2020-09-11T08:00"), -1.0],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object_class",
+            "object": "object",
+            "parameters": {
+                "name": "parameter",
+                "parameter_type": "map",
+                "value": 2,
+                "compress": True,
+                "extra_dimensions": [0, 1],
+            },
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_classes"] = ["object_class"]
+        expected["objects"] = [("object_class", "object")]
+        expected_map = Map(
+            ["key"],
+            [TimeSeriesVariableResolution(["2020-09-10T08:00", "2020-09-11T08:00"], [-2.0, -1.0], False, False)],
         )
         expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
         expected["object_parameters"] = [("object_class", "parameter")]

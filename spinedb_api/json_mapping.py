@@ -20,7 +20,14 @@ import itertools
 import math
 from collections.abc import Iterable
 from operator import itemgetter
-from .parameter_value import Array, Map, TimeSeriesVariableResolution, TimePattern, ParameterValueFormatError
+from .parameter_value import (
+    Array,
+    convert_leaf_maps_to_specialized_containers,
+    Map,
+    TimeSeriesVariableResolution,
+    TimePattern,
+    ParameterValueFormatError,
+)
 from .exception import InvalidMapping, TypeConversionError
 
 
@@ -593,7 +600,7 @@ class ParameterValueMapping(ParameterDefinitionMapping):
         getters["value"] = (val_getter, val_num, val_reads)
         if (is_pivoted or self.is_pivoted()) and not self.alternative_name.is_pivoted():
             # if mapping is pivoted values for parameters are read from pivoted data
-            if pivoted_columns:
+            if pivoted_columns and self._alternative_name.returns_value():
                 getters["alternative_name"] = (itemgetter(*pivoted_columns), len(pivoted_columns), True)
         elif self.alternative_name.returns_value():
             getters["alternative_name"] = self.alternative_name.create_getter_function(
@@ -734,8 +741,17 @@ class ParameterIndexedMapping(ParameterArrayMapping):
 
 
 class ParameterMapMapping(ParameterIndexedMapping):
+    """
+    Attributes:
+        compress (bool): if True, compress leaf Maps when reading the data
+    """
+
     PARAMETER_TYPE = "map"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
+
+    def __init__(self, name=None, value=None, extra_dimension=None):
+        super().__init__(name, value, extra_dimension)
+        self.compress = False
 
     @ParameterIndexedMapping.extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions):
@@ -771,6 +787,8 @@ class ParameterMapMapping(ParameterIndexedMapping):
             if values:
                 map_as_dict = self._raw_data_to_dict(values)
                 map_ = self._convert_dict_to_map(map_as_dict)
+                if self.compress:
+                    map_ = convert_leaf_maps_to_specialized_containers(map_)
                 out.append(keys + (map_,))
         return out
 
@@ -799,6 +817,19 @@ class ParameterMapMapping(ParameterIndexedMapping):
             indexes.append(key)
             values.append(value)
         return Map(indexes, values)
+
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict["compress"] = self.compress
+        return map_dict
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        super_mapping = super().from_dict(map_dict)
+        compress = map_dict.get("compress", False)
+        map_ = cls(super_mapping.name, super_mapping.value, super_mapping.extra_dimensions)
+        map_.compress = compress
+        return map_
 
 
 class ParameterTimeSeriesMapping(ParameterIndexedMapping):
