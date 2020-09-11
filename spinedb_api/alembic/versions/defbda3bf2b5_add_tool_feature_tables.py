@@ -24,6 +24,7 @@ def upgrade():
             batch_op.add_column(sa.Column("tool_id", sa.Integer, server_default=sa.null()))
             batch_op.add_column(sa.Column("feature_id", sa.Integer, server_default=sa.null()))
             batch_op.add_column(sa.Column("tool_feature_id", sa.Integer, server_default=sa.null()))
+            batch_op.add_column(sa.Column("tool_feature_method_id", sa.Integer, server_default=sa.null()))
     op.create_table(
         "tool",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -52,13 +53,27 @@ def upgrade():
         sa.Column("tool_id", sa.Integer, sa.ForeignKey("tool.id")),
         sa.Column("feature_id", sa.Integer, nullable=False),
         sa.Column("parameter_value_list_id", sa.Integer, nullable=False),
-        sa.Column("method_index", sa.Integer),
         sa.Column("required", sa.Boolean(name="required"), server_default=sa.false(), nullable=False),
         sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint("tool_id", "feature_id"),
         sa.ForeignKeyConstraint(
             ("feature_id", "parameter_value_list_id"),
             ("feature.id", "feature.parameter_value_list_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+    )
+    op.create_table(
+        "tool_feature_method",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("tool_feature_id", sa.Integer, nullable=False),
+        sa.Column("parameter_value_list_id", sa.Integer, nullable=False),
+        sa.Column("method_index", sa.Integer),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
+        sa.UniqueConstraint("tool_feature_id", "method_index"),
+        sa.ForeignKeyConstraint(
+            ("tool_feature_id", "parameter_value_list_id"),
+            ("tool_feature.id", "tool_feature.parameter_value_list_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),

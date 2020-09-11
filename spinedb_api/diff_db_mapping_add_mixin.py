@@ -57,6 +57,7 @@ class DiffDatabaseMappingAddMixin:
             Column("tool_id", Integer, server_default=null()),
             Column("feature_id", Integer, server_default=null()),
             Column("tool_feature_id", Integer, server_default=null()),
+            Column("tool_feature_method_id", Integer, server_default=null()),
         )
         next_id_table.create(self.engine, checkfirst=True)
         # Create mapping...
@@ -106,6 +107,7 @@ class DiffDatabaseMappingAddMixin:
             "tool": "tool_id",
             "feature": "feature_id",
             "tool_feature": "tool_feature_id",
+            "tool_feature_method": "tool_feature_method_id",
         }[tablename]
         next_id = self._next_id_with_lock()
         id_ = getattr(next_id, next_id_fieldname)
@@ -127,6 +129,7 @@ class DiffDatabaseMappingAddMixin:
                 "tool": "Tool",
                 "feature": "Feature",
                 "tool_feature": "ToolFeature",
+                "tool_feature_method": "ToolFeatureMethod",
             }[tablename]
             class_ = getattr(self, classname)
             max_id = self.query(func.max(class_.id)).scalar()
@@ -293,6 +296,58 @@ class DiffDatabaseMappingAddMixin:
         self._do_add_tool_features(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["tool_feature"].update(ids)
+        return ids, []
+
+    def add_tool_feature_methods(self, *items, strict=False, return_dups=False):
+        """Stage tool feature method items for insertion.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if the insertion of one of the items violates an integrity constraint.
+        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
+
+        :returns:
+            - **new_items** -- A list of items succesfully staged for insertion.
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        checked_items, intgr_error_log = self.check_tool_feature_methods_for_insert(*items, strict=strict)
+        ids = self._add_tool_feature_methods(*checked_items)
+        if return_dups:
+            ids.update(set(x.id for x in intgr_error_log if x.id))
+        return ids, intgr_error_log
+
+    def _add_tool_feature_methods(self, *items):
+        """Add tool feature method items to database without checking integrity.
+
+        Args:
+            items (iter): list of dictionaries which correspond to the instances to add
+            strict (bool): if True SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            ids (set): added instances' ids
+        """
+        items_to_add, ids = self._items_and_ids("tool_feature_method", *items)
+        self._do_add_tool_feature_methods(*items_to_add)
+        self.added_item_id["tool_feature_method"].update(ids)
+        return ids
+
+    def _do_add_tool_feature_methods(self, *items_to_add):
+        try:
+            self.session.bulk_insert_mappings(self.DiffToolFeatureMethod, items_to_add)
+            self.session.commit()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting tool feature methods: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def readd_tool_feature_methods(self, *items):
+        """Add known tool feature methods to database.
+        """
+        self._do_add_tool_feature_methods(*items)
+        ids = set(x["id"] for x in items)
+        self.added_item_id["tool_feature_method"].update(ids)
         return ids, []
 
     def add_alternatives(self, *items, strict=False, return_dups=False):

@@ -67,6 +67,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffFeature = None
         self.DiffTool = None
         self.DiffToolFeature = None
+        self.DiffToolFeatureMethod = None
         self.composite_pks = {
             "relationship_entity": ("entity_id", "dimension"),
             "relationship_entity_class": ("entity_class_id", "dimension"),

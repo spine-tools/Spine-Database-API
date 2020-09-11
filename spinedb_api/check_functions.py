@@ -488,7 +488,7 @@ def check_feature(item, current_items, parameter_definitions):
         )
 
 
-def check_tool_feature(item, current_items, features, parameter_value_lists):
+def check_tool_feature(item, current_items, features):
     try:
         tool_id = item["tool_id"]
     except KeyError:
@@ -505,15 +505,38 @@ def check_tool_feature(item, current_items, features, parameter_value_lists):
         feature = features[feature_id]
     except KeyError:
         raise SpineIntegrityError("Feature not found.")
-    try:
-        parameter_value_list = parameter_value_lists[parameter_value_list_id]
-    except KeyError:
-        raise SpineIntegrityError("Parameter value list not found.")
     dup_id = current_items.get((tool_id, feature_id))
     if dup_id is not None:
         raise SpineIntegrityError(f"Given tool already has the feature '{feature['name']}'.", id=dup_id)
     if parameter_value_list_id != feature["parameter_value_list_id"]:
         raise SpineIntegrityError("Feature and parameter value list don't match.")
-    method_index = item.get("method_index")
-    if method_index is not None and method_index not in parameter_value_list["value_index_list"]:
-        raise SpineIntegrityError(f"Invalid method for feature '{feature['name']}'.")
+
+
+def check_tool_feature_method(item, current_items, tool_features, parameter_value_lists):
+    try:
+        tool_feature_id = item["tool_feature_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing tool feature identifier.")
+    try:
+        parameter_value_list_id = item["parameter_value_list_id"]
+    except KeyError:
+        raise SpineIntegrityError("Missing parameter value list identifier.")
+    try:
+        method_index = item["method_index"]
+    except KeyError:
+        raise SpineIntegrityError("Missing method index.")
+    try:
+        tool_feature = tool_features[tool_feature_id]
+    except KeyError:
+        raise SpineIntegrityError("Tool feature not found.")
+    try:
+        parameter_value_list = parameter_value_lists[parameter_value_list_id]
+    except KeyError:
+        raise SpineIntegrityError("Parameter value list not found.")
+    dup_id = current_items.get((tool_feature_id, method_index))
+    if dup_id is not None:
+        raise SpineIntegrityError("Tool feature already has the given method.", id=dup_id)
+    if parameter_value_list_id != tool_feature["parameter_value_list_id"]:
+        raise SpineIntegrityError("Feature and parameter value list don't match.")
+    if method_index not in parameter_value_list["value_index_list"]:
+        raise SpineIntegrityError("Invalid method for tool feature.")
