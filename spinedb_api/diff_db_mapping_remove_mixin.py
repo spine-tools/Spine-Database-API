@@ -87,6 +87,7 @@ class DiffDatabaseMappingRemoveMixin:
         self._merge(ids, self._feature_cascading_ids(kwargs.get("feature", set())))
         self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set())))
         self._merge(ids, self._tool_feature_cascading_ids(kwargs.get("tool_feature", set())))
+        self._merge(ids, self._tool_feature_method_cascading_ids(kwargs.get("tool_feature_method", set())))
         return {key: value for key, value in ids.items() if value}
 
     @staticmethod
@@ -236,4 +237,12 @@ class DiffDatabaseMappingRemoveMixin:
         return cascading_ids
 
     def _tool_feature_cascading_ids(self, ids):
-        return {"tool_feature": ids.copy()}
+        cascading_ids = {"tool_feature": ids.copy()}
+        tool_feature_methods = self.query(self.tool_feature_method_sq.c.id).filter(
+            self.in_(self.tool_feature_method_sq.c.tool_feature_id, ids)
+        )
+        self._merge(cascading_ids, self._tool_feature_method_cascading_ids({x.id for x in tool_feature_methods}))
+        return cascading_ids
+
+    def _tool_feature_method_cascading_ids(self, ids):
+        return {"tool_feature_method": ids.copy()}
