@@ -367,6 +367,65 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
+    def check_tool_feature_methods_for_update(self, *items, strict=False):
+        """Check whether tool_feature_methods passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_feature_methods = {x.id: x._asdict() for x in self.query(self.tool_feature_method_sq)}
+        tool_feature_method_ids = {
+            (x.tool_feature_id, x.method_index): x.id for x in self.query(self.tool_feature_method_sq)
+        }
+        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
+        parameter_value_lists = {
+            x.id: {"name": x.name, "value_index_list": set(int(idx) for idx in x.value_index_list.split(";"))}
+            for x in self.query(self.wide_parameter_value_list_sq)
+        }
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing tool feature method identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = tool_feature_methods.pop(id_)
+                del tool_feature_method_ids[updated_item["tool_feature_id"], updated_item["method_index"]]
+            except KeyError:
+                msg = "tool feature method not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_tool_feature_method(updated_item, tool_feature_method_ids, tool_features, parameter_value_lists)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                tool_feature_methods[id_] = updated_item
+                tool_feature_method_ids[updated_item["tool_feature_id"], updated_item["method_index"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
     def check_alternatives_for_insert(self, *items, strict=False):
         """Check whether alternatives passed as argument respect integrity constraints
         for an insert operation.

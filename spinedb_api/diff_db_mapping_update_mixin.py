@@ -447,6 +447,29 @@ class DiffDatabaseMappingUpdateMixin:
             msg = "DBAPIError while updating tool features: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
+    def update_tool_feature_methods(self, *kwargs_list, strict=False):
+        """Update tool_feature_methods."""
+        checked_kwargs_list, intgr_error_log = self.check_tool_feature_methods_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_tool_feature_methods(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_tool_feature_methods(self, *checked_kwargs_list, strict=False):
+        """Update tool_feature_methods without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "tool_feature_method", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffToolFeatureMethod, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffToolFeatureMethod, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("tool_feature_method", dirty_ids)
+            self.updated_item_id["tool_feature_method"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating tool feature methods: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
     def get_data_to_set_scenario_alternatives(self, *items):
         """Returns data to add, update, and remove, in order to set wide scenario alternatives.
 
