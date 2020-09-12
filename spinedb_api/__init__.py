@@ -62,6 +62,10 @@ from .import_functions import (
     import_relationships,
     import_scenarios,
     import_scenario_alternatives,
+    import_tools,
+    import_features,
+    import_tool_features,
+    import_tool_feature_methods,
     get_data_for_import,
 )
 from .export_functions import (
@@ -78,6 +82,10 @@ from .export_functions import (
     export_relationships,
     export_scenario_alternatives,
     export_scenarios,
+    export_tools,
+    export_features,
+    export_tool_features,
+    export_tool_feature_methods,
 )
 from .json_mapping import (
     AlternativeMapping,

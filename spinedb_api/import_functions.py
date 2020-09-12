@@ -481,12 +481,10 @@ def _get_tool_feature_methods_for_import(db_map, data):
     tool_feature_method_ids = {
         (x.tool_feature_id, x.method_index): x.id for x in db_map.query(db_map.tool_feature_method_sq)
     }
-    tool_ids = {x.name: x.id for x in db_map.query(db_map.tool_sq)}
-    feature_ids = {
-        (x.entity_class_name, x.parameter_definition_name): (x.id, x.parameter_value_list_id)
-        for x in db_map.query(db_map.ext_feature_sq)
+    tool_feature_ids = {
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name): (x.id, x.parameter_value_list_id)
+        for x in db_map.query(db_map.ext_tool_feature_sq)
     }
-    tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in db_map.query(db_map.tool_feature_sq)}
     tool_features = {x.id: x._asdict() for x in db_map.query(db_map.tool_feature_sq)}
     parameter_value_lists = {
         id_: {
@@ -503,9 +501,9 @@ def _get_tool_feature_methods_for_import(db_map, data):
     to_add = []
     error_log = []
     for tool_name, class_name, parameter_name, method in data:
-        tool_id = tool_ids.get(tool_name)
-        feature_id, parameter_value_list_id = feature_ids.get((class_name, parameter_name), (None, None))
-        tool_feature_id = tool_feature_ids.get((tool_id, feature_id))
+        tool_feature_id, parameter_value_list_id = tool_feature_ids.get(
+            (tool_name, class_name, parameter_name), (None, None)
+        )
         parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
         value_to_index = parameter_value_list.get("value_to_index", {})
         method_index = value_to_index.get(to_database(method))

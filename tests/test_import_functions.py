@@ -954,19 +954,6 @@ class TestImportToolFeature(unittest.TestCase):
         import_features(db_map, [["object_class1", "parameter1"]])
         import_tools(db_map, ["tool1"])
 
-    @staticmethod
-    def ext_tool_feature_sq(db_map):
-        return (
-            db_map.query(
-                db_map.tool_sq.c.name.label("tool_name"),
-                db_map.ext_feature_sq.c.entity_class_name,
-                db_map.ext_feature_sq.c.parameter_definition_name,
-                db_map.tool_feature_sq.c.required,
-            )
-            .filter(db_map.tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
-            .filter(db_map.tool_feature_sq.c.feature_id == db_map.ext_feature_sq.c.id)
-        )
-
     def test_single_tool_feature(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -976,7 +963,7 @@ class TestImportToolFeature(unittest.TestCase):
             self.assertFalse(errors)
             tool_features = [
                 (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-                for x in self.ext_tool_feature_sq(db_map)
+                for x in db_map.query(db_map.ext_tool_feature_sq)
             ]
             self.assertEqual(len(tool_features), 1)
             self.assertIn(("tool1", "object_class1", "parameter1", False), tool_features)
@@ -1009,7 +996,7 @@ class TestImportToolFeature(unittest.TestCase):
             self.assertFalse(errors)
             tool_features = [
                 (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-                for x in self.ext_tool_feature_sq(db_map)
+                for x in db_map.query(db_map.ext_tool_feature_sq)
             ]
             self.assertEqual(len(tool_features), 1)
             self.assertIn(("tool1", "object_class1", "parameter1", True), tool_features)
@@ -1025,7 +1012,7 @@ class TestImportToolFeature(unittest.TestCase):
             self.assertFalse(errors)
             tool_features = [
                 (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-                for x in self.ext_tool_feature_sq(db_map)
+                for x in db_map.query(db_map.ext_tool_feature_sq)
             ]
             self.assertEqual(len(tool_features), 1)
             self.assertIn(("tool1", "object_class1", "parameter1", True), tool_features)
@@ -1044,22 +1031,6 @@ class TestImportToolFeatureMethod(unittest.TestCase):
         import_tools(db_map, ["tool1"])
         import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
 
-    @staticmethod
-    def ext_tool_feature_method_sq(db_map):
-        return (
-            db_map.query(
-                db_map.tool_sq.c.name.label("tool_name"),
-                db_map.ext_feature_sq.c.entity_class_name,
-                db_map.ext_feature_sq.c.parameter_definition_name,
-                db_map.parameter_value_list_sq.c.value.label("method"),
-            )
-            .filter(db_map.tool_feature_method_sq.c.tool_feature_id == db_map.tool_feature_sq.c.id)
-            .filter(db_map.tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
-            .filter(db_map.tool_feature_sq.c.feature_id == db_map.ext_feature_sq.c.id)
-            .filter(db_map.parameter_value_list_sq.c.id == db_map.tool_feature_method_sq.c.parameter_value_list_id)
-            .filter(db_map.parameter_value_list_sq.c.value_index == db_map.tool_feature_method_sq.c.method_index)
-        )
-
     def test_a_couple_of_tool_feature_method(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -1075,7 +1046,7 @@ class TestImportToolFeatureMethod(unittest.TestCase):
             self.assertFalse(errors)
             tool_feature_methods = [
                 (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method))
-                for x in self.ext_tool_feature_method_sq(db_map)
+                for x in db_map.query(db_map.ext_tool_feature_method_sq)
             ]
             self.assertEqual(len(tool_feature_methods), 2)
             self.assertIn(("tool1", "object_class1", "parameter1", "value2"), tool_feature_methods)

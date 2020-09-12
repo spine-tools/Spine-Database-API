@@ -35,6 +35,10 @@ def export_data(
     alternative_ids=(Anyone,),
     scenario_ids=(Anyone,),
     scenario_alternative_ids=(Anyone,),
+    tool_ids=(Anyone,),
+    feature_ids=(Anyone,),
+    tool_feature_ids=(Anyone,),
+    tool_feature_method_ids=(Anyone,),
 ):
     """
     Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
@@ -53,6 +57,10 @@ def export_data(
         alternative_ids (Iterable, optional): A collection of ids to pick from the database table
         scenario_ids (Iterable, optional): A collection of ids to pick from the database table
         scenario_alternative_ids (Iterable, optional): A collection of ids to pick from the database table
+        tool_ids (Iterable, optional): A collection of ids to pick from the database table
+        feature_ids (Iterable, optional): A collection of ids to pick from the database table
+        tool_feature_ids (Iterable, optional): A collection of ids to pick from the database table
+        tool_feature_method_ids (Iterable, optional): A collection of ids to pick from the database table
 
     Returns:
         dict: exported data
@@ -71,6 +79,10 @@ def export_data(
         "alternatives": export_alternatives(db_map, alternative_ids),
         "scenarios": export_scenarios(db_map, scenario_ids),
         "scenario_alternatives": export_scenario_alternatives(db_map, scenario_alternative_ids),
+        "tools": export_tools(db_map, tool_ids),
+        "features": export_features(db_map, feature_ids),
+        "tool_features": export_tool_features(db_map, tool_feature_ids),
+        "tool_feature_methods": export_tool_feature_methods(db_map, tool_feature_method_ids),
     }
     return {key: value for key, value in data.items() if value}
 
@@ -208,4 +220,33 @@ def export_scenario_alternatives(db_map, ids=(Anyone,)):
             for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
         ),
         key=lambda x: x[0],
+    )
+
+
+def export_tools(db_map, ids=(Anyone,)):
+    sq = db_map.tool_sq
+    return sorted((x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+
+
+def export_features(db_map, ids=(Anyone,)):
+    sq = db_map.ext_feature_sq
+    return sorted(
+        (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name, x.description)
+        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+    )
+
+
+def export_tool_features(db_map, ids=(Anyone,)):
+    sq = db_map.ext_tool_feature_sq
+    return sorted(
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
+        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+    )
+
+
+def export_tool_feature_methods(db_map, ids=(Anyone,)):
+    sq = db_map.ext_tool_feature_method_sq
+    return sorted(
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method))
+        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
     )
