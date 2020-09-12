@@ -414,6 +414,7 @@ def _get_tool_features_for_import(db_map, data):
         (x.entity_class_name, x.parameter_definition_name): (x.id, x.parameter_value_list_id)
         for x in db_map.query(db_map.ext_feature_sq)
     }
+    tools = {x.id: x._asdict() for x in db_map.query(db_map.tool_sq)}
     features = {
         x.id: {
             "name": x.entity_class_name + "/" + x.parameter_definition_name,
@@ -434,7 +435,7 @@ def _get_tool_features_for_import(db_map, data):
         item.update(dict(zip(("required",), optionals)))
         tool_feature_id = tool_feature_ids.pop((tool_id, feature_id), None)
         try:
-            check_tool_feature(item, tool_feature_ids, features)
+            check_tool_feature(item, tool_feature_ids, tools, features)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(

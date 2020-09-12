@@ -254,6 +254,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
+        tools = {x.id: x._asdict() for x in self.query(self.tool_sq)}
         features = {
             x.id: {
                 "name": x.entity_class_name + "/" + x.parameter_definition_name,
@@ -263,7 +264,7 @@ class DatabaseMappingCheckMixin:
         }
         for item in items:
             try:
-                check_tool_feature(item, tool_feature_ids, features)
+                check_tool_feature(item, tool_feature_ids, tools, features)
                 checked_items.append(item)
                 tool_feature_ids[item["tool_id"], item["feature_id"]] = None
             except SpineIntegrityError as e:
@@ -291,6 +292,7 @@ class DatabaseMappingCheckMixin:
         checked_items = list()
         tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
         tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
+        tools = {x.id: x._asdict() for x in self.query(self.tool_sq)}
         features = {
             x.id: {
                 "name": x.entity_class_name + "/" + x.parameter_definition_name,
@@ -320,7 +322,7 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_tool_feature(updated_item, tool_feature_ids, features)
+                check_tool_feature(updated_item, tool_feature_ids, tools, features)
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tool_features[id_] = updated_item

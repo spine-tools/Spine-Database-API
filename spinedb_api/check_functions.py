@@ -490,7 +490,7 @@ def check_feature(item, current_items, parameter_definitions):
         )
 
 
-def check_tool_feature(item, current_items, features):
+def check_tool_feature(item, current_items, tools, features):
     try:
         tool_id = item["tool_id"]
     except KeyError:
@@ -504,12 +504,16 @@ def check_tool_feature(item, current_items, features):
     except KeyError:
         raise SpineIntegrityError("Missing parameter value list identifier.")
     try:
+        tool = tools[tool_id]
+    except KeyError:
+        raise SpineIntegrityError("Tool not found.")
+    try:
         feature = features[feature_id]
     except KeyError:
         raise SpineIntegrityError("Feature not found.")
     dup_id = current_items.get((tool_id, feature_id))
     if dup_id is not None:
-        raise SpineIntegrityError(f"Given tool already has the feature '{feature['name']}'.", id=dup_id)
+        raise SpineIntegrityError(f"Tool '{tool['name']}' already has feature '{feature['name']}'.", id=dup_id)
     if parameter_value_list_id != feature["parameter_value_list_id"]:
         raise SpineIntegrityError("Feature and parameter value list don't match.")
 
