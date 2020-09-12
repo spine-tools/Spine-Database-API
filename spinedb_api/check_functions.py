@@ -479,6 +479,8 @@ def check_feature(item, current_items, parameter_definitions):
         parameter_definition = parameter_definitions[parameter_definition_id]
     except KeyError:
         raise SpineIntegrityError("Parameter not found.")
+    if parameter_value_list_id is None:
+        raise SpineIntegrityError(f"Parameter '{parameter_definition['name']}' doesn't have a value list.")
     if parameter_value_list_id != parameter_definition["parameter_value_list_id"]:
         raise SpineIntegrityError("Parameter definition and value list don't match.")
     if parameter_definition_id in current_items:

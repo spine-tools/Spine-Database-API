@@ -19,6 +19,10 @@ Functions for importing data into a Spine database using entity names as referen
 from .diff_db_mapping import DiffDatabaseMapping
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
+    check_tool,
+    check_feature,
+    check_tool_feature,
+    check_tool_feature_method,
     check_alternative,
     check_object_class,
     check_object,
@@ -74,6 +78,10 @@ def import_data(
     alternatives=(),
     scenarios=(),
     scenario_alternatives=(),
+    features=(),
+    tools=(),
+    tool_features=(),
+    tool_feature_methods=(),
 ):
     """Imports data into a Spine database using name references (rather than id
     references).
@@ -93,6 +101,7 @@ def import_data(
             alternatives = [['example_alternative', 'An example']]
             scenarios = [['example_scenario', 'An example']]
             scenario_alternatives = [('scenario', 'alternative1'), ('scenario', 'alternative0', 'alternative1')]
+            tools = [('tool1', 'Tool one description'), ('tool2', 'Tool two description']]
 
             import_data(db_map,
                         object_classes=object_c,
@@ -145,6 +154,10 @@ def import_data(
         import_parameter_value_lists: parameter_value_lists,
         import_object_parameters: object_parameters,
         import_relationship_parameters: relationship_parameters,
+        import_features: features,
+        import_tools: tools,
+        import_tool_features: tool_features,
+        import_tool_feature_methods: tool_feature_methods,
         import_objects: objects,
         import_relationships: relationships,
         import_object_groups: object_groups,
@@ -176,6 +189,10 @@ def get_data_for_import(
     alternatives=(),
     scenarios=(),
     scenario_alternatives=(),
+    features=(),
+    tools=(),
+    tool_features=(),
+    tool_feature_methods=(),
 ):
     """Returns an iterator of data for import, that the user can call instead of `import_data`
     if they want to add and update the data by themselves.
@@ -222,6 +239,14 @@ def get_data_for_import(
         yield ("parameter_definition", _get_object_parameters_for_import(db_map, object_parameters))
     if relationship_parameters:
         yield ("parameter_definition", _get_relationship_parameters_for_import(db_map, relationship_parameters))
+    if features:
+        yield ("feature", _get_features_for_import(db_map, features))
+    if tools:
+        yield ("tool", _get_tools_for_import(db_map, features))
+    if tool_features:
+        yield ("tool_feature", _get_tool_features_for_import(db_map, features))
+    if tool_feature_methods:
+        yield ("tool_feature_method", _get_tool_feature_methods_for_import(db_map, features))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects))
     if relationships:
@@ -232,6 +257,276 @@ def get_data_for_import(
         yield ("parameter_value", _get_object_parameter_values_for_import(db_map, object_parameter_values))
     if relationship_parameter_values:
         yield ("parameter_value", _get_relationship_parameter_values_for_import(db_map, relationship_parameter_values))
+
+
+def import_features(db_map, data):
+    """
+    Imports features.
+
+    Example:
+
+        data = [('class', 'parameter'), ('another_class', 'another_parameter', 'description')]
+        import_features(db_map, data)
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of lists/tuples with class name, parameter name, and optionally description
+
+    Returns:
+        tuple of int and list: Number of successfully inserted features, list of errors
+    """
+    to_add, to_update, error_log = _get_features_for_import(db_map, data)
+    updated = db_map._update_features(*to_update)
+    added = db_map._add_features(*to_add)
+    return len(added) + len(updated), error_log
+
+
+def _get_features_for_import(db_map, data):
+    feature_ids = {x.parameter_definition_id: x.id for x in db_map.query(db_map.feature_sq)}
+    parameter_ids = {
+        (x.entity_class_name, x.parameter_name): (x.id, x.value_list_id)
+        for x in db_map.query(db_map.entity_parameter_definition_sq)
+    }
+    parameter_definitions = {
+        x.id: {
+            "name": x.name,
+            "entity_class_id": x.entity_class_id,
+            "parameter_value_list_id": x.parameter_value_list_id,
+        }
+        for x in db_map.query(db_map.parameter_definition_sq)
+    }
+    checked = set()
+    to_add = []
+    to_update = []
+    error_log = []
+    for class_name, parameter_name, *optionals in data:
+        parameter_definition_id, parameter_value_list_id = parameter_ids.get((class_name, parameter_name), (None, None))
+        if parameter_definition_id in checked:
+            continue
+        item = {"parameter_definition_id": parameter_definition_id, "parameter_value_list_id": parameter_value_list_id}
+        item.update(dict(zip(("description",), optionals)))
+        feature_id = feature_ids.pop(parameter_definition_id, None)
+        try:
+            check_feature(item, feature_ids, parameter_definitions)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import feature '{class_name, parameter_name}': {e.msg}", db_type="feature"
+                )
+            )
+            continue
+        finally:
+            if feature_id is not None:
+                feature_ids[parameter_definition_id] = feature_id
+        checked.add(parameter_definition_id)
+        if feature_id is not None:
+            item["id"] = feature_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_tools(db_map, data):
+    """
+    Imports tools.
+
+    Example:
+
+        data = ['tool', ('another_tool', 'description')]
+        import_tools(db_map, data)
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of tool names,
+            or of lists/tuples with tool names and optional descriptions
+
+    Returns:
+        tuple of int and list: Number of successfully inserted tools, list of errors
+    """
+    to_add, to_update, error_log = _get_tools_for_import(db_map, data)
+    updated = db_map._update_tools(*to_update)
+    added = db_map._add_tools(*to_add)
+    return len(added) + len(updated), error_log
+
+
+def _get_tools_for_import(db_map, data):
+    tool_ids = {tool.name: tool.id for tool in db_map.query(db_map.tool_sq)}
+    checked = set()
+    to_add = []
+    to_update = []
+    error_log = []
+    for tool in data:
+        if isinstance(tool, str):
+            name = tool
+            item = {"name": tool}
+        else:
+            name, *optionals = tool
+            item = {"name": name}
+            item.update(dict(zip(("description",), optionals)))
+        if name in checked:
+            continue
+        tool_id = tool_ids.pop(name, None)
+        try:
+            check_tool(item, tool_ids)
+        except SpineIntegrityError as e:
+            error_log.append(ImportErrorLogItem(msg=f"Could not import tool '{name}': {e.msg}", db_type="tool"))
+            continue
+        finally:
+            if tool_id is not None:
+                tool_ids[name] = tool_id
+        checked.add(name)
+        if tool_id is not None:
+            item["id"] = tool_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_tool_features(db_map, data):
+    """
+    Imports tool features.
+
+    Example:
+
+        data = [('tool', 'class', 'parameter'), ('another_tool', 'another_class', 'another_parameter', 'required')]
+        import_tool_features(db_map, data)
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of lists/tuples with tool name, class name, parameter name,
+            and optionally description
+
+    Returns:
+        tuple of int and list: Number of successfully inserted tool features, list of errors
+    """
+    to_add, to_update, error_log = _get_tool_features_for_import(db_map, data)
+    updated = db_map._update_tool_features(*to_update)
+    added = db_map._add_tool_features(*to_add)
+    return len(added) + len(updated), error_log
+
+
+def _get_tool_features_for_import(db_map, data):
+    tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in db_map.query(db_map.tool_feature_sq)}
+    tool_ids = {x.name: x.id for x in db_map.query(db_map.tool_sq)}
+    feature_ids = {
+        (x.entity_class_name, x.parameter_definition_name): (x.id, x.parameter_value_list_id)
+        for x in db_map.query(db_map.ext_feature_sq)
+    }
+    features = {
+        x.id: {
+            "name": x.entity_class_name + "/" + x.parameter_definition_name,
+            "parameter_value_list_id": x.parameter_value_list_id,
+        }
+        for x in db_map.query(db_map.ext_feature_sq)
+    }
+    checked = set()
+    to_add = []
+    to_update = []
+    error_log = []
+    for tool_name, class_name, parameter_name, *optionals in data:
+        tool_id = tool_ids.get(tool_name)
+        feature_id, parameter_value_list_id = feature_ids.get((class_name, parameter_name), (None, None))
+        if (tool_id, feature_id) in checked:
+            continue
+        item = {"tool_id": tool_id, "feature_id": feature_id, "parameter_value_list_id": parameter_value_list_id}
+        item.update(dict(zip(("required",), optionals)))
+        tool_feature_id = tool_feature_ids.pop((tool_id, feature_id), None)
+        try:
+            check_tool_feature(item, tool_feature_ids, features)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import tool feature '{tool_name, class_name, parameter_name}': {e.msg}",
+                    db_type="tool_feature",
+                )
+            )
+            continue
+        finally:
+            if tool_feature_id is not None:
+                tool_feature_ids[tool_id, feature_id] = tool_feature_id
+        checked.add((tool_id, feature_id))
+        if tool_feature_id is not None:
+            item["id"] = tool_feature_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_tool_feature_methods(db_map, data):
+    """
+    Imports tool feature methods.
+
+    Example:
+
+        data = [('tool', 'class', 'parameter', 'method'), ('another_tool', 'another_class', 'another_parameter', 'another_method')]
+        import_tool_features(db_map, data)
+
+    Args:
+        db_map (DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): an iterable of lists/tuples with tool name, class name, parameter name, and method
+
+    Returns:
+        tuple of int and list: Number of successfully inserted tool features, list of errors
+    """
+    to_add, _, error_log = _get_tool_feature_methods_for_import(db_map, data)
+    added = db_map._add_tool_feature_methods(*to_add)
+    return len(added), error_log
+
+
+def _get_tool_feature_methods_for_import(db_map, data):
+    tool_feature_method_ids = {
+        (x.tool_feature_id, x.method_index): x.id for x in db_map.query(db_map.tool_feature_method_sq)
+    }
+    tool_ids = {x.name: x.id for x in db_map.query(db_map.tool_sq)}
+    feature_ids = {
+        (x.entity_class_name, x.parameter_definition_name): (x.id, x.parameter_value_list_id)
+        for x in db_map.query(db_map.ext_feature_sq)
+    }
+    tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in db_map.query(db_map.tool_feature_sq)}
+    tool_features = {x.id: x._asdict() for x in db_map.query(db_map.tool_feature_sq)}
+    parameter_value_lists = {
+        id_: {
+            "name": name,
+            "value_index_list": value_index_list,
+            "value_to_index": dict(zip(value_list, value_index_list)),
+        }
+        for id_, name, value_index_list, value_list in (
+            (x.id, x.name, [int(idx) for idx in x.value_index_list.split(";")], x.value_list.split(";"))
+            for x in db_map.query(db_map.wide_parameter_value_list_sq)
+        )
+    }
+    seen = set()
+    to_add = []
+    error_log = []
+    for tool_name, class_name, parameter_name, method in data:
+        tool_id = tool_ids.get(tool_name)
+        feature_id, parameter_value_list_id = feature_ids.get((class_name, parameter_name), (None, None))
+        tool_feature_id = tool_feature_ids.get((tool_id, feature_id))
+        parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
+        value_to_index = parameter_value_list.get("value_to_index", {})
+        method_index = value_to_index.get(to_database(method))
+        if (tool_feature_id, method_index) in seen | tool_feature_method_ids.keys():
+            continue
+        item = {
+            "tool_feature_id": tool_feature_id,
+            "parameter_value_list_id": parameter_value_list_id,
+            "method_index": method_index,
+        }
+        try:
+            check_tool_feature_method(item, tool_feature_method_ids, tool_features, parameter_value_lists)
+            to_add.append(item)
+            seen.add((tool_feature_id, method_index))
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import tool feature method '{tool_name, class_name, parameter_name, method}': {e.msg}",
+                    db_type="tool_feature_method",
+                )
+            )
+    return to_add, [], error_log
 
 
 def import_alternatives(db_map, data):
@@ -579,9 +874,10 @@ def import_objects(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, _, error_log = _get_objects_for_import(db_map, data)
+    to_add, to_update, error_log = _get_objects_for_import(db_map, data)
+    updated = db_map._update_objects(*to_update)
     added = db_map._add_objects(*to_add)
-    return len(added), error_log
+    return len(added) + len(updated), error_log
 
 
 def _get_objects_for_import(db_map, data):
@@ -650,7 +946,7 @@ def _get_object_groups_for_import(db_map, data):
     objects = {}
     for obj in db_map.query(db_map.object_sq):
         objects.setdefault(obj.class_id, dict())[obj.id] = obj._asdict()
-    entity_groups = {(x.entity_id, x.member_id): x.id for x in db_map.query(db_map.entity_group_sq)}
+    entity_group_ids = {(x.entity_id, x.member_id): x.id for x in db_map.query(db_map.entity_group_sq)}
     error_log = []
     to_add = []
     seen = set()
@@ -658,11 +954,11 @@ def _get_object_groups_for_import(db_map, data):
         oc_id = object_class_ids.get(class_name)
         g_id = object_ids.get((oc_id, group_name))
         m_id = object_ids.get((oc_id, member_name))
-        if (g_id, m_id) in seen | entity_groups.keys():
+        if (g_id, m_id) in seen | entity_group_ids.keys():
             continue
         item = {"entity_class_id": oc_id, "entity_id": g_id, "member_id": m_id}
         try:
-            check_entity_group(item, entity_groups, objects)
+            check_entity_group(item, entity_group_ids, objects)
             to_add.append(item)
             seen.add((g_id, m_id))
         except SpineIntegrityError as e:

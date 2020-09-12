@@ -353,7 +353,7 @@ class DatabaseMappingCheckMixin:
         }
         tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": set(int(idx) for idx in x.value_index_list.split(";"))}
+            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
             for x in self.query(self.wide_parameter_value_list_sq)
         }
         for item in items:
@@ -390,7 +390,7 @@ class DatabaseMappingCheckMixin:
         }
         tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": set(int(idx) for idx in x.value_index_list.split(";"))}
+            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
             for x in self.query(self.wide_parameter_value_list_sq)
         }
         for item in items:

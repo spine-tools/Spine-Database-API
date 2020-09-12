@@ -276,12 +276,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_parameter_definition_tag_sq.c, column_name))
 
-    def test_ord_parameter_value_list_sq(self):
-        columns = ["id", "name", "value_index", "value", "commit_id"]
-        self.assertEqual(len(self._db_map.ord_parameter_value_list_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.ord_parameter_value_list_sq.c, column_name))
-
     def test_wide_parameter_value_list_sq(self):
         columns = ["id", "name", "value_list"]
         self.assertEqual(len(self._db_map.wide_parameter_value_list_sq.c), len(columns))

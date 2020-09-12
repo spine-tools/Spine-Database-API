@@ -127,6 +127,7 @@ class DatabaseMappingBase:
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
         self._ext_object_group_sq = None
+        self._entity_parameter_definition_sq = None
         self._object_parameter_definition_sq = None
         self._relationship_parameter_definition_sq = None
         self._object_parameter_value_sq = None
@@ -968,6 +969,35 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._ext_object_group_sq
+
+    @property
+    def entity_parameter_definition_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._entity_parameter_definition_sq is None:
+            self._entity_parameter_definition_sq = (
+                self.query(
+                    self.parameter_definition_sq.c.id.label("id"),
+                    self.parameter_definition_sq.c.entity_class_id,
+                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
+                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
+                    self.parameter_definition_sq.c.default_value,
+                    self.parameter_definition_sq.c.description,
+                )
+                .filter(self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
+                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
+                .outerjoin(
+                    self.wide_parameter_value_list_sq,
+                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                )
+                .subquery()
+            )
+        return self._entity_parameter_definition_sq
 
     @property
     def object_parameter_definition_sq(self):
