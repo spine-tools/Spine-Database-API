@@ -94,6 +94,7 @@ from .json_mapping import (
     ConstantMapping,
     dict_to_map,
     EntityClassMapping,
+    FeatureMapping,
     mapping_from_dict,
     mapping_non_pivoted_columns,
     mappingbase_from_dict_int_str,
@@ -115,6 +116,9 @@ from .json_mapping import (
     ScenarioMapping,
     TableNameMapping,
     TimeSeriesOptions,
+    ToolMapping,
+    ToolFeatureMapping,
+    ToolFeatureMethodMapping,
 )
 from .parameter_value import (
     convert_leaf_maps_to_specialized_containers,
