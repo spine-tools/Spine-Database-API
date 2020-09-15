@@ -20,11 +20,10 @@ Unit tests for helpers.py.
 
 
 import unittest
-import os
 from spinedb_api.helpers import compare_schemas, create_new_spine_database
 
 
-class TestImportObjectClass(unittest.TestCase):
+class TestHelpers(unittest.TestCase):
     def setUp(self):
         pass
 

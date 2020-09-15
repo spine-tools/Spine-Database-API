@@ -75,10 +75,13 @@ def commit_ids_for_types(upgrade_commit_id, session, Base):
 
 
 def alter_tables_after_update():
+    inspector = sa.inspect(op.get_bind())
+    parameter_value_uq_names = [x["name"] for x in inspector.get_unique_constraints("parameter_value")]
     with op.batch_alter_table("parameter_value") as batch_op:
         batch_op.add_column(sa.Column("alternative_id", sa.Integer, nullable=True))
         batch_op.create_unique_constraint(None, ["parameter_definition_id", "entity_id", "alternative_id"])
-        batch_op.drop_constraint("uq_parameter_value_parameter_definition_identity_id")
+        if "uq_parameter_value_parameter_definition_identity_id" in parameter_value_uq_names:
+            batch_op.drop_constraint("uq_parameter_value_parameter_definition_identity_id")
 
     op.execute("UPDATE parameter_value SET alternative_id = 1")
     with op.batch_alter_table("parameter_value") as batch_op:
