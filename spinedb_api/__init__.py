@@ -99,6 +99,7 @@ from .json_mapping import (
     mapping_non_pivoted_columns,
     mappingbase_from_dict_int_str,
     MappingBase,
+    NamedItemMapping,
     NoneMapping,
     ObjectClassMapping,
     ObjectGroupMapping,
