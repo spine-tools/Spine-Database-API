@@ -19,7 +19,19 @@
 import os
 import logging
 from types import MethodType
-from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
+from sqlalchemy import (
+    create_engine,
+    inspect,
+    func,
+    case,
+    MetaData,
+    Table,
+    Column,
+    Integer,
+    false,
+    true,
+    and_,
+)
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
@@ -30,7 +42,14 @@ from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
-from .helpers import compare_schemas, model_meta, custom_generate_relationship, _create_first_spine_database, Anyone
+from .helpers import (
+    create_new_spine_database,
+    compare_schemas,
+    model_meta,
+    custom_generate_relationship,
+    _create_first_spine_database,
+    Anyone,
+)
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -42,7 +61,7 @@ class DatabaseMappingBase:
     It provides the :meth:`query` method for custom db querying.
     """
 
-    def __init__(self, db_url, username=None, upgrade=False, codename=None, _create_engine=None):
+    def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False):
         """Initialize class.
 
 
@@ -50,16 +69,13 @@ class DatabaseMappingBase:
         :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
         :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
         :param str codename: A name that uniquely identifies the class instance within a client application.
-        :param function _create_engine: A function that given the url, returns the engine.
-            It defaults to SQLAlchemy ``create_engine``. Mainly intended to pass ``spinedb_api.create_new_spine_database``
-            together with an in-memory SQLite ``db_url``.
+        :param bool create: Whether or not to create a Spine db at the given URL if it's not already.
         """
         self.db_url = db_url
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
-        self.engine = _create_engine(db_url) if _create_engine is not None else self._create_engine(db_url)
-        self._check_db_version(upgrade=upgrade)
+        self.engine = self._create_engine(db_url, upgrade=upgrade, create=create)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
         self.Alternative = None
@@ -184,55 +200,65 @@ class DatabaseMappingBase:
             return os.path.basename(self.sa_url.database)
         return self.sa_url.database
 
-    @staticmethod
-    def _create_engine(db_url):
-        """Create engine."""
+    def _create_engine(self, db_url, upgrade=False, create=False):
+        """Create engine.
+
+        Args
+            db_url (str): A URL to be passed to sqlalchemy.create_engine
+            upgrade (bool, optional): If True, upgrade the db to the latest version.
+            create (bool, optional): If True, create a new Spine db at the given url if none found.
+
+        Returns
+            Engine
+        """
         try:
             engine = create_engine(db_url)
             with engine.connect():
                 pass
         except Exception as e:
             raise SpineDBAPIError(
-                "Unable to create engine: {0}."
-                "Please check that\n\n\t{1}\n\nis the URL of a valid Spine db.".format(str(e), db_url)
+                f"Could not connect to '{db_url}': {str(e)}. "
+                f"Please make sure that '{db_url}' is a valid sqlalchemy URL."
             )
-        return engine
-
-    def _check_db_version(self, upgrade=False):
-        """Check if database is the latest version and raise a `SpineDBVersionError` if not.
-        If upgrade is `True`, then don't raise the error and upgrade the database instead.
-        """
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
         script = ScriptDirectory.from_config(config)
         head = script.get_current_head()
-        with self.engine.connect() as connection:
+        with engine.connect() as connection:
             migration_context = MigrationContext.configure(connection)
             current = migration_context.get_current_revision()
             if current is None:
-                # No revision information. Check if the schema of the given url corresponds to
-                # a 'first' Spine db --otherwise we can't go on.
+                # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
+                # Otherwise we either raise or create a new Spine db at the url.
                 ref_engine = _create_first_spine_database("sqlite://")
-                if not compare_schemas(self.engine, ref_engine):
-                    raise SpineDBAPIError(
-                        "Unable to determine db revision. "
-                        "Please check that\n\n\t{0}\n\nis the URL of a valid Spine db.".format(self.db_url)
-                    )
-            if current == head:
-                return
-            if not upgrade:
-                raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
+                if not compare_schemas(engine, ref_engine):
+                    if not create:
+                        raise SpineDBAPIError(
+                            "Unable to determine db revision. "
+                            f"Please check that\n\n\t{self.db_url}\n\nis the URL of a valid Spine db."
+                        )
+                    return create_new_spine_database(db_url)
+            if current != head:
+                if not upgrade:
+                    raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
 
-            # Upgrade function
-            def upgrade_to_head(rev, context):
-                return script._upgrade_revs("head", rev)
+                # Upgrade function
+                def upgrade_to_head(rev, context):
+                    return script._upgrade_revs("head", rev)
 
-            with EnvironmentContext(
-                config, script, fn=upgrade_to_head, as_sql=False, starting_rev=None, destination_rev="head", tag=None
-            ) as environment_context:
-                environment_context.configure(connection=connection, target_metadata=model_meta)
-                with environment_context.begin_transaction():
-                    environment_context.run_migrations()
+                with EnvironmentContext(
+                    config,
+                    script,
+                    fn=upgrade_to_head,
+                    as_sql=False,
+                    starting_rev=None,
+                    destination_rev="head",
+                    tag=None,
+                ) as environment_context:
+                    environment_context.configure(connection=connection, target_metadata=model_meta)
+                    with environment_context.begin_transaction():
+                        environment_context.run_migrations()
+        return engine
 
     def _create_mapping(self):
         """Create ORM."""
