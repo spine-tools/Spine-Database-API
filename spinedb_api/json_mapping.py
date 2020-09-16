@@ -2647,10 +2647,10 @@ class FeatureMapping(FeatureMappingMixin, FeatureMappingBase):
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
-        ent_cls_name_getter, ent_cls_name_length, ent_cls_name_reads = self._create_parameter_definition_name_readers(
+        ent_cls_name_getter, ent_cls_name_length, ent_cls_name_reads = self._create_entity_class_name_readers(
             pivoted_columns, pivoted_data, data_header
         )
-        param_def_getter, param_def_length, param_def_reads = self._create_entity_class_name_readers(
+        param_def_getter, param_def_length, param_def_reads = self._create_parameter_definition_name_readers(
             pivoted_columns, pivoted_data, data_header
         )
         functions = [ent_cls_name_getter, param_def_getter]
@@ -2756,10 +2756,10 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
         tool_name_getter, tool_name_length, tool_name_reads = self._create_getters(
             pivoted_columns, pivoted_data, data_header
         )["item_name"]
-        ent_cls_name_getter, ent_cls_name_length, ent_cls_name_reads = self._create_parameter_definition_name_readers(
+        ent_cls_name_getter, ent_cls_name_length, ent_cls_name_reads = self._create_entity_class_name_readers(
             pivoted_columns, pivoted_data, data_header
         )
-        param_def_getter, param_def_length, param_def_reads = self._create_entity_class_name_readers(
+        param_def_getter, param_def_length, param_def_reads = self._create_parameter_definition_name_readers(
             pivoted_columns, pivoted_data, data_header
         )
         req_getter, req_length, req_reads = self._create_required_readers(pivoted_columns, pivoted_data, data_header)
@@ -2901,10 +2901,10 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
         tool_name_getter, tool_name_length, tool_name_reads = self._create_getters(
             pivoted_columns, pivoted_data, data_header
         )["item_name"]
-        ent_cls_name_getter, ent_cls_name_length, ent_cls_name_reads = self._create_parameter_definition_name_readers(
+        ent_cls_name_getter, ent_cls_name_length, ent_cls_name_reads = self._create_entity_class_name_readers(
             pivoted_columns, pivoted_data, data_header
         )
-        param_def_getter, param_def_length, param_def_reads = self._create_entity_class_name_readers(
+        param_def_getter, param_def_length, param_def_reads = self._create_parameter_definition_name_readers(
             pivoted_columns, pivoted_data, data_header
         )
         meth_getter, meth_length, meth_reads = self._create_method_readers(pivoted_columns, pivoted_data, data_header)
