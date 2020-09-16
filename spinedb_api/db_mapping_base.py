@@ -190,6 +190,8 @@ class DatabaseMappingBase:
         """
         try:
             engine = create_engine(db_url)
+            with engine.connect():
+                pass
         except Exception as e:
             raise SpineDBAPIError(
                 f"Could not connect to '{db_url}': {str(e)}. "
