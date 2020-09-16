@@ -629,7 +629,8 @@ class ParameterValueMapping(ParameterDefinitionMapping):
         return True, ""
 
     def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.values_issues]
+        # NOTE: A bit crazy, but let alternative issues follow value issues for now
+        return super()._component_issues_getters() + [self.values_issues, self.values_issues]
 
     def values_issues(self, parent_pivot=False):
         if not (self.is_pivoted() or parent_pivot):
@@ -675,23 +676,6 @@ class ParameterArrayMapping(ParameterValueMapping):
         super().__init__(name, value)
         self._extra_dimensions = None
         self.extra_dimensions = extra_dimension
-
-    def _dimension_display_names(self):
-        return [f"Parameter index {i + 1}" for i in range(len(self.extra_dimensions))]
-
-    def display_names(self):
-        return super().display_names() + self._dimension_display_names()
-
-    def component_mappings(self):
-        return super().component_mappings() + self.extra_dimensions
-
-    def set_component_by_display_name(self, display_name, mapping):
-        try:
-            ind = self._dimension_display_names().index(display_name)
-        except ValueError:
-            return super().set_component_by_display_name(display_name, mapping)
-        self.extra_dimensions[ind] = mapping
-        return True
 
     @property
     def extra_dimensions(self):
@@ -802,6 +786,23 @@ class ParameterIndexedMapping(ParameterArrayMapping):
             if issue:
                 return False, f"Extra dimension {i + 1}: {issue}"
         return True, ""
+
+    def _dimension_display_names(self):
+        return [f"Parameter index {i + 1}" for i in range(len(self.extra_dimensions))]
+
+    def display_names(self):
+        return super().display_names() + self._dimension_display_names()
+
+    def component_mappings(self):
+        return super().component_mappings() + self.extra_dimensions
+
+    def set_component_by_display_name(self, display_name, mapping):
+        try:
+            ind = self._dimension_display_names().index(display_name)
+        except ValueError:
+            return super().set_component_by_display_name(display_name, mapping)
+        self.extra_dimensions[ind] = mapping
+        return True
 
     def component_issues(self, component_index):
         """see base class"""

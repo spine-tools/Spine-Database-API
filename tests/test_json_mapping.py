@@ -745,6 +745,10 @@ class TestMappingIntegration(unittest.TestCase):
             "alternatives": [],
             "scenarios": [],
             "scenario_alternatives": [],
+            "features": [],
+            "tools": [],
+            "tool_features": [],
+            "tool_feature_methods": [],
         }
 
     def test_bad_mapping_type(self):
