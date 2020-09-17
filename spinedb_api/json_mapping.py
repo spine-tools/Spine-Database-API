@@ -114,7 +114,7 @@ class MappingBase:
 
 
 class NoneMapping(MappingBase):
-    """Class for holding a reference to a column by number or header string
+    """Class for holding a reference to a None value
     """
 
     MAP_TYPE = "None"
@@ -1058,14 +1058,12 @@ class ItemMappingBase:
                 for i, column in enumerate(skip_columns):
                     if not isinstance(column, (str, int)):
                         raise TypeError(
-                            f"""skip_columns must be str, int or
-                                        list of str, int, instead got list
-                                        with {type(column).__name__} on index {i}"""
+                            "skip_columns must be str, int or list of str, int, "
+                            f"instead got list with {type(column).__name__} on index {i}"
                         )
             else:
                 raise TypeError(
-                    f"""skip_columns must be str, int or list of
-                                str, int, instead {type(skip_columns).__name__}"""
+                    f"skip_columns must be str, int or list of str, int, instead {type(skip_columns).__name__}"
                 )
             self._skip_columns = skip_columns
 
@@ -1951,13 +1949,13 @@ class RelationshipClassMapping(EntityClassMapping):
         mapping = self._object_classes[class_index]
         if isinstance(mapping, NoneMapping):
             return "The source type for object class names cannot be None."
-        if not isinstance(mapping, NoneMapping) and mapping.reference != 0 and not mapping.reference:
+        if mapping.reference != 0 and not mapping.reference:
             return "No reference set for object class names."
         return ""
 
     def object_names_issues(self, object_index):
         mapping = self._objects[object_index]
-        if isinstance(self._parameters, ParameterValueMapping) and isinstance(mapping, NoneMapping):
+        if isinstance(mapping, NoneMapping) and isinstance(self._parameters, ParameterValueMapping):
             return "The source type for object names cannot be None."
         if not isinstance(mapping, NoneMapping) and mapping.reference != 0 and not mapping.reference:
             return "No reference set for object names."
@@ -2773,19 +2771,18 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
-        tool_name = map_dict.get("tool_name", None)
+        name = map_dict.get("name", None)
         entity_class_name = map_dict.get("entity_class_name", None)
         parameter_definition_name = map_dict.get("parameter_definition_name", None)
         required = map_dict.get("required", None)
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
         return ToolFeatureMapping(
-            tool_name, entity_class_name, parameter_definition_name, required, skip_columns, read_start_row
+            name, entity_class_name, parameter_definition_name, required, skip_columns, read_start_row
         )
 
     def to_dict(self):
         map_dict = super().to_dict()
-        map_dict["tool_name"] = self._name.to_dict()
         map_dict["entity_class_name"] = self._entity_class_name.to_dict()
         map_dict["parameter_definition_name"] = self._parameter_definition_name.to_dict()
         map_dict["required"] = self._required.to_dict()
