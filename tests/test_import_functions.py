@@ -34,8 +34,14 @@ from spinedb_api.import_functions import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
+    import_parameter_value_lists,
+    import_tools,
+    import_features,
+    import_tool_features,
+    import_tool_feature_methods,
     import_data,
 )
+from spinedb_api.parameter_value import from_database
 
 
 def create_diff_db_map(directory):
@@ -668,7 +674,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map.connection.close()
 
 
-class TestImportAlternatives(unittest.TestCase):
+class TestImportAlternative(unittest.TestCase):
     def test_single_alternative(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -704,7 +710,7 @@ class TestImportAlternatives(unittest.TestCase):
             db_map.connection.close()
 
 
-class TestImportScenarios(unittest.TestCase):
+class TestImportScenario(unittest.TestCase):
     def test_single_scenario(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -737,7 +743,7 @@ class TestImportScenarios(unittest.TestCase):
             db_map.connection.close()
 
 
-class TestScenarioAlternatives(unittest.TestCase):
+class TestImportScenarioAlternative(unittest.TestCase):
     def test_single_scenario_alternative_import(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
@@ -820,22 +826,263 @@ class TestScenarioAlternatives(unittest.TestCase):
 
     @staticmethod
     def scenario_alternatives(db_map):
-        scenario_alternative_list = [
-            s
-            for s in db_map.query(
+        scenario_alternative_qry = (
+            db_map.query(
                 db_map.scenario_sq.c.name.label("scenario_name"),
                 db_map.alternative_sq.c.name.label("alternative_name"),
                 db_map.scenario_alternative_sq.c.rank,
             )
             .filter(db_map.scenario_alternative_sq.c.scenario_id == db_map.scenario_sq.c.id)
             .filter(db_map.scenario_alternative_sq.c.alternative_id == db_map.alternative_sq.c.id)
-            .all()
-        ]
+        )
         scenario_alternatives = dict()
-        for scenario_alternative in scenario_alternative_list:
+        for scenario_alternative in scenario_alternative_qry:
             alternative_rank = scenario_alternatives.setdefault(scenario_alternative.scenario_name, dict())
             alternative_rank[scenario_alternative.alternative_name] = scenario_alternative.rank
         return scenario_alternatives
+
+
+class TestImportTool(unittest.TestCase):
+    def test_single_tool(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_tools(db_map, ["tool"])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            tools = [x.name for x in db_map.query(db_map.tool_sq)]
+            self.assertEqual(len(tools), 1)
+            self.assertIn("tool", tools)
+            db_map.connection.close()
+
+    def test_tool_description(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_tools(db_map, [["tool", "description"]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            tools = {x.name: x.description for x in db_map.query(db_map.tool_sq)}
+            expected = {"tool": "description"}
+            self.assertEqual(tools, expected)
+            db_map.connection.close()
+
+    def test_update_tool_description(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_tools(db_map, [["tool", "description"]])
+            count, errors = import_tools(db_map, [["tool", "new description"]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            tools = {x.name: x.description for x in db_map.query(db_map.tool_sq)}
+            expected = {"tool": "new description"}
+            self.assertEqual(tools, expected)
+            db_map.connection.close()
+
+
+class TestImportFeature(unittest.TestCase):
+    @staticmethod
+    def populate(db_map):
+        import_object_classes(db_map, ["object_class1", "object_class2"])
+        import_parameter_value_lists(db_map, [['value_list', ['value1', 'value2', 'value3']]])
+        import_object_parameters(
+            db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
+        )
+
+    def test_single_feature(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_features(db_map, [["object_class1", "parameter1"]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            features = [
+                (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name)
+                for x in db_map.query(db_map.ext_feature_sq)
+            ]
+            self.assertEqual(len(features), 1)
+            self.assertIn(("object_class1", "parameter1", "value_list"), features)
+            db_map.connection.close()
+
+    def test_feature_for_parameter_without_value_list(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_features(db_map, [["object_class1", "parameter2"]])
+            self.assertEqual(count, 0)
+            self.assertTrue(errors)
+            db_map.connection.close()
+
+    def test_feature_description(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_features(db_map, [["object_class1", "parameter1", "description"]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            features = {
+                (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name): x.description
+                for x in db_map.query(db_map.ext_feature_sq)
+            }
+            expected = {("object_class1", "parameter1", "value_list"): "description"}
+            self.assertEqual(features, expected)
+            db_map.connection.close()
+
+    def test_update_feature_description(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_features(db_map, [["object_class1", "parameter1", "description"]])
+            count, errors = import_features(db_map, [["object_class1", "parameter1", "new description"]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            features = {
+                (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name): x.description
+                for x in db_map.query(db_map.ext_feature_sq)
+            }
+            expected = {("object_class1", "parameter1", "value_list"): "new description"}
+            self.assertEqual(features, expected)
+            db_map.connection.close()
+
+
+class TestImportToolFeature(unittest.TestCase):
+    @staticmethod
+    def populate(db_map):
+        import_object_classes(db_map, ["object_class1", "object_class2"])
+        import_parameter_value_lists(db_map, [['value_list', ['value1', 'value2', 'value3']]])
+        import_object_parameters(
+            db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
+        )
+        import_features(db_map, [["object_class1", "parameter1"]])
+        import_tools(db_map, ["tool1"])
+
+    def test_single_tool_feature(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            tool_features = [
+                (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
+                for x in db_map.query(db_map.ext_tool_feature_sq)
+            ]
+            self.assertEqual(len(tool_features), 1)
+            self.assertIn(("tool1", "object_class1", "parameter1", False), tool_features)
+            db_map.connection.close()
+
+    def test_tool_feature_with_non_feature_parameter(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter2"]])
+            self.assertEqual(count, 0)
+            self.assertTrue(errors)
+            db_map.connection.close()
+
+    def test_tool_feature_with_non_existing_tool(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_features(db_map, [["non_existing_tool", "object_class1", "parameter1"]])
+            self.assertEqual(count, 0)
+            self.assertTrue(errors)
+            db_map.connection.close()
+
+    def test_tool_feature_required(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter1", True]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            tool_features = [
+                (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
+                for x in db_map.query(db_map.ext_tool_feature_sq)
+            ]
+            self.assertEqual(len(tool_features), 1)
+            self.assertIn(("tool1", "object_class1", "parameter1", True), tool_features)
+            db_map.connection.close()
+
+    def test_update_tool_feature_required(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
+            count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter1", True]])
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            tool_features = [
+                (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
+                for x in db_map.query(db_map.ext_tool_feature_sq)
+            ]
+            self.assertEqual(len(tool_features), 1)
+            self.assertIn(("tool1", "object_class1", "parameter1", True), tool_features)
+            db_map.connection.close()
+
+
+class TestImportToolFeatureMethod(unittest.TestCase):
+    @staticmethod
+    def populate(db_map):
+        import_object_classes(db_map, ["object_class1", "object_class2"])
+        import_parameter_value_lists(db_map, [['value_list', ['value1', 'value2', 'value3']]])
+        import_object_parameters(
+            db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
+        )
+        import_features(db_map, [["object_class1", "parameter1"]])
+        import_tools(db_map, ["tool1"])
+        import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
+
+    def test_a_couple_of_tool_feature_method(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_feature_methods(
+                db_map,
+                [
+                    ["tool1", "object_class1", "parameter1", "value2"],
+                    ["tool1", "object_class1", "parameter1", "value3"],
+                ],
+            )
+            self.assertEqual(count, 2)
+            self.assertFalse(errors)
+            tool_feature_methods = [
+                (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method))
+                for x in db_map.query(db_map.ext_tool_feature_method_sq)
+            ]
+            self.assertEqual(len(tool_feature_methods), 2)
+            self.assertIn(("tool1", "object_class1", "parameter1", "value2"), tool_feature_methods)
+            self.assertIn(("tool1", "object_class1", "parameter1", "value3"), tool_feature_methods)
+            db_map.connection.close()
+
+    def test_tool_feature_method_with_non_feature_parameter(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_feature_methods(db_map, [["tool1", "object_class1", "parameter2", "method"]])
+            self.assertEqual(count, 0)
+            self.assertTrue(errors)
+            db_map.connection.close()
+
+    def test_tool_feature_method_with_non_existing_tool(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_feature_methods(
+                db_map, [["non_existing_tool", "object_class1", "parameter1", "value2"]]
+            )
+            self.assertEqual(count, 0)
+            self.assertTrue(errors)
+            db_map.connection.close()
+
+    def test_tool_feature_method_with_invalid_method(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_tool_feature_methods(
+                db_map, [["tool1", "object_class1", "parameter1", "invalid_method"]],
+            )
+            self.assertEqual(count, 0)
+            self.assertTrue(errors)
+            db_map.connection.close()
 
 
 if __name__ == "__main__":

@@ -32,6 +32,10 @@ from .check_functions import (
     check_parameter_tag,
     check_parameter_definition_tag,
     check_wide_parameter_value_list,
+    check_feature,
+    check_tool,
+    check_tool_feature,
+    check_tool_feature_method,
 )
 
 
@@ -51,6 +55,634 @@ class DatabaseMappingCheckMixin:
             current_value = current_item[field]
             if value != current_value:
                 raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
+
+    def check_features_for_insert(self, *items, strict=False):
+        """Check whether features passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        feature_ids = {x.parameter_definition_id: x.id for x in self.query(self.feature_sq)}
+        parameter_definitions = {
+            x.id: {
+                "name": x.name,
+                "entity_class_id": x.entity_class_id,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.parameter_definition_sq)
+        }
+        for item in items:
+            try:
+                check_feature(item, feature_ids, parameter_definitions)
+                checked_items.append(item)
+                # If the check passes, append item to `object_class_names` for next iteration.
+                feature_ids[item["parameter_definition_id"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_features_for_update(self, *items, strict=False):
+        """Check whether features passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        features = {x.id: x._asdict() for x in self.query(self.feature_sq)}
+        feature_ids = {x.parameter_definition_id: x.id for x in self.query(self.feature_sq)}
+        parameter_definitions = {
+            x.id: {
+                "name": x.name,
+                "entity_class_id": x.entity_class_id,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.parameter_definition_sq)
+        }
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing feature identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = features.pop(id_)
+                del feature_ids[updated_item["parameter_definition_id"]]
+            except KeyError:
+                msg = "feature not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_feature(updated_item, feature_ids, parameter_definitions)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                features[id_] = updated_item
+                feature_ids[updated_item["parameter_definition_id"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tools_for_insert(self, *items, strict=False):
+        """Check whether tools passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_ids = {x.name: x.id for x in self.query(self.tool_sq)}
+        for item in items:
+            try:
+                check_tool(item, tool_ids)
+                checked_items.append(item)
+                # If the check passes, append item to `object_class_names` for next iteration.
+                tool_ids[item["name"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tools_for_update(self, *items, strict=False):
+        """Check whether tools passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tools = {x.id: {"name": x.name} for x in self.query(self.tool_sq)}
+        tool_ids = {x.name: x.id for x in self.query(self.tool_sq)}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing tool identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = tools.pop(id_)
+                del tool_ids[updated_item["name"]]
+            except KeyError:
+                msg = "tool not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_tool(updated_item, tool_ids)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                tools[id_] = updated_item
+                tool_ids[updated_item["name"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tool_features_for_insert(self, *items, strict=False):
+        """Check whether tool features passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
+        tools = {x.id: x._asdict() for x in self.query(self.tool_sq)}
+        features = {
+            x.id: {
+                "name": x.entity_class_name + "/" + x.parameter_definition_name,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.ext_feature_sq)
+        }
+        for item in items:
+            try:
+                check_tool_feature(item, tool_feature_ids, tools, features)
+                checked_items.append(item)
+                tool_feature_ids[item["tool_id"], item["feature_id"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tool_features_for_update(self, *items, strict=False):
+        """Check whether tool_features passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
+        tools = {x.id: x._asdict() for x in self.query(self.tool_sq)}
+        features = {
+            x.id: {
+                "name": x.entity_class_name + "/" + x.parameter_definition_name,
+                "parameter_value_list_id": x.parameter_value_list_id,
+            }
+            for x in self.query(self.ext_feature_sq)
+        }
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing tool feature identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = tool_features.pop(id_)
+                del tool_feature_ids[updated_item["tool_id"], updated_item["feature_id"]]
+            except KeyError:
+                msg = "tool feature not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_tool_feature(updated_item, tool_feature_ids, tools, features)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                tool_features[id_] = updated_item
+                tool_feature_ids[updated_item["tool_id"], updated_item["feature_id"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tool_feature_methods_for_insert(self, *items, strict=False):
+        """Check whether tool feature methods passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_feature_method_ids = {
+            (x.tool_feature_id, x.method_index): x.id for x in self.query(self.tool_feature_method_sq)
+        }
+        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
+        parameter_value_lists = {
+            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
+            for x in self.query(self.wide_parameter_value_list_sq)
+        }
+        for item in items:
+            try:
+                check_tool_feature_method(item, tool_feature_method_ids, tool_features, parameter_value_lists)
+                checked_items.append(item)
+                tool_feature_method_ids[item["tool_feature_id"], item["method_index"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_tool_feature_methods_for_update(self, *items, strict=False):
+        """Check whether tool_feature_methods passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        tool_feature_methods = {x.id: x._asdict() for x in self.query(self.tool_feature_method_sq)}
+        tool_feature_method_ids = {
+            (x.tool_feature_id, x.method_index): x.id for x in self.query(self.tool_feature_method_sq)
+        }
+        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
+        parameter_value_lists = {
+            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
+            for x in self.query(self.wide_parameter_value_list_sq)
+        }
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing tool feature method identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = tool_feature_methods.pop(id_)
+                del tool_feature_method_ids[updated_item["tool_feature_id"], updated_item["method_index"]]
+            except KeyError:
+                msg = "tool feature method not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_tool_feature_method(updated_item, tool_feature_method_ids, tool_features, parameter_value_lists)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                tool_feature_methods[id_] = updated_item
+                tool_feature_method_ids[updated_item["tool_feature_id"], updated_item["method_index"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_alternatives_for_insert(self, *items, strict=False):
+        """Check whether alternatives passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        alternative_ids = {x.name: x.id for x in self.query(self.alternative_sq)}
+        for item in items:
+            try:
+                check_alternative(item, alternative_ids)
+                checked_items.append(item)
+                # If the check passes, append item to `object_class_names` for next iteration.
+                alternative_ids[item["name"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_alternatives_for_update(self, *items, strict=False):
+        """Check whether alternatives passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        alternatives = {x.id: {"name": x.name} for x in self.query(self.alternative_sq)}
+        alternative_ids = {x.name: x.id for x in self.query(self.alternative_sq)}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing alternative identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = alternatives.pop(id_)
+                del alternative_ids[updated_item["name"]]
+            except KeyError:
+                msg = "alternative not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_alternative(updated_item, alternative_ids)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                alternatives[id_] = updated_item
+                alternative_ids[updated_item["name"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_scenarios_for_insert(self, *items, strict=False):
+        """Check whether scenarios passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        scenario_ids = {x.name: x.id for x in self.query(self.scenario_sq)}
+        for item in items:
+            try:
+                check_scenario(item, scenario_ids)
+                checked_items.append(item)
+                scenario_ids[item["name"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_scenarios_for_update(self, *items, strict=False):
+        """Check whether scenarios passed as argument respect integrity constraints
+        for an update operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        scenarios = {x.id: {"name": x.name} for x in self.query(self.scenario_sq)}
+        scenario_ids = {x.name: x.id for x in self.query(self.scenario_sq)}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing scenario identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # Simulate removal of current instance
+                updated_item = scenarios.pop(id_)
+                del scenario_ids[updated_item["name"]]
+            except KeyError:
+                msg = "alternative not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_scenario(updated_item, scenario_ids)
+                checked_items.append(item)
+                # If the check passes, reinject the updated instance for next iteration.
+                scenarios[id_] = updated_item
+                scenario_ids[updated_item["name"]] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_scenario_alternatives_for_insert(self, *items, strict=False):
+        """Check whether scenario alternatives passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        ids_by_alt_id = {}
+        ids_by_rank = {}
+        for item in self.query(self.scenario_alternative_sq):
+            ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
+            ids_by_rank[item.scenario_id, item.rank] = item.id
+        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
+        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
+        for item in items:
+            try:
+                check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
+                checked_items.append(item)
+                ids_by_alt_id[item["scenario_id"], item["alternative_id"]] = None
+                ids_by_rank[item["scenario_id"], item["rank"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_scenario_alternatives_for_update(self, *items, strict=False):
+        """Check whether scenario alternatives passed as argument respect integrity constraints
+        for an insert operation.
+
+        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
+
+        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            if one of the items violates an integrity constraint.
+
+        :returns:
+            - **checked_items** -- A list of items that passed the check.
+
+            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
+              to found violations.
+        """
+        intgr_error_log = []
+        checked_items = list()
+        ids_by_alt_id = {}
+        ids_by_rank = {}
+        for item in self.query(self.scenario_alternative_sq):
+            ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
+            ids_by_rank[item.scenario_id, item.rank] = item.id
+        scenario_alternatives = {sa.id: sa._asdict() for sa in self.query(self.scenario_alternative_sq)}
+        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
+        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing scenario alternative identifier."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                updated_item = scenario_alternatives.pop(id_)
+                del ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]]
+                del ids_by_rank[updated_item["scenario_id"], updated_item["rank"]]
+            except KeyError:
+                msg = "Scenario alternative not found."
+                if strict:
+                    raise SpineIntegrityError(msg)
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                updated_item.update(item)
+                check_scenario_alternative(updated_item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
+                checked_items.append(item)
+                ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]] = id_
+                ids_by_rank[updated_item["scenario_id"], updated_item["rank"]] = id_
+                scenario_alternatives[id_] = updated_item
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
 
     def check_object_classes_for_insert(self, *items, strict=False):
         """Check whether object classes passed as argument respect integrity constraints
@@ -128,262 +760,6 @@ class DatabaseMappingCheckMixin:
                 # If the check passes, reinject the updated instance for next iteration.
                 object_classes[id_] = updated_item
                 object_class_ids[updated_item["name"]] = id_
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_alternatives_for_insert(self, *items, strict=False):
-        """Check whether alternatives passed as argument respect integrity constraints
-        for an insert operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        alternative_names = {x.name: x.id for x in self.query(self.alternative_sq)}
-        for item in items:
-            try:
-                check_alternative(item, alternative_names)
-                checked_items.append(item)
-                # If the check passes, append item to `object_class_names` for next iteration.
-                alternative_names[item["name"]] = None
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_alternatives_for_update(self, *items, strict=False):
-        """Check whether object classes passed as argument respect integrity constraints
-        for an update operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        alternative_dict = {x.id: {"name": x.name} for x in self.query(self.alternative_sq)}
-        alternative_names = {x.name: x.id for x in self.query(self.alternative_sq)}
-        for item in items:
-            try:
-                id = item["id"]
-            except KeyError:
-                msg = "Missing alternative identifier."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            try:
-                # Simulate removal of current instance
-                updated_item = alternative_dict.pop(id)
-                del alternative_names[updated_item["name"]]
-            except KeyError:
-                msg = "alternative not found."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            # Check for an insert of the updated instance
-            try:
-                updated_item.update(item)
-                check_alternative(updated_item, alternative_names)
-                checked_items.append(item)
-                # If the check passes, reinject the updated instance for next iteration.
-                alternative_dict[id] = updated_item
-                alternative_names[updated_item["name"]] = id
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_scenarios_for_insert(self, *items, strict=False):
-        """Check whether scenario passed as argument respect integrity constraints
-        for an insert operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        scenario_names = {x.name: x.id for x in self.query(self.scenario_sq)}
-        for item in items:
-            try:
-                check_scenario(item, scenario_names)
-                checked_items.append(item)
-                scenario_names[item["name"]] = None
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_scenarios_for_update(self, *items, strict=False):
-        """Check whether object classes passed as argument respect integrity constraints
-        for an update operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        scenario_dict = {x.id: {"name": x.name} for x in self.query(self.scenario_sq)}
-        scenario_names = {x.name: x.id for x in self.query(self.scenario_sq)}
-        for item in items:
-            try:
-                id = item["id"]
-            except KeyError:
-                msg = "Missing scenario identifier."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            try:
-                # Simulate removal of current instance
-                updated_item = scenario_dict.pop(id)
-                del scenario_names[updated_item["name"]]
-            except KeyError:
-                msg = "alternative not found."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            # Check for an insert of the updated instance
-            try:
-                updated_item.update(item)
-                check_scenario(updated_item, scenario_names)
-                checked_items.append(item)
-                # If the check passes, reinject the updated instance for next iteration.
-                scenario_dict[id] = updated_item
-                scenario_names[updated_item["name"]] = id
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_scenario_alternatives_for_insert(self, *items, strict=False):
-        """Check whether scenario passed as argument respect integrity constraints
-        for an insert operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        ids_by_alt_id = {}
-        ids_by_rank = {}
-        for item in self.query(self.scenario_alternative_sq):
-            ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
-            ids_by_rank[item.scenario_id, item.rank] = item.id
-        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
-        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
-        for item in items:
-            try:
-                check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
-                checked_items.append(item)
-                ids_by_alt_id[item["scenario_id"], item["alternative_id"]] = None
-                ids_by_rank[item["scenario_id"], item["rank"]] = None
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_scenario_alternatives_for_update(self, *items, strict=False):
-        """Check whether scenario passed as argument respect integrity constraints
-        for an insert operation.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be checked.
-
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if one of the items violates an integrity constraint.
-
-        :returns:
-            - **checked_items** -- A list of items that passed the check.
-
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        ids_by_alt_id = {}
-        ids_by_rank = {}
-        for item in self.query(self.scenario_alternative_sq):
-            ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
-            ids_by_rank[item.scenario_id, item.rank] = item.id
-        scenario_alternatives = {sa.id: sa._asdict() for sa in self.query(self.scenario_alternative_sq)}
-        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
-        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
-        for item in items:
-            try:
-                id_ = item["id"]
-            except KeyError:
-                msg = "Missing scenario alternative identifier."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            try:
-                updated_item = scenario_alternatives.pop(id_)
-                del ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]]
-                del ids_by_rank[updated_item["scenario_id"], updated_item["rank"]]
-            except KeyError:
-                msg = "Scenario alternative not found."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            try:
-                updated_item.update(item)
-                check_scenario_alternative(updated_item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
-                checked_items.append(item)
-                ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]] = id_
-                ids_by_rank[updated_item["scenario_id"], updated_item["rank"]] = id_
-                scenario_alternatives[id_] = updated_item
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -852,11 +1228,11 @@ class DatabaseMappingCheckMixin:
         """
         intgr_error_log = []
         checked_items = list()
-        parameter_values = {
+        parameter_value_ids = {
             (x.entity_id, x.parameter_definition_id, x.alternative_id): x.id
             for x in self.query(self.parameter_value_sq)
         }
-        parameter_definition_dict = {
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -883,13 +1259,13 @@ class DatabaseMappingCheckMixin:
             try:
                 check_parameter_value(
                     checked_item,
-                    parameter_values,
-                    parameter_definition_dict,
+                    parameter_value_ids,
+                    parameter_definitions,
                     entities,
                     parameter_value_lists,
                     alternatives,
                 )
-                parameter_values[entity_id, checked_item["parameter_definition_id"], alt_id] = None
+                parameter_value_ids[entity_id, checked_item["parameter_definition_id"], alt_id] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -931,7 +1307,7 @@ class DatabaseMappingCheckMixin:
             (x.entity_id, x.parameter_definition_id, x.alternative_id): x.id
             for x in self.query(self.parameter_value_sq)
         }
-        parameter_definition_dict = {
+        parameter_definitions = {
             x.id: {
                 "name": x.name,
                 "entity_class_id": x.entity_class_id,
@@ -982,7 +1358,7 @@ class DatabaseMappingCheckMixin:
                 check_parameter_value(
                     updated_item,
                     parameter_values,
-                    parameter_definition_dict,
+                    parameter_definitions,
                     entities,
                     parameter_value_lists,
                     alternatives,

@@ -85,7 +85,7 @@ class DiffDatabaseMappingUpdateMixin:
         return updated_ids, intgr_error_log
 
     def _update_alternatives(self, *checked_kwargs_list, strict=False):
-        """Update object classes without checking integrity."""
+        """Update alternatives without checking integrity."""
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
                 "alternative", checked_kwargs_list
@@ -243,9 +243,12 @@ class DiffDatabaseMappingUpdateMixin:
             ents_for_update, ents_for_insert, dirty_ent_ids, updated_ent_ids = self._get_items_for_update_and_insert(
                 "entity", ent_items
             )
-            rel_ents_for_update, rel_ents_for_insert, dirty_rel_ent_ids, updated_rel_ent_ids = self._get_items_for_update_and_insert(
-                "relationship_entity", rel_ent_items
-            )
+            (
+                rel_ents_for_update,
+                rel_ents_for_insert,
+                dirty_rel_ent_ids,
+                updated_rel_ent_ids,
+            ) = self._get_items_for_update_and_insert("relationship_entity", rel_ent_items)
             self.session.bulk_update_mappings(self.DiffEntity, ents_for_update)
             self.session.bulk_insert_mappings(self.DiffEntity, ents_for_insert)
             self.session.bulk_update_mappings(self.DiffRelationshipEntity, rel_ents_for_update)
@@ -373,6 +376,98 @@ class DiffDatabaseMappingUpdateMixin:
             return updated_ids
         except SpineDBAPIError as e:
             msg = "DBAPIError while updating parameter value lists: {}".format(e.msg)
+            raise SpineDBAPIError(msg)
+
+    def update_features(self, *kwargs_list, strict=False):
+        """Update features."""
+        checked_kwargs_list, intgr_error_log = self.check_features_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_features(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_features(self, *checked_kwargs_list, strict=False):
+        """Update features without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "feature", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffFeature, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffFeature, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("feature", dirty_ids)
+            self.updated_item_id["feature"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating features: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_tools(self, *kwargs_list, strict=False):
+        """Update tools."""
+        checked_kwargs_list, intgr_error_log = self.check_tools_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_tools(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_tools(self, *checked_kwargs_list, strict=False):
+        """Update tools without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "tool", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffTool, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffTool, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("tool", dirty_ids)
+            self.updated_item_id["tool"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating tools: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_tool_features(self, *kwargs_list, strict=False):
+        """Update tool_features."""
+        checked_kwargs_list, intgr_error_log = self.check_tool_features_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_tool_features(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_tool_features(self, *checked_kwargs_list, strict=False):
+        """Update tool_features without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "tool_feature", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffToolFeature, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffToolFeature, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("tool_feature", dirty_ids)
+            self.updated_item_id["tool_feature"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating tool features: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def update_tool_feature_methods(self, *kwargs_list, strict=False):
+        """Update tool_feature_methods."""
+        checked_kwargs_list, intgr_error_log = self.check_tool_feature_methods_for_update(*kwargs_list, strict=strict)
+        updated_ids = self._update_tool_feature_methods(*checked_kwargs_list)
+        return updated_ids, intgr_error_log
+
+    def _update_tool_feature_methods(self, *checked_kwargs_list, strict=False):
+        """Update tool_feature_methods without checking integrity."""
+        try:
+            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+                "tool_feature_method", checked_kwargs_list
+            )
+            self.session.bulk_update_mappings(self.DiffToolFeatureMethod, items_for_update)
+            self.session.bulk_insert_mappings(self.DiffToolFeatureMethod, items_for_insert)
+            self.session.commit()
+            self._mark_as_dirty("tool_feature_method", dirty_ids)
+            self.updated_item_id["tool_feature_method"].update(dirty_ids)
+            return updated_ids
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while updating tool feature methods: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def get_data_to_set_scenario_alternatives(self, *items):

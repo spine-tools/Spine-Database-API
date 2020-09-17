@@ -16,6 +16,7 @@
 """
 # TODO: Finish docstrings
 
+import os
 import logging
 from types import MethodType
 from sqlalchemy import (
@@ -73,7 +74,7 @@ class DatabaseMappingBase:
         self.db_url = db_url
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
-        self.codename = str(codename) if codename else self.sa_url.database
+        self.codename = self._make_codename(codename)
         self.engine = self._create_engine(db_url, upgrade=upgrade, create=create)
         self.connection = self.engine.connect()
         self.session = Session(self.connection, autoflush=False)
@@ -97,6 +98,10 @@ class DatabaseMappingBase:
         self.ParameterTag = None
         self.ParameterDefinitionTag = None
         self.ParameterValueList = None
+        self.Tool = None
+        self.Feature = None
+        self.ToolFeature = None
+        self.ToolFeatureMethod = None
         self.IdsForIn = None
         self._ids_for_in_clause_id = 0
         # class and entity type id
@@ -123,6 +128,10 @@ class DatabaseMappingBase:
         self._parameter_tag_sq = None
         self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
+        self._feature_sq = None
+        self._tool_sq = None
+        self._tool_feature_sq = None
+        self._tool_feature_method_sq = None
         # Special convenience subqueries that join two or more tables
         self._ext_scenario_sq = None
         self._wide_scenario_sq = None
@@ -134,14 +143,17 @@ class DatabaseMappingBase:
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
         self._ext_object_group_sq = None
+        self._entity_parameter_definition_sq = None
         self._object_parameter_definition_sq = None
         self._relationship_parameter_definition_sq = None
         self._object_parameter_value_sq = None
         self._relationship_parameter_value_sq = None
         self._ext_parameter_definition_tag_sq = None
         self._wide_parameter_definition_tag_sq = None
-        self._ord_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
+        self._ext_feature_sq = None
+        self._ext_tool_feature_sq = None
+        self._ext_tool_feature_method_sq = None
         # Table to class map for convenience
         self.table_to_class = {
             "alternative": "Alternative",
@@ -164,6 +176,10 @@ class DatabaseMappingBase:
             "parameter_tag": "ParameterTag",
             "parameter_definition_tag": "ParameterDefinitionTag",
             "parameter_value_list": "ParameterValueList",
+            "tool": "Tool",
+            "feature": "Feature",
+            "tool_feature": "ToolFeature",
+            "tool_feature_method": "ToolFeatureMethod",
         }
         # Table primary ids map:
         self.table_ids = {
@@ -176,6 +192,13 @@ class DatabaseMappingBase:
         }
         self._create_mapping()
         self._create_ids_for_in()
+
+    def _make_codename(self, codename):
+        if codename:
+            return str(codename)
+        if self.sa_url.drivername == "sqlite":
+            return os.path.basename(self.sa_url.database)
+        return self.sa_url.database
 
     def _create_engine(self, db_url, upgrade=False, create=False):
         """Create engine.
@@ -646,6 +669,30 @@ class DatabaseMappingBase:
         return self._parameter_value_list_sq
 
     @property
+    def feature_sq(self):
+        if self._feature_sq is None:
+            self._feature_sq = self._subquery("feature")
+        return self._feature_sq
+
+    @property
+    def tool_sq(self):
+        if self._tool_sq is None:
+            self._tool_sq = self._subquery("tool")
+        return self._tool_sq
+
+    @property
+    def tool_feature_sq(self):
+        if self._tool_feature_sq is None:
+            self._tool_feature_sq = self._subquery("tool_feature")
+        return self._tool_feature_sq
+
+    @property
+    def tool_feature_method_sq(self):
+        if self._tool_feature_method_sq is None:
+            self._tool_feature_method_sq = self._subquery("tool_feature_method")
+        return self._tool_feature_method_sq
+
+    @property
     def ext_scenario_sq(self):
         if self._ext_scenario_sq is None:
             self._ext_scenario_sq = (
@@ -950,6 +997,35 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._ext_object_group_sq
+
+    @property
+    def entity_parameter_definition_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._entity_parameter_definition_sq is None:
+            self._entity_parameter_definition_sq = (
+                self.query(
+                    self.parameter_definition_sq.c.id.label("id"),
+                    self.parameter_definition_sq.c.entity_class_id,
+                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
+                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
+                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
+                    self.parameter_definition_sq.c.default_value,
+                    self.parameter_definition_sq.c.description,
+                )
+                .filter(self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
+                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
+                .outerjoin(
+                    self.wide_parameter_value_list_sq,
+                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                )
+                .subquery()
+            )
+        return self._entity_parameter_definition_sq
 
     @property
     def object_parameter_definition_sq(self):
@@ -1260,27 +1336,6 @@ class DatabaseMappingBase:
         return self._wide_parameter_definition_tag_sq
 
     @property
-    def ord_parameter_value_list_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT *
-            FROM parameter_value_list
-            ORDER BY id, value_index
-
-        :type: :class:`~sqlalchemy.sql.expression.Alias`
-        """
-        # NOTE: Not sure what the purpose of this was
-        if self._ord_parameter_value_list_sq is None:
-            self._ord_parameter_value_list_sq = (
-                self.query(self.parameter_value_list_sq)
-                .order_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.value_index)
-                .subquery()
-            )
-        return self._ord_parameter_value_list_sq
-
-    @property
     def wide_parameter_value_list_sq(self):
         """A subquery of the form:
 
@@ -1304,10 +1359,95 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
+                    func.group_concat(self.parameter_value_list_sq.c.value_index, ";").label("value_index_list"),
                     func.group_concat(self.parameter_value_list_sq.c.value, ";").label("value_list"),
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq
+
+    @property
+    def ext_feature_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_feature_sq is None:
+            self._ext_feature_sq = (
+                self.query(
+                    self.feature_sq.c.id.label("id"),
+                    self.entity_class_sq.c.id.label("entity_class_id"),
+                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.feature_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    self.parameter_definition_sq.c.name.label("parameter_definition_name"),
+                    self.feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
+                    self.wide_parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+                    self.feature_sq.c.description.label("description"),
+                )
+                .filter(self.feature_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
+                .filter(self.feature_sq.c.parameter_value_list_id == self.wide_parameter_value_list_sq.c.id)
+                .filter(self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .subquery()
+            )
+        return self._ext_feature_sq
+
+    @property
+    def ext_tool_feature_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_tool_feature_sq is None:
+            self._ext_tool_feature_sq = (
+                self.query(
+                    self.tool_feature_sq.c.id.label("id"),
+                    self.tool_feature_sq.c.tool_id.label("tool_id"),
+                    self.tool_sq.c.name.label("tool_name"),
+                    self.tool_feature_sq.c.feature_id.label("feature_id"),
+                    self.ext_feature_sq.c.entity_class_id.label("entity_class_id"),
+                    self.ext_feature_sq.c.entity_class_name.label("entity_class_name"),
+                    self.ext_feature_sq.c.parameter_definition_id.label("parameter_definition_id"),
+                    self.ext_feature_sq.c.parameter_definition_name.label("parameter_definition_name"),
+                    self.tool_feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
+                    self.ext_feature_sq.c.parameter_value_list_name.label("parameter_value_list_name"),
+                    self.tool_feature_sq.c.required.label("required"),
+                )
+                .filter(self.tool_feature_sq.c.tool_id == self.tool_sq.c.id)
+                .filter(self.tool_feature_sq.c.feature_id == self.ext_feature_sq.c.id)
+                .filter(self.tool_feature_sq.c.parameter_value_list_id == self.ext_feature_sq.c.parameter_value_list_id)
+                .subquery()
+            )
+        return self._ext_tool_feature_sq
+
+    @property
+    def ext_tool_feature_method_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_tool_feature_method_sq is None:
+            self._ext_tool_feature_method_sq = (
+                self.query(
+                    self.tool_feature_method_sq.c.id,
+                    self.ext_tool_feature_sq.c.id.label("tool_feature_id"),
+                    self.ext_tool_feature_sq.c.tool_id,
+                    self.ext_tool_feature_sq.c.tool_name,
+                    self.ext_tool_feature_sq.c.feature_id,
+                    self.ext_tool_feature_sq.c.entity_class_id,
+                    self.ext_tool_feature_sq.c.entity_class_name,
+                    self.ext_tool_feature_sq.c.parameter_definition_id,
+                    self.ext_tool_feature_sq.c.parameter_definition_name,
+                    self.tool_feature_method_sq.c.parameter_value_list_id,
+                    self.ext_tool_feature_sq.c.parameter_value_list_name,
+                    self.tool_feature_method_sq.c.method_index,
+                    self.parameter_value_list_sq.c.value.label("method"),
+                )
+                .filter(self.tool_feature_method_sq.c.tool_feature_id == self.ext_tool_feature_sq.c.id)
+                .filter(
+                    self.tool_feature_method_sq.c.parameter_value_list_id
+                    == self.ext_tool_feature_sq.c.parameter_value_list_id
+                )
+                .filter(self.tool_feature_method_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id)
+                .filter(self.tool_feature_method_sq.c.method_index == self.parameter_value_list_sq.c.value_index)
+                .subquery()
+            )
+        return self._ext_tool_feature_method_sq
 
     def override_parameter_value_sq_maker(self, method):
         """

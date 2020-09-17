@@ -28,6 +28,10 @@ from spinedb_api import (
     export_data,
     export_scenarios,
     export_scenario_alternatives,
+    export_tools,
+    export_features,
+    export_tool_features,
+    export_tool_feature_methods,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
@@ -40,6 +44,10 @@ from spinedb_api import (
     import_relationships,
     import_scenarios,
     import_scenario_alternatives,
+    import_tools,
+    import_features,
+    import_tool_features,
+    import_tool_feature_methods,
 )
 
 
@@ -57,6 +65,42 @@ class TestExportFunctions(unittest.TestCase):
     def tearDown(self):
         self._db_map.connection.close()
         remove(self._database_file_path)
+
+    def test_export_tools(self):
+        import_tools(self._db_map, [("tool", "Description")])
+        exported = export_tools(self._db_map, (Anyone,))
+        self.assertEqual(exported, [("tool", "Description")])
+
+    def test_export_features(self):
+        import_object_classes(self._db_map, ["object_class1", "object_class2"])
+        import_parameter_value_lists(self._db_map, [['value_list', ['value1', 'value2']]])
+        import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
+        import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
+        exported = export_features(self._db_map, (Anyone,))
+        self.assertEqual(exported, [("object_class1", "parameter1", "value_list", "Description")])
+
+    def test_export_tool_features(self):
+        import_object_classes(self._db_map, ["object_class1", "object_class2"])
+        import_parameter_value_lists(self._db_map, [['value_list', ['value1', 'value2']]])
+        import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
+        import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
+        import_tools(self._db_map, ["tool1"])
+        import_tool_features(self._db_map, [["tool1", "object_class1", "parameter1"]])
+        exported = export_tool_features(self._db_map, (Anyone,))
+        self.assertEqual(exported, [("tool1", "object_class1", "parameter1", False)])
+
+    def test_export_tool_feature_methods(self):
+        import_object_classes(self._db_map, ["object_class1", "object_class2"])
+        import_parameter_value_lists(self._db_map, [['value_list', ['value1', 'value2']]])
+        import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
+        import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
+        import_tools(self._db_map, ["tool1"])
+        import_tool_features(self._db_map, [["tool1", "object_class1", "parameter1"]])
+        import_tool_feature_methods(
+            self._db_map, [["tool1", "object_class1", "parameter1", "value2"]],
+        )
+        exported = export_tool_feature_methods(self._db_map, (Anyone,))
+        self.assertEqual(exported, [("tool1", "object_class1", "parameter1", "value2")])
 
     def test_export_alternatives(self):
         import_alternatives(self._db_map, [("alternative", "Description")])

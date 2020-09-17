@@ -37,7 +37,7 @@ class DiffDatabaseMappingRemoveMixin:
 
     def remove_items(self, **kwargs):
         """Removes items by id, *not in cascade*.
-x
+
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
@@ -84,6 +84,10 @@ x
         self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set())))
         self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set())))
         self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set())))
+        self._merge(ids, self._feature_cascading_ids(kwargs.get("feature", set())))
+        self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set())))
+        self._merge(ids, self._tool_feature_cascading_ids(kwargs.get("tool_feature", set())))
+        self._merge(ids, self._tool_feature_method_cascading_ids(kwargs.get("tool_feature_method", set())))
         return {key: value for key, value in ids.items() if value}
 
     @staticmethod
@@ -185,8 +189,10 @@ x
         param_def_tags = self.query(self.parameter_definition_tag_sq.c.id).filter(
             self.in_(self.parameter_definition_tag_sq.c.parameter_definition_id, ids)
         )
+        features = self.query(self.feature_sq.c.id).filter(self.in_(self.feature_sq.c.parameter_definition_id, ids))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
         self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids({x.id for x in param_def_tags}))
+        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}))
         return cascading_ids
 
     def _parameter_value_cascading_ids(self, ids):  # pylint: disable=no-self-use
@@ -210,7 +216,33 @@ x
     def _parameter_value_list_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries.
         """
-        return {"parameter_value_list": ids.copy()}
+        cascading_ids = {"parameter_value_list": ids.copy()}
+        features = self.query(self.feature_sq.c.id).filter(self.in_(self.feature_sq.c.parameter_value_list_id, ids))
+        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}))
+        return cascading_ids
 
     def _scenario_alternatives_cascading_ids(self, ids):
         return {"scenario_alternative": ids.copy()}
+
+    def _feature_cascading_ids(self, ids):
+        cascading_ids = {"feature": ids.copy()}
+        tool_features = self.query(self.tool_feature_sq.c.id).filter(self.in_(self.tool_feature_sq.c.feature_id, ids))
+        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}))
+        return cascading_ids
+
+    def _tool_cascading_ids(self, ids):
+        cascading_ids = {"tool": ids.copy()}
+        tool_features = self.query(self.tool_feature_sq.c.id).filter(self.in_(self.tool_feature_sq.c.tool_id, ids))
+        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}))
+        return cascading_ids
+
+    def _tool_feature_cascading_ids(self, ids):
+        cascading_ids = {"tool_feature": ids.copy()}
+        tool_feature_methods = self.query(self.tool_feature_method_sq.c.id).filter(
+            self.in_(self.tool_feature_method_sq.c.tool_feature_id, ids)
+        )
+        self._merge(cascading_ids, self._tool_feature_method_cascading_ids({x.id for x in tool_feature_methods}))
+        return cascading_ids
+
+    def _tool_feature_method_cascading_ids(self, ids):
+        return {"tool_feature_method": ids.copy()}
