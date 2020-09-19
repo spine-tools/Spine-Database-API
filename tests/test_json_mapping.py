@@ -16,7 +16,7 @@ Unit tests for json_mapping.py.
 :date:   22.02.2018
 """
 import unittest
-from spinedb_api.json_mapping import (
+from spinedb_api import (
     AlternativeMapping,
     read_with_mapping,
     ObjectClassMapping,
