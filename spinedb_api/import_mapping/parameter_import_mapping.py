@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Classes for reading data with json mapping specifications
+Classes for parameter import mappings.
 
 :author: P. Vennström (VTT)
 :date:   22.02.2018
@@ -18,18 +18,18 @@ Classes for reading data with json mapping specifications
 
 import itertools
 from operator import itemgetter
-from .parameter_value import (
+from ..parameter_value import (
     Array,
     convert_leaf_maps_to_specialized_containers,
     Map,
     TimeSeriesVariableResolution,
     TimePattern,
 )
-from .exception import InvalidMapping
-from .json_mapping import (
+from ..exception import InvalidMapping
+from .single_import_mapping import (
     NoneMapping,
     ColumnMapping,
-    mappingbase_from_dict_int_str,
+    single_mapping_from_dict_int_str,
     create_getter_list,
     create_getter_function_from_function_list,
 )
@@ -37,7 +37,7 @@ from .json_mapping import (
 
 class TimeSeriesOptions:
     """
-    Class for holding parameter type-specific options for time series parameter values.
+    Holds parameter type-specific options for time series parameter values.
 
     Attributes:
         repeat (bool): time series repeat flag
@@ -63,8 +63,9 @@ class TimeSeriesOptions:
         return {"repeat": self.repeat, "ignore_year": self.ignore_year, "fixed_resolution": self.fixed_resolution}
 
 
-class ParameterDefinitionMapping:
-    PARAMETER_TYPE = "definition"
+class ParameterMappingBase:
+    """Base class for parameter mappings."""
+
     MAP_TYPE = "parameter"
 
     def __init__(self, name=None):
@@ -89,7 +90,7 @@ class ParameterDefinitionMapping:
 
     @name.setter
     def name(self, name):
-        self._name = mappingbase_from_dict_int_str(name)
+        self._name = single_mapping_from_dict_int_str(name)
 
     def non_pivoted_columns(self):
         non_pivoted_columns = []
@@ -105,13 +106,7 @@ class ParameterDefinitionMapping:
 
     @classmethod
     def from_dict(cls, map_dict):
-        if not isinstance(map_dict, dict):
-            raise ValueError("map_dict must be a dict")
-        map_type = map_dict.get("map_type", None)
-        if map_type is not None and map_type != cls.MAP_TYPE:
-            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
-        name = map_dict.get("name", None)
-        return ParameterDefinitionMapping(name)
+        raise NotImplementedError()
 
     def to_dict(self):
         map_dict = {"map_type": self.MAP_TYPE}
@@ -159,13 +154,65 @@ class ParameterDefinitionMapping:
         return {"name": (getter, num, reads)}
 
 
-class ParameterValueMapping(ParameterDefinitionMapping):
+class ParameterDefinitionMapping(ParameterMappingBase):
+
+    PARAMETER_TYPE = "definition"
+
+    def __init__(self, name=None, default_value=None, parameter_value_list_name=None):
+        super().__init__(name)
+        self._default_value = ColumnMapping(None)
+        self._parameter_value_list_name = single_mapping_from_dict_int_str(parameter_value_list_name)
+        self.default_value = default_value
+
+    def display_names(self):
+        return super().display_names() + ["Default values", "Parameter value list names"]
+
+    def component_mappings(self):
+        return super().component_mappings() + [self.default_value, self.parameter_value_list_name]
+
+    def set_component_by_display_name(self, display_name, mapping):
+        if display_name == "Default values":
+            self.default_value = mapping
+            return True
+        if display_name == "Parameter value list names":
+            self.parameter_value_list_name = mapping
+            return True
+        return super().set_component_by_display_name(display_name, mapping)
+
+    @property
+    def default_value(self):
+        return self._default_value
+
+    @property
+    def parameter_value_list_name(self):
+        return self._parameter_value_list_name
+
+    @default_value.setter
+    def default_value(self, default_value):
+        self._default_value = single_mapping_from_dict_int_str(default_value)
+
+    @parameter_value_list_name.setter
+    def parameter_value_list_name(self, parameter_value_list_name):
+        self._parameter_value_list_name = single_mapping_from_dict_int_str(parameter_value_list_name)
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise ValueError("map_dict must be a dict")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        name = map_dict.get("name", None)
+        return ParameterDefinitionMapping(name)
+
+
+class ParameterValueMapping(ParameterMappingBase):
     PARAMETER_TYPE = "single value"
 
     def __init__(self, name=None, value=None, alternative_name=None):
         super().__init__(name)
         self._value = ColumnMapping(None)
-        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
+        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
         self.value = value
 
     def display_names(self):
@@ -193,11 +240,11 @@ class ParameterValueMapping(ParameterDefinitionMapping):
 
     @value.setter
     def value(self, value):
-        self._value = mappingbase_from_dict_int_str(value)
+        self._value = single_mapping_from_dict_int_str(value)
 
     @alternative_name.setter
     def alternative_name(self, alternative_name):
-        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
+        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
@@ -299,15 +346,15 @@ class ParameterArrayMapping(ParameterValueMapping):
     @extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions):
         if extra_dimensions is None:
-            self._extra_dimensions = [mappingbase_from_dict_int_str(None)]
+            self._extra_dimensions = [single_mapping_from_dict_int_str(None)]
             return
         if not isinstance(extra_dimensions, (list, tuple)):
             raise TypeError(
-                f"extra_dimensions must be a list or tuple of MappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
+                f"extra_dimensions must be a list or tuple of SingleMappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
             )
         if len(extra_dimensions) != 1:
             raise ValueError(f"extra_dimensions must be of length 1 instead got len: {len(extra_dimensions)}")
-        self._extra_dimensions = [mappingbase_from_dict_int_str(extra_dimensions[0])]
+        self._extra_dimensions = [single_mapping_from_dict_int_str(extra_dimensions[0])]
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
@@ -454,13 +501,13 @@ class ParameterMapMapping(ParameterIndexedMapping):
     @ParameterIndexedMapping.extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions):
         if extra_dimensions is None:
-            self._extra_dimensions = [mappingbase_from_dict_int_str(None)]
+            self._extra_dimensions = [single_mapping_from_dict_int_str(None)]
             return
         if not isinstance(extra_dimensions, (list, tuple)):
             raise TypeError(
-                f"extra_dimensions must be a list or tuple of MappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
+                f"extra_dimensions must be a list or tuple of SingleMappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
             )
-        self._extra_dimensions = [mappingbase_from_dict_int_str(ed) for ed in extra_dimensions]
+        self._extra_dimensions = [single_mapping_from_dict_int_str(ed) for ed in extra_dimensions]
 
     def set_number_of_extra_dimensions(self, dimension_count):
         """
@@ -475,7 +522,7 @@ class ParameterMapMapping(ParameterIndexedMapping):
             self._extra_dimensions = self._extra_dimensions[:dimension_count]
         else:
             diff = dimension_count - len(self._extra_dimensions)
-            self._extra_dimensions += [mappingbase_from_dict_int_str(None) for _ in range(diff)]
+            self._extra_dimensions += [single_mapping_from_dict_int_str(None) for _ in range(diff)]
 
     def raw_data_to_type(self, data):
         out = []

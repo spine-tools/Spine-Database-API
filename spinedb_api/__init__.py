@@ -87,18 +87,18 @@ from .export_functions import (
     export_tool_features,
     export_tool_feature_methods,
 )
-from .json_mapping import (
-    MappingBase,
+from .import_mapping.single_import_mapping import (
+    SingleMappingBase,
     NoneMapping,
     ConstantMapping,
     ColumnMapping,
     ColumnHeaderMapping,
     RowMapping,
     TableNameMapping,
-    mapping_from_dict,
-    mappingbase_from_dict_int_str,
+    single_mapping_from_dict,
+    single_mapping_from_dict_int_str,
 )
-from .json_parameter_mapping import (
+from .import_mapping.parameter_import_mapping import (
     TimeSeriesOptions,
     ParameterDefinitionMapping,
     ParameterValueMapping,
@@ -108,7 +108,7 @@ from .json_parameter_mapping import (
     ParameterMapMapping,
     parameter_mapping_from_dict,
 )
-from .json_item_mapping import (
+from .import_mapping.item_import_mapping import (
     NamedItemMapping,
     EntityClassMapping,
     ObjectClassMapping,
@@ -121,9 +121,13 @@ from .json_item_mapping import (
     ToolMapping,
     ToolFeatureMapping,
     ToolFeatureMethodMapping,
-    dict_to_map,
+    item_mapping_from_dict,
 )
-from .json_mapping_functions import convert_function_from_spec, mapping_non_pivoted_columns, read_with_mapping
+from .import_mapping.import_mapping_functions import (
+    convert_function_from_spec,
+    mapping_non_pivoted_columns,
+    read_with_mapping,
+)
 from .parameter_value import (
     convert_leaf_maps_to_specialized_containers,
     duration_to_relativedelta,

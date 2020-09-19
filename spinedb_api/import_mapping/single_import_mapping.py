@@ -10,20 +10,20 @@
 ######################################################################################################################
 
 """
-Classes for reading data with json mapping specifications
+Classes for single import mappings.
 
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
 import itertools
 from operator import itemgetter
-from .exception import InvalidMapping
+from ..exception import InvalidMapping
 
 
-class MappingBase:
+class SingleMappingBase:
     """
-    Class for holding and validating Mapping specification:
-    
+    Base class for single mappings:
+
         Mapping {
             map_type: 'column' | 'row'
             value_reference: str | int
@@ -74,7 +74,7 @@ class MappingBase:
     @classmethod
     def from_dict(cls, map_dict):
         """Creates a mapping object from dict representation of mapping
-        
+
         Should return an instance of the subclass
         """
         raise NotImplementedError()
@@ -103,16 +103,15 @@ class MappingBase:
         raise NotImplementedError()
 
 
-class NoneMapping(MappingBase):
-    """Class for holding a reference to a None value
-    """
+class NoneMapping(SingleMappingBase):
+    """A reference to a None value."""
 
     MAP_TYPE = "None"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    @MappingBase.reference.setter
+    @SingleMappingBase.reference.setter
     def reference(self, reference):
         """Setter method for reference, ignored by NoneMapping.
         """
@@ -151,13 +150,13 @@ class NoneMapping(MappingBase):
         return None, None, None
 
 
-class ConstantMapping(MappingBase):
-    """Class for holding a reference to a string.
+class ConstantMapping(SingleMappingBase):
+    """A reference to a string.
     """
 
     MAP_TYPE = "constant"
 
-    @MappingBase.reference.setter
+    @SingleMappingBase.reference.setter
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
@@ -199,13 +198,13 @@ class ConstantMapping(MappingBase):
 
 
 class ColumnMapping(ConstantMapping):
-    """Class for holding a reference to a column by number or header string
+    """A reference to a column by number or header string
     """
 
     MAP_TYPE = "column"
     """Type of ``ColumnMapping``."""
 
-    @MappingBase.reference.setter
+    @SingleMappingBase.reference.setter
     def reference(self, reference):
         """Setter method for reference, should be implemented in subclasses
         """
@@ -237,12 +236,12 @@ class ColumnMapping(ConstantMapping):
 
 
 class ColumnHeaderMapping(ColumnMapping):
-    """Class for holding a reference to a column header by number or header string
+    """A reference to a column header by number or header string
     """
 
     MAP_TYPE = "column_header"
 
-    @MappingBase.reference.setter
+    @SingleMappingBase.reference.setter
     def reference(self, reference):
         if reference is not None and not isinstance(reference, (str, int)):
             raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
@@ -282,14 +281,14 @@ class ColumnHeaderMapping(ColumnMapping):
         return getter, num, reads_data
 
 
-class RowMapping(MappingBase):
-    """Class for holding a reference to a row number or headers
+class RowMapping(SingleMappingBase):
+    """A reference to a row number, where -1 refers to the header row.
     """
 
     MAP_TYPE = "row"
     """The type of ``RowMapping``."""
 
-    @MappingBase.reference.setter
+    @SingleMappingBase.reference.setter
     def reference(self, reference):
         """Setter method for reference, should be implemented in subclasses
         """
@@ -357,15 +356,15 @@ class RowMapping(MappingBase):
         return getter, num, reads_data
 
 
-class TableNameMapping(MappingBase):
-    """A mapping for table names."""
+class TableNameMapping(SingleMappingBase):
+    """A reference to a table name."""
 
     MAP_TYPE = "table_name"
 
     def __init__(self, table_name):
         super().__init__(table_name)
 
-    @MappingBase.reference.setter
+    @SingleMappingBase.reference.setter
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
             raise TypeError(f"reference must be a string or None, instead got {type(reference).__name__}")
@@ -410,38 +409,10 @@ class TableNameMapping(MappingBase):
         return getter, 1, False
 
 
-class TimeSeriesOptions:
-    """
-    Class for holding parameter type-specific options for time series parameter values.
-
-    Attributes:
-        repeat (bool): time series repeat flag
-        ignore_year (bool): time series ignore year flag
-        fixed_resolution (bool): True for fixed resolution time series, False for variable resolution
-    """
-
-    def __init__(self, repeat=False, ignore_year=False, fixed_resolution=False):
-        self.repeat = repeat
-        self.ignore_year = ignore_year
-        self.fixed_resolution = fixed_resolution
-
-    @staticmethod
-    def from_dict(options_dict):
-        """Restores TimeSeriesOptions from a dictionary."""
-        repeat = options_dict.get("repeat", False)
-        ignore_year = options_dict.get("ignore_year", False)
-        fixed_resolution = options_dict.get("fixed_resolution", False)
-        return TimeSeriesOptions(repeat, ignore_year, fixed_resolution)
-
-    def to_dict(self):
-        """Saves the options to a dictionary."""
-        return {"repeat": self.repeat, "ignore_year": self.ignore_year, "fixed_resolution": self.fixed_resolution}
-
-
-def mappingbase_from_value(value):
+def single_mapping_from_value(value):
     if value is None:
         return ColumnMapping()
-    if isinstance(value, MappingBase):
+    if isinstance(value, SingleMappingBase):
         return value
     if isinstance(value, int):
         try:
@@ -450,10 +421,10 @@ def mappingbase_from_value(value):
             pass
     if isinstance(value, str):
         return ConstantMapping(value)
-    raise TypeError(f"Can't convert {type(value).__name__} to MappingBase")
+    raise TypeError(f"Can't convert {type(value).__name__} to SingleMappingBase")
 
 
-def mapping_from_dict(map_dict):
+def single_mapping_from_dict(map_dict):
     type_str_to_class = {
         RowMapping.MAP_TYPE: RowMapping,
         ColumnMapping.MAP_TYPE: ColumnMapping,
@@ -472,19 +443,19 @@ def mapping_from_dict(map_dict):
     return map_class.from_dict(map_dict)
 
 
-def mappingbase_from_dict_int_str(value):
+def single_mapping_from_dict_int_str(value):
     """Creates Mapping object if `value` is a `dict` or `int`;
     if `str` or `None` returns same value. If `int`, the Mapping is created
     with map_type == column (default) unless other type is specified
     """
     if value is None:
         return NoneMapping()
-    if isinstance(value, MappingBase):
+    if isinstance(value, SingleMappingBase):
         return value
     if isinstance(value, dict):
-        return mapping_from_dict(value)
+        return single_mapping_from_dict(value)
     if isinstance(value, (int, str)):
-        return mappingbase_from_value(value)
+        return single_mapping_from_value(value)
     raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
 
 
@@ -524,7 +495,7 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
     that zips together the result into a list,
 
     Example::
-    
+
         row = (1,2,3)
         function_list = [lambda row: row[2], lambda row: 'constant', itemgetter(0,1)]
         row_getter, output_len, reads_data = create_getter_function_from_function_list(function_list, [1,1,2], [True, False, True])
@@ -539,7 +510,6 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
         function_list = [lambda row: 'outer', inner_function]
         row_getter, output_len, reads_data = create_getter_function_from_function_list(function_list, [1,2], [False, reads_data])
         list(row_getter(row)) == [('outer', ('inner', 1)), ('outer', ('inner', 2))]
-        
     """
     if not function_list or None in function_list:
         # empty or incomplete list

@@ -10,25 +10,29 @@
 ######################################################################################################################
 
 """
-Classes for reading data with json mapping specifications
+Classes for item import mappings.
 
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
-from .json_mapping import (
+from .single_import_mapping import (
     NoneMapping,
     ConstantMapping,
     ColumnMapping,
-    mappingbase_from_dict_int_str,
+    single_mapping_from_dict_int_str,
     create_getter_list,
     create_final_getter_function,
     create_getter_function_from_function_list,
 )
-from .json_parameter_mapping import ParameterDefinitionMapping, ParameterValueMapping, parameter_mapping_from_dict
+from .parameter_import_mapping import (
+    ParameterMappingBase,
+    ParameterValueMapping,
+    parameter_mapping_from_dict,
+)
 
 
 class ItemMappingBase:
-    """A base class for top level item mappings."""
+    """Base class for item mappings."""
 
     MAP_TYPE = None
     """Mapping's name in JSON. Should be specified by subclasses"""
@@ -181,12 +185,12 @@ class ItemMappingBase:
 
 
 class NamedItemMapping(ItemMappingBase):
-    """A base class for top level named item mappings such as entity classes, alternatives and scenarios."""
+    """Base class for named item mappings such as entity classes, alternatives and scenarios."""
 
     def __init__(self, name, skip_columns, read_start_row):
         """
         Args:
-            name (str or MappingBase, optional): mapping for the item name
+            name (str or SingleMappingBase, optional): mapping for the item name
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
@@ -203,7 +207,7 @@ class NamedItemMapping(ItemMappingBase):
 
     @name.setter
     def name(self, name):
-        self._name = mappingbase_from_dict_int_str(name)
+        self._name = single_mapping_from_dict_int_str(name)
 
     def is_pivoted(self):
         return self._name.is_pivoted()
@@ -245,7 +249,7 @@ class NamedItemMapping(ItemMappingBase):
 
 class EntityClassMapping(NamedItemMapping):
     """
-    Class for holding and validating Mappings for entity classes.
+    Base class for entity class mappings.
     """
 
     MAP_TYPE = None
@@ -253,8 +257,8 @@ class EntityClassMapping(NamedItemMapping):
     def __init__(self, name, parameters, import_objects, skip_columns, read_start_row):
         """
         Args:
-            name (str or spinedb_api.MappingBase, optional): mapping for the class name
-            parameters (str or spinedb_api.ParameterDefinitionMapping, optional): mapping for the parameters of the class
+            name (str or spinedb_api.SingleMappingBase, optional): mapping for the class name
+            parameters (str or spinedb_api.ParameterMappingBase, optional): mapping for the parameters of the class
             import_objects (bool): True if this mapping imports additional objects, False otherwise
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
@@ -284,7 +288,7 @@ class EntityClassMapping(NamedItemMapping):
 
     def non_pivoted_columns(self):
         non_pivoted_columns = super().non_pivoted_columns()
-        if isinstance(self.parameters, ParameterDefinitionMapping):
+        if isinstance(self.parameters, ParameterMappingBase):
             non_pivoted_columns.extend(self.parameters.non_pivoted_columns())
         return non_pivoted_columns
 
@@ -308,7 +312,7 @@ class EntityClassMapping(NamedItemMapping):
     def parameters(self, parameters=None):
         if parameters is None:
             parameters = NoneMapping()
-        if not isinstance(parameters, (ParameterDefinitionMapping, NoneMapping)):
+        if not isinstance(parameters, (ParameterMappingBase, NoneMapping)):
             raise ValueError(
                 f"""parameters must be a None, ParameterDefinition or
                              NoneMapping, instead got
@@ -346,7 +350,7 @@ class EntityClassMapping(NamedItemMapping):
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """Creates a dict of getter functions."""
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
-        if isinstance(self._parameters, ParameterDefinitionMapping):
+        if isinstance(self._parameters, ParameterMappingBase):
             parameter_getters = self._parameters.create_getter_list(
                 self.is_pivoted(), pivoted_columns, pivoted_data, data_header
             )
@@ -372,7 +376,7 @@ class EntityClassMapping(NamedItemMapping):
 
 class ObjectClassMapping(EntityClassMapping):
     """
-    Class for holding and validating Mapping specification::
+    Object class mapping:
 
         ObjectClassMapping {
             map_type: 'object'
@@ -434,7 +438,7 @@ class ObjectClassMapping(EntityClassMapping):
 
     @objects.setter
     def objects(self, objects):
-        self._objects = mappingbase_from_dict_int_str(objects)
+        self._objects = single_mapping_from_dict_int_str(objects)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -537,7 +541,7 @@ class ObjectClassMapping(EntityClassMapping):
 
 class ObjectGroupMapping(EntityClassMapping):
     """
-    Class for holding and validating Mapping specification::
+    Object group mapping:
 
         ObjectGroupMapping {
             map_type: 'ObjectGroup'
@@ -614,7 +618,7 @@ class ObjectGroupMapping(EntityClassMapping):
 
     @groups.setter
     def groups(self, groups):
-        self._groups = mappingbase_from_dict_int_str(groups)
+        self._groups = single_mapping_from_dict_int_str(groups)
 
     @property
     def members(self):
@@ -622,7 +626,7 @@ class ObjectGroupMapping(EntityClassMapping):
 
     @members.setter
     def members(self, members):
-        self._members = mappingbase_from_dict_int_str(members)
+        self._members = single_mapping_from_dict_int_str(members)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -765,7 +769,7 @@ class ObjectGroupMapping(EntityClassMapping):
 
 class RelationshipClassMapping(EntityClassMapping):
     """
-    Class for holding and validating Mapping specification::
+    Relationship class mapping:
 
         ObjectClassMapping {
             map_type: 'object'
@@ -869,14 +873,14 @@ class RelationshipClassMapping(EntityClassMapping):
             objects = [NoneMapping()]
         if not isinstance(objects, (list, tuple)):
             raise TypeError(
-                f"objects must be a list or tuple of MappingBase, int, str, dict, instead got: {type(objects).__name__}"
+                f"objects must be a list or tuple of SingleMappingBase, int, str, dict, instead got: {type(objects).__name__}"
             )
         if len(objects) != len(self.object_classes):
             raise ValueError(
                 f"objects must be of same length as object_classes: {len(self.object_classes)} "
                 f"instead got length: {len(objects)}"
             )
-        self._objects = [mappingbase_from_dict_int_str(o) for o in objects]
+        self._objects = [single_mapping_from_dict_int_str(o) for o in objects]
 
     @EntityClassMapping.import_objects.setter
     def import_objects(self, import_objects):
@@ -894,9 +898,9 @@ class RelationshipClassMapping(EntityClassMapping):
             object_classes = [NoneMapping()]
         if not isinstance(object_classes, (list, tuple)):
             raise TypeError(
-                f"object_classes must be a list or tuple of MappingBase, int, str, dict, instead got: {type(object_classes).__name__}"
+                f"object_classes must be a list or tuple of SingleMappingBase, int, str, dict, instead got: {type(object_classes).__name__}"
             )
-        self._object_classes = [mappingbase_from_dict_int_str(oc) for oc in object_classes]
+        self._object_classes = [single_mapping_from_dict_int_str(oc) for oc in object_classes]
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -1068,7 +1072,7 @@ class RelationshipClassMapping(EntityClassMapping):
 
 class AlternativeMapping(NamedItemMapping):
     """
-        Holds mapping for alternatives.
+        Alternative mapping.
 
         specification:
 
@@ -1083,7 +1087,7 @@ class AlternativeMapping(NamedItemMapping):
     def __init__(self, name=None, skip_columns=None, read_start_row=0):
         """
         Args:
-            name (str or MappingBase, optional): mapping for the item name
+            name (str or SingleMappingBase, optional): mapping for the item name
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
@@ -1143,7 +1147,7 @@ class AlternativeMapping(NamedItemMapping):
 
 class ScenarioMapping(NamedItemMapping):
     """
-        Holds mapping for scenarios.
+        Scenario mapping.
 
         specification:
 
@@ -1159,14 +1163,14 @@ class ScenarioMapping(NamedItemMapping):
     def __init__(self, name=None, active=False, skip_columns=None, read_start_row=0):
         """
         Args:
-            name (str or MappingBase, optional): mapping for the scenario name
+            name (str or SingleMappingBase, optional): mapping for the scenario name
             active (str or Mapping, optional): mapping for scenario's active flag
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
         super().__init__(name, skip_columns, read_start_row)
         if active is not None:
-            self._active = mappingbase_from_dict_int_str(active)
+            self._active = single_mapping_from_dict_int_str(active)
         else:
             self._active = ConstantMapping("false")
 
@@ -1191,7 +1195,7 @@ class ScenarioMapping(NamedItemMapping):
 
     @active.setter
     def active(self, active):
-        self._active = mappingbase_from_dict_int_str(active)
+        self._active = single_mapping_from_dict_int_str(active)
 
     def is_valid(self):
         issue = self.scenario_names_issues()
@@ -1260,7 +1264,7 @@ class ScenarioMapping(NamedItemMapping):
 
 class ScenarioAlternativeMapping(ItemMappingBase):
     """
-        Holds mapping for scenario alternatives.
+        Scenario alternative mapping.
 
         specification:
 
@@ -1283,9 +1287,9 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         read_start_row=0,
     ):
         super().__init__(skip_columns, read_start_row)
-        self._scenario_name = mappingbase_from_dict_int_str(scenario_name)
-        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
-        self._before_alternative_name = mappingbase_from_dict_int_str(before_alternative_name)
+        self._scenario_name = single_mapping_from_dict_int_str(scenario_name)
+        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
+        self._before_alternative_name = single_mapping_from_dict_int_str(before_alternative_name)
 
     def display_names(self):
         return super().display_names() + ["Scenario names", "Alternative names", "Before Alternative names"]
@@ -1319,15 +1323,15 @@ class ScenarioAlternativeMapping(ItemMappingBase):
 
     @scenario_name.setter
     def scenario_name(self, scenario_name):
-        self._scenario_name = mappingbase_from_dict_int_str(scenario_name)
+        self._scenario_name = single_mapping_from_dict_int_str(scenario_name)
 
     @alternative_name.setter
     def alternative_name(self, alternative_name):
-        self._alternative_name = mappingbase_from_dict_int_str(alternative_name)
+        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
 
     @before_alternative_name.setter
     def before_alternative_name(self, before_alternative_name):
-        self._before_alternative_name = mappingbase_from_dict_int_str(before_alternative_name)
+        self._before_alternative_name = single_mapping_from_dict_int_str(before_alternative_name)
 
     def is_valid(self):
         issue = self.scenario_names_issues()
@@ -1432,7 +1436,7 @@ class ScenarioAlternativeMapping(ItemMappingBase):
 
 class ToolMapping(NamedItemMapping):
     """
-        Holds mapping for tools.
+        Tool mapping.
 
         specification:
 
@@ -1447,7 +1451,7 @@ class ToolMapping(NamedItemMapping):
     def __init__(self, name=None, skip_columns=None, read_start_row=0):
         """
         Args:
-            name (str or MappingBase, optional): mapping for the item name
+            name (str or SingleMappingBase, optional): mapping for the item name
             skip_columns (list, optional): a list of columns to skip while mapping
             read_start_row (int): skip this many rows while mapping
         """
@@ -1528,8 +1532,8 @@ class FeatureMappingBase(ItemMappingBase):
 class FeatureMappingMixin:
     def __init__(self, *args, entity_class_name=None, parameter_definition_name=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._entity_class_name = mappingbase_from_dict_int_str(entity_class_name)
-        self._parameter_definition_name = mappingbase_from_dict_int_str(parameter_definition_name)
+        self._entity_class_name = single_mapping_from_dict_int_str(entity_class_name)
+        self._parameter_definition_name = single_mapping_from_dict_int_str(parameter_definition_name)
 
     def display_names(self):
         return super().display_names() + ["Entity class names", "Parameter names"]
@@ -1556,11 +1560,11 @@ class FeatureMappingMixin:
 
     @entity_class_name.setter
     def entity_class_name(self, entity_class_name):
-        self._entity_class_name = mappingbase_from_dict_int_str(entity_class_name)
+        self._entity_class_name = single_mapping_from_dict_int_str(entity_class_name)
 
     @parameter_definition_name.setter
     def parameter_definition_name(self, parameter_definition_name):
-        self._parameter_definition_name = mappingbase_from_dict_int_str(parameter_definition_name)
+        self._parameter_definition_name = single_mapping_from_dict_int_str(parameter_definition_name)
 
     def is_valid(self):
         issue = self.entity_class_names_issues()
@@ -1630,7 +1634,7 @@ class FeatureMappingMixin:
 
 class FeatureMapping(FeatureMappingMixin, FeatureMappingBase):
     """
-        Holds mapping for features.
+        Feature mapping.
 
         specification:
 
@@ -1698,7 +1702,7 @@ class FeatureMapping(FeatureMappingMixin, FeatureMappingBase):
 
 class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
     """
-        Holds mapping for tool features.
+        Tool feature mapping.
 
         specification:
 
@@ -1730,7 +1734,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
             parameter_definition_name=parameter_definition_name,
         )
         if required is not None:
-            self._required = mappingbase_from_dict_int_str(required)
+            self._required = single_mapping_from_dict_int_str(required)
         else:
             self._required = ConstantMapping("false")
 
@@ -1752,7 +1756,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
 
     @required.setter
     def required(self, required):
-        self._required = mappingbase_from_dict_int_str(required)
+        self._required = single_mapping_from_dict_int_str(required)
 
     def _create_required_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._required.returns_value():
@@ -1828,7 +1832,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
 
 class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
     """
-        Holds mapping for tool feature methods.
+        Tool feature method mapping.
 
         specification:
 
@@ -1859,7 +1863,7 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
             entity_class_name=entity_class_name,
             parameter_definition_name=parameter_definition_name,
         )
-        self._method = mappingbase_from_dict_int_str(method)
+        self._method = single_mapping_from_dict_int_str(method)
 
     def display_names(self):
         return super().display_names() + ["Tool feature methods"]
@@ -1879,7 +1883,7 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
 
     @method.setter
     def method(self, method):
-        self._method = mappingbase_from_dict_int_str(method)
+        self._method = single_mapping_from_dict_int_str(method)
 
     def is_valid(self):
         issue = self.methods_issues()
@@ -1980,8 +1984,8 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
         return ToolFeatureMethodMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
-def dict_to_map(map_dict):
-    """Creates Mapping object from a dict"""
+def item_mapping_from_dict(map_dict):
+    """Creates ItemMappingBase object from a dict"""
     if not isinstance(map_dict, dict):
         raise TypeError(f"map_dict must be a dict, instead it was: {type(map_dict)}")
     map_type = map_dict.get("map_type", None)
@@ -2010,7 +2014,7 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
 
     Args:
         object_or_relationship (str): either "object" or "relationship"
-        parameters_mapping (ParameterDefinitionMapping): mapping for parameters
+        parameters_mapping (ParameterMappingBase): mapping for parameters
         class_getters (tuple): a tuple consisting of entity class name getters
         entity_getters (tuple): a tuple consisting of entity name getters
         component_readers (dict): a mapping from reader name to reader tuple
@@ -2019,7 +2023,7 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
         list: readers for parameter definitions and (optionally) values, or empty list if not applicable
     """
     readers = list()
-    if isinstance(parameters_mapping, ParameterDefinitionMapping):
+    if isinstance(parameters_mapping, ParameterMappingBase):
         par_name_getter, par_name_num, par_name_reads = component_readers["parameter_name"]
         readers.append(
             (object_or_relationship + "_parameters",)

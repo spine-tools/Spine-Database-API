@@ -18,9 +18,9 @@ Classes for reading data with json mapping specifications
 import itertools
 import math
 from collections.abc import Iterable
-from .parameter_value import ParameterValueFormatError
-from .exception import InvalidMapping, TypeConversionError
-from .json_item_mapping import ItemMappingBase, dict_to_map
+from ..parameter_value import ParameterValueFormatError
+from ..exception import InvalidMapping, TypeConversionError
+from .item_import_mapping import ItemMappingBase, item_mapping_from_dict
 
 
 def type_class_list_from_spec(types, num_sections, skip_sections=None):
@@ -159,7 +159,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         mapping = [mapping]
     for map_ in mapping:
         if isinstance(map_, dict):
-            mappings.append(dict_to_map(map_))
+            mappings.append(item_mapping_from_dict(map_))
         elif isinstance(map_, ItemMappingBase):
             mappings = [map_]
         else:
