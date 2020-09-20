@@ -100,6 +100,7 @@ from .import_mapping.single_import_mapping import (
 )
 from .import_mapping.parameter_import_mapping import (
     TimeSeriesOptions,
+    ParameterMappingBase,
     ParameterDefinitionMapping,
     ParameterValueMapping,
     ParameterArrayMapping,

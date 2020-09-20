@@ -48,13 +48,16 @@ class ItemMappingBase:
         self.skip_columns = skip_columns
         self.read_start_row = read_start_row
 
-    def display_names(self):
+    def component_names(self):  # pylint: disable=no-self-use
         return []
 
-    def component_mappings(self):
+    def component_mappings(self):  # pylint: disable=no-self-use
         return []
 
-    def set_component_by_display_name(self, display_name, mapping):
+    def _optional_component_names(self):  # pylint: disable=no-self-use
+        return []
+
+    def set_component_by_name(self, name, mapping):  # pylint: disable=no-self-use
         return False
 
     @property
@@ -65,21 +68,20 @@ class ItemMappingBase:
     def skip_columns(self, skip_columns=None):
         if skip_columns is None:
             self._skip_columns = []
-        else:
-            if isinstance(skip_columns, (str, int)):
-                skip_columns = [skip_columns]
-            if isinstance(skip_columns, list):
-                for i, column in enumerate(skip_columns):
-                    if not isinstance(column, (str, int)):
-                        raise TypeError(
-                            "skip_columns must be str, int or list of str, int, "
-                            f"instead got list with {type(column).__name__} on index {i}"
-                        )
-            else:
+            return
+        if isinstance(skip_columns, (str, int)):
+            self._skip_columns = [skip_columns]
+            return
+        if isinstance(skip_columns, list):
+            i = next(iter(i for i, column in enumerate(skip_columns) if not isinstance(column, (str, int))), None)
+            if i is not None:
                 raise TypeError(
-                    f"skip_columns must be str, int or list of str, int, instead {type(skip_columns).__name__}"
+                    "skip_columns must be str, int or list of str, int, "
+                    f"instead got list with {type(skip_columns[i]).__name__} on index {i}"
                 )
             self._skip_columns = skip_columns
+            return
+        raise TypeError(f"skip_columns must be str, int or list of str, int, instead {type(skip_columns).__name__}")
 
     @property
     def read_start_row(self):
@@ -97,9 +99,6 @@ class ItemMappingBase:
         """Returns True if this mapping has parameters, otherwise returns False."""
         return False
 
-    def _component_issues_getters(self):
-        return []
-
     def component_issues(self, component_index):
         """Returns issues for given mapping component index.
 
@@ -109,20 +108,34 @@ class ItemMappingBase:
         Returns:
             str: issue string
         """
-        component_issues_getters = self._component_issues_getters()
         try:
-            return component_issues_getters[component_index]()
+            name = self.component_names()[component_index]
+            mapping = self.component_mappings()[component_index]
         except IndexError:
             return ""
+        return self._component_issues(name, mapping)
+
+    def _component_issues(self, name, mapping):
+        if name in self._optional_component_names():
+            return ""
+        if isinstance(mapping, NoneMapping):
+            return f"The source type for {name} cannot be None."
+        if mapping.reference != 0 and not mapping.reference:
+            return f"No reference set for {name}."
+        return ""
 
     def is_valid(self):
-        raise NotImplementedError()
+        issues = [self.component_issues(k) for k in range(len(self.component_names()))]
+        issues = [x for x in issues if x]
+        if not issues:
+            return True, ""
+        return False, ", ".join(issues)
 
     def is_pivoted(self):
-        raise NotImplementedError()
+        return any(m.is_pivoted() for m in self.component_mappings())
 
     def non_pivoted_columns(self):
-        raise NotImplementedError()
+        return [m.reference for m in self.component_mappings() if isinstance(m, ColumnMapping) and m.returns_value()]
 
     def pivoted_columns(self, data_header, num_cols):
         if not self.is_pivoted():
@@ -161,7 +174,7 @@ class ItemMappingBase:
         return pivoted_cols
 
     def last_pivot_row(self):
-        raise NotImplementedError()
+        return max(*(m.last_pivot_row() for m in self.component_mappings()), -1)
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         raise NotImplementedError()
@@ -208,21 +221,6 @@ class NamedItemMapping(ItemMappingBase):
     @name.setter
     def name(self, name):
         self._name = single_mapping_from_dict_int_str(name)
-
-    def is_pivoted(self):
-        return self._name.is_pivoted()
-
-    def last_pivot_row(self):
-        last_pivot_row = max(self._name.last_pivot_row(), -1)
-        return last_pivot_row
-
-    def is_valid(self):
-        raise NotImplementedError()
-
-    def non_pivoted_columns(self):
-        if isinstance(self._name, ColumnMapping) and self._name.returns_value():
-            return [self._name.reference]
-        return []
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         if self.name.returns_value():
@@ -293,9 +291,7 @@ class EntityClassMapping(NamedItemMapping):
         return non_pivoted_columns
 
     def last_pivot_row(self):
-        last_pivot_row = super().last_pivot_row()
-        last_pivot_row = max(self._parameters.last_pivot_row(), last_pivot_row)
-        return last_pivot_row
+        return max(super().last_pivot_row(), self._parameters.last_pivot_row())
 
     def is_pivoted(self):
         return super().is_pivoted() or self._parameters.is_pivoted()
@@ -303,6 +299,15 @@ class EntityClassMapping(NamedItemMapping):
     def has_parameters(self):
         """Returns True if this mapping has parameters, otherwise returns False."""
         return True
+
+    def is_valid(self):
+        issues = [self.component_issues(k) for k in range(len(self.component_names()))]
+        if not isinstance(self._parameters, NoneMapping):
+            issues += [self._parameters.component_issues(k) for k in range(len(self._parameters.component_names()))]
+        issues = [x for x in issues if x]
+        if not issues:
+            return True, ""
+        return False, ", ".join(issues)
 
     @property
     def parameters(self):
@@ -314,10 +319,11 @@ class EntityClassMapping(NamedItemMapping):
             parameters = NoneMapping()
         if not isinstance(parameters, (ParameterMappingBase, NoneMapping)):
             raise ValueError(
-                f"""parameters must be a None, ParameterDefinition or
-                             NoneMapping, instead got
-                             {type(parameters).__name__}"""
+                f"parameters must be a None, ParameterMappingBase or NoneMapping, "
+                f"instead got {type(parameters).__name__}"
             )
+        if isinstance(parameters, ParameterMappingBase):
+            parameters.set_parent(self)
         self._parameters = parameters
 
     def to_dict(self):
@@ -325,27 +331,6 @@ class EntityClassMapping(NamedItemMapping):
         map_dict["parameters"] = self.parameters.to_dict()
         map_dict["import_objects"] = self._import_objects
         return map_dict
-
-    def is_valid(self):
-        issue = self.class_names_issues()
-        if issue:
-            return False, issue
-        if not isinstance(self._parameters, NoneMapping):
-            parameter_valid, msg = self._parameters.is_valid(self.is_pivoted())
-            if not parameter_valid:
-                return False, msg
-        return True, ""
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.class_names_issues]
-
-    def class_names_issues(self):
-        """Returns a non-empty message string if the entity class name is invalid."""
-        if isinstance(self._name, NoneMapping):
-            return "The source type for class names cannot be None."
-        if self._name.reference != 0 and not self._name.reference:
-            return "No reference set for class names."
-        return ""
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """Creates a dict of getter functions."""
@@ -393,32 +378,26 @@ class ObjectClassMapping(EntityClassMapping):
         self._objects = NoneMapping()
         self.objects = objects
 
-    def display_names(self):
-        return super().display_names() + ["Object class names", "Object names"]
+    def component_names(self):
+        return super().component_names() + ["Object class names", "Object names"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.objects]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Object class names":
+    def _optional_component_names(self):  # pylint: disable=no-self-use
+        optional_component_names = super()._optional_component_names()
+        if not isinstance(self._parameters, ParameterValueMapping):
+            optional_component_names += ["Object names"]  # NOTE: Object names are optional if no parameter values
+        return optional_component_names
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Object class names":
             self.name = mapping
             return True
-        if display_name == "Object names":
+        if name == "Object names":
             self.objects = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = super().non_pivoted_columns()
-        if isinstance(self.objects, ColumnMapping) and self.objects.returns_value():
-            non_pivoted_columns.append(self.objects.reference)
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        return max(super().last_pivot_row(), self.objects.last_pivot_row())
-
-    def is_pivoted(self):
-        return super().is_pivoted() or self.objects.is_pivoted()
+        return super().set_component_by_name(name, mapping)
 
     @property
     def dimensions(self):
@@ -464,25 +443,6 @@ class ObjectClassMapping(EntityClassMapping):
         map_dict = super().to_dict()
         map_dict.update(objects=self.objects.to_dict())
         return map_dict
-
-    def is_valid(self):
-        valid, msg = super().is_valid()
-        if not valid:
-            return valid, msg
-        issue = self.object_names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.object_names_issues]
-
-    def object_names_issues(self):
-        if isinstance(self._parameters, ParameterValueMapping) and isinstance(self._objects, NoneMapping):
-            return "The source type for object names cannot be None."
-        if not isinstance(self._objects, NoneMapping) and self._objects.reference != 0 and not self._objects.reference:
-            return "No reference set for object names."
-        return ""
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
@@ -570,37 +530,23 @@ class ObjectGroupMapping(EntityClassMapping):
         self.groups = groups
         self.members = members
 
-    def display_names(self):
-        return super().display_names() + ["Object class names", "Group names", "Member names"]
+    def component_names(self):
+        return super().component_names() + ["Object class names", "Group names", "Member names"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.groups, self.members]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Object class names":
+    def set_component_by_name(self, name, mapping):
+        if name == "Object class names":
             self.name = mapping
             return True
-        if display_name == "Group names":
+        if name == "Group names":
             self.groups = mapping
             return True
-        if display_name == "Member names":
+        if name == "Member names":
             self.members = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = super().non_pivoted_columns()
-        if isinstance(self._groups, ColumnMapping) and self._groups.returns_value():
-            non_pivoted_columns.append(self._groups.reference)
-        if isinstance(self._members, ColumnMapping) and self._members.returns_value():
-            non_pivoted_columns.append(self._members.reference)
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        return max(super().last_pivot_row(), self._groups.last_pivot_row(), self._members.last_pivot_row())
-
-    def is_pivoted(self):
-        return super().is_pivoted() or self._groups.is_pivoted() or self._members.is_pivoted()
+        return super().set_component_by_name(name, mapping)
 
     def has_fixed_dimensions(self):
         """Returns True if the dimensions of this mapping cannot be set."""
@@ -658,33 +604,6 @@ class ObjectGroupMapping(EntityClassMapping):
         map_dict["groups"] = self._groups.to_dict()
         map_dict["members"] = self._members.to_dict()
         return map_dict
-
-    def is_valid(self):
-        # check that parameter mapping has a valid name mapping
-        issue = self.group_names_issues()
-        if issue:
-            return False, issue
-        issue = self.member_names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.group_names_issues, self.member_names_issues]
-
-    def group_names_issues(self):
-        if isinstance(self._groups, NoneMapping):
-            return "The source type for group names cannot be None."
-        if self._name.reference != 0 and not self._name.reference:
-            return "No reference set for group names."
-        return ""
-
-    def member_names_issues(self):
-        if isinstance(self._members, NoneMapping):
-            return "The source type for member names cannot be None."
-        if self._members.reference != 0 and not self._members.reference:
-            return "No reference set for member names."
-        return ""
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
@@ -797,19 +716,19 @@ class RelationshipClassMapping(EntityClassMapping):
         self.object_classes = object_classes
         self.objects = objects
 
-    def _object_class_display_names(self):
+    def _object_class_component_names(self):
         return [f"Object class names {i+1}" for i in range(len(self.object_classes))]
 
-    def _object_display_names(self):
+    def _object_component_names(self):
         return [f"Object names {i+1}" for i in range(len(self.objects))]
 
-    def display_names(self):
-        display_names = super().display_names() + ["Relationship class names"]
+    def component_names(self):
+        component_names = super().component_names() + ["Relationship class names"]
         if self.object_classes:
-            display_names += self._object_class_display_names()
+            component_names += self._object_class_component_names()
         if self.objects:
-            display_names += self._object_display_names()
-        return display_names
+            component_names += self._object_component_names()
+        return component_names
 
     def component_mappings(self):
         component_mappings = super().component_mappings()
@@ -819,41 +738,27 @@ class RelationshipClassMapping(EntityClassMapping):
             component_mappings.extend(list(self.objects))
         return component_mappings
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Relationship class names":
+    def _optional_component_names(self):
+        optional_component_names = super()._optional_component_names()
+        if not isinstance(self._parameters, ParameterValueMapping):
+            optional_component_names += self._object_component_names()
+        return optional_component_names
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Relationship class names":
             self.name = mapping
             return True
         try:
-            ind = self._object_class_display_names().index(display_name)
+            ind = self._object_class_component_names().index(name)
             self.object_classes[ind] = mapping
             return True
         except ValueError:
             try:
-                ind = self._object_class_display_names().index(display_name)
+                ind = self._object_class_component_names().index(name)
                 self.objects[ind] = mapping
                 return True
             except ValueError:
-                return super().set_component_by_display_name(display_name, mapping)
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = super().non_pivoted_columns()
-        non_pivoted_columns.extend(
-            o.reference for o in self.objects if isinstance(o, ColumnMapping) and o.returns_value()
-        )
-        non_pivoted_columns.extend(
-            oc.reference for oc in self.object_classes if isinstance(oc, ColumnMapping) and oc.returns_value()
-        )
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        o_last_pivot = max(o.last_pivot_row() for o in self.objects)
-        oc_last_pivot = max(oc.last_pivot_row() for oc in self.object_classes)
-        return max(super().last_pivot_row(), o_last_pivot, oc_last_pivot)
-
-    def is_pivoted(self):
-        o_pivoted = any(o.is_pivoted() for o in self.objects)
-        oc_pivoted = any(oc.is_pivoted() for oc in self.object_classes)
-        return super().is_pivoted() or o_pivoted or oc_pivoted
+                return super().set_component_by_name(name, mapping)
 
     @property
     def objects(self):
@@ -931,49 +836,6 @@ class RelationshipClassMapping(EntityClassMapping):
         map_dict.update(objects=[o.to_dict() for o in self.objects])
         map_dict.update(object_classes=[oc.to_dict() for oc in self.object_classes])
         return map_dict
-
-    def is_valid(self):
-        # check that parameter mapping has a valid name mapping
-        valid, msg = super().is_valid()
-        if not valid:
-            return valid, msg
-        for i in range(len(self._object_classes)):
-            issue = self.object_class_names_issues(i)
-            if issue:
-                return False, issue
-            issue = self.object_names_issues(i)
-            if issue:
-                return False, issue
-        return True, ""
-
-    def component_issues(self, component_index):
-        """see base class"""
-        component_issues_getters = self._component_issues_getters()
-        if component_index < len(component_issues_getters):
-            return component_issues_getters[component_index]()
-        class_index = component_index - len(component_issues_getters)
-        if class_index < len(self._object_classes):
-            return self.object_class_names_issues(class_index)
-        object_index = class_index - len(self._object_classes)
-        if object_index < len(self._objects):
-            return self.object_names_issues(object_index)
-        return ""
-
-    def object_class_names_issues(self, class_index):
-        mapping = self._object_classes[class_index]
-        if isinstance(mapping, NoneMapping):
-            return "The source type for object class names cannot be None."
-        if mapping.reference != 0 and not mapping.reference:
-            return "No reference set for object class names."
-        return ""
-
-    def object_names_issues(self, object_index):
-        mapping = self._objects[object_index]
-        if isinstance(mapping, NoneMapping) and isinstance(self._parameters, ParameterValueMapping):
-            return "The source type for object names cannot be None."
-        if not isinstance(mapping, NoneMapping) and mapping.reference != 0 and not mapping.reference:
-            return "No reference set for object names."
-        return ""
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
@@ -1093,31 +955,14 @@ class AlternativeMapping(NamedItemMapping):
         """
         super().__init__(name, skip_columns, read_start_row)
 
-    def display_names(self):
-        return super().display_names() + ["Alternative names"]
+    def component_names(self):
+        return super().component_names() + ["Alternative names"]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Alternative names":
+    def set_component_by_name(self, name, mapping):
+        if name == "Alternative names":
             self.name = mapping
             return True
-        super().set_component_by_display_name(display_name, mapping)
-
-    def is_valid(self):
-        issue = self.alternative_names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.alternative_names_issues]
-
-    def alternative_names_issues(self):
-        """Returns a non-empty message string if the alternative name is invalid."""
-        if isinstance(self._name, NoneMapping):
-            return "The source type for alternative names cannot be None."
-        if self._name.reference != 0 and not self._name.reference:
-            return "No reference set for alternative names."
-        return ""
+        super().set_component_by_name(name, mapping)
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
@@ -1174,20 +1019,20 @@ class ScenarioMapping(NamedItemMapping):
         else:
             self._active = ConstantMapping("false")
 
-    def display_names(self):
-        return super().display_names() + ["Scenario names", "Scenario active flags"]
+    def component_names(self):
+        return super().component_names() + ["Scenario names", "Scenario active flags"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.active]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Scenario names":
+    def set_component_by_name(self, name, mapping):
+        if name == "Scenario names":
             self.name = mapping
             return True
-        if display_name == "Scenario active flags":
+        if name == "Scenario active flags":
             self.active = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     @property
     def active(self):
@@ -1196,23 +1041,6 @@ class ScenarioMapping(NamedItemMapping):
     @active.setter
     def active(self, active):
         self._active = single_mapping_from_dict_int_str(active)
-
-    def is_valid(self):
-        issue = self.scenario_names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.scenario_names_issues]
-
-    def scenario_names_issues(self):
-        """Returns a non-empty message string if the scenario name is invalid."""
-        if isinstance(self._name, NoneMapping):
-            return "The source type for scenario names cannot be None."
-        if self._name.reference != 0 and not self._name.reference:
-            return "No reference set for scenario names."
-        return ""
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
@@ -1291,23 +1119,27 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
         self._before_alternative_name = single_mapping_from_dict_int_str(before_alternative_name)
 
-    def display_names(self):
-        return super().display_names() + ["Scenario names", "Alternative names", "Before Alternative names"]
+    def component_names(self):
+        return super().component_names() + ["Scenario names", "Alternative names", "Before Alternative names"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.scenario_name, self.alternative_name, self.before_alternative_name]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Scenario names":
+    def _optional_component_names(self):
+        # TODO: Is this correct?
+        return super()._optional_component_names() + ["Alternative names", "Before Alternative names"]
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Scenario names":
             self.scenario_name = mapping
             return True
-        if display_name == "Alternative names":
+        if name == "Alternative names":
             self.alternative_name = mapping
             return True
-        if display_name == "Before Alternative names":
+        if name == "Before Alternative names":
             self.before_alternative_name = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     @property
     def scenario_name(self):
@@ -1332,39 +1164,6 @@ class ScenarioAlternativeMapping(ItemMappingBase):
     @before_alternative_name.setter
     def before_alternative_name(self, before_alternative_name):
         self._before_alternative_name = single_mapping_from_dict_int_str(before_alternative_name)
-
-    def is_valid(self):
-        issue = self.scenario_names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def is_pivoted(self):
-        return self._scenario_name.is_pivoted()
-
-    def non_pivoted_columns(self):
-        if isinstance(self._scenario_name, ColumnMapping) and self._scenario_name.returns_value():
-            return [self._scenario_name.reference]
-        return []
-
-    def last_pivot_row(self):
-        return max(
-            self._scenario_name.last_pivot_row(),
-            self._alternative_name.last_pivot_row(),
-            self._before_alternative_name.last_pivot_row(),
-            -1,
-        )
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.scenario_names_issues]
-
-    def scenario_names_issues(self):
-        """Returns a non-empty message string if the scenario name is invalid."""
-        if isinstance(self._scenario_name, NoneMapping):
-            return "The source type for scenario names cannot be None."
-        if self._scenario_name.reference != 0 and not self._scenario_name.reference:
-            return "No reference set for scenario names."
-        return ""
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
@@ -1457,31 +1256,14 @@ class ToolMapping(NamedItemMapping):
         """
         super().__init__(name, skip_columns, read_start_row)
 
-    def display_names(self):
-        return super().display_names() + ["Tool names"]
+    def component_names(self):
+        return super().component_names() + ["Tool names"]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Tool names":
+    def set_component_by_name(self, name, mapping):
+        if name == "Tool names":
             self.name = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
-
-    def is_valid(self):
-        issue = self.tool_names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.tool_names_issues]
-
-    def tool_names_issues(self):
-        """Returns a non-empty message string if the tool name is invalid."""
-        if isinstance(self._name, NoneMapping):
-            return "The source type for tool names cannot be None."
-        if self._name.reference != 0 and not self._name.reference:
-            return "No reference set for tool names."
-        return ""
+        return super().set_component_by_name(name, mapping)
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
@@ -1509,43 +1291,23 @@ class ToolMapping(NamedItemMapping):
         return ToolMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
-class FeatureMappingBase(ItemMappingBase):
-    """Base class for FeatureMapping.
-
-    Provides all methods where FeatureMappingMixin calls the super() implementation,
-    so that FeatureMapping can inherit just from FeatureMappingMixin and this class.
-    """
-
-    def is_valid(self):
-        return True, ""
-
-    def is_pivoted(self):
-        return False
-
-    def non_pivoted_columns(self):
-        return []
-
-    def last_pivot_row(self):
-        return -1
-
-
 class FeatureMappingMixin:
     def __init__(self, *args, entity_class_name=None, parameter_definition_name=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._entity_class_name = single_mapping_from_dict_int_str(entity_class_name)
         self._parameter_definition_name = single_mapping_from_dict_int_str(parameter_definition_name)
 
-    def display_names(self):
-        return super().display_names() + ["Entity class names", "Parameter names"]
+    def component_names(self):
+        return super().component_names() + ["Entity class names", "Parameter names"]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Entity class names":
+    def set_component_by_name(self, name, mapping):
+        if name == "Entity class names":
             self.entity_class_name = mapping
             return True
-        if display_name == "Parameter names":
+        if name == "Parameter names":
             self.parameter_definition_name = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     def component_mappings(self):
         return super().component_mappings() + [self.entity_class_name, self.parameter_definition_name]
@@ -1566,61 +1328,6 @@ class FeatureMappingMixin:
     def parameter_definition_name(self, parameter_definition_name):
         self._parameter_definition_name = single_mapping_from_dict_int_str(parameter_definition_name)
 
-    def is_valid(self):
-        issue = self.entity_class_names_issues()
-        if issue:
-            return False, issue
-        issue = self.parameter_definition_names_issues()
-        if issue:
-            return False, issue
-        return super().is_valid()
-
-    def is_pivoted(self):
-        return (
-            super().is_pivoted() or self._entity_class_name.is_pivoted() or self._parameter_definition_name.is_pivoted()
-        )
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = super().non_pivoted_columns()
-        if isinstance(self._entity_class_name, ColumnMapping) and self._entity_class_name.returns_value():
-            non_pivoted_columns.append(self._entity_class_name.reference)
-        if (
-            isinstance(self._parameter_definition_name, ColumnMapping)
-            and self._parameter_definition_name.returns_value()
-        ):
-            non_pivoted_columns.append(self._parameter_definition_name.reference)
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        return max(
-            super().last_pivot_row(),
-            self._entity_class_name.last_pivot_row(),
-            self._parameter_definition_name.last_pivot_row(),
-            -1,
-        )
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [
-            self.entity_class_names_issues,
-            self.parameter_definition_names_issues,
-        ]
-
-    def entity_class_names_issues(self):
-        """Returns a non-empty message string if the entity class name is invalid."""
-        if isinstance(self._entity_class_name, NoneMapping):
-            return "The source type for entity class names cannot be None."
-        if self._entity_class_name.reference != 0 and not self._entity_class_name.reference:
-            return "No reference set for entity class names."
-        return ""
-
-    def parameter_definition_names_issues(self):
-        """Returns a non-empty message string if the parameter definition name is invalid."""
-        if isinstance(self._parameter_definition_name, NoneMapping):
-            return "The source type for parameter definition names cannot be None."
-        if self._parameter_definition_name.reference != 0 and not self._parameter_definition_name.reference:
-            return "No reference set for parameter definition names."
-        return ""
-
     def _create_entity_class_name_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._entity_class_name.returns_value():
             return self._entity_class_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
@@ -1632,7 +1339,7 @@ class FeatureMappingMixin:
         return None, None, None
 
 
-class FeatureMapping(FeatureMappingMixin, FeatureMappingBase):
+class FeatureMapping(FeatureMappingMixin, ItemMappingBase):
     """
         Feature mapping.
 
@@ -1738,17 +1445,20 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
         else:
             self._required = ConstantMapping("false")
 
-    def display_names(self):
-        return super().display_names() + ["Tool feature required flags"]
-
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Tool feature required flags":
-            self.required = mapping
-            return True
-        return super().set_component_by_display_name(display_name, mapping)
+    def component_names(self):
+        return super().component_names() + ["Tool feature required flags"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.required]
+
+    def _optional_component_names(self):
+        return super()._optional_component_names() + ["Tool feature required flags"]
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Tool feature required flags":
+            self.required = mapping
+            return True
+        return super().set_component_by_name(name, mapping)
 
     @property
     def required(self):
@@ -1865,17 +1575,17 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
         )
         self._method = single_mapping_from_dict_int_str(method)
 
-    def display_names(self):
-        return super().display_names() + ["Tool feature methods"]
+    def component_names(self):
+        return super().component_names() + ["Tool feature methods"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.method]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Tool feature methods":
+    def set_component_by_name(self, name, mapping):
+        if name == "Tool feature methods":
             self.method = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     @property
     def method(self):
@@ -1884,23 +1594,6 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
     @method.setter
     def method(self, method):
         self._method = single_mapping_from_dict_int_str(method)
-
-    def is_valid(self):
-        issue = self.methods_issues()
-        if issue:
-            return False, issue
-        return super().is_valid()
-
-    def _component_issues_getters(self):
-        return super()._component_issues_getters() + [self.methods_issues]
-
-    def methods_issues(self):
-        """Returns a non-empty message string if the method is invalid."""
-        if isinstance(self._method, NoneMapping):
-            return "The source type for methods cannot be None."
-        if self._method.reference != 0 and not self._method.reference:
-            return "No reference set for methods."
-        return ""
 
     def _create_method_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._method.returns_value():

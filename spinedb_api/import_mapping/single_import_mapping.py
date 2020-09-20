@@ -39,13 +39,6 @@ class SingleMappingBase:
         self._reference = None
         self.reference = reference
 
-    # FIXME: doesn't look like this needs to have display_names and component_mappings
-    def display_names(self):
-        return []
-
-    def component_mappings(self):
-        return []
-
     @property
     def reference(self):
         return self._reference
@@ -426,17 +419,12 @@ def single_mapping_from_value(value):
 
 def single_mapping_from_dict(map_dict):
     type_str_to_class = {
-        RowMapping.MAP_TYPE: RowMapping,
-        ColumnMapping.MAP_TYPE: ColumnMapping,
-        "column_name": ColumnHeaderMapping,
-        ColumnHeaderMapping.MAP_TYPE: ColumnHeaderMapping,
-        ConstantMapping.MAP_TYPE: ConstantMapping,
-        TableNameMapping.MAP_TYPE: TableNameMapping,
-        NoneMapping.MAP_TYPE: NoneMapping,
+        class_.MAP_TYPE: class_
+        for class_ in (RowMapping, ColumnMapping, ColumnHeaderMapping, ConstantMapping, TableNameMapping, NoneMapping,)
     }
     map_type_str = map_dict.get("map_type", None)
     if map_type_str == "column_name":
-        map_dict["map_type"] = ColumnHeaderMapping.MAP_TYPE
+        map_type_str = map_dict["map_type"] = ColumnHeaderMapping.MAP_TYPE
     if "value_reference" in map_dict and "reference" not in map_dict:
         map_dict["reference"] = map_dict["value_reference"]
     map_class = type_str_to_class.get(map_type_str, NoneMapping)

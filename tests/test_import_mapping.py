@@ -452,6 +452,20 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(mapping_dict, {"map_type": "table_name", "reference": "name of the table"})
 
 
+def _parent_with_pivot(is_pivoted):
+    parent = unittest.mock.Mock()
+    parent.is_pivoted.return_value = is_pivoted
+    return parent
+
+
+def _pivoted_parent():
+    return _parent_with_pivot(True)
+
+
+def _unpivoted_parent():
+    return _parent_with_pivot(False)
+
+
 class TestMappingIsValid(unittest.TestCase):
     def test_valid_mapping(self):
         mapping = ColumnMapping(reference=1)
@@ -466,25 +480,29 @@ class TestMappingIsValid(unittest.TestCase):
     def test_valid_parameter_mapping_definition(self):
         mapping = {"map_type": "parameter", "name": "test", "parameter_type": "definition"}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_parameter_mapping_definition(self):
         mapping = {"map_type": "parameter", "parameter_type": "definition"}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_valid_parameter_mapping_single_value(self):
         mapping = {"map_type": "parameter", "name": "test", "value": 0, "parameter_type": "single value"}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_parameter_mapping_single_value(self):
         mapping = {"map_type": "parameter", "name": "test", "value": None, "parameter_type": "single value"}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_valid_parameter_mapping_time_series(self):
@@ -496,13 +514,15 @@ class TestMappingIsValid(unittest.TestCase):
             "extra_dimensions": [0],
         }
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_parameter_mapping_time_series(self):
         mapping = {"map_type": "parameter", "name": "test", "value": "test", "parameter_type": "time series"}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_invalid_parameter_mapping_time_series_non_valid_extra_dim(self):
@@ -514,7 +534,8 @@ class TestMappingIsValid(unittest.TestCase):
             "extra_dimensions": [None],
         }
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_valid_parameter_mapping_time_pattern(self):
@@ -526,13 +547,15 @@ class TestMappingIsValid(unittest.TestCase):
             "extra_dimensions": [0],
         }
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_parameter_mapping_time_pattern(self):
         mapping = {"map_type": "parameter", "name": "test", "value": "test", "parameter_type": "time pattern"}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_valid_multidimensional_map_mapping(self):
@@ -545,7 +568,8 @@ class TestMappingIsValid(unittest.TestCase):
             "extra_dimensions": [0, 1],
         }
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_multidimensional_map_mapping_missing_mapping_for_extra_dimension(self):
@@ -558,26 +582,30 @@ class TestMappingIsValid(unittest.TestCase):
             "extra_dimensions": [0, None],
         }
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, msg = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, msg = mapping.is_valid()
         self.assertFalse(is_valid)
         self.assertTrue(msg)
 
     def test_valid_pivoted_parameter_mapping(self):
         mapping = {"map_type": "parameter", "name": {"map_type": "row", "reference": 0}}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_invalid_pivoted_parameter_mapping(self):
         mapping = {"map_type": "parameter", "name": {"map_type": "column", "reference": 0}}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(False)
+        mapping.set_parent(_unpivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertFalse(is_valid)
 
     def test_valid_pivoted_parent_parameter_mapping(self):
         mapping = {"map_type": "parameter", "name": {"map_type": "column", "reference": 0}}
         mapping = parameter_mapping_from_dict(mapping)
-        is_valid, _ = mapping.is_valid(True)
+        mapping.set_parent(_pivoted_parent())
+        is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 
     def test_valid_object_class_mapping(self):

@@ -69,20 +69,27 @@ class ParameterMappingBase:
     MAP_TYPE = "parameter"
 
     def __init__(self, name=None):
+        self._parent = None
         self._name = ColumnMapping(None)
         self.name = name
 
-    def display_names(self):
+    def component_names(self):  # pylint: disable=no-self-use
         return ["Parameter names"]
 
     def component_mappings(self):
         return [self.name]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Parameter names":
+    def _optional_component_names(self):  # pylint: disable=no-self-use
+        return []
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Parameter names":
             self.name = mapping
             return True
         return False
+
+    def set_parent(self, parent):
+        self._parent = parent
 
     @property
     def name(self):
@@ -114,15 +121,12 @@ class ParameterMappingBase:
         map_dict.update({"parameter_type": self.PARAMETER_TYPE})
         return map_dict
 
-    def is_valid(self, parent_pivot: bool):
-        # check that parameter mapping has a valid name mapping
-        issue = self.names_issues()
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        return [self.names_issues]
+    def is_valid(self):
+        issues = [self.component_issues(k) for k in range(len(self.component_names()))]
+        issues = [x for x in issues if x]
+        if not issues:
+            return True, ""
+        return False, ", ".join(issues)
 
     def component_issues(self, component_index):
         """Returns issues for given mapping component index.
@@ -133,17 +137,20 @@ class ParameterMappingBase:
         Returns:
             str: issue string
         """
-        component_issues_getters = self._component_issues_getters()
         try:
-            return component_issues_getters[component_index]()
+            name = self.component_names()[component_index]
+            mapping = self.component_mappings()[component_index]
         except IndexError:
             return ""
+        return self._component_issues(name, mapping)
 
-    def names_issues(self):
-        if isinstance(self._name, NoneMapping):
-            return "The source type for parameter names cannot be None."
-        if self._name.reference != 0 and not self._name.reference:
-            return "No reference set for parameter names."
+    def _component_issues(self, name, mapping):
+        if name in self._optional_component_names():
+            return ""
+        if isinstance(mapping, NoneMapping):
+            return f"The source type for {name} cannot be None."
+        if mapping.reference != 0 and not mapping.reference:
+            return f"No reference set for {name}."
         return ""
 
     def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
@@ -164,20 +171,23 @@ class ParameterDefinitionMapping(ParameterMappingBase):
         self._parameter_value_list_name = single_mapping_from_dict_int_str(parameter_value_list_name)
         self.default_value = default_value
 
-    def display_names(self):
-        return super().display_names() + ["Default values", "Parameter value list names"]
+    def component_names(self):
+        return super().component_names() + ["Default values", "Parameter value list names"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.default_value, self.parameter_value_list_name]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Default values":
+    def _optional_component_names(self):
+        return super()._optional_component_names() + ["Default values", "Parameter value list names"]
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Default values":
             self.default_value = mapping
             return True
-        if display_name == "Parameter value list names":
+        if name == "Parameter value list names":
             self.parameter_value_list_name = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     @property
     def default_value(self):
@@ -215,20 +225,23 @@ class ParameterValueMapping(ParameterMappingBase):
         self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
         self.value = value
 
-    def display_names(self):
-        return super().display_names() + ["Parameter values", "Alternative names"]
+    def component_names(self):
+        return super().component_names() + ["Parameter values", "Alternative names"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.value, self.alternative_name]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Parameter values":
+    def _optional_component_names(self):
+        return super()._optional_component_names() + ["Alternative names"]
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Parameter values":
             self.value = mapping
             return True
-        if display_name == "Alternative names":
+        if name == "Alternative names":
             self.alternative_name = mapping
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     @property
     def value(self):
@@ -280,27 +293,10 @@ class ParameterValueMapping(ParameterMappingBase):
         map_dict.update({"alternative_name": self.alternative_name.to_dict()})
         return map_dict
 
-    def is_valid(self, parent_pivot: bool):
-        # check that parameter mapping has a valid name mapping
-        name_valid, msg = super().is_valid(parent_pivot)
-        if not name_valid:
-            return False, msg
-        issue = self.values_issues(parent_pivot)
-        if issue:
-            return False, issue
-        return True, ""
-
-    def _component_issues_getters(self):
-        # NOTE: A bit crazy, but let alternative issues follow value issues for now
-        return super()._component_issues_getters() + [self.values_issues, self.values_issues]
-
-    def values_issues(self, parent_pivot=False):
-        if not (self.is_pivoted() or parent_pivot):
-            if isinstance(self._value, NoneMapping):
-                return "The source type for parameter values cannot be None."
-            if self._value.reference != 0 and not self._value.reference:
-                return "No reference set for parameter values."
-        return ""
+    def _component_issues(self, name, mapping):
+        if name == "Parameter values" and (self.is_pivoted() or self._parent.is_pivoted()):
+            return ""
+        return super()._component_issues(name, mapping)
 
     def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
@@ -439,50 +435,22 @@ class ParameterArrayMapping(ParameterValueMapping):
 
 
 class ParameterIndexedMapping(ParameterArrayMapping):
-    def is_valid(self, parent_pivot: bool):
-        valid, msg = super().is_valid(parent_pivot)
-        if not valid:
-            return False, msg
-        for i in range(len(self.extra_dimensions)):
-            issue = self.indexes_issues(i)
-            if issue:
-                return False, f"Extra dimension {i + 1}: {issue}"
-        return True, ""
-
-    def _dimension_display_names(self):
+    def _dimension_component_names(self):
         return [f"Parameter index {i + 1}" for i in range(len(self.extra_dimensions))]
 
-    def display_names(self):
-        return super().display_names() + self._dimension_display_names()
+    def component_names(self):
+        return super().component_names() + self._dimension_component_names()
 
     def component_mappings(self):
         return super().component_mappings() + self.extra_dimensions
 
-    def set_component_by_display_name(self, display_name, mapping):
+    def set_component_by_name(self, name, mapping):
         try:
-            ind = self._dimension_display_names().index(display_name)
+            ind = self._dimension_component_names().index(name)
         except ValueError:
-            return super().set_component_by_display_name(display_name, mapping)
+            return super().set_component_by_name(name, mapping)
         self.extra_dimensions[ind] = mapping
         return True
-
-    def component_issues(self, component_index):
-        """see base class"""
-        component_issues_getters = self._component_issues_getters()
-        if component_index < len(component_issues_getters):
-            return component_issues_getters[component_index]()
-        dimension_index = component_index - len(component_issues_getters)
-        if dimension_index < len(self._extra_dimensions):
-            return self.indexes_issues(dimension_index)
-        return ""
-
-    def indexes_issues(self, dimension_index):
-        dimension = self._extra_dimensions[dimension_index]
-        if isinstance(dimension, NoneMapping):
-            return "The source type for parameter indexes cannot be None."
-        if dimension.reference != 0 and not dimension.reference:
-            return "No reference set for parameter indexes."
-        return ""
 
 
 class ParameterMapMapping(ParameterIndexedMapping):
@@ -586,17 +554,17 @@ class ParameterTimeSeriesMapping(ParameterIndexedMapping):
         self._options = None
         self.options = options
 
-    def display_names(self):
-        return super().display_names() + ["Parameter time index"]
+    def component_names(self):
+        return super().component_names() + ["Parameter time index"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.extra_dimensions[0]]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Parameter time index":
+    def set_component_by_name(self, name, mapping):
+        if name == "Parameter time index":
             self.extra_dimensions = [mapping]
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     @property
     def options(self):
@@ -655,17 +623,17 @@ class ParameterTimePatternMapping(ParameterIndexedMapping):
     PARAMETER_TYPE = "time pattern"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
-    def display_names(self):
-        return super().display_names() + ["Parameter time pattern index"]
+    def component_names(self):
+        return super().component_names() + ["Parameter time pattern index"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.extra_dimensions[0]]
 
-    def set_component_by_display_name(self, display_name, mapping):
-        if display_name == "Parameter time pattern index":
+    def set_component_by_name(self, name, mapping):
+        if name == "Parameter time pattern index":
             self.extra_dimensions = [mapping]
             return True
-        return super().set_component_by_display_name(display_name, mapping)
+        return super().set_component_by_name(name, mapping)
 
     def raw_data_to_type(self, data):
         out = []
