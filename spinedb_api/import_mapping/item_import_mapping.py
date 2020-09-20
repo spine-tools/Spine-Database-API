@@ -19,7 +19,7 @@ from .single_import_mapping import (
     NoneMapping,
     ConstantMapping,
     ColumnMapping,
-    single_mapping_from_dict_int_str,
+    single_mapping_from_value,
     create_getter_list,
     create_final_getter_function,
     create_getter_function_from_function_list,
@@ -120,7 +120,7 @@ class ItemMappingBase:
             return ""
         if isinstance(mapping, NoneMapping):
             return f"The source type for {name} cannot be None."
-        if mapping.reference != 0 and not mapping.reference:
+        if not mapping.is_valid():
             return f"No reference set for {name}."
         return ""
 
@@ -220,7 +220,7 @@ class NamedItemMapping(ItemMappingBase):
 
     @name.setter
     def name(self, name):
-        self._name = single_mapping_from_dict_int_str(name)
+        self._name = single_mapping_from_value(name)
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         if self.name.returns_value():
@@ -319,7 +319,7 @@ class EntityClassMapping(NamedItemMapping):
             parameters = NoneMapping()
         if not isinstance(parameters, (ParameterMappingBase, NoneMapping)):
             raise ValueError(
-                f"parameters must be a None, ParameterMappingBase or NoneMapping, "
+                f"parameters must be None, ParameterMappingBase or NoneMapping, "
                 f"instead got {type(parameters).__name__}"
             )
         if isinstance(parameters, ParameterMappingBase):
@@ -336,13 +336,7 @@ class EntityClassMapping(NamedItemMapping):
         """Creates a dict of getter functions."""
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
         if isinstance(self._parameters, ParameterMappingBase):
-            parameter_getters = self._parameters.create_getter_list(
-                self.is_pivoted(), pivoted_columns, pivoted_data, data_header
-            )
-            if "name" in parameter_getters:
-                parameter_getters["parameter_name"] = parameter_getters.pop("name")
-            if "value" in parameter_getters:
-                parameter_getters["parameter_value"] = parameter_getters.pop("value")
+            parameter_getters = self._parameters.create_getter_list(pivoted_columns, pivoted_data, data_header)
             getters.update(**parameter_getters)
         return getters
 
@@ -417,7 +411,7 @@ class ObjectClassMapping(EntityClassMapping):
 
     @objects.setter
     def objects(self, objects):
-        self._objects = single_mapping_from_dict_int_str(objects)
+        self._objects = single_mapping_from_value(objects)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -449,8 +443,8 @@ class ObjectClassMapping(EntityClassMapping):
         readers = super()._create_getters(pivoted_columns, pivoted_data, data_header)
         if self._objects.returns_value():
             readers["objects"] = self._objects.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        else:
-            readers["objects"] = (None, None, None)
+            return readers
+        readers["objects"] = (None, None, None)
         return readers
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
@@ -564,7 +558,7 @@ class ObjectGroupMapping(EntityClassMapping):
 
     @groups.setter
     def groups(self, groups):
-        self._groups = single_mapping_from_dict_int_str(groups)
+        self._groups = single_mapping_from_value(groups)
 
     @property
     def members(self):
@@ -572,7 +566,7 @@ class ObjectGroupMapping(EntityClassMapping):
 
     @members.setter
     def members(self, members):
-        self._members = single_mapping_from_dict_int_str(members)
+        self._members = single_mapping_from_value(members)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -608,14 +602,14 @@ class ObjectGroupMapping(EntityClassMapping):
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
-        g_getter, g_num, g_reads = (None, None, None)
         if self._groups.returns_value():
-            g_getter, g_num, g_reads = self._groups.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        getters["groups"] = (g_getter, g_num, g_reads)
-        m_getter, m_num, m_reads = (None, None, None)
+            getters["groups"] = self._groups.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        else:
+            getters["groups"] = (None, None, None)
         if self._members.returns_value():
-            m_getter, m_num, m_reads = self._members.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        getters["members"] = (m_getter, m_num, m_reads)
+            getters["members"] = self._members.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        else:
+            getters["members"] = (None, None, None)
         return getters
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
@@ -785,7 +779,7 @@ class RelationshipClassMapping(EntityClassMapping):
                 f"objects must be of same length as object_classes: {len(self.object_classes)} "
                 f"instead got length: {len(objects)}"
             )
-        self._objects = [single_mapping_from_dict_int_str(o) for o in objects]
+        self._objects = [single_mapping_from_value(o) for o in objects]
 
     @EntityClassMapping.import_objects.setter
     def import_objects(self, import_objects):
@@ -805,7 +799,7 @@ class RelationshipClassMapping(EntityClassMapping):
             raise TypeError(
                 f"object_classes must be a list or tuple of SingleMappingBase, int, str, dict, instead got: {type(object_classes).__name__}"
             )
-        self._object_classes = [single_mapping_from_dict_int_str(oc) for oc in object_classes]
+        self._object_classes = [single_mapping_from_value(oc) for oc in object_classes]
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -1015,7 +1009,7 @@ class ScenarioMapping(NamedItemMapping):
         """
         super().__init__(name, skip_columns, read_start_row)
         if active is not None:
-            self._active = single_mapping_from_dict_int_str(active)
+            self._active = single_mapping_from_value(active)
         else:
             self._active = ConstantMapping("false")
 
@@ -1040,7 +1034,7 @@ class ScenarioMapping(NamedItemMapping):
 
     @active.setter
     def active(self, active):
-        self._active = single_mapping_from_dict_int_str(active)
+        self._active = single_mapping_from_value(active)
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
@@ -1115,9 +1109,9 @@ class ScenarioAlternativeMapping(ItemMappingBase):
         read_start_row=0,
     ):
         super().__init__(skip_columns, read_start_row)
-        self._scenario_name = single_mapping_from_dict_int_str(scenario_name)
-        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
-        self._before_alternative_name = single_mapping_from_dict_int_str(before_alternative_name)
+        self._scenario_name = single_mapping_from_value(scenario_name)
+        self._alternative_name = single_mapping_from_value(alternative_name)
+        self._before_alternative_name = single_mapping_from_value(before_alternative_name)
 
     def component_names(self):
         return super().component_names() + ["Scenario names", "Alternative names", "Before Alternative names"]
@@ -1155,15 +1149,15 @@ class ScenarioAlternativeMapping(ItemMappingBase):
 
     @scenario_name.setter
     def scenario_name(self, scenario_name):
-        self._scenario_name = single_mapping_from_dict_int_str(scenario_name)
+        self._scenario_name = single_mapping_from_value(scenario_name)
 
     @alternative_name.setter
     def alternative_name(self, alternative_name):
-        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
+        self._alternative_name = single_mapping_from_value(alternative_name)
 
     @before_alternative_name.setter
     def before_alternative_name(self, before_alternative_name):
-        self._before_alternative_name = single_mapping_from_dict_int_str(before_alternative_name)
+        self._before_alternative_name = single_mapping_from_value(before_alternative_name)
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
@@ -1294,8 +1288,8 @@ class ToolMapping(NamedItemMapping):
 class FeatureMappingMixin:
     def __init__(self, *args, entity_class_name=None, parameter_definition_name=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._entity_class_name = single_mapping_from_dict_int_str(entity_class_name)
-        self._parameter_definition_name = single_mapping_from_dict_int_str(parameter_definition_name)
+        self._entity_class_name = single_mapping_from_value(entity_class_name)
+        self._parameter_definition_name = single_mapping_from_value(parameter_definition_name)
 
     def component_names(self):
         return super().component_names() + ["Entity class names", "Parameter names"]
@@ -1322,11 +1316,11 @@ class FeatureMappingMixin:
 
     @entity_class_name.setter
     def entity_class_name(self, entity_class_name):
-        self._entity_class_name = single_mapping_from_dict_int_str(entity_class_name)
+        self._entity_class_name = single_mapping_from_value(entity_class_name)
 
     @parameter_definition_name.setter
     def parameter_definition_name(self, parameter_definition_name):
-        self._parameter_definition_name = single_mapping_from_dict_int_str(parameter_definition_name)
+        self._parameter_definition_name = single_mapping_from_value(parameter_definition_name)
 
     def _create_entity_class_name_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._entity_class_name.returns_value():
@@ -1441,7 +1435,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
             parameter_definition_name=parameter_definition_name,
         )
         if required is not None:
-            self._required = single_mapping_from_dict_int_str(required)
+            self._required = single_mapping_from_value(required)
         else:
             self._required = ConstantMapping("false")
 
@@ -1466,7 +1460,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
 
     @required.setter
     def required(self, required):
-        self._required = single_mapping_from_dict_int_str(required)
+        self._required = single_mapping_from_value(required)
 
     def _create_required_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._required.returns_value():
@@ -1573,7 +1567,7 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
             entity_class_name=entity_class_name,
             parameter_definition_name=parameter_definition_name,
         )
-        self._method = single_mapping_from_dict_int_str(method)
+        self._method = single_mapping_from_value(method)
 
     def component_names(self):
         return super().component_names() + ["Tool feature methods"]
@@ -1593,7 +1587,7 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
 
     @method.setter
     def method(self, method):
-        self._method = single_mapping_from_dict_int_str(method)
+        self._method = single_mapping_from_value(method)
 
     def _create_method_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._method.returns_value():

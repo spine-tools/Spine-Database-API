@@ -95,8 +95,6 @@ from .import_mapping.single_import_mapping import (
     ColumnHeaderMapping,
     RowMapping,
     TableNameMapping,
-    single_mapping_from_dict,
-    single_mapping_from_dict_int_str,
 )
 from .import_mapping.parameter_import_mapping import (
     TimeSeriesOptions,

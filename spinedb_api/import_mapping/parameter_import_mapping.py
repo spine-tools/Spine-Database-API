@@ -29,7 +29,7 @@ from ..exception import InvalidMapping
 from .single_import_mapping import (
     NoneMapping,
     ColumnMapping,
-    single_mapping_from_dict_int_str,
+    single_mapping_from_value,
     create_getter_list,
     create_getter_function_from_function_list,
 )
@@ -97,19 +97,16 @@ class ParameterMappingBase:
 
     @name.setter
     def name(self, name):
-        self._name = single_mapping_from_dict_int_str(name)
+        self._name = single_mapping_from_value(name)
 
     def non_pivoted_columns(self):
-        non_pivoted_columns = []
-        if isinstance(self.name, ColumnMapping) and self.name.returns_value():
-            non_pivoted_columns.append(self.name.reference)
-        return non_pivoted_columns
+        return [m.reference for m in self.component_mappings() if isinstance(m, ColumnMapping) and m.returns_value()]
 
     def last_pivot_row(self):
-        return self.name.last_pivot_row()
+        return max(*(m.last_pivot_row() for m in self.component_mappings()), -1)
 
     def is_pivoted(self):
-        return self.name.is_pivoted()
+        return any(m.is_pivoted() for m in self.component_mappings())
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -149,16 +146,14 @@ class ParameterMappingBase:
             return ""
         if isinstance(mapping, NoneMapping):
             return f"The source type for {name} cannot be None."
-        if mapping.reference != 0 and not mapping.reference:
+        if not mapping.is_valid():
             return f"No reference set for {name}."
         return ""
 
-    def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         if self.name.returns_value():
-            getter, num, reads = self.name.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        else:
-            getter, num, reads = (None, None, None)
-        return {"name": (getter, num, reads)}
+            return {"parameter_name": self.name.create_getter_function(pivoted_columns, pivoted_data, data_header)}
+        return {"parameter_name": (None, None, None)}
 
 
 class ParameterDefinitionMapping(ParameterMappingBase):
@@ -168,7 +163,7 @@ class ParameterDefinitionMapping(ParameterMappingBase):
     def __init__(self, name=None, default_value=None, parameter_value_list_name=None):
         super().__init__(name)
         self._default_value = ColumnMapping(None)
-        self._parameter_value_list_name = single_mapping_from_dict_int_str(parameter_value_list_name)
+        self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
         self.default_value = default_value
 
     def component_names(self):
@@ -199,11 +194,11 @@ class ParameterDefinitionMapping(ParameterMappingBase):
 
     @default_value.setter
     def default_value(self, default_value):
-        self._default_value = single_mapping_from_dict_int_str(default_value)
+        self._default_value = single_mapping_from_value(default_value)
 
     @parameter_value_list_name.setter
     def parameter_value_list_name(self, parameter_value_list_name):
-        self._parameter_value_list_name = single_mapping_from_dict_int_str(parameter_value_list_name)
+        self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -222,7 +217,7 @@ class ParameterValueMapping(ParameterMappingBase):
     def __init__(self, name=None, value=None, alternative_name=None):
         super().__init__(name)
         self._value = ColumnMapping(None)
-        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
+        self._alternative_name = single_mapping_from_value(alternative_name)
         self.value = value
 
     def component_names(self):
@@ -253,25 +248,11 @@ class ParameterValueMapping(ParameterMappingBase):
 
     @value.setter
     def value(self, value):
-        self._value = single_mapping_from_dict_int_str(value)
+        self._value = single_mapping_from_value(value)
 
     @alternative_name.setter
     def alternative_name(self, alternative_name):
-        self._alternative_name = single_mapping_from_dict_int_str(alternative_name)
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = super().non_pivoted_columns()
-        if isinstance(self.value, ColumnMapping) and self.value.returns_value():
-            non_pivoted_columns.append(self.value.reference)
-        if isinstance(self.alternative_name, ColumnMapping) and self.alternative_name.returns_value():
-            non_pivoted_columns.append(self.alternative_name.reference)
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        return max(super().last_pivot_row(), self.value.last_pivot_row(), self.alternative_name.last_pivot_row())
-
-    def is_pivoted(self):
-        return super().is_pivoted() or self.value.is_pivoted() or self.alternative_name.is_pivoted()
+        self._alternative_name = single_mapping_from_value(alternative_name)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -298,28 +279,37 @@ class ParameterValueMapping(ParameterMappingBase):
             return ""
         return super()._component_issues(name, mapping)
 
-    def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
-        getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
-        val_getter, val_num, val_reads = (None, None, None)
-        if (is_pivoted or self.is_pivoted()) and not self.value.is_pivoted():
-            # if mapping is pivoted values for parameters are read from pivoted data
-            if pivoted_columns:
-                val_getter = itemgetter(*pivoted_columns)
-                val_num = len(pivoted_columns)
-                val_reads = True
-        elif self.value.returns_value():
-            val_getter, val_num, val_reads = self.value.create_getter_function(
-                pivoted_columns, pivoted_data, data_header
-            )
-        getters["value"] = (val_getter, val_num, val_reads)
-        if (is_pivoted or self.is_pivoted()) and not self.alternative_name.is_pivoted():
-            # if mapping is pivoted values for parameters are read from pivoted data
-            if pivoted_columns and self._alternative_name.returns_value():
-                getters["alternative_name"] = (itemgetter(*pivoted_columns), len(pivoted_columns), True)
-        elif self.alternative_name.returns_value():
-            getters["alternative_name"] = self.alternative_name.create_getter_function(
-                pivoted_columns, pivoted_data, data_header
-            )
+    def _create_value_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        if (self._parent.is_pivoted() or self.name.is_pivoted()) and not self.value.is_pivoted() and pivoted_columns:
+            # if mapping is pivoted values are read from pivoted data
+            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
+        if self.value.returns_value():
+            return self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        return None
+
+    def _create_alternative_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        if (
+            (self._parent.is_pivoted() or self.name.is_pivoted())
+            and not self.alternative_name.is_pivoted()
+            and pivoted_columns
+            and self._alternative_name.returns_value()
+        ):
+            # if mapping is pivoted alternatives are read from pivoted data
+            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
+        if self.alternative_name.returns_value():
+            return self.alternative_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        return None
+
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        value_getter_list = self._create_value_getter_list(pivoted_columns, pivoted_data, data_header)
+        alternative_name_getter_list = self._create_alternative_name_getter_list(
+            pivoted_columns, pivoted_data, data_header
+        )
+        if value_getter_list is not None:
+            getters["parameter_value"] = value_getter_list
+        if alternative_name_getter_list is not None:
+            getters["alternative_name"] = alternative_name_getter_list
         return getters
 
     def raw_data_to_type(self, data):
@@ -342,7 +332,7 @@ class ParameterArrayMapping(ParameterValueMapping):
     @extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions):
         if extra_dimensions is None:
-            self._extra_dimensions = [single_mapping_from_dict_int_str(None)]
+            self._extra_dimensions = [single_mapping_from_value(None)]
             return
         if not isinstance(extra_dimensions, (list, tuple)):
             raise TypeError(
@@ -350,20 +340,7 @@ class ParameterArrayMapping(ParameterValueMapping):
             )
         if len(extra_dimensions) != 1:
             raise ValueError(f"extra_dimensions must be of length 1 instead got len: {len(extra_dimensions)}")
-        self._extra_dimensions = [single_mapping_from_dict_int_str(extra_dimensions[0])]
-
-    def non_pivoted_columns(self):
-        non_pivoted_columns = super().non_pivoted_columns()
-        non_pivoted_columns.extend(
-            ed.reference for ed in self.extra_dimensions if isinstance(ed, ColumnMapping) and ed.returns_value()
-        )
-        return non_pivoted_columns
-
-    def last_pivot_row(self):
-        return max(super().last_pivot_row(), max(ed.last_pivot_row() for ed in self.extra_dimensions))
-
-    def is_pivoted(self):
-        return super().is_pivoted() or any(ed.is_pivoted() for ed in self.extra_dimensions)
+        self._extra_dimensions = [single_mapping_from_value(extra_dimensions[0])]
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -390,12 +367,11 @@ class ParameterArrayMapping(ParameterValueMapping):
         map_dict["extra_dimensions"] = [ed.to_dict() for ed in self.extra_dimensions]
         return map_dict
 
-    def create_getter_list(self, is_pivoted, pivoted_columns, pivoted_data, data_header):
-        getters = super().create_getter_list(is_pivoted, pivoted_columns, pivoted_data, data_header)
-        value_getter, value_num, value_reads = getters["value"]
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        value_getter, value_num, value_reads = getters["parameter_value"]
         if value_getter is None:
             return getters
-        has_ed = False
         if all(ed.returns_value() for ed in self.extra_dimensions):
             # create functions to get extra_dimensions if there is a value getter
             ed_getters, ed_num, ed_reads_data = create_getter_list(
@@ -405,17 +381,15 @@ class ParameterArrayMapping(ParameterValueMapping):
             value_num = ed_num + [value_num]
             value_reads = ed_reads_data + [value_reads]
             # create a function that returns a tuple with extra dimensions and value
-            value_getter, value_num, value_reads = create_getter_function_from_function_list(
-                value_getter, value_num, value_reads
-            )
-            has_ed = True
-        elif not self.ALLOW_EXTRA_DIMENSION_NO_RETURN:
+            getters["parameter_value"] = create_getter_function_from_function_list(value_getter, value_num, value_reads)
+            getters["has_extra_dimensions"] = True
+            return getters
+        if not self.ALLOW_EXTRA_DIMENSION_NO_RETURN:
             # extra dimensions doesn't return anything so don't read anything from the data source
-            value_getter, value_num, value_reads = (None, None, None)
-
-        getters["value"] = (value_getter, value_num, value_reads)
-        getters["has_extra_dimensions"]: has_ed
-
+            getters["parameter_value"] = (None, None, None)
+            getters["has_extra_dimensions"] = False
+            return getters
+        getters["has_extra_dimensions"]: False
         return getters
 
     def raw_data_to_type(self, data):
@@ -469,13 +443,13 @@ class ParameterMapMapping(ParameterIndexedMapping):
     @ParameterIndexedMapping.extra_dimensions.setter
     def extra_dimensions(self, extra_dimensions):
         if extra_dimensions is None:
-            self._extra_dimensions = [single_mapping_from_dict_int_str(None)]
+            self._extra_dimensions = [single_mapping_from_value(None)]
             return
         if not isinstance(extra_dimensions, (list, tuple)):
             raise TypeError(
                 f"extra_dimensions must be a list or tuple of SingleMappingBase, int, str, dict, instead got: {type(extra_dimensions).__name__}"
             )
-        self._extra_dimensions = [single_mapping_from_dict_int_str(ed) for ed in extra_dimensions]
+        self._extra_dimensions = [single_mapping_from_value(ed) for ed in extra_dimensions]
 
     def set_number_of_extra_dimensions(self, dimension_count):
         """
@@ -490,7 +464,7 @@ class ParameterMapMapping(ParameterIndexedMapping):
             self._extra_dimensions = self._extra_dimensions[:dimension_count]
         else:
             diff = dimension_count - len(self._extra_dimensions)
-            self._extra_dimensions += [single_mapping_from_dict_int_str(None) for _ in range(diff)]
+            self._extra_dimensions += [single_mapping_from_value(None) for _ in range(diff)]
 
     def raw_data_to_type(self, data):
         out = []

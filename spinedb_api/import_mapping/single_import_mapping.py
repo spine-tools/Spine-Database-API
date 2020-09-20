@@ -237,7 +237,7 @@ class ColumnHeaderMapping(ColumnMapping):
     @SingleMappingBase.reference.setter
     def reference(self, reference):
         if reference is not None and not isinstance(reference, (str, int)):
-            raise TypeError(f"reference must be str or None, instead got: {type(reference).__name__}")
+            raise TypeError(f"reference must be int, str or None, instead got: {type(reference).__name__}")
         if isinstance(reference, str) and not reference:
             reference = None
         if isinstance(reference, int) and reference < 0:
@@ -402,11 +402,7 @@ class TableNameMapping(SingleMappingBase):
         return getter, 1, False
 
 
-def single_mapping_from_value(value):
-    if value is None:
-        return ColumnMapping()
-    if isinstance(value, SingleMappingBase):
-        return value
+def single_mapping_from_int_str(value):
     if isinstance(value, int):
         try:
             return ColumnMapping(value)
@@ -431,10 +427,8 @@ def single_mapping_from_dict(map_dict):
     return map_class.from_dict(map_dict)
 
 
-def single_mapping_from_dict_int_str(value):
-    """Creates Mapping object if `value` is a `dict` or `int`;
-    if `str` or `None` returns same value. If `int`, the Mapping is created
-    with map_type == column (default) unless other type is specified
+def single_mapping_from_value(value):
+    """Creates SingleMappingBase derived object from given value.
     """
     if value is None:
         return NoneMapping()
@@ -443,7 +437,7 @@ def single_mapping_from_dict_int_str(value):
     if isinstance(value, dict):
         return single_mapping_from_dict(value)
     if isinstance(value, (int, str)):
-        return single_mapping_from_value(value)
+        return single_mapping_from_int_str(value)
     raise TypeError(f"value must be dict, int or str, instead got {type(value)}")
 
 
