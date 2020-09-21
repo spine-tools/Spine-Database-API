@@ -535,7 +535,7 @@ def import_alternatives(db_map, data):
     Example:
 
         data = ['new_alternative', ('another_alternative', 'description')]
-        import_alternatives(db_map, data
+        import_alternatives(db_map, data)
 
     Args:
         db_map (DiffDatabaseMapping): mapping for database to insert into

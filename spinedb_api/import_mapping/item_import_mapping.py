@@ -15,6 +15,7 @@ Classes for item import mappings.
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
+from distutils.util import strtobool
 from .single_import_mapping import (
     NoneMapping,
     ConstantMapping,
@@ -1019,6 +1020,14 @@ class ScenarioMapping(NamedItemMapping):
     def component_mappings(self):
         return super().component_mappings() + [self.active]
 
+    def _component_issues(self, name, mapping):
+        if name == "Scenario active flags" and isinstance(mapping, ConstantMapping) and mapping.is_valid():
+            try:
+                strtobool(mapping.reference)
+            except ValueError as err:
+                return str(err)
+        return super()._component_issues(name, mapping)
+
     def set_component_by_name(self, name, mapping):
         if name == "Scenario names":
             self.name = mapping
@@ -1039,7 +1048,9 @@ class ScenarioMapping(NamedItemMapping):
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
         if self.active.returns_value():
-            getters["active"] = self.active.create_getter_function(pivoted_columns, pivoted_data, data_header)
+            getter, num, reads_data = self.active.create_getter_function(pivoted_columns, pivoted_data, data_header)
+            bool_getter = lambda x: bool(strtobool(getter(x)))
+            getters["active"] = (bool_getter, num, reads_data)
         else:
             getters["active"] = (None, None, None)
         return getters
@@ -1454,6 +1465,14 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
             return True
         return super().set_component_by_name(name, mapping)
 
+    def _component_issues(self, name, mapping):
+        if name == "Tool feature required flags" and isinstance(mapping, ConstantMapping) and mapping.is_valid():
+            try:
+                strtobool(mapping.reference)
+            except ValueError as err:
+                return str(err)
+        return super()._component_issues(name, mapping)
+
     @property
     def required(self):
         return self._required
@@ -1464,7 +1483,9 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
 
     def _create_required_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._required.returns_value():
-            return self._required.create_getter_function(pivoted_columns, pivoted_data, data_header)
+            getter, num, reads_data = self._required.create_getter_function(pivoted_columns, pivoted_data, data_header)
+            bool_getter = lambda x: bool(strtobool(getter(x)))
+            return bool_getter, num, reads_data
         return (None, None, None)
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):

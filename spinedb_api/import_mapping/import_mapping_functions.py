@@ -61,18 +61,10 @@ def convert_function_from_spec(column_types, num_cols, skip_cols=None):
     Returns:
         [function] -- A function that converts a row of data to the types given by column_types. 
     """
-    if column_types:
-        type_conv_list = type_class_list_from_spec(column_types, num_cols, skip_cols)
-
-        def convert_row_data(row):
-            row_list = []
-            for row_item, col_type in zip(row, type_conv_list):
-                row_list.append(convert_value(row_item, col_type))
-            return row_list
-
-    else:
-        convert_row_data = lambda x: x
-    return convert_row_data
+    if not column_types:
+        return lambda x: x
+    type_conv_list = type_class_list_from_spec(column_types, num_cols, skip_cols)
+    return lambda row: [convert_value(row_item, col_type) for row_item, col_type in zip(row, type_conv_list)]
 
 
 def mapping_non_pivoted_columns(mapping, num_cols, data_header=None):
