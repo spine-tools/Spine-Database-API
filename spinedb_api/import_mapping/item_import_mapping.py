@@ -1487,7 +1487,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
     def _create_required_readers(self, pivoted_columns, pivoted_data, data_header):
         if self._required.returns_value():
             getter, num, reads_data = self._required.create_getter_function(pivoted_columns, pivoted_data, data_header)
-            bool_getter = lambda x: bool(strtobool(getter(x)))
+            bool_getter = lambda x: bool(strtobool(str(getter(x))))  # pylint: disable=not-callable
             return bool_getter, num, reads_data
         return (None, None, None)
 
@@ -1640,19 +1640,19 @@ class ToolFeatureMethodMapping(FeatureMappingMixin, ToolMapping):
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
             raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
-        tool_name = map_dict.get("tool_name", None)
+        name = map_dict.get("name", None)
         entity_class_name = map_dict.get("entity_class_name", None)
         parameter_definition_name = map_dict.get("parameter_definition_name", None)
         method = map_dict.get("method", None)
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
-        return ToolFeatureMapping(
-            tool_name, entity_class_name, parameter_definition_name, method, skip_columns, read_start_row
+        return ToolFeatureMethodMapping(
+            name, entity_class_name, parameter_definition_name, method, skip_columns, read_start_row
         )
 
     def to_dict(self):
         map_dict = super().to_dict()
-        map_dict["tool_name"] = self._name.to_dict()
+        map_dict["name"] = self._name.to_dict()
         map_dict["entity_class_name"] = self._entity_class_name.to_dict()
         map_dict["parameter_definition_name"] = self._parameter_definition_name.to_dict()
         map_dict["method"] = self._method.to_dict()

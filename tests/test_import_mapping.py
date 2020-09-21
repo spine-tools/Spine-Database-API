@@ -16,6 +16,7 @@ Unit tests for json_mapping.py.
 :date:   22.02.2018
 """
 import unittest
+from unittest.mock import Mock
 from spinedb_api import (
     AlternativeMapping,
     read_with_mapping,
@@ -36,6 +37,10 @@ from spinedb_api import (
     Map,
     ScenarioAlternativeMapping,
     ScenarioMapping,
+    ToolMapping,
+    FeatureMapping,
+    ToolFeatureMapping,
+    ToolFeatureMethodMapping,
 )
 from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError
@@ -345,6 +350,72 @@ class TestMappingIO(unittest.TestCase):
         }
         self.assertEqual(out, expected)
 
+    def test_Tool_to_dict_from_dict(self):
+        mapping_dict = {"map_type": "Tool", "name": 0}
+        mapping = ToolMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "Tool",
+            "name": {"reference": 0, "map_type": "column"},
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_Feature_to_dict_from_dict(self):
+        mapping_dict = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
+        mapping = FeatureMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "Feature",
+            "entity_class_name": {"reference": 0, "map_type": "column"},
+            "parameter_definition_name": {"reference": 1, "map_type": "column"},
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_ToolFeature_to_dict_from_dict(self):
+        mapping_dict = {
+            "map_type": "ToolFeature",
+            "name": 0,
+            "entity_class_name": 1,
+            "parameter_definition_name": 2,
+        }
+        mapping = ToolFeatureMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "ToolFeature",
+            "name": {"reference": 0, "map_type": "column"},
+            "entity_class_name": {"reference": 1, "map_type": "column"},
+            "parameter_definition_name": {"reference": 2, "map_type": "column"},
+            "required": {"map_type": "constant", "reference": "false"},
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
+    def test_ToolFeatureMethod_to_dict_from_dict(self):
+        mapping_dict = {
+            "map_type": "ToolFeatureMethod",
+            "name": 0,
+            "entity_class_name": 1,
+            "parameter_definition_name": 2,
+            "method": 3,
+        }
+        mapping = ToolFeatureMethodMapping.from_dict(mapping_dict)
+        out = mapping.to_dict()
+        expected = {
+            "map_type": "ToolFeatureMethod",
+            "name": {"reference": 0, "map_type": "column"},
+            "entity_class_name": {"reference": 1, "map_type": "column"},
+            "parameter_definition_name": {"reference": 2, "map_type": "column"},
+            "method": {"reference": 3, "map_type": "column"},
+            "read_start_row": 0,
+            "skip_columns": [],
+        }
+        self.assertEqual(out, expected)
+
     def test_ParameterMapMapping_to_dict(self):
         mapping_value = RowMapping(reference=23)
         extra_dimension = ColumnMapping(reference="fifth column")
@@ -453,7 +524,7 @@ class TestMappingIO(unittest.TestCase):
 
 
 def _parent_with_pivot(is_pivoted):
-    parent = unittest.mock.Mock()
+    parent = Mock()
     parent.is_pivoted.return_value = is_pivoted
     return parent
 
@@ -755,6 +826,144 @@ class TestMappingIsValid(unittest.TestCase):
         is_valid, msg = mapping.is_valid()
         self.assertFalse(is_valid)
         self.assertTrue(msg)
+
+    def test_valid_tool_mapping(self):
+        mapping = {"map_type": "Tool", "name": "test"}
+        mapping = ToolMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_tool_mapping_name_missing(self):
+        mapping = {"map_type": "Tool", "name": None}
+        mapping = ToolMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_valid_feature_mapping(self):
+        mapping = {"map_type": "Feature", "entity_class_name": "test", "parameter_definition_name": "test"}
+        mapping = FeatureMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_feature_mapping_entity_class_name_missing(self):
+        mapping = {"map_type": "Feature", "entity_class_name": None, "parameter_definition_name": "test"}
+        mapping = ToolMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_invalid_feature_mapping_parameter_definition_name_missing(self):
+        mapping = {"map_type": "Feature", "entity_class_name": "test", "parameter_definition_name": None}
+        mapping = ToolMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_valid_tool_feature_mapping(self):
+        mapping = {
+            "map_type": "ToolFeature",
+            "name": "test",
+            "entity_class_name": "test",
+            "parameter_definition_name": "test",
+        }
+        mapping = ToolFeatureMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_tool_feature_mapping_name_missing(self):
+        mapping = {
+            "map_type": "ToolFeature",
+            "name": None,
+            "entity_class_name": "test",
+            "parameter_definition_name": "test",
+        }
+        mapping = ToolFeatureMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_invalid_tool_feature_mapping_entity_class_name_missing(self):
+        mapping = {
+            "map_type": "ToolFeature",
+            "name": "test",
+            "entity_class_name": None,
+            "parameter_definition_name": "test",
+        }
+        mapping = ToolFeatureMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_invalid_tool_feature_mapping_parameter_definition_name_missing(self):
+        mapping = {
+            "map_type": "ToolFeature",
+            "name": "test",
+            "entity_class_name": "test",
+            "parameter_definition_name": None,
+        }
+        mapping = ToolFeatureMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_valid_tool_feature_method_mapping(self):
+        mapping = {
+            "map_type": "ToolFeatureMethod",
+            "name": "test",
+            "entity_class_name": "test",
+            "parameter_definition_name": "test",
+            "method": "test",
+        }
+        mapping = ToolFeatureMethodMapping.from_dict(mapping)
+        is_valid, msg = mapping.is_valid()
+        self.assertTrue(is_valid)
+        self.assertFalse(msg)
+
+    def test_invalid_tool_feature_method_mapping_name_missing(self):
+        mapping = {
+            "map_type": "ToolFeatureMethod",
+            "name": None,
+            "entity_class_name": "test",
+            "parameter_definition_name": "test",
+            "method": "test",
+        }
+        mapping = ToolFeatureMethodMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_invalid_tool_feature_method_mapping_entity_class_name_missing(self):
+        mapping = {
+            "map_type": "ToolFeatureMethod",
+            "name": "test",
+            "entity_class_name": None,
+            "parameter_definition_name": "test",
+            "method": "test",
+        }
+        mapping = ToolFeatureMethodMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_invalid_tool_feature_method_mapping_parameter_definition_name_missing(self):
+        mapping = {
+            "map_type": "ToolFeatureMethod",
+            "name": "test",
+            "entity_class_name": "test",
+            "parameter_definition_name": None,
+            "method": "test",
+        }
+        mapping = ToolFeatureMethodMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
+
+    def test_invalid_tool_feature_method_mapping_method_missing(self):
+        mapping = {
+            "map_type": "ToolFeatureMethod",
+            "name": "test",
+            "entity_class_name": "test",
+            "parameter_definition_name": "test",
+            "method": None,
+        }
+        mapping = ToolFeatureMethodMapping.from_dict(mapping)
+        is_valid, _ = mapping.is_valid()
+        self.assertFalse(is_valid)
 
 
 class TestMappingIntegration(unittest.TestCase):
@@ -1619,7 +1828,17 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {"map_type": "Scenario", "name": 0}
         out, errors = read_with_mapping(data, [mapping], 1, data_header)
         expected = dict(self.empty_data)
-        expected["scenarios"] = [("scenario1", "false"), ("second_scenario", "false"), ("last_one", "false")]
+        expected["scenarios"] = [("scenario1", False), ("second_scenario", False), ("last_one", False)]
+        self.assertEqual(out, expected)
+
+    def test_read_scenario_with_active_flags(self):
+        input_data = [["Scenarios", "Active"], ["scenario1", 1], ["second_scenario", "f"], ["last_one", "true"]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "Scenario", "name": 0, "active": 1}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["scenarios"] = [("scenario1", True), ("second_scenario", False), ("last_one", True)]
         self.assertEqual(out, expected)
 
     def test_read_scenario_alternative(self):
@@ -1643,6 +1862,79 @@ class TestMappingIntegration(unittest.TestCase):
             ("scenario_A", "alternative1", "second_alternative"),
             ("scenario_A", "second_alternative", "last_one"),
             ("scenario_B", "last_one", ""),
+        ]
+        self.assertEqual(out, expected)
+
+    def test_read_tool(self):
+        input_data = [["Tools"], ["tool1"], ["second_tool"], ["last_one"]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "Tool", "name": 0}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["tools"] = ["tool1", "second_tool", "last_one"]
+        self.assertEqual(out, expected)
+
+    def test_read_feature(self):
+        input_data = [["Class", "Parameter"], ["class1", "param1"], ["class2", "param2"]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["features"] = [("class1", "param1"), ("class2", "param2")]
+        self.assertEqual(out, expected)
+
+    def test_read_tool_feature(self):
+        input_data = [["Tool", "Class", "Parameter"], ["tool1", "class1", "param1"], ["tool2", "class2", "param2"]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["tool_features"] = [("tool1", "class1", "param1", False), ("tool2", "class2", "param2", False)]
+        self.assertEqual(out, expected)
+
+    def test_read_tool_feature_with_required_flag(self):
+        input_data = [
+            ["Tool", "Class", "Parameter", "Required"],
+            ["tool1", "class1", "param1", "f"],
+            ["tool2", "class2", "param2", "true"],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ToolFeature",
+            "name": 0,
+            "entity_class_name": 1,
+            "parameter_definition_name": 2,
+            "required": 3,
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["tool_features"] = [("tool1", "class1", "param1", False), ("tool2", "class2", "param2", True)]
+        self.assertEqual(out, expected)
+
+    def test_read_tool_feature_method(self):
+        input_data = [
+            ["Tool", "Class", "Parameter", "Method"],
+            ["tool1", "class1", "param1", "meth1"],
+            ["tool2", "class2", "param2", "meth2"],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ToolFeatureMethod",
+            "name": 0,
+            "entity_class_name": 1,
+            "parameter_definition_name": 2,
+            "method": 3,
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["tool_feature_methods"] = [
+            ("tool1", "class1", "param1", "meth1"),
+            ("tool2", "class2", "param2", "meth2"),
         ]
         self.assertEqual(out, expected)
 

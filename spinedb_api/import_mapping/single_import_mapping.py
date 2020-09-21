@@ -113,10 +113,6 @@ class NoneMapping(SingleMappingBase):
         """Should return True if Mapping type is reading columns in a row, pivoted."""
         return False
 
-    def last_pivot_row(self):
-        """Returns the last row that is pivoted"""
-        return -1
-
     @classmethod
     def from_dict(cls, map_dict):
         """Creates a mapping object from dict representation of mapping
@@ -161,10 +157,6 @@ class ConstantMapping(SingleMappingBase):
         """Should return True if Mapping type is reading columns in a row, pivoted."""
         return False
 
-    def last_pivot_row(self):
-        """Returns the last row that is pivoted"""
-        return -1
-
     @classmethod
     def from_dict(cls, map_dict):
         """Creates a mapping object from dict representation of mapping
@@ -190,7 +182,7 @@ class ConstantMapping(SingleMappingBase):
         return getter, 1, False
 
 
-class ColumnMapping(ConstantMapping):
+class ColumnMapping(SingleMappingBase):
     """A reference to a column by number or header string
     """
 
@@ -214,6 +206,26 @@ class ColumnMapping(ConstantMapping):
         if isinstance(reference, int) and reference < 0:
             reference = 0
         self._reference = reference
+
+    def is_pivoted(self):
+        """Should return True if Mapping type is reading columns in a row, pivoted."""
+        return False
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        """Creates a mapping object from dict representation of mapping
+        
+        Should return an instance of the subclass
+        """
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        map_type = map_dict.get("map_type", None)
+        if map_type is not None and map_type != cls.MAP_TYPE:
+            raise ValueError(f"If field 'map_type' is specified, it must be {cls.MAP_TYPE}, instead got {map_type}")
+        reference = map_dict.get("reference", None)
+        if reference is None:
+            reference = map_dict.get("value_reference", None)
+        return cls(reference)
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         ref = self.reference
