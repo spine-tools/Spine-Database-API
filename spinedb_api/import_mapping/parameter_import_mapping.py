@@ -200,6 +200,43 @@ class ParameterDefinitionMapping(ParameterMappingBase):
     def parameter_value_list_name(self, parameter_value_list_name):
         self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
 
+    def _create_default_value_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        if (
+            (self._parent.is_pivoted() or self.name.is_pivoted())
+            and not self.default_value.is_pivoted()
+            and pivoted_columns
+        ):
+            # if mapping is pivoted default values are read from pivoted data
+            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
+        if self.default_value.returns_value():
+            return self.default_value.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        return None
+
+    def _create_value_list_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        if (
+            (self._parent.is_pivoted() or self.name.is_pivoted())
+            and not self.alternative_name.is_pivoted()
+            and pivoted_columns
+            and self._parameter_value_list_name.returns_value()
+        ):
+            # if mapping is pivoted value list names are read from pivoted data
+            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
+        if self.parameter_value_list_name.returns_value():
+            return self.parameter_value_list_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        return None
+
+    def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
+        default_value_getter_list = self._create_default_value_getter_list(pivoted_columns, pivoted_data, data_header)
+        value_list_name_getter_list = self._create_value_list_name_getter_list(
+            pivoted_columns, pivoted_data, data_header
+        )
+        if default_value_getter_list is not None:
+            getters["default_value"] = default_value_getter_list
+        if value_list_name_getter_list is not None:
+            getters["parameter_value_list_name"] = value_list_name_getter_list
+        return getters
+
     @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):

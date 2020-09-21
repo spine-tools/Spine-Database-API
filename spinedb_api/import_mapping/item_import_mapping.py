@@ -27,6 +27,7 @@ from .single_import_mapping import (
 )
 from .parameter_import_mapping import (
     ParameterMappingBase,
+    ParameterDefinitionMapping,
     ParameterValueMapping,
     parameter_mapping_from_dict,
 )
@@ -1045,14 +1046,16 @@ class ScenarioMapping(NamedItemMapping):
     def active(self, active):
         self._active = single_mapping_from_value(active)
 
+    def _create_active_readers(self, pivoted_columns, pivoted_data, data_header):
+        if self._active.returns_value():
+            getter, num, reads_data = self._active.create_getter_function(pivoted_columns, pivoted_data, data_header)
+            bool_getter = lambda x: bool(strtobool(str(getter(x))))  # pylint: disable=not-callable
+            return bool_getter, num, reads_data
+        return (None, None, None)
+
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
-        if self.active.returns_value():
-            getter, num, reads_data = self.active.create_getter_function(pivoted_columns, pivoted_data, data_header)
-            bool_getter = lambda x: bool(strtobool(getter(x)))
-            getters["active"] = (bool_getter, num, reads_data)
-        else:
-            getters["active"] = (None, None, None)
+        getters["active"] = self._create_active_readers(pivoted_columns, pivoted_data, data_header)
         return getters
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
@@ -1716,6 +1719,11 @@ def item_mapping_from_dict(map_dict):
     raise ValueError(f"""invalid "map_type" value, expected any of {", ".join(mapping_classes)}, got {map_type}""")
 
 
+def _multiple_append(lists, values):
+    for l, v in zip(lists, values):
+        l.append(v)
+
+
 def _parameter_readers(object_or_relationship, parameters_mapping, class_getters, entity_getters, component_readers):
     """
     Creates a list of parameter readers.
@@ -1730,28 +1738,31 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
     Returns:
         list: readers for parameter definitions and (optionally) values, or empty list if not applicable
     """
-    readers = list()
-    if isinstance(parameters_mapping, ParameterMappingBase):
-        par_name_getter, par_name_num, par_name_reads = component_readers["parameter_name"]
-        readers.append(
-            (object_or_relationship + "_parameters",)
-            + create_final_getter_function(
-                [class_getters[0], par_name_getter],
-                [class_getters[1], par_name_num],
-                [class_getters[2], par_name_reads],
-            )
-        )
-        if isinstance(parameters_mapping, ParameterValueMapping):
-            par_val_name = object_or_relationship + "_parameter_values"
-            par_value_getter, par_value_num, par_value_reads = component_readers["parameter_value"]
-            getter_list = [class_getters[0], entity_getters[0], par_name_getter, par_value_getter]
-            num_list = [class_getters[1], entity_getters[1], par_name_num, par_value_num]
-            reads_list = [class_getters[2], entity_getters[2], par_name_reads, par_value_reads]
-            alt_getters = component_readers.get("alternative_name")
-            if alt_getters:
-                alt_getter, alt_num, alt_reads = component_readers["alternative_name"]
-                getter_list.append(alt_getter)
-                num_list.append(alt_num)
-                reads_list.append(alt_reads)
-            readers.append((par_val_name,) + create_final_getter_function(getter_list, num_list, reads_list))
-    return readers
+    if isinstance(parameters_mapping, ParameterValueMapping):
+        parameter_lists = ([], [], [])
+        _multiple_append(parameter_lists, class_getters)
+        _multiple_append(parameter_lists, component_readers["parameter_name"])
+        parameter_value_lists = ([], [], [])
+        _multiple_append(parameter_value_lists, class_getters)
+        _multiple_append(parameter_value_lists, entity_getters)
+        _multiple_append(parameter_value_lists, component_readers["parameter_name"])
+        _multiple_append(parameter_value_lists, component_readers["parameter_value"])
+        alt_getters = component_readers.get("alternative_name")
+        if alt_getters:
+            _multiple_append(parameter_value_lists, alt_getters)
+        return [
+            (object_or_relationship + "_parameters",) + create_final_getter_function(*parameter_lists),
+            (object_or_relationship + "_parameter_values",) + create_final_getter_function(*parameter_value_lists),
+        ]
+    if isinstance(parameters_mapping, ParameterDefinitionMapping):
+        parameter_lists = ([], [], [])
+        _multiple_append(parameter_lists, class_getters)
+        _multiple_append(parameter_lists, component_readers["parameter_name"])
+        default_value_getters = component_readers.get("parameter_default_value")
+        if default_value_getters:
+            _multiple_append(parameter_lists, default_value_getters)
+        value_list_name_getters = component_readers.get("parameter_value_list_name")
+        if value_list_name_getters:
+            _multiple_append(parameter_lists, value_list_name_getters)
+        return [(object_or_relationship + "_parameters",) + create_final_getter_function(*parameter_lists)]
+    return []
