@@ -334,7 +334,7 @@ class ParameterValueMapping(ParameterMappingBase):
             pivoted_columns, pivoted_data, data_header
         )
         if value_getter_list[0] is not None:
-            getters["parameter_value"] = value_getter_list
+            getters["value"] = value_getter_list
         if alternative_name_getter_list[0] is not None:
             getters["alternative_name"] = alternative_name_getter_list
         return getters

@@ -1742,7 +1742,7 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
         multiple_append(parameter_value_lists, class_getters)
         multiple_append(parameter_value_lists, entity_getters)
         multiple_append(parameter_value_lists, component_readers["parameter_name"])
-        multiple_append(parameter_value_lists, component_readers["parameter_value"])
+        multiple_append(parameter_value_lists, component_readers["value"])
         alt_getters = component_readers.get("alternative_name")
         if alt_getters:
             multiple_append(parameter_value_lists, alt_getters)
@@ -1754,7 +1754,7 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
         parameter_lists = ([], [], [])
         multiple_append(parameter_lists, class_getters)
         multiple_append(parameter_lists, component_readers["parameter_name"])
-        default_value_getters = component_readers.get("parameter_default_value")
+        default_value_getters = component_readers.get("default_value")
         if default_value_getters:
             multiple_append(parameter_lists, default_value_getters)
         value_list_name_getters = component_readers.get("parameter_value_list_name")

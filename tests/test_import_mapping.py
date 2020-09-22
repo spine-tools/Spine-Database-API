@@ -2005,6 +2005,35 @@ class TestMappingIntegration(unittest.TestCase):
         ]
         self.assertEqual(out, expected)
 
+    def test_read_parameter_definition_with_default_values_and_value_lists(self):
+        input_data = [
+            ["Class", "Parameter", "Default", "Value list"],
+            ["class_A", "param1", 23.0, "listA"],
+            ["class_A", "param2", 42.0, "listB"],
+            ["class_B", "param3", 5.0, "listA"],
+        ]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": 0,
+            "parameters": {
+                "name": 1,
+                "map_type": "ParameterDefinition",
+                "default_value": {"value_type": "single value", "main_value": 2},
+                "parameter_value_list_name": 3,
+            },
+        }
+        out, errors = read_with_mapping(data, [mapping], 1, data_header)
+        expected = dict(self.empty_data)
+        expected["object_classes"] = ["class_A", "class_A", "class_B"]
+        expected["object_parameters"] = [
+            ("class_A", "param1", 23.0, "listA"),
+            ("class_A", "param2", 42.0, "listB"),
+            ("class_B", "param3", 5.0, "listA"),
+        ]
+        self.assertEqual(out, expected)
+
 
 class TestItemMappings(unittest.TestCase):
     def test_ObjectClassMapping_dimensions_is_always_one(self):
