@@ -23,8 +23,8 @@ from spinedb_api import (
     ObjectClassMapping,
     ObjectGroupMapping,
     RelationshipClassMapping,
-    ParameterMapMapping,
-    ParameterTimeSeriesMapping,
+    MapValueMapping,
+    TimeSeriesValueMapping,
     RowMapping,
     ColumnHeaderMapping,
     ColumnMapping,
@@ -144,10 +144,9 @@ class TestMappingIO(unittest.TestCase):
             "objects": {"reference": 1, "map_type": "column"},
             "parameters": {
                 "alternative_name": {"map_type": "None"},
-                "map_type": "parameter",
+                "map_type": "ParameterValue",
                 "name": {"reference": 2, "map_type": "column"},
-                "value": {"reference": 3, "map_type": "column"},
-                "parameter_type": "single value",
+                "value": {"main_value": {"reference": 3, "map_type": "column"}, "value_type": "single value"},
             },
             "import_objects": True,
             "read_start_row": 0,
@@ -207,10 +206,9 @@ class TestMappingIO(unittest.TestCase):
             "objects": [{"reference": 0, "map_type": "column"}, {"reference": 1, "map_type": "column"}],
             "parameters": {
                 "alternative_name": {"map_type": "None"},
-                "map_type": "parameter",
+                "map_type": "ParameterValue",
                 "name": {"map_type": "constant", "reference": "test"},
-                "parameter_type": "single value",
-                "value": {"reference": 2, "map_type": "column"},
+                "value": {"value_type": "single value", "main_value": {"reference": 2, "map_type": "column"}},
             },
             "read_start_row": 0,
             "skip_columns": [],
@@ -262,11 +260,13 @@ class TestMappingIO(unittest.TestCase):
             'objects': [{'map_type': 'None'}],
             "parameters": {
                 "alternative_name": {"map_type": "None"},
-                "map_type": "parameter",
+                "map_type": "ParameterValue",
                 "name": {"map_type": "constant", "reference": "test"},
-                "parameter_type": "array",
-                "value": {"reference": 2, "map_type": "column"},
-                "extra_dimensions": [{"map_type": "constant", "reference": "test"}],
+                "value": {
+                    "value_type": "array",
+                    "main_value": {"reference": 2, "map_type": "column"},
+                    "extra_dimensions": [{"map_type": "constant", "reference": "test"}],
+                },
             },
             "read_start_row": 0,
             "skip_columns": [],
@@ -295,10 +295,9 @@ class TestMappingIO(unittest.TestCase):
             "members": {"reference": 2, "map_type": "column"},
             "parameters": {
                 "alternative_name": {"map_type": "None"},
-                "map_type": "parameter",
+                "map_type": "ParameterValue",
                 "name": {"map_type": "constant", "reference": "test"},
-                "parameter_type": "single value",
-                "value": {"reference": 2, "map_type": "column"},
+                "value": {"main_value": {"reference": 2, "map_type": "column"}, "value_type": "single value"},
             },
             "import_objects": False,
             "read_start_row": 0,
@@ -416,37 +415,31 @@ class TestMappingIO(unittest.TestCase):
         }
         self.assertEqual(out, expected)
 
-    def test_ParameterMapMapping_to_dict(self):
+    def test_MapValueMapping_to_dict(self):
         mapping_value = RowMapping(reference=23)
         extra_dimension = ColumnMapping(reference="fifth column")
-        parameter_mapping = ParameterMapMapping("mapping name", value=mapping_value, extra_dimension=[extra_dimension])
+        parameter_mapping = MapValueMapping(main_value=mapping_value, extra_dimension=[extra_dimension])
         mapping_dict = parameter_mapping.to_dict()
         expected = {
-            "alternative_name": {"map_type": "None"},
             "compress": False,
-            "map_type": "parameter",
-            "name": {'map_type': 'constant', 'reference': 'mapping name'},
-            "parameter_type": "map",
-            "value": {"reference": 23, "map_type": "row"},
+            "value_type": "map",
+            "main_value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
         }
         self.assertEqual(mapping_dict, expected)
 
-    def test_ParameterMapMapping_from_dict(self):
+    def test_MapValueMapping_from_dict(self):
         mapping_dict = {
-            "map_type": "parameter",
-            "name": {'map_type': 'constant', 'reference': 'mapping name'},
-            "parameter_type": "map",
-            "value": {"reference": 23, "map_type": "row"},
+            "value_type": "map",
+            "main_value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
             "compress": True,
         }
-        parameter_mapping = ParameterMapMapping.from_dict(mapping_dict)
-        self.assertEqual(parameter_mapping.name.reference, "mapping name")
-        self.assertIsInstance(parameter_mapping, ParameterMapMapping)
-        value = parameter_mapping.value
-        self.assertIsInstance(value, RowMapping)
-        self.assertEqual(value.reference, 23)
+        parameter_mapping = MapValueMapping.from_dict(mapping_dict)
+        self.assertIsInstance(parameter_mapping, MapValueMapping)
+        main_value = parameter_mapping.main_value
+        self.assertIsInstance(main_value, RowMapping)
+        self.assertEqual(main_value.reference, 23)
         extra_dimensions = parameter_mapping.extra_dimensions
         self.assertEqual(len(extra_dimensions), 1)
         dimension = extra_dimensions[0]
@@ -466,40 +459,34 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(options.ignore_year, False)
         self.assertEqual(options.fixed_resolution, False)
 
-    def test_ParameterTimeSeriesMapping_to_dict(self):
+    def test_TimeSeriesValueMapping_to_dict(self):
         mapping_value = RowMapping(reference=23)
         extra_dimension = ColumnMapping(reference="fifth column")
         parameter_options = TimeSeriesOptions(repeat=True)
-        parameter_mapping = ParameterTimeSeriesMapping(
-            "mapping name", value=mapping_value, extra_dimension=[extra_dimension], options=parameter_options
+        parameter_mapping = TimeSeriesValueMapping(
+            main_value=mapping_value, extra_dimension=[extra_dimension], options=parameter_options
         )
         mapping_dict = parameter_mapping.to_dict()
         expected = {
-            "alternative_name": {"map_type": "None"},
-            "map_type": "parameter",
-            "name": {'map_type': 'constant', 'reference': 'mapping name'},
-            "parameter_type": "time series",
-            "value": {"reference": 23, "map_type": "row"},
+            "value_type": "time series",
+            "main_value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
             "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
         }
         self.assertEqual(mapping_dict, expected)
 
-    def test_ParameterMapping_from_dict(self):
+    def test_TimeSeriesValueMapping_from_dict(self):
         mapping_dict = {
-            "map_type": "parameter",
-            "name": {'map_type': 'constant', 'reference': 'mapping name'},
-            "parameter_type": "time series",
-            "value": {"reference": 23, "map_type": "row"},
+            "value_type": "time series",
+            "main_value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
             "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
         }
-        parameter_mapping = ParameterTimeSeriesMapping.from_dict(mapping_dict)
-        self.assertEqual(parameter_mapping.name.reference, "mapping name")
-        self.assertTrue(isinstance(parameter_mapping, ParameterTimeSeriesMapping))
-        value = parameter_mapping.value
-        self.assertTrue(isinstance(value, RowMapping))
-        self.assertEqual(value.reference, 23)
+        parameter_mapping = TimeSeriesValueMapping.from_dict(mapping_dict)
+        self.assertTrue(isinstance(parameter_mapping, TimeSeriesValueMapping))
+        main_value = parameter_mapping.main_value
+        self.assertTrue(isinstance(main_value, RowMapping))
+        self.assertEqual(main_value.reference, 23)
         extra_dimensions = parameter_mapping.extra_dimensions
         self.assertEqual(len(extra_dimensions), 1)
         dimension = extra_dimensions[0]
@@ -1523,7 +1510,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, self.empty_data)
         self.assertEqual(errors, [])
 
-    def test_read_relationships_and_save_objects(self):
+    def test_read_relationships_and_import_objects(self):
         input_data = [["unit", "node"], ["u1", "n1"], ["u2", "n2"]]
         self.empty_data.update(
             {
@@ -2076,6 +2063,22 @@ class TestItemMappings(unittest.TestCase):
 
     def test_ScenarioAlternativeMapping_does_not_have_parameters(self):
         mapping = ScenarioAlternativeMapping()
+        self.assertFalse(mapping.has_parameters())
+
+    def test_ToolMapping_does_not_have_parameters(self):
+        mapping = ToolMapping()
+        self.assertFalse(mapping.has_parameters())
+
+    def test_FeatureMapping_does_not_have_parameters(self):
+        mapping = FeatureMapping()
+        self.assertFalse(mapping.has_parameters())
+
+    def test_ToolFeatureMapping_does_not_have_parameters(self):
+        mapping = ToolFeatureMapping()
+        self.assertFalse(mapping.has_parameters())
+
+    def test_ToolFeatureMethodMapping_does_not_have_parameters(self):
+        mapping = ToolFeatureMethodMapping()
         self.assertFalse(mapping.has_parameters())
 
 

@@ -101,11 +101,13 @@ from .import_mapping.parameter_import_mapping import (
     ParameterMappingBase,
     ParameterDefinitionMapping,
     ParameterValueMapping,
-    ParameterArrayMapping,
-    ParameterTimeSeriesMapping,
-    ParameterTimePatternMapping,
-    ParameterMapMapping,
+    SingleValueMapping,
+    ArrayValueMapping,
+    TimeSeriesValueMapping,
+    TimePatternValueMapping,
+    MapValueMapping,
     parameter_mapping_from_dict,
+    value_mapping_from_dict,
 )
 from .import_mapping.item_import_mapping import (
     NamedItemMapping,

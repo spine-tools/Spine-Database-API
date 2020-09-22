@@ -572,3 +572,8 @@ def create_getter_function_from_function_list(function_list, len_output_list, re
 
     reads_data = any(reads_data_list)
     return getter, return_len, reads_data
+
+
+def multiple_append(lists, values):
+    for l, v in zip(lists, values):
+        l.append(v)
