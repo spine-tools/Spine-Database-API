@@ -107,7 +107,7 @@ from .import_mapping.parameter_import_mapping import (
     TimePatternValueMapping,
     MapValueMapping,
     parameter_mapping_from_dict,
-    value_mapping_from_dict,
+    value_mapping_from_any,
 )
 from .import_mapping.item_import_mapping import (
     NamedItemMapping,

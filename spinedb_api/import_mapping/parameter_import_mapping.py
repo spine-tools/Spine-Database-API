@@ -71,7 +71,7 @@ class ParameterMappingBase:
 
     def __init__(self, name=None):
         self.parent = None
-        self._name = ColumnMapping(None)
+        self._name = None
         self.name = name
 
     def component_names(self):  # pylint: disable=no-self-use
@@ -159,27 +159,21 @@ class ParameterDefinitionMapping(ParameterMappingBase):
 
     def __init__(self, name=None, default_value=None, parameter_value_list_name=None):
         super().__init__(name)
-        self._default_value = value_mapping_from_dict(default_value)
+        self._default_value = None
+        self.default_value = default_value
         self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
         self.main_value_name = "Default values"
 
     def component_names(self):
-        component_names = super().component_names()
-        if not isinstance(self.default_value, NoneMapping):
-            component_names += self.default_value.component_names()
-        return component_names + ["Parameter value list names"]
+        return super().component_names() + self.default_value.component_names() + ["Parameter value list names"]
 
     def component_mappings(self):
-        component_mappings = super().component_mappings()
-        if not isinstance(self.default_value, NoneMapping):
-            component_mappings += self.default_value.component_mappings()
-        return component_mappings + [self.parameter_value_list_name]
+        return super().component_mappings() + self.default_value.component_mappings() + [self.parameter_value_list_name]
 
     def _optional_component_names(self):
-        opt_component_names = super()._optional_component_names()
-        if not isinstance(self.default_value, NoneMapping):
-            opt_component_names += self.default_value.component_names()
-        return opt_component_names + ["Parameter value list names"]
+        return (
+            super()._optional_component_names() + self.default_value.component_names() + ["Parameter value list names"]
+        )
 
     def set_component_by_name(self, name, mapping):
         if name in self.default_value.component_names():
@@ -199,7 +193,7 @@ class ParameterDefinitionMapping(ParameterMappingBase):
 
     @default_value.setter
     def default_value(self, default_value):
-        self._default_value = value_mapping_from_dict(default_value)
+        self._default_value = value_mapping_from_any(default_value)
         self._default_value.parent = self
 
     @parameter_value_list_name.setter
@@ -257,7 +251,7 @@ class ParameterValueMapping(ParameterMappingBase):
 
     def __init__(self, name=None, value=None, alternative_name=None):
         super().__init__(name)
-        self._value = ColumnMapping(None)
+        self._value = None
         self.value = value
         self._alternative_name = single_mapping_from_value(alternative_name)
         self.main_value_name = "Parameter values"
@@ -289,7 +283,7 @@ class ParameterValueMapping(ParameterMappingBase):
 
     @value.setter
     def value(self, value):
-        self._value = value_mapping_from_dict(value)
+        self._value = value_mapping_from_any(value)
         self._value.parent = self
 
     @alternative_name.setter
@@ -732,16 +726,18 @@ def _legacy_parameter_mapping_from_dict(map_dict):
     return ParameterValueMapping.from_dict(map_dict)
 
 
-def value_mapping_from_dict(value_dict):
-    if value_dict is None:
-        return NoneMapping()
-    value_type = value_dict.get("value_type")
-    value_type_to_class = {
-        "single value": SingleValueMapping,
-        "array": ArrayValueMapping,
-        "map": MapValueMapping,
-        "time series": TimeSeriesValueMapping,
-        "time pattern": TimePatternValueMapping,
-    }
-    map_class = value_type_to_class.get(value_type, SingleValueMapping)
-    return map_class.from_dict(value_dict)
+def value_mapping_from_any(value):
+    if isinstance(value, SingleValueMapping):
+        return value
+    if isinstance(value, dict):
+        value_type = value.get("value_type")
+        value_type_to_class = {
+            "single value": SingleValueMapping,
+            "array": ArrayValueMapping,
+            "map": MapValueMapping,
+            "time series": TimeSeriesValueMapping,
+            "time pattern": TimePatternValueMapping,
+        }
+        map_class = value_type_to_class.get(value_type, SingleValueMapping)
+        return map_class.from_dict(value)
+    return SingleValueMapping()
