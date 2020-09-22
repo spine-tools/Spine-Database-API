@@ -70,7 +70,7 @@ class ParameterMappingBase:
     MAP_TYPE = "Parameter"
 
     def __init__(self, name=None):
-        self._parent = None
+        self.parent = None
         self._name = ColumnMapping(None)
         self.name = name
 
@@ -88,9 +88,6 @@ class ParameterMappingBase:
             self.name = mapping
             return True
         return False
-
-    def set_parent(self, parent):
-        self._parent = parent
 
     @property
     def name(self):
@@ -164,6 +161,7 @@ class ParameterDefinitionMapping(ParameterMappingBase):
         super().__init__(name)
         self._default_value = value_mapping_from_dict(default_value)
         self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
+        self.main_value_name = "Default values"
 
     def component_names(self):
         component_names = super().component_names()
@@ -202,25 +200,15 @@ class ParameterDefinitionMapping(ParameterMappingBase):
     @default_value.setter
     def default_value(self, default_value):
         self._default_value = value_mapping_from_dict(default_value)
-        self._value.main_value_name = "Default values"
+        self._default_value.parent = self
 
     @parameter_value_list_name.setter
     def parameter_value_list_name(self, parameter_value_list_name):
         self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
 
-    def _create_default_value_getter_list(self, pivoted_columns, pivoted_data, data_header):
-        if (
-            (self._parent.is_pivoted() or self.name.is_pivoted())
-            and not self.default_value.is_pivoted()
-            and pivoted_columns
-        ):
-            # if mapping is pivoted default values are read from pivoted data
-            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
-        return self.default_value.create_getter_function(pivoted_columns, pivoted_data, data_header)
-
     def _create_value_list_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
         if (
-            (self._parent.is_pivoted() or self.name.is_pivoted())
+            (self.parent.is_pivoted() or self.name.is_pivoted())
             and not self.alternative_name.is_pivoted()
             and pivoted_columns
             and self._parameter_value_list_name.returns_value()
@@ -233,7 +221,9 @@ class ParameterDefinitionMapping(ParameterMappingBase):
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
-        default_value_getter_list = self._create_default_value_getter_list(pivoted_columns, pivoted_data, data_header)
+        default_value_getter_list = self.default_value.create_getter_function(
+            pivoted_columns, pivoted_data, data_header
+        )
         value_list_name_getter_list = self._create_value_list_name_getter_list(
             pivoted_columns, pivoted_data, data_header
         )
@@ -270,6 +260,7 @@ class ParameterValueMapping(ParameterMappingBase):
         self._value = ColumnMapping(None)
         self.value = value
         self._alternative_name = single_mapping_from_value(alternative_name)
+        self.main_value_name = "Parameter values"
 
     def component_names(self):
         return super().component_names() + self.value.component_names() + ["Alternative names"]
@@ -299,7 +290,7 @@ class ParameterValueMapping(ParameterMappingBase):
     @value.setter
     def value(self, value):
         self._value = value_mapping_from_dict(value)
-        self._value.main_value_name = "Parameter values"
+        self._value.parent = self
 
     @alternative_name.setter
     def alternative_name(self, alternative_name):
@@ -325,19 +316,13 @@ class ParameterValueMapping(ParameterMappingBase):
         return map_dict
 
     def _component_issues(self, name, mapping):
-        if name == "Parameter values" and (self.is_pivoted() or self._parent.is_pivoted()):
+        if name == "Parameter values" and (self.is_pivoted() or self.parent.is_pivoted()):
             return ""
         return super()._component_issues(name, mapping)
 
-    def _create_value_getter_list(self, pivoted_columns, pivoted_data, data_header):
-        if (self._parent.is_pivoted() or self.name.is_pivoted()) and not self.value.is_pivoted() and pivoted_columns:
-            # if mapping is pivoted values are read from pivoted data
-            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
-        return self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
-
     def _create_alternative_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
         if (
-            (self._parent.is_pivoted() or self.name.is_pivoted())
+            (self.parent.is_pivoted() or self.name.is_pivoted())
             and not self.alternative_name.is_pivoted()
             and pivoted_columns
             and self._alternative_name.returns_value()
@@ -350,7 +335,7 @@ class ParameterValueMapping(ParameterMappingBase):
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
-        value_getter_list = self._create_value_getter_list(pivoted_columns, pivoted_data, data_header)
+        value_getter_list = self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
         alternative_name_getter_list = self._create_alternative_name_getter_list(
             pivoted_columns, pivoted_data, data_header
         )
@@ -373,16 +358,16 @@ class SingleValueMapping:
 
     def __init__(self, main_value=None):
         self._main_value = single_mapping_from_value(main_value)
-        self.main_value_name = ""  # NOTE: This is set by ParameterDefinitionMapping or ParameterValueMapping
+        self.parent = None  # NOTE: This is set by ParameterDefinitionMapping or ParameterValueMapping
 
     def component_names(self):
-        return [self.main_value_name]
+        return [self.parent.main_value_name]
 
     def component_mappings(self):
         return [self.main_value]
 
     def set_component_by_name(self, name, mapping):
-        if name == self.main_value_name:
+        if name == self.parent.main_value_name:
             self.main_value = mapping
             return True
         return False
@@ -417,6 +402,13 @@ class SingleValueMapping:
         }
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        if (
+            (self.parent.parent.is_pivoted() or self.parent.name.is_pivoted())
+            and not self.main_value.is_pivoted()
+            and pivoted_columns
+        ):
+            # if mapping is pivoted values are read from pivoted data
+            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
         if self.main_value.returns_value():
             return self.main_value.create_getter_function(pivoted_columns, pivoted_data, data_header)
         return (None, None, None)
@@ -698,7 +690,6 @@ class TimePatternValueMapping(ArrayValueMapping):
         return super().set_component_by_name(name, mapping)
 
     def raw_data_to_type(self, data):
-        print(data)
         out = []
         data = sorted(data, key=lambda x: x[:-1])
         for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):

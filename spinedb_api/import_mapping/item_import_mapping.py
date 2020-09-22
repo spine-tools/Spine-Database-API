@@ -326,7 +326,7 @@ class EntityClassMapping(NamedItemMapping):
                 f"instead got {type(parameters).__name__}"
             )
         if isinstance(parameters, ParameterMappingBase):
-            parameters.set_parent(self)
+            parameters.parent = self
         self._parameters = parameters
 
     def to_dict(self):
