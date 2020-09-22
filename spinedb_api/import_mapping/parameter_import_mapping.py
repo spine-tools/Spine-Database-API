@@ -201,14 +201,6 @@ class ParameterDefinitionMapping(ParameterMappingBase):
         self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
 
     def _create_value_list_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
-        if (
-            (self.parent.is_pivoted() or self.name.is_pivoted())
-            and not self.alternative_name.is_pivoted()
-            and pivoted_columns
-            and self._parameter_value_list_name.returns_value()
-        ):
-            # if mapping is pivoted value list names are read from pivoted data
-            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
         if self.parameter_value_list_name.returns_value():
             return self.parameter_value_list_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
         return None
@@ -315,14 +307,6 @@ class ParameterValueMapping(ParameterMappingBase):
         return super()._component_issues(name, mapping)
 
     def _create_alternative_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
-        if (
-            (self.parent.is_pivoted() or self.name.is_pivoted())
-            and not self.alternative_name.is_pivoted()
-            and pivoted_columns
-            and self._alternative_name.returns_value()
-        ):
-            # if mapping is pivoted alternatives are read from pivoted data
-            return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
         if self.alternative_name.returns_value():
             return self.alternative_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
         return (None, None, None)
