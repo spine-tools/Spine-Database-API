@@ -346,7 +346,7 @@ class ParameterValueMapping(ParameterMappingBase):
             return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
         if self.alternative_name.returns_value():
             return self.alternative_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        return None
+        return (None, None, None)
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
@@ -354,9 +354,9 @@ class ParameterValueMapping(ParameterMappingBase):
         alternative_name_getter_list = self._create_alternative_name_getter_list(
             pivoted_columns, pivoted_data, data_header
         )
-        if value_getter_list is not None:
+        if value_getter_list[0] is not None:
             getters["parameter_value"] = value_getter_list
-        if alternative_name_getter_list is not None:
+        if alternative_name_getter_list[0] is not None:
             getters["alternative_name"] = alternative_name_getter_list
         return getters
 
@@ -419,7 +419,7 @@ class SingleValueMapping:
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         if self.main_value.returns_value():
             return self.main_value.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        return None
+        return (None, None, None)
 
     def raw_data_to_type(self, data):
         return data
