@@ -223,7 +223,7 @@ class ParameterDefinitionMapping(ParameterMappingBase):
     def _create_value_list_name_getter_list(self, pivoted_columns, pivoted_data, data_header):
         if self.parameter_value_list_name.returns_value():
             return self.parameter_value_list_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
-        return None
+        return (None, None, None)
 
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
@@ -233,9 +233,9 @@ class ParameterDefinitionMapping(ParameterMappingBase):
         value_list_name_getter_list = self._create_value_list_name_getter_list(
             pivoted_columns, pivoted_data, data_header
         )
-        if default_value_getter_list is not None:
+        if default_value_getter_list[0] is not None:
             getters["default_value"] = default_value_getter_list
-        if value_list_name_getter_list is not None:
+        if value_list_name_getter_list[0] is not None:
             getters["parameter_value_list_name"] = value_list_name_getter_list
         return getters
 
