@@ -1,0 +1,153 @@
+######################################################################################################################
+# Copyright (C) 2017 - 2020 Spine project consortium
+# This file is part of Spine Database API.
+# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
+# General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+# Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+######################################################################################################################
+
+"""
+Unit tests for ``tool_entity_filter`` module.
+
+:author: M. Marin (KTH)
+:date:   23.9.2020
+"""
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+from sqlalchemy.engine.url import URL
+from spinedb_api import (
+    apply_tool_filter_to_entity_sq,
+    create_new_spine_database,
+    DiffDatabaseMapping,
+    import_object_classes,
+    import_object_parameter_values,
+    import_object_parameters,
+    import_objects,
+    import_parameter_value_lists,
+    import_tools,
+    import_features,
+    import_tool_features,
+    import_tool_feature_methods,
+    SpineDBAPIError,
+)
+
+
+class TestToolEntityFilter(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._temp_dir = TemporaryDirectory()
+        cls._db_url = URL("sqlite", database=Path(cls._temp_dir.name, "test_tool_filter_mapping.sqlite").as_posix())
+
+    def setUp(self):
+        create_new_spine_database(self._db_url)
+        self._db_map = DiffDatabaseMapping(self._db_url)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def _build_data_with_tools(self):
+        import_object_classes(self._db_map, ["object_class"])
+        import_objects(
+            self._db_map,
+            [
+                ("object_class", "object1"),
+                ("object_class", "object2"),
+                ("object_class", "object3"),
+                ("object_class", "object4"),
+            ],
+        )
+        import_parameter_value_lists(
+            self._db_map, [("methods", "methodA"), ("methods", "methodB"), ("methods", "methodC")]
+        )
+        import_object_parameters(
+            self._db_map,
+            [
+                ("object_class", "parameter1", "methodA", "methods"),
+                ("object_class", "parameter2", "methodC", "methods"),
+            ],
+        )
+        import_object_parameter_values(
+            self._db_map,
+            [
+                ("object_class", "object1", "parameter1", "methodA"),
+                ("object_class", "object2", "parameter1", "methodB"),
+                ("object_class", "object3", "parameter1", "methodC"),
+                ("object_class", "object4", "parameter1", "methodB"),
+                ("object_class", "object2", "parameter2", "methodA"),
+                ("object_class", "object3", "parameter2", "methodC"),
+            ],
+        )
+        import_tools(self._db_map, ["tool1", "tool2"])
+        import_features(self._db_map, [("object_class", "parameter1"), ("object_class", "parameter2")])
+        import_tool_features(
+            self._db_map,
+            [("tool1", "object_class", "parameter1", False), ("tool2", "object_class", "parameter1", False),],
+        )
+
+    def test_no_tool(self):
+        self._build_data_with_tools()
+        self._db_map.commit_session("Add test data")
+        with self.assertRaises(SpineDBAPIError):
+            apply_tool_filter_to_entity_sq(self._db_map, "notool")
+
+    def test_tool_feature_no_filter(self):
+        self._build_data_with_tools()
+        self._db_map.commit_session("Add test data")
+        apply_tool_filter_to_entity_sq(self._db_map, "tool1")
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entities), 4)
+        names = [x.name for x in entities]
+        self.assertIn("object1", names)
+        self.assertIn("object2", names)
+        self.assertIn("object3", names)
+        self.assertIn("object4", names)
+
+    def test_tool_feature_required(self):
+        self._build_data_with_tools()
+        import_tool_features(
+            self._db_map, [("tool1", "object_class", "parameter2", True),],
+        )
+        self._db_map.commit_session("Add test data")
+        apply_tool_filter_to_entity_sq(self._db_map, "tool1")
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entities), 2)
+        names = [x.name for x in entities]
+        self.assertIn("object2", names)
+        self.assertIn("object3", names)
+
+    def test_tool_feature_method(self):
+        self._build_data_with_tools()
+        import_tool_feature_methods(
+            self._db_map,
+            [("tool1", "object_class", "parameter1", "methodB"), ("tool2", "object_class", "parameter1", "methodC")],
+        )
+        self._db_map.commit_session("Add test data")
+        apply_tool_filter_to_entity_sq(self._db_map, "tool1")
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entities), 2)
+        names = [x.name for x in entities]
+        self.assertIn("object2", names)
+        self.assertIn("object4", names)
+
+    def test_tool_feature_required_and_method(self):
+        self._build_data_with_tools()
+        import_tool_features(
+            self._db_map, [("tool1", "object_class", "parameter2", True),],
+        )
+        import_tool_feature_methods(
+            self._db_map,
+            [("tool1", "object_class", "parameter1", "methodB"), ("tool2", "object_class", "parameter1", "methodC")],
+        )
+        self._db_map.commit_session("Add test data")
+        apply_tool_filter_to_entity_sq(self._db_map, "tool1")
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entities), 1)
+        self.assertEqual(entities[0].name, "object2")
+
+
+if __name__ == '__main__':
+    unittest.main()
