@@ -149,11 +149,9 @@ from .parameter_value import (
     TimeSeriesVariableResolution,
     ParameterValueEncoder,
 )
-from .alternative_value_filter import (
-    apply_alternative_filter_to_parameter_value_sq,
-    apply_scenario_filter_to_parameter_value_sq,
-)
-from .tool_entity_filter import apply_tool_filter_to_entity_sq
+from .filters.alternative_filter import apply_alternative_filter_to_parameter_value_sq
+from .filters.scenario_filter import apply_scenario_filter_to_parameter_value_sq
+from .filters.tool_filter import apply_tool_filter_to_entity_sq
 from .version import __version__
 
 name = "spinedb_api"
