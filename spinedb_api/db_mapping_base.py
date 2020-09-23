@@ -450,7 +450,7 @@ class DatabaseMappingBase:
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_sq is None:
-            self._entity_sq = self._subquery("entity")
+            self._entity_sq = self._make_entity_sq()
         return self._entity_sq
 
     @property
@@ -1449,6 +1449,21 @@ class DatabaseMappingBase:
             )
         return self._ext_tool_feature_method_sq
 
+    def override_entity_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns entity subquery as an :class:`Alias` object
+        """
+        self._make_entity_sq = MethodType(method, self)
+        self._entity_sq = None
+        self._object_sq = None
+        self._relationship_sq = None
+        self._object_parameter_value_sq = None
+        self._relationship_parameter_value_sq = None
+
     def override_parameter_value_sq_maker(self, method):
         """
         Overrides the function that creates the ``parameter_value_sq`` property.
@@ -1461,6 +1476,15 @@ class DatabaseMappingBase:
         self._parameter_value_sq = None
         self._object_parameter_value_sq = None
         self._relationship_parameter_value_sq = None
+
+    def _make_entity_sq(self):
+        """
+        Creates a subquery for parameter values.
+
+        Returns:
+            Alias: a parameter value subquery
+        """
+        return self._subquery("entity")
 
     def _make_parameter_value_sq(self):
         """

@@ -230,3 +230,4 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.query(self.DiffFeature).delete()
         self.query(self.DiffTool).delete()
         self.query(self.DiffToolFeature).delete()
+        self.query(self.DiffToolFeatureMethod).delete()
