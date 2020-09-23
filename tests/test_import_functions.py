@@ -882,7 +882,9 @@ class TestImportFeature(unittest.TestCase):
     @staticmethod
     def populate(db_map):
         import_object_classes(db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(db_map, [['value_list', ['value1', 'value2', 'value3']]])
+        import_parameter_value_lists(
+            db_map, [['value_list', 'value1'], ['value_list', 'value2'], ['value_list', 'value3']]
+        )
         import_object_parameters(
             db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
         )
@@ -947,7 +949,9 @@ class TestImportToolFeature(unittest.TestCase):
     @staticmethod
     def populate(db_map):
         import_object_classes(db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(db_map, [['value_list', ['value1', 'value2', 'value3']]])
+        import_parameter_value_lists(
+            db_map, [['value_list', 'value1'], ['value_list', 'value2'], ['value_list', 'value3']]
+        )
         import_object_parameters(
             db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
         )
@@ -1023,7 +1027,9 @@ class TestImportToolFeatureMethod(unittest.TestCase):
     @staticmethod
     def populate(db_map):
         import_object_classes(db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(db_map, [['value_list', ['value1', 'value2', 'value3']]])
+        import_parameter_value_lists(
+            db_map, [['value_list', 'value1'], ['value_list', 'value2'], ['value_list', 'value3']]
+        )
         import_object_parameters(
             db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
         )

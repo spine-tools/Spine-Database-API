@@ -73,7 +73,7 @@ class TestExportFunctions(unittest.TestCase):
 
     def test_export_features(self):
         import_object_classes(self._db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(self._db_map, [['value_list', ['value1', 'value2']]])
+        import_parameter_value_lists(self._db_map, [['value_list', 'value1'], ['value_list', 'value2']])
         import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
         import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
         exported = export_features(self._db_map, (Anyone,))
@@ -81,7 +81,7 @@ class TestExportFunctions(unittest.TestCase):
 
     def test_export_tool_features(self):
         import_object_classes(self._db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(self._db_map, [['value_list', ['value1', 'value2']]])
+        import_parameter_value_lists(self._db_map, [['value_list', 'value1'], ['value_list', 'value2']])
         import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
         import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
         import_tools(self._db_map, ["tool1"])
@@ -91,7 +91,7 @@ class TestExportFunctions(unittest.TestCase):
 
     def test_export_tool_feature_methods(self):
         import_object_classes(self._db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(self._db_map, [['value_list', ['value1', 'value2']]])
+        import_parameter_value_lists(self._db_map, [['value_list', 'value1'], ['value_list', 'value2']])
         import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
         import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
         import_tools(self._db_map, ["tool1"])
@@ -139,7 +139,7 @@ class TestExportFunctions(unittest.TestCase):
         import_relationship_parameter_values(
             self._db_map, [("relationship_class", ["object"], "relationship_parameter", 3.14)]
         )
-        import_parameter_value_lists(self._db_map, [("value_list", ["5.5"])])
+        import_parameter_value_lists(self._db_map, [("value_list", "5.5"), ("value_list", "6.4")])
         import_alternatives(self._db_map, ["alternative"])
         import_scenarios(self._db_map, ["scenario"])
         import_scenario_alternatives(self._db_map, [("scenario", "alternative")])
@@ -169,7 +169,7 @@ class TestExportFunctions(unittest.TestCase):
             [("relationship_class", ["object"], "relationship_parameter", 3.14, "Base")],
         )
         self.assertIn("parameter_value_lists", exported)
-        self.assertEqual(exported["parameter_value_lists"], [("value_list", ["5.5"])])
+        self.assertEqual(exported["parameter_value_lists"], [("value_list", "5.5"), ("value_list", "6.4")])
         self.assertIn("alternatives", exported)
         self.assertEqual(exported["alternatives"], [("Base", "Base alternative"), ("alternative", None)])
         self.assertIn("scenarios", exported)
