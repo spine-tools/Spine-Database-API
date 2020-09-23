@@ -17,7 +17,7 @@ Provides functions to apply filtering based on tools to entity subqueries.
 """
 from functools import partial
 from sqlalchemy import and_, or_, case
-from .exception import SpineDBAPIError
+from ..exception import SpineDBAPIError
 
 
 def apply_tool_filter_to_entity_sq(db_map, tool):
@@ -28,8 +28,6 @@ def apply_tool_filter_to_entity_sq(db_map, tool):
         tool (str or int): tool name or id
     """
     state = _ToolFilterState(db_map, tool)
-    _make_tool_filtered_entity_sq(db_map, state)
-
     filtering = partial(_make_tool_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(filtering)
 
