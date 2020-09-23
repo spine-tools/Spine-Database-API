@@ -98,6 +98,7 @@ from .import_mapping.single_import_mapping import (
 )
 from .import_mapping.parameter_import_mapping import (
     TimeSeriesOptions,
+    NoParameterMapping,
     ParameterMappingBase,
     ParameterDefinitionMapping,
     ParameterValueMapping,
@@ -118,6 +119,7 @@ from .import_mapping.item_import_mapping import (
     AlternativeMapping,
     ScenarioMapping,
     ScenarioAlternativeMapping,
+    ParameterValueListMapping,
     FeatureMapping,
     ToolMapping,
     ToolFeatureMapping,

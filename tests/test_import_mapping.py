@@ -648,7 +648,7 @@ class TestMappingIsValid(unittest.TestCase):
     def test_valid_pivoted_parameter_mapping(self):
         mapping = {"map_type": "parameter", "name": {"map_type": "row", "reference": 0}}
         mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
+        mapping.parent = _pivoted_parent()
         is_valid, _ = mapping.is_valid()
         self.assertTrue(is_valid)
 

@@ -70,9 +70,17 @@ class ParameterMappingBase:
     MAP_TYPE = "Parameter"
 
     def __init__(self, name=None):
-        self.parent = None
+        self._parent = None
         self._name = None
         self.name = name
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, parent):
+        self._parent = parent
 
     def component_names(self):  # pylint: disable=no-self-use
         return ["Parameter names"]
@@ -153,6 +161,14 @@ class ParameterMappingBase:
         return {"parameter_name": (None, None, None)}
 
 
+class NoParameterMapping(NoneMapping):
+    def component_names(self):  # pylint: disable=no-self-use
+        return []
+
+    def component_mappings(self):  # pylint: disable=no-self-use
+        return []
+
+
 class ParameterDefinitionMapping(ParameterMappingBase):
 
     MAP_TYPE = "ParameterDefinition"
@@ -162,7 +178,11 @@ class ParameterDefinitionMapping(ParameterMappingBase):
         self._default_value = None
         self.default_value = default_value
         self._parameter_value_list_name = single_mapping_from_value(parameter_value_list_name)
-        self.main_value_name = "Default values"
+
+    @ParameterMappingBase.parent.setter
+    def parent(self, parent):
+        self._parent = parent
+        self._default_value.parent = self.parent
 
     def component_names(self):
         return super().component_names() + self.default_value.component_names() + ["Parameter value list names"]
@@ -194,7 +214,7 @@ class ParameterDefinitionMapping(ParameterMappingBase):
     @default_value.setter
     def default_value(self, default_value):
         self._default_value = value_mapping_from_any(default_value)
-        self._default_value.parent = self
+        self._default_value.main_value_name = "Default values"
 
     @parameter_value_list_name.setter
     def parameter_value_list_name(self, parameter_value_list_name):
@@ -246,7 +266,11 @@ class ParameterValueMapping(ParameterMappingBase):
         self._value = None
         self.value = value
         self._alternative_name = single_mapping_from_value(alternative_name)
-        self.main_value_name = "Parameter values"
+
+    @ParameterMappingBase.parent.setter
+    def parent(self, parent):
+        self._parent = parent
+        self._value.parent = self.parent
 
     def component_names(self):
         return super().component_names() + self.value.component_names() + ["Alternative names"]
@@ -276,7 +300,7 @@ class ParameterValueMapping(ParameterMappingBase):
     @value.setter
     def value(self, value):
         self._value = value_mapping_from_any(value)
-        self._value.parent = self
+        self._value.main_value_name = "Parameter values"
 
     @alternative_name.setter
     def alternative_name(self, alternative_name):
@@ -302,7 +326,7 @@ class ParameterValueMapping(ParameterMappingBase):
         return map_dict
 
     def _component_issues(self, name, mapping):
-        if name == "Parameter values" and (self.is_pivoted() or self.parent.is_pivoted()):
+        if name == "Parameter values" and self.parent.is_pivoted():
             return ""
         return super()._component_issues(name, mapping)
 
@@ -336,16 +360,17 @@ class SingleValueMapping:
 
     def __init__(self, main_value=None):
         self._main_value = single_mapping_from_value(main_value)
-        self.parent = None  # NOTE: This is set by ParameterDefinitionMapping or ParameterValueMapping
+        self.parent = None
+        self.main_value_name = ""
 
     def component_names(self):
-        return [self.parent.main_value_name]
+        return [self.main_value_name]
 
     def component_mappings(self):
         return [self.main_value]
 
     def set_component_by_name(self, name, mapping):
-        if name == self.parent.main_value_name:
+        if name == self.main_value_name:
             self.main_value = mapping
             return True
         return False
@@ -380,11 +405,7 @@ class SingleValueMapping:
         }
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
-        if (
-            (self.parent.parent.is_pivoted() or self.parent.name.is_pivoted())
-            and not self.main_value.is_pivoted()
-            and pivoted_columns
-        ):
+        if self.parent.is_pivoted() and not self.main_value.is_pivoted() and pivoted_columns:
             # if mapping is pivoted values are read from pivoted data
             return (itemgetter(*pivoted_columns), len(pivoted_columns), True)
         if self.main_value.returns_value():
@@ -681,10 +702,10 @@ class TimePatternValueMapping(ArrayValueMapping):
 
 def parameter_mapping_from_dict(map_dict):
     if map_dict is None:
-        return NoneMapping()
+        return NoParameterMapping()
     map_type = map_dict.get("map_type", "")
-    if map_type == NoneMapping.MAP_TYPE:
-        return NoneMapping()
+    if map_type == NoParameterMapping.MAP_TYPE:
+        return NoParameterMapping()
     if map_type == "parameter" or "parameter_type" in map_dict:
         return _legacy_parameter_mapping_from_dict(map_dict)
     map_type_to_class = {

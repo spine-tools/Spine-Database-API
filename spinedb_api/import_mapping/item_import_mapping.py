@@ -27,10 +27,12 @@ from .single_import_mapping import (
     multiple_append,
 )
 from .parameter_import_mapping import (
+    NoParameterMapping,
     ParameterMappingBase,
     ParameterDefinitionMapping,
     ParameterValueMapping,
     parameter_mapping_from_dict,
+    value_mapping_from_any,
 )
 
 
@@ -296,12 +298,14 @@ class EntityClassMapping(NamedItemMapping):
     def last_pivot_row(self):
         return max(super().last_pivot_row(), self._parameters.last_pivot_row())
 
-    def is_pivoted(self):
-        return super().is_pivoted() or self._parameters.is_pivoted()
-
     def has_parameters(self):
         """Returns True if this mapping has parameters, otherwise returns False."""
         return True
+
+    def _component_issues(self, name, mapping):
+        if name in self.parameters.component_names():
+            return self.parameters._component_issues(name, mapping)
+        return super()._component_issues(name, mapping)
 
     def is_valid(self):
         issues = [self.component_issues(k) for k in range(len(self.component_names()))]
@@ -319,8 +323,8 @@ class EntityClassMapping(NamedItemMapping):
     @parameters.setter
     def parameters(self, parameters=None):
         if parameters is None:
-            parameters = NoneMapping()
-        if not isinstance(parameters, (ParameterMappingBase, NoneMapping)):
+            parameters = NoParameterMapping()
+        if not isinstance(parameters, (ParameterMappingBase, NoParameterMapping)):
             raise ValueError(
                 f"parameters must be None, ParameterMappingBase or NoneMapping, "
                 f"instead got {type(parameters).__name__}"
@@ -376,18 +380,20 @@ class ObjectClassMapping(EntityClassMapping):
         self.objects = objects
 
     def component_names(self):
-        return super().component_names() + ["Object class names", "Object names"]
+        return super().component_names() + ["Object class names", "Object names"] + self.parameters.component_names()
 
     def component_mappings(self):
-        return super().component_mappings() + [self.objects]
+        return super().component_mappings() + [self.objects] + self.parameters.component_mappings()
 
     def _optional_component_names(self):  # pylint: disable=no-self-use
         optional_component_names = super()._optional_component_names()
         if not isinstance(self._parameters, ParameterValueMapping):
-            optional_component_names += ["Object names"]  # NOTE: Object names are optional if no parameter values
+            optional_component_names += ["Object names"]  # NOTE: Object names are optional if no parameter value
         return optional_component_names
 
     def set_component_by_name(self, name, mapping):
+        if name in self.parameters.component_names():
+            return self.parameters.set_component_by_name(name, mapping)
         if name == "Object class names":
             self.name = mapping
             return True
@@ -528,12 +534,18 @@ class ObjectGroupMapping(EntityClassMapping):
         self.members = members
 
     def component_names(self):
-        return super().component_names() + ["Object class names", "Group names", "Member names"]
+        return (
+            super().component_names()
+            + ["Object class names", "Group names", "Member names"]
+            + self.parameters.component_names()
+        )
 
     def component_mappings(self):
-        return super().component_mappings() + [self.groups, self.members]
+        return super().component_mappings() + [self.groups, self.members] + self.parameters.component_mappings()
 
     def set_component_by_name(self, name, mapping):
+        if name in self.parameters.component_names():
+            return self.parameters.set_component_by_name(name, mapping)
         if name == "Object class names":
             self.name = mapping
             return True
@@ -720,20 +732,21 @@ class RelationshipClassMapping(EntityClassMapping):
         return [f"Object names {i+1}" for i in range(len(self.objects))]
 
     def component_names(self):
-        component_names = super().component_names() + ["Relationship class names"]
-        if self.object_classes:
-            component_names += self._object_class_component_names()
-        if self.objects:
-            component_names += self._object_component_names()
-        return component_names
+        return (
+            super().component_names()
+            + ["Relationship class names"]
+            + self._object_class_component_names()
+            + self._object_component_names()
+            + self.parameters.component_names()
+        )
 
     def component_mappings(self):
-        component_mappings = super().component_mappings()
-        if self.object_classes:
-            component_mappings.extend(list(self.object_classes))
-        if self.objects:
-            component_mappings.extend(list(self.objects))
-        return component_mappings
+        return (
+            super().component_mappings()
+            + list(self.object_classes)
+            + list(self.objects)
+            + self.parameters.component_mappings()
+        )
 
     def _optional_component_names(self):
         optional_component_names = super()._optional_component_names()
@@ -742,20 +755,20 @@ class RelationshipClassMapping(EntityClassMapping):
         return optional_component_names
 
     def set_component_by_name(self, name, mapping):
+        if name in self.parameters.component_names():
+            return self.parameters.set_component_by_name(name, mapping)
         if name == "Relationship class names":
             self.name = mapping
             return True
-        try:
+        if name in self._object_class_component_names():
             ind = self._object_class_component_names().index(name)
             self.object_classes[ind] = mapping
             return True
-        except ValueError:
-            try:
-                ind = self._object_class_component_names().index(name)
-                self.objects[ind] = mapping
-                return True
-            except ValueError:
-                return super().set_component_by_name(name, mapping)
+        if name in self._object_component_names():
+            ind = self._object_component_names().index(name)
+            self.objects[ind] = mapping
+            return True
+        return super().set_component_by_name(name, mapping)
 
     @property
     def objects(self):
@@ -870,7 +883,7 @@ class RelationshipClassMapping(EntityClassMapping):
             ("relationships",)
             + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
         )
-        if self.import_objects:
+        if self.import_objects:  # pylint: disable=using-constant-test
             for oc, o in zip(self.object_classes, self.objects):
                 oc_getter, oc_num, oc_reads = oc.create_getter_function(pivoted_columns, pivoted_data, data_header)
                 single_o_getter, single_o_num, single_o_reads = o.create_getter_function(
@@ -1240,6 +1253,98 @@ class ScenarioAlternativeMapping(ItemMappingBase):
                 instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
             )
         return ScenarioAlternativeMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
+
+
+class ParameterValueListMapping(NamedItemMapping):
+    """
+        ParameterValueList mapping.
+
+        specification:
+
+            ParameterValueListMapping {
+                map_type: 'ParameterValueList'
+                name: str | Mapping
+                value: any | Mapping
+            }
+    """
+
+    MAP_TYPE = "ParameterValueList"
+
+    def __init__(self, name=None, value=None, skip_columns=None, read_start_row=0):
+        """
+        Args:
+            name (str or SingleMappingBase, optional): mapping for the item name
+            value (str or SingleValueMapping, optional)
+            skip_columns (list, optional): a list of columns to skip while mapping
+            read_start_row (int): skip this many rows while mapping
+        """
+        super().__init__(name, skip_columns, read_start_row)
+        self._value = None
+        self.value = value
+
+    def component_names(self):
+        return super().component_names() + ["Value list names"] + self.value.component_names()
+
+    def component_mappings(self):
+        return super().component_mappings() + self.value.component_mappings()
+
+    def set_component_by_name(self, name, mapping):
+        if name == "Value list names":
+            self.name = mapping
+            return True
+        if name in self.value.component_names():
+            return self.value.set_component_by_name(name, mapping)
+        super().set_component_by_name(name, mapping)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value_mapping_from_any(value)
+        self._value.parent = self
+        self._value.main_value_name = "Values"
+
+    def create_mapping_readers(self, num_columns, pivoted_data, data_header):
+        pivoted_columns = self.pivoted_columns(data_header, num_columns)
+        getters = self._create_getters(pivoted_columns, pivoted_data, data_header)
+        name_getter, name_num, name_reads = getters["item_name"]
+        value_getter, value_num, value_reads = self.value.create_getter_function(
+            pivoted_columns, pivoted_data, data_header
+        )
+        readers = [
+            ("parameter_value_lists",)
+            + create_final_getter_function(
+                [name_getter, value_getter], [name_num, value_num], [name_reads, value_reads]
+            )
+        ]
+        return readers
+
+    @classmethod
+    def from_dict(cls, map_dict):
+        if not isinstance(map_dict, dict):
+            raise TypeError(f"map_dict must be a dict, instead got {type(map_dict).__name__}")
+        name = map_dict.get("name", None)
+        value = map_dict.get("value", None)
+        skip_columns = map_dict.get("skip_columns", [])
+        read_start_row = map_dict.get("read_start_row", 0)
+        return ParameterValueListMapping(name, value, skip_columns, read_start_row)
+
+    def to_dict(self):
+        map_dict = super().to_dict()
+        map_dict["name"] = self.name.to_dict()
+        map_dict["value"] = self.value.to_dict()
+        return map_dict
+
+    @classmethod
+    def from_instance(cls, instance):
+        """See base class."""
+        if isinstance(instance, NamedItemMapping):
+            return ParameterValueListMapping(
+                instance.name, skip_columns=instance.skip_columns, read_start_row=instance.read_start_row
+            )
+        return ParameterValueListMapping(skip_columns=instance.skip_columns, read_start_row=instance.read_start_row)
 
 
 class ToolMapping(NamedItemMapping):
@@ -1708,6 +1813,7 @@ def item_mapping_from_dict(map_dict):
         AlternativeMapping,
         ScenarioMapping,
         ScenarioAlternativeMapping,
+        ParameterValueListMapping,
         ToolMapping,
         FeatureMapping,
         ToolFeatureMapping,
