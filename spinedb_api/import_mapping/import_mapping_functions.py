@@ -199,6 +199,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         "relationship_parameters": [],
         "relationship_parameter_values": [],
         "object_groups": [],
+        "parameter_value_lists": [],
         "alternatives": [],
         "scenarios": [],
         "scenario_alternatives": [],

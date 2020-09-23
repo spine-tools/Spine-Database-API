@@ -16,6 +16,7 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
+from itertools import groupby
 from .diff_db_mapping import DiffDatabaseMapping
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
@@ -1444,7 +1445,7 @@ def import_parameter_value_lists(db_map, data):
         (Int, List) Number of successful inserted objects, list of errors
     """
     to_add, to_update, error_log = _get_parameter_value_lists_for_import(db_map, data)
-    updated = db_map.update_wide_parameter_value_lists(*to_update)
+    updated = db_map._update_wide_parameter_value_lists(*to_update)
     added = db_map._add_wide_parameter_value_lists(*to_add)
     return len(added) + len(updated), error_log
 
@@ -1455,7 +1456,8 @@ def _get_parameter_value_lists_for_import(db_map, data):
     error_log = []
     to_add = []
     to_update = []
-    for name, value_list in data:
+    for name, group in groupby(data, lambda x: x[0]):
+        value_list = list({x[1]: None for x in group}.keys())
         if name in seen:
             error_log.append(
                 ImportErrorLogItem(
