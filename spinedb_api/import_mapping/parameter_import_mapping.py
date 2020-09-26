@@ -416,10 +416,7 @@ class SingleValueMapping:
         return data
 
 
-class ArrayValueMapping(SingleValueMapping):
-    ALLOW_EXTRA_DIMENSION_NO_RETURN = True
-    VALUE_TYPE = "array"
-
+class IndexedValueMapping(SingleValueMapping):
     def __init__(self, main_value=None, extra_dimension=None):
         super().__init__(main_value)
         self._extra_dimensions = None
@@ -443,6 +440,21 @@ class ArrayValueMapping(SingleValueMapping):
             raise ValueError(f"extra_dimensions must be of length 1 instead got len: {len(extra_dimensions)}")
         self._extra_dimensions = [single_mapping_from_value(extra_dimensions[0])]
 
+    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
+        val_getters = super().create_getter_function(pivoted_columns, pivoted_data, data_header)
+        if val_getters[0] is None:
+            return val_getters
+        if all(ed.returns_value() for ed in self.extra_dimensions):
+            # create functions to get extra_dimensions if there is a value getter
+            ed_getters = create_getter_list(self.extra_dimensions, pivoted_columns, pivoted_data, data_header)
+            multiple_append(ed_getters, val_getters)
+            # create a function that returns a tuple with extra dimensions and value
+            return create_getter_function_from_function_list(*ed_getters)
+        if not self.ALLOW_EXTRA_DIMENSION_NO_RETURN:
+            # extra dimensions doesn't return anything so don't read anything from the data source
+            return None, None, None
+        return val_getters
+
     @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
@@ -461,20 +473,19 @@ class ArrayValueMapping(SingleValueMapping):
         map_dict["extra_dimensions"] = [ed.to_dict() for ed in self.extra_dimensions]
         return map_dict
 
-    def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
-        val_getters = super().create_getter_function(pivoted_columns, pivoted_data, data_header)
-        if val_getters[0] is None:
-            return val_getters
-        if all(ed.returns_value() for ed in self.extra_dimensions):
-            # create functions to get extra_dimensions if there is a value getter
-            ed_getters = create_getter_list(self.extra_dimensions, pivoted_columns, pivoted_data, data_header)
-            multiple_append(ed_getters, val_getters)
-            # create a function that returns a tuple with extra dimensions and value
-            return create_getter_function_from_function_list(*ed_getters)
-        if not self.ALLOW_EXTRA_DIMENSION_NO_RETURN:
-            # extra dimensions doesn't return anything so don't read anything from the data source
-            return None, None, None
-        return val_getters
+    def raw_data_to_type(self, data):
+        raise NotImplementedError()
+
+
+class ArrayValueMapping(IndexedValueMapping):
+    ALLOW_EXTRA_DIMENSION_NO_RETURN = True
+    VALUE_TYPE = "array"
+
+    def component_names(self):
+        return super().component_names() + ["Parameter array index"]
+
+    def component_mappings(self):
+        return super().component_mappings() + [self.extra_dimensions[0]]
 
     def raw_data_to_type(self, data):
         out = []
@@ -492,7 +503,7 @@ class ArrayValueMapping(SingleValueMapping):
         return out
 
 
-class MapValueMapping(ArrayValueMapping):
+class MapValueMapping(IndexedValueMapping):
     """
     Attributes:
         compress (bool): if True, compress leaf Maps when reading the data
@@ -602,7 +613,7 @@ class MapValueMapping(ArrayValueMapping):
         return map_
 
 
-class TimeSeriesValueMapping(ArrayValueMapping):
+class TimeSeriesValueMapping(IndexedValueMapping):
     VALUE_TYPE = "time series"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
@@ -672,7 +683,7 @@ class TimeSeriesValueMapping(ArrayValueMapping):
         return out
 
 
-class TimePatternValueMapping(ArrayValueMapping):
+class TimePatternValueMapping(IndexedValueMapping):
     VALUE_TYPE = "time pattern"
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
 
