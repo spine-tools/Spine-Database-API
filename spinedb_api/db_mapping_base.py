@@ -1548,4 +1548,8 @@ class DatabaseMappingBase:
         self.query(self.ParameterTag).delete(synchronize_session=False)
         self.query(self.ParameterDefinitionTag).delete(synchronize_session=False)
         self.query(self.ParameterValueList).delete(synchronize_session=False)
+        self.query(self.Feature).delete(synchronize_session=False)
+        self.query(self.Tool).delete(synchronize_session=False)
+        self.query(self.ToolFeature).delete(synchronize_session=False)
+        self.query(self.ToolFeatureMethod).delete(synchronize_session=False)
         self.query(self.Commit).delete(synchronize_session=False)
