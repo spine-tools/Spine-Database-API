@@ -417,6 +417,9 @@ class SingleValueMapping:
 
 
 class IndexedValueMapping(SingleValueMapping):
+    ALLOW_EXTRA_DIMENSION_NO_RETURN = False
+    VALUE_TYPE = "indexed_value"
+
     def __init__(self, main_value=None, extra_dimension=None):
         super().__init__(main_value)
         self._extra_dimensions = None
@@ -480,9 +483,6 @@ class IndexedValueMapping(SingleValueMapping):
 class ArrayValueMapping(IndexedValueMapping):
     ALLOW_EXTRA_DIMENSION_NO_RETURN = True
     VALUE_TYPE = "array"
-
-    def component_names(self):
-        return super().component_names() + ["Parameter array index"]
 
     def component_mappings(self):
         return super().component_mappings() + [self.extra_dimensions[0]]
