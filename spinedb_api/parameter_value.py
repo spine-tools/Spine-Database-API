@@ -1111,16 +1111,96 @@ def convert_leaf_maps_to_specialized_containers(map_):
     converted_container = _try_convert_to_container(map_)
     if converted_container is not None:
         return converted_container
-    indexes = list()
     new_values = list()
     for index, value in zip(map_.indexes, map_.values):
-        indexes.append(index)
         if isinstance(value, Map):
             converted = convert_leaf_maps_to_specialized_containers(value)
             new_values.append(converted)
         else:
             new_values.append(value)
-    return Map(indexes, new_values)
+    return Map(map_.indexes, new_values)
+
+
+def convert_containers_to_maps(value):
+    """
+    Converts indexed values into maps.
+
+    if ``value`` is :class:`Map` converts leaf values into Maps recursively.
+
+    Args:
+        value (IndexedValue): a value to convert
+
+    Returns:
+        Map: converted Map
+    """
+    if isinstance(value, Map):
+        if not value:
+            return value
+        new_values = list()
+        for index, x in zip(value.indexes, value.values):
+            if isinstance(x, IndexedValue):
+                new_values.append(convert_containers_to_maps(x))
+            else:
+                new_values.append(x)
+        return Map(list(value.indexes), new_values)
+    elif isinstance(value, IndexedValue):
+        if not value:
+            if isinstance(value, TimeSeries):
+                return Map([], [], DateTime)
+            else:
+                return Map([], [], str)
+        return Map(list(value.indexes), list(value.values))
+    return value
+
+
+def convert_map_to_table(map_, make_square=True, row_this_far=None):
+    """
+    Converts :class:`Map` into list of rows recursively.
+
+    Args:
+        map_ (Map): map to convert
+        make_square (bool): if True, append None to shorter rows, otherwise leave the row as is
+        row_this_far (list, optional): current row; used for recursion
+
+    Returns:
+        list of list: map's rows
+    """
+    if row_this_far is None:
+        row_this_far = list()
+    rows = list()
+    for index, value in zip(map_.indexes, map_.values):
+        if not isinstance(value, Map):
+            rows.append(row_this_far + [index, value])
+        else:
+            rows += convert_map_to_table(value, False, row_this_far + [index])
+    if make_square:
+        max_length = 0
+        for row in rows:
+            max_length = max(max_length, len(row))
+        equal_length_rows = list()
+        for row in rows:
+            equal_length_row = row + (max_length - len(row)) * [None]
+            equal_length_rows.append(equal_length_row)
+        return equal_length_rows
+    return rows
+
+
+def convert_map_to_dict(map_):
+    """
+    Converts :class:`Map` to nested dictionaries.
+
+    Args:
+        map_ (Map): map to convert
+
+    Returns:
+        dict: Map as a dict
+    """
+    d = dict()
+    for index, x in zip(map_.indexes, map_.values):
+        if isinstance(x, Map):
+            x = convert_map_to_dict(x)
+        d[index] = x
+    return d
 
 
 def _try_convert_to_container(map_):

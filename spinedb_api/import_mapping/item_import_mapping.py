@@ -1740,7 +1740,7 @@ class ToolFeatureMapping(FeatureMappingMixin, ToolMapping):
                 None,
                 instance._entity_class_name,
                 instance._parameter_definition_name,
-                instance._required,
+                False,
                 instance.skip_columns,
                 instance.read_start_row,
             )

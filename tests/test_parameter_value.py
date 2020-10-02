@@ -24,7 +24,10 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.testing
 from spinedb_api.parameter_value import (
+    convert_containers_to_maps,
     convert_leaf_maps_to_specialized_containers,
+    convert_map_to_dict,
+    convert_map_to_table,
     duration_to_relativedelta,
     relativedelta_to_duration,
     from_database,
@@ -787,6 +790,53 @@ class TestParameterValue(unittest.TestCase):
         time_series = TimeSeriesVariableResolution(["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False)
         expected = Map([1.0, 2.0, 3.0], [nested1, time_series, 4.4])
         self.assertEqual(converted, expected)
+
+    def test_convert_non_nested_map_to_table(self):
+        map_ = Map(["a", "b"], [-3.2, -2.3])
+        table = convert_map_to_table(map_)
+        self.assertEqual(table, [["a", -3.2], ["b", -2.3]])
+
+    def test_convert_nested_map_to_table(self):
+        map1 = Map(["a", "b"], [-3.2, -2.3])
+        map2 = Map(["c", "d"], [3.2, 2.3])
+        nested_map = Map(["A", "B"], [map1, map2])
+        table = convert_map_to_table(nested_map)
+        self.assertEqual(table, [["A", "a", -3.2], ["A", "b", -2.3], ["B", "c", 3.2], ["B", "d", 2.3]])
+
+    def test_convert_uneven_nested_map_to_table(self):
+        map1 = Map(["a", "b"], [-3.2, -2.3])
+        nested_map = Map(["A", "B"], [map1, 42.0])
+        table = convert_map_to_table(nested_map, False)
+        self.assertEqual(table, [["A", "a", -3.2], ["A", "b", -2.3], ["B", 42.0]])
+
+    def test_convert_nested_map_to_table_with_padding(self):
+        map1 = Map(["a", "b"], [-3.2, -2.3])
+        nested_map = Map(["A", "B"], [map1, 42.0])
+        table = convert_map_to_table(nested_map, True)
+        self.assertEqual(table, [["A", "a", -3.2], ["A", "b", -2.3], ["B", 42.0, None]])
+
+    def test_convert_containers_to_maps_empty_map(self):
+        self.assertEqual(convert_containers_to_maps(Map([], [], str)), Map([], [], str))
+
+    def test_convert_containers_to_maps_time_series(self):
+        time_series = TimeSeriesVariableResolution(["2020-11-27T12:55", "2020-11-27T13:00"], [2.5, 2.3], False, False)
+        map_ = convert_containers_to_maps(time_series)
+        self.assertEqual(map_, Map([DateTime("2020-11-27T12:55"), DateTime("2020-11-27T13:00")], [2.5, 2.3]))
+
+    def test_convert_containers_to_maps_map_with_time_series(self):
+        time_series = TimeSeriesVariableResolution(["2020-11-27T12:55", "2020-11-27T13:00"], [2.5, 2.3], False, False)
+        map_ = Map(["a", "b"], [-1.1, time_series])
+        converted = convert_containers_to_maps(map_)
+        expected = Map(
+            ["a", "b"], [-1.1, Map([DateTime("2020-11-27T12:55"), DateTime("2020-11-27T13:00")], [2.5, 2.3])]
+        )
+        self.assertEqual(converted, expected)
+
+    def convert_map_to_dict(self):
+        map1 = Map(["a", "b"], [-3.2, -2.3])
+        map2 = Map(["c", "d"], [3.2, 2.3])
+        nested_map = Map(["A", "B"], [map1, map2])
+        self.assertEqual(nested_map, {"A": {"a": -3.2, "b": -2.3}, "B": {"c": 3.2, "d": 2.3}})
 
 
 if __name__ == "__main__":

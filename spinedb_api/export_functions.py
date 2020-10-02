@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Functions for exporting data into a Spine database using entity names as references.
+Functions for exporting data from a Spine database using entity names as references.
 
 :author: M. Marin (KTH)
 :date:   1.4.2020

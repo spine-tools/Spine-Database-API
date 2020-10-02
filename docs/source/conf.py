@@ -28,6 +28,7 @@ copyright = "2021, Spine"
 
 # The short X.Y version
 from spinedb_api import __version__ as spinedb_api_version
+
 version = spinedb_api_version
 # The full version, including alpha/beta/rc tags
 release = spinedb_api_version
@@ -44,10 +45,10 @@ release = spinedb_api_version
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.todo",        # support for ".. todo:"
-    'sphinx.ext.napoleon',    # support for NumPy or Google style in-code docstrings
-                              # ref: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-    "sphinx.ext.coverage",    # checks documentation coverage
+    "sphinx.ext.todo",  # support for ".. todo:"
+    'sphinx.ext.napoleon',  # support for NumPy or Google style in-code docstrings
+    # ref: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
+    "sphinx.ext.coverage",  # checks documentation coverage
     # "sphinx.ext.githubpages",  # prepares for export to github
     "sphinx.ext.intersphinx",  # enables link to other Sphinx based documentation
     'recommonmark',
@@ -63,10 +64,7 @@ templates_path = ["_templates"]
 # source_suffix = ['.rst', '.md']
 # source_suffix = ".rst"
 # (note: since Sphinx 1.8 this is a dict rather than a list)
-source_suffix = {
-    '.rst': 'restructuredtext',
-    '.md': 'markdown',    # support provided via the 'recommonmark' extension
-}
+source_suffix = {'.rst': 'restructuredtext', '.md': 'markdown'}  # support provided via the 'recommonmark' extension
 
 
 # The master toctree document.
@@ -90,9 +88,7 @@ pygments_style = None
 # Settings for Sphinx AutoAPI
 if 'autoapi.extension' in extensions:
     autoapi_dirs = ['../../spinedb_api']  # package to be documented
-    autoapi_ignore = [
-        '*_rc.py',
-    ]  # ignored modules
+    autoapi_ignore = ['*_rc.py']  # ignored modules
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -153,12 +149,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (
-        master_doc,
-        "SpineDatabaseAPI.tex",
-        "Spine Database API Documentation",
-        "Fabiano, various",
-        "manual")
+    (master_doc, "SpineDatabaseAPI.tex", "Spine Database API Documentation", "Fabiano, various", "manual")
 ]
 
 
@@ -210,10 +201,7 @@ epub_exclude_files = ["search.html"]
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {
-    "https://docs.python.org/": None,
-    "https://docs.sqlalchemy.org/en/13/": None
-}
+intersphinx_mapping = {"https://docs.python.org/": None, "https://docs.sqlalchemy.org/en/13/": None}
 
 # -- Options for todo extension ----------------------------------------------
 

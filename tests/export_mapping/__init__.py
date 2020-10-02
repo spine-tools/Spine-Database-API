@@ -8,10 +8,3 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Init file for tests.spine_io.exporters package. Intentionally empty.
-
-:author: A. Soininen (VTT)
-:date:   28.10.2019
-"""

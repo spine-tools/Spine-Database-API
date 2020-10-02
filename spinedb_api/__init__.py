@@ -137,7 +137,10 @@ from .import_mapping.import_mapping_functions import (
     read_with_mapping,
 )
 from .parameter_value import (
+    convert_containers_to_maps,
     convert_leaf_maps_to_specialized_containers,
+    convert_map_to_dict,
+    convert_map_to_table,
     duration_to_relativedelta,
     relativedelta_to_duration,
     from_database,

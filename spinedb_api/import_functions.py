@@ -1419,8 +1419,8 @@ def import_parameter_value_lists(db_map, data):
     Example::
 
             data = [
-                ['value_list_name', ['value1', 'value2', 'value3'],
-                ['another_value_list_name', ['value5', 'value4'],
+                ['value_list_name', value1], ['value_list_name', value2],
+                ['another_value_list_name', 'value3],
             ]
             import_parameter_value_lists(db_map, data)
 

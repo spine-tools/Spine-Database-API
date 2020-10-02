@@ -139,7 +139,7 @@ class DatabaseMappingAddMixin:
             tablename (str)
             items (Iterable): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
+                they are caught and returned as a log
 
         Returns:
             ids (set): added instances' ids

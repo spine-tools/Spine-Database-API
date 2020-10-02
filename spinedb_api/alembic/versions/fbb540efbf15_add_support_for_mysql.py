@@ -51,12 +51,12 @@ def upgrade():
     with op.batch_alter_table("relationship", naming_convention=naming_convention) as batch_op:
         batch_op.drop_constraint('fk_relationship_entity_id_entity', type_='foreignkey')
         batch_op.create_foreign_key(
-            op.f('fk_relationship_entity_id_entity'), 'entity', ['entity_id', 'type_id'], ['id', 'type_id'],
+            op.f('fk_relationship_entity_id_entity'), 'entity', ['entity_id', 'type_id'], ['id', 'type_id']
         )
     # 2. Add new unique constraints required to make some foreign keys work
     with op.batch_alter_table("relationship_entity_class", naming_convention=naming_convention) as batch_op:
         batch_op.create_unique_constraint(
-            'uq_relationship_entity_class', ['entity_class_id', 'dimension', 'member_class_id'],
+            'uq_relationship_entity_class', ['entity_class_id', 'dimension', 'member_class_id']
         )
     with op.batch_alter_table("relationship", naming_convention=naming_convention) as batch_op:
         batch_op.create_unique_constraint(
@@ -64,7 +64,7 @@ def upgrade():
         )
     with op.batch_alter_table("parameter_definition", naming_convention=naming_convention) as batch_op:
         batch_op.create_unique_constraint(
-            op.f('uq_parameter_definition_idparameter_value_list_id'), ['id', 'parameter_value_list_id'],
+            op.f('uq_parameter_definition_idparameter_value_list_id'), ['id', 'parameter_value_list_id']
         )
     with op.batch_alter_table("feature", naming_convention=naming_convention) as batch_op:
         batch_op.create_unique_constraint(
@@ -79,9 +79,7 @@ def upgrade():
         batch_op.create_unique_constraint(
             'uq_parameter_definition_tag', ['parameter_definition_id', 'parameter_tag_id']
         )
-        batch_op.drop_constraint(
-            'uq_parameter_definition_tag_parameter_definition_idparameter_tag_id', type_='unique',
-        )
+        batch_op.drop_constraint('uq_parameter_definition_tag_parameter_definition_idparameter_tag_id', type_='unique')
     with op.batch_alter_table("parameter_value", naming_convention=naming_convention) as batch_op:
         batch_op.create_unique_constraint(
             'uq_parameter_value', ['parameter_definition_id', 'entity_id', 'alternative_id']
