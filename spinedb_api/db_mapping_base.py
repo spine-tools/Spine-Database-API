@@ -102,6 +102,9 @@ class DatabaseMappingBase:
         self.Feature = None
         self.ToolFeature = None
         self.ToolFeatureMethod = None
+        self.Metadata = None
+        self.ParameterValueMetadata = None
+        self.EntityMetadata = None
         self.IdsForIn = None
         self._ids_for_in_clause_id = 0
         # class and entity type id
@@ -132,6 +135,9 @@ class DatabaseMappingBase:
         self._tool_sq = None
         self._tool_feature_sq = None
         self._tool_feature_method_sq = None
+        self._metadata_sq = None
+        self._parameter_value_metadata_sq = None
+        self._entity_metadata_sq = None
         # Special convenience subqueries that join two or more tables
         self._ext_scenario_sq = None
         self._wide_scenario_sq = None
@@ -180,6 +186,9 @@ class DatabaseMappingBase:
             "feature": "Feature",
             "tool_feature": "ToolFeature",
             "tool_feature_method": "ToolFeatureMethod",
+            "metadata": "Metadata",
+            "parameter_value_metadata": "ParameterValueMetadata",
+            "entity_metadata": "EntityMetadata",
         }
         # Table primary ids map:
         self.table_ids = {
@@ -691,6 +700,24 @@ class DatabaseMappingBase:
         if self._tool_feature_method_sq is None:
             self._tool_feature_method_sq = self._subquery("tool_feature_method")
         return self._tool_feature_method_sq
+
+    @property
+    def metadata_sq(self):
+        if self._metadata_sq is None:
+            self._metadata_sq = self._subquery("metadata")
+        return self._metadata_sq
+
+    @property
+    def parameter_value_metadata_sq(self):
+        if self._parameter_value_metadata_sq is None:
+            self._parameter_value_metadata_sq = self._subquery("parameter_value_metadata")
+        return self._parameter_value_metadata_sq
+
+    @property
+    def entity_metadata_sq(self):
+        if self._entity_metadata_sq is None:
+            self._entity_metadata_sq = self._subquery("entity_metadata")
+        return self._entity_metadata_sq
 
     @property
     def ext_scenario_sq(self):
@@ -1552,4 +1579,7 @@ class DatabaseMappingBase:
         self.query(self.Tool).delete(synchronize_session=False)
         self.query(self.ToolFeature).delete(synchronize_session=False)
         self.query(self.ToolFeatureMethod).delete(synchronize_session=False)
+        self.query(self.Metadata).delete(synchronize_session=False)
+        self.query(self.ParameterValueMetadata).delete(synchronize_session=False)
+        self.query(self.EntityMetadata).delete(synchronize_session=False)
         self.query(self.Commit).delete(synchronize_session=False)

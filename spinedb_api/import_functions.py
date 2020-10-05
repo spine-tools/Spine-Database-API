@@ -36,6 +36,7 @@ from .check_functions import (
     check_wide_parameter_value_list,
 )
 from .parameter_value import to_database
+from .helpers import _parse_metadata
 
 
 class ImportErrorLogItem:
@@ -1488,3 +1489,331 @@ def _get_parameter_value_lists_for_import(db_map, data):
         else:
             to_add.append(item)
     return to_add, to_update, error_log
+
+
+def import_metadata(db_map, data):
+    """Imports metadata. Ignores duplicates.
+
+    Example::
+
+            data = ['{"name1": "value1"}', '{"name2": "value2"}']
+            import_metadata(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of string metadata entries in JSON format
+
+    Returns:
+        (Int, List) Number of successful inserted objects, list of errors
+    """
+    to_add, _, error_log = _get_metadata_for_import(db_map, data)
+    added = db_map._add_metadata(*to_add)
+    return len(added), error_log
+
+
+def _get_metadata_for_import(db_map, data):
+    seen = {(x.name, x.value) for x in db_map.query(db_map.metadata_sq)}
+    to_add = []
+    for metadata in data:
+        metadata = _parse_metadata(metadata)
+        for name, value in metadata.items():
+            if (name, value) in seen:
+                continue
+            item = {"name": name, "value": value}
+            seen.add((name, value))
+            to_add.append(item)
+    return to_add, [], []
+
+
+def import_object_metadata(db_map, data):
+    """Imports object metadata. Ignores duplicates.
+
+    Example::
+
+            data = [("classA", "object1", '{"name1": "value1"}'), ("classA", "object1", '{"name2": "value2"}')]
+            import_object_metadata(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of tuples with class name, object name,
+            and string metadata entries in JSON format
+
+    Returns:
+        (Int, List) Number of successful inserted items, list of errors
+    """
+    to_add, _, error_log = _get_object_metadata_for_import(db_map, data)
+    added = db_map._add_entity_metadata(*to_add)
+    return len(added), error_log
+
+
+def _get_object_metadata_for_import(db_map, data):
+    object_class_ids = {x.name: x.id for x in db_map.query(db_map.object_class_sq)}
+    metadata_ids = {(x.name, x.value): x.id for x in db_map.query(db_map.metadata_sq)}
+    object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
+    seen = {(x.entity_id, x.metadata_id) for x in db_map.query(db_map.entity_metadata_sq)}
+    error_log = []
+    to_add = []
+    for class_name, object_name, metadata in data:
+        oc_id = object_class_ids.get(class_name, None)
+        o_id = object_ids.get((object_name, oc_id), None)
+        if o_id is None:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import object metadata: unknown object {object_name} of class {class_name}",
+                    db_type="object metadata",
+                )
+            )
+            continue
+        metadata = _parse_metadata(metadata)
+        for name, value in metadata.items():
+            m_id = metadata_ids.get((name, value), None)
+            if m_id is None:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Could not import object metadata: unknown metadata {name}: {value}",
+                        db_type="object metadata",
+                    )
+                )
+                continue
+            unique_key = (o_id, m_id)
+            if unique_key in seen:
+                continue
+            item = {"entity_id": o_id, "metadata_id": m_id}
+            seen.add(unique_key)
+            to_add.append(item)
+    return to_add, [], error_log
+
+
+def import_relationship_metadata(db_map, data):
+    """Imports relationship metadata. Ignores duplicates.
+
+    Example::
+
+            data = [
+                ("classA", ("object1", "object2"), '{"name1": "value1"}'),
+                ("classA", ("object3", "object4"), '{"name2": "value2"}')
+            ]
+            import_relationship_metadata(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of tuples with class name, tuple of object names,
+            and string metadata entries in JSON format
+
+    Returns:
+        (Int, List) Number of successful inserted items, list of errors
+    """
+    to_add, _, error_log = _get_relationship_metadata_for_import(db_map, data)
+    added = db_map._add_entity_metadata(*to_add)
+    return len(added), error_log
+
+
+def _get_relationship_metadata_for_import(db_map, data):
+    relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
+    object_class_id_lists = {
+        x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
+        for x in db_map.query(db_map.wide_relationship_class_sq)
+    }
+    metadata_ids = {(x.name, x.value): x.id for x in db_map.query(db_map.metadata_sq)}
+    object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
+    relationship_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.wide_relationship_sq)}
+    seen = {(x.entity_id, x.metadata_id) for x in db_map.query(db_map.entity_metadata_sq)}
+    error_log = []
+    to_add = []
+    for class_name, object_names, metadata in data:
+        rc_id = relationship_class_ids.get(class_name, None)
+        oc_ids = object_class_id_lists.get(rc_id, [])
+        o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
+        r_id = relationship_ids.get((rc_id, o_ids), None)
+        if r_id is None:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg="Could not import relationship metadata: unknown relationship {0} of class {1}".format(
+                        object_names, class_name
+                    ),
+                    db_type="relationship metadata",
+                )
+            )
+            continue
+        metadata = _parse_metadata(metadata)
+        for name, value in metadata.items():
+            m_id = metadata_ids.get((name, value), None)
+            if m_id is None:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Could not import relationship metadata: unknown metadata {name}: {value}",
+                        db_type="relationship metadata",
+                    )
+                )
+                continue
+            unique_key = (r_id, m_id)
+            if unique_key in seen:
+                continue
+            item = {"entity_id": r_id, "metadata_id": m_id}
+            seen.add(unique_key)
+            to_add.append(item)
+    return to_add, [], error_log
+
+
+def import_object_parameter_value_metadata(db_map, data):
+    """Imports object parameter value metadata. Ignores duplicates.
+
+    Example::
+
+            data = [
+                ("classA", "object1", "parameterX", '{"name1": "value1"}'),
+                ("classA", "object1", "parameterY", '{"name2": "value2"}', "alternativeA")
+            ]
+            import_object_parameter_value_metadata(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of tuples with class name, object name,
+            parameter name, string metadata entries in JSON format, and optionally alternative name
+
+    Returns:
+        (Int, List) Number of successful inserted items, list of errors
+    """
+    to_add, _, error_log = _get_object_parameter_value_metadata_for_import(db_map, data)
+    added = db_map._add_parameter_value_metadata(*to_add)
+    return len(added), error_log
+
+
+def _get_object_parameter_value_metadata_for_import(db_map, data):
+    object_class_ids = {x.name: x.id for x in db_map.query(db_map.object_class_sq)}
+    object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
+    parameter_ids = {(x.name, x.entity_class_id): x.id for x in db_map.query(db_map.parameter_definition_sq)}
+    alternative_ids = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
+    default_alt_id = alternative_ids.get("Base", min(alternative_ids.values()))
+    parameter_value_ids = {
+        (x.object_id, x.parameter_id, x.alternative_id): x.id for x in db_map.query(db_map.object_parameter_value_sq)
+    }
+    metadata_ids = {(x.name, x.value): x.id for x in db_map.query(db_map.metadata_sq)}
+    seen = {(x.parameter_value_id, x.metadata_id) for x in db_map.query(db_map.parameter_value_metadata_sq)}
+    error_log = []
+    to_add = []
+    for class_name, object_name, parameter_name, metadata, *optionals in data:
+        oc_id = object_class_ids.get(class_name, None)
+        o_id = object_ids.get((object_name, oc_id), None)
+        p_id = parameter_ids.get((parameter_name, oc_id), None)
+        if optionals:
+            alternative_name = optionals[0]
+            alt_id = alternative_ids.get(alternative_name, None)
+        else:
+            alternative_name = "Base"
+            alt_id = default_alt_id
+        pv_id = parameter_value_ids.get((o_id, p_id, alt_id), None)
+        if pv_id is None:
+            msg = (
+                "Could not import object parameter value metadata: "
+                f"parameter {0} doesn't have a value for object {1}, alternative {2}".format(
+                    parameter_name, object_name, alternative_name
+                ),
+            )
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="object parameter value metadata",))
+            continue
+        metadata = _parse_metadata(metadata)
+        for name, value in metadata.items():
+            m_id = metadata_ids.get((name, value), None)
+            if m_id is None:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Could not import object parameter value metadata: unknown metadata {name}: {value}",
+                        db_type="object parameter value metadata",
+                    )
+                )
+                continue
+            unique_key = (pv_id, m_id)
+            if unique_key in seen:
+                continue
+            item = {"parameter_value_id": pv_id, "metadata_id": m_id}
+            seen.add(unique_key)
+            to_add.append(item)
+    return to_add, [], error_log
+
+
+def import_relationship_parameter_value_metadata(db_map, data):
+    """Imports relationship parameter value metadata. Ignores duplicates.
+
+    Example::
+
+            data = [
+                ("classA", ("object1", "object2"), "parameterX", '{"name1": "value1"}'),
+                ("classA", ("object3", "object4"), "parameterY", '{"name2": "value2"}', "alternativeA")
+            ]
+            import_object_parameter_value_metadata(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of tuples with class name, tuple of object names,
+            parameter name, string metadata entries in JSON format, and optionally alternative name
+
+    Returns:
+        (Int, List) Number of successful inserted items, list of errors
+    """
+    to_add, _, error_log = _get_relationship_parameter_value_metadata_for_import(db_map, data)
+    added = db_map._add_parameter_value_metadata(*to_add)
+    return len(added), error_log
+
+
+def _get_relationship_parameter_value_metadata_for_import(db_map, data):
+    relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
+    object_class_id_lists = {
+        x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
+        for x in db_map.query(db_map.wide_relationship_class_sq)
+    }
+    object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
+    relationship_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.wide_relationship_sq)}
+    parameter_ids = {(x.name, x.entity_class_id): x.id for x in db_map.query(db_map.parameter_definition_sq)}
+    alternative_ids = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
+    default_alt_id = alternative_ids.get("Base", min(alternative_ids.values()))
+    parameter_value_ids = {
+        (x.relationship_id, x.parameter_id, x.alternative_id): x.id
+        for x in db_map.query(db_map.relationship_parameter_value_sq)
+    }
+    metadata_ids = {(x.name, x.value): x.id for x in db_map.query(db_map.metadata_sq)}
+    seen = {(x.parameter_value_id, x.metadata_id) for x in db_map.query(db_map.parameter_value_metadata_sq)}
+    error_log = []
+    to_add = []
+    for class_name, object_names, parameter_name, metadata, *optionals in data:
+        rc_id = relationship_class_ids.get(class_name, None)
+        oc_ids = object_class_id_lists.get(rc_id, [])
+        o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
+        r_id = relationship_ids.get((rc_id, o_ids), None)
+        p_id = parameter_ids.get((parameter_name, rc_id), None)
+        if optionals:
+            alternative_name = optionals[0]
+            alt_id = alternative_ids.get(alternative_name, None)
+        else:
+            alternative_name = "Base"
+            alt_id = default_alt_id
+        pv_id = parameter_value_ids.get((r_id, p_id, alt_id), None)
+        if pv_id is None:
+            msg = (
+                "Could not import relationship parameter value metadata: "
+                f"parameter {0} doesn't have a value for relationship {1}, alternative {2}".format(
+                    parameter_name, object_names, alternative_name
+                ),
+            )
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata",))
+            continue
+        metadata = _parse_metadata(metadata)
+        for name, value in metadata.items():
+            m_id = metadata_ids.get((name, value), None)
+            if m_id is None:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Could not import relationship parameter value metadata: unknown metadata {0}: {1}".format(
+                            name, value
+                        ),
+                        db_type="relationship parameter value metadata",
+                    )
+                )
+                continue
+            unique_key = (pv_id, m_id)
+            if unique_key in seen:
+                continue
+            item = {"parameter_value_id": pv_id, "metadata_id": m_id}
+            seen.add(unique_key)
+            to_add.append(item)
+    return to_add, [], error_log
