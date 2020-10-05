@@ -66,6 +66,11 @@ from .import_functions import (
     import_features,
     import_tool_features,
     import_tool_feature_methods,
+    import_metadata,
+    import_object_metadata,
+    import_relationship_metadata,
+    import_object_parameter_value_metadata,
+    import_relationship_parameter_value_metadata,
     get_data_for_import,
 )
 from .export_functions import (

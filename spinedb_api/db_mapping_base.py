@@ -160,6 +160,7 @@ class DatabaseMappingBase:
         self._ext_feature_sq = None
         self._ext_tool_feature_sq = None
         self._ext_tool_feature_method_sq = None
+        self._ext_entity_metadata_sq = None
         # Table to class map for convenience
         self.table_to_class = {
             "alternative": "Alternative",
@@ -1475,6 +1476,26 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._ext_tool_feature_method_sq
+
+    @property
+    def ext_entity_metadata_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_entity_metadata_sq is None:
+            self._ext_entity_metadata_sq = (
+                self.query(
+                    self.entity_metadata_sq.c.id,
+                    self.entity_metadata_sq.c.entity_id,
+                    self.entity_sq.c.name.label("entity_name"),
+                    self.metadata_sq.c.name.label("metadata_name"),
+                    self.metadata_sq.c.value.label("metadata_value"),
+                )
+                .filter(self.entity_metadata_sq.c.entity_id == self.entity_sq.c.id)
+                .filter(self.entity_metadata_sq.c.metadata_id == self.metadata_sq.c.id)
+                .subquery()
+            )
+        return self._ext_entity_metadata_sq
 
     def override_entity_sq_maker(self, method):
         """

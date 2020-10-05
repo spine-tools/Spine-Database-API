@@ -38,6 +38,8 @@ from .check_functions import (
 from .parameter_value import to_database
 from .helpers import _parse_metadata
 
+# TODO: update docstrings
+
 
 class ImportErrorLogItem:
     """Class to hold log data for import errors"""
@@ -84,6 +86,11 @@ def import_data(
     tools=(),
     tool_features=(),
     tool_feature_methods=(),
+    metadata=(),
+    object_metadata=(),
+    relationship_metadata=(),
+    object_parameter_value_metadata=(),
+    relationship_parameter_value_metadata=(),
 ):
     """Imports data into a Spine database using name references (rather than id
     references).
@@ -117,7 +124,8 @@ def import_data(
                         relationship_parameter_values=rel_p_values,
                         alternatives=alternatives,
                         scenarios=scenarios,
-                        scenario_alternatives=scenario_alternatives)
+                        scenario_alternatives=scenario_alternatives
+                        tools=tools)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): database mapping
@@ -165,6 +173,11 @@ def import_data(
         import_object_groups: object_groups,
         import_object_parameter_values: object_parameter_values,
         import_relationship_parameter_values: relationship_parameter_values,
+        import_metadata: metadata,
+        import_object_metadata: object_metadata,
+        import_relationship_metadata: relationship_metadata,
+        import_object_parameter_value_metadata: object_parameter_value_metadata,
+        import_relationship_parameter_value_metadata: relationship_parameter_value_metadata,
     }
     error_log = []
     num_imports = 0
@@ -195,6 +208,11 @@ def get_data_for_import(
     tools=(),
     tool_features=(),
     tool_feature_methods=(),
+    metadata=(),
+    object_metadata=(),
+    relationship_metadata=(),
+    object_parameter_value_metadata=(),
+    relationship_parameter_value_metadata=(),
 ):
     """Returns an iterator of data for import, that the user can call instead of `import_data`
     if they want to add and update the data by themselves.
@@ -259,6 +277,22 @@ def get_data_for_import(
         yield ("parameter_value", _get_object_parameter_values_for_import(db_map, object_parameter_values))
     if relationship_parameter_values:
         yield ("parameter_value", _get_relationship_parameter_values_for_import(db_map, relationship_parameter_values))
+    if metadata:
+        yield ("metadata", _get_metadata_for_import(db_map, metadata))
+    if object_metadata:
+        yield ("entity_metadata", _get_object_metadata_for_import(db_map, object_metadata))
+    if relationship_metadata:
+        yield ("entity_metadata", _get_relationship_metadata_for_import(db_map, relationship_metadata))
+    if object_parameter_value_metadata:
+        yield (
+            "parameter_value_metadata",
+            _get_object_parameter_value_metadata_for_import(db_map, object_parameter_value_metadata),
+        )
+    if relationship_parameter_value_metadata:
+        yield (
+            "parameter_value_metadata",
+            _get_relationship_parameter_value_metadata_for_import(db_map, relationship_parameter_value_metadata),
+        )
 
 
 def import_features(db_map, data):
