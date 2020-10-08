@@ -95,18 +95,25 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     return compiler.visit_REAL(element, **kw)
 
 
-def _fallback_parse_metadata(metadata):
-    return {"unnamed": str(metadata)}
+def _parse_metadata_fallback(metadata):
+    yield ("unnamed", str(metadata))
 
 
 def _parse_metadata(metadata):
     try:
         parsed = json.loads(metadata)
     except json.decoder.JSONDecodeError:
-        return _fallback_parse_metadata(metadata)
+        yield from _parse_metadata_fallback(metadata)
+        return
     if not isinstance(parsed, dict):
-        return _fallback_parse_metadata(metadata)
-    return {key: str(value) for key, value in parsed.items()}
+        yield from _parse_metadata_fallback(metadata)
+        return
+    for key, value in parsed.items():
+        if isinstance(value, list):
+            for val in value:
+                yield (key, str(val))
+            continue
+        yield (key, str(value))
 
 
 def attr_dict(item):

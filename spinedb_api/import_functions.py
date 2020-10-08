@@ -1549,8 +1549,7 @@ def _get_metadata_for_import(db_map, data):
     seen = {(x.name, x.value) for x in db_map.query(db_map.metadata_sq)}
     to_add = []
     for metadata in data:
-        metadata = _parse_metadata(metadata)
-        for name, value in metadata.items():
+        for name, value in _parse_metadata(metadata):
             if (name, value) in seen:
                 continue
             item = {"name": name, "value": value}
@@ -1598,8 +1597,7 @@ def _get_object_metadata_for_import(db_map, data):
                 )
             )
             continue
-        metadata = _parse_metadata(metadata)
-        for name, value in metadata.items():
+        for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
             if m_id is None:
                 error_log.append(
@@ -1650,7 +1648,10 @@ def _get_relationship_metadata_for_import(db_map, data):
     }
     metadata_ids = {(x.name, x.value): x.id for x in db_map.query(db_map.metadata_sq)}
     object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
-    relationship_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.wide_relationship_sq)}
+    relationship_ids = {
+        (x.class_id, tuple(int(id_) for id_ in x.object_id_list.split(","))): x.id
+        for x in db_map.query(db_map.wide_relationship_sq)
+    }
     seen = {(x.entity_id, x.metadata_id) for x in db_map.query(db_map.entity_metadata_sq)}
     error_log = []
     to_add = []
@@ -1669,8 +1670,7 @@ def _get_relationship_metadata_for_import(db_map, data):
                 )
             )
             continue
-        metadata = _parse_metadata(metadata)
-        for name, value in metadata.items():
+        for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
             if m_id is None:
                 error_log.append(
@@ -1746,8 +1746,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
             )
             error_log.append(ImportErrorLogItem(msg=msg, db_type="object parameter value metadata",))
             continue
-        metadata = _parse_metadata(metadata)
-        for name, value in metadata.items():
+        for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
             if m_id is None:
                 error_log.append(
@@ -1831,18 +1830,11 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
             )
             error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata",))
             continue
-        metadata = _parse_metadata(metadata)
-        for name, value in metadata.items():
+        for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
             if m_id is None:
-                error_log.append(
-                    ImportErrorLogItem(
-                        msg=f"Could not import relationship parameter value metadata: unknown metadata {0}: {1}".format(
-                            name, value
-                        ),
-                        db_type="relationship parameter value metadata",
-                    )
-                )
+                msg = f"Could not import relationship parameter value metadata: unknown metadata {name}: {value}"
+                error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata",))
                 continue
             unique_key = (pv_id, m_id)
             if unique_key in seen:
