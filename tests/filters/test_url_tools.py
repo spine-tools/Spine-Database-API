@@ -26,7 +26,10 @@ class TestAppendFilterConfig(unittest.TestCase):
     def test_append_to_existing_filters(self):
         url = append_filter_config("sqlite:///C:\dbs\database.sqlite", r"F:\fltr\a.json")
         url = append_filter_config(url, r"F:\fltr\b.json")
-        self.assertEqual(url, r"sqlite:///C:\dbs\database.sqlite?spinedbfilter=F%3A%5Cfltr%5Ca.json&spinedbfilter=F%3A%5Cfltr%5Cb.json")
+        self.assertEqual(
+            url,
+            r"sqlite:///C:\dbs\database.sqlite?spinedbfilter=F%3A%5Cfltr%5Ca.json&spinedbfilter=F%3A%5Cfltr%5Cb.json",
+        )
 
 
 class TestPopFilterConfigs(unittest.TestCase):

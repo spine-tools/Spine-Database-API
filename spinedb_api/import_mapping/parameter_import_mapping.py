@@ -399,10 +399,7 @@ class SingleValueMapping:
         return SingleValueMapping(main_value)
 
     def to_dict(self):
-        return {
-            "main_value": self.main_value.to_dict(),
-            "value_type": self.VALUE_TYPE,
-        }
+        return {"main_value": self.main_value.to_dict(), "value_type": self.VALUE_TYPE}
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
         if self.parent.is_pivoted() and not self.main_value.is_pivoted() and pivoted_columns:
@@ -719,10 +716,7 @@ def parameter_mapping_from_dict(map_dict):
         return NoParameterMapping()
     if map_type == "parameter" or "parameter_type" in map_dict:
         return _legacy_parameter_mapping_from_dict(map_dict)
-    map_type_to_class = {
-        "ParameterDefinition": ParameterDefinitionMapping,
-        "ParameterValue": ParameterValueMapping,
-    }
+    map_type_to_class = {"ParameterDefinition": ParameterDefinitionMapping, "ParameterValue": ParameterValueMapping}
     map_class = map_type_to_class.get(map_type, ParameterValueMapping)
     if map_type is None:
         map_dict.update(map_type=map_class.MAP_TYPE)

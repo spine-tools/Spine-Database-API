@@ -85,7 +85,7 @@ class TestToolEntityFilter(unittest.TestCase):
         import_features(self._db_map, [("object_class", "parameter1"), ("object_class", "parameter2")])
         import_tool_features(
             self._db_map,
-            [("tool1", "object_class", "parameter1", False), ("tool2", "object_class", "parameter1", False),],
+            [("tool1", "object_class", "parameter1", False), ("tool2", "object_class", "parameter1", False)],
         )
 
     def test_no_tool(self):
@@ -108,9 +108,7 @@ class TestToolEntityFilter(unittest.TestCase):
 
     def test_tool_feature_required(self):
         self._build_data_with_tools()
-        import_tool_features(
-            self._db_map, [("tool1", "object_class", "parameter2", True),],
-        )
+        import_tool_features(self._db_map, [("tool1", "object_class", "parameter2", True)])
         self._db_map.commit_session("Add test data")
         apply_tool_filter_to_entity_sq(self._db_map, "tool1")
         entities = self._db_map.query(self._db_map.entity_sq).all()
@@ -135,9 +133,7 @@ class TestToolEntityFilter(unittest.TestCase):
 
     def test_tool_feature_required_and_method(self):
         self._build_data_with_tools()
-        import_tool_features(
-            self._db_map, [("tool1", "object_class", "parameter2", True),],
-        )
+        import_tool_features(self._db_map, [("tool1", "object_class", "parameter2", True)])
         import_tool_feature_methods(
             self._db_map,
             [("tool1", "object_class", "parameter1", "methodB"), ("tool2", "object_class", "parameter1", "methodC")],

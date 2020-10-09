@@ -1468,9 +1468,7 @@ class FeatureMapping(FeatureMappingMixin, ItemMappingBase):
 
     MAP_TYPE = "Feature"
 
-    def __init__(
-        self, entity_class_name=None, parameter_definition_name=None, skip_columns=None, read_start_row=0,
-    ):
+    def __init__(self, entity_class_name=None, parameter_definition_name=None, skip_columns=None, read_start_row=0):
         super().__init__(
             skip_columns,
             read_start_row,

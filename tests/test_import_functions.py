@@ -1084,7 +1084,7 @@ class TestImportToolFeatureMethod(unittest.TestCase):
             db_map = create_diff_db_map(temp_dir)
             self.populate(db_map)
             count, errors = import_tool_feature_methods(
-                db_map, [["tool1", "object_class1", "parameter1", "invalid_method"]],
+                db_map, [["tool1", "object_class1", "parameter1", "invalid_method"]]
             )
             self.assertEqual(count, 0)
             self.assertTrue(errors)
