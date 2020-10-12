@@ -428,7 +428,7 @@ def single_mapping_from_int_str(value):
 def single_mapping_from_dict(map_dict):
     type_str_to_class = {
         class_.MAP_TYPE: class_
-        for class_ in (RowMapping, ColumnMapping, ColumnHeaderMapping, ConstantMapping, TableNameMapping, NoneMapping,)
+        for class_ in (RowMapping, ColumnMapping, ColumnHeaderMapping, ConstantMapping, TableNameMapping, NoneMapping)
     }
     map_type_str = map_dict.get("map_type", None)
     if map_type_str == "column_name":

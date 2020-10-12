@@ -1356,12 +1356,7 @@ class DatabaseMappingCheckMixin:
                 )
                 updated_item.update(item)
                 check_parameter_value(
-                    updated_item,
-                    parameter_values,
-                    parameter_definitions,
-                    entities,
-                    parameter_value_lists,
-                    alternatives,
+                    updated_item, parameter_values, parameter_definitions, entities, parameter_value_lists, alternatives
                 )
                 parameter_values[id_] = updated_item
                 parameter_value_ids[

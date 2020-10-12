@@ -125,8 +125,7 @@ def _make_method_filter(tool_feature_method_sq, parameter_value_sq):
 
 def _make_required_filter(tool_feature_method_sq, parameter_value_sq):
     return case(
-        [(or_(tool_feature_method_sq.c.required.is_(False), parameter_value_sq.c.value.isnot(None),), True,)],
-        else_=False,
+        [(or_(tool_feature_method_sq.c.required.is_(False), parameter_value_sq.c.value.isnot(None)), True)], else_=False
     )
 
 
@@ -150,7 +149,7 @@ def _make_tool_filtered_entity_sq(db_map, state):
     required_filter = _make_required_filter(tool_feature_method_sq, parameter_value_sq)
 
     rejected_entity_sq = (
-        db_map.query(state.original_entity_sq.c.id,)
+        db_map.query(state.original_entity_sq.c.id)
         .select_from(db_map.parameter_definition_sq)
         .filter(db_map.parameter_definition_sq.c.entity_class_id == state.original_entity_sq.c.class_id)
         .outerjoin(

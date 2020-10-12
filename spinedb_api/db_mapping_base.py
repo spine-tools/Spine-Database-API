@@ -19,24 +19,12 @@
 import os
 import logging
 from types import MethodType
-from sqlalchemy import (
-    create_engine,
-    inspect,
-    func,
-    case,
-    MetaData,
-    Table,
-    Column,
-    Integer,
-    false,
-    true,
-    and_,
-)
+from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy.exc import NoSuchTableError
+from sqlalchemy.exc import DatabaseError, NoSuchTableError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
@@ -50,6 +38,7 @@ from .helpers import (
     _create_first_spine_database,
     Anyone,
 )
+from .filters.url_tools import clear_filter_configs
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -71,6 +60,8 @@ class DatabaseMappingBase:
         :param str codename: A name that uniquely identifies the class instance within a client application.
         :param bool create: Whether or not to create a Spine db at the given URL if it's not already.
         """
+        if isinstance(db_url, str):
+            db_url = clear_filter_configs(db_url)  # SQLAlchemy's make_url() doesn't handle filter queries
         self.db_url = db_url
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
@@ -236,7 +227,10 @@ class DatabaseMappingBase:
         head = script.get_current_head()
         with engine.connect() as connection:
             migration_context = MigrationContext.configure(connection)
-            current = migration_context.get_current_revision()
+            try:
+                current = migration_context.get_current_revision()
+            except DatabaseError as error:
+                raise SpineDBAPIError(str(error))
             if current is None:
                 # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
                 # Otherwise we either raise or create a new Spine db at the url.
@@ -446,7 +440,7 @@ class DatabaseMappingBase:
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_class_sq is None:
-            self._entity_class_sq = self._subquery("entity_class")
+            self._entity_class_sq = self._make_entity_class_sq()
         return self._entity_class_sq
 
     @property
@@ -1512,6 +1506,22 @@ class DatabaseMappingBase:
         self._object_parameter_value_sq = None
         self._relationship_parameter_value_sq = None
 
+    def override_entity_class_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_class_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns entity class subquery as an :class:`Alias` object
+        """
+        self._make_entity_class_sq = MethodType(method, self)
+        self._entity_class_sq = None
+        self._object_class_sq = None
+        self._relationship_class_sq = None
+        self._parameter_definition_sq = None
+        self._entity_parameter_definition_sq = None
+        self._ext_feature_sq = None
+
     def override_parameter_value_sq_maker(self, method):
         """
         Overrides the function that creates the ``parameter_value_sq`` property.
@@ -1527,12 +1537,21 @@ class DatabaseMappingBase:
 
     def _make_entity_sq(self):
         """
-        Creates a subquery for parameter values.
+        Creates a subquery for entities.
 
         Returns:
-            Alias: a parameter value subquery
+            Alias: an entity subquery
         """
         return self._subquery("entity")
+
+    def _make_entity_class_sq(self):
+        """
+        Creates a subquery for entity classes.
+
+        Returns:
+            Alias: an entity class subquery
+        """
+        return self._subquery("entity_class")
 
     def _make_parameter_value_sq(self):
         """

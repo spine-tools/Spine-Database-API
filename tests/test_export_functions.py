@@ -96,9 +96,7 @@ class TestExportFunctions(unittest.TestCase):
         import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
         import_tools(self._db_map, ["tool1"])
         import_tool_features(self._db_map, [["tool1", "object_class1", "parameter1"]])
-        import_tool_feature_methods(
-            self._db_map, [["tool1", "object_class1", "parameter1", "value2"]],
-        )
+        import_tool_feature_methods(self._db_map, [["tool1", "object_class1", "parameter1", "value2"]])
         exported = export_tool_feature_methods(self._db_map, (Anyone,))
         self.assertEqual(exported, [("tool1", "object_class1", "parameter1", "value2")])
 

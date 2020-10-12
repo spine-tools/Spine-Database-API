@@ -375,12 +375,7 @@ class TestMappingIO(unittest.TestCase):
         self.assertEqual(out, expected)
 
     def test_ToolFeature_to_dict_from_dict(self):
-        mapping_dict = {
-            "map_type": "ToolFeature",
-            "name": 0,
-            "entity_class_name": 1,
-            "parameter_definition_name": 2,
-        }
+        mapping_dict = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
         mapping = ToolFeatureMapping.from_dict(mapping_dict)
         out = mapping.to_dict()
         expected = {
