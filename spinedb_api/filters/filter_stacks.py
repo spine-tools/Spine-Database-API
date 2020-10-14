@@ -29,7 +29,7 @@ def filtered_database_map(mapping_class, url, **kwargs):
     Args:
         mapping_class (type): database mapping class to instantiate
         url (str): database URL
-        **kwargs: additonal keyword arguments to pass to the database map constructor
+        **kwargs: additional keyword arguments to pass to the database map constructor
 
     Returns:
         DatabaseMappingBase: a filtering database map
