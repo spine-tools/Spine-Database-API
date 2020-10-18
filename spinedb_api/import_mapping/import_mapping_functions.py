@@ -189,25 +189,6 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
         r = m.create_mapping_readers(num_cols, pivoted_data, data_header)
         readers.extend([((map_index, key), reader, reads_row, read_data_from_row) for key, reader, reads_row in r])
         min_read_data_from_row = min(min_read_data_from_row, read_data_from_row)
-    merged_data = {
-        "object_classes": [],
-        "objects": [],
-        "object_parameters": [],
-        "object_parameter_values": [],
-        "relationship_classes": [],
-        "relationships": [],
-        "relationship_parameters": [],
-        "relationship_parameter_values": [],
-        "object_groups": [],
-        "parameter_value_lists": [],
-        "alternatives": [],
-        "scenarios": [],
-        "scenario_alternatives": [],
-        "tools": [],
-        "features": [],
-        "tool_features": [],
-        "tool_feature_methods": [],
-    }
     data = dict()
     # run functions that read from header or pivoted area first
     # select only readers that actually need to read row data
@@ -250,11 +231,12 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
             except IndexError as e:
                 errors.append((row_number, e))
     # convert parameter values to right class and put all data in one dict
+    merged_data = {}
     for key, v in data.items():
         map_i, k = key
         if "parameter_values" in k:
             current_mapping = mappings[map_i]
-            merged_data[k].extend(current_mapping.parameters.raw_data_to_type(v))
+            merged_data.setdefault(k, []).extend(current_mapping.parameters.raw_data_to_type(v))
         else:
-            merged_data[k].extend(v)
+            merged_data.setdefault(k, []).extend(v)
     return merged_data, errors
