@@ -151,6 +151,7 @@ class DatabaseMappingBase:
         self._ext_feature_sq = None
         self._ext_tool_feature_sq = None
         self._ext_tool_feature_method_sq = None
+        self._ext_parameter_value_metadata_sq = None
         self._ext_entity_metadata_sq = None
         # Table to class map for convenience
         self.table_to_class = {
@@ -1470,6 +1471,31 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._ext_tool_feature_method_sq
+
+    @property
+    def ext_parameter_value_metadata_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_parameter_value_metadata_sq is None:
+            self._ext_parameter_value_metadata_sq = (
+                self.query(
+                    self.parameter_value_metadata_sq.c.id,
+                    self.parameter_value_metadata_sq.c.parameter_value_id,
+                    self.entity_sq.c.name.label("entity_name"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.alternative_sq.c.name.label("alternative_name"),
+                    self.metadata_sq.c.name.label("metadata_name"),
+                    self.metadata_sq.c.value.label("metadata_value"),
+                )
+                .filter(self.parameter_value_metadata_sq.c.parameter_value_id == self.parameter_value_sq.c.id)
+                .filter(self.parameter_value_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
+                .filter(self.parameter_value_sq.c.entity_id == self.entity_sq.c.id)
+                .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
+                .filter(self.parameter_value_metadata_sq.c.metadata_id == self.metadata_sq.c.id)
+                .subquery()
+            )
+        return self._ext_parameter_value_metadata_sq
 
     @property
     def ext_entity_metadata_sq(self):
