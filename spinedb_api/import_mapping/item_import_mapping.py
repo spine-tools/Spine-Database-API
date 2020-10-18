@@ -374,21 +374,32 @@ class ObjectClassMapping(EntityClassMapping):
 
     MAP_TYPE = "ObjectClass"
 
-    def __init__(self, name=None, objects=None, parameters=None, skip_columns=None, read_start_row=0):
+    def __init__(
+        self, name=None, objects=None, object_metadata=None, parameters=None, skip_columns=None, read_start_row=0
+    ):
         super().__init__(name, parameters, True, skip_columns, read_start_row)
         self._objects = NoneMapping()
         self.objects = objects
+        self._object_metadata = NoneMapping()
+        self.object_metadata = object_metadata
 
     def component_names(self):
-        return super().component_names() + ["Object class names", "Object names"] + self.parameters.component_names()
+        return (
+            super().component_names()
+            + ["Object class names", "Object names", "Object metadata"]
+            + self.parameters.component_names()
+        )
 
     def component_mappings(self):
-        return super().component_mappings() + [self.objects] + self.parameters.component_mappings()
+        return (
+            super().component_mappings() + [self.objects, self.object_metadata] + self.parameters.component_mappings()
+        )
 
     def _optional_component_names(self):  # pylint: disable=no-self-use
         optional_component_names = super()._optional_component_names()
         if not isinstance(self._parameters, ParameterValueMapping):
             optional_component_names += ["Object names"]  # NOTE: Object names are optional if no parameter value
+        optional_component_names += ["Object metadata"]
         return optional_component_names
 
     def set_component_by_name(self, name, mapping):
@@ -399,6 +410,9 @@ class ObjectClassMapping(EntityClassMapping):
             return True
         if name == "Object names":
             self.objects = mapping
+            return True
+        if name == "Object metadata":
+            self.object_metadata = mapping
             return True
         return super().set_component_by_name(name, mapping)
 
@@ -422,6 +436,14 @@ class ObjectClassMapping(EntityClassMapping):
     def objects(self, objects):
         self._objects = single_mapping_from_value(objects)
 
+    @property
+    def object_metadata(self):
+        return self._object_metadata
+
+    @object_metadata.setter
+    def object_metadata(self, object_metadata):
+        self._object_metadata = single_mapping_from_value(object_metadata)
+
     @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
@@ -435,26 +457,39 @@ class ObjectClassMapping(EntityClassMapping):
         if objects is None:
             # previous versions saved "object" instead of "objects"
             objects = map_dict.get("object", None)
+        object_metadata = map_dict.get("object_metadata", None)
         parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
         skip_columns = map_dict.get("skip_columns", [])
         read_start_row = map_dict.get("read_start_row", 0)
         return ObjectClassMapping(
-            name=name, objects=objects, parameters=parameters, skip_columns=skip_columns, read_start_row=read_start_row
+            name=name,
+            objects=objects,
+            object_metadata=object_metadata,
+            parameters=parameters,
+            skip_columns=skip_columns,
+            read_start_row=read_start_row,
         )
 
     def to_dict(self):
         map_dict = super().to_dict()
         map_dict.update(objects=self.objects.to_dict())
+        map_dict.update(object_metadata=self.object_metadata.to_dict())
         return map_dict
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
-        readers = super()._create_getters(pivoted_columns, pivoted_data, data_header)
+        getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
         if self._objects.returns_value():
-            readers["objects"] = self._objects.create_getter_function(pivoted_columns, pivoted_data, data_header)
-            return readers
-        readers["objects"] = (None, None, None)
-        return readers
+            getters["objects"] = self._objects.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        else:
+            getters["objects"] = (None, None, None)
+        if self._object_metadata.returns_value():
+            getters["object_metadata"] = self._object_metadata.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
+            )
+        else:
+            getters["object_metadata"] = (None, None, None)
+        return getters
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
         pivoted_columns = self.pivoted_columns(data_header, num_columns)
@@ -462,11 +497,19 @@ class ObjectClassMapping(EntityClassMapping):
         component_readers = self._create_getters(pivoted_columns, pivoted_data, data_header)
         name_getter, name_num, name_reads = component_readers["item_name"]
         o_getter, o_num, o_reads = component_readers["objects"]
+        om_getter, om_num, om_reads = component_readers["object_metadata"]
         readers.append(("object_classes",) + create_final_getter_function([name_getter], [name_num], [name_reads]))
         readers.append(
             ("objects",)
             + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
         )
+        readers.append(
+            ("object_metadata",)
+            + create_final_getter_function(
+                [name_getter, o_getter, om_getter], [name_num, o_num, om_num], [name_reads, o_reads, om_reads]
+            )
+        )
+        readers.append(("metadata",) + create_final_getter_function([om_getter], [om_num], [om_reads]))
         readers += _parameter_readers(
             "object",
             self.parameters,
@@ -481,16 +524,26 @@ class ObjectClassMapping(EntityClassMapping):
         """See base class."""
         if isinstance(instance, ObjectClassMapping):
             return ObjectClassMapping(
-                instance.name, instance.objects, instance.parameters, instance.skip_columns, instance.read_start_row
+                instance.name,
+                instance.objects,
+                instance.object_metadata,
+                instance.parameters,
+                instance.skip_columns,
+                instance.read_start_row,
             )
         if isinstance(instance, ObjectGroupMapping):
             return ObjectClassMapping(
-                instance.name, instance.members, instance.parameters, instance.skip_columns, instance.read_start_row
+                name=instance.name,
+                objects=instance.members,
+                parameters=instance.parameters,
+                skip_columns=instance.skip_columns,
+                read_start_row=instance.read_start_row,
             )
         if isinstance(instance, RelationshipClassMapping):
             return ObjectClassMapping(
                 instance.object_classes[0],
                 instance.objects[0],
+                instance.relationship_metadata,
                 instance.parameters,
                 instance.skip_columns,
                 instance.read_start_row,
@@ -714,6 +767,7 @@ class RelationshipClassMapping(EntityClassMapping):
         name=None,
         object_classes=None,
         objects=None,
+        relationship_metadata=None,
         parameters=None,
         import_objects=False,
         skip_columns=None,
@@ -724,6 +778,8 @@ class RelationshipClassMapping(EntityClassMapping):
         self._object_classes = None
         self.object_classes = object_classes
         self.objects = objects
+        self._relationship_metadata = NoneMapping()
+        self.relationship_metadata = relationship_metadata
 
     def _object_class_component_names(self):
         return [f"Object class names {i+1}" for i in range(len(self.object_classes))]
@@ -737,6 +793,7 @@ class RelationshipClassMapping(EntityClassMapping):
             + ["Relationship class names"]
             + self._object_class_component_names()
             + self._object_component_names()
+            + ["Relationship metadata"]
             + self.parameters.component_names()
         )
 
@@ -745,6 +802,7 @@ class RelationshipClassMapping(EntityClassMapping):
             super().component_mappings()
             + list(self.object_classes)
             + list(self.objects)
+            + [self.relationship_metadata]
             + self.parameters.component_mappings()
         )
 
@@ -752,6 +810,7 @@ class RelationshipClassMapping(EntityClassMapping):
         optional_component_names = super()._optional_component_names()
         if not isinstance(self._parameters, ParameterValueMapping):
             optional_component_names += self._object_component_names()
+        optional_component_names += ["Relationship metadata"]
         return optional_component_names
 
     def set_component_by_name(self, name, mapping):
@@ -768,11 +827,10 @@ class RelationshipClassMapping(EntityClassMapping):
             ind = self._object_component_names().index(name)
             self.objects[ind] = mapping
             return True
+        if name == "Relationship metadata":
+            self.relationship_metadata = mapping
+            return True
         return super().set_component_by_name(name, mapping)
-
-    @property
-    def objects(self):
-        return self._objects
 
     @property
     def dimensions(self):
@@ -781,6 +839,16 @@ class RelationshipClassMapping(EntityClassMapping):
     def has_fixed_dimensions(self):
         """Returns True if the dimensions of this mapping cannot be set."""
         return False
+
+    @EntityClassMapping.import_objects.setter
+    def import_objects(self, import_objects):
+        if not isinstance(import_objects, bool):
+            raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
+        self._import_objects = import_objects
+
+    @property
+    def objects(self):
+        return self._objects
 
     @objects.setter
     def objects(self, objects):
@@ -797,12 +865,6 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         self._objects = [single_mapping_from_value(o) for o in objects]
 
-    @EntityClassMapping.import_objects.setter
-    def import_objects(self, import_objects):
-        if not isinstance(import_objects, bool):
-            raise TypeError(f"import_objects must be a bool, instead got: {type(import_objects).__name__}")
-        self._import_objects = import_objects
-
     @property
     def object_classes(self):
         return self._object_classes
@@ -817,6 +879,14 @@ class RelationshipClassMapping(EntityClassMapping):
             )
         self._object_classes = [single_mapping_from_value(oc) for oc in object_classes]
 
+    @property
+    def relationship_metadata(self):
+        return self._relationship_metadata
+
+    @relationship_metadata.setter
+    def relationship_metadata(self, relationship_metadata):
+        self._relationship_metadata = single_mapping_from_value(relationship_metadata)
+
     @classmethod
     def from_dict(cls, map_dict):
         if not isinstance(map_dict, dict):
@@ -827,6 +897,7 @@ class RelationshipClassMapping(EntityClassMapping):
         name = map_dict.get("name", None)
         object_classes = map_dict.get("object_classes", None)
         objects = map_dict.get("objects", None)
+        relationship_metadata = map_dict.get("relationship_metadata", None)
         parameters = parameter_mapping_from_dict(map_dict.get("parameters", None))
         skip_columns = map_dict.get("skip_columns", [])
         import_objects = map_dict.get("import_objects", False)
@@ -835,6 +906,7 @@ class RelationshipClassMapping(EntityClassMapping):
             name=name,
             object_classes=object_classes,
             objects=objects,
+            relationship_metadata=relationship_metadata,
             parameters=parameters,
             import_objects=import_objects,
             skip_columns=skip_columns,
@@ -845,27 +917,34 @@ class RelationshipClassMapping(EntityClassMapping):
         map_dict = super().to_dict()
         map_dict.update(objects=[o.to_dict() for o in self.objects])
         map_dict.update(object_classes=[oc.to_dict() for oc in self.object_classes])
+        map_dict.update(relationship_metadata=self.relationship_metadata.to_dict())
         return map_dict
 
     def _create_getters(self, pivoted_columns, pivoted_data, data_header):
         """See base class."""
         getters = super()._create_getters(pivoted_columns, pivoted_data, data_header)
-        oc_getter, oc_num, oc_reads = (None, None, None)
         if all(oc.returns_value() for oc in self.object_classes):
             # create functions to get object_classes
-            oc_getter, oc_num, oc_reads = create_getter_function_from_function_list(
+            getters["object_classes"] = create_getter_function_from_function_list(
                 *create_getter_list(self.object_classes, pivoted_columns, pivoted_data, data_header),
                 list_wrap=len(self.object_classes) == 1,
             )
-        o_getter, o_num, o_reads = (None, None, None)
+        else:
+            getters["object_classes"] = (None, None, None)
         if all(o.returns_value() for o in self.objects):
             # create functions to get objects
-            o_getter, o_num, o_reads = create_getter_function_from_function_list(
+            getters["objects"] = create_getter_function_from_function_list(
                 *create_getter_list(self.objects, pivoted_columns, pivoted_data, data_header),
                 list_wrap=len(self.objects) == 1,
             )
-        getters["objects"] = (o_getter, o_num, o_reads)
-        getters["object_classes"] = (oc_getter, oc_num, oc_reads)
+        else:
+            getters["objects"] = (None, None, None)
+        if self._relationship_metadata.returns_value():
+            getters["relationship_metadata"] = self._relationship_metadata.create_getter_function(
+                pivoted_columns, pivoted_data, data_header
+            )
+        else:
+            getters["relationship_metadata"] = (None, None, None)
         return getters
 
     def create_mapping_readers(self, num_columns, pivoted_data, data_header):
@@ -875,6 +954,7 @@ class RelationshipClassMapping(EntityClassMapping):
         name_getter, name_num, name_reads = component_readers["item_name"]
         o_getter, o_num, o_reads = component_readers["objects"]
         oc_getter, oc_num, oc_reads = component_readers["object_classes"]
+        rm_getter, rm_num, rm_reads = component_readers["relationship_metadata"]
         readers.append(
             ("relationship_classes",)
             + create_final_getter_function([name_getter, oc_getter], [name_num, oc_num], [name_reads, oc_reads])
@@ -883,6 +963,13 @@ class RelationshipClassMapping(EntityClassMapping):
             ("relationships",)
             + create_final_getter_function([name_getter, o_getter], [name_num, o_num], [name_reads, o_reads])
         )
+        readers.append(
+            ("relationship_metadata",)
+            + create_final_getter_function(
+                [name_getter, o_getter, rm_getter], [name_num, o_num, rm_num], [name_reads, o_reads, rm_reads]
+            )
+        )
+        readers.append(("metadata",) + create_final_getter_function([rm_getter], [rm_num], [rm_reads]))
         if self.import_objects:  # pylint: disable=using-constant-test
             for oc, o in zip(self.object_classes, self.objects):
                 oc_getter, oc_num, oc_reads = oc.create_getter_function(pivoted_columns, pivoted_data, data_header)
@@ -912,6 +999,7 @@ class RelationshipClassMapping(EntityClassMapping):
             return RelationshipClassMapping(
                 object_classes=[instance.name],
                 objects=[instance.objects],
+                relationship_metadata=instance.object_metadata,
                 parameters=instance.parameters,
                 skip_columns=instance.skip_columns,
                 read_start_row=instance.read_start_row,
@@ -930,6 +1018,7 @@ class RelationshipClassMapping(EntityClassMapping):
                 instance.name,
                 instance.object_classes,
                 instance.objects,
+                instance.relationship_metadata,
                 instance.import_objects,
                 instance.parameters,
                 instance.skip_columns,
