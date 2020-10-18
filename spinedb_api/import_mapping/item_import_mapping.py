@@ -1939,10 +1939,27 @@ def _parameter_readers(object_or_relationship, parameters_mapping, class_getters
         alt_getters = component_readers.get("alternative_name")
         if alt_getters:
             multiple_append(parameter_value_lists, alt_getters)
-        return [
+        readers = [
             (object_or_relationship + "_parameters",) + create_final_getter_function(*parameter_lists),
             (object_or_relationship + "_parameter_values",) + create_final_getter_function(*parameter_value_lists),
         ]
+        metadata_getters = component_readers.get("parameter_value_metadata")
+        if metadata_getters:
+            metadata_lists = ([], [], [])
+            parameter_value_metadata_lists = ([], [], [])
+            multiple_append(metadata_lists, metadata_getters)
+            multiple_append(parameter_value_metadata_lists, class_getters)
+            multiple_append(parameter_value_metadata_lists, entity_getters)
+            multiple_append(parameter_value_metadata_lists, component_readers["parameter_name"])
+            multiple_append(parameter_value_metadata_lists, metadata_getters)
+            if alt_getters:
+                multiple_append(parameter_value_metadata_lists, alt_getters)
+            readers += [
+                ("metadata",) + create_final_getter_function(*metadata_lists),
+                (object_or_relationship + "_parameter_value_metadata",)
+                + create_final_getter_function(*parameter_value_metadata_lists),
+            ]
+        return readers
     if isinstance(parameters_mapping, ParameterDefinitionMapping):
         parameter_lists = ([], [], [])
         multiple_append(parameter_lists, class_getters)
