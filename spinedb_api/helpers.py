@@ -189,6 +189,7 @@ def custom_generate_relationship(base, direction, return_fn, attrname, local_cls
     kw["viewonly"] = True
     kw["cascade"] = ""
     kw["passive_deletes"] = False
+    kw["sync_backref"] = False
     return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 
