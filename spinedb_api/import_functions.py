@@ -1740,9 +1740,9 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
         if pv_id is None:
             msg = (
                 "Could not import object parameter value metadata: "
-                f"parameter {0} doesn't have a value for object {1}, alternative {2}".format(
+                "parameter {0} doesn't have a value for object {1}, alternative {2}".format(
                     parameter_name, object_name, alternative_name
-                ),
+                )
             )
             error_log.append(ImportErrorLogItem(msg=msg, db_type="object parameter value metadata",))
             continue
@@ -1824,9 +1824,9 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
         if pv_id is None:
             msg = (
                 "Could not import relationship parameter value metadata: "
-                f"parameter {0} doesn't have a value for relationship {1}, alternative {2}".format(
+                "parameter {0} doesn't have a value for relationship {1}, alternative {2}".format(
                     parameter_name, object_names, alternative_name
-                ),
+                )
             )
             error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata",))
             continue
