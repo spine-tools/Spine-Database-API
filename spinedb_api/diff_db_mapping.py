@@ -23,6 +23,7 @@ from .diff_db_mapping_update_mixin import DiffDatabaseMappingUpdateMixin
 from .diff_db_mapping_remove_mixin import DiffDatabaseMappingRemoveMixin
 from .diff_db_mapping_commit_mixin import DiffDatabaseMappingCommitMixin
 from .diff_db_mapping_base import DiffDatabaseMappingBase
+from .filters.filter_stacks import apply_filter_stack, load_filters
 
 
 class DiffDatabaseMapping(
@@ -45,3 +46,10 @@ class DiffDatabaseMapping(
     :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
     :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self._filter_configs is not None:
+            stack = load_filters(self._filter_configs)
+            apply_filter_stack(self, stack)
+

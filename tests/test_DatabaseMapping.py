@@ -18,23 +18,50 @@ Unit tests for DatabaseMapping class.
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
+from sqlalchemy.engine.url import make_url
 from spinedb_api.helpers import create_new_spine_database
 from spinedb_api import DatabaseMapping
 
 
 class TestDatabaseMappingBase(unittest.TestCase):
     _db_map = None
+    _db_url = None
+    _temp_dir = None
 
     @classmethod
     def setUpClass(cls):
         cls._temp_dir = TemporaryDirectory()
-        db_url = "sqlite:///" + os.path.join(cls._temp_dir.name, "test_database_mapping.sqlite")
-        engine = create_new_spine_database(db_url)
-        cls._db_map = DatabaseMapping(db_url)
+        cls._db_url = "sqlite:///" + os.path.join(cls._temp_dir.name, "test_database_mapping.sqlite")
+        engine = create_new_spine_database(cls._db_url)
+        cls._db_map = DatabaseMapping(cls._db_url)
 
     @classmethod
     def tearDownClass(cls):
         cls._db_map.connection.close()
+
+    def test_construction_with_filters(self):
+        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
+        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
+            with patch(
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+            ) as mock_load:
+                db_map = DatabaseMapping(db_url)
+                db_map.connection.close()
+                mock_load.assert_called_once_with(["fltr1", "fltr2"])
+                mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
+
+    def test_construction_with_sqlalchemy_url_and_filters(self):
+        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
+        sa_url = make_url(db_url)
+        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
+            with patch(
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+            ) as mock_load:
+                db_map = DatabaseMapping(sa_url)
+                db_map.connection.close()
+                mock_load.assert_called_once_with(["fltr1", "fltr2"])
+                mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
     def test_entity_class_type_sq(self):
         columns = ["id", "name", "commit_id"]

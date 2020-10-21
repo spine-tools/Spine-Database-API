@@ -22,25 +22,6 @@ from .tool_filter import apply_tool_filter_to_entity_sq
 from .url_tools import pop_filter_configs
 
 
-def filtered_database_map(mapping_class, url, **kwargs):
-    """
-    Constructs a filtered database map.
-
-    Args:
-        mapping_class (type): database mapping class to instantiate
-        url (str): database URL
-        **kwargs: additional keyword arguments to pass to the database map constructor
-
-    Returns:
-        DatabaseMappingBase: a filtering database map
-    """
-    filter_configs, url = pop_filter_configs(url)
-    db_map = mapping_class(url, **kwargs)
-    stack = load_filters(filter_configs)
-    apply_filter_stack(db_map, stack)
-    return db_map
-
-
 def apply_filter_stack(db_map, stack):
     """
     Applies stack of filters and manipulator to given database map.

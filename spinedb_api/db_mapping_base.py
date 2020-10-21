@@ -38,7 +38,7 @@ from .helpers import (
     _create_first_spine_database,
     Anyone,
 )
-from .filters.url_tools import clear_filter_configs
+from .filters.filter_stacks import pop_filter_configs
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -50,18 +50,21 @@ class DatabaseMappingBase:
     It provides the :meth:`query` method for custom db querying.
     """
 
-    def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False):
-        """Initialize class.
-
-
-        :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
-        :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
-        :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
-        :param str codename: A name that uniquely identifies the class instance within a client application.
-        :param bool create: Whether or not to create a Spine db at the given URL if it's not already.
+    def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
+        """
+        Args:
+            db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped.
+            username (str): A user name. If ``None``, it gets replaced by the string ``"anon"``.
+            upgrade (bool): Whether or not the db at the given URL should be upgraded to the most recent version.
+            codename (str): A name that uniquely identifies the class instance within a client application.
+            create (bool): Whether or not to create a Spine db at the given URL if it's not already.
+            apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
         """
         if isinstance(db_url, str):
-            db_url = clear_filter_configs(db_url)  # SQLAlchemy's make_url() doesn't handle filter queries
+            filter_configs, db_url = pop_filter_configs(db_url)
+        else:
+            filter_configs = db_url.query.pop("spinedbfilter", [])
+        self._filter_configs = filter_configs if apply_filters else None
         self.db_url = db_url
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
