@@ -21,8 +21,7 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
-import logging
-import sys
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.util import KeyedTuple
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
@@ -45,6 +44,40 @@ def create_diff_db_map(directory):
     db_url = "sqlite:///" + file_name
     create_new_spine_database(db_url)
     return DiffDatabaseMapping(db_url, username="UnitTest")
+
+
+class TestDiffDatabaseMappingConstruction(unittest.TestCase):
+    _db_url = None
+    _temp_dir = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls._temp_dir = TemporaryDirectory()
+        cls._db_url = "sqlite:///" + os.path.join(cls._temp_dir.name, "test_database_mapping.sqlite")
+        create_new_spine_database(cls._db_url)
+
+    def test_construction_with_filters(self):
+        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
+        with mock.patch("spinedb_api.diff_db_mapping.apply_filter_stack") as mock_apply:
+            with mock.patch(
+                "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+            ) as mock_load:
+                db_map = DiffDatabaseMapping(db_url)
+                db_map.connection.close()
+                mock_load.assert_called_once_with(["fltr1", "fltr2"])
+                mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
+
+    def test_construction_with_sqlalchemy_url_and_filters(self):
+        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
+        sa_url = make_url(db_url)
+        with mock.patch("spinedb_api.diff_db_mapping.apply_filter_stack") as mock_apply:
+            with mock.patch(
+                "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+            ) as mock_load:
+                db_map = DiffDatabaseMapping(sa_url)
+                db_map.connection.close()
+                mock_load.assert_called_once_with(["fltr1", "fltr2"])
+                mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
 
 class TestDiffDatabaseMappingRemove(unittest.TestCase):

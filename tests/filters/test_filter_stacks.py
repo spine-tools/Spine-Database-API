@@ -25,7 +25,6 @@ from spinedb_api import (
     DatabaseMapping,
     DiffDatabaseMapping,
     export_object_classes,
-    filtered_database_map,
     import_object_classes,
     load_filters,
 )
@@ -122,7 +121,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         db_map.connection.close()
 
     def test_without_filters(self):
-        db_map = filtered_database_map(DatabaseMapping, self._db_url)
+        db_map = DatabaseMapping(self._db_url)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("object_class", None, None)])
@@ -136,7 +135,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         with open(path, "w") as out_file:
             dump({"type": "renamer", "name_map": {"object_class": "renamed_once"}}, out_file)
         url = append_filter_config(self._db_url, path)
-        db_map = filtered_database_map(DatabaseMapping, url)
+        db_map = DatabaseMapping(url)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_once", None, None)])
@@ -154,7 +153,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         with open(path2, "w") as out_file:
             dump({"type": "renamer", "name_map": {"renamed_once": "renamed_twice"}}, out_file)
         url = append_filter_config(url, path2)
-        db_map = filtered_database_map(DatabaseMapping, url)
+        db_map = DatabaseMapping(url)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_twice", None, None)])
