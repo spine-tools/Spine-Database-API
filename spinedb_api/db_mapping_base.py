@@ -330,11 +330,11 @@ class DatabaseMappingBase:
                 continue
             tables = set()
 
-            def func(x):
+            def _func(x):
                 if isinstance(x, Table):
                     tables.add(x.name)  # pylint: disable=cell-var-from-loop
 
-            forward_sweep(val, func)
+            forward_sweep(val, _func)
             # Now `tables` contains all tables related to `val`
             for table in tables:
                 table_to_sq_attr.setdefault(table, set()).add(attr)
@@ -346,7 +346,6 @@ class DatabaseMappingBase:
         """
         attrs = set(attr for table in tablenames for attr in self._table_to_sq_attr.get(table, []))
         for attr in attrs:
-            print(attr)
             setattr(self, attr, None)
 
     def query(self, *args, **kwargs):
