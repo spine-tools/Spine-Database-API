@@ -16,6 +16,7 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
+import json
 import warnings
 from sqlalchemy import (
     Boolean,
@@ -92,6 +93,27 @@ def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
     """ Handles mysql DOUBLE datatype as REAL in sqlite """
     return compiler.visit_REAL(element, **kw)
+
+
+def _parse_metadata_fallback(metadata):
+    yield ("unnamed", str(metadata))
+
+
+def _parse_metadata(metadata):
+    try:
+        parsed = json.loads(metadata)
+    except json.decoder.JSONDecodeError:
+        yield from _parse_metadata_fallback(metadata)
+        return
+    if not isinstance(parsed, dict):
+        yield from _parse_metadata_fallback(metadata)
+        return
+    for key, value in parsed.items():
+        if isinstance(value, list):
+            for val in value:
+                yield (key, str(val))
+            continue
+        yield (key, str(value))
 
 
 def attr_dict(item):
@@ -585,6 +607,42 @@ def create_new_spine_database(db_url):
         ),
     )
     Table(
+        "metadata",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(155), nullable=False),
+        Column("value", String(255), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("name", "value"),
+    )
+    Table(
+        "parameter_value_metadata",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "parameter_value_id",
+            Integer,
+            ForeignKey("parameter_value.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column(
+            "metadata_id", Integer, ForeignKey("metadata.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,
+        ),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("parameter_value_id", "metadata_id"),
+    )
+    Table(
+        "entity_metadata",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("entity_id", Integer, ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,),
+        Column(
+            "metadata_id", Integer, ForeignKey("metadata.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,
+        ),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("entity_id", "metadata_id"),
+    )
+    Table(
         "alembic_version",
         meta,
         Column("version_num", String(32), nullable=False),
@@ -596,7 +654,7 @@ def create_new_spine_database(db_url):
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('defbda3bf2b5')")
+        engine.execute("INSERT INTO alembic_version VALUES ('1892adebc00f')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine

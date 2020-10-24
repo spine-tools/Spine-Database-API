@@ -97,6 +97,9 @@ class DatabaseMappingBase:
         self.Feature = None
         self.ToolFeature = None
         self.ToolFeatureMethod = None
+        self.Metadata = None
+        self.ParameterValueMetadata = None
+        self.EntityMetadata = None
         self.IdsForIn = None
         self._ids_for_in_clause_id = 0
         # class and entity type id
@@ -127,6 +130,9 @@ class DatabaseMappingBase:
         self._tool_sq = None
         self._tool_feature_sq = None
         self._tool_feature_method_sq = None
+        self._metadata_sq = None
+        self._parameter_value_metadata_sq = None
+        self._entity_metadata_sq = None
         # Special convenience subqueries that join two or more tables
         self._ext_scenario_sq = None
         self._wide_scenario_sq = None
@@ -149,6 +155,8 @@ class DatabaseMappingBase:
         self._ext_feature_sq = None
         self._ext_tool_feature_sq = None
         self._ext_tool_feature_method_sq = None
+        self._ext_parameter_value_metadata_sq = None
+        self._ext_entity_metadata_sq = None
         self._table_to_sq_attr = {}
         # Table to class map for convenience
         self.table_to_class = {
@@ -176,6 +184,9 @@ class DatabaseMappingBase:
             "feature": "Feature",
             "tool_feature": "ToolFeature",
             "tool_feature_method": "ToolFeatureMethod",
+            "metadata": "Metadata",
+            "parameter_value_metadata": "ParameterValueMetadata",
+            "entity_metadata": "EntityMetadata",
         }
         # Table primary ids map:
         self.table_ids = {
@@ -720,6 +731,24 @@ class DatabaseMappingBase:
         if self._tool_feature_method_sq is None:
             self._tool_feature_method_sq = self._subquery("tool_feature_method")
         return self._tool_feature_method_sq
+
+    @property
+    def metadata_sq(self):
+        if self._metadata_sq is None:
+            self._metadata_sq = self._subquery("metadata")
+        return self._metadata_sq
+
+    @property
+    def parameter_value_metadata_sq(self):
+        if self._parameter_value_metadata_sq is None:
+            self._parameter_value_metadata_sq = self._subquery("parameter_value_metadata")
+        return self._parameter_value_metadata_sq
+
+    @property
+    def entity_metadata_sq(self):
+        if self._entity_metadata_sq is None:
+            self._entity_metadata_sq = self._subquery("entity_metadata")
+        return self._entity_metadata_sq
 
     @property
     def ext_scenario_sq(self):
@@ -1478,6 +1507,51 @@ class DatabaseMappingBase:
             )
         return self._ext_tool_feature_method_sq
 
+    @property
+    def ext_parameter_value_metadata_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_parameter_value_metadata_sq is None:
+            self._ext_parameter_value_metadata_sq = (
+                self.query(
+                    self.parameter_value_metadata_sq.c.id,
+                    self.parameter_value_metadata_sq.c.parameter_value_id,
+                    self.entity_sq.c.name.label("entity_name"),
+                    self.parameter_definition_sq.c.name.label("parameter_name"),
+                    self.alternative_sq.c.name.label("alternative_name"),
+                    self.metadata_sq.c.name.label("metadata_name"),
+                    self.metadata_sq.c.value.label("metadata_value"),
+                )
+                .filter(self.parameter_value_metadata_sq.c.parameter_value_id == self.parameter_value_sq.c.id)
+                .filter(self.parameter_value_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
+                .filter(self.parameter_value_sq.c.entity_id == self.entity_sq.c.id)
+                .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
+                .filter(self.parameter_value_metadata_sq.c.metadata_id == self.metadata_sq.c.id)
+                .subquery()
+            )
+        return self._ext_parameter_value_metadata_sq
+
+    @property
+    def ext_entity_metadata_sq(self):
+        """
+        :type: :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._ext_entity_metadata_sq is None:
+            self._ext_entity_metadata_sq = (
+                self.query(
+                    self.entity_metadata_sq.c.id,
+                    self.entity_metadata_sq.c.entity_id,
+                    self.entity_sq.c.name.label("entity_name"),
+                    self.metadata_sq.c.name.label("metadata_name"),
+                    self.metadata_sq.c.value.label("metadata_value"),
+                )
+                .filter(self.entity_metadata_sq.c.entity_id == self.entity_sq.c.id)
+                .filter(self.entity_metadata_sq.c.metadata_id == self.metadata_sq.c.id)
+                .subquery()
+            )
+        return self._ext_entity_metadata_sq
+
     def override_entity_sq_maker(self, method):
         """
         Overrides the function that creates the ``entity_sq`` property.
@@ -1595,4 +1669,7 @@ class DatabaseMappingBase:
         self.query(self.Tool).delete(synchronize_session=False)
         self.query(self.ToolFeature).delete(synchronize_session=False)
         self.query(self.ToolFeatureMethod).delete(synchronize_session=False)
+        self.query(self.Metadata).delete(synchronize_session=False)
+        self.query(self.ParameterValueMetadata).delete(synchronize_session=False)
+        self.query(self.EntityMetadata).delete(synchronize_session=False)
         self.query(self.Commit).delete(synchronize_session=False)

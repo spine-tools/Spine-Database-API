@@ -39,6 +39,11 @@ from spinedb_api.import_functions import (
     import_features,
     import_tool_features,
     import_tool_feature_methods,
+    import_metadata,
+    import_object_metadata,
+    import_relationship_metadata,
+    import_object_parameter_value_metadata,
+    import_relationship_parameter_value_metadata,
     import_data,
 )
 from spinedb_api.parameter_value import from_database
@@ -1037,7 +1042,7 @@ class TestImportToolFeatureMethod(unittest.TestCase):
         import_tools(db_map, ["tool1"])
         import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
 
-    def test_a_couple_of_tool_feature_method(self):
+    def test_import_a_couple_of_tool_feature_methods(self):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             self.populate(db_map)
@@ -1088,6 +1093,128 @@ class TestImportToolFeatureMethod(unittest.TestCase):
             )
             self.assertEqual(count, 0)
             self.assertTrue(errors)
+            db_map.connection.close()
+
+
+class TestImportMetadata(unittest.TestCase):
+    def test_import_metadata(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 90}'])
+            self.assertEqual(count, 4)
+            self.assertFalse(errors)
+            metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
+            self.assertEqual(len(metadata), 4)
+            self.assertIn(("name", "John"), metadata)
+            self.assertIn(("name", "Charly"), metadata)
+            self.assertIn(("age", "17"), metadata)
+            self.assertIn(("age", "90"), metadata)
+            db_map.connection.close()
+
+    def test_import_metadata_with_duplicate_entry(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 17}'])
+            self.assertEqual(count, 3)
+            self.assertFalse(errors)
+            metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
+            self.assertEqual(len(metadata), 3)
+            self.assertIn(("name", "John"), metadata)
+            self.assertIn(("name", "Charly"), metadata)
+            self.assertIn(("age", "17"), metadata)
+            db_map.connection.close()
+
+    def test_import_metadata_with_nested_dict(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_metadata(db_map, ['{"name": "John", "info": {"age": 17, "city": "LA"}}'])
+            metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
+            self.assertEqual(count, 2)
+            self.assertFalse(errors)
+            self.assertEqual(len(metadata), 2)
+            self.assertIn(("name", "John"), metadata)
+            self.assertIn(("info", "{'age': 17, 'city': 'LA'}"), metadata)
+            db_map.connection.close()
+
+    def test_import_metadata_with_nested_list(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_metadata(db_map, ['{"contributors": [{"name": "John"}, {"name": "Charly"}]}'])
+            metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
+            self.assertEqual(count, 2)
+            self.assertFalse(errors)
+            self.assertEqual(len(metadata), 2)
+            self.assertIn(('contributors', "{'name': 'John'}"), metadata)
+            self.assertIn(('contributors', "{'name': 'Charly'}"), metadata)
+            db_map.connection.close()
+
+    def test_import_unformatted_metadata(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            count, errors = import_metadata(db_map, ['not a JSON object'])
+            metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
+            self.assertEqual(count, 1)
+            self.assertFalse(errors)
+            self.assertEqual(len(metadata), 1)
+            self.assertIn(("unnamed", "not a JSON object"), metadata)
+            db_map.connection.close()
+
+
+class TestImportEntityMetadata(unittest.TestCase):
+    @staticmethod
+    def populate(db_map):
+        import_object_classes(db_map, ["object_class1", "object_class2"])
+        import_relationship_classes(db_map, [("rel_cls1", ("object_class1", "object_class2"))])
+        import_objects(db_map, [("object_class1", "object1"), ("object_class2", "object2")])
+        import_relationships(db_map, [("rel_cls1", ("object1", "object2"))])
+        import_object_parameters(db_map, [("object_class1", "param1")])
+        import_relationship_parameters(db_map, [("rel_cls1", "param2")])
+        import_object_parameter_values(db_map, [("object_class1", "object1", "param1", "value1")])
+        import_relationship_parameter_values(db_map, [("rel_cls1", ("object1", "object2"), "param2", "value2")])
+        import_metadata(db_map, ['{"co-author": "John", "age": 17}', '{"co-author": "Charly", "age": 90}'])
+
+    def test_import_object_metadata(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_object_metadata(
+                db_map,
+                [
+                    ("object_class1", "object1", '{"co-author": "John", "age": 90}'),
+                    ("object_class1", "object1", '{"co-author": "Charly", "age": 17}'),
+                ],
+            )
+            self.assertEqual(count, 4)
+            self.assertFalse(errors)
+            metadata = [
+                (x.entity_name, x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)
+            ]
+            self.assertEqual(len(metadata), 4)
+            self.assertIn(('object1', 'co-author', 'John'), metadata)
+            self.assertIn(('object1', 'age', '90'), metadata)
+            self.assertIn(('object1', 'co-author', 'Charly'), metadata)
+            self.assertIn(('object1', 'age', '17'), metadata)
+            db_map.connection.close()
+
+    def test_import_relationship_metadata(self):
+        with TemporaryDirectory() as temp_dir:
+            db_map = create_diff_db_map(temp_dir)
+            self.populate(db_map)
+            count, errors = import_relationship_metadata(
+                db_map,
+                [
+                    ("rel_cls1", ("object1", "object2"), '{"co-author": "John", "age": 90}'),
+                    ("rel_cls1", ("object1", "object2"), '{"co-author": "Charly", "age": 17}'),
+                ],
+            )
+            self.assertEqual(count, 4)
+            self.assertFalse(errors)
+            metadata = [(x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)]
+            self.assertEqual(len(metadata), 4)
+            self.assertIn(('co-author', 'John'), metadata)
+            self.assertIn(('age', '90'), metadata)
+            self.assertIn(('co-author', 'Charly'), metadata)
+            self.assertIn(('age', '17'), metadata)
             db_map.connection.close()
 
 

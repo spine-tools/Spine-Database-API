@@ -66,6 +66,9 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.DiffTool = None
         self.DiffToolFeature = None
         self.DiffToolFeatureMethod = None
+        self.DiffMetadata = None
+        self.DiffParameterValueMetadata = None
+        self.DiffEntityMetadata = None
         self.composite_pks = {
             "relationship_entity": ("entity_id", "dimension"),
             "relationship_entity_class": ("entity_class_id", "dimension"),
@@ -198,3 +201,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.query(self.DiffTool).delete()
         self.query(self.DiffToolFeature).delete()
         self.query(self.DiffToolFeatureMethod).delete()
+        self.query(self.DiffMetadata).delete()
+        self.query(self.DiffParameterValueMetadata).delete()
+        self.query(self.DiffEntityMetadata).delete()

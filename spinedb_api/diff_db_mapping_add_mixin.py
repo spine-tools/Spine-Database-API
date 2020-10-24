@@ -58,6 +58,9 @@ class DiffDatabaseMappingAddMixin:
             Column("feature_id", Integer, server_default=null()),
             Column("tool_feature_id", Integer, server_default=null()),
             Column("tool_feature_method_id", Integer, server_default=null()),
+            Column("metadata_id", Integer, server_default=null()),
+            Column("parameter_value_metadata_id", Integer, server_default=null()),
+            Column("entity_metadata_id", Integer, server_default=null()),
         )
         next_id_table.create(self.engine, checkfirst=True)
         # Create mapping...
@@ -108,6 +111,9 @@ class DiffDatabaseMappingAddMixin:
             "feature": "feature_id",
             "tool_feature": "tool_feature_id",
             "tool_feature_method": "tool_feature_method_id",
+            "metadata": "metadata_id",
+            "parameter_value_metadata": "parameter_value_metadata_id",
+            "entity_metadata": "entity_metadata_id",
         }[tablename]
         next_id = self._next_id_with_lock()
         id_ = getattr(next_id, next_id_fieldname)
@@ -130,6 +136,9 @@ class DiffDatabaseMappingAddMixin:
                 "feature": "Feature",
                 "tool_feature": "ToolFeature",
                 "tool_feature_method": "ToolFeatureMethod",
+                "metadata": "Metadata",
+                "parameter_value_metadata": "ParameterValueMetadata",
+                "entity_metadata": "EntityMetadata",
             }[tablename]
             class_ = getattr(self, classname)
             max_id = self.query(func.max(class_.id)).scalar()
@@ -1094,6 +1103,81 @@ class DiffDatabaseMappingAddMixin:
         ids = set(x["id"] for x in wide_items)
         self.added_item_id["parameter_value_list"].update(ids)
         return ids, []
+
+    def _add_metadata(self, *items):
+        """Add metadata items to database without checking integrity.
+
+        Args:
+            items (iter): list of dictionaries which correspond to the instances to add
+            strict (bool): if True SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            ids (set): added instances' ids
+        """
+        items_to_add, ids = self._items_and_ids("metadata", *items)
+        self._do_add_metadata(*items_to_add)
+        self.added_item_id["metadata"].update(ids)
+        return ids
+
+    def _do_add_metadata(self, *items_to_add):
+        try:
+            self.session.bulk_insert_mappings(self.DiffMetadata, items_to_add)
+            self.session.commit()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting metadata: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def _add_parameter_value_metadata(self, *items):
+        """Add parameter value metadata items to database without checking integrity.
+
+        Args:
+            items (iter): list of dictionaries which correspond to the instances to add
+            strict (bool): if True SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            ids (set): added instances' ids
+        """
+        items_to_add, ids = self._items_and_ids("parameter_value_metadata", *items)
+        self._do_add_parameter_value_metadata(*items_to_add)
+        self.added_item_id["parameter_value_metadata"].update(ids)
+        return ids
+
+    def _do_add_parameter_value_metadata(self, *items_to_add):
+        try:
+            self.session.bulk_insert_mappings(self.DiffParameterValueMetadata, items_to_add)
+            self.session.commit()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting parameter value metadata: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
+
+    def _add_entity_metadata(self, *items):
+        """Add entity metadata items to database without checking integrity.
+
+        Args:
+            items (iter): list of dictionaries which correspond to the instances to add
+            strict (bool): if True SpineIntegrityError are raised. Otherwise
+                they are catched and returned as a log
+
+        Returns:
+            ids (set): added instances' ids
+        """
+        items_to_add, ids = self._items_and_ids("entity_metadata", *items)
+        self._do_add_entity_metadata(*items_to_add)
+        self.added_item_id["entity_metadata"].update(ids)
+        return ids
+
+    def _do_add_entity_metadata(self, *items_to_add):
+        try:
+            self.session.bulk_insert_mappings(self.DiffEntityMetadata, items_to_add)
+            self.session.commit()
+        except DBAPIError as e:
+            self.session.rollback()
+            msg = "DBAPIError while inserting entity metadata: {}".format(e.orig.args)
+            raise SpineDBAPIError(msg)
 
     def add_object_class(self, **kwargs):
         """Stage an object class item for insertion.

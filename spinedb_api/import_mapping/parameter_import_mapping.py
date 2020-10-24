@@ -261,11 +261,12 @@ class ParameterDefinitionMapping(ParameterMappingBase):
 class ParameterValueMapping(ParameterMappingBase):
     MAP_TYPE = "ParameterValue"
 
-    def __init__(self, name=None, value=None, alternative_name=None):
+    def __init__(self, name=None, value=None, alternative_name=None, parameter_value_metadata=None):
         super().__init__(name)
         self._value = None
         self.value = value
         self._alternative_name = single_mapping_from_value(alternative_name)
+        self._parameter_value_metadata = single_mapping_from_value(parameter_value_metadata)
 
     @ParameterMappingBase.parent.setter
     def parent(self, parent):
@@ -273,19 +274,28 @@ class ParameterValueMapping(ParameterMappingBase):
         self._value.parent = self.parent
 
     def component_names(self):
-        return super().component_names() + self.value.component_names() + ["Alternative names"]
+        return (
+            super().component_names() + self.value.component_names() + ["Alternative names", "Parameter value metadata"]
+        )
 
     def component_mappings(self):
-        return super().component_mappings() + self.value.component_mappings() + [self.alternative_name]
+        return (
+            super().component_mappings()
+            + self.value.component_mappings()
+            + [self.alternative_name, self.parameter_value_metadata]
+        )
 
     def _optional_component_names(self):
-        return super()._optional_component_names() + ["Alternative names"]
+        return super()._optional_component_names() + ["Alternative names", "Parameter value metadata"]
 
     def set_component_by_name(self, name, mapping):
         if name in self.value.component_names():
             return self.value.set_component_by_name(name, mapping)
         if name == "Alternative names":
             self.alternative_name = mapping
+            return True
+        if name == "Parameter value metadata":
+            self.parameter_value_metadata = mapping
             return True
         return super().set_component_by_name(name, mapping)
 
@@ -297,6 +307,10 @@ class ParameterValueMapping(ParameterMappingBase):
     def alternative_name(self):
         return self._alternative_name
 
+    @property
+    def parameter_value_metadata(self):
+        return self._parameter_value_metadata
+
     @value.setter
     def value(self, value):
         self._value = value_mapping_from_any(value)
@@ -305,6 +319,10 @@ class ParameterValueMapping(ParameterMappingBase):
     @alternative_name.setter
     def alternative_name(self, alternative_name):
         self._alternative_name = single_mapping_from_value(alternative_name)
+
+    @parameter_value_metadata.setter
+    def parameter_value_metadata(self, parameter_value_metadata):
+        self._parameter_value_metadata = single_mapping_from_value(parameter_value_metadata)
 
     @classmethod
     def from_dict(cls, map_dict):
@@ -316,13 +334,15 @@ class ParameterValueMapping(ParameterMappingBase):
         name = map_dict.get("name", None)
         value = map_dict.get("value", None)
         alternative_name = map_dict.get("alternative_name", None)
-        return ParameterValueMapping(name, value, alternative_name)
+        parameter_value_metadata = map_dict.get("parameter_value_metadata", None)
+        return ParameterValueMapping(name, value, alternative_name, parameter_value_metadata)
 
     def to_dict(self):
         map_dict = super().to_dict()
         map_dict["map_type"] = self.MAP_TYPE
         map_dict.update({"value": self.value.to_dict()})
         map_dict.update({"alternative_name": self.alternative_name.to_dict()})
+        map_dict.update({"parameter_value_metadata": self.parameter_value_metadata.to_dict()})
         return map_dict
 
     def _component_issues(self, name, mapping):
@@ -335,16 +355,26 @@ class ParameterValueMapping(ParameterMappingBase):
             return self.alternative_name.create_getter_function(pivoted_columns, pivoted_data, data_header)
         return (None, None, None)
 
+    def _create_parameter_value_metadata_getter_list(self, pivoted_columns, pivoted_data, data_header):
+        if self.parameter_value_metadata.returns_value():
+            return self.parameter_value_metadata.create_getter_function(pivoted_columns, pivoted_data, data_header)
+        return (None, None, None)
+
     def create_getter_list(self, pivoted_columns, pivoted_data, data_header):
         getters = super().create_getter_list(pivoted_columns, pivoted_data, data_header)
         value_getter_list = self.value.create_getter_function(pivoted_columns, pivoted_data, data_header)
         alternative_name_getter_list = self._create_alternative_name_getter_list(
             pivoted_columns, pivoted_data, data_header
         )
+        parameter_value_metadata_getter_list = self._create_parameter_value_metadata_getter_list(
+            pivoted_columns, pivoted_data, data_header
+        )
         if value_getter_list[0] is not None:
             getters["value"] = value_getter_list
         if alternative_name_getter_list[0] is not None:
             getters["alternative_name"] = alternative_name_getter_list
+        if parameter_value_metadata_getter_list[0] is not None:
+            getters["parameter_value_metadata"] = parameter_value_metadata_getter_list
         return getters
 
     def raw_data_to_type(self, data):
