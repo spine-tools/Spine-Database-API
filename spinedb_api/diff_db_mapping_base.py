@@ -20,10 +20,8 @@ from datetime import datetime, timezone
 from sqlalchemy import MetaData, Table, inspect
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.sql.expression import Alias
 from .db_mapping_base import DatabaseMappingBase
 from .exception import SpineTableNotFoundError
-from .helpers import forward_sweep
 
 # TODO: improve docstrings
 
@@ -80,29 +78,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Initialize stuff
         self._init_diff_dicts()
         self._create_diff_tables_and_mapping()
-        self._table_to_sq_attr = self._make_table_to_sq_attr()
-
-    def _make_table_to_sq_attr(self):
-        """Returns a dict mapping table names to subquery attribute names, involving that table.
-        """
-        # This 'loads' our subquery attributes
-        for attr in dir(self):
-            getattr(self, attr)
-        table_to_sq_attr = {}
-        for attr, val in vars(self).items():
-            if not isinstance(val, Alias):
-                continue
-            tables = set()
-
-            def func(x):
-                if isinstance(x, Table) and not x.name.startswith(self.diff_prefix):
-                    tables.add(x.name)  # pylint: disable=cell-var-from-loop
-
-            forward_sweep(val, func)
-            # Now `tables` contains all tables related to `val`
-            for table in tables:
-                table_to_sq_attr.setdefault(table, set()).add(attr)
-        return table_to_sq_attr
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
@@ -148,14 +123,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         are no longer valid, and they should be queried from the diff tables instead."""
         self.dirty_item_id[tablename].update(ids)
         self._clear_subqueries(tablename)
-
-    def _clear_subqueries(self, *tablenames):
-        """Set to `None` subquery attributes involving the affected tables.
-        This forces the subqueries to be refreshed when accessing the corresponding property.
-        """
-        attrs = set(attr for table in tablenames for attr in self._table_to_sq_attr.get(table, []))
-        for attr in attrs:
-            setattr(self, attr, None)
 
     def _subquery(self, tablename):
         """Overriden method to

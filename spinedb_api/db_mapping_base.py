@@ -20,7 +20,7 @@ import os
 import logging
 from types import MethodType
 from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
-from sqlalchemy.sql.expression import label
+from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, aliased
@@ -37,6 +37,7 @@ from .helpers import (
     custom_generate_relationship,
     _create_first_spine_database,
     Anyone,
+    forward_sweep,
 )
 from .filters.filter_stacks import pop_filter_configs
 
@@ -148,6 +149,7 @@ class DatabaseMappingBase:
         self._ext_feature_sq = None
         self._ext_tool_feature_sq = None
         self._ext_tool_feature_method_sq = None
+        self._table_to_sq_attr = {}
         # Table to class map for convenience
         self.table_to_class = {
             "alternative": "Alternative",
@@ -304,6 +306,37 @@ class DatabaseMappingBase:
         clause_id = self._ids_for_in_clause_id
         self.session.bulk_insert_mappings(self.IdsForIn, ({"id_for_in": id_, "clause_id": clause_id} for id_ in ids))
         return column.in_(self.query(self.IdsForIn.id_for_in).filter_by(clause_id=clause_id))
+
+    def _make_table_to_sq_attr(self):
+        """Returns a dict mapping table names to subquery attribute names, involving that table.
+        """
+        # This 'loads' our subquery attributes
+        for attr in dir(self):
+            getattr(self, attr)
+        table_to_sq_attr = {}
+        for attr, val in vars(self).items():
+            if not isinstance(val, Alias):
+                continue
+            tables = set()
+
+            def func(x):
+                if isinstance(x, Table):
+                    tables.add(x.name)  # pylint: disable=cell-var-from-loop
+
+            forward_sweep(val, func)
+            # Now `tables` contains all tables related to `val`
+            for table in tables:
+                table_to_sq_attr.setdefault(table, set()).add(attr)
+        return table_to_sq_attr
+
+    def _clear_subqueries(self, *tablenames):
+        """Set to `None` subquery attributes involving the affected tables.
+        This forces the subqueries to be refreshed when the corresponding property is accessed.
+        """
+        attrs = set(attr for table in tablenames for attr in self._table_to_sq_attr.get(table, []))
+        for attr in attrs:
+            print(attr)
+            setattr(self, attr, None)
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
@@ -1455,11 +1488,7 @@ class DatabaseMappingBase:
                 returns entity subquery as an :class:`Alias` object
         """
         self._make_entity_sq = MethodType(method, self)
-        self._entity_sq = None
-        self._object_sq = None
-        self._relationship_sq = None
-        self._object_parameter_value_sq = None
-        self._relationship_parameter_value_sq = None
+        self._clear_subqueries("entity")
 
     def override_entity_class_sq_maker(self, method):
         """
@@ -1470,12 +1499,7 @@ class DatabaseMappingBase:
                 returns entity class subquery as an :class:`Alias` object
         """
         self._make_entity_class_sq = MethodType(method, self)
-        self._entity_class_sq = None
-        self._object_class_sq = None
-        self._relationship_class_sq = None
-        self._parameter_definition_sq = None
-        self._entity_parameter_definition_sq = None
-        self._ext_feature_sq = None
+        self._clear_subqueries("entity_class")
 
     def override_parameter_value_sq_maker(self, method):
         """
@@ -1486,9 +1510,7 @@ class DatabaseMappingBase:
                 returns parameter value subquery as an :class:`Alias` object
         """
         self._make_parameter_value_sq = MethodType(method, self)
-        self._parameter_value_sq = None
-        self._object_parameter_value_sq = None
-        self._relationship_parameter_value_sq = None
+        self._clear_subqueries("parameter_value")
 
     def _make_entity_sq(self):
         """
