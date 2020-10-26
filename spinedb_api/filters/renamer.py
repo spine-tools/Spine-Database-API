@@ -19,6 +19,10 @@ from functools import partial
 from sqlalchemy import case
 
 
+ENTITY_CLASS_RENAMER_TYPE = "entity_class_renamer"
+ENTITY_CLASS_RENAMER_SHORTHAND_TAG = "entity_class_rename"
+
+
 def apply_renaming_to_entity_class_sq(db_map, name_map):
     """
     Applies renaming to entity class subquery.
@@ -30,6 +34,63 @@ def apply_renaming_to_entity_class_sq(db_map, name_map):
     state = _EntityClassRenamerState(db_map, name_map)
     renaming = partial(_make_renaming_entity_class_sq, state=state)
     db_map.override_entity_class_sq_maker(renaming)
+
+
+def entity_class_renamer_config(**renames):
+    """
+    Creates a config dict for renamer.
+
+    Args:
+        **renames: keyword is the old name, value is the new name
+
+    Returns:
+        dict: renamer configuration
+    """
+    return {"type": ENTITY_CLASS_RENAMER_TYPE, "name_map": dict(renames)}
+
+
+def entity_class_renamer_from_dict(db_map, config):
+    """
+    Applies entity class renamer manipulator to given database map.
+
+    Args:
+        db_map (DatabaseMappingBase): target database map
+        config (dict): renamer configuration
+    """
+    apply_renaming_to_entity_class_sq(db_map, config["name_map"])
+
+
+def entity_class_renamer_config_to_shorthand(config):
+    """
+    Makes a shorthand string from renamer configuration.
+
+    Args:
+        config (dict): renamer configuration
+
+    Returns:
+        str: a shorthand string
+    """
+    shorthand = ""
+    for old_name, new_name in config["name_map"].items():
+        shorthand = shorthand + ":" + old_name + ":" + new_name
+    return ENTITY_CLASS_RENAMER_SHORTHAND_TAG + shorthand
+
+
+def entity_class_renamer_shorthand_to_config(shorthand):
+    """
+    Makes configuration dictionary out of a shorthand string.
+
+    Args:
+        shorthand (str): a shorthand string
+
+    Returns:
+        dict: renamer configuration
+    """
+    names = shorthand.split(":")
+    name_map = {}
+    for old_name, new_name in zip(names[1::2], names[2::2]):
+        name_map[old_name] = new_name
+    return entity_class_renamer_config(**name_map)
 
 
 class _EntityClassRenamerState:

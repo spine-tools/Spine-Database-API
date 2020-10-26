@@ -9,17 +9,16 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """
-Contains the :func:`apply_filter_stack` function.
+Contains functions to deal with filter stacks.
 
 :author: Antti Soininen (VTT)
 :date:   6.10.2020
 """
 from json import load
-from .alternative_filter import apply_alternative_filter_to_parameter_value_sq
-from .renamer import apply_renaming_to_entity_class_sq
-from .scenario_filter import apply_scenario_filter_to_parameter_value_sq
-from .tool_filter import apply_tool_filter_to_entity_sq
-from .url_tools import pop_filter_configs
+from .alternative_filter import alternative_filter_from_dict, ALTERNATIVE_FILTER_TYPE
+from .renamer import entity_class_renamer_from_dict, ENTITY_CLASS_RENAMER_TYPE
+from .scenario_filter import scenario_filter_from_dict, SCENARIO_FILTER_TYPE
+from .tool_filter import tool_filter_from_dict, TOOL_FILTER_TYPE
 
 
 def apply_filter_stack(db_map, stack):
@@ -30,16 +29,14 @@ def apply_filter_stack(db_map, stack):
         db_map (DatabaseMappingBase): a database map
         stack (list): a stack of database filters and manipulators
     """
+    appliers = {
+        ALTERNATIVE_FILTER_TYPE: alternative_filter_from_dict,
+        ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
+        SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
+        TOOL_FILTER_TYPE: tool_filter_from_dict,
+    }
     for filter_ in stack:
-        type_ = filter_["type"]
-        if type_ == "alternative_filter":
-            apply_alternative_filter_to_parameter_value_sq(db_map, filter_["alternatives"])
-        elif type_ == "renamer":
-            apply_renaming_to_entity_class_sq(db_map, filter_["name_map"])
-        elif type_ == "scenario_filter":
-            apply_scenario_filter_to_parameter_value_sq(db_map, filter_["scenario"])
-        elif type_ == "tool_filter":
-            apply_tool_filter_to_entity_sq(db_map, filter_["tool"])
+        appliers[filter_["type"]](db_map, filter_)
 
 
 def load_filters(filter_configs):

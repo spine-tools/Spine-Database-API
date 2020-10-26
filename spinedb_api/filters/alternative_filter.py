@@ -19,6 +19,10 @@ from functools import partial
 from ..exception import SpineDBAPIError
 
 
+ALTERNATIVE_FILTER_TYPE = "alternative_filter"
+ALTERNATIVE_FILTER_SHORTHAND_TAG = "alternatives"
+
+
 def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     """
     Replaces parameter value subquery properties in ``db_map`` such that they return only values of given alternatives.
@@ -30,6 +34,60 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     state = _AlternativeFilterState(db_map, alternatives)
     filtering = partial(_make_alternative_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(filtering)
+
+
+def alternative_filter_config(alternatives):
+    """
+    Creates a config dict for alternative filter.
+
+    Args:
+        alternatives (Iterable of str): alternative names
+
+    Returns:
+        dict: filter configuration
+    """
+    return {"type": ALTERNATIVE_FILTER_TYPE, "alternatives": list(alternatives)}
+
+
+def alternative_filter_from_dict(db_map, config):
+    """
+    Applies alternative filter to given database map.
+
+    Args:
+        db_map (DatabaseMappingBase): target database map
+        config (dict): alternative filter configuration
+    """
+    apply_alternative_filter_to_parameter_value_sq(db_map, config["alternatives"])
+
+
+def alternative_filter_config_to_shorthand(config):
+    """
+    Makes a shorthand string from alternative filter configuration.
+
+    Args:
+        config (dict): alternative filter configuration
+
+    Returns:
+        str: a shorthand string
+    """
+    shorthand = ""
+    for alternative in config["alternatives"]:
+        shorthand = shorthand + ":" + alternative
+    return ALTERNATIVE_FILTER_SHORTHAND_TAG + shorthand
+
+
+def alternative_filter_shorthand_to_config(shorthand):
+    """
+    Makes configuration dictionary out of a shorthand string.
+
+    Args:
+        shorthand (str): a shorthand string
+
+    Returns:
+        dict: alternative filter configuration
+    """
+    alternatives = shorthand.split(":")
+    return alternative_filter_config(alternatives[1:])
 
 
 class _AlternativeFilterState:

@@ -24,17 +24,14 @@ from spinedb_api import (
     create_new_spine_database,
     DatabaseMapping,
     DiffDatabaseMapping,
-    import_alternatives,
     import_object_classes,
-    import_object_parameter_values,
-    import_object_parameters,
-    import_objects,
     import_relationship_classes,
-    import_relationship_parameter_values,
-    import_relationship_parameters,
-    import_relationships,
-    import_scenario_alternatives,
-    import_scenarios,
+)
+from spinedb_api.filters.renamer import (
+    entity_class_renamer_config,
+    entity_class_renamer_config_to_shorthand,
+    entity_class_renamer_from_dict,
+    entity_class_renamer_shorthand_to_config,
 )
 
 
@@ -107,6 +104,36 @@ class TestRenamer(unittest.TestCase):
         object_class_names = [row.object_class_name_list for row in relationship_classes]
         for expected_names in ["new_object_class,object_class2", "object_class2,new_object_class"]:
             self.assertIn(expected_names, object_class_names)
+
+    def test_entity_class_renamer_config(self):
+        config = entity_class_renamer_config(class1="renamed1", class2="renamed2")
+        self.assertEqual(
+            config, {"type": "entity_class_renamer", "name_map": {"class1": "renamed1", "class2": "renamed2"}}
+        )
+
+    def test_entity_class_renamer_from_dict(self):
+        import_object_classes(self._out_map, ("old_name",))
+        self._out_map.commit_session("Add test data")
+        config = entity_class_renamer_config(old_name="new_name")
+        entity_class_renamer_from_dict(self._db_map, config)
+        classes = list(self._db_map.query(self._db_map.entity_class_sq).all())
+        self.assertEqual(len(classes), 1)
+        class_row = classes[0]
+        keys = tuple(class_row.keys())
+        expected_keys = ("id", "type_id", "name", "description", "display_order", "display_icon", "hidden", "commit_id")
+        self.assertEqual(len(keys), len(expected_keys))
+        for expected_key in expected_keys:
+            self.assertIn(expected_key, keys)
+        self.assertEqual(class_row.name, "new_name")
+
+    def test_entity_class_renamer_config_to_shorthand(self):
+        config = entity_class_renamer_config(class1="renamed1", class2="renamed2")
+        shorthand = entity_class_renamer_config_to_shorthand(config)
+        self.assertEqual(shorthand, "entity_class_rename:class1:renamed1:class2:renamed2")
+
+    def test_entity_class_renamer_shorthand_to_config(self):
+        config = entity_class_renamer_shorthand_to_config("entity_class_rename:class1:renamed1:class2:renamed2")
+        self.assertEqual(config, {"type": "entity_class_renamer", "name_map": {"class1": "renamed1", "class2": "renamed2"}})
 
 
 if __name__ == "__main__":

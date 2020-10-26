@@ -16,45 +16,82 @@ Tools and utilities to embed filtering information to database URLs.
 :date:   7.10.2020
 """
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from .alternative_filter import (
+    alternative_filter_config_to_shorthand,
+    ALTERNATIVE_FILTER_SHORTHAND_TAG,
+    alternative_filter_shorthand_to_config,
+    ALTERNATIVE_FILTER_TYPE,
+)
+from .renamer import (
+    entity_class_renamer_config_to_shorthand,
+    ENTITY_CLASS_RENAMER_SHORTHAND_TAG,
+    entity_class_renamer_shorthand_to_config,
+    ENTITY_CLASS_RENAMER_TYPE,
+)
+from .scenario_filter import (
+    scenario_filter_config_to_shorthand,
+    SCENARIO_FILTER_TYPE,
+    SCENARIO_SHORTHAND_TAG,
+    scenario_filter_shorthand_to_config,
+)
+from .tool_filter import (
+    tool_filter_config_to_shorthand,
+    TOOL_FILTER_SHORTHAND_TAG,
+    tool_filter_shorthand_to_config,
+    TOOL_FILTER_TYPE,
+)
+
+FILTER_IDENTIFIER = "spinedbfilter"
+SHORTHAND_TAG = "cfg:"
 
 
-def append_filter_config(url, config_path):
+def append_filter_config(url, config):
     """
-    Appends a filter config file to given url.
+    Appends a filter config to given url.
+
+    ``config`` can either be a configuration dictionary or a path to a JSON file that contains the dictionary.
 
     Args:
         url (str): base URL
-        config_path (str): path to the config file
+        config (str or dict): path to the config file or config as a ``dict``.
 
     Returns:
         str: the modified URL
     """
     url = urlparse(url)
     query = parse_qs(url.query)
-    filters = query.setdefault("spinedbfilter", list())
-    filters.append(config_path)
+    filters = query.setdefault(FILTER_IDENTIFIER, list())
+    if isinstance(config, dict):
+        config = _config_to_shorthand(config)
+    filters.append(config)
     url = url._replace(query=urlencode(query, doseq=True), path="//" + url.path)
     return url.geturl()
 
 
 def pop_filter_configs(url):
     """
-    Returns paths to filter config files and removes them from the URL's query part.
+    Pops filter config files and dicts from URL's query part.
 
     Args:
         url (str): a URL
 
     Returns:
-        tuple: a list of filter config file paths and the 'popped from' URL
+        tuple: a list of filter configs and the 'popped from' URL
     """
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
     try:
-        filters = query.pop("spinedbfilter")
+        filters = query.pop(FILTER_IDENTIFIER)
     except KeyError:
         return [], url
+    parsed_filters = list()
+    for filter_ in filters:
+        if filter_.startswith(SHORTHAND_TAG):
+            parsed_filters.append(_parse_shorthand(filter_[len(SHORTHAND_TAG) :]))
+        else:
+            parsed_filters.append(filter_)
     parsed = parsed._replace(query=urlencode(query, doseq=True), path="//" + parsed.path)
-    return filters, urlunparse(parsed)
+    return parsed_filters, urlunparse(parsed)
 
 
 def clear_filter_configs(url):
@@ -70,8 +107,47 @@ def clear_filter_configs(url):
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
     try:
-        del query["spinedbfilter"]
+        del query[FILTER_IDENTIFIER]
     except KeyError:
         return url
     parsed = parsed._replace(query=urlencode(query, doseq=True), path="//" + parsed.path)
     return urlunparse(parsed)
+
+
+def _config_to_shorthand(config):
+    """
+    Converts a filter config dictionary to shorthand.
+
+    Args:
+        config (dict): filter configuration
+
+    Returns:
+        str: config shorthand
+    """
+    shorthands = {
+        ALTERNATIVE_FILTER_TYPE: alternative_filter_config_to_shorthand,
+        ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_config_to_shorthand,
+        SCENARIO_FILTER_TYPE: scenario_filter_config_to_shorthand,
+        TOOL_FILTER_TYPE: tool_filter_config_to_shorthand,
+    }
+    return SHORTHAND_TAG + shorthands[config["type"]](config)
+
+
+def _parse_shorthand(shorthand):
+    """
+    Converts shorthand filter config into configuration dictionary.
+
+    Args:
+        shorthand (str): a shorthand config string
+
+    Returns:
+        dict: filter configuration dictionary
+    """
+    shorthand_parsers = {
+        ALTERNATIVE_FILTER_SHORTHAND_TAG: alternative_filter_shorthand_to_config,
+        ENTITY_CLASS_RENAMER_SHORTHAND_TAG: entity_class_renamer_shorthand_to_config,
+        SCENARIO_SHORTHAND_TAG: scenario_filter_shorthand_to_config,
+        TOOL_FILTER_SHORTHAND_TAG: tool_filter_shorthand_to_config,
+    }
+    tag, _, _ = shorthand.partition(":")
+    return shorthand_parsers[tag](shorthand)

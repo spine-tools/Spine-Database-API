@@ -1,0 +1,128 @@
+######################################################################################################################
+# Copyright (C) 2017 - 2020 Spine project consortium
+# This file is part of Spine Database API.
+# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
+# General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+# Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+######################################################################################################################
+
+"""
+Unit tests for ``alternative_filter`` module.
+
+:author: Antti Soininen (VTT)
+:date:   26.10.2020
+"""
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+from sqlalchemy.engine.url import URL
+from spinedb_api import (
+    apply_alternative_filter_to_parameter_value_sq,
+    create_new_spine_database,
+    DatabaseMapping,
+    DiffDatabaseMapping,
+    import_alternatives,
+    import_object_classes,
+    import_object_parameter_values,
+    import_object_parameters,
+    import_objects,
+)
+from spinedb_api.filters.alternative_filter import (
+    alternative_filter_config,
+    alternative_filter_from_dict,
+    alternative_filter_config_to_shorthand,
+    alternative_filter_shorthand_to_config,
+)
+
+
+class TestAlternative_filter(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._temp_dir = TemporaryDirectory()
+        cls._db_url = URL("sqlite", database=Path(cls._temp_dir.name, "test_scenario_filter_mapping.sqlite").as_posix())
+
+    def setUp(self):
+        create_new_spine_database(self._db_url)
+        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._db_map = DatabaseMapping(self._db_url)
+        self._diff_db_map = DiffDatabaseMapping(self._db_url)
+
+    def tearDown(self):
+        self._out_map.connection.close()
+        self._db_map.connection.close()
+        self._diff_db_map.connection.close()
+
+    def test_alternative_filter_without_scenarios_or_alternatives(self):
+        self._build_data_without_alternatives()
+        self._out_map.commit_session("Add test data")
+        for db_map in [self._db_map, self._diff_db_map]:
+            apply_alternative_filter_to_parameter_value_sq(db_map, [])
+            parameters = db_map.query(db_map.parameter_value_sq).all()
+            self.assertEqual(parameters, [])
+
+    def test_alternative_filter_without_scenarios_or_alternatives_uncommitted_data(self):
+        self._build_data_without_alternatives()
+        apply_alternative_filter_to_parameter_value_sq(self._out_map, alternatives=[])
+        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
+        self.assertEqual(parameters, [])
+        self._out_map.rollback_session()
+
+    def test_alternative_filter(self):
+        self._build_data_with_single_alternative()
+        self._out_map.commit_session("Add test data")
+        for db_map in [self._db_map, self._diff_db_map]:
+            apply_alternative_filter_to_parameter_value_sq(db_map, ["alternative"])
+            parameters = db_map.query(db_map.parameter_value_sq).all()
+            self.assertEqual(len(parameters), 1)
+            self.assertEqual(parameters[0].value, "23.0")
+
+    def test_alternative_filter_uncommitted_data(self):
+        self._build_data_with_single_alternative()
+        apply_alternative_filter_to_parameter_value_sq(self._out_map, ["alternative"])
+        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, "23.0")
+        self._out_map.rollback_session()
+
+    def test_alternative_filter_config(self):
+        config = alternative_filter_config(["alternative1", "alternative2"])
+        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alternative1", "alternative2"]})
+
+    def test_alternative_filter_from_dict(self):
+        self._build_data_with_single_alternative()
+        self._out_map.commit_session("Add test data")
+        config = alternative_filter_config(["alternative"])
+        alternative_filter_from_dict(self._db_map, config)
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, "23.0")
+
+    def test_alternative_filter_config_to_shorthand(self):
+        config = alternative_filter_config(["alternative1", "alternative2"])
+        shorthand = alternative_filter_config_to_shorthand(config)
+        self.assertEqual(shorthand, "alternatives:alternative1:alternative2")
+
+    def test_alternative_filter_shorthand_to_config(self):
+        config = alternative_filter_shorthand_to_config("alternatives:alternative1:alternative2")
+        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alternative1", "alternative2"]})
+
+    def _build_data_without_alternatives(self):
+        import_object_classes(self._out_map, ["object_class"])
+        import_objects(self._out_map, [("object_class", "object")])
+        import_object_parameters(self._out_map, [("object_class", "parameter")])
+        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0)])
+
+    def _build_data_with_single_alternative(self):
+        import_alternatives(self._out_map, ["alternative"])
+        import_object_classes(self._out_map, ["object_class"])
+        import_objects(self._out_map, [("object_class", "object")])
+        import_object_parameters(self._out_map, [("object_class", "parameter")])
+        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
+        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0, "alternative")])
+
+
+if __name__ == '__main__':
+    unittest.main()

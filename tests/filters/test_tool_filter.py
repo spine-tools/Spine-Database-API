@@ -34,6 +34,12 @@ from spinedb_api import (
     import_tool_feature_methods,
     SpineDBAPIError,
 )
+from spinedb_api.filters.tool_filter import (
+    tool_filter_config,
+    tool_filter_config_to_shorthand,
+    tool_filter_from_dict,
+    tool_filter_shorthand_to_config,
+)
 
 
 class TestToolEntityFilter(unittest.TestCase):
@@ -143,6 +149,31 @@ class TestToolEntityFilter(unittest.TestCase):
         entities = self._db_map.query(self._db_map.entity_sq).all()
         self.assertEqual(len(entities), 1)
         self.assertEqual(entities[0].name, "object2")
+
+    def test_tool_filter_config(self):
+        config = tool_filter_config("tool name")
+        self.assertEqual(config, {"type": "tool_filter", "tool": "tool name"})
+
+    def test_tool_filter_from_dict(self):
+        self._build_data_with_tools()
+        import_tool_features(self._db_map, [("tool1", "object_class", "parameter2", True)])
+        self._db_map.commit_session("Add test data")
+        config = tool_filter_config("tool1")
+        tool_filter_from_dict(self._db_map, config)
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entities), 2)
+        names = [x.name for x in entities]
+        self.assertIn("object2", names)
+        self.assertIn("object3", names)
+
+    def test_tool_filter_config_to_shorthand(self):
+        config = tool_filter_config("tool name")
+        shorthand = tool_filter_config_to_shorthand(config)
+        self.assertEqual(shorthand, "tool:tool name")
+
+    def test_tool_filter_shorthand_to_config(self):
+        config = tool_filter_shorthand_to_config("tool:tool name")
+        self.assertEqual(config, {"type": "tool_filter", "tool": "tool name"})
 
 
 if __name__ == '__main__':

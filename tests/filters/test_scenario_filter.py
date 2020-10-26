@@ -20,7 +20,6 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
-    apply_alternative_filter_to_parameter_value_sq,
     apply_scenario_filter_to_parameter_value_sq,
     create_new_spine_database,
     DatabaseMapping,
@@ -37,9 +36,15 @@ from spinedb_api import (
     import_scenario_alternatives,
     import_scenarios,
 )
+from spinedb_api.filters.scenario_filter import (
+    scenario_filter_config,
+    scenario_filter_config_to_shorthand,
+    scenario_filter_from_dict,
+    scenario_filter_shorthand_to_config,
+)
 
 
-class TestAlternativeValueFilter(unittest.TestCase):
+class TestScenarioFilter(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._temp_dir = TemporaryDirectory()
@@ -55,21 +60,6 @@ class TestAlternativeValueFilter(unittest.TestCase):
         self._out_map.connection.close()
         self._db_map.connection.close()
         self._diff_db_map.connection.close()
-
-    def test_alternative_filter_without_scenarios_or_alternatives(self):
-        self._build_data_without_scenarios_or_alternatives()
-        self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_filter_to_parameter_value_sq(db_map, [])
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(parameters, [])
-
-    def test_alternative_filter_without_scenarios_or_alternatives_uncommitted_data(self):
-        self._build_data_without_scenarios_or_alternatives()
-        apply_alternative_filter_to_parameter_value_sq(self._out_map, alternatives=[])
-        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
-        self.assertEqual(parameters, [])
-        self._out_map.rollback_session()
 
     def _build_data_without_scenarios_or_alternatives(self):
         import_object_classes(self._out_map, ["object_class"])
@@ -89,23 +79,6 @@ class TestAlternativeValueFilter(unittest.TestCase):
     def test_scenario_filter_uncommitted_data(self):
         self._build_data_with_single_scenario()
         apply_scenario_filter_to_parameter_value_sq(self._out_map, "scenario")
-        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
-        self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
-        self._out_map.rollback_session()
-
-    def test_alternative_filter(self):
-        self._build_data_with_single_scenario()
-        self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_filter_to_parameter_value_sq(db_map, ["alternative"])
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
-
-    def test_alternative_filter_uncommitted_data(self):
-        self._build_data_with_single_scenario()
-        apply_alternative_filter_to_parameter_value_sq(self._out_map, ["alternative"])
         parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, "23.0")
@@ -250,6 +223,28 @@ class TestAlternativeValueFilter(unittest.TestCase):
                     "object2": {"parameter1": "20.0", "parameter2": "22.0"},
                 },
             )
+
+    def test_scenario_filter_config(self):
+        config = scenario_filter_config("scenario name")
+        self.assertEqual(config, {"type": "scenario_filter", "scenario": "scenario name"})
+
+    def test_scenario_filter_from_dict(self):
+        self._build_data_with_single_scenario()
+        self._out_map.commit_session("Add test data")
+        config = scenario_filter_config("scenario")
+        scenario_filter_from_dict(self._db_map, config)
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, "23.0")
+
+    def test_scenario_filter_config_to_shorthand(self):
+        config = scenario_filter_config("scenario name")
+        shorthand = scenario_filter_config_to_shorthand(config)
+        self.assertEqual(shorthand, "scenario:scenario name")
+
+    def test_scenario_filter_shorthand_to_config(self):
+        config = scenario_filter_shorthand_to_config("scenario:scenario name")
+        self.assertEqual(config, {"type": "scenario_filter", "scenario": "scenario name"})
 
 
 if __name__ == '__main__':

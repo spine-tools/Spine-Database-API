@@ -20,6 +20,10 @@ from sqlalchemy import and_, or_, case
 from ..exception import SpineDBAPIError
 
 
+TOOL_FILTER_TYPE = "tool_filter"
+TOOL_FILTER_SHORTHAND_TAG = "tool"
+
+
 def apply_tool_filter_to_entity_sq(db_map, tool):
     """
     Replaces entity subquery properties in ``db_map`` such that they return only values of given tool.
@@ -30,6 +34,57 @@ def apply_tool_filter_to_entity_sq(db_map, tool):
     state = _ToolFilterState(db_map, tool)
     filtering = partial(_make_tool_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(filtering)
+
+
+def tool_filter_config(tool):
+    """
+    Creates a config dict for tool filter.
+
+    Args:
+        tool (str): tool name
+
+    Returns:
+        dict: filter configuration
+    """
+    return {"type": TOOL_FILTER_TYPE, "tool": tool}
+
+
+def tool_filter_from_dict(db_map, config):
+    """
+    Applies tool filter to given database map.
+
+    Args:
+        db_map (DatabaseMappingBase): target database map
+        config (dict): tool filter configuration
+    """
+    apply_tool_filter_to_entity_sq(db_map, config["tool"])
+
+
+def tool_filter_config_to_shorthand(config):
+    """
+    Makes a shorthand string from tool filter configuration.
+
+    Args:
+        config (dict): tool filter configuration
+
+    Returns:
+        str: a shorthand string
+    """
+    return TOOL_FILTER_SHORTHAND_TAG + ":" + config["tool"]
+
+
+def tool_filter_shorthand_to_config(shorthand):
+    """
+    Makes configuration dictionary out of a shorthand string.
+
+    Args:
+        shorthand (str): a shorthand string
+
+    Returns:
+        dict: tool filter configuration
+    """
+    _, _, tool = shorthand.partition(":")
+    return tool_filter_config(tool)
 
 
 class _ToolFilterState:

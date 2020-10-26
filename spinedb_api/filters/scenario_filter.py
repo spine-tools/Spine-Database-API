@@ -19,10 +19,14 @@ from functools import partial
 from sqlalchemy import desc, func
 from ..exception import SpineDBAPIError
 
+SCENARIO_FILTER_TYPE = "scenario_filter"
+SCENARIO_SHORTHAND_TAG = "scenario"
+
 
 def apply_scenario_filter_to_parameter_value_sq(db_map, scenario):
     """
     Replaces parameter value subquery properties in ``db_map`` such that they return only values of given scenario.
+
     Args:
         db_map (DatabaseMappingBase): a database map to alter
         scenario (str or int): scenario name or id
@@ -30,6 +34,57 @@ def apply_scenario_filter_to_parameter_value_sq(db_map, scenario):
     state = _ScenarioFilterState(db_map, scenario)
     filtering = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(filtering)
+
+
+def scenario_filter_config(scenario):
+    """
+    Creates a config dict for scenario filter.
+
+    Args:
+        scenario (str): scenario name
+
+    Returns:
+        dict: filter configuration
+    """
+    return {"type": SCENARIO_FILTER_TYPE, "scenario": scenario}
+
+
+def scenario_filter_from_dict(db_map, config):
+    """
+    Applies scenario filter to given database map.
+
+    Args:
+        db_map (DatabaseMappingBase): target database map
+        config (dict): scenario filter configuration
+    """
+    apply_scenario_filter_to_parameter_value_sq(db_map, config["scenario"])
+
+
+def scenario_filter_config_to_shorthand(config):
+    """
+    Makes a shorthand string from scenario filter configuration.
+
+    Args:
+        config (dict): scenario filter configuration
+
+    Returns:
+        str: a shorthand string
+    """
+    return SCENARIO_SHORTHAND_TAG + ":" + config["scenario"]
+
+
+def scenario_filter_shorthand_to_config(shorthand):
+    """
+    Makes configuration dictionary out of a shorthand string.
+
+    Args:
+        shorthand (str): a shorthand string
+
+    Returns:
+        dict: scenario filter configuration
+    """
+    _, _, scenario = shorthand.partition(":")
+    return scenario_filter_config(scenario)
 
 
 class _ScenarioFilterState:

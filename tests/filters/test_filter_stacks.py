@@ -28,7 +28,7 @@ from spinedb_api import (
     import_object_classes,
     load_filters,
 )
-
+from spinedb_api.filters.renamer import entity_class_renamer_config
 
 class TestLoadFilters(unittest.TestCase):
     @classmethod
@@ -83,7 +83,7 @@ class TestApplyFilterStack(unittest.TestCase):
     def test_single_renaming_filter(self):
         db_map = DatabaseMapping(self._db_url)
         try:
-            stack = [{"type": "renamer", "name_map": {"object_class": "renamed_once"}}]
+            stack = [entity_class_renamer_config(object_class="renamed_once")]
             apply_filter_stack(db_map, stack)
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_once", None, None)])
@@ -96,8 +96,8 @@ class TestApplyFilterStack(unittest.TestCase):
         db_map = DatabaseMapping(self._db_url)
         try:
             stack = [
-                {"type": "renamer", "name_map": {"object_class": "renamed_once"}},
-                {"type": "renamer", "name_map": {"renamed_once": "renamed_twice"}},
+                entity_class_renamer_config(object_class="renamed_once"),
+                entity_class_renamer_config(renamed_once="renamed_twice"),
             ]
             apply_filter_stack(db_map, stack)
             object_classes = export_object_classes(db_map)
@@ -133,7 +133,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     def test_single_renaming_filter(self):
         path = os.path.join(self._dir.name, "config.json")
         with open(path, "w") as out_file:
-            dump({"type": "renamer", "name_map": {"object_class": "renamed_once"}}, out_file)
+            dump(entity_class_renamer_config(object_class="renamed_once"), out_file)
         url = append_filter_config(self._db_url, path)
         db_map = DatabaseMapping(url)
         try:
@@ -147,11 +147,11 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     def test_two_renaming_filters(self):
         path1 = os.path.join(self._dir.name, "config1.json")
         with open(path1, "w") as out_file:
-            dump({"type": "renamer", "name_map": {"object_class": "renamed_once"}}, out_file)
+            dump(entity_class_renamer_config(object_class="renamed_once"), out_file)
         url = append_filter_config(self._db_url, path1)
         path2 = os.path.join(self._dir.name, "config2.json")
         with open(path2, "w") as out_file:
-            dump({"type": "renamer", "name_map": {"renamed_once": "renamed_twice"}}, out_file)
+            dump(entity_class_renamer_config(renamed_once="renamed_twice"), out_file)
         url = append_filter_config(url, path2)
         db_map = DatabaseMapping(url)
         try:

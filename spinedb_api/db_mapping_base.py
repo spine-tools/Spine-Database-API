@@ -39,7 +39,7 @@ from .helpers import (
     Anyone,
     forward_sweep,
 )
-from .filters.filter_stacks import pop_filter_configs
+from .filters.url_tools import pop_filter_configs
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
