@@ -27,6 +27,10 @@ from .renamer import (
     ENTITY_CLASS_RENAMER_SHORTHAND_TAG,
     entity_class_renamer_shorthand_to_config,
     ENTITY_CLASS_RENAMER_TYPE,
+    parameter_renamer_config_to_shorthand,
+    PARAMETER_RENAMER_SHORTHAND_TAG,
+    parameter_renamer_shorthand_to_config,
+    PARAMETER_RENAMER_TYPE,
 )
 from .scenario_filter import (
     scenario_filter_config_to_shorthand,
@@ -62,7 +66,7 @@ def append_filter_config(url, config):
     query = parse_qs(url.query)
     filters = query.setdefault(FILTER_IDENTIFIER, list())
     if isinstance(config, dict):
-        config = _config_to_shorthand(config)
+        config = config_to_shorthand(config)
     filters.append(config)
     url = url._replace(query=urlencode(query, doseq=True), path="//" + url.path)
     return url.geturl()
@@ -114,7 +118,7 @@ def clear_filter_configs(url):
     return urlunparse(parsed)
 
 
-def _config_to_shorthand(config):
+def config_to_shorthand(config):
     """
     Converts a filter config dictionary to shorthand.
 
@@ -127,6 +131,7 @@ def _config_to_shorthand(config):
     shorthands = {
         ALTERNATIVE_FILTER_TYPE: alternative_filter_config_to_shorthand,
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_config_to_shorthand,
+        PARAMETER_RENAMER_TYPE: parameter_renamer_config_to_shorthand,
         SCENARIO_FILTER_TYPE: scenario_filter_config_to_shorthand,
         TOOL_FILTER_TYPE: tool_filter_config_to_shorthand,
     }
@@ -146,6 +151,7 @@ def _parse_shorthand(shorthand):
     shorthand_parsers = {
         ALTERNATIVE_FILTER_SHORTHAND_TAG: alternative_filter_shorthand_to_config,
         ENTITY_CLASS_RENAMER_SHORTHAND_TAG: entity_class_renamer_shorthand_to_config,
+        PARAMETER_RENAMER_SHORTHAND_TAG: parameter_renamer_shorthand_to_config,
         SCENARIO_SHORTHAND_TAG: scenario_filter_shorthand_to_config,
         TOOL_FILTER_SHORTHAND_TAG: tool_filter_shorthand_to_config,
     }

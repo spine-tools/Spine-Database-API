@@ -626,7 +626,7 @@ def create_new_spine_database(db_url):
             nullable=False,
         ),
         Column(
-            "metadata_id", Integer, ForeignKey("metadata.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,
+            "metadata_id", Integer, ForeignKey("metadata.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False
         ),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_value_id", "metadata_id"),
@@ -635,9 +635,9 @@ def create_new_spine_database(db_url):
         "entity_metadata",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("entity_id", Integer, ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,),
+        Column("entity_id", Integer, ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False),
         Column(
-            "metadata_id", Integer, ForeignKey("metadata.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,
+            "metadata_id", Integer, ForeignKey("metadata.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False
         ),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("entity_id", "metadata_id"),

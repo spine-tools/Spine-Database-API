@@ -54,7 +54,7 @@ def upgrade():
         "entity_metadata",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column(
-            "entity_id", sa.Integer, sa.ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False,
+            "entity_id", sa.Integer, sa.ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False
         ),
         sa.Column(
             "metadata_id",

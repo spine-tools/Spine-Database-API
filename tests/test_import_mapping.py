@@ -1016,17 +1016,14 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc1", "obj1", "parameter_name1", 1],
             ["oc2", "obj2", "parameter_name2", 2],
         ]
-        expected =   {
-                "object_classes": ["oc1", "oc2"],
-                "objects": [("oc1", "obj1"), ("oc2", "obj2")],
-                "object_metadata": [],
-                "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
-                "object_parameter_values": [
-                    ("oc1", "obj1", "parameter_name1", 1),
-                    ("oc2", "obj2", "parameter_name2", 2),
-                ],
-                "metadata": [],
-            }
+        expected = {
+            "object_classes": ["oc1", "oc2"],
+            "objects": [("oc1", "obj1"), ("oc2", "obj2")],
+            "object_metadata": [],
+            "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
+            "object_parameter_values": [("oc1", "obj1", "parameter_name1", 1), ("oc2", "obj2", "parameter_name2", 2)],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1050,13 +1047,13 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc1", "obj1", "parameter_name1", 2],
         ]
         expeted = {
-                "object_classes": ["oc1", "oc1"],
-                "objects": [("oc1", "obj1"), ("oc1", "obj1")],
-                "object_metadata": [],
-                "object_parameters": [("oc1", "parameter_name1"), ("oc1", "parameter_name1")],
-                "object_parameter_values": [("oc1", "obj1", "parameter_name1", Array([1, 2]))],
-                "metadata": [],
-            }
+            "object_classes": ["oc1", "oc1"],
+            "objects": [("oc1", "obj1"), ("oc1", "obj1")],
+            "object_metadata": [],
+            "object_parameters": [("oc1", "parameter_name1"), ("oc1", "parameter_name1")],
+            "object_parameter_values": [("oc1", "obj1", "parameter_name1", Array([1, 2]))],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1080,13 +1077,13 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc1", "obj1", "parameter_name1", 2, 1],
         ]
         expeted = {
-                "object_classes": ["oc1", "oc1"],
-                "objects": [("oc1", "obj1"), ("oc1", "obj1")],
-                "object_metadata": [],
-                "object_parameters": [("oc1", "parameter_name1"), ("oc1", "parameter_name1")],
-                "object_parameter_values": [("oc1", "obj1", "parameter_name1", Array([1, 2]))],
+            "object_classes": ["oc1", "oc1"],
+            "objects": [("oc1", "obj1"), ("oc1", "obj1")],
+            "object_metadata": [],
+            "object_parameters": [("oc1", "parameter_name1"), ("oc1", "parameter_name1")],
+            "object_parameter_values": [("oc1", "obj1", "parameter_name1", Array([1, 2]))],
             "metadata": [],
-            }
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1111,7 +1108,12 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_flat_file_with_column_name_reference(self):
         input_data = [["object", "parameter", "value"], ["obj1", "parameter_name1", 1], ["obj2", "parameter_name2", 2]]
-        expected = {"object_classes": ["object"], "objects": [("object", "obj1"), ("object", "obj2")], "object_metadata":[], "metadata":[]}
+        expected = {
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1125,7 +1127,12 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_object_class_from_header_using_string_as_integral_index(self):
         input_data = [["object_class"], ["obj1"], ["obj2"]]
-        expected = {"object_classes": ["object_class"], "objects": [("object_class", "obj1"), ("object_class", "obj2")], "object_metadata": [], "metadata": []}
+        expected = {
+            "object_classes": ["object_class"],
+            "objects": [("object_class", "obj1"), ("object_class", "obj2")],
+            "object_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1139,7 +1146,12 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_object_class_from_header_using_string_as_column_header_name(self):
         input_data = [["object_class"], ["obj1"], ["obj2"]]
-        expected = {"object_classes": ["object_class"], "objects": [("object_class", "obj1"), ("object_class", "obj2")], "object_metadata": [], "metadata": []}
+        expected = {
+            "object_classes": ["object_class"],
+            "objects": [("object_class", "obj1"), ("object_class", "obj2")],
+            "object_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1157,7 +1169,12 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_with_list_of_mappings(self):
         input_data = [["object", "parameter", "value"], ["obj1", "parameter_name1", 1], ["obj2", "parameter_name2", 2]]
-        expected = {"object_classes": ["object"], "objects": [("object", "obj1"), ("object", "obj2")], "object_metadata": [], "metadata": []}
+        expected = {
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1171,19 +1188,19 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_pivoted_parameters_from_header(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
-        expected =  {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
-                "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", 0),
-                    ("object", "obj1", "parameter_name2", 1),
-                    ("object", "obj2", "parameter_name1", 2),
-                    ("object", "obj2", "parameter_name2", 3),
-                ],
+        expected = {
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
+            "object_parameter_values": [
+                ("object", "obj1", "parameter_name1", 0),
+                ("object", "obj1", "parameter_name2", 1),
+                ("object", "obj2", "parameter_name1", 2),
+                ("object", "obj2", "parameter_name2", 3),
+            ],
             "object_metadata": [],
-            "metadata": []
-            }
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1202,19 +1219,19 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_pivoted_parameters_from_data(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
-        expected =  {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
-                "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", 0),
-                    ("object", "obj1", "parameter_name2", 1),
-                    ("object", "obj2", "parameter_name1", 2),
-                    ("object", "obj2", "parameter_name2", 3),
-                ],
-                "object_metadata": [],
-                "metadata": []
-            }
+        expected = {
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
+            "object_parameter_values": [
+                ("object", "obj1", "parameter_name1", 0),
+                ("object", "obj1", "parameter_name2", 1),
+                ("object", "obj2", "parameter_name1", 2),
+                ("object", "obj2", "parameter_name2", 3),
+            ],
+            "object_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         # data_header = next(data)
@@ -1235,20 +1252,20 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["object", "time", "parameter_name1"], ["obj1", "2018-01-01", 1], ["obj1", "2018-01-02", 2]]
 
         expected = {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj1")],
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj1")],
             "object_metadata": [],
-                "object_parameters": [("object", "parameter_name1")],
-                "object_parameter_values": [
-                    (
-                        "object",
-                        "obj1",
-                        "parameter_name1",
-                        TimeSeriesVariableResolution(["2018-01-01", "2018-01-02"], [1, 2], False, False),
-                    )
-                ],
+            "object_parameters": [("object", "parameter_name1")],
+            "object_parameter_values": [
+                (
+                    "object",
+                    "obj1",
+                    "parameter_name1",
+                    TimeSeriesVariableResolution(["2018-01-01", "2018-01-02"], [1, 2], False, False),
+                )
+            ],
             "metadata": [],
-            }
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1275,12 +1292,12 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["object", "time", "parameter_name1"], ["obj1", "2018-01-01", 1], ["obj1", "2018-01-02", 2]]
 
         expected = {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj1")],
-                "object_metadata": [],
-                "object_parameters": [("object", "parameter_name1")],
-                "metadata": []
-            }
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj1")],
+            "object_metadata": [],
+            "object_parameters": [("object", "parameter_name1")],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1304,12 +1321,12 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_1dim_relationships(self):
         input_data = [["unit", "node"], ["u1", "n1"], ["u1", "n2"]]
-        expected =  {
-                "relationship_classes": [("node_group", ["node"])],
-                "relationships": [("node_group", ["n1"]), ("node_group", ["n2"])],
-                "relationship_metadata": [],
-                "metadata": [],
-            }
+        expected = {
+            "relationship_classes": [("node_group", ["node"])],
+            "relationships": [("node_group", ["n1"]), ("node_group", ["n2"])],
+            "relationship_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1329,11 +1346,11 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_relationships(self):
         input_data = [["unit", "node"], ["u1", "n1"], ["u1", "n2"]]
         expected = {
-                "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
-                "relationship_metadata": [],
-                "metadata": []
-            }
+            "relationship_classes": [("unit__node", ("unit", "node"))],
+            "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
+            "relationship_metadata": [],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1356,15 +1373,15 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_relationships_with_parameters(self):
         input_data = [["unit", "node", "rel_parameter"], ["u1", "n1", 0], ["u1", "n2", 1]]
         expected = {
-                "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
-                "relationship_parameters": [("unit__node", "rel_parameter")],
-                "relationship_parameter_values": [
-                    ("unit__node", ("u1", "n1"), "rel_parameter", 0),
-                    ("unit__node", ("u1", "n2"), "rel_parameter", 1),
-                ],
+            "relationship_classes": [("unit__node", ("unit", "node"))],
+            "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
+            "relationship_parameters": [("unit__node", "rel_parameter")],
+            "relationship_parameter_values": [
+                ("unit__node", ("u1", "n1"), "rel_parameter", 0),
+                ("unit__node", ("u1", "n2"), "rel_parameter", 1),
+            ],
             "relationship_metadata": [],
-            "metadata": []
+            "metadata": [],
         }
 
         data = iter(input_data)
@@ -1389,20 +1406,17 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_relationships_with_parameters2(self):
         input_data = [["nuts2", "Capacity", "Fueltype"], ["BE23", 268.0, "Bioenergy"], ["DE11", 14.0, "Bioenergy"]]
         expected = {
-                "object_classes": ["nuts2", "fueltype"],
-                "objects": [("nuts2", "BE23"), ("fueltype", "Bioenergy"), ("nuts2", "DE11"), ("fueltype", "Bioenergy")],
-                "relationship_classes": [("nuts2__fueltype", ("nuts2", "fueltype"))],
-                "relationships": [
-                    ("nuts2__fueltype", ("BE23", "Bioenergy")),
-                    ("nuts2__fueltype", ("DE11", "Bioenergy")),
-                ],
-                "relationship_parameters": [("nuts2__fueltype", "capacity")],
-                "relationship_parameter_values": [
-                    ("nuts2__fueltype", ("BE23", "Bioenergy"), "capacity", 268.0),
-                    ("nuts2__fueltype", ("DE11", "Bioenergy"), "capacity", 14.0),
-                ],
+            "object_classes": ["nuts2", "fueltype"],
+            "objects": [("nuts2", "BE23"), ("fueltype", "Bioenergy"), ("nuts2", "DE11"), ("fueltype", "Bioenergy")],
+            "relationship_classes": [("nuts2__fueltype", ("nuts2", "fueltype"))],
+            "relationships": [("nuts2__fueltype", ("BE23", "Bioenergy")), ("nuts2__fueltype", ("DE11", "Bioenergy"))],
+            "relationship_parameters": [("nuts2__fueltype", "capacity")],
+            "relationship_parameter_values": [
+                ("nuts2__fueltype", ("BE23", "Bioenergy"), "capacity", 268.0),
+                ("nuts2__fueltype", ("DE11", "Bioenergy"), "capacity", 14.0),
+            ],
             "relationship_metadata": [],
-            "metadata": []
+            "metadata": [],
         }
 
         data = iter(input_data)
@@ -1435,16 +1449,16 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_parameter_header_with_only_one_parameter(self):
         input_data = [["object", "parameter_name1"], ["obj1", 0], ["obj2", 2]]
         expected = {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_metadata": [],
-                "object_parameters": [("object", "parameter_name1")],
-                "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", 0),
-                    ("object", "obj2", "parameter_name1", 2),
-                ],
-                "metadata": []
-            }
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_metadata": [],
+            "object_parameters": [("object", "parameter_name1")],
+            "object_parameter_values": [
+                ("object", "obj1", "parameter_name1", 0),
+                ("object", "obj2", "parameter_name1", 2),
+            ],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1464,16 +1478,16 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_pivoted_parameters_from_data_with_skipped_column(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         expected = {
-                "object_classes": ["object"],
-                "objects": [("object", "obj1"), ("object", "obj2")],
-                "object_parameters": [("object", "parameter_name1")],
-                "object_parameter_values": [
-                    ("object", "obj1", "parameter_name1", 0),
-                    ("object", "obj2", "parameter_name1", 2),
-                ],
+            "object_classes": ["object"],
+            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_parameters": [("object", "parameter_name1")],
+            "object_parameter_values": [
+                ("object", "obj1", "parameter_name1", 0),
+                ("object", "obj2", "parameter_name1", 2),
+            ],
             "object_metadata": [],
-            "metadata": []
-            }
+            "metadata": [],
+        }
 
         data = iter(input_data)
         # data_header = next(data)
@@ -1493,14 +1507,14 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_relationships_and_import_objects(self):
         input_data = [["unit", "node"], ["u1", "n1"], ["u2", "n2"]]
-        expected= {
-                "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u2", "n2"))],
-                "relationship_metadata": [],
-                "metadata": [],
-                "object_classes": ["unit", "node"],
-                "objects": [("unit", "u1"), ("node", "n1"), ("unit", "u2"), ("node", "n2")],
-            }
+        expected = {
+            "relationship_classes": [("unit__node", ("unit", "node"))],
+            "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u2", "n2"))],
+            "relationship_metadata": [],
+            "metadata": [],
+            "object_classes": ["unit", "node"],
+            "objects": [("unit", "u1"), ("node", "n1"), ("unit", "u2"), ("node", "n2")],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1525,15 +1539,15 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["", "a", "b"], ["", "c", "d"], ["", "e", "f"], ["a", 2, 3], ["b", 4, 5]]
 
         expected = {
-                "relationship_classes": [("unit__node", ("unit", "node"))],
-                "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
-                "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
-                "relationship_parameter_values": [
-                    ("unit__node", ("a", "c"), "e", TimePattern(["a", "b"], [2, 4])),
-                    ("unit__node", ("b", "d"), "f", TimePattern(["a", "b"], [3, 5])),
-                ],
+            "relationship_classes": [("unit__node", ("unit", "node"))],
+            "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
+            "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
+            "relationship_parameter_values": [
+                ("unit__node", ("a", "c"), "e", TimePattern(["a", "b"], [2, 4])),
+                ("unit__node", ("b", "d"), "f", TimePattern(["a", "b"], [3, 5])),
+            ],
             "relationship_metadata": [],
-            "metadata": []
+            "metadata": [],
         }
 
         data = iter(input_data)
@@ -1565,16 +1579,13 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc2", "obj2", "parameter_name2", 2],
         ]
         expected = {
-                "object_classes": ["oc1", "oc2"],
-                "objects": [("oc1", "obj1"), ("oc2", "obj2")],
-                "object_metadata": [],
-                "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
-                "object_parameter_values": [
-                    ("oc1", "obj1", "parameter_name1", 1),
-                    ("oc2", "obj2", "parameter_name2", 2),
-                ],
-                "metadata": [],
-            }
+            "object_classes": ["oc1", "oc2"],
+            "objects": [("oc1", "obj1"), ("oc2", "obj2")],
+            "object_metadata": [],
+            "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
+            "object_parameter_values": [("oc1", "obj1", "parameter_name1", 1), ("oc2", "obj2", "parameter_name2", 2)],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)
@@ -1599,18 +1610,18 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc1_obj1", "oc2_obj1", 1, 3],
             ["oc1_obj2", "oc2_obj2", 2, 4],
         ]
-        expected =  {
-                "object_classes": ["oc1", "oc2"],
-                "objects": [("oc1", "oc1_obj1"), ("oc1", "oc1_obj2"), ("oc2", "oc2_obj2")],
-                "object_metadata": [],
-                "object_parameters": [("oc1", "parameter_class1"), ("oc2", "parameter_class2")],
-                "object_parameter_values": [
-                    ("oc1", "oc1_obj1", "parameter_class1", 1),
-                    ("oc1", "oc1_obj2", "parameter_class1", 2),
-                    ("oc2", "oc2_obj2", "parameter_class2", 4),
-                ],
-                "metadata": [],
-            }
+        expected = {
+            "object_classes": ["oc1", "oc2"],
+            "objects": [("oc1", "oc1_obj1"), ("oc1", "oc1_obj2"), ("oc2", "oc2_obj2")],
+            "object_metadata": [],
+            "object_parameters": [("oc1", "parameter_class1"), ("oc2", "parameter_class2")],
+            "object_parameter_values": [
+                ("oc1", "oc1_obj1", "parameter_class1", 1),
+                ("oc1", "oc1_obj2", "parameter_class1", 2),
+                ("oc2", "oc2_obj2", "parameter_class2", 4),
+            ],
+            "metadata": [],
+        }
 
         data = iter(input_data)
         data_header = next(data)

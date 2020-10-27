@@ -20,11 +20,13 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
+    apply_renaming_to_parameter_definition_sq,
     apply_renaming_to_entity_class_sq,
     create_new_spine_database,
     DatabaseMapping,
     DiffDatabaseMapping,
     import_object_classes,
+    import_object_parameters,
     import_relationship_classes,
 )
 from spinedb_api.filters.renamer import (
@@ -32,14 +34,18 @@ from spinedb_api.filters.renamer import (
     entity_class_renamer_config_to_shorthand,
     entity_class_renamer_from_dict,
     entity_class_renamer_shorthand_to_config,
+    parameter_renamer_config,
+    parameter_renamer_config_to_shorthand,
+    parameter_renamer_from_dict,
+    parameter_renamer_shorthand_to_config,
 )
 
 
-class TestRenamer(unittest.TestCase):
+class TestEntityClassRenamer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._temp_dir = TemporaryDirectory()
-        cls._db_url = URL("sqlite", database=Path(cls._temp_dir.name, "test_scenario_filter_mapping.sqlite").as_posix())
+        cls._db_url = URL("sqlite", database=Path(cls._temp_dir.name, "test_entity_class_renamer.sqlite").as_posix())
 
     def setUp(self):
         create_new_spine_database(self._db_url)
@@ -133,7 +139,100 @@ class TestRenamer(unittest.TestCase):
 
     def test_entity_class_renamer_shorthand_to_config(self):
         config = entity_class_renamer_shorthand_to_config("entity_class_rename:class1:renamed1:class2:renamed2")
-        self.assertEqual(config, {"type": "entity_class_renamer", "name_map": {"class1": "renamed1", "class2": "renamed2"}})
+        self.assertEqual(
+            config, {"type": "entity_class_renamer", "name_map": {"class1": "renamed1", "class2": "renamed2"}}
+        )
+
+
+class TestParameterRenamer(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._temp_dir = TemporaryDirectory()
+        cls._db_url = URL("sqlite", database=Path(cls._temp_dir.name, "test_parameter_renamer.sqlite").as_posix())
+
+    def setUp(self):
+        create_new_spine_database(self._db_url)
+        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._db_map = DatabaseMapping(self._db_url)
+
+    def tearDown(self):
+        self._out_map.connection.close()
+        self._db_map.connection.close()
+
+    def test_renaming_empty_database(self):
+        apply_renaming_to_parameter_definition_sq(self._db_map, {"some_name": "another_name"})
+        classes = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
+        self.assertEqual(classes, [])
+
+    def test_renaming_singe_parameter(self):
+        import_object_classes(self._out_map, ("object_class",))
+        import_object_parameters(self._out_map, (("object_class", "old_name"),))
+        self._out_map.commit_session("Add test data")
+        apply_renaming_to_parameter_definition_sq(self._db_map, {"old_name": "new_name"})
+        parameters = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
+        self.assertEqual(len(parameters), 1)
+        parameter_row = parameters[0]
+        keys = tuple(parameter_row.keys())
+        expected_keys = (
+            "id",
+            "name",
+            "description",
+            "data_type",
+            "entity_class_id",
+            "object_class_id",
+            "relationship_class_id",
+            "default_value",
+            "commit_id",
+            "parameter_value_list_id",
+        )
+        self.assertEqual(len(keys), len(expected_keys))
+        for expected_key in expected_keys:
+            self.assertIn(expected_key, keys)
+        self.assertEqual(parameter_row.name, "new_name")
+
+    def test_parameter_renamer_config(self):
+        config = parameter_renamer_config(parameter1="renamed1", parameter2="renamed2")
+        self.assertEqual(
+            config, {"type": "parameter_renamer", "name_map": {"parameter1": "renamed1", "parameter2": "renamed2"}}
+        )
+
+    def test_parameter_renamer_from_dict(self):
+        import_object_classes(self._out_map, ("object_class",))
+        import_object_parameters(self._out_map, (("object_class", "old_name"),))
+        self._out_map.commit_session("Add test data")
+        config = parameter_renamer_config(old_name="new_name")
+        parameter_renamer_from_dict(self._db_map, config)
+        parameters = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
+        self.assertEqual(len(parameters), 1)
+        parameter_row = parameters[0]
+        keys = tuple(parameter_row.keys())
+        expected_keys = (
+            "id",
+            "name",
+            "description",
+            "data_type",
+            "entity_class_id",
+            "object_class_id",
+            "relationship_class_id",
+            "default_value",
+            "commit_id",
+            "parameter_value_list_id",
+        )
+        self.assertEqual(len(keys), len(expected_keys))
+        for expected_key in expected_keys:
+            self.assertIn(expected_key, keys)
+        self.assertEqual(parameter_row.name, "new_name")
+
+    def test_parameter_renamer_config_to_shorthand(self):
+        config = parameter_renamer_config(parameter1="renamed1", parameter2="renamed2")
+        shorthand = parameter_renamer_config_to_shorthand(config)
+        self.assertEqual(shorthand, "parameter_rename:parameter1:renamed1:parameter2:renamed2")
+
+    def test_parameter_renamer_shorthand_to_config(self):
+        config = parameter_renamer_shorthand_to_config("parameter_rename:parameter1:renamed1:parameter2:renamed2")
+        self.assertEqual(
+            config, {"type": "parameter_renamer", "name_map": {"parameter1": "renamed1", "parameter2": "renamed2"}}
+        )
 
 
 if __name__ == "__main__":

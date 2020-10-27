@@ -624,32 +624,7 @@ class DatabaseMappingBase:
         """
 
         if self._parameter_definition_sq is None:
-            par_def_sq = self._subquery("parameter_definition")
-
-            object_class_case = case(
-                [(self.entity_class_sq.c.type_id == self.object_class_type, par_def_sq.c.entity_class_id)], else_=None
-            )
-            rel_class_case = case(
-                [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.entity_class_id)],
-                else_=None,
-            )
-
-            self._parameter_definition_sq = (
-                self.query(
-                    par_def_sq.c.id.label("id"),
-                    par_def_sq.c.name.label("name"),
-                    par_def_sq.c.description.label("description"),
-                    par_def_sq.c.data_type.label("data_type"),
-                    par_def_sq.c.entity_class_id,
-                    label("object_class_id", object_class_case),
-                    label("relationship_class_id", rel_class_case),
-                    par_def_sq.c.default_value.label("default_value"),
-                    par_def_sq.c.commit_id.label("commit_id"),
-                    par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
-                )
-                .join(self.entity_class_sq, self.entity_class_sq.c.id == par_def_sq.c.entity_class_id)
-                .subquery()
-            )
+            self._parameter_definition_sq = self._make_parameter_definition_sq()
         return self._parameter_definition_sq
 
     @property
@@ -1574,6 +1549,17 @@ class DatabaseMappingBase:
         self._make_entity_class_sq = MethodType(method, self)
         self._clear_subqueries("entity_class")
 
+    def override_parameter_definition_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``parameter_definition_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns parameter definition subquery as an :class:`Alias` object
+        """
+        self._make_parameter_definition_sq = MethodType(method, self)
+        self._clear_subqueries("parameter_definition")
+
     def override_parameter_value_sq_maker(self, method):
         """
         Overrides the function that creates the ``parameter_value_sq`` property.
@@ -1602,6 +1588,39 @@ class DatabaseMappingBase:
             Alias: an entity class subquery
         """
         return self._subquery("entity_class")
+
+    def _make_parameter_definition_sq(self):
+        """
+        Creates a subquery for parameter definitions.
+
+        Returns:
+            Alias: a parameter definition subquery
+        """
+        par_def_sq = self._subquery("parameter_definition")
+
+        object_class_case = case(
+            [(self.entity_class_sq.c.type_id == self.object_class_type, par_def_sq.c.entity_class_id)], else_=None
+        )
+        rel_class_case = case(
+            [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.entity_class_id)], else_=None
+        )
+
+        return (
+            self.query(
+                par_def_sq.c.id.label("id"),
+                par_def_sq.c.name.label("name"),
+                par_def_sq.c.description.label("description"),
+                par_def_sq.c.data_type.label("data_type"),
+                par_def_sq.c.entity_class_id,
+                label("object_class_id", object_class_case),
+                label("relationship_class_id", rel_class_case),
+                par_def_sq.c.default_value.label("default_value"),
+                par_def_sq.c.commit_id.label("commit_id"),
+                par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
+            )
+            .join(self.entity_class_sq, self.entity_class_sq.c.id == par_def_sq.c.entity_class_id)
+            .subquery()
+        )
 
     def _make_parameter_value_sq(self):
         """

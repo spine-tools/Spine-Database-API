@@ -30,6 +30,7 @@ from spinedb_api import (
 )
 from spinedb_api.filters.renamer import entity_class_renamer_config
 
+
 class TestLoadFilters(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

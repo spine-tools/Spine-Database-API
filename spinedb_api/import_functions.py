@@ -1795,7 +1795,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
                     parameter_name, object_name, alternative_name
                 )
             )
-            error_log.append(ImportErrorLogItem(msg=msg, db_type="object parameter value metadata",))
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="object parameter value metadata"))
             continue
         for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
@@ -1879,13 +1879,13 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
                     parameter_name, object_names, alternative_name
                 )
             )
-            error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata",))
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata"))
             continue
         for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
             if m_id is None:
                 msg = f"Could not import relationship parameter value metadata: unknown metadata {name}: {value}"
-                error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata",))
+                error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata"))
                 continue
             unique_key = (pv_id, m_id)
             if unique_key in seen:
