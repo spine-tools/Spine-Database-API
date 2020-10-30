@@ -254,7 +254,11 @@ def get_data_for_import(
     if relationship_classes:
         yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes))
     if parameter_value_lists:
-        yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
+        to_add, to_update, error_log = _get_parameter_value_lists_for_import(db_map, parameter_value_lists)
+        defs_to_update, vals_to_update = _get_parameters_to_update_with_value_lists(db_map, to_update)
+        yield ("parameter_value_list", (to_add, to_update, error_log))
+        yield ("parameter_definition", ([], defs_to_update, []))
+        yield ("parameter_value", ([], vals_to_update, []))
     if object_parameters:
         yield ("parameter_definition", _get_object_parameters_for_import(db_map, object_parameters))
     if relationship_parameters:
@@ -1523,6 +1527,53 @@ def _get_parameter_value_lists_for_import(db_map, data):
         else:
             to_add.append(item)
     return to_add, to_update, error_log
+
+
+def _new_value_from_list(curr_value, curr_value_list, new_value_list):
+    try:
+        value_index = curr_value_list.index(curr_value)
+    except ValueError:
+        return None
+    try:
+        return new_value_list[value_index]
+    except IndexError:
+        return None
+
+
+def _get_parameters_to_update_with_value_lists(db_map, parameter_value_lists_to_upd):
+    parameter_definitions = {}
+    for x in db_map.query(db_map.parameter_definition_sq):
+        if not x.parameter_value_list_id:
+            continue
+        parameter_definitions.setdefault(x.parameter_value_list_id, []).append(x._asdict())
+    parameter_values = {}
+    for x in db_map.query(db_map.parameter_value_sq):
+        parameter_values.setdefault(x.parameter_definition_id, []).append(x._asdict())
+    parameter_value_lists = {x.id: x._asdict() for x in db_map.query(db_map.wide_parameter_value_list_sq)}
+    defs_to_update = []
+    vals_to_update = []
+    for new_parameter_value_list in parameter_value_lists_to_upd:
+        value_list_id = new_parameter_value_list["id"]
+        parameter_value_list = parameter_value_lists.get(value_list_id)
+        if not parameter_value_list:
+            continue
+        value_list = parameter_value_list["value_list"].split(";")
+        new_value_list = new_parameter_value_list["value_list"]
+        for parameter_definition in parameter_definitions.get(value_list_id, []):
+            for parameter_value in parameter_values.get(parameter_definition["id"], []):
+                value = parameter_value["value"]
+                new_value = _new_value_from_list(value, value_list, new_value_list)
+                if new_value is None:
+                    continue
+                item = {"id": parameter_value["id"], "value": new_value}
+                vals_to_update.append(item)
+            default_value = parameter_definition["default_value"]
+            new_default_value = _new_value_from_list(default_value, value_list, new_value_list)
+            if new_default_value is None:
+                continue
+            item = {"id": parameter_definition["id"], "default_value": new_default_value}
+            defs_to_update.append(item)
+    return defs_to_update, vals_to_update
 
 
 def import_metadata(db_map, data):
