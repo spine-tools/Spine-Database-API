@@ -39,26 +39,27 @@ class DiffDatabaseMappingUpdateMixin:
         pk = self.composite_pks.get(tablename)
         if pk is None:
             pk = (table_id,)
+        diff_items = (x._asdict() for x in self.query(diff_sq))
+        diff_items = {tuple(x[k] for k in pk): x for x in diff_items}
+        orig_items = (x._asdict() for x in self.query(orig_sq))
+        orig_items = {tuple(x[k] for k in pk): x for x in orig_items}
         for item in checked_items:
             try:
-                filter_expr = {k: item[k] for k in pk}
+                key = tuple(item[k] for k in pk)
             except KeyError:
                 continue
-            if len(filter_expr) == len(item):
+            if len(key) == len(item):
                 continue
-            diff_item = self.query(diff_sq).filter_by(**filter_expr).one_or_none()
-            if diff_item is not None:
-                updated_item = diff_item._asdict()
-                # updated_item = attr_dict(diff_item)
+            updated_item = diff_items.get(key)
+            if updated_item is not None:
                 if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                     continue
                 updated_item.update(item)
                 items_for_update.append(updated_item)
                 updated_ids.add(updated_item[table_id])
                 continue
-            orig_item = self.query(orig_sq).filter_by(**filter_expr).one_or_none()
-            if orig_item is not None:
-                updated_item = orig_item._asdict()
+            updated_item = orig_items.get(key)
+            if updated_item is not None:
                 if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                     continue
                 updated_item.update(item)
