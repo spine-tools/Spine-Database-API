@@ -41,16 +41,19 @@ def apply_filter_stack(db_map, stack):
 
 def load_filters(filter_configs):
     """
-    Loads filter configurations from disk and constructs a filter stack.
+    Loads filter configurations from disk as needed and constructs a filter stack.
 
     Args:
-        filter_configs (list of str): paths to filter configuration files
+        filter_configs (list): list of filter config dicts and paths to filter configuration files
 
     Returns:
         list of dict: filter stack
     """
     stack = list()
-    for path in filter_configs:
-        with open(path) as config_file:
-            stack.append(load(config_file))
+    for config in filter_configs:
+        if isinstance(config, str):
+            with open(config) as config_file:
+                stack.append(load(config_file))
+        else:
+            stack.append(config)
     return stack

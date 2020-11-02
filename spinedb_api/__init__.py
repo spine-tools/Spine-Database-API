@@ -159,7 +159,7 @@ from .filters.alternative_filter import apply_alternative_filter_to_parameter_va
 from .filters.scenario_filter import apply_scenario_filter_to_parameter_value_sq
 from .filters.tool_filter import apply_tool_filter_to_entity_sq
 from .filters.renamer import apply_renaming_to_parameter_definition_sq, apply_renaming_to_entity_class_sq
-from .filters.url_tools import append_filter_config, clear_filter_configs, pop_filter_configs
+from .filters.url_tools import append_filter_config, clear_filter_configs, config_to_shorthand, pop_filter_configs
 from .version import __version__
 
 name = "spinedb_api"

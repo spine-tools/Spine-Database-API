@@ -57,6 +57,21 @@ class TestLoadFilters(unittest.TestCase):
         stack = load_filters([path1, path2])
         self.assertEqual(stack, [{"first": 1}, {"second": 2}])
 
+    def test_config_dict_passes_through(self):
+        filters = [entity_class_renamer_config(object_class="renamed")]
+        stack = load_filters(filters)
+        self.assertEqual(stack, [entity_class_renamer_config(object_class="renamed")])
+
+    def test_mixture_of_files_and_shorthands(self):
+        path1 = os.path.join(self._dir.name, "config1.json")
+        with open(path1, "w") as out_file:
+            dump({"first": 1}, out_file)
+        path2 = os.path.join(self._dir.name, "config2.json")
+        with open(path2, "w") as out_file:
+            dump({"second": 2}, out_file)
+        stack = load_filters([path1, {"middle": -2}, path2])
+        self.assertEqual(stack, [{"first": 1}, {"middle": -2}, {"second": 2}])
+
 
 class TestApplyFilterStack(unittest.TestCase):
     @classmethod
@@ -76,8 +91,6 @@ class TestApplyFilterStack(unittest.TestCase):
             apply_filter_stack(db_map, [])
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("object_class", None, None)])
-        except:
-            raise
         finally:
             db_map.connection.close()
 
@@ -88,8 +101,6 @@ class TestApplyFilterStack(unittest.TestCase):
             apply_filter_stack(db_map, stack)
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_once", None, None)])
-        except:
-            raise
         finally:
             db_map.connection.close()
 
@@ -103,8 +114,6 @@ class TestApplyFilterStack(unittest.TestCase):
             apply_filter_stack(db_map, stack)
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_twice", None, None)])
-        except:
-            raise
         finally:
             db_map.connection.close()
 
@@ -126,8 +135,6 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("object_class", None, None)])
-        except:
-            raise
         finally:
             db_map.connection.close()
 
@@ -140,8 +147,6 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_once", None, None)])
-        except:
-            raise
         finally:
             db_map.connection.close()
 
@@ -158,11 +163,18 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_twice", None, None)])
-        except:
-            raise
         finally:
             db_map.connection.close()
 
+    def test_config_embedded_to_url(self):
+        config = entity_class_renamer_config(object_class="renamed_once")
+        url = append_filter_config(self._db_url, config)
+        db_map = DatabaseMapping(url)
+        try:
+            object_classes = export_object_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", None, None)])
+        finally:
+            db_map.connection.close()
 
 if __name__ == "__main__":
     unittest.main()
