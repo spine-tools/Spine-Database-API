@@ -176,5 +176,6 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         finally:
             db_map.connection.close()
 
+
 if __name__ == "__main__":
     unittest.main()

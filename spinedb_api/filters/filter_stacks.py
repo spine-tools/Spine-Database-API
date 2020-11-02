@@ -16,7 +16,12 @@ Contains functions to deal with filter stacks.
 """
 from json import load
 from .alternative_filter import alternative_filter_from_dict, ALTERNATIVE_FILTER_TYPE
-from .renamer import entity_class_renamer_from_dict, ENTITY_CLASS_RENAMER_TYPE
+from .renamer import (
+    entity_class_renamer_from_dict,
+    ENTITY_CLASS_RENAMER_TYPE,
+    parameter_renamer_from_dict,
+    PARAMETER_RENAMER_TYPE,
+)
 from .scenario_filter import scenario_filter_from_dict, SCENARIO_FILTER_TYPE
 from .tool_filter import tool_filter_from_dict, TOOL_FILTER_TYPE
 
@@ -32,6 +37,7 @@ def apply_filter_stack(db_map, stack):
     appliers = {
         ALTERNATIVE_FILTER_TYPE: alternative_filter_from_dict,
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
+        PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
         SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
         TOOL_FILTER_TYPE: tool_filter_from_dict,
     }
