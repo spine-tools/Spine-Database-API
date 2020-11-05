@@ -22,7 +22,7 @@ from types import MethodType
 from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import DatabaseError, NoSuchTableError
 from alembic.migration import MigrationContext
@@ -63,8 +63,10 @@ class DatabaseMappingBase:
         """
         if isinstance(db_url, str):
             filter_configs, db_url = pop_filter_configs(db_url)
-        else:
+        elif isinstance(db_url, URL):
             filter_configs = db_url.query.pop("spinedbfilter", [])
+        else:
+            filter_configs = []
         self._filter_configs = filter_configs if apply_filters else None
         self.db_url = db_url
         self.sa_url = make_url(self.db_url)
