@@ -55,6 +55,12 @@ class TestDiffDatabaseMappingConstruction(unittest.TestCase):
         cls._temp_dir = TemporaryDirectory()
         cls._db_url = "sqlite:///" + os.path.join(cls._temp_dir.name, "test_database_mapping.sqlite")
         create_new_spine_database(cls._db_url)
+        db_map = DiffDatabaseMapping(cls._db_url)
+        try:
+            db_map.add_tools({"name": "object_activity_control", "id": 1})
+            db_map.commit_session("Add tool.")
+        finally:
+            db_map.connection.close()
 
     def test_construction_with_filters(self):
         db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
@@ -78,6 +84,15 @@ class TestDiffDatabaseMappingConstruction(unittest.TestCase):
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
+
+    def test_shorthand_filter_query_works(self):
+        url = self._db_url + "?spinedbfilter=cfg%3Atool%3Aobject_activity_control"
+        try:
+            db_map = DiffDatabaseMapping(url)
+        except:
+            self.fail("DiffDatabaseMapping.__init__() should not raise.")
+        else:
+            db_map.connection.close()
 
 
 class TestDiffDatabaseMappingRemove(unittest.TestCase):
