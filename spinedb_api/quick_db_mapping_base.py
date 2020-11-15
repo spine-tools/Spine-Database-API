@@ -18,7 +18,7 @@ Provides :class:`.QuickDatabaseMappingBase`.
 
 from datetime import datetime, timezone
 from sqlalchemy import func, true, false
-from sqlalchemy.sql.expression import select, bindparam
+from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from .db_mapping_base import DatabaseMappingBase
@@ -89,7 +89,7 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
 
     def _subquery(self, tablename):
         table = self._metadata.tables[tablename]
-        return select([table]).alias()
+        return self.query(table).subquery()
 
     def _next_id(self, tablename):
         tablename = {
@@ -262,7 +262,7 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
 
     def _update_wide_parameter_value_lists(self, *wide_items):
         self._remove_items("parameter_value_list")
-        return self._add_items("parameter_value_list", *wide_items)
+        return self._add_wide_parameter_value_lists(*wide_items)
 
     def _update_alternatives(self, *items):
         return self._update_items("alternative", *items)
