@@ -17,62 +17,48 @@
 # TODO: improve docstrings
 
 from datetime import datetime
-from sqlalchemy import func, MetaData, Table, Column, Integer, String, null
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.exc import DBAPIError, NoSuchTableError
-from .exception import SpineDBAPIError, SpineTableNotFoundError
+from sqlalchemy import func, Column, Integer, String, null
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.exc import DBAPIError
+from .exception import SpineDBAPIError
+from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, get_parameter_value_list_items
 
 
 class DiffDatabaseMappingAddMixin:
     """Provides methods to stage ``INSERT`` operations over a Spine db.
     """
 
+    class NextId(declarative_base()):
+        __tablename__ = "next_id"
+
+        user = Column(String(155), primary_key=True)
+        date = Column(String(155), primary_key=True)
+        entity_id = Column(Integer, server_default=null())
+        entity_class_id = Column(Integer, server_default=null())
+        entity_group_id = Column(Integer, server_default=null())
+        parameter_definition_id = Column(Integer, server_default=null())
+        parameter_value_id = Column(Integer, server_default=null())
+        parameter_tag_id = Column(Integer, server_default=null())
+        parameter_value_list_id = Column(Integer, server_default=null())
+        parameter_definition_tag_id = Column(Integer, server_default=null())
+        alternative_id = Column(Integer, server_default=null())
+        scenario_id = Column(Integer, server_default=null())
+        scenario_alternative_id = Column(Integer, server_default=null())
+        tool_id = Column(Integer, server_default=null())
+        feature_id = Column(Integer, server_default=null())
+        tool_feature_id = Column(Integer, server_default=null())
+        tool_feature_method_id = Column(Integer, server_default=null())
+        metadata_id = Column(Integer, server_default=null())
+        parameter_value_metadata_id = Column(Integer, server_default=null())
+        entity_metadata_id = Column(Integer, server_default=null())
+
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
-        self.NextId = None
-        self._init_next_id()
+        self.NextId.__table__.create(self.connection, checkfirst=True)
 
-    def _init_next_id(self):
-        """Create `next_id` table if not exists and map it."""
-        # TODO: Does this work? What happens if there's already a next_id table with a different definition?
-        # Create table
-        metadata = MetaData()
-        next_id_table = Table(
-            "next_id",
-            metadata,
-            Column("user", String(155), primary_key=True),
-            Column("date", String(155), primary_key=True),
-            Column("entity_id", Integer, server_default=null()),
-            Column("entity_class_id", Integer, server_default=null()),
-            Column("entity_group_id", Integer, server_default=null()),
-            Column("parameter_definition_id", Integer, server_default=null()),
-            Column("parameter_value_id", Integer, server_default=null()),
-            Column("parameter_tag_id", Integer, server_default=null()),
-            Column("parameter_value_list_id", Integer, server_default=null()),
-            Column("parameter_definition_tag_id", Integer, server_default=null()),
-            Column("alternative_id", Integer, server_default=null()),
-            Column("scenario_id", Integer, server_default=null()),
-            Column("scenario_alternative_id", Integer, server_default=null()),
-            Column("tool_id", Integer, server_default=null()),
-            Column("feature_id", Integer, server_default=null()),
-            Column("tool_feature_id", Integer, server_default=null()),
-            Column("tool_feature_method_id", Integer, server_default=null()),
-            Column("metadata_id", Integer, server_default=null()),
-            Column("parameter_value_metadata_id", Integer, server_default=null()),
-            Column("entity_metadata_id", Integer, server_default=null()),
-        )
-        next_id_table.create(self.engine, checkfirst=True)
-        # Create mapping...
-        Base = automap_base(metadata=metadata)
-        Base.prepare()
-        try:
-            self.NextId = Base.classes.next_id
-        except (AttributeError, NoSuchTableError):
-            raise SpineTableNotFoundError("next_id", self.db_url)
-
-    def _next_id_with_lock(self):
-        """A 'next_id' item to use for adding new items."""
+    def _next_id_row(self):
+        """Returns the next_id row."""
         next_id = self.query(self.NextId).one_or_none()
         if next_id:
             next_id.user = self.username
@@ -90,10 +76,40 @@ class DiffDatabaseMappingAddMixin:
             raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
         return self.query(self.NextId).one_or_none()
 
+    def _next_id(self, tablename, next_id_candidate=None):
+        classname = {
+            "object_class": "EntityClass",
+            "object": "Entity",
+            "relationship_class": "EntityClass",
+            "relationship": "Entity",
+            "entity_group": "EntityGroup",
+            "parameter_definition": "ParameterDefinition",
+            "parameter_value": "ParameterValue",
+            "parameter_tag": "ParameterTag",
+            "parameter_definition_tag": "ParameterDefinitionTag",
+            "parameter_value_list": "ParameterValueList",
+            "alternative": "Alternative",
+            "scenario": "Scenario",
+            "scenario_alternative": "ScenarioAlternative",
+            "tool": "Tool",
+            "feature": "Feature",
+            "tool_feature": "ToolFeature",
+            "tool_feature_method": "ToolFeatureMethod",
+            "metadata": "Metadata",
+            "parameter_value_metadata": "ParameterValueMetadata",
+            "entity_metadata": "EntityMetadata",
+        }[tablename]
+        class_ = getattr(self, classname)
+        max_id = self.query(func.max(class_.id)).scalar()
+        next_id = max_id + 1 if max_id else 1
+        if next_id_candidate is None:
+            return next_id
+        return max(next_id_candidate, next_id)
+
     def _items_and_ids(self, tablename, *items):
         if not items:
             return [], set()
-        next_id_fieldname = {
+        fieldname = {
             "object_class": "entity_class_id",
             "object": "entity_id",
             "relationship_class": "entity_class_id",
@@ -115,40 +131,17 @@ class DiffDatabaseMappingAddMixin:
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
         }[tablename]
-        next_id = self._next_id_with_lock()
-        id_ = getattr(next_id, next_id_fieldname)
-        if id_ is None:
-            classname = {
-                "object_class": "EntityClass",
-                "object": "Entity",
-                "relationship_class": "EntityClass",
-                "relationship": "Entity",
-                "entity_group": "EntityGroup",
-                "parameter_definition": "ParameterDefinition",
-                "parameter_value": "ParameterValue",
-                "parameter_tag": "ParameterTag",
-                "parameter_definition_tag": "ParameterDefinitionTag",
-                "parameter_value_list": "ParameterValueList",
-                "alternative": "Alternative",
-                "scenario": "Scenario",
-                "scenario_alternative": "ScenarioAlternative",
-                "tool": "Tool",
-                "feature": "Feature",
-                "tool_feature": "ToolFeature",
-                "tool_feature_method": "ToolFeatureMethod",
-                "metadata": "Metadata",
-                "parameter_value_metadata": "ParameterValueMetadata",
-                "entity_metadata": "EntityMetadata",
-            }[tablename]
-            class_ = getattr(self, classname)
-            max_id = self.query(func.max(class_.id)).scalar()
-            id_ = max_id + 1 if max_id else 1
-        ids = list(range(id_, id_ + len(items)))
+        next_id_row = self._next_id_row()
+        next_id = getattr(next_id_row, fieldname)
+        next_id = self._next_id(tablename, next_id)
+        ids = list(range(next_id, next_id + len(items)))
         items_to_add = list()
+        append_item = items_to_add.append
         for id_, item in zip(ids, items):
             item["id"] = id_
-            items_to_add.append(item)
-        setattr(next_id, next_id_fieldname, ids[-1] + 1)
+            append_item(item)
+        next_id = ids[-1] + 1
+        setattr(next_id_row, fieldname, next_id)
         return items_to_add, set(ids)
 
     def add_features(self, *items, strict=False, return_dups=False):
@@ -676,14 +669,7 @@ class DiffDatabaseMappingAddMixin:
         for wide_item in wide_items_to_add:
             wide_item["type_id"] = self.relationship_class_type
             rel_clss_to_add.append({"entity_class_id": wide_item["id"], "type_id": self.relationship_class_type})
-            for dimension, object_class_id in enumerate(wide_item["object_class_id_list"]):
-                rel_ent_cls = {
-                    "entity_class_id": wide_item["id"],
-                    "dimension": dimension,
-                    "member_class_id": object_class_id,
-                    "member_class_type_id": self.object_class_type,
-                }
-                rel_ent_clss_to_add.append(rel_ent_cls)
+            rel_ent_clss_to_add += get_relationship_entity_class_items(wide_item, self.object_class_type)
         try:
             self.session.bulk_insert_mappings(self.DiffEntityClass, wide_items_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationshipClass, rel_clss_to_add)
@@ -751,19 +737,9 @@ class DiffDatabaseMappingAddMixin:
                     "type_id": self.relationship_entity_type,
                 }
             )
-            for dimension, (object_id, object_class_id) in enumerate(
-                zip(wide_item["object_id_list"], wide_item["object_class_id_list"])
-            ):
-                narrow_item = {
-                    "entity_id": wide_item["id"],
-                    "type_id": self.relationship_entity_type,
-                    "entity_class_id": wide_item["class_id"],
-                    "dimension": dimension,
-                    "member_id": object_id,
-                    "member_class_type_id": self.object_entity_type,
-                    "member_class_id": object_class_id,
-                }
-                rel_ent_to_add.append(narrow_item)
+            rel_ent_to_add += get_relationship_entity_items(
+                wide_item, self.relationship_entity_type, self.object_entity_type
+            )
         try:
             self.session.bulk_insert_mappings(self.DiffEntity, wide_items_to_add)
             self.session.bulk_insert_mappings(self.DiffRelationship, rel_to_add)
@@ -1085,9 +1061,7 @@ class DiffDatabaseMappingAddMixin:
     def _do_add_wide_parameter_value_lists(self, *wide_items_to_add):
         items_to_add = list()
         for wide_item in wide_items_to_add:
-            for k, value in enumerate(wide_item["value_list"]):
-                narrow_item = {"id": wide_item["id"], "name": wide_item["name"], "value_index": k, "value": value}
-                items_to_add.append(narrow_item)
+            items_to_add += get_parameter_value_list_items(wide_item)
         try:
             self.session.bulk_insert_mappings(self.DiffParameterValueList, items_to_add)
             self.session.commit()

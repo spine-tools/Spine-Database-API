@@ -21,6 +21,7 @@ import logging
 from types import MethodType
 from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label, Alias
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
@@ -51,6 +52,14 @@ class DatabaseMappingBase:
     It provides the :meth:`query` method for custom db querying.
     """
 
+    class IdsForIn(declarative_base()):
+        __tablename__ = "ids_for_in"
+        __table_args__ = {'prefixes': ['TEMPORARY']}
+
+        id = Column(Integer, primary_key=True)
+        clause_id = Column(Integer)
+        id_for_in = Column(Integer)
+
     def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
         """
         Args:
@@ -74,7 +83,9 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self.engine = self._create_engine(db_url, upgrade=upgrade, create=create)
         self.connection = self.engine.connect()
-        self.session = Session(self.connection, autoflush=False)
+        self._metadata = MetaData(self.connection)
+        self._metadata.reflect()
+        self.session = None
         self.Alternative = None
         self.Scenario = None
         self.ScenarioAlternative = None
@@ -102,7 +113,6 @@ class DatabaseMappingBase:
         self.Metadata = None
         self.ParameterValueMetadata = None
         self.EntityMetadata = None
-        self.IdsForIn = None
         self._ids_for_in_clause_id = 0
         # class and entity type id
         self._object_class_type = None
@@ -274,8 +284,8 @@ class DatabaseMappingBase:
 
     def _create_mapping(self):
         """Create ORM."""
-        Base = automap_base()
-        Base.prepare(self.engine, reflect=True, generate_relationship=custom_generate_relationship)
+        Base = automap_base(metadata=self._metadata)
+        Base.prepare(generate_relationship=custom_generate_relationship)
         not_found = []
         for tablename, classname in self.table_to_class.items():
             try:
@@ -284,26 +294,14 @@ class DatabaseMappingBase:
                 not_found.append(tablename)
         if not_found:
             raise SpineTableNotFoundError(not_found, self.db_url)
+        self.session = Session(self.connection, autoflush=False)
 
     def reconnect(self):
         self.connection = self.engine.connect()
 
     def _create_ids_for_in(self):
         """Create `ids_for_in` table if not exists and map it."""
-        metadata = MetaData()
-        ids_for_in_table = Table(
-            "ids_for_in",
-            metadata,
-            Column("id", Integer, primary_key=True),
-            Column("clause_id", Integer),
-            Column("id_for_in", Integer),
-            prefixes=["TEMPORARY"],
-        )
-        ids_for_in_table.create(self.engine, checkfirst=True)
-        metadata.create_all(self.connection)
-        Base = automap_base(metadata=metadata)
-        Base.prepare()
-        self.IdsForIn = Base.classes.ids_for_in
+        self.IdsForIn.__table__.create(self.connection, checkfirst=True)
 
     def in_(self, column, ids):
         """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
