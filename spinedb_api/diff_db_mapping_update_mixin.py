@@ -83,7 +83,7 @@ class DiffDatabaseMappingUpdateMixin:
         updated_ids = self._update_items(tablename, *checked_items)
         return updated_ids, intgr_error_log
 
-    def _update_items(self, tablename, *checked_items, strict=False):
+    def _update_items(self, tablename, *checked_items):
         """Update items without checking integrity."""
         tablename = {
             "object_class": "entity_class",
@@ -115,20 +115,38 @@ class DiffDatabaseMappingUpdateMixin:
     def update_alternatives(self, *items, strict=False):
         return self.update_items("alternative", *items, strict=strict)
 
+    def _update_alternatives(self, *items):
+        return self._update_items("alternative", *items)
+
     def update_scenarios(self, *items, strict=False):
         return self.update_items("scenario", *items, strict=strict)
+
+    def _update_scenarios(self, *items):
+        return self._update_items("scenario", *items)
 
     def update_scenario_alternatives(self, *items, strict=False):
         return self.update_items("scenario_alternative", *items, strict=strict)
 
+    def _update_scenario_alternatives(self, *items):
+        return self._update_items("scenario_alternative", *items)
+
     def update_object_classes(self, *items, strict=False):
         return self.update_items("object_class", *items, strict=strict)
+
+    def _update_object_classes(self, *items):
+        return self._update_items("object_class", *items)
 
     def update_objects(self, *items, strict=False):
         return self.update_items("object", *items, strict=strict)
 
+    def _update_objects(self, *items):
+        return self._update_items("object", *items)
+
     def update_wide_relationship_classes(self, *wide_items, strict=False):
         return self.update_items("relationship_class", *wide_items, strict=strict)
+
+    def _update_wide_relationship_classes(self, *wide_items):
+        return self._update_items("relationship_class", *wide_items)
 
     def update_wide_relationships(self, *wide_items, strict=False):
         """Update relationships."""
@@ -174,16 +192,20 @@ class DiffDatabaseMappingUpdateMixin:
     def update_parameter_definitions(self, *items, strict=False):
         return self.update_items("parameter_definition", *items, strict=strict)
 
+    def _update_parameter_definitions(self, *items):
+        return self._update_items("parameter_definition", *items)
+
     def update_parameter_values(self, *items, strict=False):
         return self.update_items("parameter_value", *items, strict=strict)
 
-    def update_checked_parameter_values(self, *checked_items):
-        """Update checked parameter values."""
-        updated_ids = self._update_items("parameter_value", *checked_items)
-        return updated_ids, []
+    def _update_parameter_values(self, *items):
+        return self._update_items("parameter_value", *items)
 
     def update_parameter_tags(self, *items, strict=False):
         return self.update_items("parameter_tag", *items, strict=strict)
+
+    def _update_parameter_tags(self, *items):
+        return self._update_items("parameter_tag", *items)
 
     def update_wide_parameter_value_lists(self, *wide_items, strict=False):
         """Update parameter value lists."""
@@ -225,14 +247,26 @@ class DiffDatabaseMappingUpdateMixin:
         """Update features."""
         return self.update_items("feature", *items, strict=strict)
 
+    def _update_features(self, *items):
+        return self._update_items("feature", *items)
+
     def update_tools(self, *items, strict=False):
         return self.update_items("tool", *items, strict=strict)
+
+    def _update_tools(self, *items):
+        return self._update_items("tool", *items)
 
     def update_tool_features(self, *items, strict=False):
         return self.update_items("tool_feature", *items, strict=strict)
 
+    def _update_tool_features(self, *items):
+        return self._update_items("tool_feature", *items)
+
     def update_tool_feature_methods(self, *items, strict=False):
         return self.update_items("tool_feature_method", *items, strict=strict)
+
+    def _update_tool_feature_methods(self, *items):
+        return self._update_items("tool_feature_method", *items)
 
     def get_data_to_set_scenario_alternatives(self, *items):
         """Returns data to add, update, and remove, in order to set wide scenario alternatives.
