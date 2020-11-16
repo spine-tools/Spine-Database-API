@@ -16,9 +16,6 @@ Unit tests for export_functions.
 :date:    29.6.2020
 """
 
-from os import remove
-import os.path
-from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api import (
     Anyone,
@@ -52,19 +49,13 @@ from spinedb_api import (
 
 
 class TestExportFunctions(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls._temp_dir = TemporaryDirectory()
-
     def setUp(self):
-        self._database_file_path = os.path.join(self._temp_dir.name, "test_export_functions.sqlite")
-        db_url = "sqlite:///" + self._database_file_path
-        create_new_spine_database(db_url)
-        self._db_map = DiffDatabaseMapping(db_url, username="UnitTest")
+        db_url = "sqlite://"
+        engine = create_new_spine_database(db_url)
+        self._db_map = DiffDatabaseMapping(db_url, engine, username="UnitTest")
 
     def tearDown(self):
         self._db_map.connection.close()
-        remove(self._database_file_path)
 
     def test_export_tools(self):
         import_tools(self._db_map, [("tool", "Description")])

@@ -35,7 +35,6 @@ from spinedb_api.parameter_value import (
     IndexedNumberArray,
     Map,
     TimePattern,
-    TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
 )

@@ -74,19 +74,19 @@ class TestLoadFilters(unittest.TestCase):
 
 
 class TestApplyFilterStack(unittest.TestCase):
+    _db_url = "sqlite://"
+    _engine = None
+
     @classmethod
     def setUpClass(cls):
-        cls._dir = TemporaryDirectory()
-        path = os.path.join(cls._dir.name, "database.sqlite")
-        cls._db_url = "sqlite:///" + path
-        create_new_spine_database(cls._db_url)
-        db_map = DiffDatabaseMapping(cls._db_url)
+        cls._engine = create_new_spine_database(cls._db_url)
+        db_map = DiffDatabaseMapping(cls._db_url, cls._engine)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
 
     def test_empty_stack(self):
-        db_map = DatabaseMapping(self._db_url)
+        db_map = DatabaseMapping(self._db_url, self._engine)
         try:
             apply_filter_stack(db_map, [])
             object_classes = export_object_classes(db_map)
@@ -95,7 +95,7 @@ class TestApplyFilterStack(unittest.TestCase):
             db_map.connection.close()
 
     def test_single_renaming_filter(self):
-        db_map = DatabaseMapping(self._db_url)
+        db_map = DatabaseMapping(self._db_url, self._engine)
         try:
             stack = [entity_class_renamer_config(object_class="renamed_once")]
             apply_filter_stack(db_map, stack)
@@ -105,7 +105,7 @@ class TestApplyFilterStack(unittest.TestCase):
             db_map.connection.close()
 
     def test_two_renaming_filters(self):
-        db_map = DatabaseMapping(self._db_url)
+        db_map = DatabaseMapping(self._db_url, self._engine)
         try:
             stack = [
                 entity_class_renamer_config(object_class="renamed_once"),
@@ -119,19 +119,21 @@ class TestApplyFilterStack(unittest.TestCase):
 
 
 class TestFilteredDatabaseMap(unittest.TestCase):
+    _db_url = "sqlite://"
+    _dir = None
+    _engine = None
+
     @classmethod
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
-        path = os.path.join(cls._dir.name, "database.sqlite")
-        cls._db_url = "sqlite:///" + path
-        create_new_spine_database(cls._db_url)
-        db_map = DiffDatabaseMapping(cls._db_url)
+        cls._engine = create_new_spine_database(cls._db_url)
+        db_map = DiffDatabaseMapping(cls._db_url, cls._engine)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
 
     def test_without_filters(self):
-        db_map = DatabaseMapping(self._db_url)
+        db_map = DatabaseMapping(self._db_url, self._engine)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("object_class", None, None)])
@@ -143,7 +145,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         with open(path, "w") as out_file:
             dump(entity_class_renamer_config(object_class="renamed_once"), out_file)
         url = append_filter_config(self._db_url, path)
-        db_map = DatabaseMapping(url)
+        db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_once", None, None)])
@@ -159,7 +161,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         with open(path2, "w") as out_file:
             dump(entity_class_renamer_config(renamed_once="renamed_twice"), out_file)
         url = append_filter_config(url, path2)
-        db_map = DatabaseMapping(url)
+        db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_twice", None, None)])
@@ -169,7 +171,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     def test_config_embedded_to_url(self):
         config = entity_class_renamer_config(object_class="renamed_once")
         url = append_filter_config(self._db_url, config)
-        db_map = DatabaseMapping(url)
+        db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_object_classes(db_map)
             self.assertEqual(object_classes, [("renamed_once", None, None)])

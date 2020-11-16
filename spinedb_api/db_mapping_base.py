@@ -15,9 +15,10 @@
 :date:   11.8.2018
 """
 # TODO: Finish docstrings
-
+import hashlib
 import os
 import logging
+import time
 from types import MethodType
 from sqlalchemy import create_engine, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label, Alias
@@ -58,13 +59,16 @@ class DatabaseMappingBase:
         clause_id = Column(Integer)
         id_for_in = Column(Integer)
 
-    def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
+    def __init__(
+        self, db_url, engine=None, username=None, upgrade=False, codename=None, create=False, apply_filters=True
+    ):
         """
         Args:
             db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped.
-            username (str): A user name. If ``None``, it gets replaced by the string ``"anon"``.
+            engine (Engine, optional): An already connected engine if it exists.
+            username (str, optional): A user name. If ``None``, it gets replaced by the string ``"anon"``.
             upgrade (bool): Whether or not the db at the given URL should be upgraded to the most recent version.
-            codename (str): A name that uniquely identifies the class instance within a client application.
+            codename (str, optional): A name that uniquely identifies the class instance within a client application.
             create (bool): Whether or not to create a Spine db at the given URL if it's not already.
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
         """
@@ -79,7 +83,7 @@ class DatabaseMappingBase:
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
-        self.engine = self._create_engine(db_url, upgrade=upgrade, create=create)
+        self.engine = self._create_engine(db_url, engine, upgrade=upgrade, create=create)
         self.connection = self.engine.connect()
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
@@ -162,29 +166,36 @@ class DatabaseMappingBase:
         if codename:
             return str(codename)
         if self.sa_url.drivername == "sqlite":
-            return os.path.basename(self.sa_url.database)
+            if self.sa_url.database is not None:
+                return os.path.basename(self.sa_url.database)
+            else:
+                hashing = hashlib.sha1()
+                hashing.update(bytes(str(time.time()), "utf-8"))
+                return hashing.hexdigest()
         return self.sa_url.database
 
-    def _create_engine(self, db_url, upgrade=False, create=False):
+    def _create_engine(self, db_url, engine, upgrade=False, create=False):
         """Create engine.
 
         Args
             db_url (str): A URL to be passed to sqlalchemy.create_engine
+            engine (Engine, optional): An already connected engine.
             upgrade (bool, optional): If True, upgrade the db to the latest version.
             create (bool, optional): If True, create a new Spine db at the given url if none found.
 
         Returns
             Engine
         """
-        try:
-            engine = create_engine(db_url)
-            with engine.connect():
-                pass
-        except Exception as e:
-            raise SpineDBAPIError(
-                f"Could not connect to '{db_url}': {str(e)}. "
-                f"Please make sure that '{db_url}' is a valid sqlalchemy URL."
-            )
+        if engine is None:
+            try:
+                engine = create_engine(db_url)
+                with engine.connect():
+                    pass
+            except Exception as e:
+                raise SpineDBAPIError(
+                    f"Could not connect to '{db_url}': {str(e)}. "
+                    f"Please make sure that '{db_url}' is a valid sqlalchemy URL."
+                )
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
         script = ScriptDirectory.from_config(config)

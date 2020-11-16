@@ -15,8 +15,6 @@ Unit tests for DatabaseMapping class.
 :author: A. Soininen
 :date:   2.7.2020
 """
-import os.path
-from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import make_url
@@ -27,14 +25,14 @@ from spinedb_api import DatabaseMapping
 class TestDatabaseMappingBase(unittest.TestCase):
     _db_map = None
     _db_url = None
+    _engine = None
     _temp_dir = None
 
     @classmethod
     def setUpClass(cls):
-        cls._temp_dir = TemporaryDirectory()
-        cls._db_url = "sqlite:///" + os.path.join(cls._temp_dir.name, "test_database_mapping.sqlite")
-        engine = create_new_spine_database(cls._db_url)
-        cls._db_map = DatabaseMapping(cls._db_url)
+        cls._db_url = "sqlite:///"
+        cls._engine = create_new_spine_database(cls._db_url)
+        cls._db_map = DatabaseMapping(cls._db_url, cls._engine)
 
     @classmethod
     def tearDownClass(cls):
@@ -46,7 +44,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(db_url)
+                db_map = DatabaseMapping(db_url, self._engine)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -58,7 +56,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(sa_url)
+                db_map = DatabaseMapping(sa_url, self._engine)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
