@@ -878,6 +878,10 @@ def get_parameter_value_list_items(wide_item):
     ]
 
 
+def labelled_columns(table):
+    return [c.label(c.name) for c in table.columns]
+
+
 class AnyoneType:
     def __repr__(self):
         return "Anyone"

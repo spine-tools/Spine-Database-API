@@ -56,6 +56,46 @@ class DatabaseMappingCheckMixin:
             if value != current_value:
                 raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
 
+    def check_items_for_insert(self, tablename, *items, strict=False):
+        return {
+            "alternative": self.check_alternatives_for_insert,
+            "scenario": self.check_scenarios_for_insert,
+            "scenario_alternative": self.check_scenario_alternatives_for_insert,
+            "object": self.check_objects_for_insert,
+            "object_class": self.check_object_classes_for_insert,
+            "relationship_class": self.check_wide_relationship_classes_for_insert,
+            "relationship": self.check_wide_relationships_for_insert,
+            "entity_group": self.check_entity_groups_for_insert,
+            "parameter_definition": self.check_parameter_definitions_for_insert,
+            "parameter_value": self.check_parameter_values_for_insert,
+            "parameter_tag": self.check_parameter_tags_for_insert,
+            "parameter_definition_tag": self.check_parameter_definition_tags_for_insert,
+            "parameter_value_list": self.check_wide_parameter_value_lists_for_insert,
+            "feature": self.check_features_for_insert,
+            "tool": self.check_tools_for_insert,
+            "tool_feature": self.check_tool_features_for_insert,
+            "tool_feature_method": self.check_tool_feature_methods_for_insert,
+        }[tablename](*items, strict=strict)
+
+    def check_items_for_update(self, tablename, *items, strict=False):
+        return {
+            "alternative": self.check_alternatives_for_update,
+            "scenario": self.check_scenarios_for_update,
+            "scenario_alternative": self.check_scenario_alternatives_for_update,
+            "object": self.check_objects_for_update,
+            "object_class": self.check_object_classes_for_update,
+            "relationship_class": self.check_wide_relationship_classes_for_update,
+            "relationship": self.check_wide_relationships_for_update,
+            "parameter_definition": self.check_parameter_definitions_for_update,
+            "parameter_value": self.check_parameter_values_for_update,
+            "parameter_tag": self.check_parameter_tags_for_update,
+            "parameter_value_list": self.check_wide_parameter_value_lists_for_update,
+            "feature": self.check_features_for_update,
+            "tool": self.check_tools_for_update,
+            "tool_feature": self.check_tool_features_for_update,
+            "tool_feature_method": self.check_tool_feature_methods_for_update,
+        }[tablename](*items, strict=strict)
+
     def check_features_for_insert(self, *items, strict=False):
         """Check whether features passed as argument respect integrity constraints
         for an insert operation.

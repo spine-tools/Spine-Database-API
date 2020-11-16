@@ -77,30 +77,9 @@ class DiffDatabaseMappingAddMixin:
         return self.query(self.NextId).one_or_none()
 
     def _next_id(self, tablename, next_id_candidate=None):
-        classname = {
-            "object_class": "EntityClass",
-            "object": "Entity",
-            "relationship_class": "EntityClass",
-            "relationship": "Entity",
-            "entity_group": "EntityGroup",
-            "parameter_definition": "ParameterDefinition",
-            "parameter_value": "ParameterValue",
-            "parameter_tag": "ParameterTag",
-            "parameter_definition_tag": "ParameterDefinitionTag",
-            "parameter_value_list": "ParameterValueList",
-            "alternative": "Alternative",
-            "scenario": "Scenario",
-            "scenario_alternative": "ScenarioAlternative",
-            "tool": "Tool",
-            "feature": "Feature",
-            "tool_feature": "ToolFeature",
-            "tool_feature_method": "ToolFeatureMethod",
-            "metadata": "Metadata",
-            "parameter_value_metadata": "ParameterValueMetadata",
-            "entity_metadata": "EntityMetadata",
-        }[tablename]
-        class_ = getattr(self, classname)
-        max_id = self.query(func.max(class_.id)).scalar()
+        table = self._metadata.tables[tablename]
+        id_col = self.table_ids.get(tablename, "id")
+        max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
         next_id = max_id + 1 if max_id else 1
         if next_id_candidate is None:
             return next_id
@@ -144,383 +123,198 @@ class DiffDatabaseMappingAddMixin:
         setattr(next_id_row, fieldname, next_id)
         return items_to_add, set(ids)
 
-    def add_features(self, *items, strict=False, return_dups=False):
-        """Stage features items for insertion.
+    def add_items(self, tablename, *items, strict=False, return_dups=False):
+        """Stage items items for insertion.
 
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
+        Args:
+            tablename (str)
+            items (Iterable): One or more Python :class:`dict` objects representing the items to be inserted.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if the insertion of one of the items violates an integrity constraint.
+            return_dups (bool): Whether or not already existing and duplicated entries should also be returned.
 
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
+        Returns:
+            set: ids succesfully staged
+            list(SpineIntegrityError): found violations
         """
-        checked_items, intgr_error_log = self.check_features_for_insert(*items, strict=strict)
-        ids = self._add_features(*checked_items)
+        checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict)
+        ids = self._add_items(tablename, *checked_items)
         if return_dups:
             ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
-    def _add_features(self, *items):
+    def _add_items(self, tablename, *items):
         """Add object classes to database without checking integrity.
 
         Args:
-            items (iter): list of dictionaries which correspond to the instances to add
+            tablename (str)
+            items (Iterable): list of dictionaries which correspond to the instances to add
             strict (bool): if True SpineIntegrityError are raised. Otherwise
                 they are catched and returned as a log
 
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_and_ids("feature", *items)
-        self._do_add_features(*items_to_add)
-        self.added_item_id["feature"].update(ids)
+        items_to_add, ids = self._items_and_ids(tablename, *items)
+        self._do_add_items(tablename, *items_to_add)
+        self.added_item_id[tablename].update(ids)
         return ids
 
-    def _do_add_features(self, *items_to_add):
+    def _do_add_items(self, tablename, *items_to_add):
+        table = self._diff_table(tablename)
         try:
-            self.session.bulk_insert_mappings(self.DiffFeature, items_to_add)
-            self.session.commit()
+            self.connection.execute(table.insert(), items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting features: {}".format(e.orig.args)
+            msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg)
 
-    def readd_features(self, *items):
-        """Add known features to database.
+    def readd_items(self, tablename, *items):
+        """Add known items to database.
         """
-        self._do_add_features(*items)
+        self._do_add_items(tablename, *items)
         ids = set(x["id"] for x in items)
-        self.added_item_id["feature"].update(ids)
+        self.added_item_id[tablename].update(ids)
         return ids, []
+
+    def add_features(self, *items, strict=False, return_dups=False):
+        return self.add_items("feature", *items, strict=strict, return_dups=return_dups)
 
     def add_tools(self, *items, strict=False, return_dups=False):
-        """Stage tools items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_tools_for_insert(*items, strict=strict)
-        ids = self._add_tools(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_tools(self, *items):
-        """Add tools to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("tool", *items)
-        self._do_add_tools(*items_to_add)
-        self.added_item_id["tool"].update(ids)
-        return ids
-
-    def _do_add_tools(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffTool, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting tools: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_tools(self, *items):
-        """Add known tools to database.
-        """
-        self._do_add_tools(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["tool"].update(ids)
-        return ids, []
+        return self.add_items("tool", *items, strict=strict, return_dups=return_dups)
 
     def add_tool_features(self, *items, strict=False, return_dups=False):
-        """Stage tool feature items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_tool_features_for_insert(*items, strict=strict)
-        ids = self._add_tool_features(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_tool_features(self, *items):
-        """Add tool features to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("tool_feature", *items)
-        self._do_add_tool_features(*items_to_add)
-        self.added_item_id["tool_feature"].update(ids)
-        return ids
-
-    def _do_add_tool_features(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffToolFeature, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting tool features: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_tool_features(self, *items):
-        """Add known tool-features to database.
-        """
-        self._do_add_tool_features(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["tool_feature"].update(ids)
-        return ids, []
+        return self.add_items("tool_feature", *items, strict=strict, return_dups=return_dups)
 
     def add_tool_feature_methods(self, *items, strict=False, return_dups=False):
-        """Stage tool feature method items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_tool_feature_methods_for_insert(*items, strict=strict)
-        ids = self._add_tool_feature_methods(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_tool_feature_methods(self, *items):
-        """Add tool feature method items to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("tool_feature_method", *items)
-        self._do_add_tool_feature_methods(*items_to_add)
-        self.added_item_id["tool_feature_method"].update(ids)
-        return ids
-
-    def _do_add_tool_feature_methods(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffToolFeatureMethod, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting tool feature methods: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_tool_feature_methods(self, *items):
-        """Add known tool feature methods to database.
-        """
-        self._do_add_tool_feature_methods(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["tool_feature_method"].update(ids)
-        return ids, []
+        return self.add_items("tool_feature_method", *items, strict=strict, return_dups=return_dups)
 
     def add_alternatives(self, *items, strict=False, return_dups=False):
-        """Stage alternatives for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_alternatives_for_insert(*items, strict=strict)
-        ids = self._add_alternatives(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_alternatives(self, *items):
-        """Add alternatives to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("alternative", *items)
-        self._do_add_alternatives(*items_to_add)
-        self.added_item_id["alternative"].update(ids)
-        return ids
-
-    def _do_add_alternatives(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffAlternative, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting alternatives: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_alternatives(self, *items):
-        """Add known alternatives to database.
-        """
-        self._do_add_alternatives(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["alternative"].update(ids)
-        return ids, []
+        return self.add_items("alternative", *items, strict=strict, return_dups=return_dups)
 
     def add_scenarios(self, *items, strict=False, return_dups=False):
-        """Stage scenarios for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_scenarios_for_insert(*items, strict=strict)
-        ids = self._add_scenarios(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_scenarios(self, *items):
-        """Add scenarios to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("scenario", *items)
-        self._do_add_scenarios(*items_to_add)
-        self.added_item_id["scenario"].update(ids)
-        return ids
-
-    def _do_add_scenarios(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffScenario, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting scenarios: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_scenarios(self, *items):
-        """Add known scenarios to database.
-        """
-        self._do_add_scenarios(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["scenario"].update(ids)
-        return ids, []
+        return self.add_items("scenario", *items, strict=strict, return_dups=return_dups)
 
     def add_scenario_alternatives(self, *items, strict=False, return_dups=False):
-        """Stage scenario alternative items for insertion.
+        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
 
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
+    def add_entity_groups(self, *items, strict=False, return_dups=False):
+        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
 
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_scenario_alternatives_for_insert(*items, strict=strict)
-        ids = self._add_scenario_alternatives(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
+    def add_parameter_tags(self, *items, strict=False, return_dups=False):
+        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
+
+    def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
+        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
+
+    def _add_features(self, *items):
+        return self._add_items("feature", *items)
+
+    def _add_tools(self, *items):
+        return self._add_items("tool", *items)
+
+    def _add_tool_features(self, *items):
+        return self._add_items("tool_feature", *items)
+
+    def _add_tool_feature_methods(self, *items):
+        return self._add_items("tool_feature_method", *items)
+
+    def _add_alternatives(self, *items):
+        return self._add_items("alternative", *items)
+
+    def _add_scenarios(self, *items):
+        return self._add_items("scenario", *items)
 
     def _add_scenario_alternatives(self, *items):
-        """Add scenario alternative items to database without checking integrity.
+        return self._add_items("scenario_alternative", *items)
 
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
+    def _add_entity_groups(self, *items):
+        return self._add_items("entity_group", *items)
 
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("scenario_alternative", *items)
-        self._do_add_scenario_alternatives(*items_to_add)
-        self.added_item_id["scenario_alternative"].update(ids)
-        return ids
+    def _add_parameter_tags(self, *items):
+        return self._add_items("parameter_tag", *items)
+
+    def _add_parameter_definition_tags(self, *items):
+        return self._add_items("parameter_definition_tag", *items)
+
+    def _add_metadata(self, *items):
+        return self._add_items("metadata", *items)
+
+    def _add_parameter_value_metadata(self, *items):
+        return self._add_items("parameter_value_metadata", *items)
+
+    def _add_entity_metadata(self, *items):
+        return self._add_items("entity_metadata", *items)
+
+    def _do_add_features(self, *items_to_add):
+        self._do_add_items("feature", *items_to_add)
+
+    def _do_add_tools(self, *items_to_add):
+        self._do_add_items("tool", *items_to_add)
+
+    def _do_add_tool_features(self, *items_to_add):
+        self._do_add_items("tool_feature", *items_to_add)
+
+    def _do_add_tool_feature_methods(self, *items_to_add):
+        self._do_add_items("tool_feature_method", *items_to_add)
+
+    def _do_add_alternatives(self, *items_to_add):
+        self._do_add_items("alternative", *items_to_add)
+
+    def _do_add_scenarios(self, *items_to_add):
+        self._do_add_items("scenario", *items_to_add)
 
     def _do_add_scenario_alternatives(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffScenarioAlternative, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting scenario alternatives: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
+        self._do_add_items("scenario_alternative", *items_to_add)
+
+    def _do_add_entity_groups(self, *items_to_add):
+        self._do_add_items("entity_group", *items_to_add)
+
+    def _do_add_parameter_tags(self, *items_to_add):
+        self._do_add_items("parameter_tag", *items_to_add)
+
+    def _do_add_parameter_definition_tags(self, *items_to_add):
+        self._do_add_items("parameter_definition_tag", *items_to_add)
+
+    def _do_add_metadata(self, *items_to_add):
+        self._do_add_items("metadata", *items_to_add)
+
+    def _do_add_parameter_value_metadata(self, *items_to_add):
+        self._do_add_items("parameter_value_metadata", *items_to_add)
+
+    def _do_add_entity_metadata(self, *items_to_add):
+        self._do_add_items("entity_metadata", *items_to_add)
+
+    def readd_features(self, *items):
+        return self.readd_items("feature", *items)
+
+    def readd_tools(self, *items):
+        return self.readd_items("tool", *items)
+
+    def readd_tool_features(self, *items):
+        return self.readd_items("tool_feature", *items)
+
+    def readd_tool_feature_methods(self, *items):
+        return self.readd_items("tool_feature_method", *items)
+
+    def readd_alternatives(self, *items):
+        return self.readd_items("alternative", *items)
+
+    def readd_scenarios(self, *items):
+        return self.readd_items("scenario", *items)
 
     def readd_scenario_alternatives(self, *items):
-        """Add known scenario-alternatives to database.
-        """
-        self._do_add_scenario_alternatives(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["scenario_alternative"].update(ids)
-        return ids, []
+        return self.readd_items("scenario_alternative", *items)
+
+    def readd_entity_groups(self, *items):
+        return self.readd_items("entity_group", *items)
+
+    def readd_parameter_tags(self, *items):
+        return self.readd_items("parameter_tag", *items)
+
+    def readd_parameter_definition_tags(self, *items):
+        return self.readd_items("parameter_definition_tag", *items)
 
     def add_object_classes(self, *items, strict=False, return_dups=False):
-        """Stage object class items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items successfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_items, intgr_error_log = self.check_object_classes_for_insert(*items, strict=strict)
         ids = self._add_object_classes(*checked_items)
         if return_dups:
@@ -528,16 +322,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_object_classes(self, *items):
-        """Add object classes to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
         items_to_add, ids = self._items_and_ids("object_class", *items)
         self._do_add_object_classes(*items_to_add)
         self.added_item_id["entity_class"].update(ids)
@@ -545,22 +329,19 @@ class DiffDatabaseMappingAddMixin:
         return ids
 
     def _do_add_object_classes(self, *items_to_add):
-        oc_to_add = list()
+        oc_items_to_add = list()
+        append_oc_items_to_add = oc_items_to_add.append
         for item in items_to_add:
             item["type_id"] = self.object_class_type
-            oc_to_add.append({"entity_class_id": item["id"], "type_id": self.object_class_type})
+            append_oc_items_to_add({"entity_class_id": item["id"], "type_id": self.object_class_type})
         try:
-            self.session.bulk_insert_mappings(self.DiffEntityClass, items_to_add)
-            self.session.bulk_insert_mappings(self.DiffObjectClass, oc_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("entity_class").insert(), items_to_add)
+            self.connection.execute(self._diff_table("object_class").insert(), oc_items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def readd_object_classes(self, *items):
-        """Add known object classes to database.
-        """
         self._do_add_object_classes(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["entity_class"].update(ids)
@@ -568,18 +349,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, []
 
     def add_objects(self, *items, strict=False, return_dups=False):
-        """Stage object items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_items, intgr_error_log = self.check_objects_for_insert(*items, strict=strict)
         ids = self._add_objects(*checked_items)
         if return_dups:
@@ -587,14 +356,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_objects(self, *items):
-        """Add objects to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-
-        Returns:
-            ids (set): added instances' ids
-        """
         items_to_add, ids = self._items_and_ids("object", *items)
         self._do_add_objects(*items_to_add)
         self.added_item_id["entity"].update(ids)
@@ -602,22 +363,19 @@ class DiffDatabaseMappingAddMixin:
         return ids
 
     def _do_add_objects(self, *items_to_add):
-        objects_to_add = list()
+        o_items_to_add = list()
+        append_o_items_to_add = o_items_to_add.append
         for item in items_to_add:
             item["type_id"] = self.object_entity_type
-            objects_to_add.append({"entity_id": item["id"], "type_id": item["type_id"]})
+            append_o_items_to_add({"entity_id": item["id"], "type_id": item["type_id"]})
         try:
-            self.session.bulk_insert_mappings(self.DiffEntity, items_to_add)
-            self.session.bulk_insert_mappings(self.DiffObject, objects_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("entity").insert(), items_to_add)
+            self.connection.execute(self._diff_table("object").insert(), o_items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def readd_objects(self, *items):
-        """Add known objects to database.
-        """
         self._do_add_objects(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["entity"].update(ids)
@@ -625,18 +383,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, []
 
     def add_wide_relationship_classes(self, *wide_items, strict=False, return_dups=False):
-        """Stage relationship class items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_wide_items, intgr_error_log = self.check_wide_relationship_classes_for_insert(
             *wide_items, strict=strict
         )
@@ -646,16 +392,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_wide_relationship_classes(self, *wide_items):
-        """Add relationship classes to database without checking integrity.
-
-        Args:
-            wide_items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
         wide_items_to_add, ids = self._items_and_ids("relationship_class", *wide_items)
         self._do_add_wide_relationship_classes(*wide_items_to_add)
         self.added_item_id["entity_class"].update(ids)
@@ -664,25 +400,21 @@ class DiffDatabaseMappingAddMixin:
         return ids
 
     def _do_add_wide_relationship_classes(self, *wide_items_to_add):
-        rel_ent_clss_to_add = list()
-        rel_clss_to_add = list()
+        rc_items_to_add = list()
+        rec_items_to_add = list()
         for wide_item in wide_items_to_add:
             wide_item["type_id"] = self.relationship_class_type
-            rel_clss_to_add.append({"entity_class_id": wide_item["id"], "type_id": self.relationship_class_type})
-            rel_ent_clss_to_add += get_relationship_entity_class_items(wide_item, self.object_class_type)
+            rc_items_to_add.append({"entity_class_id": wide_item["id"], "type_id": self.relationship_class_type})
+            rec_items_to_add += get_relationship_entity_class_items(wide_item, self.object_class_type)
         try:
-            self.session.bulk_insert_mappings(self.DiffEntityClass, wide_items_to_add)
-            self.session.bulk_insert_mappings(self.DiffRelationshipClass, rel_clss_to_add)
-            self.session.bulk_insert_mappings(self.DiffRelationshipEntityClass, rel_ent_clss_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("entity_class").insert(), wide_items_to_add)
+            self.connection.execute(self._diff_table("relationship_class").insert(), rc_items_to_add)
+            self.connection.execute(self._diff_table("relationship_entity_class").insert(), rec_items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def readd_wide_relationship_classes(self, *items):
-        """Add known relationship classes to database.
-        """
         self._do_add_wide_relationship_classes(*items)
         ids = set(x["id"] for x in items)
         self.added_item_id["entity_class"].update(ids)
@@ -691,18 +423,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, []
 
     def add_wide_relationships(self, *wide_items, strict=False, return_dups=False):
-        """Stage relationship items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_wide_items, intgr_error_log = self.check_wide_relationships_for_insert(*wide_items, strict=strict)
         ids = self._add_wide_relationships(*checked_wide_items)
         if return_dups:
@@ -710,14 +430,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_wide_relationships(self, *wide_items):
-        """Add relationships to database without checking integrity.
-
-        Args:
-            wide_items (iter): list of dictionaries which correspond to the instances to add
-
-        Returns:
-            ids (set): added instances' ids
-        """
         wide_items_to_add, ids = self._items_and_ids("relationship", *wide_items)
         self._do_add_wide_relationships(*wide_items_to_add)
         self.added_item_id["entity"].update(ids)
@@ -726,27 +438,25 @@ class DiffDatabaseMappingAddMixin:
         return ids
 
     def _do_add_wide_relationships(self, *wide_items_to_add):
-        rel_ent_to_add = list()
-        rel_to_add = list()
+        re_items_to_add = list()
+        r_items_to_add = list()
         for wide_item in wide_items_to_add:
             wide_item["type_id"] = self.relationship_entity_type
-            rel_to_add.append(
+            r_items_to_add.append(
                 {
                     "entity_id": wide_item["id"],
                     "entity_class_id": wide_item["class_id"],
                     "type_id": self.relationship_entity_type,
                 }
             )
-            rel_ent_to_add += get_relationship_entity_items(
+            re_items_to_add += get_relationship_entity_items(
                 wide_item, self.relationship_entity_type, self.object_entity_type
             )
         try:
-            self.session.bulk_insert_mappings(self.DiffEntity, wide_items_to_add)
-            self.session.bulk_insert_mappings(self.DiffRelationship, rel_to_add)
-            self.session.bulk_insert_mappings(self.DiffRelationshipEntity, rel_ent_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("entity").insert(), wide_items_to_add)
+            self.connection.execute(self._diff_table("relationship").insert(), r_items_to_add)
+            self.connection.execute(self._diff_table("relationship_entity").insert(), re_items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
@@ -760,75 +470,7 @@ class DiffDatabaseMappingAddMixin:
         self.added_item_id["relationship_entity"].update(ids)
         return ids, []
 
-    def add_entity_groups(self, *items, strict=False, return_dups=False):
-        """Stage group object items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_entity_groups_for_insert(*items, strict=strict)
-        ids = self._add_entity_groups(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_entity_groups(self, *items):
-        """Add group objects to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("entity_group", *items)
-        self._do_add_entity_groups(*items_to_add)
-        self.added_item_id["entity_group"].update(ids)
-        return ids
-
-    def _do_add_entity_groups(self, *items):
-        try:
-            self.session.bulk_insert_mappings(self.DiffEntityGroup, items)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting entity groups: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_entity_groups(self, *items):
-        """Add known group objects to the database.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        self._do_add_entity_groups(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["entity_group"].update(ids)
-        return ids, []
-
     def add_parameter_definitions(self, *items, strict=False, return_dups=False):
-        """Stage parameter definition items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_items, intgr_error_log = self.check_parameter_definitions_for_insert(*items, strict=strict)
         ids = self._add_parameter_definitions(*checked_items)
         if return_dups:
@@ -836,14 +478,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_parameter_definitions(self, *items):
-        """Add parameters to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-
-        Returns:
-            ids (set): added instances' ids
-        """
         items_to_add, ids = self._items_and_ids("parameter_definition", *items)
         self._do_add_parameter_definitions(*items_to_add)
         self.added_item_id["parameter_definition"].update(ids)
@@ -857,10 +491,8 @@ class DiffDatabaseMappingAddMixin:
                 or item.get("entity_class_id")
             )
         try:
-            self.session.bulk_insert_mappings(self.DiffParameterDefinition, items_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("parameter_definition").insert(), items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
@@ -873,18 +505,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, []
 
     def add_parameter_values(self, *items, strict=False, return_dups=False):
-        """Stage parameter values items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_items, intgr_error_log = self.check_parameter_values_for_insert(*items, strict=strict)
         ids = self._add_parameter_values(*checked_items)
         if return_dups:
@@ -896,11 +516,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, []
 
     def _add_parameter_values(self, *items):
-        """Add parameter values to database without checking integrity.
-
-        Returns:
-            ids (set): added instances' ids
-        """
         items_to_add, ids = self._items_and_ids("parameter_value", *items)
         self._do_add_parameter_values(*items_to_add)
         self.added_item_id["parameter_value"].update(ids)
@@ -917,10 +532,8 @@ class DiffDatabaseMappingAddMixin:
                 or item.get("entity_class_id")
             )
         try:
-            self.session.bulk_insert_mappings(self.DiffParameterValue, items_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("parameter_value").insert(), items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
@@ -932,113 +545,7 @@ class DiffDatabaseMappingAddMixin:
         self.added_item_id["parameter_value"].update(ids)
         return ids, []
 
-    def add_parameter_tags(self, *items, strict=False, return_dups=False):
-        """Stage parameter tag items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_parameter_tags_for_insert(*items, strict=strict)
-        ids = self._add_parameter_tags(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_parameter_tags(self, *items):
-        """Add parameter tags to database without checking integrity.
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("parameter_tag", *items)
-        self._do_add_parameter_tags(*items_to_add)
-        self.added_item_id["parameter_tag"].update(ids)
-        return ids
-
-    def _do_add_parameter_tags(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffParameterTag, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting parameter tags: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_parameter_tags(self, *items):
-        """Add known parameter tags to database.
-        """
-        self._do_add_parameter_tags(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["parameter_tag"].update(ids)
-        return ids, []
-
-    def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
-        """Stage parameter definition tag items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
-        checked_items, intgr_error_log = self.check_parameter_definition_tags_for_insert(*items, strict=strict)
-        ids = self._add_parameter_definition_tags(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_parameter_definition_tags(self, *items):
-        items_to_add, ids = self._items_and_ids("parameter_definition_tag", *items)
-        self._do_add_parameter_definition_tags(*items_to_add)
-        self.added_item_id["parameter_definition_tag"].update(ids)
-        return ids
-
-    def _do_add_parameter_definition_tags(self, *items_to_add):
-        """Add parameter definition tags to database without checking integrity.
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        try:
-            self.session.bulk_insert_mappings(self.DiffParameterDefinitionTag, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting parameter definition tags: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_parameter_definition_tags(self, *items):
-        """Add known parameter definition tags to database.
-        """
-        self._do_add_parameter_definition_tags(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["parameter_definition_tag"].update(ids)
-        return ids, []
-
     def add_wide_parameter_value_lists(self, *wide_items, strict=False, return_dups=False):
-        """Stage parameter value-list items for insertion.
-
-        :param Iterable items: One or more Python :class:`dict` objects representing the items to be inserted.
-        :param bool strict: Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-            if the insertion of one of the items violates an integrity constraint.
-        :param bool return_dups: Whether or not already existing and duplicated entries should also be returned.
-
-        :returns:
-            - **new_items** -- A list of items succesfully staged for insertion.
-            - **intgr_error_log** -- A list of :exc:`~.exception.SpineIntegrityError` instances corresponding
-              to found violations.
-        """
         checked_wide_items, intgr_error_log = self.check_wide_parameter_value_lists_for_insert(
             *wide_items, strict=strict
         )
@@ -1048,11 +555,6 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_wide_parameter_value_lists(self, *wide_items):
-        """Add wide parameter value_lists to database without checking integrity.
-
-        Returns:
-            ids (set): added instances' ids
-        """
         wide_items_to_add, ids = self._items_and_ids("parameter_value_list", *wide_items)
         self._do_add_wide_parameter_value_lists(*wide_items_to_add)
         self.added_item_id["parameter_value_list"].update(ids)
@@ -1063,95 +565,16 @@ class DiffDatabaseMappingAddMixin:
         for wide_item in wide_items_to_add:
             items_to_add += get_parameter_value_list_items(wide_item)
         try:
-            self.session.bulk_insert_mappings(self.DiffParameterValueList, items_to_add)
-            self.session.commit()
+            self.connection.execute(self._diff_table("parameter_value_list").insert(), items_to_add)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def readd_wide_parameter_value_lists(self, *wide_items):
-        """Add known parameter value lists to database.
-        """
         self._do_add_wide_parameter_value_lists(*wide_items)
         ids = set(x["id"] for x in wide_items)
         self.added_item_id["parameter_value_list"].update(ids)
         return ids, []
-
-    def _add_metadata(self, *items):
-        """Add metadata items to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("metadata", *items)
-        self._do_add_metadata(*items_to_add)
-        self.added_item_id["metadata"].update(ids)
-        return ids
-
-    def _do_add_metadata(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffMetadata, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting metadata: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def _add_parameter_value_metadata(self, *items):
-        """Add parameter value metadata items to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("parameter_value_metadata", *items)
-        self._do_add_parameter_value_metadata(*items_to_add)
-        self.added_item_id["parameter_value_metadata"].update(ids)
-        return ids
-
-    def _do_add_parameter_value_metadata(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffParameterValueMetadata, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting parameter value metadata: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def _add_entity_metadata(self, *items):
-        """Add entity metadata items to database without checking integrity.
-
-        Args:
-            items (iter): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are catched and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        items_to_add, ids = self._items_and_ids("entity_metadata", *items)
-        self._do_add_entity_metadata(*items_to_add)
-        self.added_item_id["entity_metadata"].update(ids)
-        return ids
-
-    def _do_add_entity_metadata(self, *items_to_add):
-        try:
-            self.session.bulk_insert_mappings(self.DiffEntityMetadata, items_to_add)
-            self.session.commit()
-        except DBAPIError as e:
-            self.session.rollback()
-            msg = "DBAPIError while inserting entity metadata: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
 
     def add_object_class(self, **kwargs):
         """Stage an object class item for insertion.

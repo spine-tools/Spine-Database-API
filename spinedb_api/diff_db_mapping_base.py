@@ -17,11 +17,9 @@ Provides :class:`.DiffDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Table, inspect
-from sqlalchemy.exc import NoSuchTableError
-from sqlalchemy.ext.automap import automap_base
+from sqlalchemy import Table
 from .db_mapping_base import DatabaseMappingBase
-from .exception import SpineTableNotFoundError
+from .helpers import labelled_columns
 
 # TODO: improve docstrings
 
@@ -41,34 +39,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """Initialize class."""
         super().__init__(*args, **kwargs)
         self.diff_prefix = None
-        # Diff classes
-        self.DiffAlternative = None
-        self.DiffScenario = None
-        self.DiffScenarioAlternative = None
-        self.DiffCommit = None
-        self.DiffEntityClass = None
-        self.DiffEntityClassType = None
-        self.DiffEntity = None
-        self.DiffEntityType = None
-        self.DiffObject = None
-        self.DiffObjectClass = None
-        self.DiffRelationshipClass = None
-        self.DiffRelationshipEntityClass = None
-        self.DiffRelationship = None
-        self.DiffRelationshipEntity = None
-        self.DiffEntityGroup = None
-        self.DiffParameterDefinition = None
-        self.DiffParameterValue = None
-        self.DiffParameterTag = None
-        self.DiffParameterDefinitionTag = None
-        self.DiffParameterValueList = None
-        self.DiffFeature = None
-        self.DiffTool = None
-        self.DiffToolFeature = None
-        self.DiffToolFeatureMethod = None
-        self.DiffMetadata = None
-        self.DiffParameterValueMetadata = None
-        self.DiffEntityMetadata = None
         self.composite_pks = {
             "relationship_entity": ("entity_id", "dimension"),
             "relationship_entity_class": ("entity_class_id", "dimension"),
@@ -84,38 +54,25 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
-        self.added_item_id = {x: set() for x in self.table_to_class}
-        self.updated_item_id = {x: set() for x in self.table_to_class}
-        self.removed_item_id = {x: set() for x in self.table_to_class}
-        self.dirty_item_id = {x: set() for x in self.table_to_class}
+        self.added_item_id = {x: set() for x in self._tablenames}
+        self.updated_item_id = {x: set() for x in self._tablenames}
+        self.removed_item_id = {x: set() for x in self._tablenames}
+        self.dirty_item_id = {x: set() for x in self._tablenames}
 
     def _reset_diff_dicts(self):
         self._init_diff_dicts()
-        self._clear_subqueries(*self.table_to_class)
+        self._clear_subqueries(*self._tablenames)
 
     def _create_diff_tables_and_mapping(self):
         """Create diff tables and ORM."""
-        # Create tables...
         diff_name_prefix = "diff_" + self.username
         self.diff_prefix = diff_name_prefix + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
-        for t in self._metadata.sorted_tables:
-            if t.name.startswith(diff_name_prefix) or t.name == "next_id":
-                continue
-            diff_columns = [c.copy() for c in t.columns]
-            diff_t = Table(self.diff_prefix + t.name, self._metadata, *diff_columns, prefixes=["TEMPORARY"])
-            diff_t.drop(self.connection, checkfirst=True)
-            diff_t.create(self.connection)
-        # Create mapping...
-        DiffBase = automap_base(metadata=self._metadata)
-        DiffBase.prepare()
-        not_found = []
-        for tablename, classname in self.table_to_class.items():
-            try:
-                setattr(self, "Diff" + classname, getattr(DiffBase.classes, self.diff_prefix + tablename))
-            except (NoSuchTableError, AttributeError):
-                not_found.append(tablename)
-        if not_found:
-            raise SpineTableNotFoundError(not_found, self.db_url)
+        for tablename in self._tablenames:
+            table = self._metadata.tables[tablename]
+            diff_columns = [c.copy() for c in table.columns]
+            diff_table = Table(self.diff_prefix + tablename, self._metadata, *diff_columns, prefixes=["TEMPORARY"])
+            diff_table.drop(self.connection, checkfirst=True)
+            diff_table.create(self.connection)
 
     def _mark_as_dirty(self, tablename, ids):
         """Mark items as dirty, which means the corresponding records from the original tables
@@ -132,14 +89,13 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             UNION ALL
             SELECT * FROM diff_table
         """
-        classname = self.table_to_class[tablename]
-        orig_class = getattr(self, classname)
-        diff_class = getattr(self, "Diff" + classname)
+        orig_table = self._metadata.tables[tablename]
+        diff_table = self._diff_table(tablename)
         table_id = self.table_ids.get(tablename, "id")
         return (
-            self.query(*[c.label(c.name) for c in inspect(orig_class).mapper.columns])
-            .filter(~self.in_(getattr(orig_class, table_id), self.dirty_item_id[tablename]))
-            .union_all(self.query(*inspect(diff_class).mapper.columns))
+            self.query(*labelled_columns(orig_table))
+            .filter(~self.in_(getattr(orig_table.c, table_id), self.dirty_item_id[tablename]))
+            .union_all(self.query(*labelled_columns(diff_table)))
             .subquery()
         )
 
@@ -153,9 +109,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         :param str tablename: A string indicating the table to be queried.
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
-        classname = self.table_to_class[tablename]
-        class_ = getattr(self, classname)
-        return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+        table = self._metadata.tables[tablename]
+        return self.query(table).subquery()
 
     def _diff_subquery(self, tablename):
         """A subquery of the form:
@@ -167,36 +122,17 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         :param str tablename: A string indicating the table to be queried.
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
-        classname = self.table_to_class[tablename]
-        class_ = getattr(self, "Diff" + classname)
-        return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+        return self.query(self._diff_table(tablename)).subquery()
 
     def diff_ids(self):
         return {x: self.added_item_id[x] | self.updated_item_id[x] for x in self.table_to_class}
 
+    def _diff_table(self, tablename):
+        return self._metadata.tables.get(self.diff_prefix + tablename)
+
     def _reset_diff_mapping(self):
         """Delete all records from diff tables (but don't drop the tables)."""
-        self.query(self.DiffEntityClass).delete()
-        self.query(self.DiffEntity).delete()
-        self.query(self.DiffRelationshipClass).delete()
-        self.query(self.DiffRelationship).delete()
-        self.query(self.DiffParameterDefinition).delete()
-        self.query(self.DiffParameterValue).delete()
-        self.query(self.DiffParameterTag).delete()
-        self.query(self.DiffParameterDefinitionTag).delete()
-        self.query(self.DiffParameterValueList).delete()
-        self.query(self.DiffObject).delete()
-        self.query(self.DiffObjectClass).delete()
-        self.query(self.DiffRelationshipEntityClass).delete()
-        self.query(self.DiffRelationshipEntity).delete()
-        self.query(self.DiffAlternative).delete()
-        self.query(self.DiffScenario).delete()
-        self.query(self.DiffScenarioAlternative).delete()
-        self.query(self.DiffEntityGroup).delete()
-        self.query(self.DiffFeature).delete()
-        self.query(self.DiffTool).delete()
-        self.query(self.DiffToolFeature).delete()
-        self.query(self.DiffToolFeatureMethod).delete()
-        self.query(self.DiffMetadata).delete()
-        self.query(self.DiffParameterValueMetadata).delete()
-        self.query(self.DiffEntityMetadata).delete()
+        for tablename in self._tablenames:
+            table = self._diff_table(tablename)
+            if table is not None:
+                self.connection.execute(table.delete())

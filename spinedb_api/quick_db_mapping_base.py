@@ -17,13 +17,11 @@ Provides :class:`.QuickDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import func, true, false
+from sqlalchemy import func
 from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.orm import Session
 from .db_mapping_base import DatabaseMappingBase
 from .helpers import (
-    Anyone,
     get_relationship_entity_class_items,
     get_relationship_entity_items,
     get_parameter_value_list_items,
@@ -44,7 +42,6 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
-        self._ids_for_in = self.IdsForIn.__table__
         self._transaction = self.connection.begin()
         user = self.username
         date = datetime.now(timezone.utc)
@@ -70,26 +67,6 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
     def rollback_session(self):
         self._transaction.rollback()
         self.connection.close()
-
-    def _create_mapping(self):
-        """Don't create the ORM"""
-        self.session = Session(self.connection, autoflush=False)
-
-    def in_(self, column, ids):
-        """See base class."""
-        if Anyone in ids:
-            return true()
-        if not ids:
-            return false()
-        self._ids_for_in_clause_id += 1
-        clause_id = self._ids_for_in_clause_id
-        ins = self._ids_for_in.insert([{"id_for_in": id_, "clause_id": clause_id} for id_ in ids])
-        self.connection.execute(ins)
-        return column.in_(self.query(self._ids_for_in.c.id_for_in).filter(self._ids_for_in.c.clause_id == clause_id))
-
-    def _subquery(self, tablename):
-        table = self._metadata.tables[tablename]
-        return self.query(table).subquery()
 
     def _next_id(self, tablename):
         tablename = {

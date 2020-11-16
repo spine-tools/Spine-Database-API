@@ -18,11 +18,8 @@ Provides :class:`DiffDatabaseMappingCommitMixin`.
 
 from datetime import datetime, timezone
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.sql.expression import bindparam
 from .exception import SpineDBAPIError
-from .helpers import attr_dict
-
-
-# TODO: improve docstrings
 
 
 class DiffDatabaseMappingCommitMixin:
@@ -31,56 +28,60 @@ class DiffDatabaseMappingCommitMixin:
     def commit_session(self, comment):
         """Commit staged changes to the database.
 
-        :param str comment: An informative comment explaining the nature of the commit.
+        Args:
+            comment (str): An informative comment explaining the nature of the commit.
         """
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to commit.")
-
+        transaction = self.connection.begin()
         try:
             user = self.username
             date = datetime.now(timezone.utc)
-            commit = self.Commit(comment=comment, date=date, user=user)
-            self.session.add(commit)
-            self.session.flush()
-            # NOTE: The reason for this order is to avoid integrity issues when setting scenario alternatives:
-            # We need to remove first so `rank`s become 'free'. Maybe there's another case like this one.
+            ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment="")
+            commit_id = self.connection.execute(ins).inserted_primary_key[0]
+            # NOTE: Remove first, so `scenario_alternative.rank`s become 'free'.
             # Remove
             for tablename, ids in self.removed_item_id.items():
-                classname = self.table_to_class[tablename]
+                if not ids:
+                    continue
+                table = self._metadata.tables[tablename]
                 id_col = self.table_ids.get(tablename, "id")
-                orig_class = getattr(self, classname)
-                self.query(orig_class).filter(self.in_(getattr(orig_class, id_col), ids)).delete(
-                    synchronize_session=False
-                )
+                self.query(table).filter(self.in_(getattr(table.c, id_col), ids)).delete(synchronize_session=False)
             # Update
             for tablename, ids in self.updated_item_id.items():
-                classname = self.table_to_class[tablename]
+                if not ids:
+                    continue
                 id_col = self.table_ids.get(tablename, "id")
-                orig_class = getattr(self, classname)
-                diff_class = getattr(self, "Diff" + classname)
+                orig_table = self._metadata.tables[tablename]
+                diff_table = self._diff_table(tablename)
                 updated_items = []
-                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
-                    kwargs = attr_dict(item)
-                    kwargs["commit_id"] = commit.id
+                for item in self.query(diff_table).filter(self.in_(getattr(diff_table.c, id_col), ids)):
+                    kwargs = item._asdict()
+                    kwargs["commit_id"] = commit_id
                     updated_items.append(kwargs)
-                self.session.bulk_update_mappings(orig_class, updated_items)
+                upd = (
+                    orig_table.update()
+                    .where(getattr(orig_table.c, id_col) == bindparam(id_col))
+                    .values({key: bindparam(key) for key in orig_table.columns.keys()})
+                )
+                self.connection.execute(upd, updated_items)
             # Add
             for tablename, ids in self.added_item_id.items():
-                classname = self.table_to_class[tablename]
+                if not ids:
+                    continue
                 id_col = self.table_ids.get(tablename, "id")
-                orig_class = getattr(self, classname)
-                diff_class = getattr(self, "Diff" + classname)
+                orig_table = self._metadata.tables[tablename]
+                diff_table = self._diff_table(tablename)
                 new_items = []
-                for item in self.query(diff_class).filter(self.in_(getattr(diff_class, id_col), ids)):
-                    kwargs = attr_dict(item)
-                    kwargs["commit_id"] = commit.id
+                for item in self.query(diff_table).filter(self.in_(getattr(diff_table.c, id_col), ids)):
+                    kwargs = item._asdict()
+                    kwargs["commit_id"] = commit_id
                     new_items.append(kwargs)
-                self.session.bulk_insert_mappings(orig_class, new_items)
+                self.connection.execute(orig_table.insert(), new_items)
             self._reset_diff_mapping()
-            self.session.commit()
+            transaction.commit()
             self._reset_diff_dicts()
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
@@ -89,12 +90,12 @@ class DiffDatabaseMappingCommitMixin:
         """
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
+        transaction = self.connection.begin()
         try:
             self._reset_diff_mapping()
-            self.session.commit()
+            transaction.commit()
             self._reset_diff_dicts()
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 

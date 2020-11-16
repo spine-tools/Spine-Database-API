@@ -19,23 +19,21 @@
 import os
 import logging
 from types import MethodType
-from sqlalchemy import create_engine, inspect, func, case, MetaData, Table, Column, Integer, false, true, and_
+from sqlalchemy import create_engine, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy.exc import DatabaseError, NoSuchTableError
+from sqlalchemy.exc import DatabaseError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
-from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
+from .exception import SpineDBAPIError, SpineDBVersionError
 from .helpers import (
     create_new_spine_database,
     compare_schemas,
     model_meta,
-    custom_generate_relationship,
     _create_first_spine_database,
     Anyone,
     forward_sweep,
@@ -85,35 +83,10 @@ class DatabaseMappingBase:
         self.connection = self.engine.connect()
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
+        self._tablenames = list(self._metadata.tables.keys())
         self.session = None
-        self.Alternative = None
-        self.Scenario = None
-        self.ScenarioAlternative = None
-        self.Commit = None
-        self.EntityClassType = None
-        self.EntityClass = None
-        self.EntityType = None
-        self.Entity = None
-        self.ObjectClass = None
-        self.Object = None
-        self.RelationshipClass = None
-        self.Relationship = None
-        self.RelationshipEntity = None
-        self.RelationshipEntityClass = None
-        self.EntityGroup = None
-        self.ParameterDefinition = None
-        self.ParameterValue = None
-        self.ParameterTag = None
-        self.ParameterDefinitionTag = None
-        self.ParameterValueList = None
-        self.Tool = None
-        self.Feature = None
-        self.ToolFeature = None
-        self.ToolFeatureMethod = None
-        self.Metadata = None
-        self.ParameterValueMetadata = None
-        self.EntityMetadata = None
         self._ids_for_in_clause_id = 0
+        self._ids_for_in = self.IdsForIn.__table__
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -127,7 +100,6 @@ class DatabaseMappingBase:
         self._entity_sq = None
         self._entity_class_type_sq = None
         self._entity_type_sq = None
-        self._object_sq = None
         self._object_class_sq = None
         self._object_sq = None
         self._relationship_class_sq = None
@@ -170,36 +142,6 @@ class DatabaseMappingBase:
         self._ext_parameter_value_metadata_sq = None
         self._ext_entity_metadata_sq = None
         self._table_to_sq_attr = {}
-        # Table to class map for convenience
-        self.table_to_class = {
-            "alternative": "Alternative",
-            "scenario": "Scenario",
-            "scenario_alternative": "ScenarioAlternative",
-            "commit": "Commit",
-            "entity_class": "EntityClass",
-            "entity_class_type": "EntityClassType",
-            "entity": "Entity",
-            "entity_type": "EntityType",
-            "object": "Object",
-            "object_class": "ObjectClass",
-            "relationship_class": "RelationshipClass",
-            "relationship": "Relationship",
-            "relationship_entity": "RelationshipEntity",
-            "relationship_entity_class": "RelationshipEntityClass",
-            "entity_group": "EntityGroup",
-            "parameter_definition": "ParameterDefinition",
-            "parameter_value": "ParameterValue",
-            "parameter_tag": "ParameterTag",
-            "parameter_definition_tag": "ParameterDefinitionTag",
-            "parameter_value_list": "ParameterValueList",
-            "tool": "Tool",
-            "feature": "Feature",
-            "tool_feature": "ToolFeature",
-            "tool_feature_method": "ToolFeatureMethod",
-            "metadata": "Metadata",
-            "parameter_value_metadata": "ParameterValueMetadata",
-            "entity_metadata": "EntityMetadata",
-        }
         # Table primary ids map:
         self.table_ids = {
             "relationship_entity_class": "entity_class_id",
@@ -209,7 +151,7 @@ class DatabaseMappingBase:
             "relationship": "entity_id",
             "relationship_entity": "entity_id",
         }
-        self._create_mapping()
+        self._create_session()
         self._create_ids_for_in()
 
     def _make_codename(self, codename):
@@ -282,41 +224,27 @@ class DatabaseMappingBase:
                         environment_context.run_migrations()
         return engine
 
-    def _create_mapping(self):
-        """Create ORM."""
-        Base = automap_base(metadata=self._metadata)
-        Base.prepare(generate_relationship=custom_generate_relationship)
-        not_found = []
-        for tablename, classname in self.table_to_class.items():
-            try:
-                setattr(self, classname, getattr(Base.classes, tablename))
-            except (NoSuchTableError, AttributeError):
-                not_found.append(tablename)
-        if not_found:
-            raise SpineTableNotFoundError(not_found, self.db_url)
-        self.session = Session(self.connection, autoflush=False)
+    def _create_session(self):
+        """Create session."""
+        self.session = Session(self.connection, autocommit=True)
 
     def reconnect(self):
         self.connection = self.engine.connect()
 
     def _create_ids_for_in(self):
         """Create `ids_for_in` table if not exists and map it."""
-        self.IdsForIn.__table__.create(self.connection, checkfirst=True)
+        self._ids_for_in.create(self.connection, checkfirst=True)
 
     def in_(self, column, ids):
-        """Returns an expression equivalent to ``column.in_(ids)`` that shouldn't trigger ``too many sql variables`` in sqlite.
-        The strategy is to insert the ids in the temp table ``ids_for_in`` and then query them.
-        """
+        """See base class."""
         if Anyone in ids:
             return true()
         if not ids:
             return false()
-        # NOTE: We need to isolate ids by clause, since there might be multiple clauses using this function in the same query.
-        # TODO: Try to find something better
         self._ids_for_in_clause_id += 1
         clause_id = self._ids_for_in_clause_id
-        self.session.bulk_insert_mappings(self.IdsForIn, ({"id_for_in": id_, "clause_id": clause_id} for id_ in ids))
-        return column.in_(self.query(self.IdsForIn.id_for_in).filter_by(clause_id=clause_id))
+        self.connection.execute(self._ids_for_in.insert(), [{"id_for_in": id_, "clause_id": clause_id} for id_ in ids])
+        return column.in_(self.query(self._ids_for_in.c.id_for_in).filter(self._ids_for_in.c.clause_id == clause_id))
 
     def _make_table_to_sq_attr(self):
         """Returns a dict mapping table names to subquery attribute names, involving that table.
@@ -385,9 +313,8 @@ class DatabaseMappingBase:
         :param str tablename: A string indicating the table to be queried.
         :type: :class:`~sqlalchemy.sql.expression.Alias`
         """
-        classname = self.table_to_class[tablename]
-        class_ = getattr(self, classname)
-        return self.query(*[c.label(c.name) for c in inspect(class_).mapper.columns]).subquery()
+        table = self._metadata.tables[tablename]
+        return self.query(table).subquery()
 
     @property
     def alternative_sq(self):
@@ -1666,29 +1593,7 @@ class DatabaseMappingBase:
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
         """
-        self.query(self.Alternative).delete(synchronize_session=False)
+        for tablename in self._tablenames:
+            table = self._metadata.tables[tablename]
+            self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
-        self.query(self.Scenario).delete(synchronize_session=False)
-        self.query(self.ScenarioAlternative).delete(synchronize_session=False)
-        self.query(self.EntityClass).delete(synchronize_session=False)
-        self.query(self.Entity).delete(synchronize_session=False)
-        self.query(self.Object).delete(synchronize_session=False)
-        self.query(self.ObjectClass).delete(synchronize_session=False)
-        self.query(self.RelationshipEntityClass).delete(synchronize_session=False)
-        self.query(self.RelationshipClass).delete(synchronize_session=False)
-        self.query(self.Relationship).delete(synchronize_session=False)
-        self.query(self.RelationshipEntity).delete(synchronize_session=False)
-        self.query(self.EntityGroup).delete(synchronize_session=False)
-        self.query(self.ParameterDefinition).delete(synchronize_session=False)
-        self.query(self.ParameterValue).delete(synchronize_session=False)
-        self.query(self.ParameterTag).delete(synchronize_session=False)
-        self.query(self.ParameterDefinitionTag).delete(synchronize_session=False)
-        self.query(self.ParameterValueList).delete(synchronize_session=False)
-        self.query(self.Feature).delete(synchronize_session=False)
-        self.query(self.Tool).delete(synchronize_session=False)
-        self.query(self.ToolFeature).delete(synchronize_session=False)
-        self.query(self.ToolFeatureMethod).delete(synchronize_session=False)
-        self.query(self.Metadata).delete(synchronize_session=False)
-        self.query(self.ParameterValueMetadata).delete(synchronize_session=False)
-        self.query(self.EntityMetadata).delete(synchronize_session=False)
-        self.query(self.Commit).delete(synchronize_session=False)

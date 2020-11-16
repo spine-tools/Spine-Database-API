@@ -44,14 +44,10 @@ class DiffDatabaseMappingRemoveMixin:
         try:
             for tablename, ids in kwargs.items():
                 table_id = self.table_ids.get(tablename, "id")
-                classname = self.table_to_class[tablename]
-                diff_class = getattr(self, "Diff" + classname)
-                self.query(diff_class).filter(self.in_(getattr(diff_class, table_id), ids)).delete(
-                    synchronize_session=False
-                )
-            self.session.commit()
+                diff_table = self._diff_table(tablename)
+                delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
+                self.connection.execute(delete)
         except DBAPIError as e:
-            self.session.rollback()
             msg = "DBAPIError while removing items: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
         for tablename, ids in kwargs.items():
