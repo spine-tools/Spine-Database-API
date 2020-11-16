@@ -343,7 +343,11 @@ def _get_features_for_import(db_map, data):
         parameter_definition_id, parameter_value_list_id = parameter_ids.get((class_name, parameter_name), (None, None))
         if parameter_definition_id in checked:
             continue
-        item = {"parameter_definition_id": parameter_definition_id, "parameter_value_list_id": parameter_value_list_id}
+        item = {
+            "parameter_definition_id": parameter_definition_id,
+            "parameter_value_list_id": parameter_value_list_id,
+            "description": None,
+        }
         item.update(dict(zip(("description",), optionals)))
         feature_id = feature_ids.pop(parameter_definition_id, None)
         try:
@@ -399,10 +403,10 @@ def _get_tools_for_import(db_map, data):
     for tool in data:
         if isinstance(tool, str):
             name = tool
-            item = {"name": tool}
+            item = {"name": tool, "description": None}
         else:
             name, *optionals = tool
-            item = {"name": name}
+            item = {"name": name, "description": None}
             item.update(dict(zip(("description",), optionals)))
         if name in checked:
             continue
@@ -471,7 +475,12 @@ def _get_tool_features_for_import(db_map, data):
         feature_id, parameter_value_list_id = feature_ids.get((class_name, parameter_name), (None, None))
         if (tool_id, feature_id) in checked:
             continue
-        item = {"tool_id": tool_id, "feature_id": feature_id, "parameter_value_list_id": parameter_value_list_id}
+        item = {
+            "tool_id": tool_id,
+            "feature_id": feature_id,
+            "parameter_value_list_id": parameter_value_list_id,
+            "required": False,
+        }
         item.update(dict(zip(("required",), optionals)))
         tool_feature_id = tool_feature_ids.pop((tool_id, feature_id), None)
         try:
@@ -600,10 +609,10 @@ def _get_alternatives_for_import(db_map, data):
     for alternative in data:
         if isinstance(alternative, str):
             name = alternative
-            item = {"name": name}
+            item = {"name": name, "description": None}
         else:
             name, *optionals = alternative
-            item = {"name": name}
+            item = {"name": name, "description": None}
             item.update(dict(zip(("description",), optionals)))
         if name in checked:
             continue
@@ -661,10 +670,10 @@ def _get_scenarios_for_import(db_map, data):
     for scenario in data:
         if isinstance(scenario, str):
             name = scenario
-            item = {"name": name}
+            item = {"name": name, "active": False, "description": None}
         else:
             name, *optionals = scenario
-            item = {"name": name}
+            item = {"name": name, "active": False, "description": None}
             item.update(dict(zip(("active", "description"), optionals)))
         if name in checked:
             continue
@@ -804,10 +813,10 @@ def _get_object_classes_for_import(db_map, data):
     for object_class in data:
         if isinstance(object_class, str):
             name = object_class
-            item = {"name": name, "type_id": db_map.object_class_type}
+            item = {"name": name, "type_id": db_map.object_class_type, "description": None, "display_icon": None}
         else:
             name, *optionals = object_class
-            item = {"name": name, "type_id": db_map.object_class_type}
+            item = {"name": name, "type_id": db_map.object_class_type, "description": None, "display_icon": None}
             item.update(dict(zip(("description", "display_icon"), optionals)))
         if name in checked:
             continue
@@ -867,7 +876,12 @@ def _get_relationship_classes_for_import(db_map, data):
         if name in checked:
             continue
         oc_ids = tuple(object_class_ids.get(oc, None) for oc in oc_names)
-        item = {"name": name, "object_class_id_list": list(oc_ids), "type_id": db_map.relationship_class_type}
+        item = {
+            "name": name,
+            "object_class_id_list": list(oc_ids),
+            "type_id": db_map.relationship_class_type,
+            "description": None,
+        }
         item.update(dict(zip(("description",), optionals)))
         rc_id = relationship_class_ids.pop(name, None)
         try:
@@ -930,7 +944,7 @@ def _get_objects_for_import(db_map, data):
         oc_id = object_class_ids.get(oc_name, None)
         if (oc_id, name) in checked:
             continue
-        item = {"name": name, "class_id": oc_id, "type_id": db_map.object_entity_type}
+        item = {"name": name, "class_id": oc_id, "type_id": db_map.object_entity_type, "description": None}
         item.update(dict(zip(("description",), optionals)))
         o_id = object_ids.pop((oc_id, name), None)
         try:
@@ -1130,7 +1144,13 @@ def _get_object_parameters_for_import(db_map, data):
         checked_key = (oc_id, parameter_name)
         if checked_key in checked:
             continue
-        item = {"name": parameter_name, "entity_class_id": oc_id}
+        item = {
+            "name": parameter_name,
+            "entity_class_id": oc_id,
+            "default_value": None,
+            "parameter_value_list_id": None,
+            "description": None,
+        }
         optionals = [f(x) for f, x in zip(functions, optionals)]
         item.update(dict(zip(("default_value", "parameter_value_list_id", "description"), optionals)))
         p_id = parameter_ids.pop((oc_id, parameter_name), None)
@@ -1205,7 +1225,13 @@ def _get_relationship_parameters_for_import(db_map, data):
         checked_key = (rc_id, parameter_name)
         if checked_key in checked:
             continue
-        item = {"name": parameter_name, "entity_class_id": rc_id}
+        item = {
+            "name": parameter_name,
+            "entity_class_id": rc_id,
+            "default_value": None,
+            "parameter_value_list_id": None,
+            "description": None,
+        }
         optionals = [f(x) for f, x in zip(functions, optionals)]
         item.update(dict(zip(("default_value", "parameter_value_list_id", "description"), optionals)))
         p_id = parameter_ids.pop((rc_id, parameter_name), None)

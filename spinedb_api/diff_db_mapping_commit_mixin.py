@@ -64,7 +64,7 @@ class DiffDatabaseMappingCommitMixin:
                     .where(getattr(orig_table.c, id_col) == bindparam(id_col))
                     .values({key: bindparam(key) for key in orig_table.columns.keys()})
                 )
-                self.connection.execute(upd, updated_items)
+                self._checked_execute(upd, updated_items)
             # Add
             for tablename, ids in self.added_item_id.items():
                 if not ids:
@@ -77,7 +77,7 @@ class DiffDatabaseMappingCommitMixin:
                     kwargs = item._asdict()
                     kwargs["commit_id"] = commit_id
                     new_items.append(kwargs)
-                self.connection.execute(orig_table.insert(), new_items)
+                self._checked_execute(orig_table.insert(), new_items)
             self._reset_diff_mapping()
             transaction.commit()
             self._reset_diff_dicts()

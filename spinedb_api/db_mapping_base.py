@@ -243,7 +243,7 @@ class DatabaseMappingBase:
             return false()
         self._ids_for_in_clause_id += 1
         clause_id = self._ids_for_in_clause_id
-        self.connection.execute(self._ids_for_in.insert(), [{"id_for_in": id_, "clause_id": clause_id} for id_ in ids])
+        self._checked_execute(self._ids_for_in.insert(), [{"id_for_in": id_, "clause_id": clause_id} for id_ in ids])
         return column.in_(self.query(self._ids_for_in.c.id_for_in).filter(self._ids_for_in.c.clause_id == clause_id))
 
     def _make_table_to_sq_attr(self):
@@ -1632,3 +1632,8 @@ class DatabaseMappingBase:
             table = self._metadata.tables[tablename]
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+
+    def _checked_execute(self, stmt, items):
+        if not items:
+            return
+        self.connection.execute(stmt, items)

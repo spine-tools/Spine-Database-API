@@ -17,6 +17,7 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
+from sqlalchemy.sql.expression import bindparam
 
 
 class DiffDatabaseMappingUpdateMixin:
@@ -85,7 +86,7 @@ class DiffDatabaseMappingUpdateMixin:
 
     def _update_items(self, tablename, *checked_items):
         """Update items without checking integrity."""
-        tablename = {
+        real_tablename = {
             "object_class": "entity_class",
             "relationship_class": "entity_class",
             "object": "entity",
@@ -93,11 +94,11 @@ class DiffDatabaseMappingUpdateMixin:
         }.get(tablename, tablename)
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
-                tablename, checked_items
+                real_tablename, checked_items
             )
-            self._do_update_items(tablename, items_for_update, items_for_insert)
-            self._mark_as_dirty(tablename, dirty_ids)
-            self.updated_item_id[tablename].update(dirty_ids)
+            self._do_update_items(real_tablename, items_for_update, items_for_insert)
+            self._mark_as_dirty(real_tablename, dirty_ids)
+            self.updated_item_id[real_tablename].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
@@ -106,11 +107,16 @@ class DiffDatabaseMappingUpdateMixin:
     def _do_update_items(self, tablename, items_for_update, items_for_insert):
         diff_table = self._diff_table(tablename)
         if items_for_update:
-            upd = diff_table.update()
-            self.connection.execute(upd, items_for_update)
-        if items_for_insert:
-            ins = diff_table.insert()
-            self.connection.execute(ins, items_for_insert)
+            id_col = self.table_ids.get(tablename, "id")
+            item = items_for_update[0]
+            upd = (
+                diff_table.update()
+                .where(getattr(diff_table.c, id_col) == bindparam(id_col))
+                .values({key: bindparam(key) for key in diff_table.columns.keys() & item.keys()})
+            )
+            self._checked_execute(upd, items_for_update)
+        ins = diff_table.insert()
+        self._checked_execute(ins, items_for_insert)
 
     def update_alternatives(self, *items, strict=False):
         return self.update_items("alternative", *items, strict=strict)
@@ -147,6 +153,49 @@ class DiffDatabaseMappingUpdateMixin:
 
     def _update_wide_relationship_classes(self, *wide_items):
         return self._update_items("relationship_class", *wide_items)
+
+    def update_parameter_definitions(self, *items, strict=False):
+        return self.update_items("parameter_definition", *items, strict=strict)
+
+    def _update_parameter_definitions(self, *items):
+        return self._update_items("parameter_definition", *items)
+
+    def update_parameter_values(self, *items, strict=False):
+        return self.update_items("parameter_value", *items, strict=strict)
+
+    def _update_parameter_values(self, *items):
+        return self._update_items("parameter_value", *items)
+
+    def update_parameter_tags(self, *items, strict=False):
+        return self.update_items("parameter_tag", *items, strict=strict)
+
+    def _update_parameter_tags(self, *items):
+        return self._update_items("parameter_tag", *items)
+
+    def update_features(self, *items, strict=False):
+        """Update features."""
+        return self.update_items("feature", *items, strict=strict)
+
+    def _update_features(self, *items):
+        return self._update_items("feature", *items)
+
+    def update_tools(self, *items, strict=False):
+        return self.update_items("tool", *items, strict=strict)
+
+    def _update_tools(self, *items):
+        return self._update_items("tool", *items)
+
+    def update_tool_features(self, *items, strict=False):
+        return self.update_items("tool_feature", *items, strict=strict)
+
+    def _update_tool_features(self, *items):
+        return self._update_items("tool_feature", *items)
+
+    def update_tool_feature_methods(self, *items, strict=False):
+        return self.update_items("tool_feature_method", *items, strict=strict)
+
+    def _update_tool_feature_methods(self, *items):
+        return self._update_items("tool_feature_method", *items)
 
     def update_wide_relationships(self, *wide_items, strict=False):
         """Update relationships."""
@@ -189,24 +238,6 @@ class DiffDatabaseMappingUpdateMixin:
             msg = "DBAPIError while updating relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
-    def update_parameter_definitions(self, *items, strict=False):
-        return self.update_items("parameter_definition", *items, strict=strict)
-
-    def _update_parameter_definitions(self, *items):
-        return self._update_items("parameter_definition", *items)
-
-    def update_parameter_values(self, *items, strict=False):
-        return self.update_items("parameter_value", *items, strict=strict)
-
-    def _update_parameter_values(self, *items):
-        return self._update_items("parameter_value", *items)
-
-    def update_parameter_tags(self, *items, strict=False):
-        return self.update_items("parameter_tag", *items, strict=strict)
-
-    def _update_parameter_tags(self, *items):
-        return self._update_items("parameter_tag", *items)
-
     def update_wide_parameter_value_lists(self, *wide_items, strict=False):
         """Update parameter value lists."""
         checked_wide_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
@@ -242,31 +273,6 @@ class DiffDatabaseMappingUpdateMixin:
         except SpineDBAPIError as e:
             msg = "DBAPIError while updating parameter value lists: {}".format(e.msg)
             raise SpineDBAPIError(msg)
-
-    def update_features(self, *items, strict=False):
-        """Update features."""
-        return self.update_items("feature", *items, strict=strict)
-
-    def _update_features(self, *items):
-        return self._update_items("feature", *items)
-
-    def update_tools(self, *items, strict=False):
-        return self.update_items("tool", *items, strict=strict)
-
-    def _update_tools(self, *items):
-        return self._update_items("tool", *items)
-
-    def update_tool_features(self, *items, strict=False):
-        return self.update_items("tool_feature", *items, strict=strict)
-
-    def _update_tool_features(self, *items):
-        return self._update_items("tool_feature", *items)
-
-    def update_tool_feature_methods(self, *items, strict=False):
-        return self.update_items("tool_feature_method", *items, strict=strict)
-
-    def _update_tool_feature_methods(self, *items):
-        return self._update_items("tool_feature_method", *items)
 
     def get_data_to_set_scenario_alternatives(self, *items):
         """Returns data to add, update, and remove, in order to set wide scenario alternatives.

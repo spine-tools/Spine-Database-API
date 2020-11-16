@@ -343,7 +343,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             added = db_map.add_objects(*[{"name": str(i), "class_id": class_id} for i in range(1001)])[0]
             self.assertEqual(len(added), 1001)
             db_map.commit_session("test_commit")
-            self.assertEqual(db_map.session.query(db_map.Entity).count(), 1001)
+            self.assertEqual(db_map.query(db_map.entity_sq).count(), 1001)
             db_map.connection.close()
 
     def test_add_object_classes(self):
@@ -351,11 +351,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
-            object_classes = (
-                db_map.session.query(db_map.DiffEntityClass)
-                .filter(db_map.DiffEntityClass.type_id == db_map.object_class_type)
-                .all()
-            )
+            diff_table = db_map._diff_table("entity_class")
+            object_classes = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.object_class_type).all()
             self.assertEqual(len(object_classes), 2)
             self.assertEqual(object_classes[0].name, "fish")
             self.assertEqual(object_classes[1].name, "dog")
@@ -374,11 +371,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             db_map = create_diff_db_map(temp_dir)
             db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
-            object_classes = (
-                db_map.session.query(db_map.DiffEntityClass)
-                .filter(db_map.DiffEntityClass.type_id == db_map.object_class_type)
-                .all()
-            )
+            diff_table = db_map._diff_table("entity_class")
+            object_classes = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.object_class_type).all()
             self.assertEqual(len(object_classes), 1)
             self.assertEqual(object_classes[0].name, "fish")
             db_map.connection.close()
@@ -408,11 +402,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 mock_query.side_effect = query_wrapper
                 mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
                 db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
-            objects = (
-                db_map.session.query(db_map.DiffEntity)
-                .filter(db_map.DiffEntity.type_id == db_map.object_entity_type)
-                .all()
-            )
+            diff_table = db_map._diff_table("entity")
+            objects = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.object_entity_type).all()
             self.assertEqual(len(objects), 2)
             self.assertEqual(objects[0].name, "nemo")
             self.assertEqual(objects[0].class_id, 1)
@@ -440,11 +431,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 mock_query.side_effect = query_wrapper
                 mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
                 db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
-            objects = (
-                db_map.session.query(db_map.DiffEntity)
-                .filter(db_map.DiffEntity.type_id == db_map.object_entity_type)
-                .all()
-            )
+            diff_table = db_map._diff_table("entity")
+            objects = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.object_entity_type).all()
             self.assertEqual(len(objects), 1)
             self.assertEqual(objects[0].name, "nemo")
             self.assertEqual(objects[0].class_id, 1)
@@ -487,12 +475,10 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             db_map.add_wide_relationship_classes(
                 {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc2", "object_class_id_list": [2, 1]}
             )
-            rel_ent_clss = db_map.session.query(db_map.DiffRelationshipEntityClass).all()
-            rel_clss = (
-                db_map.session.query(db_map.DiffEntityClass)
-                .filter(db_map.DiffEntityClass.type_id == db_map.relationship_class_type)
-                .all()
-            )
+            diff_table = db_map._diff_table("relationship_entity_class")
+            rel_ent_clss = db_map.query(diff_table).all()
+            diff_table = db_map._diff_table("entity_class")
+            rel_clss = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_class_type).all()
             self.assertEqual(len(rel_ent_clss), 4)
             self.assertEqual(rel_clss[0].name, "rc1")
             self.assertEqual(rel_ent_clss[0].member_class_id, 1)
@@ -519,11 +505,11 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             db_map.add_wide_relationship_classes(
                 {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc1", "object_class_id_list": [1, 2]}
             )
-            relationship_members = db_map.session.query(db_map.DiffRelationshipEntityClass).all()
+            diff_table = db_map._diff_table("relationship_entity_class")
+            relationship_members = db_map.query(diff_table).all()
+            diff_table = db_map._diff_table("entity_class")
             relationships = (
-                db_map.session.query(db_map.DiffEntityClass)
-                .filter(db_map.DiffEntityClass.type_id == db_map.relationship_class_type)
-                .all()
+                db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_class_type).all()
             )
             self.assertEqual(len(relationship_members), 2)
             self.assertEqual(len(relationships), 1)
@@ -580,12 +566,11 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
             db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
             db_map.add_wide_relationships({"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
-
-            rel_ents = db_map.session.query(db_map.DiffRelationshipEntity).all()
+            diff_table = db_map._diff_table("relationship_entity")
+            rel_ents = db_map.query(diff_table).all()
+            diff_table = db_map._diff_table("entity")
             relationships = (
-                db_map.session.query(db_map.DiffEntity)
-                .filter(db_map.DiffEntity.type_id == db_map.relationship_entity_type)
-                .all()
+                db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_entity_type).all()
             )
             self.assertEqual(len(rel_ents), 2)
             self.assertEqual(len(relationships), 1)
@@ -619,7 +604,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
                 {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
             )
-            relationships = db_map.session.query(db_map.DiffRelationship).all()
+            diff_table = db_map._diff_table("relationship")
+            relationships = db_map.query(diff_table).all()
             self.assertEqual(len(relationships), 1)
             db_map.connection.close()
 
@@ -715,11 +701,12 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             db_map.add_object_classes({"name": "oc1", "id": 1})
             db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
             db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-            group_ents = db_map.session.query(db_map.DiffEntityGroup).all()
-            self.assertEqual(len(group_ents), 1)
-            self.assertEqual(group_ents[0].entity_id, 1)
-            self.assertEqual(group_ents[0].entity_class_id, 1)
-            self.assertEqual(group_ents[0].member_id, 2)
+            diff_table = db_map._diff_table("entity_group")
+            entity_groups = db_map.query(diff_table).all()
+            self.assertEqual(len(entity_groups), 1)
+            self.assertEqual(entity_groups[0].entity_id, 1)
+            self.assertEqual(entity_groups[0].entity_class_id, 1)
+            self.assertEqual(entity_groups[0].member_id, 2)
             db_map.connection.close()
 
     def test_add_entity_groups_with_invalid_class(self):
@@ -773,7 +760,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 {"name": "color", "object_class_id": 1, "description": "test1"},
                 {"name": "relative_speed", "relationship_class_id": 3, "description": "test2"},
             )
-            parameter_definitions = db_map.session.query(db_map.DiffParameterDefinition).all()
+            diff_table = db_map._diff_table("parameter_definition")
+            parameter_definitions = db_map.query(diff_table).all()
             self.assertEqual(len(parameter_definitions), 2)
             self.assertEqual(parameter_definitions[0].name, "color")
             self.assertEqual(parameter_definitions[0].entity_class_id, 1)
@@ -801,7 +789,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             db_map.add_parameter_definitions(
                 {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
             )
-            parameter_definitions = db_map.session.query(db_map.DiffParameterDefinition).all()
+            diff_table = db_map._diff_table("parameter_definition")
+            parameter_definitions = db_map.query(diff_table).all()
             self.assertEqual(len(parameter_definitions), 2)
             self.assertEqual(parameter_definitions[0].name, "color")
             self.assertEqual(parameter_definitions[1].name, "color")
@@ -892,7 +881,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                     "alternative_id": 1,
                 },
             )
-            parameter_values = db_map.session.query(db_map.DiffParameterValue).all()
+            diff_table = db_map._diff_table("parameter_value")
+            parameter_values = db_map.query(diff_table).all()
             self.assertEqual(len(parameter_values), 2)
             self.assertEqual(parameter_values[0].parameter_definition_id, 1)
             self.assertEqual(parameter_values[0].entity_id, 1)
@@ -1050,7 +1040,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                     "alternative_id": 1,
                 },
             )
-            parameter_values = db_map.session.query(db_map.DiffParameterValue).all()
+            diff_table = db_map._diff_table("parameter_value")
+            parameter_values = db_map.query(diff_table).all()
             self.assertEqual(len(parameter_values), 1)
             self.assertEqual(parameter_values[0].parameter_definition_id, 1)
             self.assertEqual(parameter_values[0].entity_id, 1)

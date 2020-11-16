@@ -50,7 +50,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self.dirty_item_id = {}
         # Initialize stuff
         self._init_diff_dicts()
-        self._create_diff_tables_and_mapping()
+        self._create_diff_tables()
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
@@ -63,8 +63,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         self._init_diff_dicts()
         self._clear_subqueries(*self._tablenames)
 
-    def _create_diff_tables_and_mapping(self):
-        """Create diff tables and ORM."""
+    def _create_diff_tables(self):
+        """Create diff tables."""
         diff_name_prefix = "diff_" + self.username
         self.diff_prefix = diff_name_prefix + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "_"
         for tablename in self._tablenames:

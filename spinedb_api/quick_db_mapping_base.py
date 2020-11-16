@@ -96,12 +96,10 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         return set(ids)
 
     def _do_add_items(self, tablename, *items):
-        if not items:
-            return
         table = self._metadata.tables[tablename]
         ins = table.insert()
         try:
-            self.connection.execute(ins, items)
+            self._checked_execute(ins, items)
         except DBAPIError as e:
             msg = f"DBAPIError while inserting '{tablename}' items: {e.orig.args}"
             raise SpineDBAPIError(msg)
@@ -218,7 +216,7 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
             .values({key: bindparam(key) for key in table.columns.keys() & item.keys()})
         )
         try:
-            self.connection.execute(upd, items)
+            self._checked_execute(upd, items)
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
             raise SpineDBAPIError(msg)

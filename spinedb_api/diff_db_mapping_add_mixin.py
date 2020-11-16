@@ -163,7 +163,7 @@ class DiffDatabaseMappingAddMixin:
     def _do_add_items(self, tablename, *items_to_add):
         table = self._diff_table(tablename)
         try:
-            self.connection.execute(table.insert(), items_to_add)
+            self._checked_execute(table.insert(), items_to_add)
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg)
@@ -198,13 +198,13 @@ class DiffDatabaseMappingAddMixin:
         return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
 
     def add_entity_groups(self, *items, strict=False, return_dups=False):
-        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
+        return self.add_items("entity_group", *items, strict=strict, return_dups=return_dups)
 
     def add_parameter_tags(self, *items, strict=False, return_dups=False):
-        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
+        return self.add_items("parameter_tag", *items, strict=strict, return_dups=return_dups)
 
     def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
-        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
+        return self.add_items("parameter_definition_tag", *items, strict=strict, return_dups=return_dups)
 
     def _add_features(self, *items):
         return self._add_items("feature", *items)
@@ -335,8 +335,8 @@ class DiffDatabaseMappingAddMixin:
             item["type_id"] = self.object_class_type
             append_oc_items_to_add({"entity_class_id": item["id"], "type_id": self.object_class_type})
         try:
-            self.connection.execute(self._diff_table("entity_class").insert(), items_to_add)
-            self.connection.execute(self._diff_table("object_class").insert(), oc_items_to_add)
+            self._checked_execute(self._diff_table("entity_class").insert(), items_to_add)
+            self._checked_execute(self._diff_table("object_class").insert(), oc_items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
@@ -369,8 +369,8 @@ class DiffDatabaseMappingAddMixin:
             item["type_id"] = self.object_entity_type
             append_o_items_to_add({"entity_id": item["id"], "type_id": item["type_id"]})
         try:
-            self.connection.execute(self._diff_table("entity").insert(), items_to_add)
-            self.connection.execute(self._diff_table("object").insert(), o_items_to_add)
+            self._checked_execute(self._diff_table("entity").insert(), items_to_add)
+            self._checked_execute(self._diff_table("object").insert(), o_items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
@@ -407,9 +407,9 @@ class DiffDatabaseMappingAddMixin:
             rc_items_to_add.append({"entity_class_id": wide_item["id"], "type_id": self.relationship_class_type})
             rec_items_to_add += get_relationship_entity_class_items(wide_item, self.object_class_type)
         try:
-            self.connection.execute(self._diff_table("entity_class").insert(), wide_items_to_add)
-            self.connection.execute(self._diff_table("relationship_class").insert(), rc_items_to_add)
-            self.connection.execute(self._diff_table("relationship_entity_class").insert(), rec_items_to_add)
+            self._checked_execute(self._diff_table("entity_class").insert(), wide_items_to_add)
+            self._checked_execute(self._diff_table("relationship_class").insert(), rc_items_to_add)
+            self._checked_execute(self._diff_table("relationship_entity_class").insert(), rec_items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
@@ -453,9 +453,9 @@ class DiffDatabaseMappingAddMixin:
                 wide_item, self.relationship_entity_type, self.object_entity_type
             )
         try:
-            self.connection.execute(self._diff_table("entity").insert(), wide_items_to_add)
-            self.connection.execute(self._diff_table("relationship").insert(), r_items_to_add)
-            self.connection.execute(self._diff_table("relationship_entity").insert(), re_items_to_add)
+            self._checked_execute(self._diff_table("entity").insert(), wide_items_to_add)
+            self._checked_execute(self._diff_table("relationship").insert(), r_items_to_add)
+            self._checked_execute(self._diff_table("relationship_entity").insert(), re_items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
@@ -491,7 +491,7 @@ class DiffDatabaseMappingAddMixin:
                 or item.get("entity_class_id")
             )
         try:
-            self.connection.execute(self._diff_table("parameter_definition").insert(), items_to_add)
+            self._checked_execute(self._diff_table("parameter_definition").insert(), items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
@@ -532,7 +532,7 @@ class DiffDatabaseMappingAddMixin:
                 or item.get("entity_class_id")
             )
         try:
-            self.connection.execute(self._diff_table("parameter_value").insert(), items_to_add)
+            self._checked_execute(self._diff_table("parameter_value").insert(), items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
@@ -565,7 +565,7 @@ class DiffDatabaseMappingAddMixin:
         for wide_item in wide_items_to_add:
             items_to_add += get_parameter_value_list_items(wide_item)
         try:
-            self.connection.execute(self._diff_table("parameter_value_list").insert(), items_to_add)
+            self._checked_execute(self._diff_table("parameter_value_list").insert(), items_to_add)
         except DBAPIError as e:
             msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
