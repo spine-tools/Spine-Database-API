@@ -151,6 +151,10 @@ class DatabaseMappingBase:
             "relationship": "entity_id",
             "relationship_entity": "entity_id",
         }
+        self.composite_pks = {
+            "relationship_entity": ("entity_id", "dimension"),
+            "relationship_entity_class": ("entity_class_id", "dimension"),
+        }
         self._create_session()
         self._create_ids_for_in()
 
@@ -1624,6 +1628,18 @@ class DatabaseMappingBase:
             .subquery()
         )
 
+    def _checked_execute(self, stmt, items):
+        if not items:
+            return
+        self.connection.execute(stmt, items)
+
+    def _get_primary_key(self, tablename):
+        pk = self.composite_pks.get(tablename)
+        if pk is None:
+            table_id = self.table_ids.get(tablename, "id")
+            pk = (table_id,)
+        return pk
+
     def _reset_mapping(self):
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
@@ -1632,8 +1648,3 @@ class DatabaseMappingBase:
             table = self._metadata.tables[tablename]
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
-
-    def _checked_execute(self, stmt, items):
-        if not items:
-            return
-        self.connection.execute(stmt, items)

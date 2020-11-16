@@ -16,8 +16,8 @@
 """
 
 from sqlalchemy.exc import DBAPIError
-from .exception import SpineDBAPIError
 from sqlalchemy.sql.expression import bindparam
+from .exception import SpineDBAPIError
 
 
 class DiffDatabaseMappingUpdateMixin:
@@ -35,9 +35,7 @@ class DiffDatabaseMappingUpdateMixin:
         dirty_ids = set()
         updated_ids = set()
         table_id = self.table_ids.get(tablename, "id")
-        pk = self.composite_pks.get(tablename)
-        if pk is None:
-            pk = (table_id,)
+        pk = self._get_primary_key(tablename)
         diff_items = (x._asdict() for x in self.query(diff_sq))
         diff_items = {tuple(x[k] for k in pk): x for x in diff_items}
         orig_items = (x._asdict() for x in self.query(orig_sq))
@@ -107,13 +105,11 @@ class DiffDatabaseMappingUpdateMixin:
     def _do_update_items(self, tablename, items_for_update, items_for_insert):
         diff_table = self._diff_table(tablename)
         if items_for_update:
-            id_col = self.table_ids.get(tablename, "id")
             item = items_for_update[0]
-            upd = (
-                diff_table.update()
-                .where(getattr(diff_table.c, id_col) == bindparam(id_col))
-                .values({key: bindparam(key) for key in diff_table.columns.keys() & item.keys()})
-            )
+            upd = diff_table.update()
+            for k in self._get_primary_key(tablename):
+                upd = upd.where(getattr(diff_table.c, k) == bindparam(k))
+            upd = upd.values({key: bindparam(key) for key in diff_table.columns.keys() & item.keys()})
             self._checked_execute(upd, items_for_update)
         ins = diff_table.insert()
         self._checked_execute(ins, items_for_insert)

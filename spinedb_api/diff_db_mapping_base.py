@@ -39,10 +39,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         """Initialize class."""
         super().__init__(*args, **kwargs)
         self.diff_prefix = None
-        self.composite_pks = {
-            "relationship_entity": ("entity_id", "dimension"),
-            "relationship_entity_class": ("entity_class_id", "dimension"),
-        }
         # Diff dictionaries
         self.added_item_id = {}
         self.updated_item_id = {}

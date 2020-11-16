@@ -59,11 +59,10 @@ class DiffDatabaseMappingCommitMixin:
                     kwargs = item._asdict()
                     kwargs["commit_id"] = commit_id
                     updated_items.append(kwargs)
-                upd = (
-                    orig_table.update()
-                    .where(getattr(orig_table.c, id_col) == bindparam(id_col))
-                    .values({key: bindparam(key) for key in orig_table.columns.keys()})
-                )
+                upd = orig_table.update()
+                for k in self._get_primary_key(tablename):
+                    upd = upd.where(getattr(orig_table.c, k) == bindparam(k))
+                upd = upd.values({key: bindparam(key) for key in table.columns.keys()})
                 self._checked_execute(upd, updated_items)
             # Add
             for tablename, ids in self.added_item_id.items():

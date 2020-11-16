@@ -210,11 +210,10 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         item = items[0]
         table = self._metadata.tables[tablename]
         items, ids = self._items_to_update_and_ids(*items)
-        upd = (
-            table.update()
-            .where(table.c.id == bindparam('id'))
-            .values({key: bindparam(key) for key in table.columns.keys() & item.keys()})
-        )
+        upd = table.update()
+        for k in self._get_primary_key(tablename):
+            upd = upd.where(getattr(table.c, k) == bindparam(k))
+        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & item.keys()})
         try:
             self._checked_execute(upd, items)
         except DBAPIError as e:
