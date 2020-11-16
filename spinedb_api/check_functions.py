@@ -44,19 +44,19 @@ def check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names,
     """
     Checks if given scenario alternative violates a database's integrity.
 
-    :param dict item: a scenario alternative item for checking; must contain the following fields:
+    Args:
+        item (dict: a scenario alternative item for checking; must contain the following fields:
+            - "scenario_id": scenario's id
+            - "alternative_id": alternative's id
+            - "rank": alternative's rank within the scenario
+        ids_by_alt_id (dict): a mapping from (scenario id, alternative id) tuples to scenario_alternative ids
+            already in the database
+        ids_by_rank (dict): a mapping from (scenario id, rank) tuples to scenario_alternative ranks already in the database
+        scenario_names (Iterable): the names of existing scenarios in the database keyed by id
+        alternative_names (Iterable): the names of existing alternatives in the database keyed by id
 
-        - "scenario_id": scenario's id
-        - "alternative_id": alternative's id
-        - "rank": alternative's rank within the scenario
-
-    :param dict ids_by_alt_id: a mapping from (scenario id, alternative id) tuples to scenario_alternative ids
-        that already exist in the database
-    :param dict ids_by_rank: a mapping from (scenario id, rank) tuples to scenario_alternative ranks
-        that already exist in the database
-    :param Iterable scenario_names: the names of existing scenarios in the database keyed by id
-    :param Iterable alternative_names: the names of existing alternatives in the database keyed by id
-    :raises SpineIntegrityError: if insertion of ``item`` would violate database's integrity
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         scen_id = item["scenario_id"]
@@ -88,10 +88,12 @@ def check_object_class(item, current_items, object_class_type):
     """Check whether the insertion of an object class item
     results in the violation of an integrity constraint.
 
-    :param dict item: An object class item to be checked.
-    :param dict current_items: A dictionary mapping names to ids of object classes already in the database.
+    Args:
+        item (dict): An object class item to be checked.
+        current_items (dict): A dictionary mapping names to ids of object classes already in the database.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         name = item["name"]
@@ -111,12 +113,13 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
     """Check whether the insertion of an object item
     results in the violation of an integrity constraint.
 
-    :param dict item: An object item to be checked.
-    :param dict current_items: A dictionary mapping tuples (class_id, name) to ids of objects
-        already in the database.
-    :param list object_class_ids: A list of object class ids in the database.
+    Args:
+        item (dict): An object item to be checked.
+        current_items (dict): A dictionary mapping tuples (class_id, name) to ids of objects already in the database.
+        object_class_ids (list): A list of object class ids in the database.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         class_id = item["class_id"]
@@ -142,12 +145,13 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
     """Check whether the insertion of a relationship class item
     results in the violation of an integrity constraint.
 
-    :param dict wide_item: A wide relationship class item to be checked.
-    :param dict current_items: A dictionary mapping names to ids of relationship classes
-        already in the database.
-    :param list object_class_ids: A list of object class ids in the database.
+    Args:
+        wide_item (dict): A wide relationship class item to be checked.
+        current_items (dict): A dictionary mapping names to ids of relationship classes already in the database.
+        object_class_ids (list): A list of object class ids in the database.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         given_object_class_id_list = wide_item["object_class_id_list"]
@@ -179,15 +183,17 @@ def check_wide_relationship(
     """Check whether the insertion of a relationship item
     results in the violation of an integrity constraint.
 
-    :param dict wide_item: A wide relationship item to be checked.
-    :param dict current_items_by_name: A dictionary mapping tuples (class_id, name) to ids of relationships
-        already in the database.
-    :param dict current_items_by_obj_lst: A dictionary mapping tuples (class_id, object_name_list) to ids of
-        relationships already in the database.
-    :param dict relationship_classes: A dictionary of wide relationship class items in the database keyed by id.
-    :param dict objects: A dictionary of object items in the database keyed by id.
+    Args:
+        wide_item (dict): A wide relationship item to be checked.
+        current_items_by_name (dict): A dictionary mapping tuples (class_id, name) to ids of
+            relationships already in the database.
+        current_items_by_obj_lst (dict): A dictionary mapping tuples (class_id, object_name_list) to ids
+            of relationships already in the database.
+        relationship_classes (dict): A dictionary of wide relationship class items in the database keyed by id.
+        objects (dict): A dictionary of object items in the database keyed by id.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
 
     try:
@@ -243,11 +249,14 @@ def check_entity_group(item, current_items, entities):
     """Check whether the insertion of an entity group item
     results in the violation of an integrity constraint.
 
-    :param dict item: An entity group item to be checked.
-    :param dict current_items: A dictionary mapping tuples (entity_id, member_id) to ids
-        of entity groups already in the database.
-    :param dict entities: A dictionary mapping entity class ids, to entity ids, to entity items
-        already in the db
+    Args:
+        item (dict): An entity group item to be checked.
+        current_items (dict): A dictionary mapping tuples (entity_id, member_id) to ids of entity groups
+            already in the database.
+        entities (dict): A dictionary mapping entity class ids, to entity ids, to entity items already in the db
+
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         entity_id = item["entity_id"]
@@ -281,13 +290,15 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
     """Check whether the insertion of a parameter definition item
     results in the violation of an integrity constraint.
 
-    :param dict item: A parameter definition item to be checked.
-    :param dict current_items: A dictionary mapping tuples (entity_class_id, name) to ids
-        of parameter definitions already in the database.
-    :param dict entity_class_ids: A set of entity class ids in the database.
-    :param dict parameter_value_lists: A dictionary of value-lists in the database keyed by id.
+    Args:
+        item (dict): A parameter definition item to be checked.
+        current_items (dict): A dictionary mapping tuples (entity_class_id, name) to ids of parameter definitions
+            already in the database.
+        entity_class_ids (dict): A set of entity class ids in the database.
+        parameter_value_lists (dict): A dictionary of value-lists in the database keyed by id.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     name = item.get("name")
     if not name:
@@ -315,14 +326,16 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
 def check_parameter_value(item, current_items, parameter_definitions, entities, parameter_value_lists, alternatives):
     """Check whether the insertion of a parameter value item results in the violation of an integrity constraint.
 
-    :param dict item: A parameter value item to be checked.
-    :param dict current_items: A dictionary mapping tuples (entity_id, parameter_definition_id) to ids of
-        parameter values already in the database.
-    :param dict parameter_definitions: A dictionary of parameter definition items in the database keyed by id.
-    :param dict entities: A dictionary of entity items already in the database keyed by id.
-    :param dict parameter_value_lists: A dictionary of value-lists in the database keyed by id.
+    Args:
+        item (dict): A parameter value item to be checked.
+        current_items (dict): A dictionary mapping tuples (entity_id, parameter_definition_id)
+            to ids of parameter values already in the database.
+        parameter_definitions (dict): A dictionary of parameter definition items in the database keyed by id.
+        entities (dict): A dictionary of entity items already in the database keyed by id.
+        parameter_value_lists (dict): A dictionary of value-lists in the database keyed by id.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         parameter_definition_id = item["parameter_definition_id"]
@@ -376,10 +389,12 @@ def check_parameter_tag(item, current_items):
     """Check whether the insertion of a parameter tag item
     results in the violation of an integrity constraint.
 
-    :param dict item: A parameter tag item to be checked.
-    :param dict current_items: A dictionary mapping tags to ids of parameter tags already in the database.
+    Args:
+        item (dict): A parameter tag item to be checked.
+        current_items (dict): A dictionary mapping tags to ids of parameter tags already in the database.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         tag = item["tag"]
@@ -395,13 +410,15 @@ def check_parameter_definition_tag(item, current_items, parameter_names, paramet
     """Check whether the insertion of a parameter tag item
     results in the violation of an integrity constraint.
 
-    :param dict item: A parameter tag item to be checked.
-    :param dict current_items: A dictionary mapping tuples (parameter_definition_id, parameter_tag_id) to ids of
-        parameter tags already in the database.
-    :param dict parameter_names: A dictionary of parameter definition names in the database keyed by id.
-    :param dict parameter_tags: A dictionary of parameter tags in the database keyed by id.
+    Args:
+        item (dict): A parameter tag item to be checked.
+        current_items (dict): A dictionary mapping tuples (parameter_definition_id, parameter_tag_id)
+            to ids of parameter tags already in the database.
+        parameter_names (dict): A dictionary of parameter definition names in the database keyed by id.
+        parameter_tags (dict): A dictionary of parameter tags in the database keyed by id.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         parameter_definition_id = item["parameter_definition_id"]
@@ -430,11 +447,12 @@ def check_wide_parameter_value_list(wide_item, current_items):
     """Check whether the insertion of a parameter value-list item
     results in the violation of an integrity constraint.
 
-    :param dict wide_item: A wide parameter value-list item to be checked.
-    :param dict current_items: A dictionary mapping names to ids of parameter value-lists
-        already in the database.
+    Args:
+        wide_item (dict): A wide parameter value-list item to be checked.
+        current_items (dict): A dictionary mapping names to ids of parameter value-lists already in the database.
 
-    :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
         name = wide_item["name"]
