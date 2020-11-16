@@ -159,6 +159,9 @@ class DiffDatabaseMappingUpdateMixin:
     def update_parameter_values(self, *items, strict=False):
         return self.update_items("parameter_value", *items, strict=strict)
 
+    def update_checked_parameter_values(self, *items, strict=False):
+        return self._update_items("parameter_value", *items), []
+
     def _update_parameter_values(self, *items):
         return self._update_items("parameter_value", *items)
 
