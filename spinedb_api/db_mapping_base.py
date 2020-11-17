@@ -28,6 +28,7 @@ from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
+from alembic.util.exc import CommandError
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineTableNotFoundError
 from .helpers import compare_schemas, model_meta, custom_generate_relationship, _create_first_spine_database, Anyone
 
@@ -198,6 +199,11 @@ class DatabaseMappingBase:
             if current == head:
                 return
             if not upgrade:
+                try:
+                    rev = script.get_revision(current)  # Check if current revision is part of alembic revision history
+                except CommandError:
+                    # Can't locate revision identified by 'current'
+                    raise SpineDBVersionError(url=self.db_url, current=current, expected=head, upgrade_available=False)
                 raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
 
             # Upgrade function
