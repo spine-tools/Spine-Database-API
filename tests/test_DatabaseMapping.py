@@ -17,22 +17,17 @@ Unit tests for DatabaseMapping class.
 """
 import unittest
 from unittest.mock import patch
-from sqlalchemy.engine.url import make_url
-from spinedb_api.helpers import create_new_spine_database
+from sqlalchemy.engine.url import URL
 from spinedb_api import DatabaseMapping
 
 
 class TestDatabaseMappingBase(unittest.TestCase):
     _db_map = None
-    _db_url = None
-    _engine = None
-    _temp_dir = None
+    _db_url = "sqlite://"
 
     @classmethod
     def setUpClass(cls):
-        cls._db_url = "sqlite:///"
-        cls._engine = create_new_spine_database(cls._db_url)
-        cls._db_map = DatabaseMapping(cls._db_url, cls._engine)
+        cls._db_map = DatabaseMapping(cls._db_url, create=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -44,19 +39,19 @@ class TestDatabaseMappingBase(unittest.TestCase):
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(db_url, self._engine)
+                db_map = DatabaseMapping(db_url, create=True)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
     def test_construction_with_sqlalchemy_url_and_filters(self):
-        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
-        sa_url = make_url(db_url)
+        sa_url = URL("sqlite")
+        sa_url.query = {"spinedbfilter": ["fltr1", "fltr2"]}
         with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(sa_url, self._engine)
+                db_map = DatabaseMapping(sa_url, create=True)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])

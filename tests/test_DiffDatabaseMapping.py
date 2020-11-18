@@ -16,16 +16,14 @@ Unit tests for DiffDatabaseMapping class.
 :date:   29.11.2018
 """
 
-import os
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
-from spinedb_api.helpers import create_new_spine_database
 from spinedb_api import import_functions
 
 
@@ -40,26 +38,11 @@ def create_query_wrapper(db_map):
 
 
 def create_diff_db_map():
-    db_url = "sqlite://"
-    engine = create_new_spine_database(db_url)
-    return DiffDatabaseMapping(db_url, engine, username="UnitTest")
+    return DiffDatabaseMapping("sqlite://", username="UnitTest", create=True)
 
 
 class TestDiffDatabaseMappingConstruction(unittest.TestCase):
-    _db_url = None
-    _engine = None
-    _temp_dir = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls._db_url = "sqlite://"
-        cls._engine = create_new_spine_database(cls._db_url)
-        db_map = DiffDatabaseMapping(cls._db_url, cls._engine)
-        try:
-            db_map.add_tools({"name": "object_activity_control", "id": 1})
-            db_map.commit_session("Add tool.")
-        finally:
-            db_map.connection.close()
+    _db_url = "sqlite://"
 
     def test_construction_with_filters(self):
         db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
@@ -67,7 +50,7 @@ class TestDiffDatabaseMappingConstruction(unittest.TestCase):
             with mock.patch(
                 "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DiffDatabaseMapping(db_url, self._engine)
+                db_map = DiffDatabaseMapping(db_url, create=True)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -79,19 +62,25 @@ class TestDiffDatabaseMappingConstruction(unittest.TestCase):
             with mock.patch(
                 "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DiffDatabaseMapping(sa_url, self._engine)
+                db_map = DiffDatabaseMapping(sa_url, create=True)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
     def test_shorthand_filter_query_works(self):
-        url = self._db_url + "?spinedbfilter=cfg%3Atool%3Aobject_activity_control"
-        try:
-            db_map = DiffDatabaseMapping(url, self._engine)
-        except:
-            self.fail("DiffDatabaseMapping.__init__() should not raise.")
-        else:
-            db_map.connection.close()
+        with TemporaryDirectory() as temp_dir:
+            url = URL("sqlite")
+            url.database = os.path.join(temp_dir, "test_shorthand_filter_query_works.json")
+            out_db = DiffDatabaseMapping(url, create=True)
+            out_db.add_tools({"name": "object_activity_control", "id": 1})
+            out_db.commit_session("Add tool.")
+            out_db.connection.close()
+            try:
+                db_map = DiffDatabaseMapping(url)
+            except:
+                self.fail("DiffDatabaseMapping.__init__() should not raise.")
+            else:
+                db_map.connection.close()
 
 
 class TestDiffDatabaseMappingRemove(unittest.TestCase):
@@ -480,9 +469,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         diff_table = db_map._diff_table("relationship_entity_class")
         relationship_members = db_map.query(diff_table).all()
         diff_table = db_map._diff_table("entity_class")
-        relationships = (
-            db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_class_type).all()
-        )
+        relationships = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_class_type).all()
         self.assertEqual(len(relationship_members), 2)
         self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "rc1")
@@ -534,9 +521,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         diff_table = db_map._diff_table("relationship_entity")
         rel_ents = db_map.query(diff_table).all()
         diff_table = db_map._diff_table("entity")
-        relationships = (
-            db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_entity_type).all()
-        )
+        relationships = db_map.query(diff_table).filter(diff_table.c.type_id == db_map.relationship_entity_type).all()
         self.assertEqual(len(rel_ents), 2)
         self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "nemo__pluto")

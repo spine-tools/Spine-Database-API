@@ -18,10 +18,10 @@ from json import dump
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
+from sqlalchemy.engine.url import URL
 from spinedb_api import (
     append_filter_config,
     apply_filter_stack,
-    create_new_spine_database,
     DatabaseMapping,
     DiffDatabaseMapping,
     export_object_classes,
@@ -32,6 +32,8 @@ from spinedb_api.filters.renamer import entity_class_renamer_config
 
 
 class TestLoadFilters(unittest.TestCase):
+    _dir = None
+
     @classmethod
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
@@ -74,19 +76,20 @@ class TestLoadFilters(unittest.TestCase):
 
 
 class TestApplyFilterStack(unittest.TestCase):
-    _db_url = "sqlite://"
-    _engine = None
+    _db_url = URL("sqlite")
+    _dir = None
 
     @classmethod
     def setUpClass(cls):
-        cls._engine = create_new_spine_database(cls._db_url)
-        db_map = DiffDatabaseMapping(cls._db_url, cls._engine)
+        cls._dir = TemporaryDirectory()
+        cls._db_url.database = os.path.join(cls._dir.name, ".json")
+        db_map = DiffDatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
 
     def test_empty_stack(self):
-        db_map = DatabaseMapping(self._db_url, self._engine)
+        db_map = DatabaseMapping(self._db_url)
         try:
             apply_filter_stack(db_map, [])
             object_classes = export_object_classes(db_map)
@@ -95,7 +98,7 @@ class TestApplyFilterStack(unittest.TestCase):
             db_map.connection.close()
 
     def test_single_renaming_filter(self):
-        db_map = DatabaseMapping(self._db_url, self._engine)
+        db_map = DatabaseMapping(self._db_url)
         try:
             stack = [entity_class_renamer_config(object_class="renamed_once")]
             apply_filter_stack(db_map, stack)
@@ -105,7 +108,7 @@ class TestApplyFilterStack(unittest.TestCase):
             db_map.connection.close()
 
     def test_two_renaming_filters(self):
-        db_map = DatabaseMapping(self._db_url, self._engine)
+        db_map = DatabaseMapping(self._db_url)
         try:
             stack = [
                 entity_class_renamer_config(object_class="renamed_once"),
@@ -119,15 +122,15 @@ class TestApplyFilterStack(unittest.TestCase):
 
 
 class TestFilteredDatabaseMap(unittest.TestCase):
-    _db_url = "sqlite://"
+    _db_url = URL("sqlite")
     _dir = None
     _engine = None
 
     @classmethod
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
-        cls._engine = create_new_spine_database(cls._db_url)
-        db_map = DiffDatabaseMapping(cls._db_url, cls._engine)
+        cls._db_url.database = os.path.join(cls._dir.name, "TestFilteredDatabaseMap.json")
+        db_map = DiffDatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
@@ -144,7 +147,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         path = os.path.join(self._dir.name, "config.json")
         with open(path, "w") as out_file:
             dump(entity_class_renamer_config(object_class="renamed_once"), out_file)
-        url = append_filter_config(self._db_url, path)
+        url = append_filter_config(str(self._db_url), path)
         db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_object_classes(db_map)
@@ -156,7 +159,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         path1 = os.path.join(self._dir.name, "config1.json")
         with open(path1, "w") as out_file:
             dump(entity_class_renamer_config(object_class="renamed_once"), out_file)
-        url = append_filter_config(self._db_url, path1)
+        url = append_filter_config(str(self._db_url), path1)
         path2 = os.path.join(self._dir.name, "config2.json")
         with open(path2, "w") as out_file:
             dump(entity_class_renamer_config(renamed_once="renamed_twice"), out_file)
@@ -170,7 +173,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
 
     def test_config_embedded_to_url(self):
         config = entity_class_renamer_config(object_class="renamed_once")
-        url = append_filter_config(self._db_url, config)
+        url = append_filter_config(str(self._db_url), config)
         db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_object_classes(db_map)

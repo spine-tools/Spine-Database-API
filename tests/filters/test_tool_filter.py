@@ -43,6 +43,9 @@ from spinedb_api.filters.tool_filter import (
 
 
 class TestToolEntityFilter(unittest.TestCase):
+    _db_url = None
+    _temp_dir = None
+
     @classmethod
     def setUpClass(cls):
         cls._temp_dir = TemporaryDirectory()

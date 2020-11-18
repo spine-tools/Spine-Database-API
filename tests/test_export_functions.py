@@ -19,7 +19,6 @@ Unit tests for export_functions.
 import unittest
 from spinedb_api import (
     Anyone,
-    create_new_spine_database,
     DiffDatabaseMapping,
     export_alternatives,
     export_data,
@@ -51,8 +50,7 @@ from spinedb_api import (
 class TestExportFunctions(unittest.TestCase):
     def setUp(self):
         db_url = "sqlite://"
-        engine = create_new_spine_database(db_url)
-        self._db_map = DiffDatabaseMapping(db_url, engine, username="UnitTest")
+        self._db_map = DiffDatabaseMapping(db_url, username="UnitTest", create=True)
 
     def tearDown(self):
         self._db_map.connection.close()

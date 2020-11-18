@@ -21,11 +21,7 @@ from sqlalchemy import func
 from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
 from .db_mapping_base import DatabaseMappingBase
-from .helpers import (
-    get_relationship_entity_class_items,
-    get_relationship_entity_items,
-    get_parameter_value_list_items,
-)
+from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, get_parameter_value_list_items
 from .exception import SpineDBAPIError
 
 

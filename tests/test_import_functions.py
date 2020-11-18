@@ -19,7 +19,6 @@ Unit tests for import_functions.py.
 import unittest
 
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
-from spinedb_api.helpers import create_new_spine_database
 from spinedb_api.import_functions import (
     import_alternatives,
     import_object_classes,
@@ -49,15 +48,13 @@ from spinedb_api.parameter_value import from_database
 
 def create_diff_db_map():
     db_url = "sqlite://"
-    engine = create_new_spine_database(db_url)
-    return DiffDatabaseMapping(db_url, engine, username="UnitTest")
+    return DiffDatabaseMapping(db_url, username="UnitTest", create=True)
 
 
 class TestIntegrationImportData(unittest.TestCase):
     def test_import_data_integration(self):
         database_url = "sqlite://"
-        engine = create_new_spine_database(database_url)
-        db_map = DiffDatabaseMapping(database_url, engine, username="IntegrationTest")
+        db_map = DiffDatabaseMapping(database_url, username="IntegrationTest", create=True)
 
         object_c = ["example_class", "other_class"]  # 2 items
         objects = [["example_class", "example_object"], ["other_class", "other_object"]]  # 2 items

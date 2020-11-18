@@ -59,13 +59,10 @@ class DatabaseMappingBase:
         clause_id = Column(Integer)
         id_for_in = Column(Integer)
 
-    def __init__(
-        self, db_url, engine=None, username=None, upgrade=False, codename=None, create=False, apply_filters=True
-    ):
+    def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
         """
         Args:
             db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped.
-            engine (Engine, optional): An already connected engine if it exists.
             username (str, optional): A user name. If ``None``, it gets replaced by the string ``"anon"``.
             upgrade (bool): Whether or not the db at the given URL should be upgraded to the most recent version.
             codename (str, optional): A name that uniquely identifies the class instance within a client application.
@@ -83,7 +80,7 @@ class DatabaseMappingBase:
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
-        self.engine = self._create_engine(db_url, engine, upgrade=upgrade, create=create)
+        self.engine = self._create_engine(db_url, upgrade=upgrade, create=create)
         self.connection = self.engine.connect()
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
@@ -174,28 +171,26 @@ class DatabaseMappingBase:
                 return hashing.hexdigest()
         return self.sa_url.database
 
-    def _create_engine(self, db_url, engine, upgrade=False, create=False):
+    def _create_engine(self, db_url, upgrade=False, create=False):
         """Create engine.
 
         Args
             db_url (str): A URL to be passed to sqlalchemy.create_engine
-            engine (Engine, optional): An already connected engine.
             upgrade (bool, optional): If True, upgrade the db to the latest version.
             create (bool, optional): If True, create a new Spine db at the given url if none found.
 
         Returns
             Engine
         """
-        if engine is None:
-            try:
-                engine = create_engine(db_url)
-                with engine.connect():
-                    pass
-            except Exception as e:
-                raise SpineDBAPIError(
-                    f"Could not connect to '{db_url}': {str(e)}. "
-                    f"Please make sure that '{db_url}' is a valid sqlalchemy URL."
-                )
+        try:
+            engine = create_engine(db_url)
+            with engine.connect():
+                pass
+        except Exception as e:
+            raise SpineDBAPIError(
+                f"Could not connect to '{db_url}': {str(e)}. "
+                f"Please make sure that '{db_url}' is a valid sqlalchemy URL."
+            )
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
         script = ScriptDirectory.from_config(config)

@@ -39,6 +39,9 @@ from spinedb_api.filters.alternative_filter import (
 
 
 class TestAlternative_filter(unittest.TestCase):
+    _db_url = None
+    _temp_dir = None
+
     @classmethod
     def setUpClass(cls):
         cls._temp_dir = TemporaryDirectory()
