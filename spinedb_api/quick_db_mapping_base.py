@@ -132,7 +132,11 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         for wide_item in wide_items:
             wide_item["type_id"] = self.relationship_entity_type
         ids = self._add_items("entity", *wide_items)
-        items = [{"entity_id": id_, "type_id": self.relationship_entity_type} for id_ in ids]
+        class_ids = [item["class_id"] for item in wide_items]
+        items = [
+            {"entity_class_id": class_id, "entity_id": id_, "type_id": self.relationship_entity_type}
+            for class_id, id_ in zip(class_ids, ids)
+        ]
         self._do_add_items("relationship", *items)
         items = []
         for wide_item in wide_items:
