@@ -266,11 +266,11 @@ def get_data_for_import(
     if features:
         yield ("feature", _get_features_for_import(db_map, features))
     if tools:
-        yield ("tool", _get_tools_for_import(db_map, features))
+        yield ("tool", _get_tools_for_import(db_map, tools))
     if tool_features:
-        yield ("tool_feature", _get_tool_features_for_import(db_map, features))
+        yield ("tool_feature", _get_tool_features_for_import(db_map, tool_features))
     if tool_feature_methods:
-        yield ("tool_feature_method", _get_tool_feature_methods_for_import(db_map, features))
+        yield ("tool_feature_method", _get_tool_feature_methods_for_import(db_map, tool_feature_methods))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects))
     if relationships:
