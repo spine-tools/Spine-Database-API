@@ -50,7 +50,6 @@ from .check_functions import (
 )
 from .import_functions import (
     import_alternatives,
-    import_data_to_url,
     import_data,
     import_object_classes,
     import_objects,

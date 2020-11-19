@@ -54,19 +54,6 @@ class ImportErrorLogItem:
         return self.msg
 
 
-def import_data_to_url(url, upgrade=False, **kwargs):
-    db_map = DiffDatabaseMapping(url, upgrade=upgrade)
-    num_imports, error_log = import_data(db_map, **kwargs)
-    if num_imports:
-        try:
-            db_map.commit_session("Import data using `import_data_to_url`")
-        except SpineDBAPIError as e:
-            db_map.rollback_session()
-            err_item = ImportErrorLogItem(msg=f"Error while committing changes: {e.msg}")
-            error_log.append(err_item)
-    return num_imports, error_log
-
-
 def import_data(
     db_map,
     object_classes=(),
