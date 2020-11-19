@@ -38,6 +38,11 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
+        self._transaction = None
+        self._commit_id = None
+        self._start_new_transaction()
+
+    def _start_new_transaction(self):
         self._transaction = self.connection.begin()
         user = self.username
         date = datetime.now(timezone.utc)
@@ -46,10 +51,11 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
 
     def __del__(self):
         self.rollback_session()
+        self.connection.close()
 
     def reconnect(self):
         super().reconnect()
-        self._transaction = self.connection.begin()
+        self._start_new_transaction()
 
     def commit_session(self, comment):
         commit = self._metadata.tables["commit"]
@@ -58,11 +64,11 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         upd = commit.update().where(commit.c.id == self._commit_id).values(user=user, date=date, comment=comment)
         self.connection.execute(upd)
         self._transaction.commit()
-        self.connection.close()
+        self._start_new_transaction()
 
     def rollback_session(self):
         self._transaction.rollback()
-        self.connection.close()
+        self._start_new_transaction()
 
     def _next_id(self, tablename):
         tablename = {
