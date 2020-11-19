@@ -50,7 +50,7 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         self._commit_id = self.connection.execute(ins).inserted_primary_key[0]
 
     def __del__(self):
-        self.rollback_session()
+        self._transaction.rollback()
         self.connection.close()
 
     def reconnect(self):
