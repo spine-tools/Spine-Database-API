@@ -142,6 +142,7 @@ class DatabaseMappingBase:
         self._ext_tool_feature_method_sq = None
         self._ext_parameter_value_metadata_sq = None
         self._ext_entity_metadata_sq = None
+        self._import_alternative_name = None
         self._table_to_sq_attr = {}
         # Table primary ids map:
         self.table_ids = {
@@ -1498,50 +1499,6 @@ class DatabaseMappingBase:
             )
         return self._ext_entity_metadata_sq
 
-    def override_entity_sq_maker(self, method):
-        """
-        Overrides the function that creates the ``entity_sq`` property.
-
-        Args:
-            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
-                returns entity subquery as an :class:`Alias` object
-        """
-        self._make_entity_sq = MethodType(method, self)
-        self._clear_subqueries("entity")
-
-    def override_entity_class_sq_maker(self, method):
-        """
-        Overrides the function that creates the ``entity_class_sq`` property.
-
-        Args:
-            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
-                returns entity class subquery as an :class:`Alias` object
-        """
-        self._make_entity_class_sq = MethodType(method, self)
-        self._clear_subqueries("entity_class")
-
-    def override_parameter_definition_sq_maker(self, method):
-        """
-        Overrides the function that creates the ``parameter_definition_sq`` property.
-
-        Args:
-            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
-                returns parameter definition subquery as an :class:`Alias` object
-        """
-        self._make_parameter_definition_sq = MethodType(method, self)
-        self._clear_subqueries("parameter_definition")
-
-    def override_parameter_value_sq_maker(self, method):
-        """
-        Overrides the function that creates the ``parameter_value_sq`` property.
-
-        Args:
-            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
-                returns parameter value subquery as an :class:`Alias` object
-        """
-        self._make_parameter_value_sq = MethodType(method, self)
-        self._clear_subqueries("parameter_value")
-
     def _make_entity_sq(self):
         """
         Creates a subquery for entities.
@@ -1632,6 +1589,82 @@ class DatabaseMappingBase:
             .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
             .subquery()
         )
+
+    def get_import_alternative_name(self):
+        """Returns the name of an alternative to use as default for all import operations on this db_map.
+
+        Returns:
+            str
+        """
+        if self._import_alternative_name is None:
+            self._create_import_alternative()
+        return self._import_alternative_name
+
+    def _create_import_alternative(self):
+        """Creates the alternative to be used as default for all import operations.
+        """
+        self._import_alternative_name = "Base"
+        import_alternative = (
+            self.query(self.alternative_sq)
+            .filter(self.alternative_sq.c.name == self._import_alternative_name)
+            .one_or_none()
+        )
+        if not import_alternative:
+            self._add_alternatives({"name": self._import_alternative_name})
+
+    def override_entity_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns entity subquery as an :class:`Alias` object
+        """
+        self._make_entity_sq = MethodType(method, self)
+        self._clear_subqueries("entity")
+
+    def override_entity_class_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_class_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns entity class subquery as an :class:`Alias` object
+        """
+        self._make_entity_class_sq = MethodType(method, self)
+        self._clear_subqueries("entity_class")
+
+    def override_parameter_definition_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``parameter_definition_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns parameter definition subquery as an :class:`Alias` object
+        """
+        self._make_parameter_definition_sq = MethodType(method, self)
+        self._clear_subqueries("parameter_definition")
+
+    def override_parameter_value_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``parameter_value_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns parameter value subquery as an :class:`Alias` object
+        """
+        self._make_parameter_value_sq = MethodType(method, self)
+        self._clear_subqueries("parameter_value")
+
+    def override_create_import_alternative(self, method):
+        """
+        Overrides the ``_create_import_alternative`` function.
+
+        Args:
+            method (Callable)
+        """
+        self._create_import_alternative = MethodType(method, self)
+        self._import_alternative_name = None
 
     def _checked_execute(self, stmt, items):
         if not items:

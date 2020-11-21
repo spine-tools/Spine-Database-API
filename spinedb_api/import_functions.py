@@ -1213,7 +1213,7 @@ def _get_object_parameter_values_for_import(db_map, data):
     parameter_ids = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameters.items()}
     alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
     alternative_ids = set(alternatives.values())
-    default_alt_id = alternatives.get("Base", min(alternatives.values()))
+    default_alt_id = alternatives.get(db_map.get_import_alternative_name(), min(alternatives.values()))
     error_log = []
     to_add = []
     to_update = []
@@ -1327,7 +1327,7 @@ def _get_relationship_parameter_values_for_import(db_map, data):
     relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
     alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
     alternative_ids = set(alternatives.values())
-    default_alt_id = alternatives.get("Base", min(alternatives.values()))
+    default_alt_id = alternatives.get(db_map.get_import_alternative_name(), min(alternatives.values()))
     error_log = []
     to_add = []
     to_update = []
@@ -1697,7 +1697,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
     object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
     parameter_ids = {(x.name, x.entity_class_id): x.id for x in db_map.query(db_map.parameter_definition_sq)}
     alternative_ids = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
-    default_alt_id = alternative_ids.get("Base", min(alternative_ids.values()))
+    default_alt_id = alternative_ids.get(db_map.get_import_alternative_name(), min(alternative_ids.values()))
     parameter_value_ids = {
         (x.object_id, x.parameter_id, x.alternative_id): x.id for x in db_map.query(db_map.object_parameter_value_sq)
     }
@@ -1713,7 +1713,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alternative_name = "Base"
+            alternative_name = db_map.get_import_alternative_name()
             alt_id = default_alt_id
         pv_id = parameter_value_ids.get((o_id, p_id, alt_id), None)
         if pv_id is None:
@@ -1776,7 +1776,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
     relationship_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.wide_relationship_sq)}
     parameter_ids = {(x.name, x.entity_class_id): x.id for x in db_map.query(db_map.parameter_definition_sq)}
     alternative_ids = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
-    default_alt_id = alternative_ids.get("Base", min(alternative_ids.values()))
+    default_alt_id = alternative_ids.get(db_map.get_import_alternative_name(), min(alternative_ids.values()))
     parameter_value_ids = {
         (x.relationship_id, x.parameter_id, x.alternative_id): x.id
         for x in db_map.query(db_map.relationship_parameter_value_sq)
@@ -1795,7 +1795,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alternative_name = "Base"
+            alternative_name = db_map.get_import_alternative_name()
             alt_id = default_alt_id
         pv_id = parameter_value_ids.get((r_id, p_id, alt_id), None)
         if pv_id is None:
