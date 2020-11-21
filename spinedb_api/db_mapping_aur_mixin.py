@@ -20,19 +20,15 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
-from .db_mapping_base import DatabaseMappingBase
 from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, get_parameter_value_list_items
 from .exception import SpineDBAPIError
 
 
-class QuickDatabaseMappingBase(DatabaseMappingBase):
-    """Base class for a quick read-write database mapping.
-    Unlike DatabaseMappingBase, this class doesn't use sqlalchemy's ORM.
-    It instead does everything using the Core expression language, for performance.
-
-    :param str db_url: A URL in RFC-1738 format pointing to the database to be mapped.
-    :param str username: A user name. If ``None``, it gets replaced by the string ``"anon"``.
-    :param bool upgrade: Whether or not the db at the given URL should be upgraded to the most recent version.
+class DatabaseMappingAddUpdateRemoveMixin:
+    """Provides methods to add, update, and remove.
+    Unlike Diff..., there's no "staging area", i.e., all changes are applied directly on the 'original' tables.
+    So no regrets. But it's much faster than maintaining the staging area and diff tables,
+    so ideal for, e.g., Spine Toolbox's Importer that operates in 'one go'.
     """
 
     def __init__(self, *args, **kwargs):
@@ -40,7 +36,17 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         super().__init__(*args, **kwargs)
         self._transaction = None
         self._commit_id = None
-        self._start_new_transaction()
+
+    def has_pending_changes(self):
+        return self._transaction is not None and self._transaction.is_active
+
+    def _checked_execute(self, stmt, items):
+        # Starts new transaction if needed, then execute.
+        if not items:
+            return
+        if not self.has_pending_changes():
+            self._start_new_transaction()
+        self.connection.execute(stmt, items)
 
     def _start_new_transaction(self):
         self._transaction = self.connection.begin()
@@ -49,26 +55,20 @@ class QuickDatabaseMappingBase(DatabaseMappingBase):
         ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment="")
         self._commit_id = self.connection.execute(ins).inserted_primary_key[0]
 
-    def __del__(self):
-        self._transaction.rollback()
-        self.connection.close()
-
-    def reconnect(self):
-        super().reconnect()
-        self._start_new_transaction()
-
     def commit_session(self, comment):
+        if not self.has_pending_changes():
+            raise SpineDBAPIError("Nothing to commit.")
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)
         upd = commit.update().where(commit.c.id == self._commit_id).values(user=user, date=date, comment=comment)
         self.connection.execute(upd)
         self._transaction.commit()
-        self._start_new_transaction()
 
     def rollback_session(self):
+        if not self.has_pending_changes():
+            raise SpineDBAPIError("Nothing to rollback.")
         self._transaction.rollback()
-        self._start_new_transaction()
 
     def _next_id(self, tablename):
         tablename = {

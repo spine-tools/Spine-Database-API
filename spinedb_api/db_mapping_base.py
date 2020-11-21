@@ -1654,3 +1654,6 @@ class DatabaseMappingBase:
             table = self._metadata.tables[tablename]
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+
+    def __del__(self):
+        self.connection.close()

@@ -19,6 +19,7 @@ Unit tests for import_functions.py.
 import unittest
 
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
+from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
     import_alternatives,
     import_object_classes,
@@ -294,6 +295,16 @@ class TestImportRelationship(unittest.TestCase):
     def populate(db_map):
         import_object_classes(db_map, ["object_class1", "object_class2"])
         import_objects(db_map, [["object_class1", "object1"], ["object_class2", "object2"]])
+
+    def test_import_relationships(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("object_class",))
+        import_objects(db_map, (("object_class", "object"),))
+        import_relationship_classes(db_map, (("relationship_class", ("object_class",)),))
+        _, errors = import_relationships(db_map, (("relationship_class", ("object",)),))
+        self.assertFalse(errors)
+        self.assertIn("relationship_class_object", [r.name for r in db_map.query(db_map.relationship_sq)])
+        db_map.connection.close()
 
     def test_import_valid_relationship(self):
         db_map = create_diff_db_map()
