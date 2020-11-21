@@ -81,7 +81,8 @@ class DatabaseMappingAddUpdateRemoveMixin:
         max_id = self.query(func.max(table.c.id)).scalar()
         return max_id + 1 if max_id else 1
 
-    def _items_to_add_and_ids(self, next_id, *items):
+    def _items_to_add_and_ids(self, tablename, *items):
+        next_id = self._next_id(tablename)
         ids = list(range(next_id, next_id + len(items)))
         items_to_add = list()
         append_item = items_to_add.append
@@ -92,8 +93,7 @@ class DatabaseMappingAddUpdateRemoveMixin:
         return items_to_add, ids
 
     def _add_items(self, tablename, *items):
-        next_id = self._next_id(tablename)
-        items, ids = self._items_to_add_and_ids(next_id, *items)
+        items, ids = self._items_to_add_and_ids(tablename, *items)
         self._do_add_items(tablename, *items)
         return set(ids)
 

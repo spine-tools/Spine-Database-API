@@ -165,10 +165,9 @@ class DatabaseMappingBase:
         if self.sa_url.drivername == "sqlite":
             if self.sa_url.database is not None:
                 return os.path.basename(self.sa_url.database)
-            else:
-                hashing = hashlib.sha1()
-                hashing.update(bytes(str(time.time()), "utf-8"))
-                return hashing.hexdigest()
+            hashing = hashlib.sha1()
+            hashing.update(bytes(str(time.time()), "utf-8"))
+            return hashing.hexdigest()
         return self.sa_url.database
 
     def _create_engine(self, db_url, upgrade=False, create=False):
