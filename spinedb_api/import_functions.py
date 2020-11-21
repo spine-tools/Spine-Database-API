@@ -17,8 +17,7 @@ Functions for importing data into a Spine database using entity names as referen
 """
 
 from itertools import groupby
-from .diff_db_mapping import DiffDatabaseMapping
-from .exception import SpineIntegrityError, SpineDBAPIError
+from .exception import SpineIntegrityError
 from .check_functions import (
     check_tool,
     check_feature,
@@ -54,33 +53,8 @@ class ImportErrorLogItem:
         return self.msg
 
 
-def import_data(
-    db_map,
-    object_classes=(),
-    relationship_classes=(),
-    parameter_value_lists=(),
-    object_parameters=(),
-    relationship_parameters=(),
-    objects=(),
-    relationships=(),
-    object_groups=(),
-    object_parameter_values=(),
-    relationship_parameter_values=(),
-    alternatives=(),
-    scenarios=(),
-    scenario_alternatives=(),
-    features=(),
-    tools=(),
-    tool_features=(),
-    tool_feature_methods=(),
-    metadata=(),
-    object_metadata=(),
-    relationship_metadata=(),
-    object_parameter_value_metadata=(),
-    relationship_parameter_value_metadata=(),
-):
-    """Imports data into a Spine database using name references (rather than id
-    references).
+def import_data(db_map, **kwargs):
+    """Imports data into a Spine database using name references (rather than id references).
 
     Example::
 
@@ -141,38 +115,35 @@ def import_data(
         tuple: number of inserted/changed entities and list of ImportErrorLogItem with
             any import errors
     """
-    # NOTE: The order is important, because of references
-    data_by_function = {
-        import_alternatives: alternatives,
-        import_scenarios: scenarios,
-        import_scenario_alternatives: scenario_alternatives,
-        import_object_classes: object_classes,
-        import_relationship_classes: relationship_classes,
-        import_parameter_value_lists: parameter_value_lists,
-        import_object_parameters: object_parameters,
-        import_relationship_parameters: relationship_parameters,
-        import_features: features,
-        import_tools: tools,
-        import_tool_features: tool_features,
-        import_tool_feature_methods: tool_feature_methods,
-        import_objects: objects,
-        import_relationships: relationships,
-        import_object_groups: object_groups,
-        import_object_parameter_values: object_parameter_values,
-        import_relationship_parameter_values: relationship_parameter_values,
-        import_metadata: metadata,
-        import_object_metadata: object_metadata,
-        import_relationship_metadata: relationship_metadata,
-        import_object_parameter_value_metadata: object_parameter_value_metadata,
-        import_relationship_parameter_value_metadata: relationship_parameter_value_metadata,
+    return_empty_tuple = lambda *args, **kwargs: ()
+    functions_by_tablename = {
+        "alternative": (db_map._add_alternatives, db_map._update_alternatives),
+        "scenario": (db_map._add_scenarios, db_map._update_scenarios),
+        "scenario_alternative": (db_map._add_scenario_alternatives, db_map._update_scenario_alternatives),
+        "object_class": (db_map._add_object_classes, db_map._update_object_classes),
+        "relationship_class": (db_map._add_wide_relationship_classes, db_map._update_wide_relationship_classes),
+        "parameter_value_list": (db_map._add_wide_parameter_value_lists, db_map._update_wide_parameter_value_lists),
+        "parameter_definition": (db_map._add_parameter_definitions, db_map._update_parameter_definitions),
+        "feature": (db_map._add_features, db_map._update_features),
+        "tool": (db_map._add_tools, db_map._update_tools),
+        "tool_feature": (db_map._add_tool_features, db_map._update_tool_features),
+        "tool_feature_method": (db_map._add_tool_feature_methods, return_empty_tuple),
+        "object": (db_map._add_objects, db_map._update_objects),
+        "relationship": (db_map._add_wide_relationships, return_empty_tuple),
+        "entity_group": (db_map._add_entity_groups, return_empty_tuple),
+        "parameter_value": (db_map._add_parameter_values, db_map._update_parameter_values),
+        "metadata": (db_map._add_metadata, return_empty_tuple),
+        "entity_metadata": (db_map._add_entity_metadata, return_empty_tuple),
+        "parameter_value_metadata": (db_map._add_parameter_value_metadata, return_empty_tuple),
     }
     error_log = []
     num_imports = 0
-    for import_function, data in data_by_function.items():
-        if data:
-            new, errors = import_function(db_map, data)
-            num_imports += new
-            error_log.extend(errors)
+    for tablename, (to_add, to_update, errors) in get_data_for_import(db_map, **kwargs):
+        add_items, update_items = functions_by_tablename[tablename]
+        updated = update_items(*to_update)
+        added = add_items(*to_add)
+        num_imports += len(added) + len(updated)
+        error_log.extend(errors)
     return num_imports, error_log
 
 
@@ -302,10 +273,7 @@ def import_features(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted features, list of errors
     """
-    to_add, to_update, error_log = _get_features_for_import(db_map, data)
-    updated = db_map._update_features(*to_update)
-    added = db_map._add_features(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, features=data)
 
 
 def _get_features_for_import(db_map, data):
@@ -375,10 +343,7 @@ def import_tools(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted tools, list of errors
     """
-    to_add, to_update, error_log = _get_tools_for_import(db_map, data)
-    updated = db_map._update_tools(*to_update)
-    added = db_map._add_tools(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, tools=data)
 
 
 def _get_tools_for_import(db_map, data):
@@ -432,10 +397,7 @@ def import_tool_features(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted tool features, list of errors
     """
-    to_add, to_update, error_log = _get_tool_features_for_import(db_map, data)
-    updated = db_map._update_tool_features(*to_update)
-    added = db_map._add_tool_features(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, tool_features=data)
 
 
 def _get_tool_features_for_import(db_map, data):
@@ -508,9 +470,7 @@ def import_tool_feature_methods(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted tool features, list of errors
     """
-    to_add, _, error_log = _get_tool_feature_methods_for_import(db_map, data)
-    added = db_map._add_tool_feature_methods(*to_add)
-    return len(added), error_log
+    return import_data(db_map, tool_feature_methods=data)
 
 
 def _get_tool_feature_methods_for_import(db_map, data):
@@ -581,10 +541,7 @@ def import_alternatives(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted alternatives, list of errors
     """
-    to_add, to_update, error_log = _get_alternatives_for_import(db_map, data)
-    updated = db_map._update_alternatives(*to_update)
-    added = db_map._add_alternatives(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, alternatives=data)
 
 
 def _get_alternatives_for_import(db_map, data):
@@ -642,10 +599,7 @@ def import_scenarios(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted scenarios, list of errors
     """
-    to_add, to_update, error_log = _get_scenarios_for_import(db_map, data)
-    updated = db_map._update_scenarios(*to_update)
-    added = db_map._add_scenarios(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, scenarios=data)
 
 
 def _get_scenarios_for_import(db_map, data):
@@ -701,10 +655,7 @@ def import_scenario_alternatives(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted scenario alternatives, list of errors
     """
-    to_add, to_update, error_log = _get_scenario_alternatives_for_import(db_map, data)
-    updated = db_map._update_scenario_alternatives(*to_update)
-    added = db_map._add_scenario_alternatives(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, scenario_alternatives=data)
 
 
 def _get_scenario_alternatives_for_import(db_map, data):
@@ -785,10 +736,7 @@ def import_object_classes(db_map, data):
     Returns:
         tuple of int and list: Number of successfully inserted object classes, list of errors
     """
-    to_add, to_update, error_log = _get_object_classes_for_import(db_map, data)
-    updated = db_map._update_object_classes(*to_update)
-    added = db_map._add_object_classes(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, object_classes=data)
 
 
 def _get_object_classes_for_import(db_map, data):
@@ -846,10 +794,7 @@ def import_relationship_classes(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_relationship_classes_for_import(db_map, data)
-    updated = db_map._update_wide_relationship_classes(*to_update)
-    added = db_map._add_wide_relationship_classes(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, relationship_classes=data)
 
 
 def _get_relationship_classes_for_import(db_map, data):
@@ -914,10 +859,7 @@ def import_objects(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_objects_for_import(db_map, data)
-    updated = db_map._update_objects(*to_update)
-    added = db_map._add_objects(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, objects=data)
 
 
 def _get_objects_for_import(db_map, data):
@@ -975,9 +917,7 @@ def import_object_groups(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, _, error_log = _get_object_groups_for_import(db_map, data)
-    added = db_map._add_entity_groups(*to_add)
-    return len(added), error_log
+    return import_data(db_map, object_groups=data)
 
 
 def _get_object_groups_for_import(db_map, data):
@@ -1027,9 +967,7 @@ def import_relationships(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, _, error_log = _get_relationships_for_import(db_map, data)
-    added = db_map._add_wide_relationships(*to_add)
-    return len(added), error_log
+    return import_data(db_map, relationships=data)
 
 
 def _get_relationships_for_import(db_map, data):
@@ -1104,10 +1042,7 @@ def import_object_parameters(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_object_parameters_for_import(db_map, data)
-    updated = db_map._update_parameter_definitions(*to_update)
-    added = db_map._add_parameter_definitions(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, object_parameters=data)
 
 
 def _get_object_parameters_for_import(db_map, data):
@@ -1183,10 +1118,7 @@ def import_relationship_parameters(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_relationship_parameters_for_import(db_map, data)
-    updated = db_map._update_parameter_definitions(*to_update)
-    added = db_map._add_parameter_definitions(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, relationship_parameters=data)
 
 
 def _get_relationship_parameters_for_import(db_map, data):
@@ -1266,10 +1198,7 @@ def import_object_parameter_values(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_object_parameter_values_for_import(db_map, data)
-    updated = db_map._update_parameter_values(*to_update)
-    added = db_map._add_parameter_values(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, object_parameter_values=data)
 
 
 def _get_object_parameter_values_for_import(db_map, data):
@@ -1374,10 +1303,7 @@ def import_relationship_parameter_values(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_relationship_parameter_values_for_import(db_map, data)
-    updated = db_map._update_parameter_values(*to_update)
-    added = db_map._add_parameter_values(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, relationship_parameter_values=data)
 
 
 def _get_relationship_parameter_values_for_import(db_map, data):
@@ -1496,10 +1422,7 @@ def import_parameter_value_lists(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, to_update, error_log = _get_parameter_value_lists_for_import(db_map, data)
-    updated = db_map._update_wide_parameter_value_lists(*to_update)
-    added = db_map._add_wide_parameter_value_lists(*to_add)
-    return len(added) + len(updated), error_log
+    return import_data(db_map, parameter_value_lists=data)
 
 
 def _get_parameter_value_lists_for_import(db_map, data):
@@ -1604,9 +1527,7 @@ def import_metadata(db_map, data):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    to_add, _, error_log = _get_metadata_for_import(db_map, data)
-    added = db_map._add_metadata(*to_add)
-    return len(added), error_log
+    return import_data(db_map, metadata=data)
 
 
 def _get_metadata_for_import(db_map, data):
@@ -1638,9 +1559,7 @@ def import_object_metadata(db_map, data):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    to_add, _, error_log = _get_object_metadata_for_import(db_map, data)
-    added = db_map._add_entity_metadata(*to_add)
-    return len(added), error_log
+    return import_data(db_map, object_metadata=data)
 
 
 def _get_object_metadata_for_import(db_map, data):
@@ -1699,9 +1618,7 @@ def import_relationship_metadata(db_map, data):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    to_add, _, error_log = _get_relationship_metadata_for_import(db_map, data)
-    added = db_map._add_entity_metadata(*to_add)
-    return len(added), error_log
+    return import_data(db_map, relationship_metadata=data)
 
 
 def _get_relationship_metadata_for_import(db_map, data):
@@ -1772,9 +1689,7 @@ def import_object_parameter_value_metadata(db_map, data):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    to_add, _, error_log = _get_object_parameter_value_metadata_for_import(db_map, data)
-    added = db_map._add_parameter_value_metadata(*to_add)
-    return len(added), error_log
+    return import_data(db_map, object_parameter_value_metadata=data)
 
 
 def _get_object_parameter_value_metadata_for_import(db_map, data):
@@ -1848,9 +1763,7 @@ def import_relationship_parameter_value_metadata(db_map, data):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    to_add, _, error_log = _get_relationship_parameter_value_metadata_for_import(db_map, data)
-    added = db_map._add_parameter_value_metadata(*to_add)
-    return len(added), error_log
+    return import_data(db_map, relationship_parameter_value_metadata=data)
 
 
 def _get_relationship_parameter_value_metadata_for_import(db_map, data):
