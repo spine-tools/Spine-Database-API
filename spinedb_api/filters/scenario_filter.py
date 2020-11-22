@@ -17,9 +17,9 @@ Provides functions to apply filtering based on scenarios to parameter value subq
 """
 
 from functools import partial
+import warnings
 import datetime
 from sqlalchemy import desc, func
-from ..exception import SpineDBAPIError
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
 SCENARIO_SHORTHAND_TAG = "scenario"
@@ -41,7 +41,7 @@ def apply_scenario_filter_to_parameter_value_sq(db_map, scenario):
 def apply_full_scenario_filter(db_map, scenario):
     """
     Replaces (i) parameter value subquery properties in ``db_map`` such that they return only values of given scenario,
-    and (ii) the ``_create_import_alternative`` method so it creates an alternative for the given scenario.
+    and (ii) the ``_create_import_alternative`` method so it creates an import alternative for the given scenario.
 
     Args:
         db_map (DatabaseMappingBase): a database map to alter
@@ -122,6 +122,7 @@ class _ScenarioFilterState:
             scenario (str or int): scenario name or ids
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
+        self.original_create_import_alternative = db_map._create_import_alternative
         self.scenario_id, self.scenario_name = self._scenario_id_and_name(db_map, scenario)
         self._import_alternative_name = None
 
@@ -134,12 +135,9 @@ class _ScenarioFilterState:
             db_map (DatabaseMappingBase): a database map
             scenario (str or int): scenario name or id
 
-        Raises:
-            SpineDBAPIError: if scenario is not found
-
         Returns:
-            int: scenario's id
-            name: scenario's name
+            int or NoneType: scenario's id
+            str or NoneType: scenario's name
         """
         if isinstance(scenario, str):
             scenario_name = scenario
@@ -147,13 +145,13 @@ class _ScenarioFilterState:
                 db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.name == scenario_name).scalar()
             )
             if scenario_id is None:
-                raise SpineDBAPIError(f"Scenario '{scenario_name}' not found")
+                warnings.warn(f"Scenario '{scenario_name}' not found")
             return scenario_id, scenario_name
         scenario_id = scenario
-        scenario = db_map.query(db_map.scenario_sq.c.name).filter(db_map.scenario_sq.c.id == scenario).one_or_none()
-        if scenario is None:
-            raise SpineDBAPIError(f"Scenario id {scenario_id} not found")
-        return scenario_id, scenario.name
+        scenario_name = db_map.query(db_map.scenario_sq.c.name).filter(db_map.scenario_sq.c.id == scenario_id).scalar()
+        if scenario_name is None:
+            warnings.warn(f"Scenario id {scenario_id} not found")
+        return scenario_id, scenario_name
 
 
 def _create_import_alternative(db_map, state):
@@ -165,6 +163,12 @@ def _create_import_alternative(db_map, state):
         db_map (DatabaseMappingBase): database the state applies to
         state (_ScenarioFilterState): a state bound to ``db_map``
     """
+    if state.scenario_name is None:
+        state.original_create_import_alternative(db_map)
+        return
+    if state.scenario_id is None:
+        ids = db_map._add_scenarios({"name": state.scenario_name})
+        state.scenario_id = next(iter(ids))
     stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S:%f")
     db_map._import_alternative_name = f"{state.scenario_name}_run@{stamp}"
     ids = db_map._add_alternatives({"name": db_map._import_alternative_name})
