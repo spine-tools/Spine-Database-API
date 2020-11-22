@@ -22,7 +22,6 @@ import time
 from types import MethodType
 from sqlalchemy import create_engine, func, case, MetaData, Table, Column, Integer, false, true, and_
 from sqlalchemy.sql.expression import label, Alias
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import DatabaseError, DBAPIError
@@ -51,14 +50,6 @@ class DatabaseMappingBase:
 
     It provides the :meth:`query` method for custom db querying.
     """
-
-    class IdsForIn(declarative_base()):
-        __tablename__ = "ids_for_in"
-        __table_args__ = {'prefixes': ['TEMPORARY']}
-
-        id = Column(Integer, primary_key=True)
-        clause_id = Column(Integer)
-        id_for_in = Column(Integer)
 
     def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
         """
@@ -89,7 +80,14 @@ class DatabaseMappingBase:
         self._commit_id = None
         self.session = None
         self._ids_for_in_clause_id = 0
-        self._ids_for_in = self.IdsForIn.__table__
+        self._ids_for_in = Table(
+            "ids_for_in",
+            self._metadata,
+            Column("id", Integer, primary_key=True),
+            Column("clause_id", Integer),
+            Column("id_for_in", Integer),
+            prefixes=['TEMPORARY'],
+        )
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None

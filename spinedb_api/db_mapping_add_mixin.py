@@ -17,8 +17,7 @@
 # TODO: improve docstrings
 
 from datetime import datetime
-from sqlalchemy import func, Column, Integer, String, null
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import func, Table, Column, Integer, String, null
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, get_parameter_value_list_items
@@ -28,62 +27,37 @@ class DatabaseMappingAddMixin:
     """Provides methods to perform ``INSERT`` operations over a Spine db.
     """
 
-    class NextId(declarative_base()):
-        __tablename__ = "next_id"
-
-        user = Column(String(155), primary_key=True)
-        date = Column(String(155), primary_key=True)
-        entity_id = Column(Integer, server_default=null())
-        entity_class_id = Column(Integer, server_default=null())
-        entity_group_id = Column(Integer, server_default=null())
-        parameter_definition_id = Column(Integer, server_default=null())
-        parameter_value_id = Column(Integer, server_default=null())
-        parameter_tag_id = Column(Integer, server_default=null())
-        parameter_value_list_id = Column(Integer, server_default=null())
-        parameter_definition_tag_id = Column(Integer, server_default=null())
-        alternative_id = Column(Integer, server_default=null())
-        scenario_id = Column(Integer, server_default=null())
-        scenario_alternative_id = Column(Integer, server_default=null())
-        tool_id = Column(Integer, server_default=null())
-        feature_id = Column(Integer, server_default=null())
-        tool_feature_id = Column(Integer, server_default=null())
-        tool_feature_method_id = Column(Integer, server_default=null())
-        metadata_id = Column(Integer, server_default=null())
-        parameter_value_metadata_id = Column(Integer, server_default=null())
-        entity_metadata_id = Column(Integer, server_default=null())
-
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
-        self.NextId.__table__.create(self.connection, checkfirst=True)
-
-    def _next_id_row(self):
-        """Returns the next_id row."""
-        next_id = self.query(self.NextId).one_or_none()
-        if next_id:
-            next_id.user = self.username
-            next_id.date = datetime.utcnow()
-        else:
-            next_id = self.NextId(user=self.username, date=datetime.utcnow())
-            self.session.add(next_id)
-        try:
-            # TODO: This flush is supposed to lock the record, so no one can steal our ids.... does it work?
-            self.session.flush()
-        except DBAPIError as e:
-            # TODO: Find a way to try this again, or wait till unlocked
-            # Maybe listen for an event?
-            self.session.rollback()
-            raise SpineDBAPIError("Unable to get next id: {}".format(e.orig.args))
-        return self.query(self.NextId).one_or_none()
-
-    def _next_id(self, tablename, next_id_candidate=None):
-        table = self._metadata.tables[tablename]
-        id_col = self.table_ids.get(tablename, "id")
-        max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
-        next_id = max_id + 1 if max_id else 1
-        if next_id_candidate is None:
-            return next_id
-        return max(next_id_candidate, next_id)
+        next_id = self._metadata.tables.get("next_id")
+        if next_id is None:
+            next_id = Table(
+                "next_id",
+                self._metadata,
+                Column("user", String(155), primary_key=True),
+                Column("date", String(155), primary_key=True),
+                Column("entity_id", Integer, server_default=null()),
+                Column("entity_class_id", Integer, server_default=null()),
+                Column("entity_group_id", Integer, server_default=null()),
+                Column("parameter_definition_id", Integer, server_default=null()),
+                Column("parameter_value_id", Integer, server_default=null()),
+                Column("parameter_tag_id", Integer, server_default=null()),
+                Column("parameter_value_list_id", Integer, server_default=null()),
+                Column("parameter_definition_tag_id", Integer, server_default=null()),
+                Column("alternative_id", Integer, server_default=null()),
+                Column("scenario_id", Integer, server_default=null()),
+                Column("scenario_alternative_id", Integer, server_default=null()),
+                Column("tool_id", Integer, server_default=null()),
+                Column("feature_id", Integer, server_default=null()),
+                Column("tool_feature_id", Integer, server_default=null()),
+                Column("tool_feature_method_id", Integer, server_default=null()),
+                Column("metadata_id", Integer, server_default=null()),
+                Column("parameter_value_metadata_id", Integer, server_default=null()),
+                Column("entity_metadata_id", Integer, server_default=null()),
+            )
+            next_id.create(self.connection, checkfirst=True)
+        self._next_id = next_id
 
     def _items_and_ids(self, tablename, *items):
         if not items:
@@ -110,18 +84,29 @@ class DatabaseMappingAddMixin:
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
         }[tablename]
-        next_id_row = self._next_id_row()
-        next_id = getattr(next_id_row, fieldname)
-        next_id = self._next_id(tablename, next_id)
-        ids = list(range(next_id, next_id + len(items)))
+        with self.connection.begin() as transaction:
+            next_id_row = self.query(self._next_id).one_or_none()
+            if next_id_row is None:
+                next_id = None
+                stmt = self._next_id.insert()
+            else:
+                next_id = getattr(next_id_row, fieldname)
+                stmt = self._next_id.update()
+            if next_id is None:
+                table = self._metadata.tables[tablename]
+                id_col = self.table_ids.get(tablename, "id")
+                max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
+                next_id = max_id + 1 if max_id else 1
+            new_next_id = next_id + len(items)
+            self.connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
+            transaction.commit()
+        ids = list(range(next_id, new_next_id))
         items_to_add = list()
         append_item = items_to_add.append
         for id_, item in zip(ids, items):
             item["commit_id"] = self._commit_id
             item["id"] = id_
             append_item(item)
-        next_id = ids[-1] + 1
-        setattr(next_id_row, fieldname, next_id)
         return items_to_add, set(ids)
 
     def add_items(self, tablename, *items, strict=False, return_dups=False):
