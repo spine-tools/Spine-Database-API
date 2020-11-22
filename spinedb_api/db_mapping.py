@@ -18,11 +18,19 @@ Provides :class:`.DatabaseMapping`.
 
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .db_mapping_base import DatabaseMappingBase
-from .db_mapping_aur_mixin import DatabaseMappingAddUpdateRemoveMixin
+from .db_mapping_add_mixin import DatabaseMappingAddMixin
+from .db_mapping_update_mixin import DatabaseMappingUpdateMixin
+from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .filters.filter_stacks import apply_filter_stack, load_filters
 
 
-class DatabaseMapping(DatabaseMappingAddUpdateRemoveMixin, DatabaseMappingQueryMixin, DatabaseMappingBase):
+class DatabaseMapping(
+    DatabaseMappingCommitMixin,
+    DatabaseMappingUpdateMixin,
+    DatabaseMappingAddMixin,
+    DatabaseMappingQueryMixin,
+    DatabaseMappingBase,
+):
     """A basic read-write database mapping.
 
     :param str db_url: A database URL in RFC-1738 format pointing to the database to be mapped.

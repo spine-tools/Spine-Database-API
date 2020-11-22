@@ -9,7 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.DiffDatabaseMappingAddMixin`.
+"""Provides :class:`.DatabaseMappingAddMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -24,8 +24,8 @@ from .exception import SpineDBAPIError
 from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, get_parameter_value_list_items
 
 
-class DiffDatabaseMappingAddMixin:
-    """Provides methods to stage ``INSERT`` operations over a Spine db.
+class DatabaseMappingAddMixin:
+    """Provides methods to perform ``INSERT`` operations over a Spine db.
     """
 
     class NextId(declarative_base()):
@@ -117,6 +117,7 @@ class DiffDatabaseMappingAddMixin:
         items_to_add = list()
         append_item = items_to_add.append
         for id_, item in zip(ids, items):
+            item["commit_id"] = self._commit_id
             item["id"] = id_
             append_item(item)
         next_id = ids[-1] + 1
@@ -124,7 +125,7 @@ class DiffDatabaseMappingAddMixin:
         return items_to_add, set(ids)
 
     def add_items(self, tablename, *items, strict=False, return_dups=False):
-        """Stage items items for insertion.
+        """Add items to db.
 
         Args:
             tablename (str)
@@ -144,7 +145,7 @@ class DiffDatabaseMappingAddMixin:
         return ids, intgr_error_log
 
     def _add_items(self, tablename, *items):
-        """Add object classes to database without checking integrity.
+        """Add items to database without checking integrity.
 
         Args:
             tablename (str)
@@ -157,24 +158,143 @@ class DiffDatabaseMappingAddMixin:
         """
         items_to_add, ids = self._items_and_ids(tablename, *items)
         self._do_add_items(tablename, *items_to_add)
-        self.added_item_id[tablename].update(ids)
         return ids
 
+    def _get_table_for_insert(self, tablename):
+        """
+        Returns the Table object to perform the insertion. Subclasses can override this method to insert
+        to another table instead (e.g., diff...)
+
+        Args:
+            tablename (str)
+        Returns:
+            Table
+        """
+        return self._metadata.tables[tablename]
+
     def _do_add_items(self, tablename, *items_to_add):
-        table = self._diff_table(tablename)
         try:
-            self._checked_execute(table.insert(), items_to_add)
+            for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
+                table = self._get_table_for_insert(tablename_)
+                self._checked_execute(table.insert(), items_to_add_)
+                yield tablename_
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg)
 
     def readd_items(self, tablename, *items):
-        """Add known items to database.
-        """
-        self._do_add_items(tablename, *items)
+        """Add known items to database."""
         ids = set(x["id"] for x in items)
-        self.added_item_id[tablename].update(ids)
+        self._do_add_items(tablename, *items)
         return ids, []
+
+    def _items_to_add_per_table(self, tablename, items_to_add):
+        """
+        Yields tuples of string tablename, list of items to insert. Needed because some insert queries
+        actually need to insert records to more than one table.
+
+        Args:
+            tablename (str):
+            items_to_add (list)
+
+        Returns:
+            Generator
+        """
+        if tablename == "object_class":
+            oc_items_to_add = list()
+            append_oc_items_to_add = oc_items_to_add.append
+            for item in items_to_add:
+                item["type_id"] = self.object_class_type
+                append_oc_items_to_add({"entity_class_id": item["id"], "type_id": self.object_class_type})
+            yield ("entity_class", items_to_add)
+            yield ("object_class", oc_items_to_add)
+        elif tablename == "object":
+            o_items_to_add = list()
+            append_o_items_to_add = o_items_to_add.append
+            for item in items_to_add:
+                item["type_id"] = self.object_entity_type
+                append_o_items_to_add({"entity_id": item["id"], "type_id": item["type_id"]})
+            yield ("entity", items_to_add)
+            yield ("object", o_items_to_add)
+        elif tablename == "relationship_class":
+            rc_items_to_add = list()
+            rec_items_to_add = list()
+            for item in items_to_add:
+                item["type_id"] = self.relationship_class_type
+                rc_items_to_add.append({"entity_class_id": item["id"], "type_id": self.relationship_class_type})
+                rec_items_to_add += get_relationship_entity_class_items(item, self.object_class_type)
+            yield ("entity_class", items_to_add)
+            yield ("relationship_class", rc_items_to_add)
+            yield ("relationship_entity_class", rec_items_to_add)
+        elif tablename == "relationship":
+            re_items_to_add = list()
+            r_items_to_add = list()
+            for item in items_to_add:
+                item["type_id"] = self.relationship_entity_type
+                r_items_to_add.append(
+                    {
+                        "entity_id": item["id"],
+                        "entity_class_id": item["class_id"],
+                        "type_id": self.relationship_entity_type,
+                    }
+                )
+                re_items_to_add += get_relationship_entity_items(
+                    item, self.relationship_entity_type, self.object_entity_type
+                )
+            yield ("entity", items_to_add)
+            yield ("relationship", r_items_to_add)
+            yield ("relationship_entity", re_items_to_add)
+        elif tablename == "parameter_definition":
+            for item in items_to_add:
+                item["entity_class_id"] = (
+                    item.pop("object_class_id", None)
+                    or item.pop("relationship_class_id", None)
+                    or item.get("entity_class_id")
+                )
+            yield ("parameter_definition", items_to_add)
+        elif tablename == "parameter_value":
+            for item in items_to_add:
+                item["entity_id"] = (
+                    item.pop("object_id", None) or item.pop("relationship_id", None) or item.get("entity_id")
+                )
+                item["entity_class_id"] = (
+                    item.pop("object_class_id", None)
+                    or item.pop("relationship_class_id", None)
+                    or item.get("entity_class_id")
+                )
+            yield ("parameter_value", items_to_add)
+        elif tablename == "parameter_value_list":
+            items_to_add_ = list()
+            for item in items_to_add:
+                items_to_add_ += get_parameter_value_list_items(item)
+            yield ("parameter_value_list", items_to_add_)
+        else:
+            yield (tablename, items_to_add)
+
+    def add_object_classes(self, *items, strict=False, return_dups=False):
+        return self.add_items("object_class", *items, strict=strict, return_dups=return_dups)
+
+    def add_objects(self, *items, strict=False, return_dups=False):
+        return self.add_items("object", *items, strict=strict, return_dups=return_dups)
+
+    def add_wide_relationship_classes(self, *items, strict=False, return_dups=False):
+        return self.add_items("relationship_class", *items, strict=strict, return_dups=return_dups)
+
+    def add_wide_relationships(self, *items, strict=False, return_dups=False):
+        return self.add_items("relationship", *items, strict=strict, return_dups=return_dups)
+
+    def add_parameter_definitions(self, *items, strict=False, return_dups=False):
+        return self.add_items("parameter_definition", *items, strict=strict, return_dups=return_dups)
+
+    def add_parameter_values(self, *items, strict=False, return_dups=False):
+        return self.add_items("parameter_value", *items, strict=strict, return_dups=return_dups)
+
+    def add_checked_parameter_values(self, *checked_items):
+        ids = self._add_parameter_values(*checked_items)
+        return ids, []
+
+    def add_wide_parameter_value_lists(self, *items, strict=False, return_dups=False):
+        return self.add_items("parameter_value_list", *items, strict=strict, return_dups=return_dups)
 
     def add_features(self, *items, strict=False, return_dups=False):
         return self.add_items("feature", *items, strict=strict, return_dups=return_dups)
@@ -205,6 +325,27 @@ class DiffDatabaseMappingAddMixin:
 
     def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
         return self.add_items("parameter_definition_tag", *items, strict=strict, return_dups=return_dups)
+
+    def _add_object_classes(self, *items):
+        return self._add_items("object_class", *items)
+
+    def _add_objects(self, *items):
+        return self._add_items("object", *items)
+
+    def _add_wide_relationship_classes(self, *items):
+        return self._add_items("relationship_class", *items)
+
+    def _add_wide_relationships(self, *items):
+        return self._add_items("relationship", *items)
+
+    def _add_parameter_definitions(self, *items):
+        return self._add_items("parameter_definition", *items)
+
+    def _add_parameter_values(self, *items):
+        return self._add_items("parameter_value", *items)
+
+    def _add_wide_parameter_value_lists(self, *items):
+        return self._add_items("parameter_value_list", *items)
 
     def _add_features(self, *items):
         return self._add_items("feature", *items)
@@ -245,44 +386,26 @@ class DiffDatabaseMappingAddMixin:
     def _add_entity_metadata(self, *items):
         return self._add_items("entity_metadata", *items)
 
-    def _do_add_features(self, *items_to_add):
-        self._do_add_items("feature", *items_to_add)
+    def readd_object_classes(self, *items):
+        return self.readd_items("object_class", *items)
 
-    def _do_add_tools(self, *items_to_add):
-        self._do_add_items("tool", *items_to_add)
+    def readd_objects(self, *items):
+        return self.readd_items("object", *items)
 
-    def _do_add_tool_features(self, *items_to_add):
-        self._do_add_items("tool_feature", *items_to_add)
+    def readd_wide_relationship_classes(self, *items):
+        return self.readd_items("relationship_class", *items)
 
-    def _do_add_tool_feature_methods(self, *items_to_add):
-        self._do_add_items("tool_feature_method", *items_to_add)
+    def readd_wide_relationships(self, *items):
+        return self.readd_items("relationship", *items)
 
-    def _do_add_alternatives(self, *items_to_add):
-        self._do_add_items("alternative", *items_to_add)
+    def readd_parameter_definitions(self, *items):
+        return self.readd_items("parameter_definition", *items)
 
-    def _do_add_scenarios(self, *items_to_add):
-        self._do_add_items("scenario", *items_to_add)
+    def readd_parameter_values(self, *items):
+        return self.readd_items("parameter_value", *items)
 
-    def _do_add_scenario_alternatives(self, *items_to_add):
-        self._do_add_items("scenario_alternative", *items_to_add)
-
-    def _do_add_entity_groups(self, *items_to_add):
-        self._do_add_items("entity_group", *items_to_add)
-
-    def _do_add_parameter_tags(self, *items_to_add):
-        self._do_add_items("parameter_tag", *items_to_add)
-
-    def _do_add_parameter_definition_tags(self, *items_to_add):
-        self._do_add_items("parameter_definition_tag", *items_to_add)
-
-    def _do_add_metadata(self, *items_to_add):
-        self._do_add_items("metadata", *items_to_add)
-
-    def _do_add_parameter_value_metadata(self, *items_to_add):
-        self._do_add_items("parameter_value_metadata", *items_to_add)
-
-    def _do_add_entity_metadata(self, *items_to_add):
-        self._do_add_items("entity_metadata", *items_to_add)
+    def readd_wide_parameter_value_lists(self, *items):
+        return self.readd_items("parameter_value_list", *items)
 
     def readd_features(self, *items):
         return self.readd_items("feature", *items)
@@ -313,268 +436,6 @@ class DiffDatabaseMappingAddMixin:
 
     def readd_parameter_definition_tags(self, *items):
         return self.readd_items("parameter_definition_tag", *items)
-
-    def add_object_classes(self, *items, strict=False, return_dups=False):
-        checked_items, intgr_error_log = self.check_object_classes_for_insert(*items, strict=strict)
-        ids = self._add_object_classes(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_object_classes(self, *items):
-        items_to_add, ids = self._items_and_ids("object_class", *items)
-        self._do_add_object_classes(*items_to_add)
-        self.added_item_id["entity_class"].update(ids)
-        self.added_item_id["object_class"].update(ids)
-        return ids
-
-    def _do_add_object_classes(self, *items_to_add):
-        oc_items_to_add = list()
-        append_oc_items_to_add = oc_items_to_add.append
-        for item in items_to_add:
-            item["type_id"] = self.object_class_type
-            append_oc_items_to_add({"entity_class_id": item["id"], "type_id": self.object_class_type})
-        try:
-            self._checked_execute(self._diff_table("entity_class").insert(), items_to_add)
-            self._checked_execute(self._diff_table("object_class").insert(), oc_items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting object classes: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_object_classes(self, *items):
-        self._do_add_object_classes(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["entity_class"].update(ids)
-        self.added_item_id["object_class"].update(ids)
-        return ids, []
-
-    def add_objects(self, *items, strict=False, return_dups=False):
-        checked_items, intgr_error_log = self.check_objects_for_insert(*items, strict=strict)
-        ids = self._add_objects(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_objects(self, *items):
-        items_to_add, ids = self._items_and_ids("object", *items)
-        self._do_add_objects(*items_to_add)
-        self.added_item_id["entity"].update(ids)
-        self.added_item_id["object"].update(ids)
-        return ids
-
-    def _do_add_objects(self, *items_to_add):
-        o_items_to_add = list()
-        append_o_items_to_add = o_items_to_add.append
-        for item in items_to_add:
-            item["type_id"] = self.object_entity_type
-            append_o_items_to_add({"entity_id": item["id"], "type_id": item["type_id"]})
-        try:
-            self._checked_execute(self._diff_table("entity").insert(), items_to_add)
-            self._checked_execute(self._diff_table("object").insert(), o_items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting objects: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_objects(self, *items):
-        self._do_add_objects(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["entity"].update(ids)
-        self.added_item_id["object"].update(ids)
-        return ids, []
-
-    def add_wide_relationship_classes(self, *wide_items, strict=False, return_dups=False):
-        checked_wide_items, intgr_error_log = self.check_wide_relationship_classes_for_insert(
-            *wide_items, strict=strict
-        )
-        ids = self._add_wide_relationship_classes(*checked_wide_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_wide_relationship_classes(self, *wide_items):
-        wide_items_to_add, ids = self._items_and_ids("relationship_class", *wide_items)
-        self._do_add_wide_relationship_classes(*wide_items_to_add)
-        self.added_item_id["entity_class"].update(ids)
-        self.added_item_id["relationship_class"].update(ids)
-        self.added_item_id["relationship_entity_class"].update(ids)
-        return ids
-
-    def _do_add_wide_relationship_classes(self, *wide_items_to_add):
-        rc_items_to_add = list()
-        rec_items_to_add = list()
-        for wide_item in wide_items_to_add:
-            wide_item["type_id"] = self.relationship_class_type
-            rc_items_to_add.append({"entity_class_id": wide_item["id"], "type_id": self.relationship_class_type})
-            rec_items_to_add += get_relationship_entity_class_items(wide_item, self.object_class_type)
-        try:
-            self._checked_execute(self._diff_table("entity_class").insert(), wide_items_to_add)
-            self._checked_execute(self._diff_table("relationship_class").insert(), rc_items_to_add)
-            self._checked_execute(self._diff_table("relationship_entity_class").insert(), rec_items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting relationship classes: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_wide_relationship_classes(self, *items):
-        self._do_add_wide_relationship_classes(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["entity_class"].update(ids)
-        self.added_item_id["relationship_class"].update(ids)
-        self.added_item_id["relationship_entity_class"].update(ids)
-        return ids, []
-
-    def add_wide_relationships(self, *wide_items, strict=False, return_dups=False):
-        checked_wide_items, intgr_error_log = self.check_wide_relationships_for_insert(*wide_items, strict=strict)
-        ids = self._add_wide_relationships(*checked_wide_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_wide_relationships(self, *wide_items):
-        wide_items_to_add, ids = self._items_and_ids("relationship", *wide_items)
-        self._do_add_wide_relationships(*wide_items_to_add)
-        self.added_item_id["entity"].update(ids)
-        self.added_item_id["relationship"].update(ids)
-        self.added_item_id["relationship_entity"].update(ids)
-        return ids
-
-    def _do_add_wide_relationships(self, *wide_items_to_add):
-        re_items_to_add = list()
-        r_items_to_add = list()
-        for wide_item in wide_items_to_add:
-            wide_item["type_id"] = self.relationship_entity_type
-            r_items_to_add.append(
-                {
-                    "entity_id": wide_item["id"],
-                    "entity_class_id": wide_item["class_id"],
-                    "type_id": self.relationship_entity_type,
-                }
-            )
-            re_items_to_add += get_relationship_entity_items(
-                wide_item, self.relationship_entity_type, self.object_entity_type
-            )
-        try:
-            self._checked_execute(self._diff_table("entity").insert(), wide_items_to_add)
-            self._checked_execute(self._diff_table("relationship").insert(), r_items_to_add)
-            self._checked_execute(self._diff_table("relationship_entity").insert(), re_items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting relationships: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_wide_relationships(self, *items):
-        """Add known relationships to database.
-        """
-        self._do_add_wide_relationships(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["entity"].update(ids)
-        self.added_item_id["relationship"].update(ids)
-        self.added_item_id["relationship_entity"].update(ids)
-        return ids, []
-
-    def add_parameter_definitions(self, *items, strict=False, return_dups=False):
-        checked_items, intgr_error_log = self.check_parameter_definitions_for_insert(*items, strict=strict)
-        ids = self._add_parameter_definitions(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_parameter_definitions(self, *items):
-        items_to_add, ids = self._items_and_ids("parameter_definition", *items)
-        self._do_add_parameter_definitions(*items_to_add)
-        self.added_item_id["parameter_definition"].update(ids)
-        return ids
-
-    def _do_add_parameter_definitions(self, *items_to_add):
-        for item in items_to_add:
-            item["entity_class_id"] = (
-                item.pop("object_class_id", None)
-                or item.pop("relationship_class_id", None)
-                or item.get("entity_class_id")
-            )
-        try:
-            self._checked_execute(self._diff_table("parameter_definition").insert(), items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting parameters: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_parameter_definitions(self, *items):
-        """Add known parameter definitions to database.
-        """
-        self._do_add_parameter_definitions(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["parameter_definition"].update(ids)
-        return ids, []
-
-    def add_parameter_values(self, *items, strict=False, return_dups=False):
-        checked_items, intgr_error_log = self.check_parameter_values_for_insert(*items, strict=strict)
-        ids = self._add_parameter_values(*checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def add_checked_parameter_values(self, *checked_items):
-        ids = self._add_parameter_values(*checked_items)
-        return ids, []
-
-    def _add_parameter_values(self, *items):
-        items_to_add, ids = self._items_and_ids("parameter_value", *items)
-        self._do_add_parameter_values(*items_to_add)
-        self.added_item_id["parameter_value"].update(ids)
-        return ids
-
-    def _do_add_parameter_values(self, *items_to_add):
-        for item in items_to_add:
-            item["entity_id"] = (
-                item.pop("object_id", None) or item.pop("relationship_id", None) or item.get("entity_id")
-            )
-            item["entity_class_id"] = (
-                item.pop("object_class_id", None)
-                or item.pop("relationship_class_id", None)
-                or item.get("entity_class_id")
-            )
-        try:
-            self._checked_execute(self._diff_table("parameter_value").insert(), items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting parameter values: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_parameter_values(self, *items):
-        """Add known parameter values to database.
-        """
-        self._do_add_parameter_values(*items)
-        ids = set(x["id"] for x in items)
-        self.added_item_id["parameter_value"].update(ids)
-        return ids, []
-
-    def add_wide_parameter_value_lists(self, *wide_items, strict=False, return_dups=False):
-        checked_wide_items, intgr_error_log = self.check_wide_parameter_value_lists_for_insert(
-            *wide_items, strict=strict
-        )
-        ids = self._add_wide_parameter_value_lists(*checked_wide_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
-
-    def _add_wide_parameter_value_lists(self, *wide_items):
-        wide_items_to_add, ids = self._items_and_ids("parameter_value_list", *wide_items)
-        self._do_add_wide_parameter_value_lists(*wide_items_to_add)
-        self.added_item_id["parameter_value_list"].update(ids)
-        return ids
-
-    def _do_add_wide_parameter_value_lists(self, *wide_items_to_add):
-        items_to_add = list()
-        for wide_item in wide_items_to_add:
-            items_to_add += get_parameter_value_list_items(wide_item)
-        try:
-            self._checked_execute(self._diff_table("parameter_value_list").insert(), items_to_add)
-        except DBAPIError as e:
-            msg = "DBAPIError while inserting parameter value lists: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
-
-    def readd_wide_parameter_value_lists(self, *wide_items):
-        self._do_add_wide_parameter_value_lists(*wide_items)
-        ids = set(x["id"] for x in wide_items)
-        self.added_item_id["parameter_value_list"].update(ids)
-        return ids, []
 
     def add_object_class(self, **kwargs):
         """Stage an object class item for insertion.

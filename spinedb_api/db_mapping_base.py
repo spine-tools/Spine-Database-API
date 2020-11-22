@@ -25,7 +25,7 @@ from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.exc import DatabaseError, DBAPIError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
@@ -39,6 +39,7 @@ from .helpers import (
     Anyone,
     forward_sweep,
 )
+
 from .filters.url_tools import pop_filter_configs
 
 
@@ -85,6 +86,7 @@ class DatabaseMappingBase:
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
         self._tablenames = list(self._metadata.tables.keys())
+        self._commit_id = None
         self.session = None
         self._ids_for_in_clause_id = 0
         self._ids_for_in = self.IdsForIn.__table__
@@ -1686,6 +1688,22 @@ class DatabaseMappingBase:
             table = self._metadata.tables[tablename]
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+
+    def remove_items(self, **kwargs):
+        """Removes items by id, *not in cascade*.
+
+        Args:
+            **kwargs: keyword is table name, argument is list of ids to remove
+        """
+        for tablename, ids in kwargs.items():
+            table_id = self.table_ids.get(tablename, "id")
+            table = self._metadata.tables[tablename]
+            delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))
+            try:
+                self.connection.execute(delete)
+            except DBAPIError as e:
+                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
+                raise SpineDBAPIError(msg)
 
     def __del__(self):
         self.connection.close()

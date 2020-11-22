@@ -64,11 +64,15 @@ class TestScenarioFilter(unittest.TestCase):
         self._db_map.connection.close()
         self._diff_db_map.connection.close()
 
-    def _build_data_without_scenarios_or_alternatives(self):
+    def _build_data_with_single_scenario(self):
+        import_alternatives(self._out_map, ["alternative"])
         import_object_classes(self._out_map, ["object_class"])
         import_objects(self._out_map, [("object_class", "object")])
         import_object_parameters(self._out_map, [("object_class", "parameter")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0)])
+        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
+        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0, "alternative")])
+        import_scenarios(self._out_map, [("scenario", True)])
+        import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
 
     def test_scenario_filter(self):
         self._build_data_with_single_scenario()
@@ -86,16 +90,6 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, "23.0")
         self._out_map.rollback_session()
-
-    def _build_data_with_single_scenario(self):
-        import_alternatives(self._out_map, ["alternative"])
-        import_object_classes(self._out_map, ["object_class"])
-        import_objects(self._out_map, [("object_class", "object")])
-        import_object_parameters(self._out_map, [("object_class", "parameter")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0, "alternative")])
-        import_scenarios(self._out_map, [("scenario", True)])
-        import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
         self._build_data_with_single_scenario()
