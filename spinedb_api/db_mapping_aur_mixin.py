@@ -152,8 +152,7 @@ class DatabaseMappingAddUpdateRemoveMixin:
 
     def _add_wide_parameter_value_lists(self, *wide_items):
         tablename = "parameter_value_list"
-        next_id = self._next_id(tablename)
-        wide_items, ids = self._items_to_add_and_ids(next_id, *wide_items)
+        wide_items, ids = self._items_to_add_and_ids(tablename, *wide_items)
         items = []
         for wide_item in wide_items:
             items += get_parameter_value_list_items(wide_item)
