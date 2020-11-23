@@ -29,7 +29,7 @@ class DatabaseMappingUpdateMixin:
         append_item = items_to_update.append
         append_id = ids.append
         for item in items:
-            item["commit_id"] = self._commit_id
+            item["commit_id"] = self.commit_id
             append_item(item)
             append_id(item["id"])
         return items_to_update, ids

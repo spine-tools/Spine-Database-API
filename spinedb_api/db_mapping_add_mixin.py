@@ -84,7 +84,7 @@ class DatabaseMappingAddMixin:
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
         }[tablename]
-        with self.connection.begin() as transaction:
+        with self.connection.begin():
             next_id_row = self.query(self._next_id).one_or_none()
             if next_id_row is None:
                 next_id = None
@@ -99,12 +99,11 @@ class DatabaseMappingAddMixin:
                 next_id = max_id + 1 if max_id else 1
             new_next_id = next_id + len(items)
             self.connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
-            transaction.commit()
         ids = list(range(next_id, new_next_id))
         items_to_add = list()
         append_item = items_to_add.append
         for id_, item in zip(ids, items):
-            item["commit_id"] = self._commit_id
+            item["commit_id"] = self.commit_id
             item["id"] = id_
             append_item(item)
         return items_to_add, set(ids)
@@ -142,7 +141,8 @@ class DatabaseMappingAddMixin:
             ids (set): added instances' ids
         """
         items_to_add, ids = self._items_and_ids(tablename, *items)
-        self._do_add_items(tablename, *items_to_add)
+        for _ in self._do_add_items(tablename, *items_to_add):
+            pass
         return ids
 
     def _get_table_for_insert(self, tablename):

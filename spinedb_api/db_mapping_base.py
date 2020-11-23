@@ -77,7 +77,6 @@ class DatabaseMappingBase:
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
         self._tablenames = list(self._metadata.tables.keys())
-        self._commit_id = None
         self.session = None
         self._ids_for_in_clause_id = 0
         self._ids_for_in = Table(
@@ -159,6 +158,10 @@ class DatabaseMappingBase:
         }
         self._create_session()
         self._create_ids_for_in()
+
+    @property
+    def commit_id(self):
+        return None
 
     def _make_codename(self, codename):
         if codename:

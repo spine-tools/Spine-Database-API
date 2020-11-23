@@ -31,24 +31,20 @@ class DatabaseMappingCommitMixin:
         """Initialize class."""
         super().__init__(*args, **kwargs)
         self._transaction = None
+        self._commit_id = None
 
     def has_pending_changes(self):
-        return self._transaction is not None and self._transaction.is_active
+        return self._commit_id is not None
 
-    def _checked_execute(self, stmt, items):
-        # Starts new transaction if needed, then execute.
-        if not items:
-            return
-        if not self.has_pending_changes():
-            self._start_new_transaction()
-        self.connection.execute(stmt, items)
-
-    def _start_new_transaction(self):
-        self._transaction = self.connection.begin()
-        user = self.username
-        date = datetime.now(timezone.utc)
-        ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment="")
-        self._commit_id = self.connection.execute(ins).inserted_primary_key[0]
+    @property
+    def commit_id(self):
+        if self._commit_id is None:
+            self._transaction = self.connection.begin()
+            user = self.username
+            date = datetime.now(timezone.utc)
+            ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment="")
+            self._commit_id = self.connection.execute(ins).inserted_primary_key[0]
+        return self._commit_id
 
     def commit_session(self, comment):
         if not self.has_pending_changes():
@@ -56,11 +52,13 @@ class DatabaseMappingCommitMixin:
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)
-        upd = commit.update().where(commit.c.id == self._commit_id).values(user=user, date=date, comment=comment)
+        upd = commit.update().where(commit.c.id == self.commit_id).values(user=user, date=date, comment=comment)
         self.connection.execute(upd)
         self._transaction.commit()
+        self._commit_id = None
 
     def rollback_session(self):
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
         self._transaction.rollback()
+        self._commit_id = None
