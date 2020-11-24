@@ -103,7 +103,7 @@ class DatabaseMappingAddMixin:
         items_to_add = list()
         append_item = items_to_add.append
         for id_, item in zip(ids, items):
-            item["commit_id"] = self.commit_id
+            item["commit_id"] = self.make_commit_id()
             item["id"] = id_
             append_item(item)
         return items_to_add, set(ids)

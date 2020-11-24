@@ -19,16 +19,18 @@ Provides :class:`.DatabaseMapping`.
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .db_mapping_base import DatabaseMappingBase
 from .db_mapping_add_mixin import DatabaseMappingAddMixin
+from .db_mapping_check_mixin import DatabaseMappingCheckMixin
 from .db_mapping_update_mixin import DatabaseMappingUpdateMixin
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .filters.filter_stacks import apply_filter_stack, load_filters
 
 
 class DatabaseMapping(
-    DatabaseMappingCommitMixin,
-    DatabaseMappingUpdateMixin,
-    DatabaseMappingAddMixin,
     DatabaseMappingQueryMixin,
+    DatabaseMappingCheckMixin,
+    DatabaseMappingAddMixin,
+    DatabaseMappingUpdateMixin,
+    DatabaseMappingCommitMixin,
     DatabaseMappingBase,
 ):
     """A basic read-write database mapping.

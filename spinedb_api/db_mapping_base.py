@@ -159,8 +159,7 @@ class DatabaseMappingBase:
         self._create_session()
         self._create_ids_for_in()
 
-    @property
-    def commit_id(self):
+    def make_commit_id(self):
         return None
 
     def _make_codename(self, codename):

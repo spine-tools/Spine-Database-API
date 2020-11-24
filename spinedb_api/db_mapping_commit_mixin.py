@@ -36,8 +36,7 @@ class DatabaseMappingCommitMixin:
     def has_pending_changes(self):
         return self._commit_id is not None
 
-    @property
-    def commit_id(self):
+    def make_commit_id(self):
         if self._commit_id is None:
             self._transaction = self.connection.begin()
             user = self.username
@@ -52,7 +51,7 @@ class DatabaseMappingCommitMixin:
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)
-        upd = commit.update().where(commit.c.id == self.commit_id).values(user=user, date=date, comment=comment)
+        upd = commit.update().where(commit.c.id == self.make_commit_id()).values(user=user, date=date, comment=comment)
         self.connection.execute(upd)
         self._transaction.commit()
         self._commit_id = None
