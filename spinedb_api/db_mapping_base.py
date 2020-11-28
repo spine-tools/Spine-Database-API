@@ -173,7 +173,8 @@ class DatabaseMappingBase:
             return hashing.hexdigest()
         return self.sa_url.database
 
-    def _create_engine(self, db_url, upgrade=False, create=False):
+    @staticmethod
+    def _create_engine(db_url, upgrade=False, create=False):
         """Create engine.
 
         Args
@@ -211,12 +212,12 @@ class DatabaseMappingBase:
                     if not create:
                         raise SpineDBAPIError(
                             "Unable to determine db revision. "
-                            f"Please check that\n\n\t{self.db_url}\n\nis the URL of a valid Spine db."
+                            f"Please check that\n\n\t{db_url}\n\nis the URL of a valid Spine db."
                         )
                     return create_new_spine_database(db_url)
             if current != head:
                 if not upgrade:
-                    raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
+                    raise SpineDBVersionError(url=db_url, current=current, expected=head)
 
                 # Upgrade function
                 def upgrade_to_head(rev, context):

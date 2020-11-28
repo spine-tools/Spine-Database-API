@@ -15,15 +15,15 @@ Contains functions to deal with filter stacks.
 :date:   6.10.2020
 """
 from json import load
-from .alternative_filter import alternative_filter_from_dict, ALTERNATIVE_FILTER_TYPE
+from .alternative_filter import alternative_filter_from_dict, ALTERNATIVE_FILTER_TYPE, alternative_filter_config
 from .renamer import (
     entity_class_renamer_from_dict,
     ENTITY_CLASS_RENAMER_TYPE,
     parameter_renamer_from_dict,
     PARAMETER_RENAMER_TYPE,
 )
-from .scenario_filter import scenario_filter_from_dict, SCENARIO_FILTER_TYPE
-from .tool_filter import tool_filter_from_dict, TOOL_FILTER_TYPE
+from .scenario_filter import scenario_filter_from_dict, SCENARIO_FILTER_TYPE, scenario_filter_config
+from .tool_filter import tool_filter_from_dict, TOOL_FILTER_TYPE, tool_filter_config
 
 
 def apply_filter_stack(db_map, stack):
@@ -63,3 +63,21 @@ def load_filters(filter_configs):
         else:
             stack.append(config)
     return stack
+
+
+def filter_config(filter_type, value):
+    """
+    Creates a config dict for filter of given type.
+
+    Args:
+        filter_type (str): the filter type (e.g. scenario)
+        value (str): the filter value (e.g. scenario name)
+
+    Returns:
+        dict: filter configuration
+    """
+    return {
+        SCENARIO_FILTER_TYPE: scenario_filter_config,
+        TOOL_FILTER_TYPE: tool_filter_config,
+        ALTERNATIVE_FILTER_TYPE: alternative_filter_config,
+    }[filter_type](value)

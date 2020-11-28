@@ -17,7 +17,7 @@ Functions for importing data into a Spine database using entity names as referen
 """
 
 from itertools import groupby
-from .exception import SpineIntegrityError
+from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
     check_tool,
     check_feature,
@@ -140,8 +140,14 @@ def import_data(db_map, **kwargs):
     num_imports = 0
     for tablename, (to_add, to_update, errors) in get_data_for_import(db_map, **kwargs):
         add_items, update_items = functions_by_tablename[tablename]
-        updated = update_items(*to_update)
-        added = add_items(*to_add)
+        try:
+            updated = update_items(*to_update)
+        except SpineDBAPIError:
+            updated = []
+        try:
+            added = add_items(*to_add)
+        except SpineDBAPIError:
+            added = []
         num_imports += len(added) + len(updated)
         error_log.extend(errors)
     return num_imports, error_log
