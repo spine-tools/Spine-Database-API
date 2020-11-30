@@ -121,6 +121,7 @@ class _ScenarioFilterState:
             db_map (DatabaseMappingBase): database the state applies to
             scenario (str or int): scenario name or ids
         """
+        self.scenario = scenario
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_create_import_alternative = db_map._create_import_alternative
         self.scenario_id, self.scenario_name = self._scenario_id_and_name(db_map, scenario)
@@ -163,6 +164,7 @@ def _create_import_alternative(db_map, state):
         db_map (DatabaseMappingBase): database the state applies to
         state (_ScenarioFilterState): a state bound to ``db_map``
     """
+    state.scenario_id, state.scenario_name = state._scenario_id_and_name(db_map, state.scenario)
     if state.scenario_name is None:
         state.original_create_import_alternative(db_map)
         return
