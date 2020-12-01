@@ -1208,7 +1208,6 @@ def import_object_parameter_values(db_map, data):
 
 
 def _get_object_parameter_values_for_import(db_map, data):
-    import_alternative_name = db_map.get_import_alternative_name()
     object_class_ids = {x.name: x.id for x in db_map.query(db_map.object_class_sq)}
     parameter_value_ids = {
         (x.object_id, x.parameter_id, x.alternative_id): x.id for x in db_map.query(db_map.object_parameter_value_sq)
@@ -1220,7 +1219,6 @@ def _get_object_parameter_values_for_import(db_map, data):
     parameter_ids = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameters.items()}
     alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
     alternative_ids = set(alternatives.values())
-    default_alt_id = alternatives.get(import_alternative_name, min(alternatives.values()))
     error_log = []
     to_add = []
     to_update = []
@@ -1243,20 +1241,15 @@ def _get_object_parameter_values_for_import(db_map, data):
                 )
                 continue
         else:
-            alt_id = default_alt_id
+            alt_id, alternative_name = db_map.get_import_alternative()
         checked_key = (o_id, p_id, alt_id)
         if checked_key in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import parameter value for '{0}', class '{1}', parameter '{2}': {3}".format(
-                        object_name,
-                        class_name,
-                        parameter_name,
-                        "Duplicate parameter value, only first value will be considered.",
-                    ),
-                    db_type="parameter value",
-                )
+            msg = (
+                f"Could not import parameter value for '{object_name}', class '{class_name}', "
+                f"parameter '{parameter_name}', alternative {alternative_name}: "
+                "Duplicate parameter value, only first value will be considered."
             )
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value",))
             continue
         item = {
             "parameter_definition_id": p_id,
@@ -1314,7 +1307,6 @@ def import_relationship_parameter_values(db_map, data):
 
 
 def _get_relationship_parameter_values_for_import(db_map, data):
-    import_alternative_name = db_map.get_import_alternative_name()
     object_class_id_lists = {
         x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
         for x in db_map.query(db_map.wide_relationship_class_sq)
@@ -1335,7 +1327,6 @@ def _get_relationship_parameter_values_for_import(db_map, data):
     relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
     alternatives = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
     alternative_ids = set(alternatives.values())
-    default_alt_id = alternatives.get(import_alternative_name, min(alternatives.values()))
     error_log = []
     to_add = []
     to_update = []
@@ -1363,20 +1354,15 @@ def _get_relationship_parameter_values_for_import(db_map, data):
                 )
                 continue
         else:
-            alt_id = default_alt_id
+            alt_id, alternative_name = db_map.get_import_alternative()
         checked_key = (r_id, p_id, alt_id)
         if checked_key in checked:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg="Could not import parameter value for '{0}', class '{1}', parameter '{2}': {3}".format(
-                        object_names,
-                        class_name,
-                        parameter_name,
-                        "Duplicate parameter value, only first value will be considered.",
-                    ),
-                    db_type="parameter value",
-                )
+            msg = (
+                f"Could not import parameter value for '{object_names}', class '{class_name}', "
+                f"parameter '{parameter_name}', alternative {alternative_name}: "
+                "Duplicate parameter value, only first value will be considered."
             )
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value",))
             continue
         item = {
             "parameter_definition_id": p_id,
@@ -1701,12 +1687,10 @@ def import_object_parameter_value_metadata(db_map, data):
 
 
 def _get_object_parameter_value_metadata_for_import(db_map, data):
-    import_alternative_name = db_map.get_import_alternative_name()
     object_class_ids = {x.name: x.id for x in db_map.query(db_map.object_class_sq)}
     object_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.object_sq)}
     parameter_ids = {(x.name, x.entity_class_id): x.id for x in db_map.query(db_map.parameter_definition_sq)}
     alternative_ids = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
-    default_alt_id = alternative_ids.get(import_alternative_name, min(alternative_ids.values()))
     parameter_value_ids = {
         (x.object_id, x.parameter_id, x.alternative_id): x.id for x in db_map.query(db_map.object_parameter_value_sq)
     }
@@ -1722,8 +1706,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alternative_name = import_alternative_name
-            alt_id = default_alt_id
+            alt_id, alternative_name = db_map.get_import_alternative()
         pv_id = parameter_value_ids.get((o_id, p_id, alt_id), None)
         if pv_id is None:
             msg = (
@@ -1776,7 +1759,6 @@ def import_relationship_parameter_value_metadata(db_map, data):
 
 
 def _get_relationship_parameter_value_metadata_for_import(db_map, data):
-    import_alternative_name = db_map.get_import_alternative_name()
     relationship_class_ids = {oc.name: oc.id for oc in db_map.query(db_map.wide_relationship_class_sq)}
     object_class_id_lists = {
         x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
@@ -1786,7 +1768,6 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
     relationship_ids = {(x.name, x.class_id): x.id for x in db_map.query(db_map.wide_relationship_sq)}
     parameter_ids = {(x.name, x.entity_class_id): x.id for x in db_map.query(db_map.parameter_definition_sq)}
     alternative_ids = {a.name: a.id for a in db_map.query(db_map.alternative_sq)}
-    default_alt_id = alternative_ids.get(import_alternative_name, min(alternative_ids.values()))
     parameter_value_ids = {
         (x.relationship_id, x.parameter_id, x.alternative_id): x.id
         for x in db_map.query(db_map.relationship_parameter_value_sq)
@@ -1805,8 +1786,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alternative_name = import_alternative_name
-            alt_id = default_alt_id
+            alt_id, alternative_name = db_map.get_import_alternative()
         pv_id = parameter_value_ids.get((r_id, p_id, alt_id), None)
         if pv_id is None:
             msg = (

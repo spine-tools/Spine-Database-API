@@ -141,6 +141,7 @@ class DatabaseMappingBase:
         self._ext_tool_feature_method_sq = None
         self._ext_parameter_value_metadata_sq = None
         self._ext_entity_metadata_sq = None
+        self._import_alternative_id = None
         self._import_alternative_name = None
         self._table_to_sq_attr = {}
         # Table primary ids map:
@@ -1593,27 +1594,28 @@ class DatabaseMappingBase:
             .subquery()
         )
 
-    def get_import_alternative_name(self):
-        """Returns the name of an alternative to use as default for all import operations on this db_map.
+    def get_import_alternative(self):
+        """Returns the id of the alternative to use as default for all import operations.
 
         Returns:
-            str
+            int
         """
-        if self._import_alternative_name is None:
+        if self._import_alternative_id is None:
             self._create_import_alternative()
-        return self._import_alternative_name
+        return self._import_alternative_id, self._import_alternative_name
 
     def _create_import_alternative(self):
         """Creates the alternative to be used as default for all import operations.
         """
         self._import_alternative_name = "Base"
-        import_alternative = (
-            self.query(self.alternative_sq)
+        self._import_alternative_id = (
+            self.query(self.alternative_sq.c.id)
             .filter(self.alternative_sq.c.name == self._import_alternative_name)
-            .one_or_none()
+            .scalar()
         )
-        if not import_alternative:
-            self._add_alternatives({"name": self._import_alternative_name})
+        if not self._import_alternative_id:
+            ids = self._add_alternatives({"name": self._import_alternative_name})
+            self._import_alternative_id = next(iter(ids))
 
     def override_entity_sq_maker(self, method):
         """
@@ -1667,7 +1669,7 @@ class DatabaseMappingBase:
             method (Callable)
         """
         self._create_import_alternative = MethodType(method, self)
-        self._import_alternative_name = None
+        self._import_alternative_id = None
 
     def _checked_execute(self, stmt, items):
         if not items:

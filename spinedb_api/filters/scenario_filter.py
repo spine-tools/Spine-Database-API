@@ -174,7 +174,7 @@ def _create_import_alternative(db_map, state):
     stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S:%f")
     db_map._import_alternative_name = f"{state.scenario_name}_run@{stamp}"
     ids = db_map._add_alternatives({"name": db_map._import_alternative_name})
-    import_alternative_id = next(iter(ids))
+    db_map._import_alternative_id = next(iter(ids))
     max_rank = (
         db_map.query(func.max(db_map.scenario_alternative_sq.c.rank))
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
@@ -182,7 +182,7 @@ def _create_import_alternative(db_map, state):
     )
     rank = max_rank + 1 if max_rank else 1
     db_map._add_scenario_alternatives(
-        {"scenario_id": state.scenario_id, "alternative_id": import_alternative_id, "rank": rank}
+        {"scenario_id": state.scenario_id, "alternative_id": db_map._import_alternative_id, "rank": rank}
     )
 
 
