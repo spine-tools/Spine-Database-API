@@ -1598,7 +1598,7 @@ class DatabaseMappingBase:
         """Returns the id of the alternative to use as default for all import operations.
 
         Returns:
-            int
+            int, str
         """
         if self._import_alternative_id is None:
             self._create_import_alternative()

@@ -17,7 +17,6 @@ Provides functions to apply filtering based on scenarios to parameter value subq
 """
 
 from functools import partial
-import warnings
 import datetime
 from sqlalchemy import desc, func
 
@@ -145,13 +144,9 @@ class _ScenarioFilterState:
             scenario_id = (
                 db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.name == scenario_name).scalar()
             )
-            if scenario_id is None:
-                warnings.warn(f"Scenario '{scenario_name}' not found")
             return scenario_id, scenario_name
         scenario_id = scenario
         scenario_name = db_map.query(db_map.scenario_sq.c.name).filter(db_map.scenario_sq.c.id == scenario_id).scalar()
-        if scenario_name is None:
-            warnings.warn(f"Scenario id {scenario_id} not found")
         return scenario_id, scenario_name
 
 
