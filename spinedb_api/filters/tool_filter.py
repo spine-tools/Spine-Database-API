@@ -16,9 +16,7 @@ Provides functions to apply filtering based on tools to entity subqueries.
 :date:   23.9.2020
 """
 from functools import partial
-import warnings
 from sqlalchemy import and_, or_, case
-from ..exception import SpineDBAPIError
 
 
 TOOL_FILTER_TYPE = "tool_filter"
@@ -121,13 +119,9 @@ class _ToolFilterState:
         if isinstance(tool, str):
             tool_name = tool
             tool_id = db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.name == tool_name).scalar()
-            if tool_id is None:
-                warnings.warn(f"Tool '{tool_name}' not found")
             return tool_id
         tool_id = tool
         tool = db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.id == tool_id).one_or_none()
-        if tool is None:
-            warnings.warn(f"Tool id {tool_id} not found")
         return tool_id
 
 
