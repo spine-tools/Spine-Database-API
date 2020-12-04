@@ -100,8 +100,9 @@ class TestToolEntityFilter(unittest.TestCase):
     def test_no_tool(self):
         self._build_data_with_tools()
         self._db_map.commit_session("Add test data")
-        with self.assertRaises(SpineDBAPIError):
-            apply_tool_filter_to_entity_sq(self._db_map, "notool")
+        apply_tool_filter_to_entity_sq(self._db_map, "notool")
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertFalse(entities)
 
     def test_tool_feature_no_filter(self):
         self._build_data_with_tools()

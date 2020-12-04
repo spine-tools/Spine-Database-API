@@ -16,7 +16,7 @@ Provides functions to apply filtering based on tools to entity subqueries.
 :date:   23.9.2020
 """
 from functools import partial
-from sqlalchemy import and_, or_, case
+from sqlalchemy import and_, or_, case, func
 
 
 TOOL_FILTER_TYPE = "tool_filter"
@@ -107,22 +107,18 @@ class _ToolFilterState:
     @staticmethod
     def _tool_id(db_map, tool):
         """
-        Finds id for given tool and checks its existence.
+        Finds id for given tool.
 
         Args:
             db_map (DatabaseMappingBase): a database map
             tool (str or int): tool name or id
 
         Returns:
-            int: tool's id
+            int or NoneType: tool id
         """
         if isinstance(tool, str):
-            tool_name = tool
-            tool_id = db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.name == tool_name).scalar()
-            return tool_id
-        tool_id = tool
-        tool = db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.id == tool_id).one_or_none()
-        return tool_id
+            return db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.name == tool).scalar()
+        return db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.id == tool).scalar()
 
 
 def _make_ext_tool_feature_method_sq(db_map, state):
@@ -199,9 +195,14 @@ def _make_tool_filtered_entity_sq(db_map, state):
     method_filter = _make_method_filter(tool_feature_method_sq, parameter_value_sq)
     required_filter = _make_required_filter(tool_feature_method_sq, parameter_value_sq)
 
-    rejected_entity_sq = (
-        db_map.query(state.original_entity_sq.c.id)
-        .select_from(db_map.parameter_definition_sq)
+    entity_filter_sq = (
+        db_map.query(
+            state.original_entity_sq.c.id,
+            func.min(method_filter).label("method_filter"),
+            func.min(required_filter).label("required_filter"),
+        )
+        .select_from(tool_feature_method_sq)
+        .filter(tool_feature_method_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id)
         .filter(db_map.parameter_definition_sq.c.entity_class_id == state.original_entity_sq.c.class_id)
         .outerjoin(
             parameter_value_sq,
@@ -210,13 +211,17 @@ def _make_tool_filtered_entity_sq(db_map, state):
                 parameter_value_sq.c.entity_id == state.original_entity_sq.c.id,
             ),
         )
-        .filter(tool_feature_method_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id)
-        .filter(tool_feature_method_sq.c.tool_id == state.tool_id)
-        .filter(or_(method_filter.is_(False), required_filter.is_(False)))
+        .group_by(state.original_entity_sq.c.id)
+    ).subquery()
+
+    accepted_entity_sq = (
+        db_map.query(entity_filter_sq.c.id)
+        .filter(entity_filter_sq.c.method_filter.is_(True))
+        .filter(entity_filter_sq.c.required_filter.is_(True))
     ).subquery()
 
     return (
         db_map.query(state.original_entity_sq)
-        .filter(~state.original_entity_sq.c.id.in_(db_map.query(rejected_entity_sq.c.id).distinct()))
+        .filter(state.original_entity_sq.c.id.in_(db_map.query(accepted_entity_sq.c.id).distinct()))
         .subquery()
     )
