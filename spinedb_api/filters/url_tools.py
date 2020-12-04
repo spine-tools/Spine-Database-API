@@ -17,10 +17,12 @@ Tools and utilities to embed filtering information to database URLs.
 """
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from .alternative_filter import (
+    alternative_filter_config,
     alternative_filter_config_to_shorthand,
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
     alternative_filter_shorthand_to_config,
     ALTERNATIVE_FILTER_TYPE,
+    alternative_names_from_dict,
 )
 from .renamer import (
     entity_class_renamer_config_to_shorthand,
@@ -37,6 +39,7 @@ from .scenario_filter import (
     SCENARIO_FILTER_TYPE,
     SCENARIO_SHORTHAND_TAG,
     scenario_filter_shorthand_to_config,
+    scenario_name_from_dict,
 )
 from .tool_filter import (
     tool_filter_config_to_shorthand,
@@ -70,6 +73,31 @@ def append_filter_config(url, config):
     filters.append(config)
     url = url._replace(query=urlencode(query, doseq=True), path="//" + url.path)
     return url.geturl()
+
+
+def filter_configs(url):
+    """
+    Returns filter configs or file paths from given URL.
+
+    Args:
+        url (str): a URL
+
+    Returns:
+        list: a list of filter configs
+    """
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    try:
+        filters = query[FILTER_IDENTIFIER]
+    except KeyError:
+        return []
+    parsed_filters = list()
+    for filter_ in filters:
+        if filter_.startswith(SHORTHAND_TAG):
+            parsed_filters.append(_parse_shorthand(filter_[len(SHORTHAND_TAG) :]))
+        else:
+            parsed_filters.append(filter_)
+    return parsed_filters
 
 
 def pop_filter_configs(url):
@@ -116,6 +144,34 @@ def clear_filter_configs(url):
         return url
     parsed = parsed._replace(query=urlencode(query, doseq=True), path="//" + parsed.path)
     return urlunparse(parsed)
+
+
+def ensure_filtering(url, fallback_alternative=None):
+    """
+    Appends fallback filters to given url if it does not contain corresponding filter already.
+
+    Args:
+        url (str): database URL
+        fallback_alternative (str, optional): fallback alternative if URL does not contain scenario or alternative filters
+
+    Returns:
+        str: database URL
+    """
+    configs = filter_configs(url)
+    if fallback_alternative is not None:
+        alternative_found = False
+        for config in configs:
+            scenario = scenario_name_from_dict(config)
+            if scenario is not None:
+                alternative_found = True
+                break
+            alternatives = alternative_names_from_dict(config)
+            if alternatives:
+                alternative_found = True
+                break
+        if not alternative_found:
+            return append_filter_config(url, alternative_filter_config([fallback_alternative]))
+    return url
 
 
 def config_to_shorthand(config):

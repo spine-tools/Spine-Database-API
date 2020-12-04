@@ -77,6 +77,21 @@ def scenario_filter_from_dict(db_map, config):
     apply_full_scenario_filter(db_map, config["scenario"])
 
 
+def scenario_name_from_dict(config):
+    """
+    Returns scenario's name from filter config.
+
+    Args:
+        config (dict): scenario filter configuration
+
+    Returns:
+        str: scenario name or None if ``config`` is not a valid scenario filter configuration
+    """
+    if not config["type"] == SCENARIO_FILTER_TYPE:
+        return None
+    return config["scenario"]
+
+
 def scenario_filter_config_to_shorthand(config):
     """
     Makes a shorthand string from scenario filter configuration.

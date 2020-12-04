@@ -41,6 +41,7 @@ from spinedb_api.filters.scenario_filter import (
     scenario_filter_config_to_shorthand,
     scenario_filter_from_dict,
     scenario_filter_shorthand_to_config,
+    scenario_name_from_dict,
 )
 
 
@@ -233,6 +234,10 @@ class TestScenarioFilter(unittest.TestCase):
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, "23.0")
+
+    def test_scenario_name_from_dict(self):
+        config = scenario_filter_config("scenario name")
+        self.assertEqual(scenario_name_from_dict(config), "scenario name")
 
     def test_scenario_filter_config_to_shorthand(self):
         config = scenario_filter_config("scenario name")

@@ -35,6 +35,7 @@ from spinedb_api.filters.alternative_filter import (
     alternative_filter_from_dict,
     alternative_filter_config_to_shorthand,
     alternative_filter_shorthand_to_config,
+    alternative_names_from_dict,
 )
 
 
@@ -102,6 +103,10 @@ class TestAlternative_filter(unittest.TestCase):
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, "23.0")
+
+    def test_alternative_names_from_dict(self):
+        config = alternative_filter_config(["alternative1", "alternative2"])
+        self.assertEqual(alternative_names_from_dict(config), ["alternative1", "alternative2"])
 
     def test_alternative_filter_config_to_shorthand(self):
         config = alternative_filter_config(["alternative1", "alternative2"])

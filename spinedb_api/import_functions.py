@@ -1249,7 +1249,7 @@ def _get_object_parameter_values_for_import(db_map, data):
                 f"parameter '{parameter_name}', alternative {alternative_name}: "
                 "Duplicate parameter value, only first value will be considered."
             )
-            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value",))
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value"))
             continue
         item = {
             "parameter_definition_id": p_id,
@@ -1362,7 +1362,7 @@ def _get_relationship_parameter_values_for_import(db_map, data):
                 f"parameter '{parameter_name}', alternative {alternative_name}: "
                 "Duplicate parameter value, only first value will be considered."
             )
-            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value",))
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value"))
             continue
         item = {
             "parameter_definition_id": p_id,

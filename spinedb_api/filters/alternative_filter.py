@@ -76,6 +76,21 @@ def alternative_filter_config_to_shorthand(config):
     return ALTERNATIVE_FILTER_SHORTHAND_TAG + shorthand
 
 
+def alternative_names_from_dict(config):
+    """
+    Returns alternatives' names from filter config.
+
+    Args:
+        config (dict): alternative filter configuration
+
+    Returns:
+        list: list of alternative names or None if ``config`` is not a valid alternative filter configuration
+    """
+    if not config["type"] == ALTERNATIVE_FILTER_TYPE:
+        return None
+    return config["alternatives"]
+
+
 def alternative_filter_shorthand_to_config(shorthand):
     """
     Makes configuration dictionary out of a shorthand string.
