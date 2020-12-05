@@ -1709,4 +1709,7 @@ class DatabaseMappingBase:
                 raise SpineDBAPIError(msg)
 
     def __del__(self):
-        self.connection.close()
+        try:
+            self.connection.close()
+        except AttributeError:
+            pass
