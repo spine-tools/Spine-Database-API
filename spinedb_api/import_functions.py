@@ -49,7 +49,7 @@ class ImportErrorLogItem:
         self.imported_from = imported_from
         self.other = other
 
-    def __str__(self):
+    def __repr__(self):
         return self.msg
 
 
@@ -1242,6 +1242,7 @@ def _get_object_parameter_values_for_import(db_map, data):
                 continue
         else:
             alt_id, alternative_name = db_map.get_import_alternative()
+            alternative_ids.add(alt_id)
         checked_key = (o_id, p_id, alt_id)
         if checked_key in checked:
             msg = (
@@ -1355,6 +1356,7 @@ def _get_relationship_parameter_values_for_import(db_map, data):
                 continue
         else:
             alt_id, alternative_name = db_map.get_import_alternative()
+            alternative_ids.add(alt_id)
         checked_key = (r_id, p_id, alt_id)
         if checked_key in checked:
             msg = (
