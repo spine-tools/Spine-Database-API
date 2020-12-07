@@ -10,14 +10,16 @@
 ######################################################################################################################
 
 """
-Tools and utilities to embed filtering information to database URLs.
+Tools and utilities to work with filters, manipulators and database URLs.
 
 :author: A. Soininen
-:date:   7.10.2020
+:date:   7.12.2020
 """
+from json import dump, load
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from .alternative_filter import (
     alternative_filter_config,
+    alternative_filter_from_dict,
     alternative_filter_config_to_shorthand,
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
     alternative_filter_shorthand_to_config,
@@ -26,23 +28,29 @@ from .alternative_filter import (
 )
 from .renamer import (
     entity_class_renamer_config_to_shorthand,
+    entity_class_renamer_from_dict,
     ENTITY_CLASS_RENAMER_SHORTHAND_TAG,
     entity_class_renamer_shorthand_to_config,
     ENTITY_CLASS_RENAMER_TYPE,
     parameter_renamer_config_to_shorthand,
+    parameter_renamer_from_dict,
     PARAMETER_RENAMER_SHORTHAND_TAG,
     parameter_renamer_shorthand_to_config,
     PARAMETER_RENAMER_TYPE,
 )
 from .scenario_filter import (
+    scenario_filter_config,
     scenario_filter_config_to_shorthand,
+    scenario_filter_from_dict,
     SCENARIO_FILTER_TYPE,
     SCENARIO_SHORTHAND_TAG,
     scenario_filter_shorthand_to_config,
     scenario_name_from_dict,
 )
 from .tool_filter import (
+    tool_filter_config,
     tool_filter_config_to_shorthand,
+    tool_filter_from_dict,
     TOOL_FILTER_SHORTHAND_TAG,
     tool_filter_shorthand_to_config,
     TOOL_FILTER_TYPE,
@@ -50,6 +58,74 @@ from .tool_filter import (
 
 FILTER_IDENTIFIER = "spinedbfilter"
 SHORTHAND_TAG = "cfg:"
+
+
+def apply_filter_stack(db_map, stack):
+    """
+    Applies stack of filters and manipulator to given database map.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+        stack (list): a stack of database filters and manipulators
+    """
+    appliers = {
+        ALTERNATIVE_FILTER_TYPE: alternative_filter_from_dict,
+        ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
+        PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
+        SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
+        TOOL_FILTER_TYPE: tool_filter_from_dict,
+    }
+    for filter_ in stack:
+        appliers[filter_["type"]](db_map, filter_)
+
+
+def load_filters(filter_configs):
+    """
+    Loads filter configurations from disk as needed and constructs a filter stack.
+
+    Args:
+        filter_configs (list): list of filter config dicts and paths to filter configuration files
+
+    Returns:
+        list of dict: filter stack
+    """
+    stack = list()
+    for config in filter_configs:
+        if isinstance(config, str):
+            with open(config) as config_file:
+                stack.append(load(config_file))
+        else:
+            stack.append(config)
+    return stack
+
+
+def store_filter(config, out):
+    """
+    Writes filter config to an output stream.
+
+    Args:
+        config (dict): filter config to write
+        out (TextIOBase): a file-like object that supports writing
+    """
+    dump(config, out)
+
+
+def filter_config(filter_type, value):
+    """
+    Creates a config dict for filter of given type.
+
+    Args:
+        filter_type (str): the filter type (e.g. scenario)
+        value (object): the filter value (e.g. scenario name)
+
+    Returns:
+        dict: filter configuration
+    """
+    return {
+        SCENARIO_FILTER_TYPE: scenario_filter_config,
+        TOOL_FILTER_TYPE: tool_filter_config,
+        ALTERNATIVE_FILTER_TYPE: alternative_filter_config,
+    }[filter_type](value)
 
 
 def append_filter_config(url, config):
@@ -158,9 +234,10 @@ def ensure_filtering(url, fallback_alternative=None):
         str: database URL
     """
     configs = filter_configs(url)
+    stack = load_filters(configs)
     if fallback_alternative is not None:
         alternative_found = False
-        for config in configs:
+        for config in stack:
             scenario = scenario_name_from_dict(config)
             if scenario is not None:
                 alternative_found = True

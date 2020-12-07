@@ -25,7 +25,7 @@ from .db_mapping_update_mixin import DatabaseMappingUpdateMixin
 from .diff_db_mapping_remove_mixin import DiffDatabaseMappingRemoveMixin
 from .diff_db_mapping_commit_mixin import DiffDatabaseMappingCommitMixin
 from .diff_db_mapping_base import DiffDatabaseMappingBase
-from .filters.filter_stacks import apply_filter_stack, load_filters
+from .filters.tools import apply_filter_stack, load_filters
 from .exception import SpineDBAPIError
 
 

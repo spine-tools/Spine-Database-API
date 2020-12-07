@@ -153,12 +153,18 @@ from .parameter_value import (
     TimeSeriesVariableResolution,
     ParameterValueEncoder,
 )
-from .filters.filter_stacks import apply_filter_stack, load_filters
 from .filters.alternative_filter import apply_alternative_filter_to_parameter_value_sq
 from .filters.scenario_filter import apply_scenario_filter_to_parameter_value_sq
 from .filters.tool_filter import apply_tool_filter_to_entity_sq
 from .filters.renamer import apply_renaming_to_parameter_definition_sq, apply_renaming_to_entity_class_sq
-from .filters.url_tools import append_filter_config, clear_filter_configs, config_to_shorthand, pop_filter_configs
+from .filters.tools import (
+    append_filter_config,
+    apply_filter_stack,
+    clear_filter_configs,
+    config_to_shorthand,
+    load_filters,
+    pop_filter_configs,
+)
 from .version import __version__
 
 name = "spinedb_api"
