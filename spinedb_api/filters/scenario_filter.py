@@ -176,7 +176,7 @@ def _create_import_alternative(db_map, state):
     """
     state.scenario_id, state.scenario_name = state._scenario_id_and_name(db_map, state.scenario)
     if state.scenario_name is None:
-        state.original_create_import_alternative(db_map)
+        state.original_create_import_alternative()
         return
     if state.scenario_id is None:
         ids = db_map._add_scenarios({"name": state.scenario_name})
