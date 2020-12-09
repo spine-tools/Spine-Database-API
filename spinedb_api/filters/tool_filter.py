@@ -17,15 +17,17 @@ Provides functions to apply filtering based on tools to entity subqueries.
 """
 from functools import partial
 from sqlalchemy import and_, or_, case, func
+from ..exception import SpineDBAPIError
 
 
 TOOL_FILTER_TYPE = "tool_filter"
-TOOL_FILTER_SHORTHAND_TAG = "tool"
+TOOL_SHORTHAND_TAG = "tool"
 
 
 def apply_tool_filter_to_entity_sq(db_map, tool):
     """
     Replaces entity subquery properties in ``db_map`` such that they return only values of given tool.
+    
     Args:
         db_map (DatabaseMappingBase): a database map to alter
         tool (str or int): tool name or id
@@ -59,6 +61,21 @@ def tool_filter_from_dict(db_map, config):
     apply_tool_filter_to_entity_sq(db_map, config["tool"])
 
 
+def tool_name_from_dict(config):
+    """
+    Returns tool's name from filter config.
+
+    Args:
+        config (dict): tool filter configuration
+
+    Returns:
+        str: tool name or None if ``config`` is not a valid tool filter configuration
+    """
+    if config["type"] != TOOL_FILTER_TYPE:
+        return None
+    return config["tool"]
+
+
 def tool_filter_config_to_shorthand(config):
     """
     Makes a shorthand string from tool filter configuration.
@@ -69,7 +86,7 @@ def tool_filter_config_to_shorthand(config):
     Returns:
         str: a shorthand string
     """
-    return TOOL_FILTER_SHORTHAND_TAG + ":" + config["tool"]
+    return TOOL_SHORTHAND_TAG + ":" + config["tool"]
 
 
 def tool_filter_shorthand_to_config(shorthand):
@@ -117,8 +134,16 @@ class _ToolFilterState:
             int or NoneType: tool id
         """
         if isinstance(tool, str):
-            return db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.name == tool).scalar()
-        return db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.id == tool).scalar()
+            tool_name = tool
+            tool_id = db_map.query(db_map.tool_sq.c.id).filter(db_map.tool_sq.c.name == tool_name).scalar()
+            if tool_id is None:
+                raise SpineDBAPIError(f"Tool '{tool_name}' not found.")
+            return tool_id
+        tool_id = tool
+        tool = db_map.query(db_map.tool_sq).filter(db_map.tool_sq.c.id == tool_id).one_or_none()
+        if tool is None:
+            raise SpineDBAPIError(f"Tool id {tool_id} not found.")
+        return tool_id
 
 
 def _make_ext_tool_feature_method_sq(db_map, state):

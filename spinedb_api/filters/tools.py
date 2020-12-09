@@ -18,42 +18,51 @@ Tools and utilities to work with filters, manipulators and database URLs.
 from json import dump, load
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from .alternative_filter import (
+    ALTERNATIVE_FILTER_SHORTHAND_TAG,
+    ALTERNATIVE_FILTER_TYPE,
     alternative_filter_config,
     alternative_filter_from_dict,
     alternative_filter_config_to_shorthand,
-    ALTERNATIVE_FILTER_SHORTHAND_TAG,
     alternative_filter_shorthand_to_config,
-    ALTERNATIVE_FILTER_TYPE,
     alternative_names_from_dict,
 )
 from .renamer import (
+    ENTITY_CLASS_RENAMER_SHORTHAND_TAG,
+    ENTITY_CLASS_RENAMER_TYPE,
+    PARAMETER_RENAMER_SHORTHAND_TAG,
+    PARAMETER_RENAMER_TYPE,
     entity_class_renamer_config_to_shorthand,
     entity_class_renamer_from_dict,
-    ENTITY_CLASS_RENAMER_SHORTHAND_TAG,
     entity_class_renamer_shorthand_to_config,
-    ENTITY_CLASS_RENAMER_TYPE,
     parameter_renamer_config_to_shorthand,
     parameter_renamer_from_dict,
-    PARAMETER_RENAMER_SHORTHAND_TAG,
     parameter_renamer_shorthand_to_config,
-    PARAMETER_RENAMER_TYPE,
 )
 from .scenario_filter import (
+    SCENARIO_FILTER_TYPE,
+    SCENARIO_SHORTHAND_TAG,
     scenario_filter_config,
     scenario_filter_config_to_shorthand,
     scenario_filter_from_dict,
-    SCENARIO_FILTER_TYPE,
-    SCENARIO_SHORTHAND_TAG,
     scenario_filter_shorthand_to_config,
     scenario_name_from_dict,
 )
 from .tool_filter import (
+    TOOL_SHORTHAND_TAG,
+    TOOL_FILTER_TYPE,
     tool_filter_config,
     tool_filter_config_to_shorthand,
     tool_filter_from_dict,
-    TOOL_FILTER_SHORTHAND_TAG,
     tool_filter_shorthand_to_config,
-    TOOL_FILTER_TYPE,
+    tool_name_from_dict,
+)
+from .execution_filter import (
+    EXECUTION_SHORTHAND_TAG,
+    EXECUTION_FILTER_TYPE,
+    execution_filter_config,
+    execution_filter_config_to_shorthand,
+    execution_filter_from_dict,
+    execution_filter_shorthand_to_config,
 )
 
 FILTER_IDENTIFIER = "spinedbfilter"
@@ -74,6 +83,7 @@ def apply_filter_stack(db_map, stack):
         PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
         SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
         TOOL_FILTER_TYPE: tool_filter_from_dict,
+        EXECUTION_FILTER_TYPE: execution_filter_from_dict,
     }
     for filter_ in stack:
         appliers[filter_["type"]](db_map, filter_)
@@ -125,6 +135,7 @@ def filter_config(filter_type, value):
         SCENARIO_FILTER_TYPE: scenario_filter_config,
         TOOL_FILTER_TYPE: tool_filter_config,
         ALTERNATIVE_FILTER_TYPE: alternative_filter_config,
+        EXECUTION_FILTER_TYPE: execution_filter_config,
     }[filter_type](value)
 
 
@@ -267,6 +278,7 @@ def config_to_shorthand(config):
         PARAMETER_RENAMER_TYPE: parameter_renamer_config_to_shorthand,
         SCENARIO_FILTER_TYPE: scenario_filter_config_to_shorthand,
         TOOL_FILTER_TYPE: tool_filter_config_to_shorthand,
+        EXECUTION_FILTER_TYPE: execution_filter_config_to_shorthand,
     }
     return SHORTHAND_TAG + shorthands[config["type"]](config)
 
@@ -286,7 +298,23 @@ def _parse_shorthand(shorthand):
         ENTITY_CLASS_RENAMER_SHORTHAND_TAG: entity_class_renamer_shorthand_to_config,
         PARAMETER_RENAMER_SHORTHAND_TAG: parameter_renamer_shorthand_to_config,
         SCENARIO_SHORTHAND_TAG: scenario_filter_shorthand_to_config,
-        TOOL_FILTER_SHORTHAND_TAG: tool_filter_shorthand_to_config,
+        TOOL_SHORTHAND_TAG: tool_filter_shorthand_to_config,
+        EXECUTION_SHORTHAND_TAG: execution_filter_shorthand_to_config,
     }
     tag, _, _ = shorthand.partition(":")
     return shorthand_parsers[tag](shorthand)
+
+
+def name_from_dict(config):
+    """
+    Returns name from filter config.
+
+    Args:
+        config (dict): filter configuration
+
+    Returns:
+        str: name or None if ``config`` is not a valid 'name' filter configuration
+    """
+    return {SCENARIO_FILTER_TYPE: scenario_name_from_dict, TOOL_FILTER_TYPE: tool_name_from_dict}[config["type"]](
+        config
+    )

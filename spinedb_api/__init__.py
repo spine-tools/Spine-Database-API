@@ -156,6 +156,7 @@ from .parameter_value import (
 from .filters.alternative_filter import apply_alternative_filter_to_parameter_value_sq
 from .filters.scenario_filter import apply_scenario_filter_to_parameter_value_sq
 from .filters.tool_filter import apply_tool_filter_to_entity_sq
+from .filters.execution_filter import apply_execution_filter
 from .filters.renamer import apply_renaming_to_parameter_definition_sq, apply_renaming_to_entity_class_sq
 from .filters.tools import (
     append_filter_config,
@@ -164,6 +165,7 @@ from .filters.tools import (
     config_to_shorthand,
     load_filters,
     pop_filter_configs,
+    name_from_dict,
 )
 from .version import __version__
 

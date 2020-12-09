@@ -17,8 +17,8 @@ Provides functions to apply filtering based on scenarios to parameter value subq
 """
 
 from functools import partial
-import datetime
 from sqlalchemy import desc, func
+from ..exception import SpineDBAPIError
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
 SCENARIO_SHORTHAND_TAG = "scenario"
@@ -35,22 +35,6 @@ def apply_scenario_filter_to_parameter_value_sq(db_map, scenario):
     state = _ScenarioFilterState(db_map, scenario)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
-
-
-def apply_full_scenario_filter(db_map, scenario):
-    """
-    Replaces (i) parameter value subquery properties in ``db_map`` such that they return only values of given scenario,
-    and (ii) the ``_create_import_alternative`` method so it creates an import alternative for the given scenario.
-
-    Args:
-        db_map (DatabaseMappingBase): a database map to alter
-        scenario (str or int): scenario name or id
-    """
-    state = _ScenarioFilterState(db_map, scenario)
-    make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
-    db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
-    create_import_alternative = partial(_create_import_alternative, state=state)
-    db_map.override_create_import_alternative(create_import_alternative)
 
 
 def scenario_filter_config(scenario):
@@ -74,7 +58,7 @@ def scenario_filter_from_dict(db_map, config):
         db_map (DatabaseMappingBase): target database map
         config (dict): scenario filter configuration
     """
-    apply_full_scenario_filter(db_map, config["scenario"])
+    apply_scenario_filter_to_parameter_value_sq(db_map, config["scenario"])
 
 
 def scenario_name_from_dict(config):
@@ -87,7 +71,7 @@ def scenario_name_from_dict(config):
     Returns:
         str: scenario name or None if ``config`` is not a valid scenario filter configuration
     """
-    if not config["type"] == SCENARIO_FILTER_TYPE:
+    if config["type"] != SCENARIO_FILTER_TYPE:
         return None
     return config["scenario"]
 
@@ -121,12 +105,11 @@ def scenario_filter_shorthand_to_config(shorthand):
 
 class _ScenarioFilterState:
     """
-    Internal state for :func:`_make_scenario_filtered_parameter_value_sq` and :func:`_create_import_alternative`
+    Internal state for :func:`_make_scenario_filtered_parameter_value_sq`.
 
     Attributes:
         original_parameter_value_sq (Alias): previous ``parameter_value_sq``
         scenario_id (int): id of selected scenario
-        scenario_name (name): name of selected scenario
     """
 
     def __init__(self, db_map, scenario):
@@ -135,65 +118,34 @@ class _ScenarioFilterState:
             db_map (DatabaseMappingBase): database the state applies to
             scenario (str or int): scenario name or ids
         """
-        self.scenario = scenario
         self.original_parameter_value_sq = db_map.parameter_value_sq
-        self.original_create_import_alternative = db_map._create_import_alternative
-        self.scenario_id, self.scenario_name = self._scenario_id_and_name(db_map, scenario)
-        self._import_alternative_name = None
+        self.scenario_id = self._scenario_id(db_map, scenario)
 
     @staticmethod
-    def _scenario_id_and_name(db_map, scenario):
+    def _scenario_id(db_map, scenario):
         """
-        Finds id and name for given scenario.
+        Finds id for given scenario.
 
         Args:
             db_map (DatabaseMappingBase): a database map
             scenario (str or int): scenario name or id
 
         Returns:
-            int or NoneType: scenario's id
-            str or NoneType: scenario's name
+            int: scenario's id
         """
         if isinstance(scenario, str):
             scenario_name = scenario
             scenario_id = (
                 db_map.query(db_map.scenario_sq.c.id).filter(db_map.scenario_sq.c.name == scenario_name).scalar()
             )
-            return scenario_id, scenario_name
+            if scenario_id is None:
+                raise SpineDBAPIError(f"Scenario '{scenario_name}' not found.")
+            return scenario_id
         scenario_id = scenario
-        scenario_name = db_map.query(db_map.scenario_sq.c.name).filter(db_map.scenario_sq.c.id == scenario_id).scalar()
-        return scenario_id, scenario_name
-
-
-def _create_import_alternative(db_map, state):
-    """
-    Creates an alternative to use as default for all import operations on the given db_map.
-    Associates the alternative with the scenario from the given state.
-
-    Args:
-        db_map (DatabaseMappingBase): database the state applies to
-        state (_ScenarioFilterState): a state bound to ``db_map``
-    """
-    state.scenario_id, state.scenario_name = state._scenario_id_and_name(db_map, state.scenario)
-    if state.scenario_name is None:
-        state.original_create_import_alternative()
-        return
-    if state.scenario_id is None:
-        ids = db_map._add_scenarios({"name": state.scenario_name})
-        state.scenario_id = next(iter(ids))
-    stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S:%f")
-    db_map._import_alternative_name = f"{state.scenario_name}_run@{stamp}"
-    ids = db_map._add_alternatives({"name": db_map._import_alternative_name})
-    db_map._import_alternative_id = next(iter(ids))
-    max_rank = (
-        db_map.query(func.max(db_map.scenario_alternative_sq.c.rank))
-        .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
-        .scalar()
-    )
-    rank = max_rank + 1 if max_rank else 1
-    db_map._add_scenario_alternatives(
-        {"scenario_id": state.scenario_id, "alternative_id": db_map._import_alternative_id, "rank": rank}
-    )
+        scenario = db_map.query(db_map.scenario_sq).filter(db_map.scenario_sq.c.id == scenario_id).one_or_none()
+        if scenario is None:
+            raise SpineDBAPIError(f"Scenario id {scenario_id} not found.")
+        return scenario_id
 
 
 def _make_scenario_filtered_parameter_value_sq(db_map, state):
