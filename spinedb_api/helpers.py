@@ -888,3 +888,17 @@ class AnyoneType:
 
 
 Anyone = AnyoneType()
+
+
+def fix_name_ambiguity(input_list, offset=0):
+    """Modify repeated entries in name list by appending an increasing integer."""
+    result = []
+    ocurrences = {}
+    for item in input_list:
+        n_ocurrences = input_list.count(item)
+        if n_ocurrences > 1:
+            ocurrence = ocurrences.get(item, 1)
+            ocurrences[item] = ocurrence + 1
+            item += str(offset + ocurrence)
+        result.append(item)
+    return result
