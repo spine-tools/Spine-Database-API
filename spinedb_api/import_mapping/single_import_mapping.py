@@ -91,7 +91,7 @@ class SingleMappingBase:
         Returns:
             function: the getter callable or None; 
             int: total reference count or None;
-            bool: True if the getter read data, False or None otherwise
+            bool: True if the getter reads data, False or None otherwise
         """
         raise NotImplementedError()
 

@@ -446,6 +446,10 @@ class SingleValueMapping:
 class IndexedValueMapping(SingleValueMapping):
     ALLOW_EXTRA_DIMENSION_NO_RETURN = False
     VALUE_TYPE = "indexed_value"
+    PREFIX_LENGTH = 3
+    """The number of fields preceding the value in parameter value mappings.
+    Namely, these are: class name, entity name, parameter name
+    """
 
     def __init__(self, main_value=None, extra_dimension=None):
         super().__init__(main_value)
@@ -506,6 +510,9 @@ class IndexedValueMapping(SingleValueMapping):
     def raw_data_to_type(self, data):
         raise NotImplementedError()
 
+    def _raw_data_key(self, x):
+        return x[: self.PREFIX_LENGTH] + x[self.PREFIX_LENGTH + 1 :]
+
 
 class ArrayValueMapping(IndexedValueMapping):
     ALLOW_EXTRA_DIMENSION_NO_RETURN = True
@@ -516,17 +523,19 @@ class ArrayValueMapping(IndexedValueMapping):
 
     def raw_data_to_type(self, data):
         out = []
-        data = sorted(data, key=lambda x: x[:-1])
+        data = sorted(data, key=self._raw_data_key)
         if self.extra_dimensions[0].returns_value():
-            for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-                values = [value[-1][-1] for value in values if value[-1][-1] is not None]
+            for keys, values in itertools.groupby(data, key=self._raw_data_key):
+                values = [value[self.PREFIX_LENGTH][-1] for value in values]
+                values = [val for val in values if val is not None]
                 if values:
-                    out.append(keys + (values,))
+                    out.append(keys[: self.PREFIX_LENGTH] + (values,) + keys[self.PREFIX_LENGTH :])
         else:
-            for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-                values = [value[-1] for value in values if value[-1] is not None]
+            for keys, values in itertools.groupby(data, key=self._raw_data_key):
+                values = [value[self.PREFIX_LENGTH] for value in values]
+                values = [val for val in values if val is not None]
                 if values:
-                    out.append(keys + (Array(values),))
+                    out.append(keys[: self.PREFIX_LENGTH] + (Array(values),) + keys[self.PREFIX_LENGTH :])
         return out
 
 
@@ -589,15 +598,16 @@ class MapValueMapping(IndexedValueMapping):
 
     def raw_data_to_type(self, data):
         out = []
-        data = sorted(data, key=lambda x: x[:-1])
-        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+        data = sorted(data, key=self._raw_data_key)
+        for keys, values in itertools.groupby(data, key=self._raw_data_key):
+            values = [value[self.PREFIX_LENGTH] for value in values]
+            values = [val for val in values if all(i is not None for i in val)]
             if values:
                 map_as_dict = self._raw_data_to_dict(values)
                 map_ = self._convert_dict_to_map(map_as_dict)
                 if self.compress:
                     map_ = convert_leaf_maps_to_specialized_containers(map_)
-                out.append(keys + (map_,))
+                out.append(keys[: self.PREFIX_LENGTH] + (map_,) + keys[self.PREFIX_LENGTH :])
         return out
 
     @staticmethod
@@ -697,15 +707,17 @@ class TimeSeriesValueMapping(IndexedValueMapping):
 
     def raw_data_to_type(self, data):
         out = []
-        data = sorted(data, key=lambda x: x[:-1])
-        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+        data = sorted(data, key=self._raw_data_key)
+        for keys, values in itertools.groupby(data, key=self._raw_data_key):
+            values = [value[self.PREFIX_LENGTH] for value in values]
+            values = [val for val in values if all(i is not None for i in val)]
             if values:
                 indexes = [items[0] for items in values]
                 values = [items[1] for items in values]
                 out.append(
-                    keys
+                    keys[: self.PREFIX_LENGTH]
                     + (TimeSeriesVariableResolution(indexes, values, self.options.ignore_year, self.options.repeat),)
+                    + keys[self.PREFIX_LENGTH :]
                 )
         return out
 
@@ -728,13 +740,14 @@ class TimePatternValueMapping(IndexedValueMapping):
 
     def raw_data_to_type(self, data):
         out = []
-        data = sorted(data, key=lambda x: x[:-1])
-        for keys, values in itertools.groupby(data, key=lambda x: x[:-1]):
-            values = [items[-1] for items in values if all(i is not None for i in items[-1])]
+        data = sorted(data, key=self._raw_data_key)
+        for keys, values in itertools.groupby(data, key=self._raw_data_key):
+            values = [value[self.PREFIX_LENGTH] for value in values]
+            values = [val for val in values if all(i is not None for i in val)]
             if values:
                 indexes = [items[0] for items in values]
                 values = [items[1] for items in values]
-                out.append(keys + (TimePattern(indexes, values),))
+                out.append(keys[: self.PREFIX_LENGTH] + (TimePattern(indexes, values),) + keys[self.PREFIX_LENGTH :])
         return out
 
 

@@ -230,7 +230,7 @@ def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_t
                         )
             except IndexError as e:
                 errors.append((row_number, e))
-    # convert parameter values to right class and put all data in one dict
+    # convert parameter values to right type and put all data in one dict
     merged_data = {}
     for key, v in data.items():
         map_i, k = key
