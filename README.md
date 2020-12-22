@@ -1,6 +1,7 @@
 # Spine Database API
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://spine-project.github.io/Spine-Database-API/index.html)
+[![Unit tests](https://github.com/Spine-project/Spine-Database-API/workflows/Unit%20tests/badge.svg)](https://github.com/Spine-project/Spine-Database-API/actions?query=workflow%3A"Unit+tests")
 
 A Python package to access and manipulate Spine databases in a customary, unified way.
 
