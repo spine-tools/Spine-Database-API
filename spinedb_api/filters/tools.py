@@ -89,18 +89,18 @@ def apply_filter_stack(db_map, stack):
         appliers[filter_["type"]](db_map, filter_)
 
 
-def load_filters(filter_configs):
+def load_filters(configs):
     """
     Loads filter configurations from disk as needed and constructs a filter stack.
 
     Args:
-        filter_configs (list): list of filter config dicts and paths to filter configuration files
+        configs (list): list of filter config dicts and paths to filter configuration files
 
     Returns:
         list of dict: filter stack
     """
     stack = list()
-    for config in filter_configs:
+    for config in configs:
         if isinstance(config, str):
             with open(config) as config_file:
                 stack.append(load(config_file))
@@ -125,7 +125,7 @@ def filter_config(filter_type, value):
     Creates a config dict for filter of given type.
 
     Args:
-        filter_type (str): the filter type (e.g. scenario)
+        filter_type (str): the filter type (e.g. "scenario_filter")
         value (object): the filter value (e.g. scenario name)
 
     Returns:
@@ -307,7 +307,7 @@ def _parse_shorthand(shorthand):
 
 def name_from_dict(config):
     """
-    Returns name from filter config.
+    Returns scenario or tool name from filter config.
 
     Args:
         config (dict): filter configuration
@@ -315,6 +315,9 @@ def name_from_dict(config):
     Returns:
         str: name or None if ``config`` is not a valid 'name' filter configuration
     """
-    return {SCENARIO_FILTER_TYPE: scenario_name_from_dict, TOOL_FILTER_TYPE: tool_name_from_dict}[config["type"]](
-        config
+    name_from_dict = {SCENARIO_FILTER_TYPE: scenario_name_from_dict, TOOL_FILTER_TYPE: tool_name_from_dict}.get(
+        config["type"]
     )
+    if name_from_dict is None:
+        return None
+    return name_from_dict(config)
