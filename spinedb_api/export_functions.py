@@ -143,8 +143,11 @@ def export_object_groups(db_map, ids=(Anyone,)):
 def export_object_parameter_values(db_map, ids=(Anyone,)):
     sq = db_map.object_parameter_value_sq
     return sorted(
-        (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value), x.alternative_name)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        (
+            (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value), x.alternative_name)
+            for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        ),
+        key=lambda x: x[:3] + (x[-1],),
     )
 
 
@@ -152,13 +155,16 @@ def export_relationship_parameter_values(db_map, ids=(Anyone,)):
     sq = db_map.relationship_parameter_value_sq
     return sorted(
         (
-            x.relationship_class_name,
-            x.object_name_list.split(","),
-            x.parameter_name,
-            from_database(x.value),
-            x.alternative_name,
-        )
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+            (
+                x.relationship_class_name,
+                x.object_name_list.split(","),
+                x.parameter_name,
+                from_database(x.value),
+                x.alternative_name,
+            )
+            for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        ),
+        key=lambda x: x[:3] + (x[-1],),
     )
 
 
