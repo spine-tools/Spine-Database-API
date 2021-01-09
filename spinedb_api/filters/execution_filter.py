@@ -18,7 +18,6 @@ Provides functions to apply filtering based on scenarios to parameter value subq
 
 import json
 from functools import partial
-import datetime
 from sqlalchemy import func
 from ..exception import SpineDBAPIError
 
@@ -113,6 +112,7 @@ class _ExecutionFilterState:
         original_create_import_alternative (MethodType): previous ``_create_import_alternative``
         execution_item (str): the item that performs the execution
         scenarios (list of str): scenarios involved in the execution
+        timestamp (str): timestamp of execution
     """
 
     def __init__(self, db_map, execution):
@@ -122,7 +122,7 @@ class _ExecutionFilterState:
             execution (dict): execution descriptor
         """
         self.original_create_import_alternative = db_map._create_import_alternative
-        self.execution_item, self.scenarios = self._parse_execution_descriptor(execution)
+        self.execution_item, self.scenarios, self.timestamp = self._parse_execution_descriptor(execution)
 
     def _parse_execution_descriptor(self, execution):
         """Raises ``SpineDBAPIError`` if descriptor not good.
@@ -137,11 +137,12 @@ class _ExecutionFilterState:
         try:
             execution_item = execution["execution_item"]
             scenarios = execution["scenarios"]
+            timestamp = execution["timestamp"]
         except KeyError as e:
             raise SpineDBAPIError(f"Key '{e}' not found in execution filter descriptor.")
         if not isinstance(scenarios, list):
             raise SpineDBAPIError("Key 'scenarios' should contain a list.")
-        return execution_item, scenarios
+        return execution_item, scenarios, timestamp
 
 
 def _create_import_alternative(db_map, state):
@@ -152,19 +153,21 @@ def _create_import_alternative(db_map, state):
         db_map (DatabaseMappingBase): database the state applies to
         state (_ExecutionFilterState): a state bound to ``db_map``
     """
-    stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S:%f")
-    db_map._import_alternative_name = f"{state.execution_item}_run@{stamp}"
-    ids = db_map._add_alternatives({"name": db_map._import_alternative_name})
-    db_map._import_alternative_id = next(iter(ids))
-    scenarios = [{"name": scenario} for scenario in state.scenarios]
-    scenario_ids, _ = db_map.add_scenarios(*scenarios, return_dups=True)
-    for scen_id in scenario_ids:
+    execution_item = state.execution_item
+    scenarios = state.scenarios
+    timestamp = state.timestamp
+    db_map._import_alternative_name = f"{'_'.join(scenarios)}__{execution_item}@{timestamp}"
+    alt_ids, _ = db_map.add_alternatives({"name": db_map._import_alternative_name}, return_dups=True)
+    db_map._import_alternative_id = next(iter(alt_ids))
+    scenarios = [{"name": scenario} for scenario in scenarios]
+    scen_ids, _ = db_map.add_scenarios(*scenarios, return_dups=True)
+    for scen_id in scen_ids:
         max_rank = (
             db_map.query(func.max(db_map.scenario_alternative_sq.c.rank))
             .filter(db_map.scenario_alternative_sq.c.scenario_id == scen_id)
             .scalar()
         )
         rank = max_rank + 1 if max_rank else 1
-        db_map._add_scenario_alternatives(
+        db_map.add_scenario_alternatives(
             {"scenario_id": scen_id, "alternative_id": db_map._import_alternative_id, "rank": rank}
         )
