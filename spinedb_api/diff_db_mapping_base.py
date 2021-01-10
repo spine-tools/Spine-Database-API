@@ -17,7 +17,8 @@ Provides :class:`.DiffDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Table
+from sqlalchemy import Table, select
+from sqlalchemy.sql.expression import literal, union_all
 from .db_mapping_base import DatabaseMappingBase
 from .helpers import labelled_columns
 
@@ -85,8 +86,20 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             UNION ALL
             SELECT * FROM diff_table
         """
-        orig_table = self._metadata.tables[tablename]
         diff_table = self._diff_table(tablename)
+        if self.sa_url.drivername.startswith("mysql"):
+            # Work around the "can't reopen <temporary table>" error in MySQL.
+            # (This happens whenever a temporary table is used more than once in a query.)
+            # Basically what we do here, is dump the contents of the diff table into a
+            # `SELECT first row UNION ALL SELECT second row ... UNION ALL SELECT last row` statement,
+            # and use it as a replacement.
+            diff_row_selects = [
+                select([literal(v).label(k) for k, v in row._asdict().items()]) for row in self.query(diff_table)
+            ]
+            if not diff_row_selects:
+                return super()._subquery(tablename)
+            diff_table = union_all(*diff_row_selects).alias()
+        orig_table = self._metadata.tables[tablename]
         table_id = self.table_ids.get(tablename, "id")
         return (
             self.query(*labelled_columns(orig_table))

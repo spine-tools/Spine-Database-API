@@ -20,29 +20,32 @@ import json
 import warnings
 from sqlalchemy import (
     Boolean,
+    BigInteger,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    MetaData,
+    PrimaryKeyConstraint,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
     create_engine,
     false,
-    Table,
-    Column,
-    MetaData,
-    select,
+    func,
     inspect,
-    String,
-    Float,
-    Integer,
-    BigInteger,
     null,
-    DateTime,
-    ForeignKey,
-    UniqueConstraint,
-    CheckConstraint,
-    ForeignKeyConstraint,
-    PrimaryKeyConstraint,
+    select,
 )
 from sqlalchemy.ext.automap import generate_relationship
-from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
+from sqlalchemy.sql.expression import FunctionElement
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
@@ -60,7 +63,6 @@ SUPPORTED_DIALECTS = {
     # "oracle": "cx_oracle",
 }
 
-
 naming_convention = {
     "pk": "pk_%(table_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
@@ -69,6 +71,8 @@ naming_convention = {
 }
 
 model_meta = MetaData(naming_convention=naming_convention)
+
+LONGTEXT_LENGTH = 2 ** 32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -85,14 +89,39 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 @compiles(TINYINT, "sqlite")
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
-    """ Handles mysql TINYINT datatype as INTEGER in sqlite """
+    """Handles mysql TINYINT datatype as INTEGER in sqlite."""
     return compiler.visit_INTEGER(element, **kw)
 
 
 @compiles(DOUBLE, "sqlite")
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
-    """ Handles mysql DOUBLE datatype as REAL in sqlite """
+    """Handles mysql DOUBLE datatype as REAL in sqlite."""
     return compiler.visit_REAL(element, **kw)
+
+
+class group_concat(FunctionElement):
+    type = String()
+    name = 'group_concat'
+
+
+def _parse_group_concat_clauses(clauses):
+    keys = ("group_concat_column", "order_by_column", "separator")
+    d = dict(zip(keys, clauses))
+    return d["group_concat_column"], d.get("order_by_column"), d.get("separator", ",")
+
+
+@compiles(group_concat, "sqlite")
+def compile_group_concat_sqlite(element, compiler, **kw):
+    group_concat_column, _, separator = _parse_group_concat_clauses(element.clauses)
+    return compiler.process(func.group_concat(group_concat_column, separator), **kw)
+
+
+@compiles(group_concat, "mysql")
+def compile_group_concat_mysql(element, compiler, **kw):
+    group_concat_column, order_by_column, separator = _parse_group_concat_clauses(element.clauses)
+    if order_by_column is not None:
+        group_concat_column = group_concat_column.op("ORDER BY")(order_by_column)
+    return compiler.process(func.group_concat(group_concat_column, separator), **kw)
 
 
 def _parse_metadata_fallback(metadata):
@@ -114,11 +143,6 @@ def _parse_metadata(metadata):
                 yield (key, str(val))
             continue
         yield (key, str(value))
-
-
-def attr_dict(item):
-    """A dictionary of all attributes of item."""
-    return {c.key: getattr(item, c.key) for c in inspect(item).mapper.column_attrs}
 
 
 def is_head(db_url, upgrade=False):
@@ -260,17 +284,7 @@ def is_empty(db_url):
     return True
 
 
-def create_new_spine_database(db_url):
-    """Create a new Spine database at the given url."""
-    try:
-        engine = create_engine(db_url)
-    except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
-    # Drop existing tables. This is a Spine db now...
-    meta = MetaData(engine)
-    meta.reflect()
-    meta.drop_all(engine)
-    # Create new tables
+def create_spine_metadata():
     meta = MetaData(naming_convention=naming_convention)
     Table(
         "commit",
@@ -355,12 +369,7 @@ def create_new_spine_database(db_url):
         meta,
         Column("entity_class_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(
-            ("entity_class_id", "type_id"),
-            ("entity_class.id", "entity_class.type_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
+        ForeignKeyConstraint(("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id")),
         CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object class can only have object type
     )
     Table(
@@ -368,14 +377,7 @@ def create_new_spine_database(db_url):
         meta,
         Column("entity_class_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        # TODO: Check if automap keeps working after removing this
-        # PrimaryKeyConstraint("entity_class_id", name="relationship_class_PK"),
-        ForeignKeyConstraint(
-            ("entity_class_id", "type_id"),
-            ("entity_class.id", "entity_class.type_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
+        ForeignKeyConstraint(("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id")),
         CheckConstraint("`type_id` = 2", name="type_id"),
     )
     Table(
@@ -390,14 +392,8 @@ def create_new_spine_database(db_url):
         Column("dimension", Integer, primary_key=True),
         Column("member_class_id", Integer, nullable=False),
         Column("member_class_type_id", Integer, nullable=False),
-        # TODO: Why this one below???
-        # UniqueConstraint("dimension", "entity_class_id", "member_class_id"),
-        ForeignKeyConstraint(
-            ("member_class_id", "member_class_type_id"),
-            ("entity_class.id", "entity_class.type_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
+        UniqueConstraint("entity_class_id", "dimension", "member_class_id", name="uq_relationship_entity_class"),
+        ForeignKeyConstraint(("member_class_id", "member_class_type_id"), ("entity_class.id", "entity_class.type_id")),
         CheckConstraint("`member_class_type_id` != 2", name="member_class_type_id"),
     )
     Table(
@@ -418,9 +414,7 @@ def create_new_spine_database(db_url):
         meta,
         Column("entity_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(
-            ("entity_id", "type_id"), ("entity.id", "entity.type_id"), onupdate="CASCADE", ondelete="CASCADE"
-        ),
+        ForeignKeyConstraint(("entity_id", "type_id"), ("entity.id", "entity.type_id")),
         CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object can only have object type
     )
     Table(
@@ -429,9 +423,8 @@ def create_new_spine_database(db_url):
         Column("entity_id", Integer, primary_key=True),
         Column("entity_class_id", Integer, nullable=False),
         Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(
-            ("entity_id", "type_id"), ("entity.id", "entity.type_id"), onupdate="CASCADE", ondelete="CASCADE"
-        ),
+        UniqueConstraint("entity_id", "entity_class_id"),
+        ForeignKeyConstraint(("entity_id", "type_id"), ("entity.id", "entity.type_id")),
         CheckConstraint("`type_id` = 2", name="type_id"),
     )
     Table(
@@ -490,11 +483,12 @@ def create_new_spine_database(db_url):
         Column("name", String(155), nullable=False),
         Column("description", String(155), server_default=null()),
         Column("data_type", String(155), server_default="NUMERIC"),
-        Column("default_value", String(155), server_default=null()),
+        Column("default_value", Text(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         Column("parameter_value_list_id", Integer),
         UniqueConstraint("id", "entity_class_id"),
         UniqueConstraint("entity_class_id", "name"),
+        UniqueConstraint("id", "parameter_value_list_id"),
     )
     Table(
         "parameter_tag",
@@ -508,10 +502,15 @@ def create_new_spine_database(db_url):
         "parameter_definition_tag",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("parameter_definition_id", Integer, ForeignKey("parameter_definition.id"), nullable=False),
+        Column(
+            "parameter_definition_id",
+            Integer,
+            ForeignKey("parameter_definition.id", name="fk_parameter_tag_parameter_definition"),
+            nullable=False,
+        ),
         Column("parameter_tag_id", Integer, ForeignKey("parameter_tag.id"), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("parameter_definition_id", "parameter_tag_id"),
+        UniqueConstraint("parameter_definition_id", "parameter_tag_id", name="uq_parameter_definition_tag"),
     )
     Table(
         "parameter_value",
@@ -520,10 +519,10 @@ def create_new_spine_database(db_url):
         Column("parameter_definition_id", Integer, nullable=False),
         Column("entity_id", Integer, nullable=False),
         Column("entity_class_id", Integer, nullable=False),
-        Column("value", String(155), server_default=null()),
+        Column("value", Text(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         Column("alternative_id", Integer, ForeignKey("alternative.id"), nullable=False),
-        UniqueConstraint("parameter_definition_id", "entity_id", "alternative_id"),
+        UniqueConstraint("parameter_definition_id", "entity_id", "alternative_id", name="uq_parameter_value"),
         ForeignKeyConstraint(
             ("entity_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
@@ -540,7 +539,7 @@ def create_new_spine_database(db_url):
         Column("id", Integer, primary_key=True),
         Column("name", String(155), nullable=False),
         Column("value_index", Integer, primary_key=True, nullable=False),
-        Column("value", String(255), nullable=False),
+        Column("value", Text(LONGTEXT_LENGTH), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
@@ -560,6 +559,7 @@ def create_new_spine_database(db_url):
         Column("description", String(255), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_definition_id", "parameter_value_list_id"),
+        UniqueConstraint("id", "parameter_value_list_id"),
         ForeignKeyConstraint(
             ("parameter_definition_id", "parameter_value_list_id"),
             ("parameter_definition.id", "parameter_definition.parameter_value_list_id"),
@@ -577,6 +577,7 @@ def create_new_spine_database(db_url):
         Column("required", Boolean(name="required"), server_default=false(), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("tool_id", "feature_id"),
+        UniqueConstraint("id", "parameter_value_list_id"),
         ForeignKeyConstraint(
             ("feature_id", "parameter_value_list_id"),
             ("feature.id", "feature.parameter_value_list_id"),
@@ -604,6 +605,7 @@ def create_new_spine_database(db_url):
             ("parameter_value_list.id", "parameter_value_list.value_index"),
             onupdate="CASCADE",
             ondelete="CASCADE",
+            name="tool_feature_method_parameter_value_list_id",
         ),
     )
     Table(
@@ -648,13 +650,28 @@ def create_new_spine_database(db_url):
         Column("version_num", String(32), nullable=False),
         PrimaryKeyConstraint("version_num", name="alembic_version_pkc"),
     )
+    return meta
+
+
+def create_new_spine_database(db_url):
+    """Create a new Spine database at the given url."""
+    try:
+        engine = create_engine(db_url)
+    except DatabaseError as e:
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+    # Drop existing tables. This is a Spine db now...
+    meta = MetaData(engine)
+    meta.reflect()
+    meta.drop_all(engine)
+    # Create new tables
+    meta = create_spine_metadata()
     try:
         meta.create_all(engine)
-        engine.execute("INSERT INTO [commit] VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
+        engine.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('1892adebc00f')")
+        engine.execute("INSERT INTO alembic_version VALUES ('fbb540efbf15')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine

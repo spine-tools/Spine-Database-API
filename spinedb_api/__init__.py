@@ -24,6 +24,7 @@ from .exception import (
 )
 from .helpers import (
     naming_convention,
+    create_spine_metadata,
     SUPPORTED_DIALECTS,
     create_new_spine_database,
     copy_database,
@@ -167,6 +168,7 @@ from .filters.tools import (
     pop_filter_configs,
     name_from_dict,
 )
+from .relational import Relational
 from .version import __version__
 
 name = "spinedb_api"

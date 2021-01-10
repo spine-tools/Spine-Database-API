@@ -87,72 +87,68 @@ def export_data(
     return {key: value for key, value in data.items() if value}
 
 
+def _make_query(db_map, sq_attr, ids):
+    sq = getattr(db_map, sq_attr)
+    qry = db_map.query(sq)
+    if Anyone in ids:
+        return qry
+    return qry.filter(db_map.in_(sq.c.id, ids))
+
+
 def export_object_classes(db_map, ids=(Anyone,)):
-    sq = db_map.object_class_sq
-    return sorted((x.name, x.description, x.display_icon) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.name, x.description, x.display_icon) for x in _make_query(db_map, "object_class_sq", ids))
 
 
 def export_objects(db_map, ids=(Anyone,)):
-    sq = db_map.ext_object_sq
-    return sorted((x.class_name, x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.class_name, x.name, x.description) for x in _make_query(db_map, "ext_object_sq", ids))
 
 
 def export_relationship_classes(db_map, ids=(Anyone,)):
-    sq = db_map.wide_relationship_class_sq
     return sorted(
         (x.name, x.object_class_name_list.split(","), x.description)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        for x in _make_query(db_map, "wide_relationship_class_sq", ids)
     )
 
 
 def export_parameter_value_lists(db_map, ids=(Anyone,)):
-    sq = db_map.parameter_value_list_sq
-    return sorted((x.name, from_database(x.value)) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.name, from_database(x.value)) for x in _make_query(db_map, "parameter_value_list_sq", ids))
 
 
 def export_object_parameters(db_map, ids=(Anyone,)):
-    sq = db_map.object_parameter_definition_sq
     return sorted(
         (x.object_class_name, x.parameter_name, from_database(x.default_value), x.value_list_name, x.description)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        for x in _make_query(db_map, "object_parameter_definition_sq", ids)
     )
 
 
 def export_relationship_parameters(db_map, ids=(Anyone,)):
-    sq = db_map.relationship_parameter_definition_sq
     return sorted(
         (x.relationship_class_name, x.parameter_name, from_database(x.default_value), x.value_list_name, x.description)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        for x in _make_query(db_map, "relationship_parameter_definition_sq", ids)
     )
 
 
 def export_relationships(db_map, ids=(Anyone,)):
-    sq = db_map.wide_relationship_sq
     return sorted(
-        (x.class_name, x.object_name_list.split(",")) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        (x.class_name, x.object_name_list.split(",")) for x in _make_query(db_map, "wide_relationship_sq", ids)
     )
 
 
 def export_object_groups(db_map, ids=(Anyone,)):
-    sq = db_map.ext_object_group_sq
-    return sorted(
-        (x.class_name, x.group_name, x.member_name) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
-    )
+    return sorted((x.class_name, x.group_name, x.member_name) for x in _make_query(db_map, "ext_object_group_sq", ids))
 
 
 def export_object_parameter_values(db_map, ids=(Anyone,)):
-    sq = db_map.object_parameter_value_sq
     return sorted(
         (
             (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value), x.alternative_name)
-            for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+            for x in _make_query(db_map, "object_parameter_value_sq", ids)
         ),
         key=lambda x: x[:3] + (x[-1],),
     )
 
 
 def export_relationship_parameter_values(db_map, ids=(Anyone,)):
-    sq = db_map.relationship_parameter_value_sq
     return sorted(
         (
             (
@@ -162,7 +158,7 @@ def export_relationship_parameter_values(db_map, ids=(Anyone,)):
                 from_database(x.value),
                 x.alternative_name,
             )
-            for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+            for x in _make_query(db_map, "relationship_parameter_value_sq", ids)
         ),
         key=lambda x: x[:3] + (x[-1],),
     )
@@ -181,8 +177,7 @@ def export_alternatives(db_map, ids=(Anyone,)):
     Returns:
         Iterable: tuples of two elements: name of alternative and description
     """
-    sq = db_map.alternative_sq
-    return sorted((x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.name, x.description) for x in _make_query(db_map, "alternative_sq", ids))
 
 
 def export_scenarios(db_map, ids=(Anyone,)):
@@ -198,8 +193,7 @@ def export_scenarios(db_map, ids=(Anyone,)):
     Returns:
         Iterable: tuples of two elements: name of scenario and description
     """
-    sq = db_map.scenario_sq
-    return sorted((x.name, x.active, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.name, x.active, x.description) for x in _make_query(db_map, "scenario_sq", ids))
 
 
 def export_scenario_alternatives(db_map, ids=(Anyone,)):
@@ -216,40 +210,35 @@ def export_scenario_alternatives(db_map, ids=(Anyone,)):
         Iterable: tuples of three elements: name of scenario, tuple containing one alternative name,
             and name of next alternative
     """
-    sq = db_map.ext_linked_scenario_alternative_sq
     return sorted(
         (
             (x.scenario_name, x.alternative_name, x.next_alternative_name)
-            for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+            for x in _make_query(db_map, "ext_linked_scenario_alternative_sq", ids)
         ),
         key=lambda x: x[0],
     )
 
 
 def export_tools(db_map, ids=(Anyone,)):
-    sq = db_map.tool_sq
-    return sorted((x.name, x.description) for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids)))
+    return sorted((x.name, x.description) for x in _make_query(db_map, "tool_sq", ids))
 
 
 def export_features(db_map, ids=(Anyone,)):
-    sq = db_map.ext_feature_sq
     return sorted(
         (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name, x.description)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        for x in _make_query(db_map, "ext_feature_sq", ids)
     )
 
 
 def export_tool_features(db_map, ids=(Anyone,)):
-    sq = db_map.ext_tool_feature_sq
     return sorted(
         (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        for x in _make_query(db_map, "ext_tool_feature_sq", ids)
     )
 
 
 def export_tool_feature_methods(db_map, ids=(Anyone,)):
-    sq = db_map.ext_tool_feature_method_sq
     return sorted(
         (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method))
-        for x in db_map.query(sq).filter(db_map.in_(sq.c.id, ids))
+        for x in _make_query(db_map, "ext_tool_feature_method_sq", ids)
     )

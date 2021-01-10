@@ -15,12 +15,13 @@
 :date:   11.8.2018
 """
 # TODO: Finish docstrings
+import uuid
 import hashlib
 import os
 import logging
 import time
 from types import MethodType
-from sqlalchemy import create_engine, func, case, MetaData, Table, Column, Integer, false, true, and_
+from sqlalchemy import create_engine, case, MetaData, Table, Column, Integer, false, and_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
@@ -31,14 +32,13 @@ from alembic.script import ScriptDirectory
 from alembic.config import Config
 from .exception import SpineDBAPIError, SpineDBVersionError
 from .helpers import (
+    _create_first_spine_database,
     create_new_spine_database,
     compare_schemas,
-    model_meta,
-    _create_first_spine_database,
-    Anyone,
     forward_sweep,
+    group_concat,
+    model_meta,
 )
-
 from .filters.tools import pop_filter_configs
 
 
@@ -76,17 +76,8 @@ class DatabaseMappingBase:
         self.connection = self.engine.connect()
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
-        self._tablenames = list(self._metadata.tables.keys())
+        self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.session = None
-        self._ids_for_in_clause_id = 0
-        self._ids_for_in = Table(
-            "ids_for_in",
-            self._metadata,
-            Column("id", Integer, primary_key=True),
-            Column("clause_id", Integer),
-            Column("id_for_in", Integer),
-            prefixes=['TEMPORARY'],
-        )
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -158,7 +149,6 @@ class DatabaseMappingBase:
             "relationship_entity_class": ("entity_class_id", "dimension"),
         }
         self._create_session()
-        self._create_ids_for_in()
 
     def make_commit_id(self):
         return None
@@ -166,13 +156,13 @@ class DatabaseMappingBase:
     def _make_codename(self, codename):
         if codename:
             return str(codename)
-        if self.sa_url.drivername == "sqlite":
-            if self.sa_url.database is not None:
-                return os.path.basename(self.sa_url.database)
-            hashing = hashlib.sha1()
-            hashing.update(bytes(str(time.time()), "utf-8"))
-            return hashing.hexdigest()
-        return self.sa_url.database
+        if not self.sa_url.drivername.startswith("sqlite"):
+            return self.sa_url.database
+        if self.sa_url.database is not None:
+            return os.path.basename(self.sa_url.database)
+        hashing = hashlib.sha1()
+        hashing.update(bytes(str(time.time()), "utf-8"))
+        return hashing.hexdigest()
 
     @staticmethod
     def _create_engine(db_url, upgrade=False, create=False):
@@ -245,20 +235,22 @@ class DatabaseMappingBase:
     def reconnect(self):
         self.connection = self.engine.connect()
 
-    def _create_ids_for_in(self):
-        """Create `ids_for_in` table if not exists and map it."""
-        self._ids_for_in.create(self.connection, checkfirst=True)
-
-    def in_(self, column, ids):
-        """See base class."""
-        if Anyone in ids:
-            return true()
-        if not ids:
+    def in_(self, column, values):
+        """Returns an expression equivalent to column.in_(values), that circumvents the
+        'too many sql variables' problem in sqlite."""
+        if not values:
             return false()
-        self._ids_for_in_clause_id += 1
-        clause_id = self._ids_for_in_clause_id
-        self._checked_execute(self._ids_for_in.insert(), [{"id_for_in": id_, "clause_id": clause_id} for id_ in ids])
-        return column.in_(self.query(self._ids_for_in.c.id_for_in).filter(self._ids_for_in.c.clause_id == clause_id))
+        if not self.sa_url.drivername.startswith("sqlite"):
+            return column.in_(values)
+        in_value = Table(
+            "in_value_" + str(uuid.uuid4()),
+            MetaData(),
+            Column("value", Integer, primary_key=True),
+            prefixes=['TEMPORARY'],
+        )
+        in_value.create(self.connection, checkfirst=True)
+        self._checked_execute(in_value.insert(), [{"value": val} for val in set(values)])
+        return column.in_(self.query(in_value.c.value))
 
     def _make_table_to_sq_attr(self):
         """Returns a dict mapping table names to subquery attribute names, involving that table.
@@ -693,6 +685,7 @@ class DatabaseMappingBase:
                     self.scenario_sq.c.description.label("description"),
                     self.scenario_sq.c.active.label("active"),
                     self.scenario_alternative_sq.c.alternative_id.label("alternative_id"),
+                    self.scenario_alternative_sq.c.rank.label("rank"),
                     self.alternative_sq.c.name.label("alternative_name"),
                 )
                 .outerjoin(
@@ -715,8 +708,12 @@ class DatabaseMappingBase:
                     self.ext_scenario_sq.c.name.label("name"),
                     self.ext_scenario_sq.c.description.label("description"),
                     self.ext_scenario_sq.c.active.label("active"),
-                    func.group_concat(self.ext_scenario_sq.c.alternative_id).label("alternative_id_list"),
-                    func.group_concat(self.ext_scenario_sq.c.alternative_name).label("alternative_name_list"),
+                    group_concat(self.ext_scenario_sq.c.alternative_id, self.ext_scenario_sq.c.rank).label(
+                        "alternative_id_list"
+                    ),
+                    group_concat(self.ext_scenario_sq.c.alternative_name, self.ext_scenario_sq.c.rank).label(
+                        "alternative_name_list"
+                    ),
                 )
                 .group_by(
                     self.ext_scenario_sq.c.id,
@@ -830,6 +827,7 @@ class DatabaseMappingBase:
                     self.relationship_class_sq.c.id.label("id"),
                     self.relationship_class_sq.c.name.label("name"),
                     self.relationship_class_sq.c.description.label("description"),
+                    self.relationship_class_sq.c.dimension.label("dimension"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                 )
@@ -871,12 +869,18 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
-                    func.group_concat(self.ext_relationship_class_sq.c.object_class_id).label("object_class_id_list"),
-                    func.group_concat(self.ext_relationship_class_sq.c.object_class_name).label(
-                        "object_class_name_list"
-                    ),
+                    group_concat(
+                        self.ext_relationship_class_sq.c.object_class_id, self.ext_relationship_class_sq.c.dimension
+                    ).label("object_class_id_list"),
+                    group_concat(
+                        self.ext_relationship_class_sq.c.object_class_name, self.ext_relationship_class_sq.c.dimension
+                    ).label("object_class_name_list"),
                 )
-                .group_by(self.ext_relationship_class_sq.c.id, self.ext_relationship_class_sq.c.name)
+                .group_by(
+                    self.ext_relationship_class_sq.c.id,
+                    self.ext_relationship_class_sq.c.name,
+                    self.ext_relationship_class_sq.c.description,
+                )
                 .subquery()
             )
         return self._wide_relationship_class_sq
@@ -907,6 +911,7 @@ class DatabaseMappingBase:
                     self.relationship_sq.c.id.label("id"),
                     self.relationship_sq.c.name.label("name"),
                     self.relationship_sq.c.class_id.label("class_id"),
+                    self.relationship_sq.c.dimension.label("dimension"),
                     self.wide_relationship_class_sq.c.name.label("class_name"),
                     self.ext_object_sq.c.id.label("object_id"),
                     self.ext_object_sq.c.name.label("object_name"),
@@ -956,13 +961,24 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.name,
                     self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.class_name,
-                    func.group_concat(self.ext_relationship_sq.c.object_id).label("object_id_list"),
-                    func.group_concat(self.ext_relationship_sq.c.object_name).label("object_name_list"),
-                    func.group_concat(self.ext_relationship_sq.c.object_class_id).label("object_class_id_list"),
-                    func.group_concat(self.ext_relationship_sq.c.object_class_name).label("object_class_name_list"),
+                    group_concat(self.ext_relationship_sq.c.object_id, self.ext_relationship_sq.c.dimension).label(
+                        "object_id_list"
+                    ),
+                    group_concat(self.ext_relationship_sq.c.object_name, self.ext_relationship_sq.c.dimension).label(
+                        "object_name_list"
+                    ),
+                    group_concat(
+                        self.ext_relationship_sq.c.object_class_id, self.ext_relationship_sq.c.dimension
+                    ).label("object_class_id_list"),
+                    group_concat(
+                        self.ext_relationship_sq.c.object_class_name, self.ext_relationship_sq.c.dimension
+                    ).label("object_class_name_list"),
                 )
                 .group_by(
-                    self.ext_relationship_sq.c.id, self.ext_relationship_sq.c.class_id, self.ext_relationship_sq.c.name
+                    self.ext_relationship_sq.c.id,
+                    self.ext_relationship_sq.c.name,
+                    self.ext_relationship_sq.c.class_id,
+                    self.ext_relationship_sq.c.class_name,
                 )
                 .subquery()
             )
@@ -1328,10 +1344,10 @@ class DatabaseMappingBase:
             self._wide_parameter_definition_tag_sq = (
                 self.query(
                     self.ext_parameter_definition_tag_sq.c.parameter_definition_id.label("id"),
-                    func.group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag_id).label(
+                    group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag_id).label(
                         "parameter_tag_id_list"
                     ),
-                    func.group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag).label("parameter_tag_list"),
+                    group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag).label("parameter_tag_list"),
                 )
                 .group_by(self.ext_parameter_definition_tag_sq.c.parameter_definition_id)
                 .subquery()
@@ -1363,8 +1379,12 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
-                    func.group_concat(self.parameter_value_list_sq.c.value_index, ";").label("value_index_list"),
-                    func.group_concat(self.parameter_value_list_sq.c.value, ";").label("value_list"),
+                    group_concat(
+                        self.parameter_value_list_sq.c.value_index, self.parameter_value_list_sq.c.value_index, ";"
+                    ).label("value_index_list"),
+                    group_concat(
+                        self.parameter_value_list_sq.c.value, self.parameter_value_list_sq.c.value_index, ";"
+                    ).label("value_list"),
                 ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
             ).subquery()
         return self._wide_parameter_value_list_sq

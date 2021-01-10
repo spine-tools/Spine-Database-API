@@ -17,9 +17,12 @@ fileConfig(config.config_file_name)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from spinedb_api.helpers import model_meta
+import sys
 
-target_metadata = model_meta
+sys.path = ['', '..'] + sys.path[1:]
+from spinedb_api.helpers import create_spine_metadata
+
+target_metadata = create_spine_metadata()
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
