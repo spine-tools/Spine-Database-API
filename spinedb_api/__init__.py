@@ -168,7 +168,6 @@ from .filters.tools import (
     pop_filter_configs,
     name_from_dict,
 )
-from .relational import Relational
 from .version import __version__
 
 name = "spinedb_api"
