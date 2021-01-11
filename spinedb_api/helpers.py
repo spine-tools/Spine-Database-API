@@ -45,7 +45,7 @@ from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
-from sqlalchemy.sql.expression import FunctionElement
+from sqlalchemy.sql.expression import FunctionElement, bindparam
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
@@ -107,7 +107,7 @@ class group_concat(FunctionElement):
 def _parse_group_concat_clauses(clauses):
     keys = ("group_concat_column", "order_by_column", "separator")
     d = dict(zip(keys, clauses))
-    return d["group_concat_column"], d.get("order_by_column"), d.get("separator", ",")
+    return d["group_concat_column"], d.get("order_by_column"), d.get("separator", bindparam("sep", ","))
 
 
 @compiles(group_concat, "sqlite")
@@ -121,7 +121,10 @@ def compile_group_concat_mysql(element, compiler, **kw):
     group_concat_column, order_by_column, separator = _parse_group_concat_clauses(element.clauses)
     if order_by_column is not None:
         group_concat_column = group_concat_column.op("ORDER BY")(order_by_column)
-    return compiler.process(func.group_concat(group_concat_column, separator), **kw)
+    return "group_concat(%s separator %s)" % (
+        compiler.process(group_concat_column, **kw),
+        compiler.process(separator, **kw),
+    )
 
 
 def _parse_metadata_fallback(metadata):
@@ -299,7 +302,7 @@ def create_spine_metadata():
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("name"),
     )
@@ -308,7 +311,7 @@ def create_spine_metadata():
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(255), nullable=False),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("active", Boolean(name="active"), server_default=false(), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("name"),
@@ -356,7 +359,7 @@ def create_spine_metadata():
             nullable=False,
         ),
         Column("name", String(255), nullable=False),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("display_order", Integer, server_default="99"),
         Column("display_icon", BigInteger, server_default=null()),
         Column("hidden", Integer, server_default="0"),
@@ -403,7 +406,7 @@ def create_spine_metadata():
         Column("type_id", Integer, ForeignKey("entity_type.id", onupdate="CASCADE", ondelete="CASCADE")),
         Column("class_id", Integer, ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE")),
         Column("name", String(255), nullable=False),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("id", "class_id"),
         UniqueConstraint("id", "type_id", "class_id"),
@@ -481,7 +484,7 @@ def create_spine_metadata():
             nullable=False,
         ),
         Column("name", String(155), nullable=False),
-        Column("description", String(155), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("data_type", String(155), server_default="NUMERIC"),
         Column("default_value", Text(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
@@ -495,7 +498,7 @@ def create_spine_metadata():
         meta,
         Column("id", Integer, primary_key=True),
         Column("tag", String(155), nullable=False, unique=True),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
@@ -547,7 +550,7 @@ def create_spine_metadata():
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(155), nullable=False),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
@@ -556,7 +559,7 @@ def create_spine_metadata():
         Column("id", Integer, primary_key=True),
         Column("parameter_definition_id", Integer, nullable=False),
         Column("parameter_value_list_id", Integer, nullable=False),
-        Column("description", String(255), server_default=null()),
+        Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_definition_id", "parameter_value_list_id"),
         UniqueConstraint("id", "parameter_value_list_id"),
