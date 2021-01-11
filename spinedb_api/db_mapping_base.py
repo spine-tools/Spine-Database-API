@@ -21,7 +21,7 @@ import os
 import logging
 import time
 from types import MethodType
-from sqlalchemy import create_engine, case, MetaData, Table, Column, Integer, false, and_
+from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
@@ -245,7 +245,7 @@ class DatabaseMappingBase:
         in_value = Table(
             "in_value_" + str(uuid.uuid4()),
             MetaData(),
-            Column("value", Integer, primary_key=True),
+            Column("value", column.type, primary_key=True),
             prefixes=['TEMPORARY'],
         )
         in_value.create(self.connection, checkfirst=True)
