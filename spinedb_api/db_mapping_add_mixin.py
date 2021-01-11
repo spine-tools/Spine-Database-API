@@ -56,7 +56,11 @@ class DatabaseMappingAddMixin:
                 Column("parameter_value_metadata_id", Integer, server_default=null()),
                 Column("entity_metadata_id", Integer, server_default=null()),
             )
-            next_id.create(self.connection, checkfirst=True)
+            try:
+                next_id.create(self.connection)
+            except DBAPIError:
+                # Some other concurrent process must have beaten us to create the table
+                next_id = Table("next_id", self._metadata, autoload=True)
         self._next_id = next_id
 
     def _items_and_ids(self, tablename, *items):
