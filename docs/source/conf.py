@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.abspath(root_path))
 project = "Spine Database API"
 author = "Various"
 # TODO: correctly identify authors / copyright
-copyright = "2019, Spine"
+copyright = "2021, Spine"
 
 # The short X.Y version
 from spinedb_api import __version__ as spinedb_api_version
