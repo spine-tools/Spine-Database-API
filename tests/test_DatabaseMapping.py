@@ -164,7 +164,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             self.assertTrue(hasattr(self._db_map.ext_object_sq.c, column_name))
 
     def test_ext_relationship_class_sq(self):
-        columns = ["id", "name", "description", "object_class_id", "object_class_name"]
+        columns = ["id", "name", "description", "dimension", "object_class_id", "object_class_name"]
         self.assertEqual(len(self._db_map.ext_relationship_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_relationship_class_sq.c, column_name))
@@ -181,11 +181,13 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "name",
             "class_id",
             "class_name",
+            "dimension",
             "object_id",
             "object_name",
             "object_class_id",
             "object_class_name",
         ]
+        data = self._db_map.ext_relationship_sq.c
         self.assertEqual(len(self._db_map.ext_relationship_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_relationship_sq.c, column_name))
