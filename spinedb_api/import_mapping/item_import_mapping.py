@@ -166,7 +166,7 @@ class ItemMappingBase:
                             ' could not be found in header.'
                         )
             if not 0 <= pc < num_cols:
-                raise IndexError(f'mapping contains invalid index: {pc}, data column number: {num_cols}')
+                raise IndexError(f'mapping contains invalid index: {pc}, number of data columns: {num_cols}')
             int_non_piv_cols.append(pc)
         # parameter column mapping is not in use and we have a pivoted mapping
         pivoted_cols = set(range(num_cols)).difference(set(int_non_piv_cols))

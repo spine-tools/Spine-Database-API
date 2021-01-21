@@ -115,35 +115,49 @@ def import_data(db_map, **kwargs):
         tuple: number of inserted/changed entities and list of ImportErrorLogItem with
             any import errors
     """
-    return_empty_tuple = lambda *args, **kwargs: ()
-    functions_by_tablename = {
-        "alternative": (db_map._add_alternatives, db_map._update_alternatives),
-        "scenario": (db_map._add_scenarios, db_map._update_scenarios),
-        "scenario_alternative": (db_map._add_scenario_alternatives, db_map._update_scenario_alternatives),
-        "object_class": (db_map._add_object_classes, db_map._update_object_classes),
-        "relationship_class": (db_map._add_wide_relationship_classes, db_map._update_wide_relationship_classes),
-        "parameter_value_list": (db_map._add_wide_parameter_value_lists, db_map._update_wide_parameter_value_lists),
-        "parameter_definition": (db_map._add_parameter_definitions, db_map._update_parameter_definitions),
-        "feature": (db_map._add_features, db_map._update_features),
-        "tool": (db_map._add_tools, db_map._update_tools),
-        "tool_feature": (db_map._add_tool_features, db_map._update_tool_features),
-        "tool_feature_method": (db_map._add_tool_feature_methods, return_empty_tuple),
-        "object": (db_map._add_objects, db_map._update_objects),
-        "relationship": (db_map._add_wide_relationships, return_empty_tuple),
-        "entity_group": (db_map._add_entity_groups, return_empty_tuple),
-        "parameter_value": (db_map._add_parameter_values, db_map._update_parameter_values),
-        "metadata": (db_map._add_metadata, return_empty_tuple),
-        "entity_metadata": (db_map._add_entity_metadata, return_empty_tuple),
-        "parameter_value_metadata": (db_map._add_parameter_value_metadata, return_empty_tuple),
+    add_items_by_tablename = {
+        "alternative": db_map._add_alternatives,
+        "scenario": db_map._add_scenarios,
+        "scenario_alternative": db_map._add_scenario_alternatives,
+        "object_class": db_map._add_object_classes,
+        "relationship_class": db_map._add_wide_relationship_classes,
+        "parameter_value_list": db_map._add_wide_parameter_value_lists,
+        "parameter_definition": db_map._add_parameter_definitions,
+        "feature": db_map._add_features,
+        "tool": db_map._add_tools,
+        "tool_feature": db_map._add_tool_features,
+        "tool_feature_method": db_map._add_tool_feature_methods,
+        "object": db_map._add_objects,
+        "relationship": db_map._add_wide_relationships,
+        "entity_group": db_map._add_entity_groups,
+        "parameter_value": db_map._add_parameter_values,
+        "metadata": db_map._add_metadata,
+        "entity_metadata": db_map._add_entity_metadata,
+        "parameter_value_metadata": db_map._add_parameter_value_metadata,
+    }
+    update_items_by_tablename = {
+        "alternative": db_map._update_alternatives,
+        "scenario": db_map._update_scenarios,
+        "scenario_alternative": db_map._update_scenario_alternatives,
+        "object_class": db_map._update_object_classes,
+        "relationship_class": db_map._update_wide_relationship_classes,
+        "parameter_value_list": db_map._update_wide_parameter_value_lists,
+        "parameter_definition": db_map._update_parameter_definitions,
+        "feature": db_map._update_features,
+        "tool": db_map._update_tools,
+        "tool_feature": db_map._update_tool_features,
+        "object": db_map._update_objects,
+        "parameter_value": db_map._update_parameter_values,
     }
     error_log = []
     num_imports = 0
     for tablename, (to_add, to_update, errors) in get_data_for_import(db_map, **kwargs):
-        add_items, update_items = functions_by_tablename[tablename]
+        update_items = update_items_by_tablename.get(tablename, lambda *args, **kwargs: ())
         try:
             updated = update_items(*to_update)
         except SpineDBAPIError:
             updated = []
+        add_items = add_items_by_tablename[tablename]
         try:
             added = add_items(*to_add)
         except SpineDBAPIError:

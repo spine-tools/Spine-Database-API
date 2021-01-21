@@ -18,7 +18,6 @@ Unit tests for export_functions.
 
 import unittest
 from spinedb_api import (
-    Anyone,
     DiffDatabaseMapping,
     export_alternatives,
     export_data,
@@ -57,7 +56,7 @@ class TestExportFunctions(unittest.TestCase):
 
     def test_export_tools(self):
         import_tools(self._db_map, [("tool", "Description")])
-        exported = export_tools(self._db_map, (Anyone,))
+        exported = export_tools(self._db_map)
         self.assertEqual(exported, [("tool", "Description")])
 
     def test_export_features(self):
@@ -65,7 +64,7 @@ class TestExportFunctions(unittest.TestCase):
         import_parameter_value_lists(self._db_map, [['value_list', 'value1'], ['value_list', 'value2']])
         import_object_parameters(self._db_map, [["object_class1", "parameter1", "value1", "value_list"]])
         import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
-        exported = export_features(self._db_map, (Anyone,))
+        exported = export_features(self._db_map)
         self.assertEqual(exported, [("object_class1", "parameter1", "value_list", "Description")])
 
     def test_export_tool_features(self):
@@ -75,7 +74,7 @@ class TestExportFunctions(unittest.TestCase):
         import_features(self._db_map, [["object_class1", "parameter1", "Description"]])
         import_tools(self._db_map, ["tool1"])
         import_tool_features(self._db_map, [["tool1", "object_class1", "parameter1"]])
-        exported = export_tool_features(self._db_map, (Anyone,))
+        exported = export_tool_features(self._db_map)
         self.assertEqual(exported, [("tool1", "object_class1", "parameter1", False)])
 
     def test_export_tool_feature_methods(self):
@@ -86,24 +85,24 @@ class TestExportFunctions(unittest.TestCase):
         import_tools(self._db_map, ["tool1"])
         import_tool_features(self._db_map, [["tool1", "object_class1", "parameter1"]])
         import_tool_feature_methods(self._db_map, [["tool1", "object_class1", "parameter1", "value2"]])
-        exported = export_tool_feature_methods(self._db_map, (Anyone,))
+        exported = export_tool_feature_methods(self._db_map)
         self.assertEqual(exported, [("tool1", "object_class1", "parameter1", "value2")])
 
     def test_export_alternatives(self):
         import_alternatives(self._db_map, [("alternative", "Description")])
-        exported = export_alternatives(self._db_map, (Anyone,))
+        exported = export_alternatives(self._db_map)
         self.assertEqual(exported, [("Base", "Base alternative"), ("alternative", "Description")])
 
     def test_export_scenarios(self):
         import_scenarios(self._db_map, [("scenario", False, "Description")])
-        exported = export_scenarios(self._db_map, (Anyone,))
+        exported = export_scenarios(self._db_map)
         self.assertEqual(exported, [("scenario", False, "Description")])
 
     def test_export_scenario_alternatives(self):
         import_alternatives(self._db_map, ["alternative"])
         import_scenarios(self._db_map, ["scenario"])
         import_scenario_alternatives(self._db_map, (("scenario", "alternative"),))
-        exported = export_scenario_alternatives(self._db_map, (Anyone,))
+        exported = export_scenario_alternatives(self._db_map)
         self.assertEqual(exported, [("scenario", "alternative", None)])
 
     def test_export_multiple_scenario_alternatives(self):
@@ -112,7 +111,7 @@ class TestExportFunctions(unittest.TestCase):
         import_scenarios(self._db_map, ["scenario"])
         import_scenario_alternatives(self._db_map, (("scenario", "alternative1"),))
         import_scenario_alternatives(self._db_map, (("scenario", "alternative2", "alternative1"),))
-        exported = export_scenario_alternatives(self._db_map, (Anyone,))
+        exported = export_scenario_alternatives(self._db_map)
         self.assertEqual(exported, [("scenario", "alternative2", "alternative1"), ("scenario", "alternative1", None)])
 
     def test_export_data(self):

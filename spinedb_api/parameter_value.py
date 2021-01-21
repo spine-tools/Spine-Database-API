@@ -460,6 +460,8 @@ class DateTime:
         value (DataTime or str or datetime.datetime): a timestamp
     """
 
+    VALUE_TYPE = "single value"
+
     def __init__(self, value=None):
         if value is None:
             value = datetime(year=2000, month=1, day=1)
@@ -503,6 +505,9 @@ class DateTime:
         """Returns the value as a datetime object."""
         return self._value
 
+    def indexed_values(self):
+        yield None, self.to_database()
+
 
 class Duration:
     """
@@ -513,6 +518,8 @@ class Duration:
     Attributes:
         value (str or relativedelta): the time step
     """
+
+    VALUE_TYPE = "single value"
 
     def __init__(self, value=None):
         if value is None:
@@ -553,6 +560,9 @@ class Duration:
     def value(self):
         """Returns the duration as a :class:`relativedelta`."""
         return self._value
+
+    def indexed_values(self):
+        yield None, self.to_database()
 
 
 class _Indexes(np.ndarray):
@@ -639,6 +649,8 @@ class IndexedValue:
 class Array(IndexedValue):
     """An one dimensional array with zero based indexing."""
 
+    VALUE_TYPE = "array"
+
     def __init__(self, values, value_type=None):
         """
         Args:
@@ -686,6 +698,10 @@ class Array(IndexedValue):
         """See base class."""
         return self._values
 
+    def indexed_values(self):
+        for index, value in zip(self.indexes, self.values):
+            yield index, value
+
 
 class IndexedNumberArray(IndexedValue):
     """
@@ -724,6 +740,8 @@ class TimeSeries(IndexedNumberArray):
         repeat (bool): True if the series should be repeated from the beginning
     """
 
+    VALUE_TYPE = "time series"
+
     def __init__(self, values, ignore_year, repeat):
         if len(values) < 1:
             raise ParameterValueFormatError("Time series too short. Must have one or more values")
@@ -757,6 +775,10 @@ class TimeSeries(IndexedNumberArray):
         """Return the database representation of the value."""
         raise NotImplementedError()
 
+    def indexed_values(self):
+        for index, value in zip(self.indexes, self.values):
+            yield str(index), value
+
 
 class TimePattern(IndexedNumberArray):
     """
@@ -766,6 +788,8 @@ class TimePattern(IndexedNumberArray):
         indexes (list): a list of time pattern strings
         values (Sequence): an array of values corresponding to the time patterns
     """
+
+    VALUE_TYPE = "time pattern"
 
     def __init__(self, indexes, values):
         if len(indexes) != len(values):
@@ -787,6 +811,10 @@ class TimePattern(IndexedNumberArray):
         for index, value in zip(self._indexes, self._values):
             data[index] = value
         return {"type": "time_pattern", "data": data}
+
+    def indexed_values(self):
+        for index, value in zip(self.indexes, self.values):
+            yield index, value
 
 
 class TimeSeriesFixedResolution(TimeSeries):
@@ -984,6 +1012,8 @@ class Map(IndexedValue):
     A nested general purpose indexed value.
     """
 
+    VALUE_TYPE = "map"
+
     def __init__(self, indexes, values, index_type=None):
         """
         Args:
@@ -1032,6 +1062,17 @@ class Map(IndexedValue):
             "index_type": _map_index_type_to_database(self._index_type),
             "data": self.value_to_database_data(),
         }
+
+    def indexed_values(self):
+        yield from _map_indexed_values(self)
+
+
+def _map_indexed_values(value, k=1, prefix=()):
+    try:
+        for index, new_value in zip(value.indexes, value.values):
+            yield from _map_indexed_values(new_value, k=k + 1, prefix=(*prefix, str(_map_index_to_database(index))))
+    except AttributeError:
+        yield prefix, value
 
 
 def convert_leaf_maps_to_specialized_containers(map_):

@@ -525,17 +525,14 @@ class ArrayValueMapping(IndexedValueMapping):
         out = []
         data = sorted(data, key=self._raw_data_key)
         if self.extra_dimensions[0].returns_value():
-            for keys, values in itertools.groupby(data, key=self._raw_data_key):
-                values = [value[self.PREFIX_LENGTH][-1] for value in values]
-                values = [val for val in values if val is not None]
-                if values:
-                    out.append(keys[: self.PREFIX_LENGTH] + (values,) + keys[self.PREFIX_LENGTH :])
+            get_value = lambda value: value[-1]
         else:
-            for keys, values in itertools.groupby(data, key=self._raw_data_key):
-                values = [value[self.PREFIX_LENGTH] for value in values]
-                values = [val for val in values if val is not None]
-                if values:
-                    out.append(keys[: self.PREFIX_LENGTH] + (Array(values),) + keys[self.PREFIX_LENGTH :])
+            get_value = lambda value: value
+        for keys, values in itertools.groupby(data, key=self._raw_data_key):
+            values = [get_value(value[self.PREFIX_LENGTH]) for value in values]
+            values = [val for val in values if val is not None]
+            if values:
+                out.append(keys[: self.PREFIX_LENGTH] + (Array(values),) + keys[self.PREFIX_LENGTH :])
         return out
 
 

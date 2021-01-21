@@ -32,7 +32,7 @@ from .helpers import (
     is_head,
     is_empty,
     forward_sweep,
-    Anyone,
+    Asterisk,
 )
 from .check_functions import (
     check_alternative,

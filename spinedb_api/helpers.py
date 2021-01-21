@@ -902,12 +902,12 @@ def labelled_columns(table):
     return [c.label(c.name) for c in table.columns]
 
 
-class AnyoneType:
+class AsteriskType:
     def __repr__(self):
-        return "Anyone"
+        return "Asterisk"
 
 
-Anyone = AnyoneType()
+Asterisk = AsteriskType()
 
 
 def fix_name_ambiguity(input_list, offset=0):
