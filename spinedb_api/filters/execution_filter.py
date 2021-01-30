@@ -156,7 +156,8 @@ def _create_import_alternative(db_map, state):
     execution_item = state.execution_item
     scenarios = state.scenarios
     timestamp = state.timestamp
-    db_map._import_alternative_name = f"{'_'.join(scenarios)}__{execution_item}@{timestamp}"
+    sep = "__" if scenarios else ""
+    db_map._import_alternative_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
     alt_ids, _ = db_map.add_alternatives({"name": db_map._import_alternative_name}, return_dups=True)
     db_map._import_alternative_id = next(iter(alt_ids))
     scenarios = [{"name": scenario} for scenario in scenarios]
