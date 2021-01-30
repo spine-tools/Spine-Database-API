@@ -134,7 +134,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         return self.query(self._diff_table(tablename)).subquery()
 
     def diff_ids(self):
-        return {x: self.added_item_id[x] | self.updated_item_id[x] for x in self.table_to_class}
+        return {x: self.added_item_id[x] | self.updated_item_id[x] for x in self._tablenames}
 
     def _diff_table(self, tablename):
         return self._metadata.tables.get(self.diff_prefix + tablename)
