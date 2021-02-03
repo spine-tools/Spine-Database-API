@@ -166,7 +166,26 @@ def to_database(value):
     """
     if hasattr(value, "to_database"):
         return value.to_database()
-    return json.dumps(value)
+    db_value = json.dumps(value)
+    return check_database(db_value)
+
+
+def check_database(db_value):
+    """Checks if a value is in valid db format.
+
+    Args:
+        db_value (str): A value in db format
+
+    Returns:
+        str: A value in 'canonical' db format
+
+    Raises:
+        ParameterValueFormatError: if the given value is not well formatted.
+    """
+    value = from_database(db_value)
+    if hasattr(value, "to_database"):
+        return value.to_database()
+    return db_value
 
 
 def _from_dict(value_dict):
