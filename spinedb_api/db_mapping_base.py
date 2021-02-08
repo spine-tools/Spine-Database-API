@@ -30,6 +30,7 @@ from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from alembic.config import Config
+from alembic.util.exc import CommandError
 from .exception import SpineDBAPIError, SpineDBVersionError
 from .helpers import (
     _create_first_spine_database,
@@ -208,6 +209,11 @@ class DatabaseMappingBase:
                     return create_new_spine_database(db_url)
             if current != head:
                 if not upgrade:
+                    try:
+                        rev = script.get_revision(current)  # Check if current revision is part of alembic rev. history
+                    except CommandError:
+                        # Can't find 'current' revision
+                        raise SpineDBVersionError(url=db_url, current=current, expected=head, upgrade_available=False)
                     raise SpineDBVersionError(url=db_url, current=current, expected=head)
 
                 # Upgrade function
