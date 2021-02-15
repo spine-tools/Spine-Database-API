@@ -81,7 +81,7 @@ class DBRequestHandler(socketserver.BaseRequestHandler):
                     db_map.commit_session(comment)
                 except DBAPIError:
                     db_map.rollback_session()
-        return errors
+        return [err.msg for err in errors]
 
     def handle(self):
         data = self._recvall()
