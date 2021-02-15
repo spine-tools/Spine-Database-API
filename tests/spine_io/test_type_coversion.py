@@ -12,7 +12,7 @@ import unittest
 
 from spinedb_api import DateTime, Duration
 
-from spine_engine.spine_io.type_conversion import (
+from spinedb_api.spine_io.type_conversion import (
     value_to_convert_spec,
     StringConvertSpec,
     FloatConvertSpec,

@@ -21,8 +21,8 @@ from tempfile import TemporaryDirectory
 import unittest
 import json
 from spinedb_api import DatabaseMapping, import_data, from_database
-from spine_engine.spine_io.exporters.excel import export_spine_database_to_xlsx
-from spine_engine.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
+from spinedb_api.spine_io.exporters.excel import export_spine_database_to_xlsx
+from spinedb_api.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
 
 _TEMP_EXCEL_FILENAME = "excel.xlsx"
 

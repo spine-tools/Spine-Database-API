@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Unit tests for spine_engine.spine_io.exporters.gdx module.
+Unit tests for spinedb_api.spine_io.exporters.gdx module.
 
 :author: A. Soininen (VTT)
 :date:   18.9.2019
@@ -22,8 +22,8 @@ import unittest
 from gdx2py import GdxFile
 from spinedb_api import import_functions as dbmanip
 from spinedb_api import create_new_spine_database, DiffDatabaseMapping, TimeSeriesFixedResolution
-from spine_engine.spine_io import gdx_utils
-from spine_engine.spine_io.exporters import gdx
+from spinedb_api.spine_io import gdx_utils
+from spinedb_api.spine_io.exporters import gdx
 
 
 class TestGdx(unittest.TestCase):

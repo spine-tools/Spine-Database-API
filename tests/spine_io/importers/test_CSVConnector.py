@@ -20,7 +20,7 @@ import csv
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
-from spine_engine.spine_io.importers.csv_reader import CSVConnector
+from spinedb_api.spine_io.importers.csv_reader import CSVConnector
 
 
 class TestCSVConnector(unittest.TestCase):
