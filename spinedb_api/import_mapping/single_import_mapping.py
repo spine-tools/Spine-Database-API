@@ -17,6 +17,7 @@ Classes for single import mappings.
 """
 import itertools
 from operator import itemgetter
+from spinedb_api.spine_io.type_conversion import StringConvertSpec, value_to_convert_spec
 from ..exception import InvalidMapping
 
 
@@ -145,6 +146,11 @@ class ConstantMapping(SingleMappingBase):
 
     MAP_TYPE = "constant"
 
+    def __init__(self, reference=None, convert_spec=None):
+        super().__init__(reference=reference)
+        self._convert_spec = None
+        self.convert_spec = convert_spec
+
     @SingleMappingBase.reference.setter
     def reference(self, reference):
         if reference is not None and not isinstance(reference, str):
@@ -153,6 +159,17 @@ class ConstantMapping(SingleMappingBase):
             reference = None
         self._reference = reference
 
+    @property
+    def convert_spec(self):
+        return self._convert_spec
+
+    @convert_spec.setter
+    def convert_spec(self, convert_spec):
+        if convert_spec is None:
+            self._convert_spec = StringConvertSpec()
+        else:
+            self._convert_spec = value_to_convert_spec(convert_spec)
+
     def is_pivoted(self):
         """Should return True if Mapping type is reading columns in a row, pivoted."""
         return False
@@ -160,7 +177,7 @@ class ConstantMapping(SingleMappingBase):
     @classmethod
     def from_dict(cls, map_dict):
         """Creates a mapping object from dict representation of mapping
-        
+
         Should return an instance of the subclass
         """
         if not isinstance(map_dict, dict):
@@ -171,10 +188,18 @@ class ConstantMapping(SingleMappingBase):
         reference = map_dict.get("reference", None)
         if reference is None:
             reference = map_dict.get("value_reference", None)
-        return cls(reference)
+        convert_spec = map_dict.get("convert_spec", None)
+        return cls(reference, convert_spec)
+
+    def to_dict(self):
+        """Creates a dict representation of mapping, should be compatible with json.dumps and json.loads"""
+        map_dict = super().to_dict()
+        map_dict["convert_spec"] = self._convert_spec.to_json_value()
+        return map_dict
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
-        constant = str(self.reference)
+        convert_function = self._convert_spec.convert_function()
+        constant = convert_function(self.reference)
 
         def getter(_):
             return constant

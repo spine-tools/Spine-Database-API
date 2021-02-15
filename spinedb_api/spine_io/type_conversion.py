@@ -18,7 +18,7 @@ Type conversion functions.
 
 import re
 from distutils.util import strtobool
-from spinedb_api import DateTime, Duration, ParameterValueFormatError
+from spinedb_api.parameter_value import DateTime, Duration, ParameterValueFormatError
 
 
 def value_to_convert_spec(value):
