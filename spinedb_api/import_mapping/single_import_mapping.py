@@ -195,7 +195,8 @@ class ConstantMapping(SingleMappingBase):
     def to_dict(self):
         """Creates a dict representation of mapping, should be compatible with json.dumps and json.loads"""
         map_dict = super().to_dict()
-        map_dict["convert_spec"] = self._convert_spec.to_json_value()
+        if not isinstance(self._convert_spec, StringConvertSpec):
+            map_dict["convert_spec"] = self._convert_spec.to_json_value()
         return map_dict
 
     def create_getter_function(self, pivoted_columns, pivoted_data, data_header):
