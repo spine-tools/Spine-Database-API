@@ -13,7 +13,16 @@ setup(
     author_email="spine_info@vtt.fi",
     license="LGPL-3.0-or-later",
     packages=find_packages(),
-    install_requires=["sqlalchemy>=1.3.17", "alembic", "faker", "python-dateutil", "numpy>=1.8.0"],
+    install_requires=[
+        "sqlalchemy>=1.3.17",
+        "alembic",
+        "faker",
+        "python-dateutil",
+        "numpy>=1.8.0",
+        "openpyxl > 3.0",
+        "gdx2py >= 2.0.4",
+        "ijson >= 2.6.1",
+    ],
     include_package_data=True,
     zip_safe=False,
 )
