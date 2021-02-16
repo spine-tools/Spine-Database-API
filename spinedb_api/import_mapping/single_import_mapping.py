@@ -18,6 +18,7 @@ Classes for single import mappings.
 import itertools
 from operator import itemgetter
 from spinedb_api.spine_io.type_conversion import StringConvertSpec, value_to_convert_spec
+from spinedb_api.parameter_value import ParameterValueFormatError
 from ..exception import InvalidMapping
 
 
@@ -205,6 +206,14 @@ class ConstantMapping(SingleMappingBase):
             return constant
 
         return getter, 1, False
+
+    def conversion_issues(self):
+        convert_function = self._convert_spec.convert_function()
+        try:
+            convert_function(self.reference)
+        except (ValueError, ParameterValueFormatError) as e:
+            return f"<p>Could'n parse '{self.reference}' as {self._convert_spec.DISPLAY_NAME}: {e}</p>"
+        return ""
 
 
 class ColumnMapping(SingleMappingBase):

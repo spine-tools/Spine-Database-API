@@ -29,6 +29,7 @@ from ..exception import InvalidMapping
 from .single_import_mapping import (
     NoneMapping,
     ColumnMapping,
+    ConstantMapping,
     single_mapping_from_value,
     create_getter_list,
     create_getter_function_from_function_list,
@@ -151,6 +152,8 @@ class ParameterMappingBase:
             return ""
         if isinstance(mapping, NoneMapping):
             return f"The source type for {name} cannot be None."
+        if isinstance(mapping, ConstantMapping):
+            return mapping.conversion_issues()
         if not mapping.is_valid():
             return f"No reference set for {name}."
         return ""
