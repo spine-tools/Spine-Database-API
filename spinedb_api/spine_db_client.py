@@ -19,6 +19,7 @@ Contains the SpineDBClient class.
 from urllib.parse import urlparse
 import socket
 import json
+from sqlalchemy.engine.url import URL
 from .helpers import ReceiveAllMixing
 
 
@@ -65,11 +66,13 @@ def get_db_url_from_server(url):
     Used by ``DatabaseMappingBase()``.
 
     Args:
-        url (str): a url, either from a Spine DB or from a Spine DB server.
+        url (str, URL): a url, either from a Spine DB or from a Spine DB server.
 
     Returns:
         str
     """
+    if isinstance(url, URL):
+        return url
     parsed = urlparse(url)
     if parsed.scheme != "http":
         return url
