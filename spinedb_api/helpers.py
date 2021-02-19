@@ -922,3 +922,28 @@ def fix_name_ambiguity(input_list, offset=0):
             item += str(offset + ocurrence)
         result.append(item)
     return result
+
+
+class ReceiveAllMixing:
+    """Provides _recvall, to read everything from a socket until the _EOM character is found."""
+
+    _ENCODING = "utf-8"
+    _BUFF_SIZE = 4096
+    _EOM = u'\0'
+    """End of message character"""
+
+    def _recvall(self):
+        """
+        Receives and returns all data in the request.
+
+        Returns:
+            str
+        """
+        fragments = []
+        while True:
+            chunk = str(self.request.recv(self._BUFF_SIZE), self._ENCODING)
+            if chunk[-1] == self._EOM:
+                fragments.append(chunk[:-1])
+                break
+            fragments.append(chunk)
+        return "".join(fragments)

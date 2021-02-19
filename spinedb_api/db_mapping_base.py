@@ -41,6 +41,7 @@ from .helpers import (
     model_meta,
 )
 from .filters.tools import pop_filter_configs
+from .spine_db_client import get_db_url_from_server
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -55,13 +56,14 @@ class DatabaseMappingBase:
     def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
         """
         Args:
-            db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped.
+            db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped, or to a DB server.
             username (str, optional): A user name. If ``None``, it gets replaced by the string ``"anon"``.
             upgrade (bool): Whether or not the db at the given URL should be upgraded to the most recent version.
             codename (str, optional): A name that uniquely identifies the class instance within a client application.
             create (bool): Whether or not to create a Spine db at the given URL if it's not already.
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
         """
+        db_url = get_db_url_from_server(db_url)
         if isinstance(db_url, str):
             filter_configs, db_url = pop_filter_configs(db_url)
         elif isinstance(db_url, URL):

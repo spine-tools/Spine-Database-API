@@ -25,17 +25,16 @@ import atexit
 from sqlalchemy.exc import DBAPIError
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
+from .helpers import ReceiveAllMixing
 
 
 _db_maps = {}
 
 
-class DBRequestHandler(socketserver.BaseRequestHandler):
+class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
     """
     The request handler class for our server.
     """
-
-    _ENCODING = "utf-8"
 
     def __init__(self, db_url, upgrade, *args, **kwargs):
         self._db_url = db_url
@@ -49,6 +48,13 @@ class DBRequestHandler(socketserver.BaseRequestHandler):
             yield db_map
         finally:
             db_map.connection.close()
+
+    def _get_db_url(self):
+        """
+        Returns:
+            str: The underlying db url
+        """
+        return self._db_url
 
     def _get_data(self, *args):
         """
@@ -86,29 +92,14 @@ class DBRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self._recvall()
         request, args = json.loads(data)
-        handler = {"get_data": self._get_data, "import_data": self._import_data}.get(request)
+        handler = {"get_data": self._get_data, "import_data": self._import_data, "get_db_url": self._get_db_url}.get(
+            request
+        )
         if handler is None:
             return
         response = handler(*args)
         if response is not None:
-            self.request.sendall(bytes(json.dumps(response), self._ENCODING))
-
-    def _recvall(self):
-        """
-        Receives and returns all data in the request.
-
-        Returns:
-            str
-        """
-        BUFF_SIZE = 4096
-        fragments = []
-        while True:
-            chunk = str(self.request.recv(BUFF_SIZE), self._ENCODING)
-            if chunk[-1] == "\0":
-                fragments.append(chunk[:-1])
-                break
-            fragments.append(chunk)
-        return "".join(fragments)
+            self.request.sendall(bytes(json.dumps(response) + self._EOM, self._ENCODING))
 
 
 class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
