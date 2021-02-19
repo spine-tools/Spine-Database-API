@@ -27,6 +27,7 @@ from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .helpers import ReceiveAllMixing
 
+REQUIRED_SPINE_INTERFACE_VERSION = "0.5.6"
 
 _db_maps = {}
 
