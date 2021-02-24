@@ -930,6 +930,7 @@ class ReceiveAllMixing:
     _ENCODING = "utf-8"
     _BUFF_SIZE = 4096
     _EOM = u'\0'
+    _BEOM = b'\0'
     """End of message character"""
 
     def _recvall(self):
@@ -941,9 +942,8 @@ class ReceiveAllMixing:
         """
         fragments = []
         while True:
-            chunk = str(self.request.recv(self._BUFF_SIZE), self._ENCODING)
-            if chunk[-1] == self._EOM:
-                fragments.append(chunk[:-1])
-                break
+            chunk = self.request.recv(self._BUFF_SIZE)
             fragments.append(chunk)
-        return "".join(fragments)
+            if chunk.endswith(self._BEOM):
+                break
+        return str(b"".join(fragments), self._ENCODING)[:-1]
