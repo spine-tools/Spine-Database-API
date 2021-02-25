@@ -193,7 +193,6 @@ class DatabaseMappingUpdateMixin:
 
         Returns
             list: narrow scenario_alternative :class:`dict` objects to add.
-            list: narrow scenario_alternative :class:`dict` objects to update.
             set: integer scenario_alternative ids to remove
         """
         current_alternative_id_lists = {x.id: x.alternative_id_list for x in self.query(self.wide_scenario_sq)}
@@ -201,7 +200,6 @@ class DatabaseMappingUpdateMixin:
             (x.scenario_id, x.alternative_id): x.id for x in self.query(self.scenario_alternative_sq)
         }
         items_to_add = list()
-        items_to_update = list()
         ids_to_remove = set()
         for item in items:
             scenario_id = item["id"]
@@ -212,17 +210,11 @@ class DatabaseMappingUpdateMixin:
                 [int(x) for x in current_alternative_id_list.split(",")] if current_alternative_id_list else []
             )
             for k, alternative_id in enumerate(alternative_id_list):
-                scen_alt_id = scenario_alternative_ids.get((scenario_id, alternative_id))
-                if scen_alt_id is None:
-                    item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
-                    items_to_add.append(item_to_add)
-                else:
-                    item_to_update = {"id": scen_alt_id, "rank": k + 1}
-                    items_to_update.append(item_to_update)
+                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
+                items_to_add.append(item_to_add)
             for alternative_id in current_alternative_id_list:
-                if alternative_id not in alternative_id_list:
-                    ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
-        return items_to_add, items_to_update, ids_to_remove
+                ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
+        return items_to_add, ids_to_remove
 
     def get_data_to_set_parameter_definition_tags(self, *items):
         """Returns data to add, and remove, in order to set wide parameter definition tags.
