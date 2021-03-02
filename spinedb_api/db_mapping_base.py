@@ -212,7 +212,7 @@ class DatabaseMappingBase:
             if current != head:
                 if not upgrade:
                     try:
-                        rev = script.get_revision(current)  # Check if current revision is part of alembic rev. history
+                        script.get_revision(current)  # Check if current revision is part of alembic rev. history
                     except CommandError:
                         # Can't find 'current' revision
                         raise SpineDBVersionError(url=db_url, current=current, expected=head, upgrade_available=False)
