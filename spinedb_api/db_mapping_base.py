@@ -121,7 +121,7 @@ class DatabaseMappingBase:
         self._wide_relationship_class_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
-        self._ext_object_group_sq = None
+        self._ext_entity_group_sq = None
         self._entity_parameter_definition_sq = None
         self._object_parameter_definition_sq = None
         self._relationship_parameter_definition_sq = None
@@ -993,31 +993,45 @@ class DatabaseMappingBase:
         return self._wide_relationship_sq
 
     @property
+    def ext_entity_group_sq(self):
+        """A subquery of the form:
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._ext_entity_group_sq is None:
+            group_entity = aliased(self.entity_sq)
+            member_entity = aliased(self.entity_sq)
+            self._ext_entity_group_sq = (
+                self.query(
+                    self.entity_group_sq.c.id.label("id"),
+                    self.entity_group_sq.c.entity_class_id.label("class_id"),
+                    self.entity_group_sq.c.entity_id.label("group_id"),
+                    self.entity_group_sq.c.member_id.label("member_id"),
+                    self.entity_class_sq.c.name.label("class_name"),
+                    group_entity.c.name.label("group_name"),
+                    member_entity.c.name.label("member_name"),
+                )
+                .filter(self.entity_group_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .join(group_entity, self.entity_group_sq.c.entity_id == group_entity.c.id)
+                .join(member_entity, self.entity_group_sq.c.member_id == member_entity.c.id)
+                .subquery()
+            )
+        return self._ext_entity_group_sq
+
+    @property
     def ext_object_group_sq(self):
         """A subquery of the form:
 
         Returns:
             sqlalchemy.sql.expression.Alias
         """
-        if self._ext_object_group_sq is None:
-            group_object = aliased(self.object_sq)
-            member_object = aliased(self.object_sq)
-            self._ext_object_group_sq = (
-                self.query(
-                    self.entity_group_sq.c.id.label("id"),
-                    self.entity_group_sq.c.entity_class_id.label("class_id"),
-                    self.entity_group_sq.c.entity_id.label("group_id"),
-                    self.entity_group_sq.c.member_id.label("member_id"),
-                    self.object_class_sq.c.name.label("class_name"),
-                    group_object.c.name.label("group_name"),
-                    member_object.c.name.label("member_name"),
-                )
-                .filter(self.entity_group_sq.c.entity_class_id == self.object_class_sq.c.id)
-                .join(group_object, self.entity_group_sq.c.entity_id == group_object.c.id)
-                .join(member_object, self.entity_group_sq.c.member_id == member_object.c.id)
-                .subquery()
-            )
-        return self._ext_object_group_sq
+        object_class_sq = self._subquery("object_class")
+        return (
+            self.query(self.ext_entity_group_sq)
+            .filter(self.ext_entity_group_sq.c.class_id == object_class_sq.c.entity_class_id)
+            .subquery()
+        )
 
     @property
     def entity_parameter_definition_sq(self):
