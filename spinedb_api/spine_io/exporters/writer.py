@@ -28,7 +28,7 @@ def write(db_map, writer, root_mapping):
         root_mapping (Mapping): root mapping
     """
     with _new_write(writer):
-        for title, title_key in titles(root_mapping, db_map) if root_mapping.has_title() else ((None, None),):
+        for title, title_key in titles(root_mapping, db_map):
             with _new_table(title, writer) as table:
                 for row in rows(root_mapping, db_map, title_key):
                     write_more = table.write_row(row)

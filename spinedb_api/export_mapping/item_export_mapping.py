@@ -106,7 +106,10 @@ class Mapping:
     """Base class for export item mappings.
 
     Attributes:
-        position (int or Position): mapping's position; None hides the mapping
+        position (int or Position): defines where the data is placed in the output table.
+            Nonnegative numbers are columns, negative numbers are pivot rows, and then there are some special cases
+            in the Position enum.
+
     """
 
     MAP_TYPE = None
@@ -144,7 +147,7 @@ class Mapping:
             # Restore unpicklable entries.
             self._update_state = self._original_update_state
             self._data = self._original_data
-            self._query = self._query
+            self._query = self._original_query
             self.set_ignorable()
 
     def can_drop(self):
@@ -251,7 +254,7 @@ class Mapping:
         """
         if self.position == Position.table_name:
             return True
-        elif self.child is not None:
+        if self.child is not None:
             return self.child.has_title()
         return False
 

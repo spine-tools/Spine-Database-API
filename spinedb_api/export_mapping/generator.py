@@ -18,12 +18,12 @@ from .item_export_mapping import Position
 from .pivot import make_pivot, make_regular
 
 
-def rows(root_item, db_map, fixed_key=None):
+def rows(root_mapping, db_map, fixed_key=None):
     """
     Generates table's rows.
 
     Args:
-        root_item (ExportItem): root export item
+        root_mapping (Mapping): root export item
         db_map (DatabaseMappingBase): a database map
         fixed_key (Key, optional): a key that fixes items
 
@@ -49,13 +49,13 @@ def rows(root_item, db_map, fixed_key=None):
 
     if fixed_key is None:
         fixed_key = dict()
-    if root_item.is_pivoted():
-        root_item, value_column, regular_columns, hidden_columns, pivot_columns = make_regular(root_item)
-        regularized = list(rows(root_item, db_map, fixed_key))
+    if root_mapping.is_pivoted():
+        root_mapping, value_column, regular_columns, hidden_columns, pivot_columns = make_regular(root_mapping)
+        regularized = list(rows(root_mapping, db_map, fixed_key))
         for row in make_pivot(regularized, value_column, regular_columns, hidden_columns, pivot_columns):
             yield row
     else:
-        for row in root_item.rows(db_map, dict(), fixed_key):
+        for row in root_mapping.rows(db_map, dict(), fixed_key):
             del_unused_positions(row)
             single_row = row.pop(Position.single_row, [])
             straight = (max(row) + 1) * [None] if row else []
@@ -64,16 +64,19 @@ def rows(root_item, db_map, fixed_key=None):
             yield straight + single_row
 
 
-def titles(root_item, db_map):
+def titles(root_mapping, db_map):
     """
     Generates titles.
 
     Args:
-        root_item (ExportItem): root export item
+        root_mapping (Mapping): root export item
         db_map (DatabaseMappingBase): a database map
 
     Yield:
         tuple: title and title's fixed key
     """
-    for title, title_key in root_item.title(db_map, dict()):
+    if not root_mapping.has_title():
+        yield None, None
+        return
+    for title, title_key in root_mapping.title(db_map, dict()):
         yield title, title_key
