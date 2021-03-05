@@ -23,7 +23,7 @@ def rows(root_mapping, db_map, fixed_key=None):
     Generates table's rows.
 
     Args:
-        root_mapping (Mapping): root export item
+        root_mapping (Mapping): root export mapping
         db_map (DatabaseMappingBase): a database map
         fixed_key (Key, optional): a key that fixes items
 
@@ -69,7 +69,7 @@ def titles(root_mapping, db_map):
     Generates titles.
 
     Args:
-        root_mapping (Mapping): root export item
+        root_mapping (Mapping): root export mapping
         db_map (DatabaseMappingBase): a database map
 
     Yield:

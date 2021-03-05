@@ -25,17 +25,73 @@ from spinedb_api.export_functions import (
     export_scenarios,
     export_scenario_alternatives,
 )
+from spinedb_api.export_mapping.item_export_mapping import (
+    AlternativeMapping,
+    AlternativeDescriptionMapping,
+    Key,
+    Position,
+    ObjectClassMapping,
+    ObjectGroupMapping,
+    ObjectMapping,
+    FixedValueMapping,
+    ScenarioMapping,
+    ScenarioAlternativeMapping,
+    ScenarioBeforeAlternativeMapping,
+    ScenarioDescriptionMapping,
+)
+from .excel_writer import ExcelWriter
+from .writer import write
 
 # FIXME: Use multiple sheets if data doesn't fit
 
 
-def export_spine_database_to_xlsx(db_map, filepath):
+def new_export_spine_database_to_xlsx(db_map, filepath):
     """Writes data from a Spine database into an excel file.
 
     Args:
         db_map (spinedb_api.DatabaseMapping): database mapping.
         filepath (str): destination path.
     """
+    writer = ExcelWriter(filepath)
+    new_write_object_groups(db_map, writer)
+    new_write_alternatives(db_map, writer)
+    new_write_scenarios(db_map, writer)
+    new_write_scenario_alternatives(db_map, writer)
+
+
+def new_write_alternatives(db_map, writer):
+    root_mapping = FixedValueMapping(Position.table_name, value="alternative")
+    alternative_mapping = root_mapping.child = AlternativeMapping(0, header="alternative")
+    alternative_mapping.child = AlternativeDescriptionMapping(1, header="description")
+    write(db_map, writer, root_mapping)
+
+
+def new_write_scenarios(db_map, writer):
+    root_mapping = FixedValueMapping(Position.table_name, value="scenario")
+    scenario_mapping = root_mapping.child = ScenarioMapping(0, header="scenario")
+    scenario_mapping.child = ScenarioDescriptionMapping(1, header="description")
+    write(db_map, writer, root_mapping)
+
+
+def new_write_scenario_alternatives(db_map, writer):
+    root_mapping = FixedValueMapping(Position.table_name, value="scenario_alternative")
+    scenario_mapping = root_mapping.child = ScenarioMapping(0, header="scenario")
+    alternative_mapping = scenario_mapping.child = ScenarioAlternativeMapping(1, header="alternative")
+    alternative_mapping.child = ScenarioBeforeAlternativeMapping(2, header="before alternative")
+    write(db_map, writer, root_mapping)
+
+
+def new_write_object_groups(db_map, writer):
+    for obj_cls in db_map.query(db_map.object_class_sq):
+        root_mapping = FixedValueMapping(Position.table_name, value=obj_cls.name + "_group")
+        fixed_state = {Key.CLASS_ID: obj_cls.id}
+        class_mapping = root_mapping.child = ObjectClassMapping(Position.hidden)
+        object_mapping = class_mapping.child = ObjectMapping(1, header="member")
+        object_mapping.child = ObjectGroupMapping(0, header="group")
+        write(db_map, writer, root_mapping)
+
+
+def export_spine_database_to_xlsx(db_map, filepath):
     wb = Workbook()
     _write_parameter_values(db_map, wb)
     _write_object_groups(db_map, wb)

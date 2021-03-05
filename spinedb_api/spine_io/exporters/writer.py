@@ -29,8 +29,11 @@ def write(db_map, writer, root_mapping):
     """
     with _new_write(writer):
         for title, title_key in titles(root_mapping, db_map):
+            print()
+            print(title, title_key)
             with _new_table(title, writer) as table:
                 for row in rows(root_mapping, db_map, title_key):
+                    print(row)
                     write_more = table.write_row(row)
                     if not write_more:
                         break

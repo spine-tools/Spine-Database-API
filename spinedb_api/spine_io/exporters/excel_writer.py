@@ -64,10 +64,7 @@ class ExcelWriter(Writer):
     def start_table(self, table_name):
         """See base class."""
         self._current_sheet = self._workbook.create_sheet(table_name)
-        try:
-            self._removable_sheet_names.remove(self._current_sheet.title)
-        except KeyError:
-            pass
+        self._removable_sheet_names.discard(self._current_sheet.title)
 
     def write_row(self, row):
         """See base class."""

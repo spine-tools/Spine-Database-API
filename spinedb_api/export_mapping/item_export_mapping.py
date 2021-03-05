@@ -19,6 +19,7 @@ from copy import copy
 from enum import auto, Enum, unique
 from itertools import cycle
 from types import MethodType
+from sqlalchemy.util import KeyedTuple
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 
 
@@ -58,6 +59,8 @@ def is_regular(position):
 @unique
 class Key(Enum):
     ALTERNATIVE_ID = auto()
+    ALTERNATIVE_INDEX = auto()
+    ALTERNATIVE_ROW_CACHE = auto()
     CLASS_ID = auto()
     ENTITY_ID = auto()
     FEATURE_ROW_CACHE = auto()
@@ -109,23 +112,39 @@ class Mapping:
         position (int or Position): defines where the data is placed in the output table.
             Nonnegative numbers are columns, negative numbers are pivot rows, and then there are some special cases
             in the Position enum.
+        parent (Mapping or None): Another mapping that's the 'parent' of this one.
+            Used to determine if a mapping is root, in which case it needs to yield the header.
 
     """
 
     MAP_TYPE = None
     """Mapping type identifier for serialization."""
 
-    def __init__(self, position):
+    def __init__(self, position, header=""):
         """
         Args:
             position (int or Position): column index or Position
+            header (str, optional); A string column header that's yielt as 'first row', if not empty.
+                The default is an empty string (so it's not yielt).
         """
-        self.child = None
+        self._child = None
+        self.parent = None
         self.position = position
+        self.header = header
         self._ignorable = False
         self._original_update_state = None
         self._original_data = None
         self._original_query = None
+
+    @property
+    def child(self):
+        return self._child
+
+    @child.setter
+    def child(self, child):
+        self._child = child
+        if isinstance(child, Mapping):
+            child.parent = self
 
     def __eq__(self, other):
         if not isinstance(other, Mapping):
@@ -265,9 +284,11 @@ class Mapping:
         Returns:
             bool: True if any of the items is pivoted, False otherwise
         """
-        if is_pivoted(self.position) and self.child is not None:
-            return True
-        return self.child.is_pivoted() if self.child is not None else False
+        if self.child is not None:
+            if is_pivoted(self.position):
+                return True
+            return self.child.is_pivoted()
+        return False
 
     def non_pivoted_width(self, parent_is_pivoted=False):
         """
@@ -335,6 +356,12 @@ class Mapping:
                 for db_row in self._query(db_map, state, fixed_state):
                     yield {self.position: self._data(db_row)}
         else:
+            # Yield header if top-most mapping
+            if self.parent is None:
+                header = self.make_header()
+                if any(header.values()):
+                    yield header
+            # Yield normal rows
             for db_row in self._query(db_map, state, fixed_state):
                 self._update_state(state, db_row)
                 data = self._data(db_row)
@@ -342,6 +369,19 @@ class Mapping:
                     row = {self.position: data}
                     row.update(child_row)
                     yield row
+
+    def make_header(self):
+        """
+        Generates the header recursively.
+
+        Returns
+            dict: a mapping from column index to string header
+        """
+        header = {self.position: self.header}
+        if self.child is not None:
+            child_header = self.child.make_header()
+            header.update(child_header)
+        return header
 
     def set_ignorable(self):
         """
@@ -890,6 +930,7 @@ class AlternativeMapping(Mapping):
 
     def _update_state(self, state, db_row):
         state[Key.ALTERNATIVE_ID] = db_row.id
+        state[Key.ALTERNATIVE_ROW_CACHE] = db_row
 
     def _data(self, db_row):
         return db_row.name
@@ -910,6 +951,13 @@ class ScenarioMapping(Mapping):
 
     def _update_state(self, state, db_row):
         state[Key.SCENARIO_ID] = db_row.id
+        # Parse alternative_name_list here once, rather than potentially twice in
+        # ScenarioAlternativeMapping and ScenarioBeforeAlternativeMapping
+        name_list = db_row.alternative_name_list
+        if name_list is not None:
+            d = db_row._asdict()
+            d["alternative_name_list"] = d["alternative_name_list"].split(",")
+            db_row = KeyedTuple(d.values(), d.keys())
         state[Key.SCENARIO_ROW_CACHE] = db_row
 
     def _data(self, db_row):
@@ -948,16 +996,41 @@ class ScenarioAlternativeMapping(Mapping):
     MAP_TYPE = "ScenarioAlternative"
 
     def _update_state(self, state, db_row):
+        state[Key.ALTERNATIVE_INDEX] = db_row["alternative_index"]
+
+    def _data(self, db_row):
+        return db_row["alternative_name"]
+
+    def _query(self, db_map, state, fixed_state):
+        alternative_name_list = state[Key.SCENARIO_ROW_CACHE].alternative_name_list
+        if alternative_name_list is None:
+            return []
+        return [{"alternative_index": k, "alternative_name": name} for k, name in enumerate(alternative_name_list)]
+
+
+class ScenarioBeforeAlternativeMapping(Mapping):
+    """Maps scenario 'before' alternatives.
+
+    Cannot be used as the topmost mapping; must have a :class:`ScenarioAlternativeMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioBeforeAlternative"
+
+    def _update_state(self, state, db_row):
         return
 
     def _data(self, db_row):
         return db_row
 
     def _query(self, db_map, state, fixed_state):
-        name_list = state[Key.SCENARIO_ROW_CACHE].alternative_name_list
-        if name_list is None:
+        alternative_name_list = state[Key.SCENARIO_ROW_CACHE].alternative_name_list
+        if alternative_name_list is None:
             return []
-        return name_list.split(",")
+        i = state[Key.ALTERNATIVE_INDEX]
+        try:
+            return [alternative_name_list[i + 1]]
+        except IndexError:
+            return [""]
 
 
 class ToolMapping(Mapping):
@@ -1124,6 +1197,41 @@ class ToolFeatureMethodMethodMapping(Mapping):
 
     def _query(self, db_map, state, fixed_state):
         yield state[Key.TOOL_FEATURE_METHOD_ROW_CACHE]
+
+
+class _DescriptionMapping(Mapping):
+    """Maps descriptions."""
+
+    MAP_TYPE = "Description"
+
+    def _update_state(self, state, db_row):
+        return
+
+    def _data(self, db_row):
+        return db_row
+
+    def _query(self, db_map, state, fixed_state):
+        yield state[self._key].description
+
+
+class AlternativeDescriptionMapping(_DescriptionMapping):
+    """Maps alternative descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`AlternativeMapping` as parent.
+    """
+
+    MAP_TYPE = "AlternativeDescription"
+    _key = Key.ALTERNATIVE_ROW_CACHE
+
+
+class ScenarioDescriptionMapping(_DescriptionMapping):
+    """Maps scenario descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`ScenarioMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioDescription"
+    _key = Key.SCENARIO_ROW_CACHE
 
 
 class ExpandedParameter:
