@@ -32,7 +32,7 @@ class ExcelWriter(Writer):
         self._file_path = file_path
         self._workbook = None
         self._current_sheet = None
-        self._removable_sheet_names = None
+        self._removable_sheet_names = set()
 
     def finish(self):
         """See base class."""
@@ -58,7 +58,7 @@ class ExcelWriter(Writer):
                 raise WriterException(f"Cannot open Excel file: {e}")
         else:
             self._workbook = Workbook()
-            if self._removable_sheet_names is None:
+            if not self._removable_sheet_names:
                 self._removable_sheet_names = set(self._workbook.sheetnames)
 
     def start_table(self, table_name):

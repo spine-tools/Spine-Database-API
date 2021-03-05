@@ -80,6 +80,21 @@ class ExcelConnector(SourceConnection):
             self._wb = None
         self._filename = None
 
+    def create_default_mapping(self):
+        """See base class"""
+        default_mapping = {}
+        table_mappings = default_mapping["table_mappings"] = {}
+        table_options = default_mapping["table_options"] = {}
+        selected_tables = default_mapping["selected_tables"] = []
+        for sheet in self.get_tables():
+            map_dict, option = create_mapping_from_sheet(self._wb[sheet])
+            if map_dict:
+                table_mappings[sheet] = [map_dict]
+                selected_tables.append(sheet)
+            if option:
+                table_options[sheet] = option
+        return default_mapping
+
     def get_tables(self):
         """Method that should return Excel sheets as mappings and their options.
 
@@ -92,11 +107,7 @@ class ExcelConnector(SourceConnection):
         if not self._wb:
             return {}
         try:
-            sheets = {}
-            for sheet in self._wb.sheetnames:
-                mapping, option = create_mappings_from_sheet(self._wb[sheet])
-                sheets[sheet] = {"mapping": mapping, "options": option}
-            return sheets
+            return self._wb.sheetnames
         except Exception as error:
             raise error
 
@@ -190,20 +201,24 @@ def get_mapped_data_from_xlsx(filepath):
     """
     connector = ExcelConnector(None)
     connector.connect_to_source(filepath)
-    mappings_per_sheet = {}
-    options_per_sheet = {}
-    for sheet, data in connector.get_tables().items():
-        if data["mapping"]:
-            mappings_per_sheet[sheet] = data["mapping"]
-        if data["options"]:
-            options_per_sheet[sheet] = data["options"]
-    types = row_types = dict.fromkeys(mappings_per_sheet, {})
-    mapped_data, errors = connector.get_mapped_data(mappings_per_sheet, options_per_sheet, types, row_types)
+    mapping = connector.create_default_mapping()
+    table_mappings = {
+        name: m for name, m in mapping.get("table_mappings", {}).items() if name in mapping["selected_tables"]
+    }
+    table_options = {
+        name: options
+        for name, options in mapping.get("table_options", {}).items()
+        if name in mapping["selected_tables"]
+    }
+    table_types = table_row_types = dict.fromkeys(mapping["selected_tables"], {})
+    mapped_data, errors = connector.get_mapped_data(
+        table_mappings, table_options, table_types, table_row_types, max_rows=-1
+    )
     connector.disconnect()
     return mapped_data, errors
 
 
-def create_mappings_from_sheet(ws):
+def create_mapping_from_sheet(ws):
     """
     Checks if sheet has the default Spine Excel format, if so creates a
     mapping object for each sheet.
@@ -220,19 +235,23 @@ def create_mappings_from_sheet(ws):
         return _create_entity_mappings(metadata, header, index_dim_count)
     options = {"header": True, "row": len(metadata) + 1, "read_until_col": True, "read_until_row": True}
     if metadata["sheet_type"] == "object group":
-        mapping = ObjectGroupMapping.from_dict({"name": metadata["class_name"], "groups": 0, "members": 1})
-        return [mapping], options
+        map_dict = {"map_type": "ObjectGroup", "name": metadata["class_name"], "groups": 0, "members": 1}
+        return map_dict, options
     if metadata["sheet_type"] == "alternative":
-        mapping = AlternativeMapping.from_dict({"name": 0})
-        return [mapping], options
+        map_dict = {"map_type": "Alternative", "name": 0}
+        return map_dict, options
     if metadata["sheet_type"] == "scenario":
-        mapping = ScenarioMapping.from_dict({"name": 0, "active": 1})
-        return [mapping], options
+        map_dict = {"map_type": "Scenario", "name": 0, "active": 1}
+        return map_dict, options
     if metadata["sheet_type"] == "scenario alternative":
-        mapping = ScenarioAlternativeMapping.from_dict(
-            {"name": 0, "scenario_name": 0, "alternative_name": 1, "before_alternative_name": 2}
-        )
-        return [mapping], options
+        map_dict = {
+            "map_type": "ScenarioAlternative",
+            "name": 0,
+            "scenario_name": 0,
+            "alternative_name": 1,
+            "before_alternative_name": 2,
+        }
+        return map_dict, options
     return None, None
 
 
@@ -278,13 +297,11 @@ def _create_entity_mappings(metadata, header, index_dim_count):
     if entity_type == "object":
         map_dict["map_type"] = "ObjectClass"
         map_dict["objects"] = {"map_type": ent_alt_map_type, "reference": 0}
-        mapping_class = ObjectClassMapping
     elif entity_type == "relationship":
         entity_dim_count = metadata["entity_dim_count"]
         map_dict["map_type"] = "RelationshipClass"
         map_dict["object_classes"] = header[:entity_dim_count]
         map_dict["objects"] = [{"map_type": ent_alt_map_type, "reference": i} for i in range(entity_dim_count)]
-        mapping_class = RelationshipClassMapping
     else:
         return None, None
     value_type = metadata.get("value_type")
@@ -299,11 +316,10 @@ def _create_entity_mappings(metadata, header, index_dim_count):
             "value": value,
             "alternative_name": {"map_type": ent_alt_map_type, "reference": header.index("alternative")},
         }
-    mapping = mapping_class.from_dict(map_dict)
     options = {
         "header": not index_dim_count,
         "row": len(metadata) + 1,
         "read_until_col": True,
         "read_until_row": not index_dim_count,
     }
-    return [mapping], options
+    return map_dict, options
