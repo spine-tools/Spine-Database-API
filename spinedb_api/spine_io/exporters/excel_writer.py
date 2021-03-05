@@ -85,6 +85,6 @@ def _convert_to_excel(x):
     Returns:
         float or str: Excel compatible value
     """
-    if not isinstance(x, (float, int, str)):
+    if not isinstance(x, (float, int, str)) and x is not None:
         return str(x)
     return x
