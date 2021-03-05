@@ -31,7 +31,7 @@ class ExcelWriter(Writer):
         self._file_path = file_path
         self._workbook = None
         self._current_sheet = None
-        self._removable_sheet_names = set()
+        self._removable_sheet_names = None
 
     def finish(self):
         """See base class."""
@@ -39,6 +39,7 @@ class ExcelWriter(Writer):
             return
         for name in self._removable_sheet_names:
             self._workbook.remove(self._workbook[name])
+        self._removable_sheet_names.clear()
         self._workbook.save(self._file_path)
         self._workbook.close()
         self._workbook = None
@@ -56,7 +57,8 @@ class ExcelWriter(Writer):
                 raise WriterException(f"Cannot open Excel file: {e}")
         else:
             self._workbook = Workbook()
-            self._removable_sheet_names = set(self._workbook.sheetnames)
+            if self._removable_sheet_names is None:
+                self._removable_sheet_names = set(self._workbook.sheetnames)
 
     def start_table(self, table_name):
         """See base class."""
@@ -68,5 +70,21 @@ class ExcelWriter(Writer):
 
     def write_row(self, row):
         """See base class."""
+        row = [_convert_to_excel(cell) for cell in row]
         self._current_sheet.append(row)
         return True
+
+
+def _convert_to_excel(x):
+    """
+    Converts parameter values to formats that are comprehensible to openpyxl.
+
+    Args:
+        x (Any): a parameter value
+
+    Returns:
+        float or str: Excel compatible value
+    """
+    if not isinstance(x, (float, int, str)):
+        return str(x)
+    return x
