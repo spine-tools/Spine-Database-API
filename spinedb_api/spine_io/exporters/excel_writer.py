@@ -16,6 +16,7 @@ A writer for exporting Spine databases to Excel files.
 :date:   15.1.2021
 """
 from pathlib import Path
+import numpy
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from .writer import Writer, WriterException
@@ -85,6 +86,8 @@ def _convert_to_excel(x):
     Returns:
         float or str: Excel compatible value
     """
+    if isinstance(x, numpy.float_):
+        return float(x)
     if not isinstance(x, (float, int, str)) and x is not None:
         return str(x)
     return x
