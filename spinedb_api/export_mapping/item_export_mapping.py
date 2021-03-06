@@ -59,13 +59,15 @@ def is_regular(position):
 @unique
 class Key(Enum):
     ALTERNATIVE_ID = auto()
-    ALTERNATIVE_INDEX = auto()
+    ALTERNATIVE_LIST_INDEX = auto()
     ALTERNATIVE_ROW_CACHE = auto()
     CLASS_ID = auto()
     ENTITY_ID = auto()
     FEATURE_ROW_CACHE = auto()
     OBJECT_CLASS_LIST_INDEX = auto()
+    OBJECT_CLASS_NAME_LIST = auto()
     OBJECT_LIST_INDEX = auto()
+    OBJECT_NAME_LIST = auto()
     PARAMETER_DEFINITION_ID = auto()
     PARAMETER_DEFINITION_ROW_CACHE = auto()
     PARAMETER_ROW_CACHE = auto()
@@ -533,6 +535,7 @@ class ObjectClassMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
+        # FIXME: Do we need to filter here?
         if Key.CLASS_ID not in fixed_state:
             return db_map.query(db_map.object_class_sq)
         return db_map.query(db_map.object_class_sq).filter_by(id=fixed_state[Key.CLASS_ID])
@@ -589,11 +592,13 @@ class RelationshipClassMapping(Mapping):
     def _update_state(self, state, db_row):
         state[Key.CLASS_ID] = db_row.id
         state[Key.OBJECT_CLASS_LIST_INDEX] = 0
+        state[Key.OBJECT_CLASS_NAME_LIST] = db_row.object_class_name_list.split(",")
 
     def _data(self, db_row):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
+        # FIXME: Do we need to filter here?
         if Key.CLASS_ID not in fixed_state:
             return db_map.query(db_map.wide_relationship_class_sq)
         return db_map.query(db_map.wide_relationship_class_sq).filter_by(id=fixed_state[Key.CLASS_ID])
@@ -614,13 +619,12 @@ class RelationshipClassObjectClassMapping(Mapping):
         return db_row
 
     def _query(self, db_map, state, fixed_state):
-        for relationship_class_row in db_map.query(db_map.wide_relationship_class_sq).filter_by(id=state[Key.CLASS_ID]):
-            name_list = relationship_class_row.object_class_name_list.split(",")
-            try:
-                name = name_list[state[Key.OBJECT_CLASS_LIST_INDEX]]
-            except IndexError:
-                name = None
-            yield name
+        name_list = state[Key.OBJECT_CLASS_NAME_LIST]
+        try:
+            name = name_list[state[Key.OBJECT_CLASS_LIST_INDEX]]
+        except IndexError:
+            name = None
+        yield name
 
 
 class RelationshipMapping(Mapping):
@@ -634,6 +638,7 @@ class RelationshipMapping(Mapping):
     def _update_state(self, state, db_row):
         state[Key.ENTITY_ID] = db_row.id
         state[Key.OBJECT_LIST_INDEX] = 0
+        state[Key.OBJECT_NAME_LIST] = db_row.object_name_list.split(",")
 
     def _data(self, db_row):
         return db_row.name
@@ -660,13 +665,12 @@ class RelationshipObjectMapping(Mapping):
         return db_row
 
     def _query(self, db_map, state, fixed_state):
-        for relationship_row in db_map.query(db_map.wide_relationship_sq).filter_by(id=state[Key.ENTITY_ID]):
-            name_list = relationship_row.object_name_list.split(",")
-            try:
-                name = name_list[state[Key.OBJECT_LIST_INDEX]]
-            except IndexError:
-                name = None
-            yield name
+        name_list = state[Key.OBJECT_NAME_LIST]
+        try:
+            name = name_list[state[Key.OBJECT_LIST_INDEX]]
+        except IndexError:
+            name = None
+        yield name
 
 
 class ParameterDefinitionMapping(Mapping):
@@ -996,7 +1000,7 @@ class ScenarioAlternativeMapping(Mapping):
     MAP_TYPE = "ScenarioAlternative"
 
     def _update_state(self, state, db_row):
-        state[Key.ALTERNATIVE_INDEX] = db_row["alternative_index"]
+        state[Key.ALTERNATIVE_LIST_INDEX] = db_row["alternative_index"]
 
     def _data(self, db_row):
         return db_row["alternative_name"]
@@ -1026,7 +1030,7 @@ class ScenarioBeforeAlternativeMapping(Mapping):
         alternative_name_list = state[Key.SCENARIO_ROW_CACHE].alternative_name_list
         if alternative_name_list is None:
             return []
-        i = state[Key.ALTERNATIVE_INDEX]
+        i = state[Key.ALTERNATIVE_LIST_INDEX]
         try:
             return [alternative_name_list[i + 1]]
         except IndexError:
@@ -1344,32 +1348,35 @@ def from_dict(serialized):
         Mapping: root mapping
     """
     mappings = {
-        AlternativeMapping.MAP_TYPE: AlternativeMapping,
-        ExpandedParameterValueMapping.MAP_TYPE: ExpandedParameterValueMapping,
-        FeatureEntityClassMapping.MAP_TYPE: FeatureEntityClassMapping,
-        FeatureParameterDefinitionMapping.MAP_TYPE: FeatureParameterDefinitionMapping,
-        FixedValueMapping.MAP_TYPE: FixedValueMapping,
-        ObjectClassMapping.MAP_TYPE: ObjectClassMapping,
-        ObjectGroupMapping.MAP_TYPE: ObjectGroupMapping,
-        ObjectMapping.MAP_TYPE: ObjectMapping,
-        ParameterDefinitionMapping.MAP_TYPE: ParameterDefinitionMapping,
-        ParameterIndexMapping.MAP_TYPE: ParameterIndexMapping,
-        ParameterValueListMapping.MAP_TYPE: ParameterValueListMapping,
-        ParameterValueListValueMapping.MAP_TYPE: ParameterValueListValueMapping,
-        ParameterValueMapping.MAP_TYPE: ParameterValueMapping,
-        RelationshipMapping.MAP_TYPE: RelationshipMapping,
-        RelationshipClassMapping.MAP_TYPE: RelationshipClassMapping,
-        RelationshipClassObjectClassMapping.MAP_TYPE: RelationshipClassObjectClassMapping,
-        RelationshipObjectMapping.MAP_TYPE: RelationshipObjectMapping,
-        ScenarioActiveFlagMapping.MAP_TYPE: ScenarioActiveFlagMapping,
-        ScenarioAlternativeMapping.MAP_TYPE: ScenarioAlternativeMapping,
-        ScenarioMapping.MAP_TYPE: ScenarioMapping,
-        ToolMapping.MAP_TYPE: ToolMapping,
-        ToolFeatureEntityClassMapping.MAP_TYPE: ToolFeatureEntityClassMapping,
-        ToolFeatureParameterDefinitionMapping.MAP_TYPE: ToolFeatureParameterDefinitionMapping,
-        ToolFeatureRequiredFlagMapping.MAP_TYPE: ToolFeatureRequiredFlagMapping,
-        ToolFeatureMethodEntityClassMapping.MAP_TYPE: ToolFeatureMethodEntityClassMapping,
-        ToolFeatureMethodParameterDefinitionMapping.MAP_TYPE: ToolFeatureMethodParameterDefinitionMapping,
+        klass.MAP_TYPE: klass
+        for klass in (
+            AlternativeMapping,
+            ExpandedParameterValueMapping,
+            FeatureEntityClassMapping,
+            FeatureParameterDefinitionMapping,
+            FixedValueMapping,
+            ObjectClassMapping,
+            ObjectGroupMapping,
+            ObjectMapping,
+            ParameterDefinitionMapping,
+            ParameterIndexMapping,
+            ParameterValueListMapping,
+            ParameterValueListValueMapping,
+            ParameterValueMapping,
+            RelationshipMapping,
+            RelationshipClassMapping,
+            RelationshipClassObjectClassMapping,
+            RelationshipObjectMapping,
+            ScenarioActiveFlagMapping,
+            ScenarioAlternativeMapping,
+            ScenarioMapping,
+            ToolMapping,
+            ToolFeatureEntityClassMapping,
+            ToolFeatureParameterDefinitionMapping,
+            ToolFeatureRequiredFlagMapping,
+            ToolFeatureMethodEntityClassMapping,
+            ToolFeatureMethodParameterDefinitionMapping,
+        )
     }
     flattened = list()
     for mapping_dict in serialized:
