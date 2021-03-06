@@ -28,7 +28,6 @@ from spinedb_api.export_functions import (
 from spinedb_api.export_mapping.item_export_mapping import (
     AlternativeMapping,
     AlternativeDescriptionMapping,
-    Key,
     Position,
     ObjectClassMapping,
     ObjectGroupMapping,
@@ -84,8 +83,7 @@ def new_write_scenario_alternatives(db_map, writer):
 def new_write_object_groups(db_map, writer):
     for obj_cls in db_map.query(db_map.object_class_sq):
         root_mapping = FixedValueMapping(Position.table_name, value=obj_cls.name + "_group")
-        fixed_state = {Key.CLASS_ID: obj_cls.id}
-        class_mapping = root_mapping.child = ObjectClassMapping(Position.hidden)
+        class_mapping = root_mapping.child = ObjectClassMapping(Position.hidden, filter_re=obj_cls.name)
         object_mapping = class_mapping.child = ObjectMapping(1, header="member")
         object_mapping.child = ObjectGroupMapping(0, header="group")
         write(db_map, writer, root_mapping)

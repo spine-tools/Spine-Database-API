@@ -19,7 +19,7 @@ from copy import copy
 from enum import auto, Enum, unique
 from itertools import cycle
 from types import MethodType
-from sqlalchemy.util import KeyedTuple
+import re
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 
 
@@ -123,21 +123,25 @@ class Mapping:
     MAP_TYPE = None
     """Mapping type identifier for serialization."""
 
-    def __init__(self, position, header=""):
+    def __init__(self, position, header="", filter_re=""):
         """
         Args:
             position (int or Position): column index or Position
             header (str, optional); A string column header that's yielt as 'first row', if not empty.
                 The default is an empty string (so it's not yielt).
+            filter_re (str, optional): A regular expression to filter the mapped values by
         """
         self._child = None
-        self.parent = None
-        self.position = position
-        self.header = header
+        self._filter_re = ""
         self._ignorable = False
         self._original_update_state = None
         self._original_data = None
         self._original_query = None
+        self._unfiltered_query = self._query
+        self.parent = None
+        self.position = position
+        self.header = header
+        self.filter_re = filter_re
 
     @property
     def child(self):
@@ -148,6 +152,30 @@ class Mapping:
         self._child = child
         if isinstance(child, Mapping):
             child.parent = self
+
+    @property
+    def filter_re(self):
+        return self._filter_re
+
+    @filter_re.setter
+    def filter_re(self, filter_re):
+        self._filter_re = filter_re
+        self._filter_query()
+
+    def _filter_query(self):
+        """
+        Overrides ``self._query()`` so the output is filtered according to ``self.filter_re``
+        """
+        if not self._filter_re:
+            self._query = self._unfiltered_query
+            return
+
+        def _filtered_query(obj, *args, **kwargs):
+            for db_row in obj._unfiltered_query(*args, **kwargs):
+                if re.search(obj._filter_re, obj._data(db_row)):
+                    yield db_row
+
+        self._query = MethodType(_filtered_query, self)
 
     def __eq__(self, other):
         if not isinstance(other, Mapping):
@@ -461,6 +489,8 @@ class Mapping:
             mapping_dict["ignorable"] = True
         if self.header:
             mapping_dict["header"] = self.header
+        if self.filter_re:
+            mapping_dict["filter_re"] = self.filter_re
         return mapping_dict
 
     @classmethod
@@ -477,7 +507,8 @@ class Mapping:
             Mapping: reconstructed mapping
         """
         header = mapping_dict.get("header", "")
-        mapping = cls(position, header=header)
+        filter_re = mapping_dict.get("filter_re", "")
+        mapping = cls(position, header=header, filter_re=filter_re)
         if ignorable:
             mapping.set_ignorable()
         return mapping
