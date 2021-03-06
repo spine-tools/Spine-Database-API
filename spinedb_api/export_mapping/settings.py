@@ -17,6 +17,7 @@ Contains convenience functions to set up different database export schemes.
 from itertools import takewhile
 from .item_export_mapping import (
     AlternativeMapping,
+    AlternativeDescriptionMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
     FeatureEntityClassMapping,
@@ -38,7 +39,9 @@ from .item_export_mapping import (
     RelationshipObjectMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
+    ScenarioBeforeAlternativeMapping,
     ScenarioMapping,
+    ScenarioDescriptionMapping,
     ToolFeatureEntityClassMapping,
     ToolFeatureMethodMethodMapping,
     ToolFeatureMethodEntityClassMapping,
@@ -273,50 +276,62 @@ def set_relationship_dimensions(relationship_mapping, dimensions):
     unflatten(mapping_list)
 
 
-def alternative_export(alternative_position=Position.hidden):
+def alternative_export(alternative_position=Position.hidden, alternative_description_position=Position.hidden):
     """
     Sets up export mappings for exporting alternatives.
 
     Args:
         alternative_position (int or Position): position of alternatives
+        alternative_description_position (int or Position): position of descriptions
 
     Returns:
         Mapping: root mapping
     """
-    return AlternativeMapping(alternative_position)
+    alt_mapping = AlternativeMapping(alternative_position)
+    alt_mapping.child = AlternativeDescriptionMapping(alternative_description_position)
+    return alt_mapping
 
 
-def scenario_export(scenario_position=Position.hidden, scenario_active_flag_position=Position.hidden):
+def scenario_export(
+    scenario_position=Position.hidden,
+    scenario_active_flag_position=Position.hidden,
+    scenario_description_position=Position.hidden,
+):
     """
     Sets up export mappings for exporting scenarios.
 
     Args:
         scenario_position (int or Position): position of scenarios
         scenario_active_flag_position (int or Position): position of scenario active flags
+        scenario_description_position (int or Position): position of descriptions
 
     Returns:
         Mapping: root mapping
     """
     scenario_mapping = ScenarioMapping(scenario_position)
-    active_flag_mapping = ScenarioActiveFlagMapping(scenario_active_flag_position)
-    scenario_mapping.child = active_flag_mapping
+    active_flag_mapping = scenario_mapping.child = ScenarioActiveFlagMapping(scenario_active_flag_position)
+    active_flag_mapping.child = ScenarioDescriptionMapping(scenario_description_position)
     return scenario_mapping
 
 
-def scenario_alternative_export(scenario_position=Position.hidden, alternative_position=Position.hidden):
+def scenario_alternative_export(
+    scenario_position=Position.hidden, alternative_position=Position.hidden, before_alternative_position=Position.hidden
+):
     """
     Sets up export mappings for exporting scenario alternatives.
 
     Args:
         scenario_position (int or Position): position of scenarios
         alternative_position (int or Position): position of alternatives
+        before_alternative_position (int or Position): position of 'before' alternatives
+            (for each row, the 'alternative' goes *before* the 'before alternative' in the scenario rank)
 
     Returns:
         Mapping: root mapping
     """
     scenario_mapping = ScenarioMapping(scenario_position)
-    alternative_mapping = ScenarioAlternativeMapping(alternative_position)
-    scenario_mapping.child = alternative_mapping
+    alternative_mapping = scenario_mapping.child = ScenarioAlternativeMapping(alternative_position)
+    alternative_mapping.child = ScenarioBeforeAlternativeMapping(before_alternative_position)
     return scenario_mapping
 
 

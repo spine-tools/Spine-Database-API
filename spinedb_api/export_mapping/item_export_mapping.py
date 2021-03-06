@@ -1297,6 +1297,14 @@ def _expand_parameter_value_from_state(state):
 
 
 def _expand_values_from_parameter(cached_parameter):
+    """Expands a cached parameter into indexed values.
+
+    Args:
+        cached_parameter (ExpandedParameter)
+
+    Yields:
+        ExpandedParameter
+    """
     if isinstance(cached_parameter.value, dict):
         for index, x in cached_parameter.value.items():
             db_row = copy(cached_parameter)
@@ -1382,6 +1390,7 @@ def from_dict(serialized):
     mappings = {
         klass.MAP_TYPE: klass
         for klass in (
+            AlternativeDescriptionMapping,
             AlternativeMapping,
             ExpandedParameterValueMapping,
             FeatureEntityClassMapping,
@@ -1401,6 +1410,8 @@ def from_dict(serialized):
             RelationshipObjectMapping,
             ScenarioActiveFlagMapping,
             ScenarioAlternativeMapping,
+            ScenarioBeforeAlternativeMapping,
+            ScenarioDescriptionMapping,
             ScenarioMapping,
             ToolMapping,
             ToolFeatureEntityClassMapping,
