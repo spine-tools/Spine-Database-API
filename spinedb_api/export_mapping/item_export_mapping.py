@@ -58,11 +58,11 @@ def is_regular(position):
 
 @unique
 class Key(Enum):
-    ALTERNATIVE_ID = auto()
     ALTERNATIVE_LIST_INDEX = auto()
+    ALTERNATIVE_NAME_LIST = auto()
     ALTERNATIVE_ROW_CACHE = auto()
-    CLASS_ID = auto()
-    ENTITY_ID = auto()
+    CLASS_ROW_CACHE = auto()
+    ENTITY_ROW_CACHE = auto()
     FEATURE_ROW_CACHE = auto()
     OBJECT_CLASS_LIST_INDEX = auto()
     OBJECT_CLASS_NAME_LIST = auto()
@@ -529,15 +529,15 @@ class ObjectClassMapping(Mapping):
     MAP_TYPE = "ObjectClass"
 
     def _update_state(self, state, db_row):
-        state[Key.CLASS_ID] = db_row.id
+        state[Key.CLASS_ROW_CACHE] = db_row
 
     def _data(self, db_row):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.CLASS_ID not in fixed_state:
+        if Key.CLASS_ROW_CACHE not in fixed_state:
             return db_map.query(db_map.object_class_sq)
-        return db_map.query(db_map.object_class_sq).filter_by(id=fixed_state[Key.CLASS_ID])
+        return [fixed_state[Key.CLASS_ROW_CACHE]]
 
 
 class ObjectMapping(Mapping):
@@ -552,12 +552,12 @@ class ObjectMapping(Mapping):
         return db_row.name
 
     def _update_state(self, state, db_row):
-        state[Key.ENTITY_ID] = db_row.id
+        state[Key.ENTITY_ROW_CACHE] = db_row
 
     def _query(self, db_map, state, fixed_state):
-        if Key.ENTITY_ID not in fixed_state:
-            return db_map.query(db_map.object_sq).filter_by(class_id=state[Key.CLASS_ID])
-        return db_map.query(db_map.object_sq).filter_by(id=fixed_state[Key.ENTITY_ID])
+        if Key.ENTITY_ROW_CACHE not in fixed_state:
+            return db_map.query(db_map.object_sq).filter_by(class_id=state[Key.CLASS_ROW_CACHE].id)
+        return [fixed_state[Key.ENTITY_ROW_CACHE]]
 
 
 class ObjectGroupMapping(Mapping):
@@ -576,7 +576,7 @@ class ObjectGroupMapping(Mapping):
 
     def _query(self, db_map, state, fixed_state):
         return db_map.query(db_map.ext_object_group_sq).filter_by(
-            class_id=state[Key.CLASS_ID], member_id=state[Key.ENTITY_ID]
+            class_id=state[Key.CLASS_ROW_CACHE].id, member_id=state[Key.ENTITY_ROW_CACHE].id
         )
 
 
@@ -589,7 +589,7 @@ class RelationshipClassMapping(Mapping):
     MAP_TYPE = "RelationshipClass"
 
     def _update_state(self, state, db_row):
-        state[Key.CLASS_ID] = db_row.id
+        state[Key.CLASS_ROW_CACHE] = db_row
         state[Key.OBJECT_CLASS_LIST_INDEX] = 0
         state[Key.OBJECT_CLASS_NAME_LIST] = db_row.object_class_name_list.split(",")
 
@@ -597,9 +597,9 @@ class RelationshipClassMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.CLASS_ID not in fixed_state:
+        if Key.CLASS_ROW_CACHE not in fixed_state:
             return db_map.query(db_map.wide_relationship_class_sq)
-        return db_map.query(db_map.wide_relationship_class_sq).filter_by(id=fixed_state[Key.CLASS_ID])
+        return [fixed_state[Key.CLASS_ROW_CACHE]]
 
 
 class RelationshipClassObjectClassMapping(Mapping):
@@ -634,7 +634,7 @@ class RelationshipMapping(Mapping):
     MAP_TYPE = "Relationship"
 
     def _update_state(self, state, db_row):
-        state[Key.ENTITY_ID] = db_row.id
+        state[Key.ENTITY_ROW_CACHE] = db_row
         state[Key.OBJECT_LIST_INDEX] = 0
         state[Key.OBJECT_NAME_LIST] = db_row.object_name_list.split(",")
 
@@ -642,9 +642,9 @@ class RelationshipMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.ENTITY_ID not in fixed_state:
-            return db_map.query(db_map.wide_relationship_sq).filter_by(class_id=state[Key.CLASS_ID])
-        return db_map.query(db_map.wide_relationship_sq).filter_by(id=fixed_state[Key.ENTITY_ID])
+        if Key.ENTITY_ROW_CACHE not in fixed_state:
+            return db_map.query(db_map.wide_relationship_sq).filter_by(class_id=state[Key.CLASS_ROW_CACHE].id)
+        return [fixed_state[Key.ENTITY_ROW_CACHE]]
 
 
 class RelationshipObjectMapping(Mapping):
@@ -687,7 +687,7 @@ class ParameterDefinitionMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        qry = db_map.query(db_map.parameter_definition_sq).filter_by(entity_class_id=state[Key.CLASS_ID])
+        qry = db_map.query(db_map.parameter_definition_sq).filter_by(entity_class_id=state[Key.CLASS_ROW_CACHE].id)
         if Key.PARAMETER_DEFINITION_ID in fixed_state:
             qry = qry.filter_by(id=fixed_state[Key.PARAMETER_DEFINITION_ID])
         return qry
@@ -793,8 +793,8 @@ class ParameterValueMapping(Mapping):
 
     def _query(self, db_map, state, fixed_state):
         definition_id = state[Key.PARAMETER_DEFINITION_ID]
-        entity_id = state[Key.ENTITY_ID]
-        alternative_id = state[Key.ALTERNATIVE_ID]
+        entity_id = state[Key.ENTITY_ROW_CACHE].id
+        alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
         if Key.PARAMETER_VALUE_ID not in fixed_state:
             return db_map.query(db_map.parameter_value_sq).filter_by(
                 parameter_definition_id=definition_id, entity_id=entity_id, alternative_id=alternative_id
@@ -828,8 +828,8 @@ class ExpandedParameterValueMapping(Mapping):
         cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
             definition_id = state[Key.PARAMETER_DEFINITION_ID]
-            entity_id = state[Key.ENTITY_ID]
-            alternative_id = state[Key.ALTERNATIVE_ID]
+            entity_id = state[Key.ENTITY_ROW_CACHE].id
+            alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
             for expanded_value in _load_and_expand(db_map, definition_id, entity_id, alternative_id):
                 for index, x in expanded_value.items():
                     yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
@@ -856,8 +856,8 @@ class ParameterIndexMapping(Mapping):
         cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
             definition_id = state[Key.PARAMETER_DEFINITION_ID]
-            entity_id = state[Key.ENTITY_ID]
-            alternative_id = state[Key.ALTERNATIVE_ID]
+            entity_id = state[Key.ENTITY_ROW_CACHE].id
+            alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
             for expanded_value in _load_and_expand(db_map, definition_id, entity_id, alternative_id):
                 for index, x in expanded_value.items():
                     yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
@@ -927,16 +927,15 @@ class AlternativeMapping(Mapping):
     MAP_TYPE = "Alternative"
 
     def _update_state(self, state, db_row):
-        state[Key.ALTERNATIVE_ID] = db_row.id
         state[Key.ALTERNATIVE_ROW_CACHE] = db_row
 
     def _data(self, db_row):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.ALTERNATIVE_ID not in fixed_state:
+        if Key.ALTERNATIVE_ROW_CACHE not in fixed_state:
             return db_map.query(db_map.alternative_sq)
-        return db_map.query(db_map.alternative_sq).filter_by(id=fixed_state[Key.ALTERNATIVE_ID])
+        return [fixed_state[Key.ALTERNATIVE_ROW_CACHE]]
 
 
 class ScenarioMapping(Mapping):
@@ -949,22 +948,20 @@ class ScenarioMapping(Mapping):
 
     def _update_state(self, state, db_row):
         state[Key.SCENARIO_ID] = db_row.id
-        # Parse alternative_name_list here once, rather than potentially twice in
-        # ScenarioAlternativeMapping and ScenarioBeforeAlternativeMapping
         alternative_name_list = db_row.alternative_name_list
         if alternative_name_list is not None:
-            d = db_row._asdict()
-            d["alternative_name_list"] = d["alternative_name_list"].split(",")
-            db_row = KeyedTuple(d.values(), d.keys())
+            state[Key.ALTERNATIVE_NAME_LIST] = alternative_name_list.split(",")
+        else:
+            state[Key.ALTERNATIVE_NAME_LIST] = None
         state[Key.SCENARIO_ROW_CACHE] = db_row
 
     def _data(self, db_row):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.SCENARIO_ID not in fixed_state:
+        if Key.SCENARIO_ROW_CACHE not in fixed_state:
             return db_map.query(db_map.wide_scenario_sq)
-        return db_map.query(db_map.wide_scenario_sq).filter_by(id=fixed_state[Key.SCENARIO_ID])
+        return [fixed_state[Key.SCENARIO_ROW_CACHE]]
 
 
 class ScenarioActiveFlagMapping(Mapping):
@@ -994,16 +991,17 @@ class ScenarioAlternativeMapping(Mapping):
     MAP_TYPE = "ScenarioAlternative"
 
     def _update_state(self, state, db_row):
-        state[Key.ALTERNATIVE_LIST_INDEX] = db_row["alternative_index"]
+        state[Key.ALTERNATIVE_LIST_INDEX] += 1
 
     def _data(self, db_row):
-        return db_row["alternative_name"]
+        return db_row
 
     def _query(self, db_map, state, fixed_state):
-        alternative_name_list = state[Key.SCENARIO_ROW_CACHE].alternative_name_list
+        state[Key.ALTERNATIVE_LIST_INDEX] = 0
+        alternative_name_list = state[Key.ALTERNATIVE_NAME_LIST]
         if alternative_name_list is None:
             return []
-        return [{"alternative_index": k, "alternative_name": name} for k, name in enumerate(alternative_name_list)]
+        return alternative_name_list
 
 
 class ScenarioBeforeAlternativeMapping(Mapping):
@@ -1015,18 +1013,18 @@ class ScenarioBeforeAlternativeMapping(Mapping):
     MAP_TYPE = "ScenarioBeforeAlternative"
 
     def _update_state(self, state, db_row):
-        return
+        pass
 
     def _data(self, db_row):
         return db_row
 
     def _query(self, db_map, state, fixed_state):
-        alternative_name_list = state[Key.SCENARIO_ROW_CACHE].alternative_name_list
+        alternative_name_list = state[Key.ALTERNATIVE_NAME_LIST]
         if alternative_name_list is None:
             return []
         i = state[Key.ALTERNATIVE_LIST_INDEX]
         try:
-            return [alternative_name_list[i + 1]]
+            return [alternative_name_list[i]]
         except IndexError:
             return [""]
 
@@ -1197,10 +1195,11 @@ class ToolFeatureMethodMethodMapping(Mapping):
         yield state[Key.TOOL_FEATURE_METHOD_ROW_CACHE]
 
 
-class _DescriptionMapping(Mapping):
+class _DescriptionMappingBase(Mapping):
     """Maps descriptions."""
 
     MAP_TYPE = "Description"
+    _key = NotImplemented
 
     def _update_state(self, state, db_row):
         return
@@ -1212,7 +1211,7 @@ class _DescriptionMapping(Mapping):
         yield state[self._key].description
 
 
-class AlternativeDescriptionMapping(_DescriptionMapping):
+class AlternativeDescriptionMapping(_DescriptionMappingBase):
     """Maps alternative descriptions.
 
     Cannot be used as the topmost mapping; must have :class:`AlternativeMapping` as parent.
@@ -1222,7 +1221,7 @@ class AlternativeDescriptionMapping(_DescriptionMapping):
     _key = Key.ALTERNATIVE_ROW_CACHE
 
 
-class ScenarioDescriptionMapping(_DescriptionMapping):
+class ScenarioDescriptionMapping(_DescriptionMappingBase):
     """Maps scenario descriptions.
 
     Cannot be used as the topmost mapping; must have :class:`ScenarioMapping` as parent.
@@ -1266,10 +1265,14 @@ class ExpandedParameter:
         Returns:
             bool: True if the parameter is the same, False otherwise
         """
+        entity_row_cache = state.get(Key.ENTITY_ROW_CACHE)
+        alternative_row_cache = state.get(Key.ALTERNATIVE_ROW_CACHE)
+        entity_id = entity_row_cache.id if entity_row_cache is not None else None
+        alternative_id = alternative_row_cache.id if alternative_row_cache is not None else None
         return (
             self._definition_id == state.get(Key.PARAMETER_DEFINITION_ID)
-            and self._entity_id == state.get(Key.ENTITY_ID)
-            and self._alternative_id == state.get(Key.ALTERNATIVE_ID)
+            and self._entity_id == entity_id
+            and self._alternative_id == alternative_id
         )
 
 
