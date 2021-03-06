@@ -31,37 +31,46 @@ def rows(root_mapping, db_map, fixed_key=None):
         list: a list of row's cells
     """
 
-    def del_unused_positions(row):
+    def row_iterator():
         """
-        Deletes columns that are not to be shown.
+        Yields non pivoted rows.
 
-        Args:
-            row (dict): a mapping from position to row data
+        Yields:
+            row (list): a table row
         """
-        try:
-            del row[Position.hidden]
-        except KeyError:
-            pass
-        try:
-            del row[Position.table_name]
-        except KeyError:
-            pass
+
+        def split_row(row):
+            row.pop(Position.hidden, None)
+            row.pop(Position.table_name, None)
+            single_row = row.pop(Position.single_row, [])
+            straight = (max(row) + 1) * [None] if row else []
+            for index, data in row.items():
+                straight[index] = data
+            return straight, single_row
+
+        row_iter = root_mapping.rows(db_map, dict(), fixed_key)
+        # Yield header. Ignore the single row
+        header = next(row_iter, {})
+        straight, _ = split_row(header)
+        yield straight
+        # Yield normal rows
+        for row in row_iter:
+            straight, single_row = split_row(row)
+            yield straight + single_row
 
     if fixed_key is None:
         fixed_key = dict()
     if root_mapping.is_pivoted():
         root_mapping, value_column, regular_columns, hidden_columns, pivot_columns = make_regular(root_mapping)
-        regularized = list(rows(root_mapping, db_map, fixed_key))
+        regularized = list(row_iterator())
         for row in make_pivot(regularized, value_column, regular_columns, hidden_columns, pivot_columns):
             yield row
     else:
-        for row in root_mapping.rows(db_map, dict(), fixed_key):
-            del_unused_positions(row)
-            single_row = row.pop(Position.single_row, [])
-            straight = (max(row) + 1) * [None] if row else []
-            for index, data in row.items():
-                straight[index] = data
-            yield straight + single_row
+        row_iter = row_iterator()
+        header = next(row_iter, [])
+        if any(header):
+            yield header
+        yield from row_iter
 
 
 def titles(root_mapping, db_map):

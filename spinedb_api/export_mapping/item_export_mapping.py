@@ -376,6 +376,10 @@ class Mapping:
         Yields:
             dict: a mapping from column index to cell data
         """
+        # Yield header if topmost mapping
+        if self.parent is None:
+            header = self.make_header()
+            yield header
         if self.child is None:
             if self.position == Position.hidden:
                 yield {}
@@ -387,11 +391,6 @@ class Mapping:
                 for db_row in self._query(db_map, state, fixed_state):
                     yield {self.position: self._data(db_row)}
         else:
-            # Yield header if top-most mapping
-            if self.parent is None:
-                header = self.make_header()
-                if any(header.values()):
-                    yield header
             # Yield normal rows
             for db_row in self._query(db_map, state, fixed_state):
                 self._update_state(state, db_row)

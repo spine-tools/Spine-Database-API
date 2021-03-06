@@ -51,25 +51,20 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             return leaf(v, keys[1:])
         return v
 
-    def regular_key_rows_and_non_pivoted_keys():
+    def make_regular_rows():
         """Creates pivot table's 'left' side rows and non pivoted keys.
 
         Returns:
-            tuple: regular key rows and non pivoted keys
+            dict: mapping non-pivoted keys to regular rows
         """
-        column_keys_width = max(regular_columns) + 1 if regular_columns else 0
-        keys = set()
-        key_rows = dict()
+        regular_rows = dict()
         for row in table:
             hidden_key = tuple(row[c] for c in hidden_columns)
             regular_key = tuple(row[c] for c in regular_columns)
-            key_row = column_keys_width * [None]
-            for c, k in zip(regular_columns, regular_key):
-                key_row[c] = k
+            regular_row = [row[i] for i in range(regular_column_width)]
             key = regular_key + hidden_key
-            key_rows[key] = key_row
-            keys.add(key)
-        return key_rows, sorted(keys)
+            regular_rows[key] = regular_row
+        return regular_rows
 
     def value_tree():
         """Indexes pivot values.
@@ -92,7 +87,9 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             list: table row
         """
         for i in range(len(pivot_columns)):
-            yield list(k[i] for k in pivot_keys)
+            row = [pivot_header[i]] if any(pivot_header) else []
+            row += list(k[i] for k in pivot_keys)
+            yield row
         values = dict()
         for row in table:
             branch = values
@@ -101,7 +98,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             branch.setdefault(row[pivot_columns[-1]], list()).append(row[value_column])
         height = max(len(leaf(values, key)) for key in pivot_keys)
         for i in range(height):
-            row = list()
+            row = [None] if any(pivot_header) else []
             for key in pivot_keys:
                 v = leaf(values, key)
                 if i < len(v):
@@ -110,17 +107,36 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
                     row.append(None)
             yield row
 
+    header = table.pop(0)
+    if not table:
+        return []
     pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table})
+    pivot_header = tuple(header[i] for i in pivot_columns)
+    regular_column_width = max(regular_columns) + 1 if regular_columns else 0
+    regular_header = [header[i] for i in range(regular_column_width)]
     non_pivot_columns = regular_columns + hidden_columns
     if non_pivot_columns:
-        row_key_rows, non_pivot_keys = regular_key_rows_and_non_pivoted_keys()
-        header_front_padding = max(regular_columns) + 1 if regular_columns else 0
-        for i in range(len(pivot_columns)):
-            yield header_front_padding * [None] + list(k[i] for k in pivot_keys)
+        # Yield pivot rows (all but last)
+        for i in range(len(pivot_columns) - 1):
+            row = regular_column_width * [None]
+            if any(pivot_header):
+                row[-1] = pivot_header[i]
+            row += list(k[i] for k in pivot_keys)
+            yield row
+        # Yield last pivot row. This one has the regular header (if any) at the begining
+        if any(regular_header):
+            last_pivot_row = regular_header
+        else:
+            last_pivot_row = regular_column_width * [None]
+        i = len(pivot_columns) - 1
+        last_pivot_row += list(k[i] for k in pivot_keys)
+        yield last_pivot_row
+        # Yield regular rows
+        regular_rows = make_regular_rows()
         values = value_tree()
-        for row_key in non_pivot_keys:
+        for row_key in sorted(regular_rows.keys()):
             pivot_branch = leaf(values, row_key)
-            row = row_key_rows[row_key]
+            row = regular_rows[row_key]
             row += [leaf(pivot_branch, column_key) for column_key in pivot_keys]
             yield row
     else:
@@ -146,7 +162,6 @@ def make_regular(root_mapping):
     pivoted_positions = sorted((m.position for m in mappings[:-1] if is_pivoted(m.position)), reverse=True)
     pivot_position_to_row = {position: i for i, position in enumerate(pivoted_positions)}
     pivot_column_count = len(pivot_position_to_row)
-    regularized = list()
     pivot_column_base = regular_column_count
     pivot_columns = list()
     hidden_column_base = pivot_column_base + pivot_column_count
@@ -154,9 +169,7 @@ def make_regular(root_mapping):
     hidden_columns = list()
     for mapping in mappings[:-1]:
         position = mapping.position
-        if is_regular(position):
-            regularized.append(mapping)
-        elif is_pivoted(position):
+        if is_pivoted(position):
             mapping.position = pivot_column_base + pivot_position_to_row[mapping.position]
             pivot_columns.append(mapping.position)
         elif position == Position.hidden:

@@ -21,6 +21,7 @@ from spinedb_api.export_mapping.pivot import make_pivot
 class TestPivot(unittest.TestCase):
     def test_pivot(self):
         table = [
+            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -33,7 +34,7 @@ class TestPivot(unittest.TestCase):
         ]
         pivot_table = list(make_pivot(table, 3, [0], [1], [2]))
         expected = [
-            [None, "1", "2", "3"],
+            ["H", "1", "2", "3"],
             ["A", -1.1, -2.2, None],
             ["A", -3.3, -4.4, -5.5],
             ["B", None, -6.6, None],
@@ -45,6 +46,7 @@ class TestPivot(unittest.TestCase):
 
     def test_half_pivot(self):
         table = [
+            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -57,10 +59,10 @@ class TestPivot(unittest.TestCase):
         ]
         pivot_table = list(make_pivot(table, 3, [], [], [0, 1, 2]))
         expected = [
-            ["A", "A", "A", "A", "A", "B", "B", "B", "C"],
-            ["a", "a", "b", "b", "b", "a", "b", "c", "a"],
-            ["1", "2", "1", "2", "3", "2", "2", "3", "1"],
-            [-1.1, -2.2, -3.3, -4.4, -5.5, -6.6, -7.7, -8.8, -9.9],
+            ["H", "A", "A", "A", "A", "A", "B", "B", "B", "C"],
+            ["h", "a", "a", "b", "b", "b", "a", "b", "c", "a"],
+            ["#", "1", "2", "1", "2", "3", "2", "2", "3", "1"],
+            [None, -1.1, -2.2, -3.3, -4.4, -5.5, -6.6, -7.7, -8.8, -9.9],
         ]
         self.assertEqual(pivot_table, expected)
 
