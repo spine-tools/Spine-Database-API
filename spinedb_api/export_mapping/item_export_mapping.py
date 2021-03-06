@@ -435,14 +435,15 @@ class Mapping:
             fixed_state = dict()
         if self.position is Position.table_name:
             for db_row in self._query(db_map, state, fixed_state):
-                title_state = copy(fixed_state)
-                self._update_state(title_state, db_row)
-                yield self._data(db_row), title_state
+                fixed_state = copy(fixed_state)
+                self._update_state(fixed_state, db_row)
+                yield self._data(db_row), fixed_state
         elif self.child is None:
             yield None, fixed_state
         else:
             for db_row in self._query(db_map, state, fixed_state):
                 self._update_state(state, db_row)
+                self._update_state(fixed_state, db_row)
                 for title_data in self.child.title(db_map, state, fixed_state):
                     yield title_data
 
