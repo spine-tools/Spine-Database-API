@@ -52,7 +52,7 @@ from spinedb_api.export_mapping.item_export_mapping import (
     ParameterDefaultValueMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefinitionMapping,
-    ParameterIndexMapping,
+    ParameterValueIndexMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
@@ -337,7 +337,7 @@ class TestExportMapping(unittest.TestCase):
         parameter_definition_mapping.child = alternative_mapping
         object_mapping = ObjectMapping(1)
         alternative_mapping.child = object_mapping
-        index_mapping = ParameterIndexMapping(3)
+        index_mapping = ParameterValueIndexMapping(3)
         object_mapping.child = index_mapping
         object_class_mapping.child = parameter_definition_mapping
         expected = [
@@ -372,8 +372,8 @@ class TestExportMapping(unittest.TestCase):
         parameter_definition_mapping.child = alternative_mapping
         object_mapping = ObjectMapping(1)
         alternative_mapping.child = object_mapping
-        index_mapping_1 = ParameterIndexMapping(3)
-        index_mapping_2 = ParameterIndexMapping(4)
+        index_mapping_1 = ParameterValueIndexMapping(3)
+        index_mapping_2 = ParameterValueIndexMapping(4)
         index_mapping_1.child = index_mapping_2
         object_mapping.child = index_mapping_1
         object_class_mapping.child = parameter_definition_mapping
@@ -407,8 +407,8 @@ class TestExportMapping(unittest.TestCase):
         parameter_definition_mapping.child = object_mapping
         alternative_mapping = AlternativeMapping(Position.hidden)
         object_mapping.child = alternative_mapping
-        index_mapping_1 = ParameterIndexMapping(Position.hidden)
-        index_mapping_2 = ParameterIndexMapping(Position.hidden)
+        index_mapping_1 = ParameterValueIndexMapping(Position.hidden)
+        index_mapping_2 = ParameterValueIndexMapping(Position.hidden)
         value_mapping = ExpandedParameterValueMapping(0)
         index_mapping_2.child = value_mapping
         index_mapping_1.child = index_mapping_2
@@ -437,8 +437,8 @@ class TestExportMapping(unittest.TestCase):
         parameter_definition_mapping.child = alternative_mapping
         object_mapping = ObjectMapping(-1)
         alternative_mapping.child = object_mapping
-        index_mapping_1 = ParameterIndexMapping(1)
-        index_mapping_2 = ParameterIndexMapping(2)
+        index_mapping_1 = ParameterValueIndexMapping(1)
+        index_mapping_2 = ParameterValueIndexMapping(2)
         value_mapping = ExpandedParameterValueMapping(-2)
         index_mapping_2.child = value_mapping
         index_mapping_1.child = index_mapping_2
@@ -873,7 +873,7 @@ class TestExportMapping(unittest.TestCase):
         parameter_definition_mapping.child = alternative_mapping
         object_mapping = ObjectMapping(1)
         alternative_mapping.child = object_mapping
-        index_mapping = ParameterIndexMapping(3)
+        index_mapping = ParameterValueIndexMapping(3)
         value_mapping = ExpandedParameterValueMapping(4)
         index_mapping.child = value_mapping
         index_mapping.replace_data(["c", "d"])
@@ -1110,7 +1110,7 @@ class TestExportMapping(unittest.TestCase):
             RelationshipObjectMapping(-1),
             AlternativeMapping(3),
             ParameterValueMapping(4),
-            ParameterIndexMapping(5),
+            ParameterValueIndexMapping(5),
             ExpandedParameterValueMapping(6),
         ]
         expected_positions = [m.position for m in mappings]

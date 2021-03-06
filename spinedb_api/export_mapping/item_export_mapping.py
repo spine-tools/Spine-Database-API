@@ -688,10 +688,9 @@ class ParameterDefinitionMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        qry = db_map.query(db_map.parameter_definition_sq).filter_by(entity_class_id=state[Key.CLASS_ROW_CACHE].id)
-        if Key.PARAMETER_DEFINITION_ID in fixed_state:
-            qry = qry.filter_by(id=fixed_state[Key.PARAMETER_DEFINITION_ID])
-        return qry
+        if Key.PARAMETER_DEFINITION_ROW_CACHE not in fixed_state:
+            return db_map.query(db_map.parameter_definition_sq).filter_by(entity_class_id=state[Key.CLASS_ROW_CACHE].id)
+        return [fixed_state[Key.PARAMETER_DEFINITION_ROW_CACHE]]
 
 
 class ParameterDefaultValueMapping(Mapping):
@@ -712,34 +711,6 @@ class ParameterDefaultValueMapping(Mapping):
         yield state[Key.PARAMETER_DEFINITION_ROW_CACHE]
 
 
-class ExpandedParameterDefaultValueMapping(Mapping):
-    """Maps indexed default values.
-
-    When a child of :class:`ParameterDefaultValueIndexMapping` maps individual values of indexed parameters.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
-    """
-
-    MAP_TYPE = "ExpandedDefaultValue"
-
-    def _update_state(self, state, db_row):
-        return
-
-    def _data(self, db_row):
-        return db_row.value
-
-    def _query(self, db_map, state, fixed_state):
-        cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
-        if cached_parameter is None or not cached_parameter.same(state):
-            definition_id = state[Key.PARAMETER_DEFINITION_ID]
-            value = from_database(state[Key.PARAMETER_DEFINITION_ROW_CACHE].default_value)
-            expanded_value = _expand_value(value)
-            for index, x in expanded_value.items():
-                yield ExpandedParameter(index, x, definition_id)
-        else:
-            yield cached_parameter
-
-
 class ParameterDefaultValueIndexMapping(Mapping):
     """Maps default value indexes.
 
@@ -757,23 +728,34 @@ class ParameterDefaultValueIndexMapping(Mapping):
     def _query(self, db_map, state, fixed_state):
         cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
-            definition_id = state[Key.PARAMETER_DEFINITION_ID]
-            value = from_database(state[Key.PARAMETER_DEFINITION_ROW_CACHE].default_value)
-            expanded_value = _expand_value(value)
-            for index, x in expanded_value.items():
-                yield ExpandedParameter(index, x, definition_id)
+            yield from _expand_default_value_from_state(state)
         else:
-            if isinstance(cached_parameter.value, dict):
-                for index, x in cached_parameter.value.items():
-                    db_row = copy(cached_parameter)
-                    db_row.index = index
-                    db_row.value = x
-                    yield db_row
-            else:
-                db_row = copy(cached_parameter)
-                db_row.index = None
-                db_row.value = cached_parameter.value
-                yield db_row
+            yield from _expand_values_from_parameter(cached_parameter)
+
+
+class ExpandedParameterDefaultValueMapping(Mapping):
+    """Maps indexed default values.
+
+    Whenever this mapping is a child of :class:`ParameterDefaultValueIndexMapping`, it maps individual values of
+    indexed parameters.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
+    """
+
+    MAP_TYPE = "ExpandedDefaultValue"
+
+    def _update_state(self, state, db_row):
+        return
+
+    def _data(self, db_row):
+        return db_row.value
+
+    def _query(self, db_map, state, fixed_state):
+        cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
+        if cached_parameter is None or not cached_parameter.same(state):
+            yield from _expand_default_value_from_state(state)
+        else:
+            yield cached_parameter
 
 
 class ParameterValueMapping(Mapping):
@@ -808,10 +790,34 @@ class ParameterValueMapping(Mapping):
         )
 
 
+class ParameterValueIndexMapping(Mapping):
+    """Maps parameter value indexes.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
+    an :class:`AlternativeMapping` as parents.
+    """
+
+    MAP_TYPE = "ParameterValueIndex"
+
+    def _update_state(self, state, db_row):
+        state[Key.EXPANDED_PARAMETER_CACHE] = db_row
+
+    def _data(self, db_row):
+        return db_row.index
+
+    def _query(self, db_map, state, fixed_state):
+        cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
+        if cached_parameter is None or not cached_parameter.same(state):
+            yield from _expanded_parameter_value_from_state(db_map, state)
+        else:
+            yield from _expand_values_from_parameter(cached_parameter)
+
+
 class ExpandedParameterValueMapping(Mapping):
     """Maps parameter values.
 
-    When a child of :class:`ParameterIndexMapping`, maps individual values of indexed parameters.
+    Whenever this mapping is a child of :class:`ParameterValueIndexMapping`, it maps individual values of indexed
+    parameters.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
     an :class:`AlternativeMapping` as parents.
@@ -828,52 +834,9 @@ class ExpandedParameterValueMapping(Mapping):
     def _query(self, db_map, state, fixed_state):
         cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
-            definition_id = state[Key.PARAMETER_DEFINITION_ID]
-            entity_id = state[Key.ENTITY_ROW_CACHE].id
-            alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
-            for expanded_value in _load_and_expand(db_map, definition_id, entity_id, alternative_id):
-                for index, x in expanded_value.items():
-                    yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
+            yield from _expanded_parameter_value_from_state(db_map, state)
         else:
             yield cached_parameter
-
-
-class ParameterIndexMapping(Mapping):
-    """Maps indexed parameter indexes.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
-    an :class:`AlternativeMapping` as parents.
-    """
-
-    MAP_TYPE = "ParameterIndex"
-
-    def _update_state(self, state, db_row):
-        state[Key.EXPANDED_PARAMETER_CACHE] = db_row
-
-    def _data(self, db_row):
-        return db_row.index
-
-    def _query(self, db_map, state, fixed_state):
-        cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
-        if cached_parameter is None or not cached_parameter.same(state):
-            definition_id = state[Key.PARAMETER_DEFINITION_ID]
-            entity_id = state[Key.ENTITY_ROW_CACHE].id
-            alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
-            for expanded_value in _load_and_expand(db_map, definition_id, entity_id, alternative_id):
-                for index, x in expanded_value.items():
-                    yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
-        else:
-            if isinstance(cached_parameter.value, dict):
-                for index, x in cached_parameter.value.items():
-                    db_row = copy(cached_parameter)
-                    db_row.index = index
-                    db_row.value = x
-                    yield db_row
-            else:
-                db_row = copy(cached_parameter)
-                db_row.index = None
-                db_row.value = cached_parameter.value
-                yield db_row
 
 
 class ParameterValueListMapping(Mapping):
@@ -1277,6 +1240,55 @@ class ExpandedParameter:
         )
 
 
+def _expand_default_value_from_state(state):
+    """
+    Expands the default value from the given state into ExpandedParameter instances.
+
+    Args:
+        state (dict): a state with parameter definition data
+
+    Yields:
+        ExpandedParameter
+    """
+    definition_id = state[Key.PARAMETER_DEFINITION_ID]
+    default_value = from_database(state[Key.PARAMETER_DEFINITION_ROW_CACHE].default_value)
+    expanded_value = _expand_value(default_value)
+    for index, x in expanded_value.items():
+        yield ExpandedParameter(index, x, definition_id)
+
+
+def _expanded_parameter_value_from_state(db_map, state):
+    """
+    Expands the value from the given state into ExpandedParameter instances.
+
+    Args:
+        state (dict): a state with parameter value data
+
+    Yields:
+        ExpandedParameter
+    """
+    definition_id = state[Key.PARAMETER_DEFINITION_ID]
+    entity_id = state[Key.ENTITY_ROW_CACHE].id
+    alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
+    for expanded_value in _load_and_expand(db_map, definition_id, entity_id, alternative_id):
+        for index, x in expanded_value.items():
+            yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
+
+
+def _expand_values_from_parameter(cached_parameter):
+    if isinstance(cached_parameter.value, dict):
+        for index, x in cached_parameter.value.items():
+            db_row = copy(cached_parameter)
+            db_row.index = index
+            db_row.value = x
+            yield db_row
+    else:
+        db_row = copy(cached_parameter)
+        db_row.index = None
+        db_row.value = cached_parameter.value
+        yield db_row
+
+
 def _load_and_expand(db_map, definition_id, entity_id, alternative_id):
     """
     Loads and parses parameter values from database and expands them into a dict.
@@ -1357,7 +1369,7 @@ def from_dict(serialized):
             ObjectGroupMapping,
             ObjectMapping,
             ParameterDefinitionMapping,
-            ParameterIndexMapping,
+            ParameterValueIndexMapping,
             ParameterValueListMapping,
             ParameterValueListValueMapping,
             ParameterValueMapping,

@@ -27,7 +27,7 @@ from .item_export_mapping import (
     ParameterDefaultValueMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefinitionMapping,
-    ParameterIndexMapping,
+    ParameterValueIndexMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
@@ -346,7 +346,7 @@ def set_parameter_dimensions(mapping, dimensions):
         dimensions (int): number of dimensions
     """
     _change_amount_of_dimensions(
-        mapping, dimensions, ParameterValueMapping, ExpandedParameterValueMapping, ParameterIndexMapping
+        mapping, dimensions, ParameterValueMapping, ExpandedParameterValueMapping, ParameterValueIndexMapping
     )
 
 
@@ -491,7 +491,7 @@ def _generate_parameter_value_mappings(mapping, alternative_position, value_posi
         value = ParameterValueMapping(value_position)
         alternative.child = value
     else:
-        last_index = _generate_dimensions(alternative, ParameterIndexMapping, index_positions)
+        last_index = _generate_dimensions(alternative, ParameterValueIndexMapping, index_positions)
         last_index.child = ExpandedParameterValueMapping(value_position)
     mapping.child = alternative
 
