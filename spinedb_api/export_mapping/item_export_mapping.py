@@ -72,7 +72,8 @@ class Key(Enum):
     PARAMETER_DEFINITION_ROW_CACHE = auto()
     PARAMETER_ROW_CACHE = auto()
     PARAMETER_VALUE_LIST_ROW_CACHE = auto()
-    PARAMETER_VALUE_ID = auto()
+    PARAMETER_VALUE_ROW_CACHE = auto()
+    PARAMETER_VALUE_LOOKUP_CACHE = auto()
     EXPANDED_PARAMETER_CACHE = auto()
     SCENARIO_ID = auto()
     SCENARIO_ROW_CACHE = auto()
@@ -705,7 +706,8 @@ class ParameterDefaultValueMapping(Mapping):
         return
 
     def _data(self, db_row):
-        return from_database(db_row.default_value)
+        default_value = from_database(db_row.default_value)
+        return default_value if not isinstance(default_value, IndexedValue) else type(default_value).__name__
 
     def _query(self, db_map, state, fixed_state):
         yield state[Key.PARAMETER_DEFINITION_ROW_CACHE]
@@ -768,26 +770,24 @@ class ParameterValueMapping(Mapping):
     MAP_TYPE = "ParameterValue"
 
     def _update_state(self, state, db_row):
-        state[Key.PARAMETER_VALUE_ID] = db_row.id
+        state[Key.PARAMETER_VALUE_ROW_CACHE] = db_row
 
     def _data(self, db_row):
         value = from_database(db_row.value)
         return value if not isinstance(value, IndexedValue) else type(value).__name__
 
     def _query(self, db_map, state, fixed_state):
+        if Key.PARAMETER_VALUE_ROW_CACHE in fixed_state:
+            return [fixed_state[Key.PARAMETER_VALUE_ROW_CACHE]]
+        if Key.PARAMETER_VALUE_LOOKUP_CACHE not in state:
+            state[Key.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
         definition_id = state[Key.PARAMETER_DEFINITION_ID]
         entity_id = state[Key.ENTITY_ROW_CACHE].id
         alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
-        if Key.PARAMETER_VALUE_ID not in fixed_state:
-            return db_map.query(db_map.parameter_value_sq).filter_by(
-                parameter_definition_id=definition_id, entity_id=entity_id, alternative_id=alternative_id
-            )
-        return db_map.query(db_map.parameter_value_sq).filter_by(
-            parameter_definition_id=definition_id,
-            entity_id=entity_id,
-            alternative_id=alternative_id,
-            id=state[Key.PARAMETER_VALUE_ID],
-        )
+        value_row = state[Key.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
+        if value_row is None:
+            return []
+        return [value_row]
 
 
 class ParameterValueIndexMapping(Mapping):
@@ -808,7 +808,9 @@ class ParameterValueIndexMapping(Mapping):
     def _query(self, db_map, state, fixed_state):
         cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
-            yield from _expanded_parameter_value_from_state(db_map, state)
+            if Key.PARAMETER_VALUE_LOOKUP_CACHE not in state:
+                state[Key.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
+            yield from _expand_parameter_value_from_state(state)
         else:
             yield from _expand_values_from_parameter(cached_parameter)
 
@@ -834,7 +836,9 @@ class ExpandedParameterValueMapping(Mapping):
     def _query(self, db_map, state, fixed_state):
         cached_parameter = state.get(Key.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
-            yield from _expanded_parameter_value_from_state(db_map, state)
+            if Key.PARAMETER_VALUE_LOOKUP_CACHE not in state:
+                state[Key.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
+            yield from _expand_parameter_value_from_state(state)
         else:
             yield cached_parameter
 
@@ -1240,6 +1244,23 @@ class ExpandedParameter:
         )
 
 
+def _make_parameter_value_lookup(db_map):
+    """
+    Returns a dictionary mapping triplets (parameter_definition_id, entity_id, alternative_id)
+    to the corresponding parameter value row from the given db.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+
+    Returns:
+        dict
+    """
+    return {
+        (db_row.parameter_definition_id, db_row.entity_id, db_row.alternative_id): db_row
+        for db_row in db_map.query(db_map.parameter_value_sq)
+    }
+
+
 def _expand_default_value_from_state(state):
     """
     Expands the default value from the given state into ExpandedParameter instances.
@@ -1257,7 +1278,7 @@ def _expand_default_value_from_state(state):
         yield ExpandedParameter(index, x, definition_id)
 
 
-def _expanded_parameter_value_from_state(db_map, state):
+def _expand_parameter_value_from_state(state):
     """
     Expands the value from the given state into ExpandedParameter instances.
 
@@ -1270,7 +1291,7 @@ def _expanded_parameter_value_from_state(db_map, state):
     definition_id = state[Key.PARAMETER_DEFINITION_ID]
     entity_id = state[Key.ENTITY_ROW_CACHE].id
     alternative_id = state[Key.ALTERNATIVE_ROW_CACHE].id
-    for expanded_value in _load_and_expand(db_map, definition_id, entity_id, alternative_id):
+    for expanded_value in _load_and_expand(state, definition_id, entity_id, alternative_id):
         for index, x in expanded_value.items():
             yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
 
@@ -1289,12 +1310,13 @@ def _expand_values_from_parameter(cached_parameter):
         yield db_row
 
 
-def _load_and_expand(db_map, definition_id, entity_id, alternative_id):
+def _load_and_expand(state, definition_id, entity_id, alternative_id):
     """
     Loads and parses parameter values from database and expands them into a dict.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        state (dict): a state with parameter value data, notably ``Key.PARAMETER_VALUE_LOOKUP_CACHE``
+            holding the output of ``_make_parameter_value_lookup``
         definition_id (int): parameter definition id
         entity_id (int): entity id
         alternative_id (int): alternative id
@@ -1302,10 +1324,10 @@ def _load_and_expand(db_map, definition_id, entity_id, alternative_id):
     Yields:
         dict: a (nested) dictionary mapping parameter index (or None in case of scalar) to value
     """
-    for value_row in db_map.query(db_map.parameter_value_sq).filter_by(
-        parameter_definition_id=definition_id, entity_id=entity_id, alternative_id=alternative_id
-    ):
-        yield _expand_value(from_database(value_row.value))
+    value_row = state[Key.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
+    if value_row is None:
+        return []
+    yield _expand_value(from_database(value_row.value))
 
 
 def _expand_value(value):
