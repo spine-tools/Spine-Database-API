@@ -1112,7 +1112,7 @@ def convert_leaf_maps_to_specialized_containers(map_):
     if converted_container is not None:
         return converted_container
     new_values = list()
-    for index, value in zip(map_.indexes, map_.values):
+    for _, value in zip(map_.indexes, map_.values):
         if isinstance(value, Map):
             converted = convert_leaf_maps_to_specialized_containers(value)
             new_values.append(converted)
@@ -1137,18 +1137,17 @@ def convert_containers_to_maps(value):
         if not value:
             return value
         new_values = list()
-        for index, x in zip(value.indexes, value.values):
+        for _, x in zip(value.indexes, value.values):
             if isinstance(x, IndexedValue):
                 new_values.append(convert_containers_to_maps(x))
             else:
                 new_values.append(x)
         return Map(list(value.indexes), new_values)
-    elif isinstance(value, IndexedValue):
+    if isinstance(value, IndexedValue):
         if not value:
             if isinstance(value, TimeSeries):
                 return Map([], [], DateTime)
-            else:
-                return Map([], [], str)
+            return Map([], [], str)
         return Map(list(value.indexes), list(value.values))
     return value
 

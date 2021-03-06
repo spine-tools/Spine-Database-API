@@ -535,7 +535,6 @@ class ObjectClassMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        # FIXME: Do we need to filter here?
         if Key.CLASS_ID not in fixed_state:
             return db_map.query(db_map.object_class_sq)
         return db_map.query(db_map.object_class_sq).filter_by(id=fixed_state[Key.CLASS_ID])
@@ -598,7 +597,6 @@ class RelationshipClassMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        # FIXME: Do we need to filter here?
         if Key.CLASS_ID not in fixed_state:
             return db_map.query(db_map.wide_relationship_class_sq)
         return db_map.query(db_map.wide_relationship_class_sq).filter_by(id=fixed_state[Key.CLASS_ID])
@@ -689,13 +687,10 @@ class ParameterDefinitionMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.PARAMETER_DEFINITION_ID not in fixed_state:
-            return db_map.query(db_map.parameter_definition_sq).filter_by(entity_class_id=state[Key.CLASS_ID])
-        return (
-            db_map.query(db_map.parameter_definition_sq)
-            .filter_by(entity_class_id=state[Key.CLASS_ID])
-            .filter_by(id=fixed_state[Key.PARAMETER_DEFINITION_ID])
-        )
+        qry = db_map.query(db_map.parameter_definition_sq).filter_by(entity_class_id=state[Key.CLASS_ID])
+        if Key.PARAMETER_DEFINITION_ID in fixed_state:
+            qry = qry.filter_by(id=fixed_state[Key.PARAMETER_DEFINITION_ID])
+        return qry
 
 
 class ParameterDefaultValueMapping(Mapping):
@@ -896,13 +891,12 @@ class ParameterValueListMapping(Mapping):
         return db_row.name
 
     def _query(self, db_map, state, fixed_state):
-        if Key.PARAMETER_VALUE_LIST_ROW_CACHE not in fixed_state:
-            if Key.PARAMETER_DEFINITION_ROW_CACHE in state:
-                return db_map.query(db_map.wide_parameter_value_list_sq).filter_by(
-                    id=state[Key.PARAMETER_DEFINITION_ROW_CACHE].parameter_value_list_id
-                )
-            return db_map.query(db_map.wide_parameter_value_list_sq)
-        return [fixed_state[Key.PARAMETER_VALUE_LIST_ROW_CACHE]]
+        if Key.PARAMETER_VALUE_LIST_ROW_CACHE in fixed_state:
+            return [fixed_state[Key.PARAMETER_VALUE_LIST_ROW_CACHE]]
+        qry = db_map.query(db_map.wide_parameter_value_list_sq)
+        if Key.PARAMETER_DEFINITION_ROW_CACHE in state:
+            qry = qry.filter_by(id=state[Key.PARAMETER_DEFINITION_ROW_CACHE].parameter_value_list_id)
+        return qry
 
 
 class ParameterValueListValueMapping(Mapping):
@@ -957,8 +951,8 @@ class ScenarioMapping(Mapping):
         state[Key.SCENARIO_ID] = db_row.id
         # Parse alternative_name_list here once, rather than potentially twice in
         # ScenarioAlternativeMapping and ScenarioBeforeAlternativeMapping
-        name_list = db_row.alternative_name_list
-        if name_list is not None:
+        alternative_name_list = db_row.alternative_name_list
+        if alternative_name_list is not None:
             d = db_row._asdict()
             d["alternative_name_list"] = d["alternative_name_list"].split(",")
             db_row = KeyedTuple(d.values(), d.keys())
