@@ -459,6 +459,8 @@ class Mapping:
         mapping_dict = {"map_type": self.MAP_TYPE, "position": position}
         if self._ignorable:
             mapping_dict["ignorable"] = True
+        if self.header:
+            mapping_dict["header"] = self.header
         return mapping_dict
 
     @classmethod
@@ -474,7 +476,8 @@ class Mapping:
         Returns:
             Mapping: reconstructed mapping
         """
-        mapping = cls(position)
+        header = mapping_dict.get("header", "")
+        mapping = cls(position, header=header)
         if ignorable:
             mapping.set_ignorable()
         return mapping
