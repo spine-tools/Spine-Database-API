@@ -46,6 +46,7 @@ class GdxWriter(Writer):
     def start_table(self, table_name):
         self._current_table_name = table_name
         self._current_table = list()
+        return True
 
     def write_row(self, row):
         self._current_table.append(row)

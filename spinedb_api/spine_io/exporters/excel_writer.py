@@ -65,6 +65,7 @@ class ExcelWriter(Writer):
         """See base class."""
         self._current_sheet = self._workbook.create_sheet(table_name)
         self._removable_sheet_names.discard(self._current_sheet.title)
+        return True
 
     def write_row(self, row):
         """See base class."""

@@ -59,6 +59,7 @@ class CsvWriter(Writer):
         self._file_name = os.path.join(self._path, table_name)
         self._file = open(self._file_name, "w", newline="")
         self._out = csv.writer(self._file)
+        return True
 
     def write_row(self, row):
         """See base class."""

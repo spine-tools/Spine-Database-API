@@ -29,9 +29,11 @@ def write(db_map, writer, root_mapping):
     """
     with _new_write(writer):
         for title, title_key in titles(root_mapping, db_map):
-            with _new_table(title, writer) as table:
+            with _new_table(title, writer) as table_started:
+                if not table_started:
+                    break
                 for row in rows(root_mapping, db_map, title_key):
-                    write_more = table.write_row(row)
+                    write_more = writer.write_row(row)
                     if not write_more:
                         break
 
@@ -52,7 +54,11 @@ class Writer:
 
         Args:
             table_name (str): table's name
+
+        Returns:
+            bool: True if the table was successfully started, False otherwise
         """
+        raise NotImplementedError()
 
     def write_row(self, row):
         """
@@ -80,11 +86,11 @@ def _new_write(writer):
         writer (Writer): a writer
 
     Yields:
-        Writer: writer ready for action
+        NoneType
     """
     try:
         writer.start()
-        yield writer
+        yield None
     finally:
         writer.finish()
 
@@ -99,10 +105,10 @@ def _new_table(table_name, writer):
         writer (Writer): a writer
 
     Yields:
-        Writer: writer ready to write a new table
+        bool: whether or not the new table was successfully started
     """
     try:
-        writer.start_table(table_name)
-        yield writer
+        table_started = writer.start_table(table_name)
+        yield table_started
     finally:
         writer.finish_table()
