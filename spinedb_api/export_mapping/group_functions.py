@@ -19,6 +19,7 @@ import numpy as np
 
 class GroupFunction:
     NAME = NotImplemented
+    DISPLAY_NAME = NotImplemented
 
     def __call__(self, items):
         raise NotImplementedError
@@ -29,6 +30,7 @@ class GroupFunction:
 
 class GroupSum(GroupFunction):
     NAME = "sum"
+    DISPLAY_NAME = "sum"
 
     def __call__(self, items):
         if not items:
@@ -37,7 +39,8 @@ class GroupSum(GroupFunction):
 
 
 class GroupConcat(GroupFunction):
-    NAME = "concatenate"
+    NAME = "concat"
+    DISPLAY_NAME = "concatenate"
 
     def __call__(self, items):
         if not items:
@@ -47,6 +50,7 @@ class GroupConcat(GroupFunction):
 
 class GroupOneOrNone(GroupFunction):
     NAME = "one_or_none"
+    DISPLAY_NAME = "one or none"
 
     def __call__(self, items):
         if not items or len(items) != 1:
@@ -55,12 +59,26 @@ class GroupOneOrNone(GroupFunction):
 
 
 class NoGroup(GroupFunction):
-    NAME = ""
+    NAME = "no_group"
+    DISPLAY_NAME = "do not group"
 
     def __call__(self, items):
         if items is None:
             return None
         return items[0]
+
+
+_classes = (NoGroup, GroupSum, GroupConcat, GroupOneOrNone)
+
+GROUP_FUNCTION_DISPLAY_NAMES = [klass.DISPLAY_NAME for klass in _classes]
+
+
+def group_function_name_from_display(display_name):
+    return {klass.DISPLAY_NAME: klass.NAME for klass in _classes}.get(display_name, NoGroup.NAME)
+
+
+def group_function_display_from_name(name):
+    return {klass.NAME: klass.DISPLAY_NAME for klass in _classes}.get(name, NoGroup.DISPLAY_NAME)
 
 
 def from_str(name):
@@ -73,5 +91,5 @@ def from_str(name):
     Returns:
         GroupFunction or NoneType
     """
-    constructor = {klass.NAME: klass for klass in (GroupSum, GroupConcat, GroupOneOrNone)}.get(name, NoGroup)
+    constructor = {klass.NAME: klass for klass in _classes}.get(name, NoGroup)
     return constructor()

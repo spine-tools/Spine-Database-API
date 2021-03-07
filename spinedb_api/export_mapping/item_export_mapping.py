@@ -21,6 +21,7 @@ from itertools import cycle
 from types import MethodType
 import re
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
+from .group_functions import NoGroup
 
 
 @unique
@@ -495,7 +496,7 @@ class Mapping:
             mapping_dict["header"] = self.header
         if self.filter_re:
             mapping_dict["filter_re"] = self.filter_re
-        if self.group_fn:
+        if self.group_fn and self.group_fn != NoGroup.NAME:
             mapping_dict["group_fn"] = self.group_fn
         return mapping_dict
 
@@ -532,13 +533,13 @@ class FixedValueMapping(Mapping):
 
     MAP_TYPE = "FixedValue"
 
-    def __init__(self, position, value):
+    def __init__(self, position, value, group_fn=None):
         """
         Args:
             position (int or Position, optional): mapping's position
             value (Any): value to yield
         """
-        super().__init__(position)
+        super().__init__(position, group_fn=group_fn)
         self.value = value
 
     def _update_state(self, state, db_row):
@@ -553,11 +554,14 @@ class FixedValueMapping(Mapping):
     def to_dict(self):
         serialized = super().to_dict()
         serialized["value"] = self.value
+        if self.group_fn and self.group_fn != NoGroup.NAME:
+            serialized["group_fn"] = self.group_fn
         return serialized
 
     @classmethod
     def reconstruct(cls, position, ignorable, mapping_dict):
-        mapping = cls(position, mapping_dict["value"])
+        group_fn = mapping_dict.get("group_fn")
+        mapping = cls(position, mapping_dict["value"], group_fn=group_fn)
         if ignorable:
             mapping.set_ignorable()
         return mapping
