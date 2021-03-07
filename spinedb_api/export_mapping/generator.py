@@ -63,7 +63,9 @@ def rows(root_mapping, db_map, fixed_key=None):
     if root_mapping.is_pivoted():
         root_mapping, value_column, regular_columns, hidden_columns, pivot_columns = make_regular(root_mapping)
         regularized = list(row_iterator())
-        for row in make_pivot(regularized, value_column, regular_columns, hidden_columns, pivot_columns):
+        for row in make_pivot(
+            regularized, value_column, regular_columns, hidden_columns, pivot_columns, root_mapping.group_fn
+        ):
             yield row
     else:
         row_iter = row_iterator()

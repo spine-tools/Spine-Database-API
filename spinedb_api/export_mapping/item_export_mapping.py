@@ -123,16 +123,20 @@ class Mapping:
     MAP_TYPE = None
     """Mapping type identifier for serialization."""
 
-    def __init__(self, position, header="", filter_re=""):
+    def __init__(self, position, header="", filter_re="", group_fn=None):
         """
         Args:
             position (int or Position): column index or Position
             header (str, optional); A string column header that's yielt as 'first row', if not empty.
                 The default is an empty string (so it's not yielt).
             filter_re (str, optional): A regular expression to filter the mapped values by
+            group_fn (str, Optional): Only for topmost mappings. The name of one of our supported group functions,
+                for aggregating values over repeated 'headers' (in tables with hidden elements).
+                If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
         self._child = None
         self._filter_re = ""
+        self._group_fn = None
         self._ignorable = False
         self._original_update_state = None
         self._original_data = None
@@ -142,6 +146,7 @@ class Mapping:
         self.position = position
         self.header = header
         self.filter_re = filter_re
+        self.group_fn = group_fn
 
     @property
     def child(self):
@@ -490,6 +495,8 @@ class Mapping:
             mapping_dict["header"] = self.header
         if self.filter_re:
             mapping_dict["filter_re"] = self.filter_re
+        if self.group_fn:
+            mapping_dict["group_fn"] = self.group_fn
         return mapping_dict
 
     @classmethod
@@ -507,7 +514,8 @@ class Mapping:
         """
         header = mapping_dict.get("header", "")
         filter_re = mapping_dict.get("filter_re", "")
-        mapping = cls(position, header=header, filter_re=filter_re)
+        group_fn = mapping_dict.get("group_fn")
+        mapping = cls(position, header=header, filter_re=filter_re, group_fn=group_fn)
         if ignorable:
             mapping.set_ignorable()
         return mapping

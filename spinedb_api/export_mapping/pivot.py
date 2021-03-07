@@ -16,9 +16,10 @@ Contains functions and methods to turn a regular export table into a pivot table
 """
 from copy import deepcopy
 from .item_export_mapping import is_regular, is_pivoted, Position, unflatten
+from .group_functions import from_str as group_function_from_str, NoGroup
 
 
-def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_columns):
+def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_columns, group_fn=None):
     """Turns a regular table into a pivot table.
 
     Args:
@@ -51,7 +52,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             return leaf(v, keys[1:])
         return v
 
-    def make_regular_rows():
+    def regular_rows():
         """Creates pivot table's 'left' side rows and non pivoted keys.
 
         Returns:
@@ -59,11 +60,9 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         """
         regular_rows = dict()
         for row in table:
-            hidden_key = tuple(row[c] for c in hidden_columns)
-            regular_key = tuple(row[c] for c in regular_columns)
+            regular_key = tuple(row[c] for c in key_columns)
             regular_row = [row[i] for i in range(regular_column_width)]
-            key = regular_key + hidden_key
-            regular_rows[key] = regular_row
+            regular_rows[regular_key] = regular_row
         return regular_rows
 
     def value_tree():
@@ -75,9 +74,9 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         tree = dict()
         for row in table:
             branch = tree
-            for c in non_pivot_columns + pivot_columns[:-1]:
+            for c in key_columns + pivot_columns[:-1]:
                 branch = branch.setdefault(row[c], dict())
-            branch[row[pivot_columns[-1]]] = row[value_column]
+            branch.setdefault(row[pivot_columns[-1]], list()).append(row[value_column])
         return tree
 
     def half_pivot():
@@ -112,10 +111,13 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         return []
     pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table})
     pivot_header = tuple(header[i] for i in pivot_columns)
-    regular_column_width = max(regular_columns) + 1 if regular_columns else 0
-    regular_header = [header[i] for i in range(regular_column_width)]
-    non_pivot_columns = regular_columns + hidden_columns
-    if non_pivot_columns:
+    if regular_columns or hidden_columns:
+        regular_column_width = max(regular_columns) + 1 if regular_columns else 0
+        regular_header = [header[i] for i in range(regular_column_width)]
+        key_columns = regular_columns
+        group_fn = group_function_from_str(group_fn)
+        if isinstance(group_fn, NoGroup):
+            key_columns += hidden_columns
         # Yield pivot rows (all but last)
         for i in range(len(pivot_columns) - 1):
             row = regular_column_width * [None]
@@ -132,12 +134,12 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         last_pivot_row += list(k[i] for k in pivot_keys)
         yield last_pivot_row
         # Yield regular rows
-        regular_rows = make_regular_rows()
+        regular_rows = regular_rows()
         values = value_tree()
         for row_key in sorted(regular_rows.keys()):
             pivot_branch = leaf(values, row_key)
             row = regular_rows[row_key]
-            row += [leaf(pivot_branch, column_key) for column_key in pivot_keys]
+            row += [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
             yield row
     else:
         for row in half_pivot():
