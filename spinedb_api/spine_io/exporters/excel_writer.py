@@ -41,12 +41,16 @@ class ExcelWriter(Writer):
         for name in self._removable_sheet_names:
             self._workbook.remove(self._workbook[name])
         self._removable_sheet_names.clear()
+        if not self._workbook.worksheets:
+            self._workbook.create_sheet("Sheet1")
         self._workbook.save(self._file_path)
         self._workbook.close()
         self._workbook = None
 
     def finish_table(self):
         """See base class."""
+        if self._current_sheet.calculate_dimension() == "A1:A1":
+            self._removable_sheet_names.add(self._current_sheet.title)
         self._current_sheet = None
 
     def start(self):
