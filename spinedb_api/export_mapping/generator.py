@@ -70,9 +70,12 @@ def rows(root_mapping, db_map, fixed_key=None):
     else:
         row_iter = row_iterator()
         header = next(row_iter, [])
-        if any(header):
-            yield header
-        yield from row_iter
+        first_row = next(row_iter, None)
+        if first_row:
+            if any(header):
+                yield header
+            yield first_row
+            yield from row_iter
 
 
 def titles(root_mapping, db_map):
