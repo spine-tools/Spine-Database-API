@@ -109,6 +109,19 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
                     row.append(None)
             yield row
 
+    def put_pivot_header(row, header):
+        """Puts the given header into the given row.
+
+        Args:
+            row (list)
+            header (str or None)
+        """
+        if row:
+            if not row[-1]:
+                row[-1] = header
+        else:
+            row.append(header)
+
     header = table.pop(0)
     if not table:
         return []
@@ -127,22 +140,23 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         for i in range(len(pivot_columns) - 1):
             row = regular_column_width * [None]
             if any(pivot_header):
-                row[-1] = pivot_header[i]
+                put_pivot_header(row, pivot_header[i])
             row += list(k[i] for k in pivot_keys)
             yield row
         # Yield last pivot row. This one has the regular header (if any) at the begining
-        if any(regular_header):
-            last_pivot_row = regular_header
-        else:
-            last_pivot_row = regular_column_width * [None]
-        # Note that the last regular header and the last pivot header would end up in the same cell.
-        # This is an arbitrary decision so the tables are more compact; otherwise we'd have an empty row or column
-        # at the last header position.
-        # To solve the conflict, we take the regular header if not None or empty, and the pivot header otherwise.
-        if not last_pivot_row[-1] and pivot_header[-1]:
-            last_pivot_row[-1] = pivot_header[-1]
-        last_pivot_row += list(k[-1] for k in pivot_keys)
-        yield last_pivot_row
+        if pivot_columns:
+            if any(regular_header):
+                last_pivot_row = regular_header
+            else:
+                last_pivot_row = regular_column_width * [None]
+            # Note that the last regular header and the last pivot header would end up in the same cell.
+            # This is an arbitrary decision so the tables are more compact; otherwise we'd have an empty row or column
+            # at the last header position.
+            # To solve the conflict, we take the regular header if not None or empty, and the pivot header otherwise.
+            if pivot_header[-1]:
+                put_pivot_header(last_pivot_row, pivot_header[-1])
+            last_pivot_row += list(k[-1] for k in pivot_keys)
+            yield last_pivot_row
         # Yield regular rows
         regular_rows = regular_rows()
         values = value_tree()
