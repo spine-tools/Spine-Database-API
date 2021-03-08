@@ -18,7 +18,6 @@ Contains export mappings for database items such as entities, entity classes and
 from copy import copy
 from enum import auto, Enum, unique
 from itertools import cycle
-from types import MethodType
 import re
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from .group_functions import NoGroup
@@ -139,9 +138,6 @@ class Mapping:
         self._filter_re = ""
         self._group_fn = None
         self._ignorable = False
-        self._original_update_state = None
-        self._original_data = None
-        self._original_query = None
         self._unfiltered_query = self._query
         self.parent = None
         self.position = position
@@ -166,45 +162,26 @@ class Mapping:
     @filter_re.setter
     def filter_re(self, filter_re):
         self._filter_re = filter_re
-        self._filter_query()
+        self._set_query_filtered()
 
-    def _filter_query(self):
+    def _set_query_filtered(self):
         """
         Overrides ``self._query()`` so the output is filtered according to ``self.filter_re``
         """
         if not self._filter_re:
             self._query = self._unfiltered_query
             return
+        self._query = self._filtered_query
 
-        def _filtered_query(obj, *args, **kwargs):
-            for db_row in obj._unfiltered_query(*args, **kwargs):
-                if re.search(obj._filter_re, obj._data(db_row)):
-                    yield db_row
-
-        self._query = MethodType(_filtered_query, self)
+    def _filtered_query(self, *args, **kwargs):
+        for db_row in self._unfiltered_query(*args, **kwargs):
+            if re.search(self._filter_re, self._data(db_row)):
+                yield db_row
 
     def __eq__(self, other):
         if not isinstance(other, Mapping):
             return NotImplemented
         return self.MAP_TYPE == other.MAP_TYPE and self.position == other.position and self.child == other.child
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        if self._ignorable:
-            # Delete unpicklable entries.
-            del state["_update_state"]
-            del state["_data"]
-            del state["_query"]
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        if self._ignorable:
-            # Restore unpicklable entries.
-            self._update_state = self._original_update_state
-            self._data = self._original_data
-            self._query = self._original_query
-            self.set_ignorable()
 
     def can_drop(self):
         """
@@ -419,6 +396,24 @@ class Mapping:
             header.update(child_header)
         return header
 
+    def _ignorable_update_state(self, state, db_row):
+        if db_row is _ignored:
+            return
+        self._update_state(state, db_row)
+
+    def _ignorable_data(self, db_row):
+        if db_row is _ignored:
+            return None
+        return self._data(db_row)
+
+    def _ignorable_query(self, db_map, state, fixed_state):
+        yielded = False
+        for db_row in self._query(db_map, state, fixed_state):
+            yielded = True
+            yield db_row
+        if not yielded:
+            yield _ignored
+
     def set_ignorable(self):
         """
         Sets mapping as ignorable.
@@ -427,31 +422,9 @@ class Mapping:
         This allows 'incomplete' rows if child mappings do not depend on the ignored mapping.
         """
         self._ignorable = True
-        self._original_update_state = self._update_state
-        self._original_data = self._data
-        self._original_query = self._query
-
-        def _update_state(_, state, db_row):
-            if db_row is _ignored:
-                return
-            self._original_update_state(state, db_row)
-
-        def _data(_, db_row):
-            if db_row is _ignored:
-                return None
-            return self._original_data(db_row)
-
-        def _query(_, db_map, state, fixed_state):
-            yielded = False
-            for db_row in self._original_query(db_map, state, fixed_state):
-                yielded = True
-                yield db_row
-            if not yielded:
-                yield _ignored
-
-        self._update_state = MethodType(_update_state, self)
-        self._data = MethodType(_data, self)
-        self._query = MethodType(_query, self)
+        self._data = self._ignorable_data
+        self._query = self._ignorable_query
+        self._update_state = self._ignorable_update_state
 
     def title(self, db_map, state, fixed_state=None):
         """

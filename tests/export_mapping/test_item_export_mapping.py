@@ -1135,17 +1135,6 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual([type(m) for m in deserialized.flatten()], expected_types)
         self.assertEqual([m.position for m in deserialized.flatten()], expected_positions)
 
-    def test_pickle_ignorable_mapping(self):
-        mapping = unflatten([ObjectClassMapping(0), ObjectMapping(1)])
-        mapping.child.set_ignorable()
-        data = pickle.dumps(mapping)
-        restored = pickle.loads(data)
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2"))
-        db_map.commit_session("Add test data.")
-        self.assertEqual(list(rows(restored, db_map)), [["oc1", None], ["oc2", None]])
-        db_map.connection.close()
-
 
 if __name__ == "__main__":
     unittest.main()
