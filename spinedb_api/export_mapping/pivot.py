@@ -76,7 +76,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             branch = tree
             for c in key_columns + pivot_columns[:-1]:
                 branch = branch.setdefault(row[c], dict())
-            # If no grouping, the list below will have exactly one element
+            # If not grouping, the list below will have exactly one element
             # If grouping, it will have all the elements that need to be grouped
             values = branch.setdefault(row[pivot_columns[-1]], list())
             values.append(row[value_column])
@@ -117,6 +117,8 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
     if regular_columns or hidden_columns:
         regular_column_width = max(regular_columns) + 1 if regular_columns else 0
         regular_header = [header[i] for i in range(regular_column_width)]
+        # If grouping, key columns are the 'visible' regular columns
+        # If not grouping, we add the hidden columns
         key_columns = regular_columns
         group_fn = group_function_from_str(group_fn)
         if isinstance(group_fn, NoGroup):

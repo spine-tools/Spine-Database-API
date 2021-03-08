@@ -1466,6 +1466,8 @@ def from_dict(serialized):
             ToolFeatureMethodParameterDefinitionMapping,
         )
     }
+    # Legacy
+    mappings["ParameterIndex"] = ParameterValueIndexMapping
     flattened = list()
     for mapping_dict in serialized:
         position = mapping_dict["position"]
