@@ -110,7 +110,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             yield row
 
     def put_pivot_header(row, header):
-        """Puts the given header into the given row.
+        """Puts the given pivot header into the given regular row.
 
         Args:
             row (list)

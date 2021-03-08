@@ -15,6 +15,7 @@ Module contains the :class:`Writer` base class and functions to write tabular da
 :date:   8.12.2020
 """
 from contextlib import contextmanager
+from itertools import chain
 from spinedb_api.export_mapping import rows, titles
 
 
@@ -29,10 +30,14 @@ def write(db_map, writer, root_mapping):
     """
     with _new_write(writer):
         for title, title_key in titles(root_mapping, db_map):
+            row_iterator = rows(root_mapping, db_map, title_key)
+            first_row = next(row_iterator, None)
+            if first_row is None:
+                continue
             with _new_table(title, writer) as table_started:
                 if not table_started:
                     break
-                for row in rows(root_mapping, db_map, title_key):
+                for row in chain((first_row,), row_iterator):
                     write_more = writer.write_row(row)
                     if not write_more:
                         break
