@@ -138,7 +138,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         # Note that the last regular header and the last pivot header would end up in the same cell.
         # This is an arbitrary decision so the tables are more compact; otherwise we'd have an empty row or column
         # at the last header position.
-        # To solve the conflict, we use the regular header if not None or empty, and the pivot header otherwise.
+        # To solve the conflict, we take the regular header if not None or empty, and the pivot header otherwise.
         if not last_pivot_row[-1] and pivot_header[-1]:
             last_pivot_row[-1] = pivot_header[-1]
         last_pivot_row += list(k[-1] for k in pivot_keys)
