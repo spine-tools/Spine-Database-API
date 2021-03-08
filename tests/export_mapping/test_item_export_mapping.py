@@ -37,7 +37,7 @@ from spinedb_api import (
     Map,
 )
 from spinedb_api.import_functions import import_object_groups
-from spinedb_api.export_mapping import Position, rows, titles, object_parameter_export
+from spinedb_api.export_mapping import Position, rows, titles, object_parameter_export, relationship_export
 from spinedb_api.export_mapping.item_export_mapping import (
     AlternativeMapping,
     FixedValueMapping,
@@ -611,6 +611,20 @@ class TestExportMapping(unittest.TestCase):
         for title, title_key in titles(object_class_mapping, db_map):
             tables[title] = list(rows(object_class_mapping, db_map, title_key))
         self.assertEqual(tables, {"p11": [["o11"], ["o12"]], "p21": [["o21"]], "p22": [["o21"]]})
+        db_map.connection.close()
+
+    def test_object_relationship_name_as_table_name(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_objects(db_map, (("oc1", "o1"), ("oc1", "o2"), ("oc2", "O")))
+        import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
+        import_relationships(db_map, (("rc", ("o1", "O")), ("rc", ("o2", "O"))))
+        db_map.commit_session("Add test data.")
+        mappings = relationship_export(0, Position.hidden, [1, 2], [Position.table_name, 3])
+        tables = dict()
+        for title, title_key in titles(mappings, db_map):
+            tables[title] = list(rows(mappings, db_map, title_key))
+        self.assertEqual(tables, {"o1": [["rc", "oc1", "oc2", "O"]], "o2": [["rc", "oc1", "oc2", "O"]]})
         db_map.connection.close()
 
     def test_parameter_definitions_with_value_lists(self):
