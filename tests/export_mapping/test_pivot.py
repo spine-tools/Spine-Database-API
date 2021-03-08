@@ -15,6 +15,7 @@ Contains unit tests for the ``pivot`` module.
 :date:   1.2.2021
 """
 import unittest
+import numpy
 from spinedb_api.export_mapping.pivot import make_pivot
 
 
@@ -64,6 +65,67 @@ class TestPivot(unittest.TestCase):
             ["#", "1", "2", "1", "2", "3", "2", "2", "3", "1"],
             [None, -1.1, -2.2, -3.3, -4.4, -5.5, -6.6, -7.7, -8.8, -9.9],
         ]
+        self.assertEqual(pivot_table, expected)
+
+    def test_pivot_group_concat(self):
+        table = [
+            ["H", "h", "#", "xx"],
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", "2", -6.6],
+            ["B", "b", "2", -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, 3, [0], [1], [2], "concat"))
+        expected = [
+            ["H", "1", "2", "3"],
+            ["A", "-1.1,-3.3", "-2.2,-4.4", "-5.5"],
+            ["B", "", "-6.6,-7.7", "-8.8"],
+            ["C", "-9.9", "", ""],
+        ]
+        self.assertEqual(pivot_table, expected)
+
+    def test_pivot_group_sum(self):
+        table = [
+            ["H", "h", "#", "xx"],
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", "2", -6.6],
+            ["B", "b", "2", -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, 3, [0], [1], [2], "sum"))
+        expected = [
+            ["H", "1", "2", "3"],
+            ["A", -1.1 - 3.3, -2.2 - 4.4, -5.5],
+            ["B", numpy.nan, -6.6 - 7.7, -8.8],
+            ["C", -9.9, numpy.nan, numpy.nan],
+        ]
+        self.assertEqual(pivot_table, expected)
+
+    def test_pivot_group_one_or_none(self):
+        table = [
+            ["H", "h", "#", "xx"],
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", "2", -6.6],
+            ["B", "b", "2", -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, 3, [0], [1], [2], "one_or_none"))
+        expected = [["H", "1", "2", "3"], ["A", None, None, -5.5], ["B", None, None, -8.8], ["C", -9.9, None, None]]
         self.assertEqual(pivot_table, expected)
 
 
