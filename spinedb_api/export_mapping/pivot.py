@@ -76,7 +76,10 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             branch = tree
             for c in key_columns + pivot_columns[:-1]:
                 branch = branch.setdefault(row[c], dict())
-            branch.setdefault(row[pivot_columns[-1]], list()).append(row[value_column])
+            # If no grouping, the list below will have exactly one element
+            # If grouping, it will have all the elements that need to be grouped
+            values = branch.setdefault(row[pivot_columns[-1]], list())
+            values.append(row[value_column])
         return tree
 
     def half_pivot():
@@ -130,8 +133,13 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             last_pivot_row = regular_header
         else:
             last_pivot_row = regular_column_width * [None]
-        i = len(pivot_columns) - 1
-        last_pivot_row += list(k[i] for k in pivot_keys)
+        # Note that the last regular header and the last pivot header would end up in the same cell.
+        # This is an arbitrary decision so the tables are more compact; otherwise we'd have an empty row or column
+        # at the last header position.
+        # To solve the conflict, we use the regular header if not None or empty, and the pivot header otherwise.
+        if not last_pivot_row[-1]:
+            last_pivot_row[-1] = pivot_header[-1]
+        last_pivot_row += list(k[-1] for k in pivot_keys)
         yield last_pivot_row
         # Yield regular rows
         regular_rows = regular_rows()

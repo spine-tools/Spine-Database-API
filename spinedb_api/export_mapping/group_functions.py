@@ -22,6 +22,14 @@ class GroupFunction:
     DISPLAY_NAME = NotImplemented
 
     def __call__(self, items):
+        """Performes the grouping. Reduces the given list of items into a single value.
+
+        Args:
+            items (list or None):
+
+        Returns:
+            Any
+        """
         raise NotImplementedError
 
     def to_dict(self):
