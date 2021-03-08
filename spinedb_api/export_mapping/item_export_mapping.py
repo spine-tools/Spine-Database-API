@@ -138,6 +138,9 @@ class Mapping:
         self._filter_re = ""
         self._group_fn = None
         self._ignorable = False
+        self._original_update_state = self._update_state
+        self._original_query = self._query
+        self._original_data = self._data
         self._unfiltered_query = self._query
         self.parent = None
         self.position = position
@@ -399,16 +402,16 @@ class Mapping:
     def _ignorable_update_state(self, state, db_row):
         if db_row is _ignored:
             return
-        self._update_state(state, db_row)
+        self._original_update_state(state, db_row)
 
     def _ignorable_data(self, db_row):
         if db_row is _ignored:
             return None
-        return self._data(db_row)
+        return self._original_data(db_row)
 
     def _ignorable_query(self, db_map, state, fixed_state):
         yielded = False
-        for db_row in self._query(db_map, state, fixed_state):
+        for db_row in self._original_query(db_map, state, fixed_state):
             yielded = True
             yield db_row
         if not yielded:
