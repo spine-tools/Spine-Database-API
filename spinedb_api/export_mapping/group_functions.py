@@ -32,9 +32,6 @@ class GroupFunction:
         """
         raise NotImplementedError
 
-    def to_dict(self):
-        return {"name": self.NAME}
-
 
 class GroupSum(GroupFunction):
     NAME = "sum"
@@ -73,6 +70,8 @@ class NoGroup(GroupFunction):
     def __call__(self, items):
         if items is None:
             return None
+        # The items are always in a list, even if not grouping, because we want to use the same code
+        # for grouping and not grouping. If not grouping, the list will contain exactly one element.
         return items[0]
 
 
