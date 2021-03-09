@@ -22,6 +22,7 @@ from .settings import (
     feature_export,
     object_export,
     object_group_export,
+    object_group_parameter_export,
     object_parameter_default_value_export,
     object_parameter_export,
     parameter_value_list_export,

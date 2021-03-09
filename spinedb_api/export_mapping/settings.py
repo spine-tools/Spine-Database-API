@@ -70,28 +70,6 @@ def object_export(class_position=Position.hidden, object_position=Position.hidde
     return class_
 
 
-def object_group_export(
-    class_position=Position.hidden, object_position=Position.hidden, group_position=Position.hidden
-):
-    """
-    Sets up export mappings for exporting object groups.
-
-    Args:
-        class_position (int or Position): position of object classes
-        object_position (int or Position): position of objects
-        group_position (int or Position): position of groups
-
-    Returns:
-        Mapping: root mapping
-    """
-    class_ = ObjectClassMapping(class_position)
-    object_ = ObjectMapping(object_position)
-    group = ObjectGroupMapping(group_position)
-    object_.child = group
-    class_.child = object_
-    return class_
-
-
 def object_parameter_default_value_export(
     class_position=Position.hidden,
     definition_position=Position.hidden,
@@ -150,6 +128,68 @@ def object_parameter_export(
     value_list.child = object_
     definition.child = value_list
     class_.child = definition
+    return class_
+
+
+def object_group_parameter_export(
+    class_position=Position.hidden,
+    definition_position=Position.hidden,
+    value_list_position=Position.hidden,
+    object_position=Position.hidden,
+    group_position=Position.hidden,
+    alternative_position=Position.hidden,
+    value_position=Position.hidden,
+    index_positions=None,
+):
+    """
+    Sets up export mappings for exporting object groups and object parameters.
+
+    Args:
+        class_position (int or Position): position of object classes
+        definition_position (int or Position): position of parameter names in a table
+        value_list_position (int or Position): position of parameter value lists
+        object_position (int or Position): position of objects
+        group_position (int or Position): position of groups
+        alternative_position (int or position): position of alternatives in a table
+        value_position (int or Position): position of parameter values in a table
+        index_positions (list or int, optional): positions of parameter indexes in a table
+
+    Returns:
+        Mapping: root mapping
+    """
+    class_ = ObjectClassMapping(class_position)
+    definition = ParameterDefinitionMapping(definition_position)
+    value_list = ParameterValueListMapping(value_list_position)
+    value_list.set_ignorable()
+    object_ = ObjectMapping(object_position)
+    group = ObjectGroupMapping(group_position)
+    object_.child = group
+    _generate_parameter_value_mappings(group, alternative_position, value_position, index_positions)
+    value_list.child = object_
+    definition.child = value_list
+    class_.child = definition
+    return class_
+
+
+def object_group_export(
+    class_position=Position.hidden, object_position=Position.hidden, group_position=Position.hidden
+):
+    """
+    Sets up export mappings for exporting object groups.
+
+    Args:
+        class_position (int or Position): position of object classes
+        object_position (int or Position): position of objects
+        group_position (int or Position): position of groups
+
+    Returns:
+        Mapping: root mapping
+    """
+    class_ = ObjectClassMapping(class_position)
+    object_ = ObjectMapping(object_position)
+    group = ObjectGroupMapping(group_position)
+    object_.child = group
+    class_.child = object_
     return class_
 
 
