@@ -27,12 +27,15 @@ class ImportKey(Enum):
     OBJECT_NAME = auto()
     PARAMETER_NAME = auto()
     PARAMETER_DEFINITION = auto()
+    PARAMETER_DEFAULT_VALUES = auto()
+    PARAMETER_DEFAULT_VALUE_INDEXES = auto()
     PARAMETER_VALUES = auto()
     PARAMETER_VALUE_INDEXES = auto()
     RELATIONSHIP_CLASS_NAME = auto()
     OBJECT_CLASS_NAMES = auto()
     OBJECT_NAMES = auto()
-    SCENARIO = auto()
+    ALTERNATIVE_NAME = auto()
+    SCENARIO_NAME = auto()
     SCENARIO_ALTERNATIVE = auto()
     FEATURE = auto()
     TOOL_NAME = auto()
@@ -293,6 +296,26 @@ class ParameterDefaultValueMapping(ImportMapping):
         parameter_definition.append(source_data)
 
 
+class ParameterDefaultValueTypeMapping(ImportMapping):
+    MAP_TYPE = "ParameterDefaultValueType"
+
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False):
+        super().__init__(position, value, skip_columns, read_start_row)
+        self.compress = compress
+
+    def _import_row(self, source_data, state, mapped_data):
+        parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
+        default_values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
+        key = tuple(parameter_definition)
+        if key in default_values:
+            return
+        value_type = source_data
+        default_value = default_values[key] = {"type": value_type}
+        if self.compress and value_type == "map":
+            default_value["compress"] = self.compress
+        parameter_definition.append(default_value)
+
+
 class ParameterDefaultValueIndexMapping(ImportMapping):
     """Maps default value indexes.
 
@@ -300,6 +323,10 @@ class ParameterDefaultValueIndexMapping(ImportMapping):
     """
 
     MAP_TYPE = "ParameterDefaultValueIndex"
+
+    def _import_row(self, source_data, state, mapped_data):
+        index = source_data
+        state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, []).append(index)
 
 
 class ExpandedParameterDefaultValueMapping(ImportMapping):
@@ -312,6 +339,25 @@ class ExpandedParameterDefaultValueMapping(ImportMapping):
     """
 
     MAP_TYPE = "ExpandedDefaultValue"
+
+    def _import_row(self, source_data, state, mapped_data):
+        object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
+        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
+        if object_class_name:
+            class_name = object_class_name
+        elif relationship_class_name:
+            class_name = relationship_class_name
+        parameter_name = state[ImportKey.PARAMETER_NAME]
+        key = (class_name, parameter_name)
+        values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
+        value = values[key]
+        indexes = state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, None)
+        val = source_data
+        data = value.setdefault("data", [])
+        if indexes is None:
+            data.append(val)
+            return
+        data.append(indexes + [val])
 
 
 class ParameterValueMapping(ImportMapping):
@@ -339,11 +385,14 @@ class ParameterValueMapping(ImportMapping):
                 "relationship_parameter_values",
             )
         parameter_name = state[ImportKey.PARAMETER_NAME]
-        value = source_data
-        mapped_data.setdefault(map_key, list()).append([class_name, entity_name, parameter_name, value])
+        parameter_value = [class_name, entity_name, parameter_name, source_data]
+        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+        if alternative_name is not None:
+            parameter_value.append(alternative_name)
+        mapped_data.setdefault(map_key, list()).append(parameter_value)
 
 
-class ParameterValueTypeMapping(ParameterValueMapping):
+class ParameterValueTypeMapping(ImportMapping):
     MAP_TYPE = "ParameterValueType"
 
     def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False):
@@ -374,7 +423,11 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         value = values[key] = {"type": value_type}
         if self.compress and value_type == "map":
             value["compress"] = self.compress
-        mapped_data.setdefault(map_key, list()).append([class_name, entity_name, parameter_name, value])
+        parameter_value = [class_name, entity_name, parameter_name, value]
+        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+        if alternative_name is not None:
+            parameter_value.append(alternative_name)
+        mapped_data.setdefault(map_key, list()).append(parameter_value)
 
 
 class ParameterValueIndexMapping(ImportMapping):
@@ -456,6 +509,7 @@ class AlternativeMapping(ImportMapping):
     MAP_TYPE = "Alternative"
 
     def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.ALTERNATIVE_NAME] = source_data
         mapped_data.setdefault("alternatives", list()).append(source_data)
 
 
@@ -468,7 +522,7 @@ class ScenarioMapping(ImportMapping):
     MAP_TYPE = "Scenario"
 
     def _import_row(self, source_data, state, mapped_data):
-        state[ImportKey.SCENARIO] = source_data
+        state[ImportKey.SCENARIO_NAME] = source_data
 
 
 class ScenarioActiveFlagMapping(ImportMapping):
@@ -480,7 +534,7 @@ class ScenarioActiveFlagMapping(ImportMapping):
     MAP_TYPE = "ScenarioActiveFlag"
 
     def _import_row(self, source_data, state, mapped_data):
-        scenario = state[ImportKey.SCENARIO]
+        scenario = state[ImportKey.SCENARIO_NAME]
         active = bool(strtobool(str(source_data)))
         mapped_data.setdefault("scenarios", list()).append([scenario, active])
 
@@ -494,7 +548,7 @@ class ScenarioAlternativeMapping(ImportMapping):
     MAP_TYPE = "ScenarioAlternative"
 
     def _import_row(self, source_data, state, mapped_data):
-        scenario = state[ImportKey.SCENARIO]
+        scenario = state[ImportKey.SCENARIO_NAME]
         alternative = source_data
         scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE] = [scenario, alternative]
         mapped_data.setdefault("scenario_alternatives", list()).append(scen_alt)
@@ -634,28 +688,3 @@ class ToolFeatureMethodMethodMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
         tool_feature_method.append(source_data)
-
-
-class _DescriptionMappingBase(ImportMapping):
-    """Maps descriptions."""
-
-    MAP_TYPE = "Description"
-    _key = NotImplemented
-
-
-class AlternativeDescriptionMapping(_DescriptionMappingBase):
-    """Maps alternative descriptions.
-
-    Cannot be used as the topmost mapping; must have :class:`AlternativeMapping` as parent.
-    """
-
-    MAP_TYPE = "AlternativeDescription"
-
-
-class ScenarioDescriptionMapping(_DescriptionMappingBase):
-    """Maps scenario descriptions.
-
-    Cannot be used as the topmost mapping; must have :class:`ScenarioMapping` as parent.
-    """
-
-    MAP_TYPE = "ScenarioDescription"

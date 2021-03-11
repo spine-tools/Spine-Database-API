@@ -77,11 +77,19 @@ def get_mapped_data(data_source, mappings, data_header=None, table_name="", colu
                 full_row.append(row[last_non_pivoted_column_pos + k])
                 mapping.import_row(full_row, read_state, mapped_data)
     value_pos = -1  # from (class, entity, parameter, value)
-    for key in ("object_parameter_values", "relationship_parameter_values"):
-        for row in mapped_data.get(key, []):
-            value = row[value_pos]
-            if isinstance(value, dict):
-                row[value_pos] = _parameter_value_from_dict(value)
+    parameter_value_pos = {
+        ("object_parameter_values", "relationship_parameter_values"): 3,
+        ("object_parameters", "relationship_parameters"): 2,
+    }
+    for keys, value_pos in parameter_value_pos.items():
+        for key in keys:
+            for row in mapped_data.get(key, []):
+                try:
+                    value = row[value_pos]
+                except IndexError:
+                    continue
+                if isinstance(value, dict):
+                    row[value_pos] = _parameter_value_from_dict(value)
     return mapped_data, errors
 
 

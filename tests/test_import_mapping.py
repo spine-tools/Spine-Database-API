@@ -2052,6 +2052,27 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
+    def test_read_parameter_definition_with_nested_map_as_default_value(self):
+        input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object_class",
+            "parameters": {
+                "name": "parameter",
+                "map_type": "ParameterDefinition",
+                "default_value": {"value_type": "map", "main_value": 2, "compress": False, "extra_dimensions": [0, 1]},
+            },
+        }
+        out, errors = get_mapped_data(data, [mapping], data_header)
+        expected = dict()
+        expected["object_classes"] = ["object_class"]
+        expected_map = Map(["key11", "key21"], [Map(["key12"], [-2]), Map(["key22"], [-1])])
+        expected["object_parameters"] = [("object_class", "parameter", expected_map)]
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
 
 class TestItemMappings(unittest.TestCase):
     def test_ObjectClassMapping_dimensions_is_always_one(self):
