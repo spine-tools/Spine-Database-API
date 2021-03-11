@@ -16,11 +16,14 @@ Classes for reading data with json mapping specifications
 :date:   22.02.2018
 """
 import itertools
+from copy import deepcopy
 import math
 from collections.abc import Iterable
 from ..parameter_value import ParameterValueFormatError
 from ..exception import InvalidMapping, TypeConversionError
 from .item_import_mapping import ItemMappingBase, item_mapping_from_dict
+from spinedb_api.spine_io.mapping import Mapping, Position
+from .import_mapping_compat import import_mapping_from_dict
 
 
 def type_class_list_from_spec(types, num_sections, skip_sections=None):
@@ -101,14 +104,10 @@ def get_pivoted_data(data_source, mapping, num_cols, data_header, row_types):
     errors = []
 
     # find used columns
-    map_list = [mapping]
-    used_columns = set()
-    for map_ in map_list:
-        skip_columns = set(mapping_non_pivoted_columns(map_, num_cols, data_header))
-        if map_.skip_columns is not None:
-            skip_columns.update(set(map_.skip_columns))
-        map_using_cols = set(range(num_cols)).difference(skip_columns)
-        used_columns.update(map_using_cols)
+    skip_columns = set(mapping_non_pivoted_columns(mapping, num_cols, data_header))
+    if mapping.skip_columns is not None:
+        skip_columns.update(set(mapping.skip_columns))
+    used_columns = set(range(num_cols)).difference(skip_columns)
 
     # get data from iterator and convert to correct type.
     if mapping.is_pivoted():
@@ -139,7 +138,91 @@ def _is_row_value_valid(row_value):
     return all(v is not None for v in row_value)
 
 
-def read_with_mapping(data_source, mapping, num_cols, data_header=None, column_types=None, row_types=None):
+def read_with_mapping(
+    data_source, mappings, num_cols, data_header=None, table_name="", column_types=None, row_types=None
+):
+    if not isinstance(mappings, (list, tuple)):
+        mappings = [mappings]
+    # Sanitize mappings
+    for k, mapping in enumerate(mappings):
+        if isinstance(mapping, dict):
+            mappings[k] = import_mapping_from_dict(mapping)
+        elif isinstance(mapping, Mapping):
+            pass
+        else:
+            raise TypeError(f"mapping must be a dict or Mapping subclass, instead got: {type(mapping).__name__}")
+    mapped_data = {}
+    errors = []
+    read_state = {}
+    rows = list(data_source)
+    for mapping in mappings:
+        mapping = deepcopy(mapping)
+        mapping.polish(table_name, data_header)
+        # Find pivoted and unpivoted mappings
+        pivoted = []
+        non_pivoted = []
+        pivoted_from_header = None
+        flattened = mapping.flatten()
+        for m in flattened:
+            if m.position == Position.header and m.value is None:
+                pivoted_from_header = m
+            if not isinstance(m.position, int):
+                continue
+            if m.position < 0:
+                pivoted.append(m)
+            else:
+                non_pivoted.append(m)
+        # If there are no pivoted mappings, we can just feed the rows to our mapping directly
+        if not (pivoted or pivoted_from_header):
+            for row in rows:
+                mapping.import_row(row, read_state, mapped_data)
+            continue
+        # There are pivoted mappings
+        # We will unpivot the table: first we collect pivoted and unpivoted positions
+        pivoted_row_pos = [-(m.position + 1) for m in pivoted]  # (-1) -> (0), (-2) -> (1), (-3) -> (2), etc.
+        non_pivoted_row_pos = sorted((m.position for m in non_pivoted), reverse=True)
+        # Collect pivoted rows
+        pivoted_rows = [rows[pos] for pos in pivoted_row_pos]
+        # Prepend the header if needed
+        if pivoted_from_header:
+            pivoted.insert(0, pivoted_from_header)
+            pivoted_rows.insert(0, data_header)
+            pivoted_row_pos.append(-1)  # This is so ``last_pivoted_row_pos`` below gets the right value
+        # Remove items in non pivoted positions from pivoted rows
+        for row in pivoted_rows:
+            for j in non_pivoted_row_pos:
+                row.pop(j)
+        # Unpivot
+        unpivoted_rows = [list(row) for row in zip(*pivoted_rows)]
+        # If there are only pivoted mappings, we can just feed the pivoted rows
+        if not non_pivoted:
+            # Reposition pivoted mappings:
+            for k, m in enumerate(pivoted):
+                m.position = k
+            for row in unpivoted_rows:
+                mapping.import_row(row, read_state, mapped_data)
+            continue
+        # There are both pivoted and unpivoted mappings
+        # Reposition mappings:
+        # - The last mapping (typically, parameter value) will read from the last position in the row
+        # - The pivoted mappings will read from positions to the left of that
+        flattened[-1].position = -1
+        for k, m in enumerate(reversed(pivoted)):
+            m.position = -(k + 2)
+        # Feed rows: To each regular row, we append each unpivoted row, plus the item at the intersection,
+        # and feed that to the mapping
+        last_pivoted_row_pos = max(pivoted_row_pos, default=0) + 1
+        last_non_pivoted_row_pos = max(non_pivoted_row_pos, default=0) + 1
+        for row in rows[last_pivoted_row_pos:]:
+            regular_row = row[:last_non_pivoted_row_pos]
+            for k, unpivoted_row in enumerate(unpivoted_rows):
+                full_row = regular_row + unpivoted_row
+                full_row.append(row[last_non_pivoted_row_pos + k])
+                mapping.import_row(full_row, read_state, mapped_data)
+    return mapped_data, errors
+
+
+def old_read_with_mapping(data_source, mapping, num_cols, data_header=None, column_types=None, row_types=None):
     """Reads data_source line by line with supplied Mapping object or dict
     that can be translated into a Mapping object"""
     if row_types is None:
