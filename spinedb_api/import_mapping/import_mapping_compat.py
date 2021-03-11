@@ -15,9 +15,13 @@ Classes for item import mappings.
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
-from ..spine_io.mapping import (
+from .import_mapping import (
     ObjectClassMapping,
+    RelationshipClassMapping,
+    RelationshipClassObjectClassMapping,
     ObjectMapping,
+    RelationshipMapping,
+    RelationshipObjectMapping,
     ParameterDefinitionMapping,
     ParameterValueMapping,
     ParameterValueTypeMapping,
@@ -34,11 +38,11 @@ def import_mapping_from_dict(map_dict):
     map_type = map_dict.get("map_type")
     legacy_mapping_from_dict = {
         "ObjectClass": _object_class_mapping_from_dict,
+        "RelationshipClass": _relationship_class_mapping_from_dict,
         # AlternativeImportMapping,
         # FeatureImportMapping,
         # ObjectGroupImportMapping,
         # ParameterValueListImportMapping,
-        # RelationshipClassImportMapping,
         # ScenarioAlternativeImportMapping,
         # ScenarioImportMapping,
         # ToolFeatureImportMapping,
@@ -53,19 +57,45 @@ def import_mapping_from_dict(map_dict):
 
 def _object_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
-    objects = map_dict.get("objects")
-    if objects is None:
-        # Previous versions saved "object" instead of "objects"
-        objects = map_dict.get("object", None)
-    root_mapping = ObjectClassMapping(*_pos_and_val(name))
+    objects = map_dict.get("objects", map_dict.get("object"))
+    skip_columns = map_dict.get("skip_columns", [])
+    read_start_row = map_dict.get("read_start_row", 0)
+    root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(objects))
     parameters = map_dict.get("parameters")
     object_mapping.child = _parameter_mapping_from_dict(parameters)
     return root_mapping
     # FIXME: We need to handle this below too:
     # object_metadata = map_dict.get("object_metadata", None)
-    # skip_columns = map_dict.get("skip_columns", [])
-    # read_start_row = map_dict.get("read_start_row", 0)
+    # object_metadata = map_dict.get("object_metadata", None)
+
+
+def _relationship_class_mapping_from_dict(map_dict):
+    name = map_dict.get("name")
+    objects = map_dict.get("objects", [None])
+    object_classes = map_dict.get("object_classes", [None])
+    import_objects = map_dict.get("import_objects", False)
+    skip_columns = map_dict.get("skip_columns", [])
+    read_start_row = map_dict.get("read_start_row", 0)
+    root_mapping = RelationshipClassMapping(
+        *_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row
+    )
+    parent_mapping = root_mapping
+    for klass in object_classes:
+        class_mapping = RelationshipClassObjectClassMapping(*_pos_and_val(klass))
+        parent_mapping.child = class_mapping
+        parent_mapping = class_mapping
+    relationship_mapping = parent_mapping.child = RelationshipMapping(Position.hidden, value="relationship")
+    parent_mapping = relationship_mapping
+    for obj in objects:
+        object_mapping = RelationshipObjectMapping(*_pos_and_val(obj), import_objects=import_objects)
+        parent_mapping.child = object_mapping
+        parent_mapping = object_mapping
+    parameters = map_dict.get("parameters")
+    parent_mapping.child = _parameter_mapping_from_dict(parameters)
+    return root_mapping
+    # FIXME
+    # relationship_metadata = map_dict.get("relationship_metadata", None)
 
 
 def _parameter_mapping_from_dict(map_dict):
