@@ -15,6 +15,7 @@ Contains export mappings for database items such as entities, entity classes and
 :date:   10.12.2020
 """
 
+from distutils.util import strtobool
 from enum import auto, Enum, unique
 from spinedb_api.spine_io.mapping import Mapping, Position
 from spinedb_api.exception import InvalidMapping
@@ -25,12 +26,18 @@ class ImportKey(Enum):
     OBJECT_CLASS_NAME = auto()
     OBJECT_NAME = auto()
     PARAMETER_NAME = auto()
-    PARAMETER_VALUE = auto()
+    PARAMETER_DEFINITION = auto()
     PARAMETER_VALUES = auto()
     PARAMETER_VALUE_INDEXES = auto()
     RELATIONSHIP_CLASS_NAME = auto()
     OBJECT_CLASS_NAMES = auto()
     OBJECT_NAMES = auto()
+    SCENARIO = auto()
+    SCENARIO_ALTERNATIVE = auto()
+    FEATURE = auto()
+    TOOL_NAME = auto()
+    TOOL_FEATURE = auto()
+    TOOL_FEATURE_METHOD = auto()
 
 
 class ImportMapping(Mapping):
@@ -160,7 +167,30 @@ class ObjectMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
         object_name = state[ImportKey.OBJECT_NAME] = source_data
-        mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
+        if not isinstance(self.child, ObjectGroupMapping):
+            mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
+
+
+class ObjectGroupMapping(ImportMapping):
+    """Maps object groups.
+
+    Cannot be used as the topmost mapping; must have :class:`ObjectClassMapping` and :class:`ObjectMapping` as parents.
+    """
+
+    MAP_TYPE = "ObjectGroup"
+
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, import_objects=False):
+        super().__init__(position, value, skip_columns, read_start_row)
+        self.import_objects = import_objects
+
+    def _import_row(self, source_data, state, mapped_data):
+        object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
+        group_name = state[ImportKey.OBJECT_NAME]
+        member_name = source_data
+        mapped_data.setdefault("object_groups", list()).append((object_class_name, group_name, member_name))
+        if self.import_objects:
+            objects = [(object_class_name, group_name), (object_class_name, member_name)]
+            mapped_data.setdefault("objects", list()).extend(objects)
 
 
 class RelationshipClassMapping(ImportMapping):
@@ -248,7 +278,40 @@ class ParameterDefinitionMapping(ImportMapping):
         elif relationship_class_name:
             class_name, map_key = relationship_class_name, "relationship_parameters"
         parameter_name = state[ImportKey.PARAMETER_NAME] = source_data
-        mapped_data.setdefault(map_key, list()).append((class_name, parameter_name))
+        parameter_definition = state[ImportKey.PARAMETER_DEFINITION] = [class_name, parameter_name]
+        mapped_data.setdefault(map_key, list()).append(parameter_definition)
+
+
+class ParameterDefaultValueMapping(ImportMapping):
+    """Maps scalar (non-indexed) default values
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
+    """
+
+    def _import_row(self, source_data, state, mapped_data):
+        parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
+        parameter_definition.append(source_data)
+
+
+class ParameterDefaultValueIndexMapping(ImportMapping):
+    """Maps default value indexes.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
+    """
+
+    MAP_TYPE = "ParameterDefaultValueIndex"
+
+
+class ExpandedParameterDefaultValueMapping(ImportMapping):
+    """Maps indexed default values.
+
+    Whenever this mapping is a child of :class:`ParameterDefaultValueIndexMapping`, it maps individual values of
+    indexed parameters.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
+    """
+
+    MAP_TYPE = "ExpandedDefaultValue"
 
 
 class ParameterValueMapping(ImportMapping):
@@ -276,12 +339,16 @@ class ParameterValueMapping(ImportMapping):
                 "relationship_parameter_values",
             )
         parameter_name = state[ImportKey.PARAMETER_NAME]
-        value = state[ImportKey.PARAMETER_VALUE] = source_data
+        value = source_data
         mapped_data.setdefault(map_key, list()).append([class_name, entity_name, parameter_name, value])
 
 
 class ParameterValueTypeMapping(ParameterValueMapping):
     MAP_TYPE = "ParameterValueType"
+
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False):
+        super().__init__(position, value, skip_columns, read_start_row)
+        self.compress = compress
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
@@ -303,7 +370,10 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         key = (class_name, entity_name, parameter_name)
         if key in values:
             return
-        value = values[key] = {"type": source_data}
+        value_type = source_data
+        value = values[key] = {"type": value_type}
+        if self.compress and value_type == "map":
+            value["compress"] = self.compress
         mapped_data.setdefault(map_key, list()).append([class_name, entity_name, parameter_name, value])
 
 
@@ -311,7 +381,7 @@ class ParameterValueIndexMapping(ImportMapping):
     """Maps parameter value indexes.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
-    an :class:`AlternativeMapping` as parents.
+    an :class:`ParameterValueTypeMapping` as parents.
     """
 
     MAP_TYPE = "ParameterValueIndex"
@@ -328,7 +398,7 @@ class ExpandedParameterValueMapping(ImportMapping):
     parameters.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
-    an :class:`AlternativeMapping` as parents.
+    an :class:`ParameterValueTypeMapping` as parents.
     """
 
     MAP_TYPE = "ExpandedValue"
@@ -350,3 +420,242 @@ class ExpandedParameterValueMapping(ImportMapping):
             data.append(val)
             return
         data.append(indexes + [val])
+
+
+class ParameterValueListMapping(ImportMapping):
+    """Maps parameter value list names.
+
+    Can be used as the topmost mapping; in case the mapping has a :class:`ParameterDefinitionMapping` as parent,
+    yields value list name for that parameter definition.
+    """
+
+    MAP_TYPE = "ParameterValueList"
+
+    def _import_row(self, source_data, state, mapped_data):
+        parameter_definition = state.get(ImportKey.PARAMETER_DEFINITION)
+        if parameter_definition:
+            parameter_definition.append(source_data)
+
+
+class ParameterValueListValueMapping(ImportMapping):
+    """Maps parameter value list values.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterValueListMapping` as parent.
+
+    """
+
+    MAP_TYPE = "ParameterValueListValue"
+
+
+class AlternativeMapping(ImportMapping):
+    """Maps alternatives.
+
+    Can be used as the topmost mapping.
+    """
+
+    MAP_TYPE = "Alternative"
+
+    def _import_row(self, source_data, state, mapped_data):
+        mapped_data.setdefault("alternatives", list()).append(source_data)
+
+
+class ScenarioMapping(ImportMapping):
+    """Maps scenarios.
+
+    Can be used as the topmost mapping.
+    """
+
+    MAP_TYPE = "Scenario"
+
+    def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.SCENARIO] = source_data
+
+
+class ScenarioActiveFlagMapping(ImportMapping):
+    """Maps scenario active flags.
+
+    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioActiveFlag"
+
+    def _import_row(self, source_data, state, mapped_data):
+        scenario = state[ImportKey.SCENARIO]
+        active = bool(strtobool(str(source_data)))
+        mapped_data.setdefault("scenarios", list()).append([scenario, active])
+
+
+class ScenarioAlternativeMapping(ImportMapping):
+    """Maps scenario alternatives.
+
+    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioAlternative"
+
+    def _import_row(self, source_data, state, mapped_data):
+        scenario = state[ImportKey.SCENARIO]
+        alternative = source_data
+        scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE] = [scenario, alternative]
+        mapped_data.setdefault("scenario_alternatives", list()).append(scen_alt)
+
+
+class ScenarioBeforeAlternativeMapping(ImportMapping):
+    """Maps scenario 'before' alternatives.
+
+    Cannot be used as the topmost mapping; must have a :class:`ScenarioAlternativeMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioBeforeAlternative"
+
+    def _import_row(self, source_data, state, mapped_data):
+        scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE]
+        scen_alt.append(source_data)
+
+
+class ToolMapping(ImportMapping):
+    """Maps tools.
+
+    Can be used as the topmost mapping.
+    """
+
+    MAP_TYPE = "Tool"
+
+    def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.TOOL_NAME] = source_data
+        if self.child is None:
+            mapped_data.setdefault("tools", list()).append(source_data)
+
+
+class FeatureEntityClassMapping(ImportMapping):
+    """Maps feature entity classes.
+
+    Can be used as the topmost mapping.
+    """
+
+    MAP_TYPE = "FeatureEntityClass"
+
+    def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.FEATURE] = [source_data]
+
+
+class FeatureParameterDefinitionMapping(ImportMapping):
+    """Maps feature parameter definitions.
+
+    Cannot be used as the topmost mapping; must have a :class:`FeatureEntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "FeatureParameterDefinition"
+
+    def _import_row(self, source_data, state, mapped_data):
+        feature = state[ImportKey.FEATURE]
+        feature.append(source_data)
+        mapped_data.setdefault("features", list()).append(feature)
+
+
+class ToolFeatureEntityClassMapping(ImportMapping):
+    """Maps tool feature entity classes.
+
+    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
+    """
+
+    MAP_TYPE = "ToolFeatureEntityClass"
+
+    def _import_row(self, source_data, state, mapped_data):
+        tool_name = state[ImportKey.TOOL_NAME]
+        tool_feature = [tool_name, source_data]
+        state[ImportKey.TOOL_FEATURE] = tool_feature
+        mapped_data.setdefault("tool_features", list()).append(tool_feature)
+
+
+class ToolFeatureParameterDefinitionMapping(ImportMapping):
+    """Maps tool feature parameter definitions.
+
+    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "ToolFeatureParameterDefinition"
+
+    def _import_row(self, source_data, state, mapped_data):
+        tool_feature = state[ImportKey.TOOL_FEATURE]
+        tool_feature.append(source_data)
+
+
+class ToolFeatureRequiredFlagMapping(ImportMapping):
+    """Maps tool feature required flags.
+
+    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "ToolFeatureRequiredFlag"
+
+    def _import_row(self, source_data, state, mapped_data):
+        required = bool(strtobool(str(source_data)))
+        tool_feature = state[ImportKey.TOOL_FEATURE]
+        tool_feature.append(required)
+
+
+class ToolFeatureMethodEntityClassMapping(ImportMapping):
+    """Maps tool feature method entity classes.
+
+    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
+    """
+
+    MAP_TYPE = "ToolFeatureMethodEntityClass"
+
+    def _import_row(self, source_data, state, mapped_data):
+        tool_name = state[ImportKey.TOOL_NAME]
+        tool_feature_method = [tool_name, source_data]
+        state[ImportKey.TOOL_FEATURE_METHOD] = tool_feature_method
+        mapped_data.setdefault("tool_feature_methods", list()).append(tool_feature_method)
+
+
+class ToolFeatureMethodParameterDefinitionMapping(ImportMapping):
+    """Maps tool feature method parameter definitions.
+
+    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "ToolFeatureMethodParameterDefinition"
+
+    def _import_row(self, source_data, state, mapped_data):
+        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
+        tool_feature_method.append(source_data)
+
+
+class ToolFeatureMethodMethodMapping(ImportMapping):
+    """Maps tool feature method methods.
+
+    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "ToolFeatureMethodMethod"
+
+    def _import_row(self, source_data, state, mapped_data):
+        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
+        tool_feature_method.append(source_data)
+
+
+class _DescriptionMappingBase(ImportMapping):
+    """Maps descriptions."""
+
+    MAP_TYPE = "Description"
+    _key = NotImplemented
+
+
+class AlternativeDescriptionMapping(_DescriptionMappingBase):
+    """Maps alternative descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`AlternativeMapping` as parent.
+    """
+
+    MAP_TYPE = "AlternativeDescription"
+
+
+class ScenarioDescriptionMapping(_DescriptionMappingBase):
+    """Maps scenario descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`ScenarioMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioDescription"

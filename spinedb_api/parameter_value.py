@@ -29,15 +29,15 @@ numpy.ndarray arrays holding numpy.datetime64 objects.
 :date:   3.6.2019
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from copy import copy
 from datetime import datetime
-import dateutil.parser
-from dateutil.relativedelta import relativedelta
 import json
 from json.decoder import JSONDecodeError
 from numbers import Number
 import re
+import dateutil.parser
+from dateutil.relativedelta import relativedelta
 import numpy as np
 from .exception import ParameterValueFormatError
 
@@ -146,7 +146,7 @@ def from_database(database_value):
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}")
     if isinstance(value, dict):
-        return _from_dict(value)
+        return from_dict(value)
     if isinstance(value, bool):
         return value
     if isinstance(value, Number):
@@ -188,7 +188,7 @@ def check_database(db_value):
     return db_value
 
 
-def _from_dict(value_dict):
+def from_dict(value_dict):
     """
     Converts complex a (relationship) parameter value from its dictionary representation to a Python object.
 
@@ -448,7 +448,7 @@ def _map_values_from_database(values_in_db):
         return list()
     values = list()
     for value_in_db in values_in_db:
-        value = _from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
+        value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
         if not isinstance(value, (float, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
