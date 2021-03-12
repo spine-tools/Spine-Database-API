@@ -25,7 +25,7 @@ from spinedb_api.export_functions import (
     export_scenarios,
     export_scenario_alternatives,
 )
-from spinedb_api.export_mapping.item_export_mapping import (
+from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
     AlternativeDescriptionMapping,
     Position,

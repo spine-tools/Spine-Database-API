@@ -17,7 +17,7 @@ Contains DataPackageConnector class.
 """
 
 from datapackage import Package
-from ..io_api import SourceConnection
+from .reader import SourceConnection
 
 
 class DataPackageConnector(SourceConnection):
@@ -83,4 +83,4 @@ class DataPackageConnector(SourceConnection):
         resource = self._datapackage.get_resource(table)
         iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
         header = resource.schema.field_names
-        return iterator, header, len(header)
+        return iterator, header

@@ -15,7 +15,7 @@ Contains convenience functions to set up different database export schemes.
 :date:   10.12.2020
 """
 from itertools import takewhile
-from .item_export_mapping import (
+from .export_mapping import (
     AlternativeMapping,
     AlternativeDescriptionMapping,
     ExpandedParameterDefaultValueMapping,
@@ -49,8 +49,8 @@ from .item_export_mapping import (
     ToolFeatureParameterDefinitionMapping,
     ToolFeatureRequiredFlagMapping,
     ToolMapping,
-    unflatten,
 )
+from ..mapping import unflatten
 
 
 def object_export(class_position=Position.hidden, object_position=Position.hidden):

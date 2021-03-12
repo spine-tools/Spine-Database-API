@@ -64,9 +64,8 @@ class TestGdxConnector(unittest.TestCase):
                 domain = GAMSSet([("key1",), ("key2",)])
                 gdx_file["domain"] = domain
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("domain", {})
+            data_iterator, header = connector.get_data_iterator("domain", {})
             connector.disconnect()
-        self.assertEqual(column_count, 1)
         self.assertEqual(header, ["dim0"])
         self.assertEqual(next(data_iterator), ["key1"])
         self.assertEqual(next(data_iterator), ["key2"])
@@ -84,9 +83,8 @@ class TestGdxConnector(unittest.TestCase):
                 set_ = GAMSSet([("i", "key1"), ("j", "key2")])
                 gdx_file["almost_domain"] = set_
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("almost_domain", {})
+            data_iterator, header = connector.get_data_iterator("almost_domain", {})
             connector.disconnect()
-        self.assertEqual(column_count, 2)
         self.assertEqual(header, ["dim0", "dim1"])
         self.assertEqual(next(data_iterator), ["i", "key1"])
         self.assertEqual(next(data_iterator), ["j", "key2"])
@@ -106,9 +104,8 @@ class TestGdxConnector(unittest.TestCase):
                 set_ = GAMSSet([("i", "key1"), ("j", "key2")], [None, "domain"])
                 gdx_file["almost_domain"] = set_
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("almost_domain", {})
+            data_iterator, header = connector.get_data_iterator("almost_domain", {})
             connector.disconnect()
-        self.assertEqual(column_count, 2)
         self.assertEqual(header, ["dim0", "domain"])
         self.assertEqual(next(data_iterator), ["i", "key1"])
         self.assertEqual(next(data_iterator), ["j", "key2"])
@@ -128,9 +125,8 @@ class TestGdxConnector(unittest.TestCase):
                 gams_set = GAMSSet([("key1",), ("key2",)], ["domain"])
                 gdx_file["set"] = gams_set
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("set", {})
+            data_iterator, header = connector.get_data_iterator("set", {})
             connector.disconnect()
-        self.assertEqual(column_count, 1)
         self.assertEqual(header, ["domain"])
         self.assertEqual(next(data_iterator), ["key1"])
         self.assertEqual(next(data_iterator), ["key2"])
@@ -152,9 +148,8 @@ class TestGdxConnector(unittest.TestCase):
                 gams_set = GAMSSet([("key1", "keyA"), ("key2", "keyB")], ["domain1", "domainA"])
                 gdx_file["set"] = gams_set
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("set", {})
+            data_iterator, header = connector.get_data_iterator("set", {})
             connector.disconnect()
-        self.assertEqual(column_count, 2)
         self.assertEqual(header, ["domain1", "domainA"])
         self.assertEqual(next(data_iterator), ["key1", "keyA"])
         self.assertEqual(next(data_iterator), ["key2", "keyB"])
@@ -174,9 +169,8 @@ class TestGdxConnector(unittest.TestCase):
                 gams_parameter = GAMSParameter({("key1",): 3.14, ("key2",): -2.3}, domain=["domain"])
                 gdx_file["parameter"] = gams_parameter
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("parameter", {})
+            data_iterator, header = connector.get_data_iterator("parameter", {})
             connector.disconnect()
-        self.assertEqual(column_count, 2)
         self.assertEqual(header, ["domain", "Value"])
         self.assertEqual(next(data_iterator), ["key1", 3.14])
         self.assertEqual(next(data_iterator), ["key2", -2.3])
@@ -202,9 +196,8 @@ class TestGdxConnector(unittest.TestCase):
                 )
                 gdx_file["parameter"] = gams_parameter
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("parameter", {})
+            data_iterator, header = connector.get_data_iterator("parameter", {})
             connector.disconnect()
-        self.assertEqual(column_count, 3)
         self.assertEqual(header, ["domain1", "domainA", "Value"])
         self.assertEqual(next(data_iterator), ["key1", "keyA", 3.14])
         self.assertEqual(next(data_iterator), ["key2", "keyB", -2.3])
@@ -222,9 +215,8 @@ class TestGdxConnector(unittest.TestCase):
                 gams_scalar = GAMSScalar(2.3)
                 gdx_file["scalar"] = gams_scalar
             connector.connect_to_source(path)
-            data_iterator, header, column_count = connector.get_data_iterator("scalar", {})
+            data_iterator, header = connector.get_data_iterator("scalar", {})
             connector.disconnect()
-        self.assertEqual(column_count, 1)
         self.assertEqual(header, ["Value"])
         self.assertEqual(next(data_iterator), [2.3])
         with self.assertRaises(StopIteration):

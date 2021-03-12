@@ -15,7 +15,6 @@ Unit tests for export mappings.
 :date:   10.12.2020
 """
 
-import pickle
 import unittest
 from spinedb_api import (
     DatabaseMapping,
@@ -38,7 +37,7 @@ from spinedb_api import (
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.export_mapping import Position, rows, titles, object_parameter_export, relationship_export
-from spinedb_api.export_mapping.item_export_mapping import (
+from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
     FixedValueMapping,
     ExpandedParameterValueMapping,
@@ -71,8 +70,8 @@ from spinedb_api.export_mapping.item_export_mapping import (
     ToolFeatureMethodMethodMapping,
     ToolFeatureMethodParameterDefinitionMapping,
     to_dict,
-    unflatten,
 )
+from spinedb_api.mapping import unflatten
 
 
 class TestExportMapping(unittest.TestCase):

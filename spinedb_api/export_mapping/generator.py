@@ -14,7 +14,7 @@ Contains generator functions that convert a Spine database into rows of tabular 
 :author: A. Soininen (VTT)
 :date:   10.12.2020
 """
-from .item_export_mapping import Position
+from ..mapping import Position
 from .pivot import make_pivot, make_regular
 
 

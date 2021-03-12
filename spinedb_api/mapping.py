@@ -170,6 +170,14 @@ class Mapping:
         width = self.position + 1 if is_regular(self.position) else 0
         return max(width, self.child.non_pivoted_width(parent_is_pivoted or is_pivoted(self.position)))
 
+    def non_pivoted_columns(self):
+        return [m.position for m in self.flatten() if isinstance(m.position, int) and m.position >= 0]
+
+    def last_pivot_row(self):
+        return max(
+            [-(m.position + 1) for m in self.flatten() if isinstance(m.position, int) and m.position < 0], default=0
+        )
+
     def to_dict(self):
         """
         Serializes mapping into dict.

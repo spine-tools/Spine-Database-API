@@ -8,30 +8,3 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-This package contains facilities to map a Spine database into tables.
-
-:author: A. Soininen (VTT)
-:date:   10.12.2020
-"""
-
-from ..mapping import is_pivoted, is_regular, Position
-from .generator import rows, titles
-from .settings import (
-    alternative_export,
-    feature_export,
-    object_export,
-    object_group_export,
-    object_group_parameter_export,
-    object_parameter_default_value_export,
-    object_parameter_export,
-    parameter_value_list_export,
-    relationship_export,
-    relationship_parameter_default_value_export,
-    relationship_parameter_export,
-    scenario_alternative_export,
-    scenario_export,
-    tool_export,
-    tool_feature_export,
-    tool_feature_method_export,
-)

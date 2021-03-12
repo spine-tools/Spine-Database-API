@@ -15,7 +15,7 @@ Contains functions and methods to turn a regular export table into a pivot table
 :date:   1.2.2021
 """
 from copy import deepcopy
-from .item_export_mapping import is_regular, is_pivoted, Position, unflatten
+from ..mapping import is_regular, is_pivoted, Position, unflatten
 from .group_functions import from_str as group_function_from_str, NoGroup
 
 

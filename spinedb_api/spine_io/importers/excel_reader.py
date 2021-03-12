@@ -19,17 +19,8 @@ Contains ExcelConnector class and a help function.
 from itertools import islice, takewhile
 import io
 from openpyxl import load_workbook
-from spinedb_api import (
-    RelationshipClassMapping,
-    ObjectClassMapping,
-    ObjectGroupMapping,
-    AlternativeMapping,
-    ScenarioMapping,
-    ScenarioAlternativeMapping,
-    from_database,
-    ParameterValueFormatError,
-)
-from ..io_api import SourceConnection
+from spinedb_api import from_database, ParameterValueFormatError
+from .reader import SourceConnection
 
 
 class ExcelConnector(SourceConnection):
@@ -172,11 +163,11 @@ class ExcelConnector(SourceConnection):
             condition = lambda row: row[0] is not None
             data_iterator = takewhile(condition, data_iterator)
 
-        return data_iterator, header, num_cols
+        return data_iterator, header
 
     def get_mapped_data(self, tables_mappings, options, table_types, table_row_types, max_rows=-1):
         """
-        Overrides io_api method to check for some parameter_value types.
+        Overrides reader method to check for some parameter_value types.
         """
         mapped_data, errors = super().get_mapped_data(tables_mappings, options, table_types, table_row_types, max_rows)
         value_pos = 3  # from (class, entity, parameter, value, *optionals)

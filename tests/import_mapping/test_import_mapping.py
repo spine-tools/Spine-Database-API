@@ -17,30 +17,32 @@ Unit tests for json_mapping.py.
 """
 import unittest
 from unittest.mock import Mock
-from spinedb_api import (
-    AlternativeMapping,
-    ObjectClassMapping,
-    ObjectGroupMapping,
-    RelationshipClassMapping,
-    MapValueMapping,
-    TimeSeriesValueMapping,
-    RowMapping,
-    ColumnHeaderMapping,
-    ColumnMapping,
-    TableNameMapping,
-    convert_function_from_spec,
-    parameter_mapping_from_dict,
-    TimeSeriesOptions,
-    NoneMapping,
-    ConstantMapping,
-    Map,
-    ScenarioAlternativeMapping,
-    ScenarioMapping,
-    ToolMapping,
-    FeatureMapping,
-    ToolFeatureMapping,
-    ToolFeatureMethodMapping,
-)
+
+# FIXME
+# from spinedb_api import (
+#    AlternativeMapping,
+#    ObjectClassMapping,
+#    ObjectGroupMapping,
+#    RelationshipClassMapping,
+#    MapValueMapping,
+#    TimeSeriesValueMapping,
+#    RowMapping,
+#    ColumnHeaderMapping,
+#    ColumnMapping,
+#    TableNameMapping,
+#    convert_function_from_spec,
+#    parameter_mapping_from_dict,
+#    TimeSeriesOptions,
+#    NoneMapping,
+#    ConstantMapping,
+#    Map,
+#    ScenarioAlternativeMapping,
+#    ScenarioMapping,
+#    ToolMapping,
+#    FeatureMapping,
+#    ToolFeatureMapping,
+#    ToolFeatureMethodMapping,
+# )
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern
 from spinedb_api.exception import TypeConversionError

@@ -17,7 +17,7 @@ Contains GDXConnector class and a help function.
 """
 
 from gdx2py import GdxFile, GAMSParameter, GAMSScalar, GAMSSet
-from ..io_api import SourceConnection
+from .reader import SourceConnection
 from ..gdx_utils import find_gams_directory
 
 
@@ -99,28 +99,20 @@ class GdxConnector(SourceConnection):
             tuple: data iterator, list of column names, number of columns
         """
         if table not in self._gdx_file:
-            return iter([]), [], 0
+            return iter([]), []
         symbol = self._gdx_file[table]
         if isinstance(symbol, GAMSScalar):
-            return iter([[float(symbol)]]), ["Value"], 1
+            return iter([[float(symbol)]]), ["Value"]
         domains = symbol.domain if symbol.domain is not None else symbol.dimension * [None]
         header = [domain if domain is not None else f"dim{i}" for i, domain in enumerate(domains)]
         if isinstance(symbol, GAMSSet):
             if symbol.elements and isinstance(symbol.elements[0], str):
-                return iter([[key] for key in symbol.elements]), header, len(header)
-            return iter(list(keys) for keys in symbol.elements), header, len(header)
+                return iter([[key] for key in symbol.elements]), header
+            return iter(list(keys) for keys in symbol.elements), header
         if isinstance(symbol, GAMSParameter):
             header.append("Value")
             symbol_keys = list(symbol.keys())
             if symbol_keys and isinstance(symbol_keys[0], str):
-                return (
-                    iter([keys] + [value] for keys, value in zip(symbol_keys, symbol.values())),
-                    header,
-                    len(header),
-                )
-            return (
-                iter(list(keys) + [value] for keys, value in zip(symbol_keys, symbol.values())),
-                header,
-                len(header),
-            )
+                return (iter([keys] + [value] for keys, value in zip(symbol_keys, symbol.values())), header)
+            return (iter(list(keys) + [value] for keys, value in zip(symbol_keys, symbol.values())), header)
         raise RuntimeError("Unknown GAMS symbol type.")

@@ -65,8 +65,7 @@ class SourceConnection:
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """
-        Function that should return a data iterator, data header and number of
-        columns.
+        Function that should return a data iterator and data header.
         """
         raise NotImplementedError()
 

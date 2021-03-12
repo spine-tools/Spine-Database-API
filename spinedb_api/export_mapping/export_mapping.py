@@ -22,7 +22,7 @@ import re
 import json
 from spinedb_api.parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from spinedb_api.export_mapping.group_functions import NoGroup
-from spinedb_api.spine_io.mapping import Mapping, Position, is_pivoted
+from spinedb_api.mapping import Mapping, Position, is_pivoted, unflatten
 
 
 @unique
@@ -95,7 +95,7 @@ class ExportMapping(Mapping):
         self._ignorable = False
         self._unignorable_update_state = self._update_state
         self._unignorable_query = self._query
-        self._unignorable_export_data = self._data
+        self._unignorable_data = self._data
         self._unfiltered_query = self._query
         self.header = header
         self.filter_re = filter_re

@@ -17,7 +17,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from distutils.util import strtobool
 from enum import auto, Enum, unique
-from spinedb_api.spine_io.mapping import Mapping, Position
+from spinedb_api.mapping import Mapping, Position
 from spinedb_api.exception import InvalidMapping
 
 
@@ -94,7 +94,7 @@ class ImportMapping(Mapping):
             table_name (str)
             source_header (list(str))
         """
-        # TODO: Polish skip columns
+        # FIXME: Polish skip columns
         if self.child is not None:
             self.child.polish(table_name, source_header)
         if isinstance(self.position, str):
@@ -143,6 +143,12 @@ class ImportMapping(Mapping):
 
     def _import_row(self, source_data, state, mapped_data):
         raise NotImplementedError()
+
+    def is_constant(self):
+        return self.position == Position.hidden and self.value is not None
+
+    def is_none(self):
+        return self.position == Position.hidden and self.value is None
 
 
 class ObjectClassMapping(ImportMapping):

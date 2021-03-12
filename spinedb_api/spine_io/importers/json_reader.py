@@ -19,7 +19,7 @@ Contains JSONConnector class.
 import sys
 import os
 import ijson
-from ..io_api import SourceConnection
+from .reader import SourceConnection
 
 
 class JSONConnector(SourceConnection):
@@ -79,7 +79,7 @@ class JSONConnector(SourceConnection):
         Return data read from data source table in table. If max_rows is
         specified only that number of rows.
         """
-        return (self.file_iterator(table, options, max_rows=max_rows), [], options["max_depth"])
+        return self.file_iterator(table, options, max_rows=max_rows), []
 
 
 def _tabulize_json(obj):

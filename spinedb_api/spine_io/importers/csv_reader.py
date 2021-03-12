@@ -20,7 +20,7 @@ Contains CSVConnector class and a help function.
 import csv
 from itertools import islice
 import chardet
-from ..io_api import SourceConnection
+from .reader import SourceConnection
 
 
 class CSVConnector(SourceConnection):
@@ -174,12 +174,6 @@ class CSVConnector(SourceConnection):
             tuple:
         """
         csv_iter = self.file_iterator(options, max_rows)
-        # Iterate once to get num_cols
-        try:
-            first_row = next(csv_iter)
-        except StopIteration:
-            return iter([]), [], 0
-        num_cols = len(first_row)
 
         _, _, has_header, _ = self.parse_options(options)
         if has_header:
@@ -189,4 +183,4 @@ class CSVConnector(SourceConnection):
             header = []
             # reset iterator
             csv_iter = self.file_iterator(options, max_rows)
-        return csv_iter, header, num_cols
+        return csv_iter, header

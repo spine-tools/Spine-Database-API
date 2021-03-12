@@ -19,7 +19,7 @@ Contains SqlAlchemyConnector class.
 
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import Session
-from ..io_api import SourceConnection
+from .reader import SourceConnection
 
 
 class SqlAlchemyConnector(SourceConnection):
@@ -85,10 +85,9 @@ class SqlAlchemyConnector(SourceConnection):
         """
         db_table = self._metadata.tables[table]
         header = [str(name) for name in db_table.columns.keys()]
-        num_cols = len(header)
 
         query = self._session.query(db_table)
         if max_rows > 0:
             query = query.limit(max_rows)
 
-        return query, header, num_cols
+        return query, header

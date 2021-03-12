@@ -92,50 +92,8 @@ from .export_functions import (
     export_tool_features,
     export_tool_feature_methods,
 )
-from .import_mapping.single_import_mapping import (
-    SingleMappingBase,
-    NoneMapping,
-    ConstantMapping,
-    ColumnMapping,
-    ColumnHeaderMapping,
-    RowMapping,
-    TableNameMapping,
-)
-from .import_mapping.parameter_import_mapping import (
-    TimeSeriesOptions,
-    NoParameterMapping,
-    ParameterMappingBase,
-    ParameterDefinitionMapping,
-    ParameterValueMapping,
-    SingleValueMapping,
-    ArrayValueMapping,
-    TimeSeriesValueMapping,
-    TimePatternValueMapping,
-    MapValueMapping,
-    parameter_mapping_from_dict,
-    value_mapping_from_any,
-)
-from .import_mapping.item_import_mapping import (
-    NamedItemMapping,
-    EntityClassMapping,
-    ObjectClassMapping,
-    ObjectGroupMapping,
-    RelationshipClassMapping,
-    AlternativeMapping,
-    ScenarioMapping,
-    ScenarioAlternativeMapping,
-    ParameterValueListMapping,
-    FeatureMapping,
-    ToolMapping,
-    ToolFeatureMapping,
-    ToolFeatureMethodMapping,
-    item_mapping_from_dict,
-)
-from .import_mapping.import_mapping_functions import (
-    convert_function_from_spec,
-    mapping_non_pivoted_columns,
-    read_with_mapping,
-)
+from .import_mapping.import_mapping_compat import import_mapping_from_dict
+from .import_mapping.generator import get_mapped_data
 from .parameter_value import (
     convert_containers_to_maps,
     convert_leaf_maps_to_specialized_containers,

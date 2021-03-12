@@ -45,7 +45,7 @@ class TestCSVConnector(unittest.TestCase):
             self.assertEqual(options["delimiter"], ",")
             self.assertEqual(options["quotechar"], '"')
             self.assertEqual(options["skip"], 0)
-            self.assertTrue(not "has_header" in options)
+            self.assertTrue("has_header" not in options)
 
     def test_get_data_iterator(self):
         with TemporaryDirectory() as data_directory:
@@ -55,9 +55,8 @@ class TestCSVConnector(unittest.TestCase):
             connector.connect_to_source(file_name)
             tables = connector.get_tables()
             options = tables["data"]["options"]
-            _, header, num_cols = connector.get_data_iterator("", options)
+            _, header = connector.get_data_iterator("", options)
             self.assertTrue(not header)
-            self.assertEqual(num_cols, 3)
 
     def test_get_data(self):
         with TemporaryDirectory() as data_directory:

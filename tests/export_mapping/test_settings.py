@@ -30,7 +30,7 @@ from spinedb_api.export_mapping.settings import (
     relationship_export,
     set_relationship_dimensions,
 )
-from spinedb_api.export_mapping.item_export_mapping import (
+from spinedb_api.export_mapping.export_mapping import (
     Position,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
