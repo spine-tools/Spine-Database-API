@@ -9,7 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """
-Contains export mappings for database items such as entities, entity classes and parameter values.
+Contains import mappings for database items such as entities, entity classes and parameter values.
 
 :author: A. Soininen (VTT)
 :date:   10.12.2020
@@ -17,7 +17,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from distutils.util import strtobool
 from enum import auto, Enum, unique
-from spinedb_api.mapping import Mapping, Position
+from spinedb_api.mapping import Mapping, Position, unflatten
 from spinedb_api.exception import InvalidMapping
 
 
@@ -147,8 +147,84 @@ class ImportMapping(Mapping):
     def is_constant(self):
         return self.position == Position.hidden and self.value is not None
 
-    def is_none(self):
-        return self.position == Position.hidden and self.value is None
+    @classmethod
+    def reconstruct(cls, position, mapping_dict):
+        """
+        Reconstructs mapping.
+
+        Args:
+            position (int or Position, optional): mapping's position
+            mapping_dict (dict): serialized mapping
+
+        Returns:
+            Mapping: reconstructed mapping
+        """
+        value = mapping_dict.get("value")
+        skip_columns = mapping_dict.get("skip_columns")
+        read_start_row = mapping_dict.get("read_start_row", 0)
+        mapping = cls(position, value=value, skip_columns=skip_columns, read_start_row=read_start_row)
+        return mapping
+
+
+class ImportObjectsMixin:
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, import_objects=False):
+        super().__init__(position, value, skip_columns, read_start_row)
+        self.import_objects = import_objects
+
+    def to_dict(self):
+        d = super().to_dict()
+        if self.import_objects:
+            d["import_objects"] = True
+        return d
+
+    @classmethod
+    def reconstruct(cls, position, mapping_dict):
+        value = mapping_dict.get("value")
+        skip_columns = mapping_dict.get("skip_columns")
+        read_start_row = mapping_dict.get("read_start_row", 0)
+        import_objects = mapping_dict.get("import_objects", False)
+        mapping = cls(
+            position,
+            value=value,
+            skip_columns=skip_columns,
+            read_start_row=read_start_row,
+            import_objects=import_objects,
+        )
+        return mapping
+
+
+class IndexedValueMixin:
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False, options=None):
+        super().__init__(position, value, skip_columns, read_start_row)
+        if options is None:
+            options = {}
+        self.compress = compress
+        self.options = options
+
+    def to_dict(self):
+        d = super().to_dict()
+        if self.compress:
+            d["compress"] = True
+        if self.options:
+            d["options"] = self.options
+        return d
+
+    @classmethod
+    def reconstruct(cls, position, mapping_dict):
+        value = mapping_dict.get("value")
+        skip_columns = mapping_dict.get("skip_columns")
+        read_start_row = mapping_dict.get("read_start_row", 0)
+        compress = mapping_dict.get("compress", False)
+        options = mapping_dict.get("options")
+        mapping = cls(
+            position,
+            value=value,
+            skip_columns=skip_columns,
+            read_start_row=read_start_row,
+            compress=compress,
+            options=options,
+        )
+        return mapping
 
 
 class ObjectClassMapping(ImportMapping):
@@ -180,17 +256,13 @@ class ObjectMapping(ImportMapping):
             mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
 
 
-class ObjectGroupMapping(ImportMapping):
+class ObjectGroupMapping(ImportObjectsMixin, ImportMapping):
     """Maps object groups.
 
     Cannot be used as the topmost mapping; must have :class:`ObjectClassMapping` and :class:`ObjectMapping` as parents.
     """
 
     MAP_TYPE = "ObjectGroup"
-
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, import_objects=False):
-        super().__init__(position, value, skip_columns, read_start_row)
-        self.import_objects = import_objects
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
@@ -246,7 +318,7 @@ class RelationshipMapping(ImportMapping):
         relationships.append((relationship_class_name, object_names))
 
 
-class RelationshipObjectMapping(ImportMapping):
+class RelationshipObjectMapping(ImportObjectsMixin, ImportMapping):
     """Maps relationship's objects.
 
     Cannot be used as the topmost mapping; must have :class:`RelationshipClassMapping` and :class:`RelationshipMapping`
@@ -254,10 +326,6 @@ class RelationshipObjectMapping(ImportMapping):
     """
 
     MAP_TYPE = "RelationshipObject"
-
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, import_objects=False):
-        super().__init__(position, value, skip_columns, read_start_row)
-        self.import_objects = import_objects
 
     def _import_row(self, source_data, state, mapped_data):
         object_names = state[ImportKey.OBJECT_NAMES]
@@ -304,15 +372,8 @@ class ParameterDefaultValueMapping(ImportMapping):
         parameter_definition.append(source_data)
 
 
-class ParameterDefaultValueTypeMapping(ImportMapping):
+class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
     MAP_TYPE = "ParameterDefaultValueType"
-
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False, options=None):
-        super().__init__(position, value, skip_columns, read_start_row)
-        if options is None:
-            options = {}
-        self.compress = compress
-        self.options = options
 
     def _import_row(self, source_data, state, mapped_data):
         parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
@@ -403,15 +464,8 @@ class ParameterValueMapping(ImportMapping):
         mapped_data.setdefault(map_key, list()).append(parameter_value)
 
 
-class ParameterValueTypeMapping(ImportMapping):
+class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
     MAP_TYPE = "ParameterValueType"
-
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False, options=None):
-        super().__init__(position, value, skip_columns, read_start_row)
-        if options is None:
-            options = {}
-        self.compress = compress
-        self.options = options
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
@@ -702,3 +756,55 @@ class ToolFeatureMethodMethodMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
         tool_feature_method.append(source_data)
+
+
+def from_dict(serialized):
+    """
+    Deserializes mappings.
+
+    Args:
+        serialized (list): serialize mappings
+
+    Returns:
+        Mapping: root mapping
+    """
+    mappings = {
+        klass.MAP_TYPE: klass
+        for klass in (
+            AlternativeMapping,
+            ExpandedParameterValueMapping,
+            FeatureEntityClassMapping,
+            FeatureParameterDefinitionMapping,
+            ObjectClassMapping,
+            ObjectGroupMapping,
+            ObjectMapping,
+            ParameterDefinitionMapping,
+            ParameterValueIndexMapping,
+            ParameterValueListMapping,
+            ParameterValueListValueMapping,
+            ParameterValueMapping,
+            RelationshipMapping,
+            RelationshipClassMapping,
+            RelationshipClassObjectClassMapping,
+            RelationshipObjectMapping,
+            ScenarioActiveFlagMapping,
+            ScenarioAlternativeMapping,
+            ScenarioBeforeAlternativeMapping,
+            ScenarioMapping,
+            ToolMapping,
+            ToolFeatureEntityClassMapping,
+            ToolFeatureParameterDefinitionMapping,
+            ToolFeatureRequiredFlagMapping,
+            ToolFeatureMethodEntityClassMapping,
+            ToolFeatureMethodParameterDefinitionMapping,
+        )
+    }
+    # Legacy
+    mappings["ParameterIndex"] = ParameterValueIndexMapping
+    flattened = list()
+    for mapping_dict in serialized:
+        position = mapping_dict["position"]
+        if isinstance(position, str):
+            position = Position(position)
+        flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, mapping_dict))
+    return unflatten(flattened)

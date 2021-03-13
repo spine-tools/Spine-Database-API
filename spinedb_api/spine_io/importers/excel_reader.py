@@ -108,11 +108,11 @@ class ExcelConnector(SourceConnection):
         specified only that number of rows.
         """
         if not self._wb:
-            return iter([]), [], 0
+            return iter([]), []
 
         if not table in self._wb:
             # table not found
-            return iter([]), [], 0
+            return iter([]), []
         worksheet = self._wb[table]
 
         # get options
@@ -154,7 +154,7 @@ class ExcelConnector(SourceConnection):
                 header = [c.value for c in islice(next(rows), skip_columns, read_to_col)]
             except StopIteration:
                 # no data
-                return iter([]), [], 0
+                return iter([]), []
 
         # iterator for selected columns and and skipped rows
         data_iterator = (list(cell.value for cell in islice(row, skip_columns, read_to_col)) for row in rows)

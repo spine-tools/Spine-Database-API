@@ -48,11 +48,32 @@ from .import_mapping import (
     ToolFeatureMethodMethodMapping,
     ObjectGroupMapping,
     ParameterValueListMapping,
+    from_dict as mapping_from_dict,
 )
+from ..mapping import to_dict as mapping_to_dict
+
+
+def unparse_named_mapping_spec(name, root_mapping):
+    return {name: {"mapping": mapping_to_dict(root_mapping)}}
+
+
+def parse_named_mapping_spec(named_mapping_spec):
+    if len(named_mapping_spec) == 1:
+        name, mapping_spec = next(iter(named_mapping_spec.items()))
+        mapping = mapping_spec["mapping"]
+    else:
+        # Legacy
+        name = named_mapping_spec.get("mapping_name", "")
+        mapping = named_mapping_spec
+    return name, import_mapping_from_dict(mapping)
 
 
 def import_mapping_from_dict(map_dict):
     """Creates Mapping object from a dict"""
+    if isinstance(map_dict, list):
+        # New system, flattened mapping as list
+        return mapping_from_dict(map_dict)
+    # Compatibility system, plain dict
     if not isinstance(map_dict, dict):
         raise TypeError(f"map_dict must be a dict, instead it was: {type(map_dict)}")
     map_type = map_dict.get("map_type")
@@ -67,7 +88,7 @@ def import_mapping_from_dict(map_dict):
         "ToolFeature": _tool_feature_mapping_from_dict,
         "ToolFeatureMethod": _tool_feature_method_mapping_from_dict,
         "ObjectGroup": _object_group_mapping_from_dict,
-        # ParameterValueList,
+        # ParameterValueList, FIXME
     }
     from_dict = legacy_mapping_from_dict.get(map_type)
     if from_dict is not None:
@@ -229,7 +250,7 @@ def parameter_mapping_from_dict(map_dict):
     if map_type == "ParameterDefinition":
         default_value_dict = map_dict.get("default_value")
         value_list_name = map_dict.get("parameter_value_list_name")
-        param_def_mapping.child = default_value_mapping = _parameter_default_value_mapping_from_dict(default_value_dict)
+        param_def_mapping.child = default_value_mapping = parameter_default_value_mapping_from_dict(default_value_dict)
         default_value_mapping.flatten()[-1].child = ParameterValueListMapping(*_pos_and_val(value_list_name))
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
@@ -238,12 +259,13 @@ def parameter_mapping_from_dict(map_dict):
     return param_def_mapping
 
 
-def _parameter_default_value_mapping_from_dict(default_value_dict):
+def parameter_default_value_mapping_from_dict(default_value_dict):
     if default_value_dict is None:
         return ParameterDefaultValueMapping(*_pos_and_val(None))
     value_type = default_value_dict["value_type"].replace(" ", "_")
+    main_value = default_value_dict.get("main_value")
     if value_type == "single_value":
-        return ParameterDefaultValueMapping(*_pos_and_val(default_value_dict["main_value"]))
+        return ParameterDefaultValueMapping(*_pos_and_val(main_value))
     extra_dimensions = default_value_dict.get("extra_dimensions", [None])
     compress = default_value_dict.get("compress", False)
     options = default_value_dict.get("options", {})
@@ -253,7 +275,7 @@ def _parameter_default_value_mapping_from_dict(default_value_dict):
         mapping = ParameterDefaultValueIndexMapping(*_pos_and_val(ed))
         parent_mapping.child = mapping
         parent_mapping = mapping
-    parent_mapping.child = ExpandedParameterDefaultValueMapping(*_pos_and_val(default_value_dict["main_value"]))
+    parent_mapping.child = ExpandedParameterDefaultValueMapping(*_pos_and_val(main_value))
     return root_mapping
 
 

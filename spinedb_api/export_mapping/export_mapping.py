@@ -1313,16 +1313,3 @@ def from_dict(serialized):
         ignorable = mapping_dict.get("ignorable", False)
         flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, ignorable, mapping_dict))
     return unflatten(flattened)
-
-
-def to_dict(root_mapping):
-    """
-    Serializes mappings into JSON compatible data structure.
-
-    Args:
-        root_mapping (Mapping): root mapping
-
-    Returns:
-        list: serialized mappings
-    """
-    return list(mapping.to_dict() for mapping in root_mapping.flatten())

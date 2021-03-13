@@ -15,7 +15,6 @@ This package contains facilities to map a Spine database into tables.
 :date:   10.12.2020
 """
 
-from ..mapping import is_pivoted, is_regular, Position
 from .generator import rows, titles
 from .settings import (
     alternative_export,

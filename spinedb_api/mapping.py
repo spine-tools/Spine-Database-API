@@ -191,25 +191,6 @@ class Mapping:
             mapping_dict["value"] = self.value
         return mapping_dict
 
-    @classmethod
-    def reconstruct(cls, position, ignorable, mapping_dict):
-        """
-        Reconstructs mapping.
-
-        Args:
-            position (int or Position, optional): mapping's position
-            ignorable (bool): ignorable flag
-            mapping_dict (dict): serialized mapping
-
-        Returns:
-            Mapping: reconstructed mapping
-        """
-        value = mapping_dict.get("value")
-        mapping = cls(position, value=value)
-        if ignorable:
-            mapping.set_ignorable()
-        return mapping
-
 
 def unflatten(mappings):
     """
@@ -231,3 +212,16 @@ def unflatten(mappings):
         current = mapping
     current.child = None
     return root
+
+
+def to_dict(root_mapping):
+    """
+    Serializes mappings into JSON compatible data structure.
+
+    Args:
+        root_mapping (Mapping): root mapping
+
+    Returns:
+        list: serialized mappings
+    """
+    return list(mapping.to_dict() for mapping in root_mapping.flatten())

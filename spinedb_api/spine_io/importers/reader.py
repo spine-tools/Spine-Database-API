@@ -17,6 +17,7 @@ Contains a class template for a data source connector used in import ui.
 """
 
 from spinedb_api.import_mapping.generator import get_mapped_data
+from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
 
 TYPE_STRING_TO_CLASS = {"string": str, "datetime": DateTime, "duration": Duration, "float": float, "boolean": bool}
@@ -86,13 +87,17 @@ class SourceConnection:
         """
         mapped_data = {}
         errors = []
-        for table, mapping in tables_mappings.items():
+        for table, named_mapping_specs in tables_mappings.items():
             types = {col: spec.convert_function() for col, spec in table_types.get(table, {}).items()}
             row_types = {row: spec.convert_function() for row, spec in table_row_types.get(table, {}).items()}
             opt = options.get(table, {})
-            data, header = self.get_data_iterator(table, opt, max_rows)
+            data_source, header = self.get_data_iterator(table, opt, max_rows)
+            mappings = []
+            for named_mapping_spec in named_mapping_specs:
+                _, mapping = parse_named_mapping_spec(named_mapping_spec)
+                mappings.append(mapping)
             try:
-                data, t_errors = get_mapped_data(data, mapping, header, types, row_types)
+                data, t_errors = get_mapped_data(data_source, mappings, header, types, row_types)
             except ParameterValueFormatError as error:
                 errors.append(str(error))
                 continue
