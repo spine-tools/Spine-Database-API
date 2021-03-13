@@ -17,7 +17,7 @@ Contains import mappings for database items such as entities, entity classes and
 
 from distutils.util import strtobool
 from enum import auto, Enum, unique
-from spinedb_api.mapping import Mapping, Position, unflatten
+from spinedb_api.mapping import Mapping, Position, unflatten, is_pivoted
 from spinedb_api.exception import InvalidMapping
 
 
@@ -146,6 +146,18 @@ class ImportMapping(Mapping):
 
     def is_constant(self):
         return self.position == Position.hidden and self.value is not None
+
+    def is_none(self):
+        return self.position == Position.hidden and self.value is None
+
+    def is_pivoted(self):
+        if self.child is None:
+            return False
+        if is_pivoted(self.position):
+            return True
+        if self.position == Position.header and self.value is None:
+            return True
+        return self.child.is_pivoted()
 
     @classmethod
     def reconstruct(cls, position, mapping_dict):

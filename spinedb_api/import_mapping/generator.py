@@ -23,7 +23,9 @@ from ..import_mapping.import_mapping import ImportMapping, Position
 from .import_mapping_compat import import_mapping_from_dict
 
 
-def get_mapped_data(data_source, mappings, data_header=None, table_name="", column_types=None, row_types=None):
+def get_mapped_data(
+    data_source, mappings, data_header=None, table_name="", column_convert_fns=None, row_convert_fns=None
+):
     if not isinstance(mappings, (list, tuple)):
         mappings = [mappings]
     # Sanitize mappings
@@ -34,6 +36,10 @@ def get_mapped_data(data_source, mappings, data_header=None, table_name="", colu
             pass
         else:
             raise TypeError(f"mapping must be a dict or ImportMapping subclass, instead got: {type(mapping).__name__}")
+    if column_convert_fns is None:
+        column_convert_fns = {}
+    if row_convert_fns is None:
+        row_convert_fns = {}
     mapped_data = {}
     errors = []
     read_state = {}
@@ -46,6 +52,7 @@ def get_mapped_data(data_source, mappings, data_header=None, table_name="", colu
         # If there are no pivoted mappings, we can just feed the rows to our mapping directly
         if not (pivoted or pivoted_from_header):
             for row in rows[mapping.read_start_row :]:
+                row = _convert_row(row, column_convert_fns)
                 mapping.import_row(row, read_state, mapped_data)
             continue
         # There are pivoted mappings. We will unpivot the table
@@ -58,6 +65,7 @@ def get_mapped_data(data_source, mappings, data_header=None, table_name="", colu
             for k, m in enumerate(pivoted):
                 m.position = k
             for row in unpivoted_rows:
+                row = _convert_row(row, row_convert_fns)
                 mapping.import_row(row, read_state, mapped_data)
             continue
         # There are both pivoted and unpivoted mappings
@@ -72,7 +80,9 @@ def get_mapped_data(data_source, mappings, data_header=None, table_name="", colu
         start_pos = max(mapping.read_start_row, last_pivoted_row_pos)
         for row in rows[start_pos:]:
             regular_row = row[:last_non_pivoted_column_pos]
+            regular_row = _convert_row(regular_row, column_convert_fns)
             for k, unpivoted_row in enumerate(unpivoted_rows):
+                unpivoted_row = _convert_row(unpivoted_row, row_convert_fns)
                 full_row = regular_row + unpivoted_row
                 full_row.append(row[last_non_pivoted_column_pos + k])
                 mapping.import_row(full_row, read_state, mapped_data)
@@ -91,6 +101,14 @@ def get_mapped_data(data_source, mappings, data_header=None, table_name="", colu
                 if isinstance(value, dict):
                     row[value_pos] = _parameter_value_from_dict(value)
     return mapped_data, errors
+
+
+def _convert_row(row, convert_fns):
+    new_row = []
+    for j, item in enumerate(row):
+        convert_fn = convert_fns.get(j, lambda x: x)
+        new_row.append(convert_fn(item))
+    return new_row
 
 
 def _split_mapping(mapping):

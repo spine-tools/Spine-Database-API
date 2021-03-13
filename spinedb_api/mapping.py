@@ -147,11 +147,11 @@ class Mapping:
         Returns:
             bool: True if any of the items is pivoted, False otherwise
         """
-        if self.child is not None:
-            if is_pivoted(self.position):
-                return True
-            return self.child.is_pivoted()
-        return False
+        if self.child is None:
+            return False
+        if is_pivoted(self.position):
+            return True
+        return self.child.is_pivoted()
 
     def non_pivoted_width(self, parent_is_pivoted=False):
         """
