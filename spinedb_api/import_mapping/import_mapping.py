@@ -297,6 +297,8 @@ class ParameterDefaultValueMapping(ImportMapping):
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
     """
 
+    MAP_TYPE = "ParameterDefaultValue"
+
     def _import_row(self, source_data, state, mapped_data):
         parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
         parameter_definition.append(source_data)
@@ -305,9 +307,12 @@ class ParameterDefaultValueMapping(ImportMapping):
 class ParameterDefaultValueTypeMapping(ImportMapping):
     MAP_TYPE = "ParameterDefaultValueType"
 
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False):
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False, options=None):
         super().__init__(position, value, skip_columns, read_start_row)
+        if options is None:
+            options = {}
         self.compress = compress
+        self.options = options
 
     def _import_row(self, source_data, state, mapped_data):
         parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
@@ -401,9 +406,12 @@ class ParameterValueMapping(ImportMapping):
 class ParameterValueTypeMapping(ImportMapping):
     MAP_TYPE = "ParameterValueType"
 
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False):
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False, options=None):
         super().__init__(position, value, skip_columns, read_start_row)
+        if options is None:
+            options = {}
         self.compress = compress
+        self.options = options
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)

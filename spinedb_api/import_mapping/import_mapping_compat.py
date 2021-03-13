@@ -167,7 +167,7 @@ def _object_class_mapping_from_dict(map_dict):
     root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(objects))
     parameters = map_dict.get("parameters")
-    object_mapping.child = _parameter_mapping_from_dict(parameters)
+    object_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
     # FIXME: We need to handle this below too:
     # object_metadata = map_dict.get("object_metadata", None)
@@ -184,7 +184,7 @@ def _object_group_mapping_from_dict(map_dict):
     object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(groups))
     group_mapping = object_mapping.child = ObjectGroupMapping(*_pos_and_val(members), import_objects=import_objects)
     parameters = map_dict.get("parameters")
-    group_mapping.child = _parameter_mapping_from_dict(parameters)
+    group_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
 
@@ -210,13 +210,13 @@ def _relationship_class_mapping_from_dict(map_dict):
         parent_mapping.child = object_mapping
         parent_mapping = object_mapping
     parameters = map_dict.get("parameters")
-    parent_mapping.child = _parameter_mapping_from_dict(parameters)
+    parent_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
     # FIXME
     # relationship_metadata = map_dict.get("relationship_metadata", None)
 
 
-def _parameter_mapping_from_dict(map_dict):
+def parameter_mapping_from_dict(map_dict):
     if map_dict is None:
         return None
     map_type = map_dict.get("map_type")
@@ -225,29 +225,29 @@ def _parameter_mapping_from_dict(map_dict):
     map_type = map_dict.get("map_type")
     if map_type == "None":
         return None
-    param_def_mapping = ParameterDefinitionMapping(*_pos_and_val(map_dict["name"]))
+    param_def_mapping = ParameterDefinitionMapping(*_pos_and_val(map_dict.get("name")))
     if map_type == "ParameterDefinition":
         default_value_dict = map_dict.get("default_value")
         value_list_name = map_dict.get("parameter_value_list_name")
-        param_def_mapping.child = default_value_mapping = _parameter_default_value_mapping(default_value_dict)
+        param_def_mapping.child = default_value_mapping = _parameter_default_value_mapping_from_dict(default_value_dict)
         default_value_mapping.flatten()[-1].child = ParameterValueListMapping(*_pos_and_val(value_list_name))
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
     param_def_mapping.child = alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))
-    alt_mapping.child = _parameter_value_mapping(map_dict["value"])
+    alt_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
     return param_def_mapping
 
 
-def _parameter_default_value_mapping(default_value_dict):
+def _parameter_default_value_mapping_from_dict(default_value_dict):
     if default_value_dict is None:
         return ParameterDefaultValueMapping(*_pos_and_val(None))
-    value_type = default_value_dict["value_type"]
-    if value_type == "single value":
+    value_type = default_value_dict["value_type"].replace(" ", "_")
+    if value_type == "single_value":
         return ParameterDefaultValueMapping(*_pos_and_val(default_value_dict["main_value"]))
     extra_dimensions = default_value_dict.get("extra_dimensions", [None])
     compress = default_value_dict.get("compress", False)
-    value_type = value_type.replace(" ", "_")
-    root_mapping = ParameterDefaultValueTypeMapping(Position.hidden, value_type, compress=compress)
+    options = default_value_dict.get("options", {})
+    root_mapping = ParameterDefaultValueTypeMapping(Position.hidden, value_type, compress=compress, options=options)
     parent_mapping = root_mapping
     for ed in extra_dimensions:
         mapping = ParameterDefaultValueIndexMapping(*_pos_and_val(ed))
@@ -257,20 +257,23 @@ def _parameter_default_value_mapping(default_value_dict):
     return root_mapping
 
 
-def _parameter_value_mapping(value_dict):
-    value_type = value_dict["value_type"]
-    if value_type == "single value":
-        return ParameterValueMapping(*_pos_and_val(value_dict["main_value"]))
+def parameter_value_mapping_from_dict(value_dict):
+    if value_dict is None:
+        return ParameterValueMapping(*_pos_and_val(None))
+    value_type = value_dict["value_type"].replace(" ", "_")
+    main_value = value_dict.get("main_value")
+    if value_type == "single_value":
+        return ParameterValueMapping(*_pos_and_val(main_value))
     extra_dimensions = value_dict.get("extra_dimensions", [None])
     compress = value_dict.get("compress", False)
-    value_type = value_type.replace(" ", "_")
-    root_mapping = ParameterValueTypeMapping(Position.hidden, value_type, compress=compress)
+    options = value_dict.get("options", {})
+    root_mapping = ParameterValueTypeMapping(Position.hidden, value_type, compress=compress, options=options)
     parent_mapping = root_mapping
     for ed in extra_dimensions:
         mapping = ParameterValueIndexMapping(*_pos_and_val(ed))
         parent_mapping.child = mapping
         parent_mapping = mapping
-    parent_mapping.child = ExpandedParameterValueMapping(*_pos_and_val(value_dict["main_value"]))
+    parent_mapping.child = ExpandedParameterValueMapping(*_pos_and_val(main_value))
     return root_mapping
 
 

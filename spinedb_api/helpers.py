@@ -910,7 +910,7 @@ class AsteriskType:
 Asterisk = AsteriskType()
 
 
-def fix_name_ambiguity(input_list, offset=0):
+def fix_name_ambiguity(input_list, offset=0, prefix=""):
     """Modify repeated entries in name list by appending an increasing integer."""
     result = []
     ocurrences = {}
@@ -919,7 +919,7 @@ def fix_name_ambiguity(input_list, offset=0):
         if n_ocurrences > 1:
             ocurrence = ocurrences.get(item, 1)
             ocurrences[item] = ocurrence + 1
-            item += str(offset + ocurrence)
+            item += prefix + str(offset + ocurrence)
         result.append(item)
     return result
 
