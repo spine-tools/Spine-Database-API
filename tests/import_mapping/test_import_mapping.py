@@ -414,7 +414,8 @@ class TestImportMappingLegacy(unittest.TestCase):
         self.assertEqual(out, expected)
 
 
-class _XXX:
+@unittest.skip("Obsolete, need to find an equivalent in the new API")
+class TestImportMappingObsolete(unittest.TestCase):
     def test_MapValueMapping_to_dict(self):
         mapping_value = RowMapping(reference=23)
         extra_dimension = ColumnMapping(reference="fifth column")
