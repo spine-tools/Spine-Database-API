@@ -19,7 +19,6 @@ from .exception import (
     RecordNotFoundError,
     ParameterValueError,
     ParameterValueFormatError,
-    TypeConversionError,
     InvalidMapping,
 )
 from .helpers import (

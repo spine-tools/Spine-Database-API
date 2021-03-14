@@ -41,6 +41,7 @@ class ImportKey(Enum):
     TOOL_NAME = auto()
     TOOL_FEATURE = auto()
     TOOL_FEATURE_METHOD = auto()
+    PARAMETER_VALUE_LIST_NAME = auto()
 
 
 class ImportMapping(Mapping):
@@ -566,8 +567,9 @@ class ParameterValueListMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         parameter_definition = state.get(ImportKey.PARAMETER_DEFINITION)
+        value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME] = source_data
         if parameter_definition:
-            parameter_definition.append(source_data)
+            parameter_definition.append(value_list_name)
 
 
 class ParameterValueListValueMapping(ImportMapping):
@@ -578,6 +580,11 @@ class ParameterValueListValueMapping(ImportMapping):
     """
 
     MAP_TYPE = "ParameterValueListValue"
+
+    def _import_row(self, source_data, state, mapped_data):
+        value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME]
+        list_value = source_data
+        mapped_data.setdefault("parameter_value_lists", list()).append([value_list_name, list_value])
 
 
 class AlternativeMapping(ImportMapping):

@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains `get_mapped_data()` that converts rows of tabular data into a dictionary for import to a Spine DB
+Contains `get_mapped_data()` that converts rows of tabular data into a dictionary for import to a Spine DB,
 using ``import_functions.import_data()``
 
 :author: P. Vennström (VTT)
@@ -18,14 +18,29 @@ using ``import_functions.import_data()``
 """
 
 from copy import deepcopy
-from ..parameter_value import from_dict, convert_leaf_maps_to_specialized_containers, Map
-from ..import_mapping.import_mapping import ImportMapping, Position
 from .import_mapping_compat import import_mapping_from_dict
+from .import_mapping import ImportMapping, Position
+from ..mapping import Position
+from ..parameter_value import from_dict, convert_leaf_maps_to_specialized_containers, Map
+from ..exception import ParameterValueFormatError
 
 
 def get_mapped_data(
     data_source, mappings, data_header=None, table_name="", column_convert_fns=None, row_convert_fns=None
 ):
+    """
+    Args:
+        data_source (Iterable): Yields rows (lists)
+        mappings (list(ImportMapping)): Mappings from data rows into mapped data for ``import_data()``
+        data_header (list, optional): table header
+        table_name (str, optional): table name
+        column_convert_fns (dict(int,function), optional): mapping from column number to convert function
+        row_convert_fns (dict(int,function), optional): mapping from row number to convert function
+
+    Returns:
+        dict: Mapped data, ready for ``import_data()``
+        list: Conversion errors
+    """
     if not isinstance(mappings, (list, tuple)):
         mappings = [mappings]
     # Sanitize mappings
@@ -51,8 +66,9 @@ def get_mapped_data(
         pivoted, non_pivoted, pivoted_from_header, last = _split_mapping(mapping)
         # If there are no pivoted mappings, we can just feed the rows to our mapping directly
         if not (pivoted or pivoted_from_header):
-            for row in rows[mapping.read_start_row :]:
-                row = _convert_row(row, column_convert_fns)
+            start_pos = mapping.read_start_row
+            for k, row in enumerate(rows[mapping.read_start_row :]):
+                row = _convert_row(row, column_convert_fns, start_pos + k, errors)
                 mapping.import_row(row, read_state, mapped_data)
             continue
         # There are pivoted mappings. We will unpivot the table
@@ -64,8 +80,8 @@ def get_mapped_data(
             # Reposition pivoted mappings:
             for k, m in enumerate(pivoted):
                 m.position = k
-            for row in unpivoted_rows:
-                row = _convert_row(row, row_convert_fns)
+            for k, row in enumerate(unpivoted_rows):
+                row = _convert_row(row, row_convert_fns, k, errors)
                 mapping.import_row(row, read_state, mapped_data)
             continue
         # There are both pivoted and unpivoted mappings
@@ -78,36 +94,28 @@ def get_mapped_data(
         # Feed rows: To each regular row, we append each unpivoted row, plus the item at the intersection,
         # and feed that to the mapping
         start_pos = max(mapping.read_start_row, last_pivoted_row_pos)
-        for row in rows[start_pos:]:
+        for i, row in enumerate(rows[start_pos:]):
             regular_row = row[:last_non_pivoted_column_pos]
-            regular_row = _convert_row(regular_row, column_convert_fns)
+            regular_row = _convert_row(regular_row, column_convert_fns, start_pos + i, errors)
             for k, unpivoted_row in enumerate(unpivoted_rows):
-                unpivoted_row = _convert_row(unpivoted_row, row_convert_fns)
+                unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = regular_row + unpivoted_row
                 full_row.append(row[last_non_pivoted_column_pos + k])
                 mapping.import_row(full_row, read_state, mapped_data)
-    value_pos = -1  # from (class, entity, parameter, value)
-    parameter_value_pos = {
-        ("object_parameter_values", "relationship_parameter_values"): 3,
-        ("object_parameters", "relationship_parameters"): 2,
-    }
-    for keys, value_pos in parameter_value_pos.items():
-        for key in keys:
-            for row in mapped_data.get(key, []):
-                try:
-                    value = row[value_pos]
-                except IndexError:
-                    continue
-                if isinstance(value, dict):
-                    row[value_pos] = _parameter_value_from_dict(value)
+    _make_parameter_values(mapped_data)
     return mapped_data, errors
 
 
-def _convert_row(row, convert_fns):
+def _convert_row(row, convert_fns, row_number, errors):
     new_row = []
     for j, item in enumerate(row):
         convert_fn = convert_fns.get(j, lambda x: x)
-        new_row.append(convert_fn(item))
+        try:
+            item = convert_fn(item)
+            new_row.append(item)
+        except (ValueError, ParameterValueFormatError):
+            error = f"Could not convert '{item}' to type '{convert_fn.__name__}' (near row {row_number})"
+            errors.append(error)
     return new_row
 
 
@@ -128,6 +136,7 @@ def _split_mapping(mapping):
     non_pivoted = []
     pivoted_from_header = None
     for m in flattened:
+        # FIXME MAYBE: Can there be multiple pivoted from header mappings?
         if m.position == Position.header and m.value is None:
             pivoted_from_header = m
         if not isinstance(m.position, int):
@@ -175,6 +184,23 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     last_pivoted_row_pos = max(pivoted_pos, default=0) + 1
     last_non_pivoted_column_pos = max(non_pivoted_pos, default=0) + 1
     return unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos
+
+
+def _make_parameter_values(mapped_data):
+    parameter_value_pos = {
+        "object_parameter_values": 3,
+        "relationship_parameter_values": 3,
+        "object_parameters": 2,
+        "relationship_parameters": 2,
+    }
+    for key, value_pos in parameter_value_pos.items():
+        for row in mapped_data.get(key, []):
+            try:
+                value = row[value_pos]
+            except IndexError:
+                continue
+            if isinstance(value, dict):
+                row[value_pos] = _parameter_value_from_dict(value)
 
 
 def _parameter_value_from_dict(d):

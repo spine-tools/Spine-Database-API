@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Classes for item import mappings.
+Functions for creating import mappings from dicts.
 
 :author: P. Vennström (VTT)
 :date:   22.02.2018
@@ -48,13 +48,10 @@ from .import_mapping import (
     ToolFeatureMethodMethodMapping,
     ObjectGroupMapping,
     ParameterValueListMapping,
+    ParameterValueListValueMapping,
     from_dict as mapping_from_dict,
 )
-from ..mapping import to_dict as mapping_to_dict
-
-
-def unparse_named_mapping_spec(name, root_mapping):
-    return {name: {"mapping": mapping_to_dict(root_mapping)}}
+from ..mapping import to_dict as import_mapping_to_dict
 
 
 def parse_named_mapping_spec(named_mapping_spec):
@@ -66,6 +63,10 @@ def parse_named_mapping_spec(named_mapping_spec):
         name = named_mapping_spec.get("mapping_name", "")
         mapping = named_mapping_spec
     return name, import_mapping_from_dict(mapping)
+
+
+def unparse_named_mapping_spec(name, root_mapping):
+    return {name: {"mapping": import_mapping_to_dict(root_mapping)}}
 
 
 def import_mapping_from_dict(map_dict):
@@ -88,12 +89,24 @@ def import_mapping_from_dict(map_dict):
         "ToolFeature": _tool_feature_mapping_from_dict,
         "ToolFeatureMethod": _tool_feature_method_mapping_from_dict,
         "ObjectGroup": _object_group_mapping_from_dict,
-        # ParameterValueList, FIXME
+        "ParameterValueList": _parameter_value_list_mapping_from_dict,
     }
     from_dict = legacy_mapping_from_dict.get(map_type)
     if from_dict is not None:
         return from_dict(map_dict)
     raise ValueError(f'invalid "map_type" value, expected any of {", ".join(legacy_mapping_from_dict)}, got {map_type}')
+
+
+def _parameter_value_list_mapping_from_dict(map_dict):
+    name = map_dict.get("name")
+    value = map_dict.get("value")
+    skip_columns = map_dict.get("skip_columns", [])
+    read_start_row = map_dict.get("read_start_row", 0)
+    root_mapping = ParameterValueListMapping(
+        *_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row
+    )
+    root_mapping.child = ParameterValueListValueMapping(*_pos_and_val(value))
+    return root_mapping
 
 
 def _alternative_mapping_from_dict(map_dict):

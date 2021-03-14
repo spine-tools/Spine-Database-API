@@ -91,19 +91,6 @@ class ParameterValueFormatError(SpineDBAPIError):
         super().__init__(msg)
 
 
-class TypeConversionError(SpineDBAPIError):
-    """
-    Failure in converting type to a spinedb_api valid type
-    when reading data with a mapping.
-
-    Attributes:
-        msg (str): an error message
-    """
-
-    def __init__(self, msg):
-        super().__init__(msg)
-
-
 class InvalidMapping(SpineDBAPIError):
     """
     Failure in reading tabulated data with invalid mapping
