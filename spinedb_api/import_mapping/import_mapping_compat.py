@@ -21,8 +21,10 @@ from .import_mapping import (
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
     ObjectMapping,
+    ObjectMetadataMapping,
     RelationshipMapping,
     RelationshipObjectMapping,
+    RelationshipMetadataMapping,
     ParameterDefinitionMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
@@ -30,6 +32,7 @@ from .import_mapping import (
     ExpandedParameterDefaultValueMapping,
     ParameterValueMapping,
     ParameterValueTypeMapping,
+    ParameterValueMetadataMapping,
     ParameterValueIndexMapping,
     ExpandedParameterValueMapping,
     AlternativeMapping,
@@ -196,28 +199,28 @@ def _tool_feature_method_mapping_from_dict(map_dict):
 def _object_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     objects = map_dict.get("objects", map_dict.get("object"))
+    object_metadata = map_dict.get("object_metadata", None)
+    parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
     root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(objects))
-    parameters = map_dict.get("parameters")
-    object_mapping.child = parameter_mapping_from_dict(parameters)
+    object_metadata_mapping = object_mapping.child = ObjectMetadataMapping(*_pos_and_val(object_metadata))
+    object_metadata_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
-    # FIXME: We need to handle this below too:
-    # object_metadata = map_dict.get("object_metadata", None)
 
 
 def _object_group_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     groups = map_dict.get("groups")
     members = map_dict.get("members")
+    parameters = map_dict.get("parameters")
     import_objects = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
     root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(groups))
     group_mapping = object_mapping.child = ObjectGroupMapping(*_pos_and_val(members), import_objects=import_objects)
-    parameters = map_dict.get("parameters")
     group_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
@@ -230,6 +233,8 @@ def _relationship_class_mapping_from_dict(map_dict):
     object_classes = map_dict.get("object_classes")
     if object_classes is None:
         object_classes = [None]
+    relationship_metadata = map_dict.get("relationship_metadata")
+    parameters = map_dict.get("parameters")
     import_objects = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
@@ -247,11 +252,11 @@ def _relationship_class_mapping_from_dict(map_dict):
         object_mapping = RelationshipObjectMapping(*_pos_and_val(obj), import_objects=import_objects)
         parent_mapping.child = object_mapping
         parent_mapping = object_mapping
-    parameters = map_dict.get("parameters")
-    parent_mapping.child = parameter_mapping_from_dict(parameters)
+    relationship_metadata_mapping = parent_mapping.child = RelationshipMetadataMapping(
+        *_pos_and_val(relationship_metadata)
+    )
+    relationship_metadata_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
-    # FIXME
-    # relationship_metadata = map_dict.get("relationship_metadata", None)
 
 
 def parameter_mapping_from_dict(map_dict):
@@ -271,8 +276,12 @@ def parameter_mapping_from_dict(map_dict):
         value_list_mapping.child = parameter_default_value_mapping_from_dict(default_value_dict)
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
+    parameter_value_metadata = map_dict.get("parameter_value_metadata")
     param_def_mapping.child = alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))
-    alt_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
+    alt_mapping.child = param_val_metadata_mapping = ParameterValueMetadataMapping(
+        *_pos_and_val(parameter_value_metadata)
+    )
+    param_val_metadata_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
     return param_def_mapping
 
 

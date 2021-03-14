@@ -152,12 +152,12 @@ class ImportMapping(Mapping):
         return self.position == Position.hidden and self.value is None
 
     def is_pivoted(self):
-        if self.child is None:
-            return False
         if is_pivoted(self.position):
             return True
         if self.position == Position.header and self.value is None:
             return True
+        if self.child is None:
+            return False
         return self.child.is_pivoted()
 
     @classmethod
@@ -269,6 +269,18 @@ class ObjectMapping(ImportMapping):
             mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
 
 
+class ObjectMetadataMapping(ImportMapping):
+    """Maps object metadata.
+
+    Cannot be used as the topmost mapping; must have :class:`ObjectClassMapping` and :class:`ObjectMapping` as parents.
+    """
+
+    MAP_TYPE = "ObjectMetadata"
+
+    def _import_row(self, source_data, state, mapped_data):
+        pass
+
+
 class ObjectGroupMapping(ImportObjectsMixin, ImportMapping):
     """Maps object groups.
 
@@ -350,6 +362,19 @@ class RelationshipObjectMapping(ImportObjectsMixin, ImportMapping):
             object_class_name = object_class_names[k]
             mapped_data.setdefault("object_classes", list()).append(object_class_name)
             mapped_data.setdefault("objects", list()).append([object_class_name, object_name])
+
+
+class RelationshipMetadataMapping(ImportMapping):
+    """Maps relationship metadata.
+
+    Cannot be used as the topmost mapping; must have :class:`RelationshipClassMapping`, a :class:`RelationshipMapping`
+    and one or more :class:`RelationshipObjectMapping` as parents.
+    """
+
+    MAP_TYPE = "RelationshipMetadata"
+
+    def _import_row(self, source_data, state, mapped_data):
+        pass
 
 
 class ParameterDefinitionMapping(ImportMapping):
@@ -515,6 +540,19 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         if alternative_name is not None:
             parameter_value.append(alternative_name)
         mapped_data.setdefault(map_key, list()).append(parameter_value)
+
+
+class ParameterValueMetadataMapping(ImportMapping):
+    """Maps relationship metadata.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterValueMapping` or
+    a :class:`ParameterValueTypeMapping` as parent.
+    """
+
+    MAP_TYPE = "ParameterValueMetadata"
+
+    def _import_row(self, source_data, state, mapped_data):
+        pass
 
 
 class ParameterValueIndexMapping(ImportMapping):
@@ -800,15 +838,18 @@ def from_dict(serialized):
             ObjectClassMapping,
             ObjectGroupMapping,
             ObjectMapping,
+            ObjectMetadataMapping,
             ParameterDefinitionMapping,
             ParameterValueIndexMapping,
             ParameterValueListMapping,
             ParameterValueListValueMapping,
+            ParameterValueMetadataMapping,
             ParameterValueMapping,
             RelationshipMapping,
             RelationshipClassMapping,
             RelationshipClassObjectClassMapping,
             RelationshipObjectMapping,
+            RelationshipMetadataMapping,
             ScenarioActiveFlagMapping,
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
