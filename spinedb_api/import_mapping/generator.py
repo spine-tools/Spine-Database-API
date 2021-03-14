@@ -65,7 +65,7 @@ def get_mapped_data(
             start_pos = mapping.read_start_row
             for k, row in enumerate(rows[mapping.read_start_row :]):
                 row = _convert_row(row, column_convert_fns, start_pos + k, errors)
-                mapping.import_row(row, read_state, mapped_data)
+                mapping.import_row(row, read_state, mapped_data, errors)
             continue
         # There are pivoted mappings. We will unpivot the table
         unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos = _unpivot_rows(
@@ -78,7 +78,7 @@ def get_mapped_data(
                 m.position = k
             for k, row in enumerate(unpivoted_rows):
                 row = _convert_row(row, row_convert_fns, k, errors)
-                mapping.import_row(row, read_state, mapped_data)
+                mapping.import_row(row, read_state, mapped_data, errors)
             continue
         # There are both pivoted and unpivoted mappings
         # Reposition mappings:
@@ -97,7 +97,7 @@ def get_mapped_data(
                 unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = regular_row + unpivoted_row
                 full_row.append(row[last_non_pivoted_column_pos + k])
-                mapping.import_row(full_row, read_state, mapped_data)
+                mapping.import_row(full_row, read_state, mapped_data, errors)
     _make_parameter_values(mapped_data)
     return mapped_data, errors
 

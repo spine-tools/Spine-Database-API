@@ -131,8 +131,9 @@ class ExportMapping(Mapping):
             list: a list of issues
         """
         issues = list()
-        is_effective_leaf = self.child is None
-        if self.child is not None:
+        if self.child is None:
+            is_effective_leaf = True
+        else:
             is_effective_leaf = any(
                 child.position in (Position.hidden, Position.table_name) for child in self.child.flatten()
             )

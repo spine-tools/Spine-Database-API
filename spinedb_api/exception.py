@@ -93,8 +93,15 @@ class ParameterValueFormatError(SpineDBAPIError):
 
 class InvalidMapping(SpineDBAPIError):
     """
-    Failure in reading tabulated data with invalid mapping
+    Failure in import/export mapping
     """
 
     def __init__(self, msg):
         super().__init__(msg)
+
+
+class InvalidMappingComponent(InvalidMapping):
+    def __init__(self, rank, map_type, msg):
+        super().__init__(msg)
+        self.rank = rank
+        self.map_type = map_type

@@ -19,8 +19,12 @@ import unittest
 from unittest.mock import Mock
 from spinedb_api.exception import InvalidMapping
 from spinedb_api.mapping import Position, to_dict as mapping_to_dict
-from spinedb_api.import_mapping.import_mapping import ImportMapping
-from spinedb_api.import_mapping.import_mapping_compat import import_mapping_from_dict
+from spinedb_api.import_mapping.import_mapping import ImportMapping, check_validity
+from spinedb_api.import_mapping.import_mapping_compat import (
+    import_mapping_from_dict,
+    parameter_mapping_from_dict,
+    parameter_value_mapping_from_dict,
+)
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern, Map
 from ..test_import_functions import assert_import_equivalent
@@ -413,102 +417,42 @@ class TestImportMappingLegacy(unittest.TestCase):
         ]
         self.assertEqual(out, expected)
 
-
-@unittest.skip("Obsolete, need to find an equivalent in the new API")
-class TestImportMappingObsolete(unittest.TestCase):
-    def test_MapValueMapping_to_dict(self):
-        mapping_value = RowMapping(reference=23)
-        extra_dimension = ColumnMapping(reference="fifth column")
-        parameter_mapping = MapValueMapping(main_value=mapping_value, extra_dimension=[extra_dimension])
-        mapping_dict = parameter_mapping.to_dict()
-        expected = {
-            "compress": False,
-            "value_type": "map",
-            "main_value": {"reference": 23, "map_type": "row"},
-            "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
-        }
-        self.assertEqual(mapping_dict, expected)
-
-    def test_MapValueMapping_from_dict(self):
+    def test_MapValueMapping_from_dict_to_dict(self):
         mapping_dict = {
             "value_type": "map",
             "main_value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
             "compress": True,
         }
-        parameter_mapping = MapValueMapping.from_dict(mapping_dict)
-        self.assertIsInstance(parameter_mapping, MapValueMapping)
-        main_value = parameter_mapping.main_value
-        self.assertIsInstance(main_value, RowMapping)
-        self.assertEqual(main_value.reference, 23)
-        extra_dimensions = parameter_mapping.extra_dimensions
-        self.assertEqual(len(extra_dimensions), 1)
-        dimension = extra_dimensions[0]
-        self.assertIsInstance(dimension, ColumnMapping)
-        self.assertEqual(dimension.reference, "fifth column")
-        self.assertEqual(parameter_mapping.compress, True)
+        parameter_mapping = parameter_value_mapping_from_dict(mapping_dict)
+        out = mapping_to_dict(parameter_mapping)
+        expected = [
+            {'map_type': 'ParameterValueType', 'position': 'hidden', 'value': 'map', 'compress': True},
+            {'map_type': 'ParameterValueIndex', 'position': 'fifth column'},
+            {'map_type': 'ExpandedValue', 'position': -24},
+        ]
+        self.assertEqual(out, expected)
 
-    def test_TimeSeriesOptions_to_dict(self):
-        options = TimeSeriesOptions(repeat=True)
-        options_dict = options.to_dict()
-        self.assertEqual(options_dict, {"repeat": True, "ignore_year": False, "fixed_resolution": False})
-
-    def test_TimeSeriesOptions_from_dict(self):
-        options_dict = {"repeat": True, "ignore_year": False, "fixed_resolution": False}
-        options = TimeSeriesOptions.from_dict(options_dict)
-        self.assertEqual(options.repeat, True)
-        self.assertEqual(options.ignore_year, False)
-        self.assertEqual(options.fixed_resolution, False)
-
-    def test_TimeSeriesValueMapping_to_dict(self):
-        mapping_value = RowMapping(reference=23)
-        extra_dimension = ColumnMapping(reference="fifth column")
-        parameter_options = TimeSeriesOptions(repeat=True)
-        parameter_mapping = TimeSeriesValueMapping(
-            main_value=mapping_value, extra_dimension=[extra_dimension], options=parameter_options
-        )
-        mapping_dict = parameter_mapping.to_dict()
-        expected = {
-            "value_type": "time series",
-            "main_value": {"reference": 23, "map_type": "row"},
-            "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
-            "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
-        }
-        self.assertEqual(mapping_dict, expected)
-
-    def test_TimeSeriesValueMapping_from_dict(self):
+    def test_TimeSeriesValueMapping_from_dict_to_dict(self):
         mapping_dict = {
             "value_type": "time series",
             "main_value": {"reference": 23, "map_type": "row"},
             "extra_dimensions": [{"reference": "fifth column", "map_type": "column"}],
             "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
         }
-        parameter_mapping = TimeSeriesValueMapping.from_dict(mapping_dict)
-        self.assertTrue(isinstance(parameter_mapping, TimeSeriesValueMapping))
-        main_value = parameter_mapping.main_value
-        self.assertTrue(isinstance(main_value, RowMapping))
-        self.assertEqual(main_value.reference, 23)
-        extra_dimensions = parameter_mapping.extra_dimensions
-        self.assertEqual(len(extra_dimensions), 1)
-        dimension = extra_dimensions[0]
-        self.assertTrue(isinstance(dimension, ColumnMapping))
-        self.assertEqual(dimension.reference, "fifth column")
-        options = parameter_mapping.options
-        self.assertEqual(options.repeat, True)
-        self.assertEqual(options.ignore_year, False)
-        self.assertEqual(options.fixed_resolution, False)
-
-    def test_TableNameMapping_from_dict(self):
-        mapping_dict = {"map_type": "table_name", "reference": "name of the table"}
-        mapping = TableNameMapping.from_dict(mapping_dict)
-        self.assertEqual(mapping.reference, "name of the table")
-        self.assertTrue(mapping.is_valid())
-        self.assertTrue(mapping.returns_value())
-
-    def test_TableNameMapping_to_dict(self):
-        mapping = TableNameMapping("name of the table")
-        mapping_dict = mapping.to_dict()
-        self.assertEqual(mapping_dict, {"map_type": "table_name", "reference": "name of the table"})
+        parameter_mapping = parameter_value_mapping_from_dict(mapping_dict)
+        out = mapping_to_dict(parameter_mapping)
+        expected = [
+            {
+                'map_type': 'ParameterValueType',
+                'position': 'hidden',
+                'value': 'time_series',
+                'options': {'repeat': True, 'ignore_year': False, 'fixed_resolution': False},
+            },
+            {'map_type': 'ParameterValueIndex', 'position': 'fifth column'},
+            {'map_type': 'ExpandedValue', 'position': -24},
+        ]
+        self.assertEqual(out, expected)
 
 
 def _parent_with_pivot(is_pivoted):
@@ -525,434 +469,235 @@ def _unpivoted_parent():
     return _parent_with_pivot(False)
 
 
-@unittest.skip("Obsolete, need to find an equivalent in the new API")
 class TestMappingIsValid(unittest.TestCase):
-    def test_valid_mapping(self):
-        mapping = ColumnMapping(reference=1)
-        is_valid = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_mapping(self):
-        mapping = ColumnMapping()
-        is_valid = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_parameter_mapping_definition(self):
-        mapping = {"map_type": "parameter", "name": "test", "parameter_type": "definition"}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_parameter_mapping_definition(self):
-        mapping = {"map_type": "parameter", "parameter_type": "definition"}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_parameter_mapping_single_value(self):
-        mapping = {"map_type": "parameter", "name": "test", "value": 0, "parameter_type": "single value"}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_parameter_mapping_single_value(self):
-        mapping = {"map_type": "parameter", "name": "test", "value": None, "parameter_type": "single value"}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_parameter_mapping_time_series(self):
-        mapping = {
-            "map_type": "parameter",
-            "name": "test",
-            "value": "test",
-            "parameter_type": "time series",
-            "extra_dimensions": [0],
-        }
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_parameter_mapping_time_series(self):
-        mapping = {"map_type": "parameter", "name": "test", "value": "test", "parameter_type": "time series"}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_parameter_mapping_time_series_non_valid_extra_dim(self):
-        mapping = {
-            "map_type": "parameter",
-            "name": "test",
-            "value": "test",
-            "parameter_type": "time series",
-            "extra_dimensions": [None],
-        }
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_parameter_mapping_time_pattern(self):
-        mapping = {
-            "map_type": "parameter",
-            "name": "test",
-            "value": "test",
-            "parameter_type": "time pattern",
-            "extra_dimensions": [0],
-        }
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_parameter_mapping_time_pattern(self):
-        mapping = {"map_type": "parameter", "name": "test", "value": "test", "parameter_type": "time pattern"}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_multidimensional_map_mapping(self):
-        mapping = {
-            "map_type": "parameter",
-            "name": "test",
-            "value": 2,
-            "parameter_type": "map",
-            "compress": False,
-            "extra_dimensions": [0, 1],
-        }
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_multidimensional_map_mapping_missing_mapping_for_extra_dimension(self):
-        mapping = {
-            "map_type": "parameter",
-            "name": "test",
-            "value": 2,
-            "parameter_type": "map",
-            "compress": False,
-            "extra_dimensions": [0, None],
-        }
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, msg = mapping.is_valid()
-        self.assertFalse(is_valid)
-        self.assertTrue(msg)
-
-    def test_valid_pivoted_parameter_mapping(self):
-        mapping = {"map_type": "parameter", "name": {"map_type": "row", "reference": 0}}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _pivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
-    def test_invalid_pivoted_parameter_mapping(self):
-        mapping = {"map_type": "parameter", "name": {"map_type": "column", "reference": 0}}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _unpivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_pivoted_parent_parameter_mapping(self):
-        mapping = {"map_type": "parameter", "name": {"map_type": "column", "reference": 0}}
-        mapping = parameter_mapping_from_dict(mapping)
-        mapping.parent = _pivoted_parent()
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
-
     def test_valid_object_class_mapping(self):
-        mapping = {"map_type": "ObjectClass", "name": "test"}
-        mapping = ObjectClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_object_class_mapping_with_object(self):
-        mapping = {"map_type": "ObjectClass", "name": "test", "object": "test"}
-        mapping = ObjectClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_invalid_object_default_value_mapping_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
+        default_value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        default_value_mapping.position = 1
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
 
-    def test_valid_object_class_mapping_with_object_and_parameter(self):
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": "test",
-            "object": "test",
-            "parameters": {"map_type": "parameter", "name": "test", "value": 0},
-        }
-        mapping = ObjectClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_valid_object_default_value_mapping_not_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        default_value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        param_def_mapping.position = 1
+        default_value_mapping.position = 2
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_invalid_object_class_mapping_with_parameter_but_no_object(self):
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": "test",
-            "parameters": {"map_type": "parameter", "name": "test", "value": 0},
-        }
-        mapping = ObjectClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_invalid_object_value_list_mapping_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
+        value_list_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.position = 0
+        value_list_mapping.position = 1
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
 
-    def test_valid_object_class_mapping_with_parameter_definition_but_no_object(self):
-        mapping = {
-            "map_type": "ObjectClass",
-            "name": "test",
-            "parameters": {"map_type": "parameter", "name": "test", "parameter_type": "definition"},
-        }
-        mapping = ObjectClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_valid_object_value_list_mapping_not_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        value_list_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.position = 0
+        param_def_mapping.position = 1
+        value_list_mapping.position = 2
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
+
+    def test_valid_object_default_value_mapping_hidden(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
+        default_value_mapping = cls_mapping.flatten()[-1]
+        default_value_mapping.position = Position.hidden
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
+
+    def test_invalid_object_parameter_value_mapping_missing_object(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterValue"})
+        value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        value_mapping.position = 1
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
+
+    def test_invalid_object_parameter_value_mapping_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        object_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterValue"})
+        value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        object_mapping.position = 1
+        value_mapping.position = 3
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
+
+    def test_valid_object_parameter_value_mapping(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        object_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterValue"}
+        )
+        value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        object_mapping.position = 1
+        param_def_mapping.position = 2
+        value_mapping.position = 3
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
+
+    def test_valid_object_parameter_value_mapping_hidden(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterValue"})
+        value_mapping = cls_mapping.flatten()[-1]
+        value_mapping.position = Position.hidden
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
     def test_valid_relationship_class_mapping(self):
-        mapping = {"map_type": "RelationshipClass", "name": "test", "object_classes": ["test"]}
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_relationship_class_mapping_with_objects(self):
-        mapping = {"map_type": "RelationshipClass", "name": "test", "object_classes": ["test"], "objects": ["test"]}
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_invalid_relationship_default_value_mapping_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
+        default_value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        default_value_mapping.position = 1
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
 
-    def test_valid_relationship_class_mapping_with_invalid_objects(self):
-        mapping = {"map_type": "RelationshipClass", "name": "test", "object_classes": ["test"], "objects": [None]}
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_valid_relationship_default_value_mapping_not_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        default_value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        param_def_mapping.position = 1
+        default_value_mapping.position = 2
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_relationship_class_mapping_with_parameter_definition(self):
-        mapping = {
-            "map_type": "RelationshipClass",
-            "name": "test",
-            "object_classes": ["test"],
-            "parameters": {"map_type": "parameter", "name": "test", "parameter_type": "definition"},
-        }
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_invalid_relationship_value_list_mapping_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
+        value_list_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.position = 0
+        value_list_mapping.position = 1
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
 
-    def test_invalid_relationship_class_mapping_with_parameter_and_invalid_objects(self):
-        mapping = {
-            "map_type": "RelationshipClass",
-            "name": "test",
-            "object_classes": ["test"],
-            "objects": [None],
-            "parameters": {"map_type": "parameter", "name": "test", "value": "test"},
-        }
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_valid_relationship_value_list_mapping_not_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        value_list_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.position = 0
+        param_def_mapping.position = 1
+        value_list_mapping.position = 2
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_pivoted_relationship_class_mapping_with_parameter(self):
-        mapping = {
-            "map_type": "RelationshipClass",
-            "name": "test",
-            "object_classes": ["test"],
-            "objects": [{"map_type": "row", "reference": 0}],
-            "parameters": {"map_type": "parameter", "name": "test"},
-        }
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertTrue(is_valid)
+    def test_valid_relationship_default_value_mapping_hidden(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
+        default_value_mapping = cls_mapping.flatten()[-1]
+        default_value_mapping.position = Position.hidden
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_relationship_class_mapping_with_invalid_parameter(self):
-        mapping = {
-            "map_type": "RelationshipClass",
-            "name": "test",
-            "object_classes": ["test"],
-            "objects": ["test"],
-            "parameters": {"map_type": "parameter"},
-        }
-        mapping = RelationshipClassMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_invalid_relationship_parameter_value_mapping_missing_objects(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterValue"})
+        value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        value_mapping.position = 1
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
 
-    def test_valid_alternative_mapping(self):
-        mapping = {"map_type": "Alternative", "name": "test"}
-        mapping = AlternativeMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
+    def test_invalid_relationship_parameter_value_mapping_missing_parameter_definition(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        object_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterValue"})
+        value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        object_mapping.position = 1
+        value_mapping.position = 3
+        issues = check_validity(cls_mapping)
+        self.assertTrue(issues)
 
-    def test_invalid_alternative_mapping_name_missing(self):
-        mapping = {"map_type": "Alternative", "name": None}
-        mapping = AlternativeMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_valid_relationship_parameter_value_mapping(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        obj_cls_mapping = cls_mapping.child
+        object_mapping = cls_mapping.flatten()[-2]
+        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterValue"}
+        )
+        value_mapping = cls_mapping.flatten()[-1]
+        cls_mapping.position = 0
+        obj_cls_mapping.position = 1
+        object_mapping.position = 2
+        param_def_mapping.position = 3
+        value_mapping.position = 4
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_scenario_mapping(self):
-        mapping = {"map_type": "Scenario", "name": "test"}
-        mapping = ScenarioMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
+    def test_valid_relationship_parameter_value_mapping_hidden(self):
+        cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterValue"})
+        value_mapping = cls_mapping.flatten()[-1]
+        value_mapping.position = Position.hidden
+        issues = check_validity(cls_mapping)
+        self.assertFalse(issues)
 
-    def test_invalid_scenario_mapping_name_missing(self):
-        mapping = {"map_type": "Scenario", "name": None}
-        mapping = ScenarioMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_valid_single_value_mapping(self):
+        value_mapping = parameter_value_mapping_from_dict({"value_type": "single_value"})
+        issues = check_validity(value_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_scenario_alternative(self):
-        mapping = {"map_type": "ScenarioAlternative", "scenario_name": "scenario", "alternatives": 0, "ranks": 1}
-        mapping = ScenarioAlternativeMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
+    def test_invalid_single_value_mapping_missing_parameter_definition(self):
+        value_mapping = parameter_value_mapping_from_dict({"value_type": "single_value"})
+        value_mapping.position = 0
+        issues = check_validity(value_mapping)
+        self.assertTrue(issues)
 
-    def test_invalid_scenario_alternative_scenario_name_missing(self):
-        mapping = {"map_type": "ScenarioAlternative", "scenario_name": None, "alternatives": 0, "ranks": 1}
-        mapping = ScenarioAlternativeMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertFalse(is_valid)
-        self.assertTrue(msg)
+    def test_valid_array_mapping(self):
+        value_mapping = parameter_value_mapping_from_dict({"value_type": "array"})
+        issues = check_validity(value_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_tool_mapping(self):
-        mapping = {"map_type": "Tool", "name": "test"}
-        mapping = ToolMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
+    def test_invalid_array_mapping_missing_parameter_definition(self):
+        value_mapping = parameter_value_mapping_from_dict({"value_type": "array"})
+        value_mapping.flatten()[-1].position = 0
+        issues = check_validity(value_mapping)
+        self.assertTrue(issues)
 
-    def test_invalid_tool_mapping_name_missing(self):
-        mapping = {"map_type": "Tool", "name": None}
-        mapping = ToolMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_valid_time_series_mapping(self):
+        value_mapping = parameter_value_mapping_from_dict({"value_type": "time_series"})
+        issues = check_validity(value_mapping)
+        self.assertFalse(issues)
 
-    def test_valid_feature_mapping(self):
-        mapping = {"map_type": "Feature", "entity_class_name": "test", "parameter_definition_name": "test"}
-        mapping = FeatureMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
-
-    def test_invalid_feature_mapping_entity_class_name_missing(self):
-        mapping = {"map_type": "Feature", "entity_class_name": None, "parameter_definition_name": "test"}
-        mapping = ToolMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_feature_mapping_parameter_definition_name_missing(self):
-        mapping = {"map_type": "Feature", "entity_class_name": "test", "parameter_definition_name": None}
-        mapping = ToolMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_tool_feature_mapping(self):
-        mapping = {
-            "map_type": "ToolFeature",
-            "name": "test",
-            "entity_class_name": "test",
-            "parameter_definition_name": "test",
-        }
-        mapping = ToolFeatureMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
-
-    def test_invalid_tool_feature_mapping_name_missing(self):
-        mapping = {
-            "map_type": "ToolFeature",
-            "name": None,
-            "entity_class_name": "test",
-            "parameter_definition_name": "test",
-        }
-        mapping = ToolFeatureMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_tool_feature_mapping_entity_class_name_missing(self):
-        mapping = {
-            "map_type": "ToolFeature",
-            "name": "test",
-            "entity_class_name": None,
-            "parameter_definition_name": "test",
-        }
-        mapping = ToolFeatureMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_tool_feature_mapping_parameter_definition_name_missing(self):
-        mapping = {
-            "map_type": "ToolFeature",
-            "name": "test",
-            "entity_class_name": "test",
-            "parameter_definition_name": None,
-        }
-        mapping = ToolFeatureMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_valid_tool_feature_method_mapping(self):
-        mapping = {
-            "map_type": "ToolFeatureMethod",
-            "name": "test",
-            "entity_class_name": "test",
-            "parameter_definition_name": "test",
-            "method": "test",
-        }
-        mapping = ToolFeatureMethodMapping.from_dict(mapping)
-        is_valid, msg = mapping.is_valid()
-        self.assertTrue(is_valid)
-        self.assertFalse(msg)
-
-    def test_invalid_tool_feature_method_mapping_name_missing(self):
-        mapping = {
-            "map_type": "ToolFeatureMethod",
-            "name": None,
-            "entity_class_name": "test",
-            "parameter_definition_name": "test",
-            "method": "test",
-        }
-        mapping = ToolFeatureMethodMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_tool_feature_method_mapping_entity_class_name_missing(self):
-        mapping = {
-            "map_type": "ToolFeatureMethod",
-            "name": "test",
-            "entity_class_name": None,
-            "parameter_definition_name": "test",
-            "method": "test",
-        }
-        mapping = ToolFeatureMethodMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_tool_feature_method_mapping_parameter_definition_name_missing(self):
-        mapping = {
-            "map_type": "ToolFeatureMethod",
-            "name": "test",
-            "entity_class_name": "test",
-            "parameter_definition_name": None,
-            "method": "test",
-        }
-        mapping = ToolFeatureMethodMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
-
-    def test_invalid_tool_feature_method_mapping_method_missing(self):
-        mapping = {
-            "map_type": "ToolFeatureMethod",
-            "name": "test",
-            "entity_class_name": "test",
-            "parameter_definition_name": "test",
-            "method": None,
-        }
-        mapping = ToolFeatureMethodMapping.from_dict(mapping)
-        is_valid, _ = mapping.is_valid()
-        self.assertFalse(is_valid)
+    def test_invalid_time_series_mapping_missing_parameter_definition(self):
+        value_mapping = parameter_value_mapping_from_dict({"value_type": "time_series"})
+        value_mapping.flatten()[-1].position = 0
+        issues = check_validity(value_mapping)
+        self.assertTrue(issues)
 
 
 class TestMappingIntegration(unittest.TestCase):
