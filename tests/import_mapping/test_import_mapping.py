@@ -10,102 +10,186 @@
 ######################################################################################################################
 
 """
-Unit tests for json_mapping.py.
+Unit tests for import Mappings.
 
 :author: P. Vennström (VTT)
 :date:   22.02.2018
 """
 import unittest
 from unittest.mock import Mock
+from spinedb_api.exception import InvalidMapping
+from spinedb_api.mapping import Position, to_dict as mapping_to_dict
+from spinedb_api.import_mapping.import_mapping import ImportMapping
+from spinedb_api.import_mapping.import_mapping_compat import import_mapping_from_dict
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern, Map
 from ..test_import_functions import assert_import_equivalent
 
 
-@unittest.skip("Obsolete, need to find an equivalent in the new API")
-class TestTypeConversion(unittest.TestCase):
-    def test_convert_function(self):
-        convert_function = convert_function_from_spec({0: str, 1: float}, 2)
-        self.assertEqual(convert_function(["a", "1.2"]), ["a", 1.2])
+class TestConvertFunctions(unittest.TestCase):
+    def test_convert_functions(self):
+        data = [["a", "1.2"]]
+        column_convert_fns = {0: str, 1: float}
+        mapping = [{"map_type": "ObjectClass", "position": 0}, {"map_type": "Object", "position": 1}]
+        mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
+        self.assertEqual(mapped_data, {'object_classes': ['a'], 'objects': [('a', 1.2)]})
 
-    def test_convert_function_raises_error(self):
-        convert_function = convert_function_from_spec({0: str, 1: float}, 2)
-        with self.assertRaises(TypeConversionError):
-            convert_function(["a", "not a float"])
-
-
-@unittest.skip("Obsolete, need to find an equivalent in the new API")
-class TestMappingReferenceSetters(unittest.TestCase):
-    def test_NoneMapping_ignores_reference(self):
-        mapping = NoneMapping()
-        self.assertIsNone(mapping.reference)
-        mapping.reference = 0
-        self.assertIsNone(mapping.reference)
-
-    def test_ConstantMapping_reference(self):
-        mapping = ConstantMapping()
-        self.assertIsNone(mapping.reference)
-        mapping.reference = "a"
-        self.assertEqual(mapping.reference, "a")
-        mapping.reference = ""
-        self.assertIsNone(mapping.reference)
-
-    def test_ColumnMapping_reference(self):
-        mapping = ColumnMapping()
-        self.assertIsNone(mapping.reference)
-        mapping.reference = 3
-        self.assertEqual(mapping.reference, 3)
-        mapping.reference = -3
-        self.assertEqual(mapping.reference, 0)
-        mapping.reference = "3"
-        self.assertEqual(mapping.reference, 3)
-        mapping.reference = "-3"
-        self.assertEqual(mapping.reference, 0)
-        mapping.reference = "a"
-        self.assertEqual(mapping.reference, "a")
-        mapping.reference = ""
-        self.assertIsNone(mapping.reference)
-
-    def test_ColumnHeaderMapping_reference(self):
-        mapping = ColumnHeaderMapping()
-        self.assertIsNone(mapping.reference)
-        mapping.reference = 3
-        self.assertEqual(mapping.reference, 3)
-        mapping.reference = -3
-        self.assertEqual(mapping.reference, 0)
-        mapping.reference = "a"
-        self.assertEqual(mapping.reference, "a")
-        mapping.reference = ""
-        self.assertIsNone(mapping.reference)
-
-    def test_RowMapping_reference(self):
-        mapping = RowMapping()
-        self.assertIsNone(mapping.reference)
-        mapping.reference = 3
-        self.assertEqual(mapping.reference, 3)
-        mapping.reference = -3
-        self.assertEqual(mapping.reference, 0)
-        mapping.reference = "header"
-        self.assertEqual(mapping.reference, -1)
-        mapping.reference = ""
-        self.assertIsNone(mapping.reference)
-
-        def try_setting_reference_to_arbitrary_string():
-            mapping.reference = "a"
-
-        self.assertRaises(ValueError, try_setting_reference_to_arbitrary_string)
-
-    def test_TableNameMapping_reference(self):
-        mapping = TableNameMapping("table name")
-        self.assertEqual(mapping.reference, "table name")
-        mapping.reference = "a"
-        self.assertEqual(mapping.reference, "a")
-        mapping.reference = ""
-        self.assertIsNone(mapping.reference)
+    def test_convert_functions_with_error(self):
+        data = [["a", "not a float"]]
+        column_convert_fns = {0: str, 1: float}
+        mapping = [{"map_type": "ObjectClass", "position": 0}, {"map_type": "Object", "position": 1}]
+        _, errors = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
+        self.assertEqual(len(errors), 1)
 
 
-@unittest.skip("Obsolete, need to find an equivalent in the new API")
-class TestMappingIO(unittest.TestCase):
+class TestPolishImportMapping(unittest.TestCase):
+    def test_polish_null_mapping(self):
+        mapping = ImportMapping(Position.hidden, value=None)
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header)
+        self.assertEqual(mapping.position, Position.hidden)
+        self.assertIsNone(mapping.value)
+
+    def test_polish_column_mapping(self):
+        mapping = ImportMapping("B", value=None)
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header)
+        self.assertEqual(mapping.position, 1)
+        self.assertIsNone(mapping.value)
+
+    def test_polish_column_header_mapping(self):
+        mapping = ImportMapping(Position.header, value=2)
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header)
+        self.assertEqual(mapping.position, Position.header)
+        self.assertEqual(mapping.value, "C")
+
+    def test_polish_column_header_mapping_str(self):
+        mapping = ImportMapping(Position.header, value="2")
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header)
+        self.assertEqual(mapping.position, Position.header)
+        self.assertEqual(mapping.value, "C")
+
+    def test_polish_column_header_mapping_invalid_header(self):
+        mapping = ImportMapping(Position.header, value="D")
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        with self.assertRaises(InvalidMapping):
+            mapping.polish(table_name, header)
+
+    def test_polish_column_header_mapping_invalid_index(self):
+        mapping = ImportMapping(Position.header, value=4)
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        with self.assertRaises(InvalidMapping):
+            mapping.polish(table_name, header)
+
+    def test_polish_table_name_mapping(self):
+        mapping = ImportMapping(Position.table_name)
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header)
+        self.assertEqual(mapping.position, Position.table_name)
+        self.assertEqual(mapping.value, "tablename")
+
+    def test_polish_row_header_mapping(self):
+        mapping = ImportMapping(Position.header, value=None)
+        table_name = "tablename"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header)
+        self.assertEqual(mapping.position, Position.header)
+        self.assertIsNone(mapping.value)
+
+
+class TestImportMappingIO(unittest.TestCase):
+    def test_object_class_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['ObjectClass', 'Object', 'ObjectMetadata']
+        self.assertEqual(types, expected)
+
+    def test_relationship_class_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = [
+            'RelationshipClass',
+            'RelationshipClassObjectClass',
+            'Relationship',
+            'RelationshipObject',
+            'RelationshipMetadata',
+        ]
+        self.assertEqual(types, expected)
+
+    def test_object_group_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "ObjectGroup"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['ObjectClass', 'Object', 'ObjectGroup']
+        self.assertEqual(types, expected)
+
+    def test_alternative_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "Alternative"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['Alternative']
+        self.assertEqual(types, expected)
+
+    def test_scenario_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "Scenario"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['Scenario', 'ScenarioActiveFlag']
+        self.assertEqual(types, expected)
+
+    def test_scenario_alternative_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "ScenarioAlternative"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['Scenario', 'ScenarioAlternative', 'ScenarioBeforeAlternative']
+        self.assertEqual(types, expected)
+
+    def test_tool_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "Tool"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['Tool']
+        self.assertEqual(types, expected)
+
+    def test_tool_feature_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "ToolFeature"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['Tool', 'ToolFeatureEntityClass', 'ToolFeatureParameterDefinition', 'ToolFeatureRequiredFlag']
+        self.assertEqual(types, expected)
+
+    def test_tool_feature_method_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "ToolFeatureMethod"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = [
+            'Tool',
+            'ToolFeatureMethodEntityClass',
+            'ToolFeatureMethodParameterDefinition',
+            'ToolFeatureMethodMethod',
+        ]
+        self.assertEqual(types, expected)
+
+    def test_parameter_value_list_mapping(self):
+        mapping = import_mapping_from_dict({"map_type": "ParameterValueList"})
+        d = mapping_to_dict(mapping)
+        types = [m["map_type"] for m in d]
+        expected = ['ParameterValueList', 'ParameterValueListValue']
+        self.assertEqual(types, expected)
+
+
+class TestImportMappingLegacy(unittest.TestCase):
     def test_ObjectClass_to_dict_from_dict(self):
         mapping = {
             "map_type": "ObjectClass",
@@ -113,61 +197,39 @@ class TestMappingIO(unittest.TestCase):
             "objects": 1,
             "parameters": {"map_type": "parameter", "name": 2, "value": 3, "parameter_type": "single value"},
         }
-
-        map_obj = ObjectClassMapping.from_dict(mapping)
-        out = map_obj.to_dict()
-
-        expected = {
-            "map_type": "ObjectClass",
-            "name": {"reference": 0, "map_type": "column"},
-            "objects": {"reference": 1, "map_type": "column"},
-            "object_metadata": {"map_type": "None"},
-            "parameters": {
-                "alternative_name": {"map_type": "None"},
-                "map_type": "ParameterValue",
-                "name": {"reference": 2, "map_type": "column"},
-                "parameter_value_metadata": {"map_type": "None"},
-                "value": {"main_value": {"reference": 3, "map_type": "column"}, "value_type": "single value"},
-            },
-            "import_objects": True,
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'ObjectClass', 'position': 0},
+            {'map_type': 'Object', 'position': 1},
+            {'map_type': 'ObjectMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterDefinition', 'position': 2},
+            {'map_type': 'Alternative', 'position': 'hidden'},
+            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterValue', 'position': 3},
+        ]
         self.assertEqual(out, expected)
 
     def test_ObjectClass_object_from_dict_to_dict(self):
         mapping = {"map_type": "ObjectClass", "name": 0, "objects": 1}
-
-        map_obj = ObjectClassMapping.from_dict(mapping)
-        out = map_obj.to_dict()
-
-        expected = {
-            "map_type": "ObjectClass",
-            "name": {"reference": 0, "map_type": "column"},
-            "objects": {"reference": 1, "map_type": "column"},
-            "object_metadata": {"map_type": "None"},
-            "parameters": {"map_type": "None"},
-            "import_objects": True,
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'ObjectClass', 'position': 0},
+            {'map_type': 'Object', 'position': 1},
+            {'map_type': 'ObjectMetadata', 'position': 'hidden'},
+        ]
         self.assertEqual(out, expected)
 
-        mapping = {"map_type": "ObjectClass", "name": "str", "objects": "str"}
-
-        map_obj = ObjectClassMapping.from_dict(mapping)
-        out = map_obj.to_dict()
-
-        expected = {
-            "map_type": "ObjectClass",
-            "parameters": {"map_type": "None"},
-            "name": {"reference": "str", "map_type": "constant"},
-            "objects": {"reference": "str", "map_type": "constant"},
-            "object_metadata": {"map_type": "None"},
-            "read_start_row": 0,
-            "import_objects": True,
-            "skip_columns": [],
-        }
+    def test_ObjectClass_object_from_dict_to_dict2(self):
+        mapping = {"map_type": "ObjectClass", "name": "cls", "objects": "obj"}
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'ObjectClass', 'position': 'hidden', 'value': 'cls'},
+            {'map_type': 'Object', 'position': 'hidden', 'value': 'obj'},
+            {'map_type': 'ObjectMetadata', 'position': 'hidden'},
+        ]
         self.assertEqual(out, expected)
 
     def test_RelationshipClassMapping_from_dict_to_dict(self):
@@ -176,51 +238,43 @@ class TestMappingIO(unittest.TestCase):
             "name": "unit__node",
             "object_classes": [0, 1],
             "objects": [0, 1],
-            "parameters": {"map_type": "parameter", "name": "test", "value": 2},
+            "parameters": {"map_type": "parameter", "name": "pname", "value": 2},
         }
-        map_obj = RelationshipClassMapping.from_dict(mapping)
-        out = map_obj.to_dict()
-
-        expected = {
-            "map_type": "RelationshipClass",
-            "import_objects": False,
-            "name": {"map_type": "constant", "reference": "unit__node"},
-            "relationship_metadata": {"map_type": "None"},
-            "object_classes": [{"reference": 0, "map_type": "column"}, {"reference": 1, "map_type": "column"}],
-            "objects": [{"reference": 0, "map_type": "column"}, {"reference": 1, "map_type": "column"}],
-            "parameters": {
-                "alternative_name": {"map_type": "None"},
-                "map_type": "ParameterValue",
-                "name": {"map_type": "constant", "reference": "test"},
-                "parameter_value_metadata": {"map_type": "None"},
-                "value": {"value_type": "single value", "main_value": {"reference": 2, "map_type": "column"}},
-            },
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'RelationshipClass', 'position': 'hidden', 'value': 'unit__node'},
+            {'map_type': 'RelationshipClassObjectClass', 'position': 0},
+            {'map_type': 'RelationshipClassObjectClass', 'position': 1},
+            {'map_type': 'Relationship', 'position': 'hidden', 'value': 'relationship'},
+            {'map_type': 'RelationshipObject', 'position': 0},
+            {'map_type': 'RelationshipObject', 'position': 1},
+            {'map_type': 'RelationshipMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterDefinition', 'position': 'hidden', 'value': 'pname'},
+            {'map_type': 'Alternative', 'position': 'hidden'},
+            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterValue', 'position': 2},
+        ]
         self.assertEqual(out, expected)
 
     def test_RelationshipClassMapping_from_dict_to_dict2(self):
         mapping = {
             "map_type": "RelationshipClass",
             "name": "unit__node",
-            "object_classes": ["test", 0],
-            "objects": ["test", 0],
+            "object_classes": ["cls", 0],
+            "objects": ["obj", 0],
         }
-        map_obj = RelationshipClassMapping.from_dict(mapping)
-        out = map_obj.to_dict()
-
-        expected = {
-            "map_type": "RelationshipClass",
-            "import_objects": False,
-            "name": {"map_type": "constant", "reference": "unit__node"},
-            "relationship_metadata": {"map_type": "None"},
-            "object_classes": [{"map_type": "constant", "reference": "test"}, {"reference": 0, "map_type": "column"}],
-            "objects": [{"map_type": "constant", "reference": "test"}, {"reference": 0, "map_type": "column"}],
-            "parameters": {"map_type": "None"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'RelationshipClass', 'position': 'hidden', 'value': 'unit__node'},
+            {'map_type': 'RelationshipClassObjectClass', 'position': 'hidden', 'value': 'cls'},
+            {'map_type': 'RelationshipClassObjectClass', 'position': 0},
+            {'map_type': 'Relationship', 'position': 'hidden', 'value': 'relationship'},
+            {'map_type': 'RelationshipObject', 'position': 'hidden', 'value': 'obj'},
+            {'map_type': 'RelationshipObject', 'position': 0},
+            {'map_type': 'RelationshipMetadata', 'position': 'hidden'},
+        ]
         self.assertEqual(out, expected)
 
     def test_RelationshipClassMapping_from_dict_to_dict3(self):
@@ -229,177 +283,138 @@ class TestMappingIO(unittest.TestCase):
             "name": "unit__node",
             "parameters": {
                 "map_type": "parameter",
-                "name": "test",
+                "name": "pname",
                 "value": 2,
                 "parameter_type": "array",
-                "extra_dimensions": ["test"],
+                "extra_dimensions": ["dim"],
             },
         }
-        map_obj = RelationshipClassMapping.from_dict(mapping)
-        out = map_obj.to_dict()
-
-        expected = {
-            "map_type": "RelationshipClass",
-            "import_objects": False,
-            "name": {"map_type": "constant", "reference": "unit__node"},
-            "relationship_metadata": {"map_type": "None"},
-            'object_classes': [{'map_type': 'None'}],
-            'objects': [{'map_type': 'None'}],
-            "parameters": {
-                "alternative_name": {"map_type": "None"},
-                "map_type": "ParameterValue",
-                "name": {"map_type": "constant", "reference": "test"},
-                "parameter_value_metadata": {"map_type": "None"},
-                "value": {
-                    "value_type": "array",
-                    "main_value": {"reference": 2, "map_type": "column"},
-                    "extra_dimensions": [{"map_type": "constant", "reference": "test"}],
-                },
-            },
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'RelationshipClass', 'position': 'hidden', 'value': 'unit__node'},
+            {'map_type': 'RelationshipClassObjectClass', 'position': 'hidden'},
+            {'map_type': 'Relationship', 'position': 'hidden', 'value': 'relationship'},
+            {'map_type': 'RelationshipObject', 'position': 'hidden'},
+            {'map_type': 'RelationshipMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterDefinition', 'position': 'hidden', 'value': 'pname'},
+            {'map_type': 'Alternative', 'position': 'hidden'},
+            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterValueType', 'position': 'hidden', 'value': 'array'},
+            {'map_type': 'ParameterValueIndex', 'position': 'hidden', 'value': 'dim'},
+            {'map_type': 'ExpandedValue', 'position': 2},
+        ]
         self.assertEqual(out, expected)
 
     def test_ObjectGroupMapping_to_dict_from_dict(self):
-        mapping_dict = {
+        mapping = {
             "map_type": "ObjectGroup",
             "name": 0,
             "groups": 1,
             "members": 2,
             "parameters": {
                 "map_type": "parameter",
-                "name": {"map_type": "constant", "reference": "test"},
+                "name": {"map_type": "constant", "reference": "pname"},
                 "parameter_value_metadata": {"map_type": "None"},
                 "parameter_type": "single value",
                 "value": {"reference": 2, "map_type": "column"},
             },
         }
-        mapping = ObjectGroupMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "ObjectGroup",
-            "name": {"reference": 0, "map_type": "column"},
-            "groups": {"reference": 1, "map_type": "column"},
-            "members": {"reference": 2, "map_type": "column"},
-            "parameters": {
-                "alternative_name": {"map_type": "None"},
-                "map_type": "ParameterValue",
-                "name": {"map_type": "constant", "reference": "test"},
-                "parameter_value_metadata": {"map_type": "None"},
-                "value": {"main_value": {"reference": 2, "map_type": "column"}, "value_type": "single value"},
-            },
-            "import_objects": False,
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'ObjectClass', 'position': 0},
+            {'map_type': 'Object', 'position': 1},
+            {'map_type': 'ObjectGroup', 'position': 2},
+            {'map_type': 'ParameterDefinition', 'position': 'hidden', 'value': 'pname'},
+            {'map_type': 'Alternative', 'position': 'hidden'},
+            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
+            {'map_type': 'ParameterValue', 'position': 2},
+        ]
         self.assertEqual(out, expected)
 
     def test_Alternative_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "Alternative", "name": 0}
-        mapping = AlternativeMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "Alternative",
-            "name": {"reference": 0, "map_type": "column"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = {"map_type": "Alternative", "name": 0}
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [{'map_type': 'Alternative', 'position': 0}]
         self.assertEqual(out, expected)
 
     def test_Scenario_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "Scenario", "name": 0}
-        mapping = ScenarioMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "Scenario",
-            "name": {"reference": 0, "map_type": "column"},
-            "active": {"map_type": "constant", "reference": "false"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = {"map_type": "Scenario", "name": 0}
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'Scenario', 'position': 0},
+            {'map_type': 'ScenarioActiveFlag', 'position': 'hidden', 'value': 'false'},
+        ]
         self.assertEqual(out, expected)
 
     def test_ScenarioAlternative_to_dict_from_dict(self):
-        mapping_dict = {
+        mapping = {
             "map_type": "ScenarioAlternative",
             "scenario_name": 0,
             "alternative_name": 1,
             "before_alternative_name": 2,
         }
-        mapping = ScenarioAlternativeMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "ScenarioAlternative",
-            "scenario_name": {"reference": 0, "map_type": "column"},
-            "alternative_name": {"reference": 1, "map_type": "column"},
-            "before_alternative_name": {"reference": 2, "map_type": "column"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'Scenario', 'position': 0},
+            {'map_type': 'ScenarioAlternative', 'position': 1},
+            {'map_type': 'ScenarioBeforeAlternative', 'position': 2},
+        ]
         self.assertEqual(out, expected)
 
     def test_Tool_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "Tool", "name": 0}
-        mapping = ToolMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "Tool",
-            "name": {"reference": 0, "map_type": "column"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = {"map_type": "Tool", "name": 0}
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [{'map_type': 'Tool', 'position': 0}]
         self.assertEqual(out, expected)
 
     def test_Feature_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
-        mapping = FeatureMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "Feature",
-            "entity_class_name": {"reference": 0, "map_type": "column"},
-            "parameter_definition_name": {"reference": 1, "map_type": "column"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'FeatureEntityClass', 'position': 0},
+            {'map_type': 'FeatureParameterDefinition', 'position': 1},
+        ]
         self.assertEqual(out, expected)
 
     def test_ToolFeature_to_dict_from_dict(self):
-        mapping_dict = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
-        mapping = ToolFeatureMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "ToolFeature",
-            "name": {"reference": 0, "map_type": "column"},
-            "entity_class_name": {"reference": 1, "map_type": "column"},
-            "parameter_definition_name": {"reference": 2, "map_type": "column"},
-            "required": {"map_type": "constant", "reference": "false"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'Tool', 'position': 0},
+            {'map_type': 'ToolFeatureEntityClass', 'position': 1},
+            {'map_type': 'ToolFeatureParameterDefinition', 'position': 2},
+            {'map_type': 'ToolFeatureRequiredFlag', 'position': 'hidden', 'value': 'false'},
+        ]
         self.assertEqual(out, expected)
 
     def test_ToolFeatureMethod_to_dict_from_dict(self):
-        mapping_dict = {
+        mapping = {
             "map_type": "ToolFeatureMethod",
             "name": 0,
             "entity_class_name": 1,
             "parameter_definition_name": 2,
             "method": 3,
         }
-        mapping = ToolFeatureMethodMapping.from_dict(mapping_dict)
-        out = mapping.to_dict()
-        expected = {
-            "map_type": "ToolFeatureMethod",
-            "name": {"reference": 0, "map_type": "column"},
-            "entity_class_name": {"reference": 1, "map_type": "column"},
-            "parameter_definition_name": {"reference": 2, "map_type": "column"},
-            "method": {"reference": 3, "map_type": "column"},
-            "read_start_row": 0,
-            "skip_columns": [],
-        }
+        mapping = import_mapping_from_dict(mapping)
+        out = mapping_to_dict(mapping)
+        expected = [
+            {'map_type': 'Tool', 'position': 0},
+            {'map_type': 'ToolFeatureMethodEntityClass', 'position': 1},
+            {'map_type': 'ToolFeatureMethodParameterDefinition', 'position': 2},
+            {'map_type': 'ToolFeatureMethodMethod', 'position': 3},
+        ]
         self.assertEqual(out, expected)
 
+
+class _XXX:
     def test_MapValueMapping_to_dict(self):
         mapping_value = RowMapping(reference=23)
         extra_dimension = ColumnMapping(reference="fifth column")
@@ -955,11 +970,11 @@ class TestMappingIntegration(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             mapping = [1, 2, 3]
-            get_mapped_data(data, mapping, data_header)
+            get_mapped_data(data, [mapping], data_header)
 
         with self.assertRaises(TypeError):
-            mapping = [{"map_type": "ObjectClass", "name": 0}, [1, 2, 3]]
-            get_mapped_data(data, mapping, data_header)
+            mappings = [{"map_type": "ObjectClass", "name": 0}, [1, 2, 3]]
+            get_mapped_data(data, mappings, data_header)
 
     def test_read_iterator_with_row_with_all_Nones(self):
         input_data = [
@@ -974,7 +989,7 @@ class TestMappingIntegration(unittest.TestCase):
 
         mapping = {"map_type": "ObjectClass", "name": 0}
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -987,7 +1002,7 @@ class TestMappingIntegration(unittest.TestCase):
 
         mapping = {"map_type": "ObjectClass", "name": 0}
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1014,7 +1029,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": 2, "value": 3},
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1041,7 +1056,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": "parameter_name1", "value": 3, "parameter_type": "array"},
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1074,7 +1089,7 @@ class TestMappingIntegration(unittest.TestCase):
             },
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1087,7 +1102,7 @@ class TestMappingIntegration(unittest.TestCase):
 
         mapping = {"map_type": "ObjectClass", "name": {"map_type": "column_name", "reference": 0}, "object": 0}
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1100,7 +1115,7 @@ class TestMappingIntegration(unittest.TestCase):
 
         mapping = {"map_type": "ObjectClass", "name": {"map_type": "column_header", "reference": "0"}, "object": 0}
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1117,7 +1132,7 @@ class TestMappingIntegration(unittest.TestCase):
             "object": 0,
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1130,7 +1145,7 @@ class TestMappingIntegration(unittest.TestCase):
 
         mapping = {"map_type": "ObjectClass", "name": {"map_type": "column_header", "reference": 0}, "object": 0}
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1158,7 +1173,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": {"map_type": "row", "reference": -1}},
         }  # -1 to read pivot from header
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1185,7 +1200,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": {"map_type": "row", "reference": 0}},
         }
 
-        out, errors = get_mapped_data(data, mapping)
+        out, errors = get_mapped_data(data, [mapping])
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1222,7 +1237,7 @@ class TestMappingIntegration(unittest.TestCase):
             },
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1250,7 +1265,7 @@ class TestMappingIntegration(unittest.TestCase):
             },
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1271,7 +1286,7 @@ class TestMappingIntegration(unittest.TestCase):
             "objects": [1],
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1295,7 +1310,7 @@ class TestMappingIntegration(unittest.TestCase):
             "objects": [0, 1],
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1325,7 +1340,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": {"map_type": "column_header", "reference": 2}, "value": 2},
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1365,7 +1380,7 @@ class TestMappingIntegration(unittest.TestCase):
             "import_objects": True,
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1391,7 +1406,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": {"map_type": "row", "reference": -1}},
         }  # -1 to read pivot from header
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1417,7 +1432,7 @@ class TestMappingIntegration(unittest.TestCase):
             "parameters": {"map_type": "parameter", "name": {"map_type": "row", "reference": 0}},
         }  # -1 to read pivot from header
 
-        out, errors = get_mapped_data(data, mapping)
+        out, errors = get_mapped_data(data, [mapping])
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1444,7 +1459,7 @@ class TestMappingIntegration(unittest.TestCase):
             "import_objects": True,
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1477,7 +1492,7 @@ class TestMappingIntegration(unittest.TestCase):
             },
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
@@ -1506,7 +1521,7 @@ class TestMappingIntegration(unittest.TestCase):
             "read_start_row": 1,
         }
 
-        out, errors = get_mapped_data(data, mapping, data_header)
+        out, errors = get_mapped_data(data, [mapping], data_header)
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 

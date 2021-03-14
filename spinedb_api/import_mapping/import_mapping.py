@@ -126,7 +126,7 @@ class ImportMapping(Mapping):
             # Integer value, we try and get the actual value from that index in the header
             try:
                 self.value = source_header[self.value]
-            except ValueError:
+            except IndexError:
                 raise InvalidMapping(f"'{self.value}' is not a valid index in header '{source_header}'")
 
     def import_row(self, source_row, state, mapped_data):

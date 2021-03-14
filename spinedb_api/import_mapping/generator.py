@@ -41,15 +41,11 @@ def get_mapped_data(
         dict: Mapped data, ready for ``import_data()``
         list: Conversion errors
     """
-    if not isinstance(mappings, (list, tuple)):
-        mappings = [mappings]
     # Sanitize mappings
     for k, mapping in enumerate(mappings):
-        if isinstance(mapping, dict):
+        if isinstance(mapping, (list, dict)):
             mappings[k] = import_mapping_from_dict(mapping)
-        elif isinstance(mapping, ImportMapping):
-            pass
-        else:
+        elif not isinstance(mapping, ImportMapping):
             raise TypeError(f"mapping must be a dict or ImportMapping subclass, instead got: {type(mapping).__name__}")
     if column_convert_fns is None:
         column_convert_fns = {}
@@ -114,10 +110,10 @@ def _convert_row(row, convert_fns, row_number, errors):
         convert_fn = convert_fns.get(j, lambda x: x)
         try:
             item = convert_fn(item)
-            new_row.append(item)
         except (ValueError, ParameterValueFormatError):
             error = f"Could not convert '{item}' to type '{convert_fn.__name__}' (near row {row_number})"
             errors.append(error)
+        new_row.append(item)
     return new_row
 
 
