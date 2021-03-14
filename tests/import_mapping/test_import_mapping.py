@@ -18,10 +18,11 @@ Unit tests for json_mapping.py.
 import unittest
 from unittest.mock import Mock
 from spinedb_api.import_mapping.generator import get_mapped_data
-from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern
-from spinedb_api.exception import TypeConversionError
+from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern, Map
+from ..test_import_functions import assert_import_equivalent
 
 
+@unittest.skip("Obsolete, need to find an equivalent in the new API")
 class TestTypeConversion(unittest.TestCase):
     def test_convert_function(self):
         convert_function = convert_function_from_spec({0: str, 1: float}, 2)
@@ -33,6 +34,7 @@ class TestTypeConversion(unittest.TestCase):
             convert_function(["a", "not a float"])
 
 
+@unittest.skip("Obsolete, need to find an equivalent in the new API")
 class TestMappingReferenceSetters(unittest.TestCase):
     def test_NoneMapping_ignores_reference(self):
         mapping = NoneMapping()
@@ -102,6 +104,7 @@ class TestMappingReferenceSetters(unittest.TestCase):
         self.assertIsNone(mapping.reference)
 
 
+@unittest.skip("Obsolete, need to find an equivalent in the new API")
 class TestMappingIO(unittest.TestCase):
     def test_ObjectClass_to_dict_from_dict(self):
         mapping = {
@@ -506,6 +509,7 @@ def _unpivoted_parent():
     return _parent_with_pivot(False)
 
 
+@unittest.skip("Obsolete, need to find an equivalent in the new API")
 class TestMappingIsValid(unittest.TestCase):
     def test_valid_mapping(self):
         mapping = ColumnMapping(reference=1)
@@ -940,28 +944,7 @@ class TestMappingIntegration(unittest.TestCase):
     def _assert_equivalent(self, obs, exp):
         """Asserts that two dictionaries will have the same effect if passed to ``import_functions.import_data()``
         """
-        self.assertEqual(obs.keys(), exp.keys())
-        for key in obs:
-            obs_vals = []
-            for val in obs[key]:
-                if val not in obs_vals:
-                    obs_vals.append(val)
-            exp_vals = []
-            for val in exp[key]:
-                if val not in exp_vals:
-                    exp_vals.append(val)
-            self._assert_equal_elements(obs_vals, exp_vals)
-
-    def _assert_equal_elements(self, obs_vals, exp_vals):
-        if isinstance(obs_vals, (tuple, list)) and isinstance(exp_vals, (tuple, list)):
-            for k, exp_val in enumerate(exp_vals):
-                try:
-                    obs_val = obs_vals[k]
-                except IndexError:
-                    obs_val = None
-                self._assert_equal_elements(obs_val, exp_val)
-            return
-        self.assertEqual(obs_vals, exp_vals)
+        assert_import_equivalent(self, obs, exp)
 
     def test_bad_mapping_type(self):
         """Tests that passing any other than a `dict` or a `mapping` to `get_mapped_data` raises `TypeError`.
@@ -2050,6 +2033,7 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
 
 
+@unittest.skip("Obsolete, need to find an equivalent in the new API")
 class TestItemMappings(unittest.TestCase):
     def test_ObjectClassMapping_dimensions_is_always_one(self):
         mapping = ObjectClassMapping()

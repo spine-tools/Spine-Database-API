@@ -47,6 +47,34 @@ from spinedb_api.import_functions import (
 from spinedb_api.parameter_value import from_database
 
 
+def assert_import_equivalent(test, obs, exp, strict=True):
+    """Helper function to assert that two dictionaries will have the same effect if passed to ``import_data()``"""
+    if strict:
+        test.assertEqual(obs.keys(), exp.keys())
+    for key in obs:
+        obs_vals = []
+        for val in obs[key]:
+            if val not in obs_vals:
+                obs_vals.append(val)
+        exp_vals = []
+        for val in exp[key]:
+            if val not in exp_vals:
+                exp_vals.append(val)
+        _assert_same_elements(test, obs_vals, exp_vals)
+
+
+def _assert_same_elements(test, obs_vals, exp_vals):
+    if isinstance(obs_vals, (tuple, list)) and isinstance(exp_vals, (tuple, list)):
+        for k, exp_val in enumerate(exp_vals):
+            try:
+                obs_val = obs_vals[k]
+            except IndexError:
+                obs_val = None
+            _assert_same_elements(test, obs_val, exp_val)
+        return
+    test.assertEqual(obs_vals, exp_vals)
+
+
 def create_diff_db_map():
     db_url = "sqlite://"
     return DiffDatabaseMapping(db_url, username="UnitTest", create=True)

@@ -89,7 +89,7 @@ class ExportMapping(Mapping):
                 for aggregating values over repeated 'headers' (in tables with hidden elements).
                 If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
-        super().__init__(position, value=None)
+        super().__init__(position, value=value)
         self._filter_re = ""
         self._group_fn = None
         self._ignorable = False

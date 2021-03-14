@@ -46,7 +46,7 @@ class ImportKey(Enum):
 
 class ImportMapping(Mapping):
     def __init__(self, position, value=None, skip_columns=None, read_start_row=0):
-        super().__init__(position, value)
+        super().__init__(position, value=value)
         self._skip_columns = None
         self._read_start_row = None
         self.skip_columns = skip_columns
@@ -383,6 +383,9 @@ class ParameterDefaultValueMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
         parameter_definition.append(source_data)
+        value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
+        if value_list_name:
+            parameter_definition.append(value_list_name)
 
 
 class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
@@ -399,6 +402,9 @@ class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
         if self.compress and value_type == "map":
             default_value["compress"] = self.compress
         parameter_definition.append(default_value)
+        value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
+        if value_list_name:
+            parameter_definition.append(value_list_name)
 
 
 class ParameterDefaultValueIndexMapping(ImportMapping):
@@ -436,12 +442,12 @@ class ExpandedParameterDefaultValueMapping(ImportMapping):
         key = (class_name, parameter_name)
         values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
         value = values[key]
-        indexes = state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, None)
         val = source_data
         data = value.setdefault("data", [])
-        if indexes is None:
+        if value["type"] == "array":
             data.append(val)
             return
+        indexes = state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, None)
         data.append(indexes + [val])
 
 
@@ -547,12 +553,12 @@ class ExpandedParameterValueMapping(ImportMapping):
         parameter_name = state[ImportKey.PARAMETER_NAME]
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
         value = values[class_name, entity_name, parameter_name]
-        indexes = state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
         val = source_data
         data = value.setdefault("data", [])
-        if indexes is None:
+        if value["type"] == "array":
             data.append(val)
             return
+        indexes = state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
         data.append(indexes + [val])
 
 
@@ -566,10 +572,7 @@ class ParameterValueListMapping(ImportMapping):
     MAP_TYPE = "ParameterValueList"
 
     def _import_row(self, source_data, state, mapped_data):
-        parameter_definition = state.get(ImportKey.PARAMETER_DEFINITION)
-        value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME] = source_data
-        if parameter_definition:
-            parameter_definition.append(value_list_name)
+        state[ImportKey.PARAMETER_VALUE_LIST_NAME] = source_data
 
 
 class ParameterValueListValueMapping(ImportMapping):

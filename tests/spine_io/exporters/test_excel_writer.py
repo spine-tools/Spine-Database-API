@@ -19,7 +19,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from openpyxl import load_workbook
 from spinedb_api import DiffDatabaseMapping, import_object_classes, import_objects
-from spinedb_api.export_mapping import object_export, Position
+from spinedb_api.mapping import Position
+from spinedb_api.export_mapping import object_export
 from spinedb_api.spine_io.exporters.writer import write
 from spinedb_api.spine_io.exporters.excel_writer import ExcelWriter
 

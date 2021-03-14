@@ -36,7 +36,8 @@ from spinedb_api import (
     Map,
 )
 from spinedb_api.import_functions import import_object_groups
-from spinedb_api.export_mapping import Position, rows, titles, object_parameter_export, relationship_export
+from spinedb_api.mapping import Position, to_dict
+from spinedb_api.export_mapping import rows, titles, object_parameter_export, relationship_export
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
     FixedValueMapping,
@@ -69,7 +70,6 @@ from spinedb_api.export_mapping.export_mapping import (
     ToolFeatureMethodEntityClassMapping,
     ToolFeatureMethodMethodMapping,
     ToolFeatureMethodParameterDefinitionMapping,
-    to_dict,
 )
 from spinedb_api.mapping import unflatten
 

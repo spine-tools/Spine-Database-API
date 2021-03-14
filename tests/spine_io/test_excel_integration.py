@@ -23,6 +23,7 @@ import json
 from spinedb_api import DatabaseMapping, import_data, from_database
 from spinedb_api.spine_io.exporters.excel import export_spine_database_to_xlsx
 from spinedb_api.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
+from ..test_import_functions import assert_import_equivalent
 
 _TEMP_EXCEL_FILENAME = "excel.xlsx"
 
@@ -124,12 +125,12 @@ class TestExcelIntegration(unittest.TestCase):
         self.assertEqual(1, len(output_obj_param_vals))
         input_obj_param_val = input_obj_param_vals[0]
         output_obj_param_val = output_obj_param_vals[0]
-        self.assertEqual(input_obj_param_val[:3], output_obj_param_val[:3])
+        for input_, output in zip(input_obj_param_val[:3], output_obj_param_val[:3]):
+            self.assertEqual(input_, output)
         input_val = input_obj_param_val[3]
         output_val = output_obj_param_val[3]
         self.assertEqual(sorted(input_val.indexed_values()), sorted(output_val.indexed_values()))
-        for key, value in input_data.items():
-            self.assertEqual(value, output_data[key])
+        assert_import_equivalent(self, input_data, output_data, strict=False)
 
 
 if __name__ == "__main__":

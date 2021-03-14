@@ -224,8 +224,12 @@ def _object_group_mapping_from_dict(map_dict):
 
 def _relationship_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
-    objects = map_dict.get("objects", [None])
-    object_classes = map_dict.get("object_classes", [None])
+    objects = map_dict.get("objects")
+    if objects is None:
+        objects = [None]
+    object_classes = map_dict.get("object_classes")
+    if object_classes is None:
+        object_classes = [None]
     import_objects = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
@@ -263,8 +267,8 @@ def parameter_mapping_from_dict(map_dict):
     if map_type == "ParameterDefinition":
         default_value_dict = map_dict.get("default_value")
         value_list_name = map_dict.get("parameter_value_list_name")
-        param_def_mapping.child = default_value_mapping = parameter_default_value_mapping_from_dict(default_value_dict)
-        default_value_mapping.flatten()[-1].child = ParameterValueListMapping(*_pos_and_val(value_list_name))
+        param_def_mapping.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
+        value_list_mapping.child = parameter_default_value_mapping_from_dict(default_value_dict)
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
     param_def_mapping.child = alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))

@@ -107,6 +107,8 @@ def get_mapped_data(
 
 
 def _convert_row(row, convert_fns, row_number, errors):
+    if row is None:
+        return None
     new_row = []
     for j, item in enumerate(row):
         convert_fn = convert_fns.get(j, lambda x: x)
