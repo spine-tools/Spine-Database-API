@@ -74,7 +74,7 @@ class ImportKey(Enum):
         return super().__str__()
 
 
-class KeySolution(Exception):
+class KeyFix(Exception):
     """Opposite of KeyError"""
 
 
@@ -196,9 +196,9 @@ class ImportMapping(Mapping):
                         msg = f"Required key '{key}' is invalid"
                         error = InvalidMappingComponent(msg, self.rank, key)
                         errors.append(error)
-                except KeySolution as solution:
+                except KeyFix as fix:
                     indexes = set()
-                    for key in solution.args:
+                    for key in fix.args:
                         indexes |= {k for k, err in enumerate(errors) if err.key == key}
                     for k in sorted(indexes, reverse=True):
                         errors.pop(k)
@@ -330,10 +330,9 @@ class ObjectMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
         object_name = state[ImportKey.OBJECT_NAME] = source_data
-        if not isinstance(self.child, ObjectGroupMapping):
-            mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
-        else:
+        if isinstance(self.child, ObjectGroupMapping):
             raise KeyError(ImportKey.MEMBER_NAME)
+        mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
 
 
 class ObjectMetadataMapping(ImportMapping):
@@ -366,7 +365,7 @@ class ObjectGroupMapping(ImportObjectsMixin, ImportMapping):
         if self.import_objects:
             objects = [(object_class_name, group_name), (object_class_name, member_name)]
             mapped_data.setdefault("objects", list()).extend(objects)
-        raise KeySolution(ImportKey.MEMBER_NAME)
+        raise KeyFix(ImportKey.MEMBER_NAME)
 
 
 class RelationshipClassMapping(ImportMapping):
@@ -401,7 +400,7 @@ class RelationshipClassObjectClassMapping(ImportMapping):
         object_class_name = source_data
         object_class_names.append(object_class_name)
         if len(object_class_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-            raise KeySolution(ImportKey.OBJECT_CLASS_NAMES)
+            raise KeyFix(ImportKey.OBJECT_CLASS_NAMES)
 
 
 class RelationshipMapping(ImportMapping):
@@ -444,7 +443,7 @@ class RelationshipObjectMapping(ImportObjectsMixin, ImportMapping):
             mapped_data.setdefault("object_classes", list()).append(object_class_name)
             mapped_data.setdefault("objects", list()).append([object_class_name, object_name])
         if len(object_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-            raise KeySolution(ImportKey.OBJECT_NAMES)
+            raise KeyFix(ImportKey.OBJECT_NAMES)
         raise KeyError(ImportKey.OBJECT_NAMES)
 
 
