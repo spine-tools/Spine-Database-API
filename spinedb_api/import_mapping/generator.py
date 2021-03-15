@@ -115,7 +115,7 @@ def _convert_row(row, convert_fns, row_number, errors):
         try:
             item = convert_fn(item)
         except (ValueError, ParameterValueFormatError):
-            error = f"Could not convert '{item}' to type '{convert_fn.__name__}' (near row {row_number})"
+            error = f"Could not convert '{item}' to type '{convert_fn.DISPLAY_NAME}' (near row {row_number})"
             errors.append(error)
         new_row.append(item)
     return new_row

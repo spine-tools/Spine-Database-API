@@ -25,23 +25,73 @@ from spinedb_api.import_mapping.import_mapping_compat import (
     parameter_mapping_from_dict,
     parameter_value_mapping_from_dict,
 )
+from spinedb_api.import_mapping.type_conversion import BooleanConvertSpec, StringConvertSpec, FloatConvertSpec
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern, Map
 from ..test_import_functions import assert_import_equivalent
 
 
 class TestConvertFunctions(unittest.TestCase):
-    def test_convert_functions(self):
+    def test_convert_functions_float(self):
         data = [["a", "1.2"]]
-        column_convert_fns = {0: str, 1: float}
-        mapping = [{"map_type": "ObjectClass", "position": 0}, {"map_type": "Object", "position": 1}]
+        column_convert_fns = {0: str, 1: FloatConvertSpec()}
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        mapping.position = 0
+        mapping.child.value = "obj"
+        mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        param_def_mapping.value = "param"
+        param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
-        self.assertEqual(mapped_data, {'object_classes': ['a'], 'objects': [('a', 1.2)]})
+        expected = {'object_classes': ['a'], 'objects': [('a', 'obj')], 'object_parameters': [['a', 'param', 1.2]]}
+        self.assertEqual(mapped_data, expected)
+
+    def test_convert_functions_str(self):
+        data = [["a", 1111.2222]]
+        column_convert_fns = {0: str, 1: StringConvertSpec()}
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        mapping.position = 0
+        mapping.child.value = "obj"
+        mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        param_def_mapping.value = "param"
+        param_def_mapping.flatten()[-1].position = 1
+        mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
+        expected = {
+            'object_classes': ['a'],
+            'objects': [('a', 'obj')],
+            'object_parameters': [['a', 'param', '1111.2222']],
+        }
+        self.assertEqual(mapped_data, expected)
+
+    def test_convert_functions_bool(self):
+        data = [["a", "false"]]
+        column_convert_fns = {0: str, 1: BooleanConvertSpec()}
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        mapping.position = 0
+        mapping.child.value = "obj"
+        mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        param_def_mapping.value = "param"
+        param_def_mapping.flatten()[-1].position = 1
+        mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
+        expected = {'object_classes': ['a'], 'objects': [('a', 'obj')], 'object_parameters': [['a', 'param', False]]}
+        self.assertEqual(mapped_data, expected)
 
     def test_convert_functions_with_error(self):
         data = [["a", "not a float"]]
-        column_convert_fns = {0: str, 1: float}
-        mapping = [{"map_type": "ObjectClass", "position": 0}, {"map_type": "Object", "position": 1}]
+        column_convert_fns = {0: str, 1: FloatConvertSpec()}
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        mapping.position = 0
+        mapping.child.value = "obj"
+        mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        param_def_mapping.value = "param"
+        param_def_mapping.flatten()[-1].position = 1
         _, errors = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
         self.assertEqual(len(errors), 1)
 
