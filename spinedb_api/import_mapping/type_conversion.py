@@ -45,13 +45,9 @@ class ConvertSpec:
     DISPLAY_NAME = ""
     RETURN_TYPE = str
 
-    def convert_function(self):
+    def __call__(self, value):
         constructor = self.RETURN_TYPE
-
-        def convert(value):
-            return constructor(value)
-
-        return convert
+        return constructor(value)
 
     def to_json_value(self):
         return self.DISPLAY_NAME
@@ -61,10 +57,18 @@ class DateTimeConvertSpec(ConvertSpec):
     DISPLAY_NAME = "datetime"
     RETURN_TYPE = DateTime
 
+    def __call__(self, value):
+        constructor = self.RETURN_TYPE
+        return constructor(value).value
+
 
 class DurationConvertSpec(ConvertSpec):
     DISPLAY_NAME = "duration"
     RETURN_TYPE = Duration
+
+    def __call__(self, value):
+        constructor = self.RETURN_TYPE
+        return constructor(value).value
 
 
 class FloatConvertSpec(ConvertSpec):
@@ -81,13 +85,9 @@ class BooleanConvertSpec(ConvertSpec):
     DISPLAY_NAME = "boolean"
     RETURN_TYPE = bool
 
-    def convert_function(self):
+    def __call__(self, value):
         constructor = self.RETURN_TYPE
-
-        def convert(value):
-            return constructor(strtobool(str(value)))
-
-        return convert
+        return constructor(strtobool(str(value)))
 
 
 class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
@@ -102,22 +102,19 @@ class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
         self.start_datetime = start_datetime
         self.start_int = start_int
         self.duration = duration
+        self.pattern = re.compile(r"[0-9]+|$")
 
-    def convert_function(self):
-        pattern = re.compile(r"[0-9]+|$")
+    def __call__(self, value):
         start_datetime = self.start_datetime.value
         duration = self.duration.value
         start_int = self.start_int
-
-        def convert(value):
-            try:
-                int_str = pattern.search(str(value)).group()
-                int_value = int(int_str) - start_int
-                return DateTime(start_datetime + int_value * duration)
-            except (ValueError, ParameterValueFormatError):
-                raise ValueError(f"Could not convert '{value}' to a DateTime")
-
-        return convert
+        pattern = self.pattern
+        try:
+            int_str = pattern.search(str(value)).group()
+            int_value = int(int_str) - start_int
+            return DateTime(start_datetime + int_value * duration)
+        except (ValueError, ParameterValueFormatError):
+            raise ValueError(f"Could not convert '{value}' to a DateTime")
 
     def to_json_value(self):
         return {

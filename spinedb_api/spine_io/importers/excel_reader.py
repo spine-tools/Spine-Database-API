@@ -166,13 +166,13 @@ class ExcelConnector(SourceConnection):
         return data_iterator, header
 
     def get_mapped_data(
-        self, tables_mappings, options, table_column_convert_specs, table_row_convert_specs, max_rows=-1
+        self, tables_mappings, table_options, table_column_convert_specs, table_row_convert_specs, max_rows=-1
     ):
         """
         Overrides reader method to check for some parameter_value types.
         """
         mapped_data, errors = super().get_mapped_data(
-            tables_mappings, options, table_column_convert_specs, table_row_convert_specs, max_rows
+            tables_mappings, table_options, table_column_convert_specs, table_row_convert_specs, max_rows
         )
         value_pos = 3  # from (class, entity, parameter, value, *optionals)
         for key in ("object_parameter_values", "relationship_parameter_values"):

@@ -90,12 +90,8 @@ class SourceConnection:
         mapped_data = {}
         errors = []
         for table, named_mapping_specs in tables_mappings.items():
-            column_convert_fns = {
-                col: spec.convert_function() for col, spec in table_column_convert_specs.get(table, {}).items()
-            }
-            row_convert_fns = {
-                row: spec.convert_function() for row, spec in table_row_convert_specs.get(table, {}).items()
-            }
+            column_convert_fns = table_column_convert_specs.get(table, {})
+            row_convert_fns = table_row_convert_specs.get(table, {})
             options = table_options.get(table, {})
             data_source, header = self.get_data_iterator(table, options, max_rows)
             mappings = []
@@ -103,7 +99,9 @@ class SourceConnection:
                 _, mapping = parse_named_mapping_spec(named_mapping_spec)
                 mappings.append(mapping)
             try:
-                data, t_errors = get_mapped_data(data_source, mappings, header, column_convert_fns, row_convert_fns)
+                data, t_errors = get_mapped_data(
+                    data_source, mappings, header, table, column_convert_fns, row_convert_fns
+                )
             except ParameterValueFormatError as error:
                 errors.append(str(error))
                 continue
