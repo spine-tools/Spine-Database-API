@@ -112,7 +112,7 @@ class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
         try:
             int_str = pattern.search(str(value)).group()
             int_value = int(int_str) - start_int
-            return DateTime(start_datetime + int_value * duration)
+            return DateTime(start_datetime + int_value * duration).value
         except (ValueError, ParameterValueFormatError):
             raise ValueError(f"Could not convert '{value}' to a DateTime")
 

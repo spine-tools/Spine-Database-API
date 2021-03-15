@@ -44,36 +44,36 @@ class TestValueToConvertSpec(unittest.TestCase):
 
 class TestConvertSpec(unittest.TestCase):
     def test_string(self):
-        self.assertEqual(StringConvertSpec().convert_function()(1), "1")
+        self.assertEqual(StringConvertSpec()(1), "1")
 
     def test_float(self):
-        self.assertEqual(FloatConvertSpec().convert_function()("1"), 1.0)
+        self.assertEqual(FloatConvertSpec()("1"), 1.0)
 
     def test_DateTime(self):
-        self.assertEqual(DateTimeConvertSpec().convert_function()("2019-01-01T00:00"), DateTime("2019-01-01T00:00"))
+        self.assertEqual(DateTimeConvertSpec()("2019-01-01T00:00"), DateTime("2019-01-01T00:00").value)
 
     def test_Duration(self):
-        self.assertEqual(DurationConvertSpec().convert_function()("1h"), Duration("1h"))
+        self.assertEqual(DurationConvertSpec()("1h"), Duration("1h").value)
 
     def test_interger_sequence_datetime(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 0, "1h")
-        self.assertEqual(converter.convert_function()("t00000"), DateTime("2019-01-01T00:00"))
-        self.assertEqual(converter.convert_function()("t00002"), DateTime("2019-01-01T02:00"))
+        self.assertEqual(converter("t00000"), DateTime("2019-01-01T00:00").value)
+        self.assertEqual(converter("t00002"), DateTime("2019-01-01T02:00").value)
 
     def test_interger_sequence_datetime_shifted_start_int(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 1, "1h")
-        self.assertEqual(converter.convert_function()("t00000"), DateTime("2018-12-31T23:00"))
-        self.assertEqual(converter.convert_function()("t00002"), DateTime("2019-01-01T01:00"))
+        self.assertEqual(converter("t00000"), DateTime("2018-12-31T23:00").value)
+        self.assertEqual(converter("t00002"), DateTime("2019-01-01T01:00").value)
 
     def test_interger_sequence_datetime_different_duration(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 0, "2h")
-        self.assertEqual(converter.convert_function()("t00000"), DateTime("2019-01-01T00:00"))
-        self.assertEqual(converter.convert_function()("t00002"), DateTime("2019-01-01T04:00"))
+        self.assertEqual(converter("t00000"), DateTime("2019-01-01T00:00").value)
+        self.assertEqual(converter("t00002"), DateTime("2019-01-01T04:00").value)
 
     def test_interger_sequence_datetime_non_int_string(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 0, "2h")
         with self.assertRaises(ValueError) as cm:
-            converter.convert_function()("not a sequence")
+            converter("not a sequence")
 
 
 class TestConvertSpecToJsonValue(unittest.TestCase):
