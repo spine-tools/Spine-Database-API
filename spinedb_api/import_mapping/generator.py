@@ -21,7 +21,13 @@ from copy import deepcopy
 from .import_mapping_compat import import_mapping_from_dict
 from .import_mapping import ImportMapping, check_validity
 from ..mapping import Position
-from ..parameter_value import from_dict, convert_leaf_maps_to_specialized_containers, Map
+from ..parameter_value import (
+    convert_leaf_maps_to_specialized_containers,
+    Map,
+    TimeSeriesVariableResolution,
+    TimePattern,
+    Array,
+)
 from ..exception import ParameterValueFormatError
 
 
@@ -209,8 +215,14 @@ def _parameter_value_from_dict(d):
     if d["type"] == "map":
         return _table_to_map(d["data"], compress=d.get("compress", False))
     if d["type"] == "time_pattern":
-        d["data"] = dict(d["data"])
-    return from_dict(d)
+        return TimePattern(*zip(*d["data"]))
+    if d["type"] == "time_series":
+        options = d.get("options", {})
+        ignore_year = options.get("ignore_year", False)
+        repeat = options.get("repeat", False)
+        return TimeSeriesVariableResolution(*zip(*d["data"]), ignore_year, repeat)
+    if d["type"] == "array":
+        return Array(d["data"])
 
 
 def _table_to_map(table, compress=False):

@@ -57,18 +57,10 @@ class DateTimeConvertSpec(ConvertSpec):
     DISPLAY_NAME = "datetime"
     RETURN_TYPE = DateTime
 
-    def __call__(self, value):
-        constructor = self.RETURN_TYPE
-        return constructor(value).value
-
 
 class DurationConvertSpec(ConvertSpec):
     DISPLAY_NAME = "duration"
     RETURN_TYPE = Duration
-
-    def __call__(self, value):
-        constructor = self.RETURN_TYPE
-        return constructor(value).value
 
 
 class FloatConvertSpec(ConvertSpec):
@@ -112,7 +104,7 @@ class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
         try:
             int_str = pattern.search(str(value)).group()
             int_value = int(int_str) - start_int
-            return DateTime(start_datetime + int_value * duration).value
+            return DateTime(start_datetime + int_value * duration)
         except (ValueError, ParameterValueFormatError):
             raise ValueError(f"Could not convert '{value}' to a DateTime")
 

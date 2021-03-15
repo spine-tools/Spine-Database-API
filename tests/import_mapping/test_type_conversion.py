@@ -50,25 +50,25 @@ class TestConvertSpec(unittest.TestCase):
         self.assertEqual(FloatConvertSpec()("1"), 1.0)
 
     def test_DateTime(self):
-        self.assertEqual(DateTimeConvertSpec()("2019-01-01T00:00"), DateTime("2019-01-01T00:00").value)
+        self.assertEqual(DateTimeConvertSpec()("2019-01-01T00:00"), DateTime("2019-01-01T00:00"))
 
     def test_Duration(self):
-        self.assertEqual(DurationConvertSpec()("1h"), Duration("1h").value)
+        self.assertEqual(DurationConvertSpec()("1h"), Duration("1h"))
 
     def test_interger_sequence_datetime(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 0, "1h")
-        self.assertEqual(converter("t00000"), DateTime("2019-01-01T00:00").value)
-        self.assertEqual(converter("t00002"), DateTime("2019-01-01T02:00").value)
+        self.assertEqual(converter("t00000"), DateTime("2019-01-01T00:00"))
+        self.assertEqual(converter("t00002"), DateTime("2019-01-01T02:00"))
 
     def test_interger_sequence_datetime_shifted_start_int(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 1, "1h")
-        self.assertEqual(converter("t00000"), DateTime("2018-12-31T23:00").value)
-        self.assertEqual(converter("t00002"), DateTime("2019-01-01T01:00").value)
+        self.assertEqual(converter("t00000"), DateTime("2018-12-31T23:00"))
+        self.assertEqual(converter("t00002"), DateTime("2019-01-01T01:00"))
 
     def test_interger_sequence_datetime_different_duration(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 0, "2h")
-        self.assertEqual(converter("t00000"), DateTime("2019-01-01T00:00").value)
-        self.assertEqual(converter("t00002"), DateTime("2019-01-01T04:00").value)
+        self.assertEqual(converter("t00000"), DateTime("2019-01-01T00:00"))
+        self.assertEqual(converter("t00002"), DateTime("2019-01-01T04:00"))
 
     def test_interger_sequence_datetime_non_int_string(self):
         converter = IntegerSequenceDateTimeConvertSpec("2019-01-01T00:00", 0, "2h")

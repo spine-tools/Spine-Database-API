@@ -515,6 +515,8 @@ class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
         default_value = default_values[key] = {"type": value_type}
         if self.compress and value_type == "map":
             default_value["compress"] = self.compress
+        if self.options and value_type == "time_series":
+            default_value["options"] = self.options
         parameter_definition.append(default_value)
         value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
         if value_list_name is not None:
@@ -634,6 +636,8 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         value = values[key] = {"type": value_type}
         if self.compress and value_type == "map":
             value["compress"] = self.compress
+        if self.options and value_type == "time_series":
+            value["options"] = self.options
         parameter_value = [class_name, entity_name, parameter_name, value]
         alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
         if alternative_name is not None:
