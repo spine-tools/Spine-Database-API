@@ -37,6 +37,13 @@ from spinedb_api.export_mapping.export_mapping import (
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
     ScenarioDescriptionMapping,
+    ParameterDefinitionMapping,
+    ParameterValueIndexMapping,
+    ParameterValueTypeMapping,
+    ExpandedParameterValueMapping,
+    RelationshipClassMapping,
+    RelationshipMapping,
+    RelationshipObjectMapping,
 )
 from .excel_writer import ExcelWriter
 from .writer import write
