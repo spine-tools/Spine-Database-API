@@ -48,7 +48,7 @@ class TestConvertFunctions(unittest.TestCase):
         self.assertEqual(mapped_data, expected)
 
     def test_convert_functions_str(self):
-        data = [["a", 1111.2222]]
+        data = [["a", '"1111.2222"']]
         column_convert_fns = {0: str, 1: StringConvertSpec()}
         mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         mapping.position = 0
