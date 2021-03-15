@@ -27,6 +27,7 @@ from ..parameter_value import (
     TimeSeriesVariableResolution,
     TimePattern,
     Array,
+    from_database,
 )
 from ..exception import ParameterValueFormatError
 
@@ -209,6 +210,11 @@ def _make_parameter_values(mapped_data):
                 continue
             if isinstance(value, dict):
                 row[value_pos] = _parameter_value_from_dict(value)
+            if isinstance(value, str):
+                try:
+                    row[value_pos] = from_database(value)
+                except ParameterValueFormatError:
+                    pass
 
 
 def _parameter_value_from_dict(d):

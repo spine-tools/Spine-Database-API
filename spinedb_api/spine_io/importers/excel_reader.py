@@ -165,28 +165,6 @@ class ExcelConnector(SourceConnection):
 
         return data_iterator, header
 
-    def get_mapped_data(
-        self, tables_mappings, table_options, table_column_convert_specs, table_row_convert_specs, max_rows=-1
-    ):
-        """
-        Overrides reader method to check for some parameter_value types.
-        """
-        mapped_data, errors = super().get_mapped_data(
-            tables_mappings, table_options, table_column_convert_specs, table_row_convert_specs, max_rows
-        )
-        value_pos = 3  # from (class, entity, parameter, value, *optionals)
-        for key in ("object_parameter_values", "relationship_parameter_values"):
-            for k, row in enumerate(mapped_data.get(key, [])):
-                value = row[value_pos]
-                if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
-                    try:
-                        value = from_database(value)
-                        row = row[:value_pos] + (value,) + row[value_pos + 1 :]
-                        mapped_data[key][k] = row
-                    except ParameterValueFormatError:
-                        pass
-        return mapped_data, errors
-
 
 def get_mapped_data_from_xlsx(filepath):
     """Returns mapped data from given Excel file assuming it has the default Spine Excel format.
