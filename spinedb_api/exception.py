@@ -101,7 +101,7 @@ class InvalidMapping(SpineDBAPIError):
 
 
 class InvalidMappingComponent(InvalidMapping):
-    def __init__(self, rank, map_type, msg):
+    def __init__(self, msg, rank=None, key=None):
         super().__init__(msg)
         self.rank = rank
-        self.map_type = map_type
+        self.key = key

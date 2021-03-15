@@ -583,13 +583,15 @@ class TestMappingIsValid(unittest.TestCase):
 
     def test_valid_relationship_default_value_mapping_not_missing_parameter_definition(self):
         cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        obj_cls_mapping = cls_mapping.child
         cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
             {"map_type": "ParameterDefinition"}
         )
         default_value_mapping = cls_mapping.flatten()[-1]
         cls_mapping.position = 0
-        param_def_mapping.position = 1
-        default_value_mapping.position = 2
+        obj_cls_mapping.position = 1
+        param_def_mapping.position = 2
+        default_value_mapping.position = 3
         issues = check_validity(cls_mapping)
         self.assertFalse(issues)
 
@@ -604,13 +606,15 @@ class TestMappingIsValid(unittest.TestCase):
 
     def test_valid_relationship_value_list_mapping_not_missing_parameter_definition(self):
         cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
+        obj_cls_mapping = cls_mapping.child
         cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
             {"map_type": "ParameterDefinition"}
         )
         value_list_mapping = cls_mapping.flatten()[-2]
         cls_mapping.position = 0
-        param_def_mapping.position = 1
-        value_list_mapping.position = 2
+        obj_cls_mapping.position = 1
+        param_def_mapping.position = 2
+        value_list_mapping.position = 3
         issues = check_validity(cls_mapping)
         self.assertFalse(issues)
 

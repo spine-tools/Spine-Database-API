@@ -19,7 +19,7 @@ using ``import_functions.import_data()``
 
 from copy import deepcopy
 from .import_mapping_compat import import_mapping_from_dict
-from .import_mapping import ImportMapping, Position
+from .import_mapping import ImportMapping, check_validity
 from ..mapping import Position
 from ..parameter_value import from_dict, convert_leaf_maps_to_specialized_containers, Map
 from ..exception import ParameterValueFormatError
@@ -58,6 +58,10 @@ def get_mapped_data(
     for mapping in mappings:
         mapping = deepcopy(mapping)
         mapping.polish(table_name, data_header)
+        mapping_errors = check_validity(mapping)
+        if mapping_errors:
+            errors += mapping_errors
+            continue
         # Find pivoted and unpivoted mappings
         pivoted, non_pivoted, pivoted_from_header, last = _split_mapping(mapping)
         # If there are no pivoted mappings, we can just feed the rows to our mapping directly
@@ -65,7 +69,7 @@ def get_mapped_data(
             start_pos = mapping.read_start_row
             for k, row in enumerate(rows[mapping.read_start_row :]):
                 row = _convert_row(row, column_convert_fns, start_pos + k, errors)
-                mapping.import_row(row, read_state, mapped_data, errors)
+                mapping.import_row(row, read_state, mapped_data)
             continue
         # There are pivoted mappings. We will unpivot the table
         unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos = _unpivot_rows(
@@ -78,7 +82,7 @@ def get_mapped_data(
                 m.position = k
             for k, row in enumerate(unpivoted_rows):
                 row = _convert_row(row, row_convert_fns, k, errors)
-                mapping.import_row(row, read_state, mapped_data, errors)
+                mapping.import_row(row, read_state, mapped_data)
             continue
         # There are both pivoted and unpivoted mappings
         # Reposition mappings:
@@ -97,7 +101,7 @@ def get_mapped_data(
                 unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = regular_row + unpivoted_row
                 full_row.append(row[last_non_pivoted_column_pos + k])
-                mapping.import_row(full_row, read_state, mapped_data, errors)
+                mapping.import_row(full_row, read_state, mapped_data)
     _make_parameter_values(mapped_data)
     return mapped_data, errors
 

@@ -24,8 +24,11 @@ from spinedb_api.exception import InvalidMappingComponent
 @unique
 class ImportKey(Enum):
     CLASS_NAME = auto()
+    RELATIONSHIP_DIMENSION_COUNT = auto()
     OBJECT_CLASS_NAME = auto()
     OBJECT_NAME = auto()
+    GROUP_NAME = auto()
+    MEMBER_NAME = auto()
     PARAMETER_NAME = auto()
     PARAMETER_DEFINITION = auto()
     PARAMETER_DEFAULT_VALUES = auto()
@@ -49,6 +52,8 @@ class ImportKey(Enum):
             self.CLASS_NAME.value: "Class names",
             self.OBJECT_CLASS_NAME.value: "Object class names",
             self.OBJECT_NAME.value: "Object names",
+            self.GROUP_NAME.value: "Group names",
+            self.MEMBER_NAME.value: "Member names",
             self.PARAMETER_NAME.value: "Parameter names",
             self.PARAMETER_DEFINITION.value: "Parameter names",
             self.PARAMETER_DEFAULT_VALUE_INDEXES.value: "Parameter indexes",
@@ -69,10 +74,14 @@ class ImportKey(Enum):
         return super().__str__()
 
 
+class KeySolution(Exception):
+    """Opposite of KeyError"""
+
+
 def check_validity(root_mapping):
     class _DummySourceRow:
         def __getitem__(self, key):
-            return key
+            return "true"
 
     errors = []
     source_row = _DummySourceRow()
@@ -141,7 +150,7 @@ class ImportMapping(Mapping):
                 return
             except ValueError:
                 msg = f"'{self.position}' is not in '{source_header}'"
-                raise InvalidMappingComponent(self.rank, self.MAP_TYPE, msg)
+                raise InvalidMappingComponent(msg)
         if self.position == Position.table_name:
             # Table name mapping, we set the fixed value to the table name
             self.value = table_name
@@ -160,13 +169,13 @@ class ImportMapping(Mapping):
                     self.value = int(self.value)
                 except (ValueError, IndexError):
                     msg = f"'{self.value}' is not in header '{source_header}'"
-                    raise InvalidMappingComponent(self.rank, self.MAP_TYPE, msg)
+                    raise InvalidMappingComponent(msg)
             # Integer value, we try and get the actual value from that index in the header
             try:
                 self.value = source_header[self.value]
             except IndexError:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
-                raise InvalidMappingComponent(self.rank, self.MAP_TYPE, msg)
+                raise InvalidMappingComponent(msg)
 
     @property
     def rank(self):
@@ -175,17 +184,24 @@ class ImportMapping(Mapping):
         return self.parent.rank + 1
 
     def import_row(self, source_row, state, mapped_data, errors=None):
+        if errors is None:
+            errors = []
         if self.position != Position.hidden or self.value is not None:
             source_data = self._data(source_row)
             if source_data is not None:
                 try:
                     self._import_row(source_data, state, mapped_data)
                 except KeyError as err:
-                    msg = f"Invalid '{err.args[0]}'"
-                    error = InvalidMappingComponent(self.rank, self.MAP_TYPE, msg)
-                    if errors is None:
-                        raise error
-                    errors.append(error)
+                    for key in err.args:
+                        msg = f"Required key '{key}' is invalid"
+                        error = InvalidMappingComponent(msg, self.rank, key)
+                        errors.append(error)
+                except KeySolution as solution:
+                    indexes = set()
+                    for key in solution.args:
+                        indexes |= {k for k, err in enumerate(errors) if err.key == key}
+                    for k in sorted(indexes, reverse=True):
+                        errors.pop(k)
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
@@ -316,6 +332,8 @@ class ObjectMapping(ImportMapping):
         object_name = state[ImportKey.OBJECT_NAME] = source_data
         if not isinstance(self.child, ObjectGroupMapping):
             mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
+        else:
+            raise KeyError(ImportKey.MEMBER_NAME)
 
 
 class ObjectMetadataMapping(ImportMapping):
@@ -340,12 +358,15 @@ class ObjectGroupMapping(ImportObjectsMixin, ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
-        group_name = state[ImportKey.OBJECT_NAME]
+        group_name = state.get(ImportKey.OBJECT_NAME)
+        if group_name is None:
+            raise KeyError(ImportKey.GROUP_NAME)
         member_name = source_data
         mapped_data.setdefault("object_groups", list()).append((object_class_name, group_name, member_name))
         if self.import_objects:
             objects = [(object_class_name, group_name), (object_class_name, member_name)]
             mapped_data.setdefault("objects", list()).extend(objects)
+        raise KeySolution(ImportKey.MEMBER_NAME)
 
 
 class RelationshipClassMapping(ImportMapping):
@@ -357,10 +378,13 @@ class RelationshipClassMapping(ImportMapping):
     MAP_TYPE = "RelationshipClass"
 
     def _import_row(self, source_data, state, mapped_data):
+        dim_count = len([m for m in self.flatten() if isinstance(m, RelationshipClassObjectClassMapping)])
+        state[ImportKey.RELATIONSHIP_DIMENSION_COUNT] = dim_count
         relationship_class_name = state[ImportKey.RELATIONSHIP_CLASS_NAME] = source_data
         object_class_names = state[ImportKey.OBJECT_CLASS_NAMES] = []
         relationship_classes = mapped_data.setdefault("relationship_classes", list())
         relationship_classes.append((relationship_class_name, object_class_names))
+        raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
 
 
 class RelationshipClassObjectClassMapping(ImportMapping):
@@ -376,6 +400,8 @@ class RelationshipClassObjectClassMapping(ImportMapping):
         object_class_names = state[ImportKey.OBJECT_CLASS_NAMES]
         object_class_name = source_data
         object_class_names.append(object_class_name)
+        if len(object_class_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+            raise KeySolution(ImportKey.OBJECT_CLASS_NAMES)
 
 
 class RelationshipMapping(ImportMapping):
@@ -403,22 +429,23 @@ class RelationshipObjectMapping(ImportObjectsMixin, ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         relationship_class_name = state[ImportKey.RELATIONSHIP_CLASS_NAME]
+        object_class_names = state[ImportKey.OBJECT_CLASS_NAMES]
+        if len(object_class_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+            raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
         object_names = state[ImportKey.OBJECT_NAMES]
         if not object_names:
             relationships = mapped_data.setdefault("relationships", list())
             relationships.append((relationship_class_name, object_names))
         object_name = source_data
         object_names.append(object_name)
-        object_class_names = state[ImportKey.OBJECT_CLASS_NAMES]
-        k = len(object_names) - 1
-        try:
-            object_class_name = object_class_names[k]
-        except IndexError:
-            # FIXME: How do we make sure we complain about the right index
-            raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
         if self.import_objects:
+            k = len(object_names) - 1
+            object_class_name = object_class_names[k]
             mapped_data.setdefault("object_classes", list()).append(object_class_name)
             mapped_data.setdefault("objects", list()).append([object_class_name, object_name])
+        if len(object_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+            raise KeySolution(ImportKey.OBJECT_NAMES)
+        raise KeyError(ImportKey.OBJECT_NAMES)
 
 
 class RelationshipMetadataMapping(ImportMapping):
@@ -560,11 +587,10 @@ class ParameterValueMapping(ImportMapping):
                 "object_parameter_values",
             )
         elif relationship_class_name is not None:
-            class_name, entity_name, map_key = (
-                relationship_class_name,
-                state[ImportKey.OBJECT_NAMES],
-                "relationship_parameter_values",
-            )
+            object_names = state[ImportKey.OBJECT_NAMES]
+            if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+                raise KeyError(ImportKey.OBJECT_NAMES)
+            class_name, entity_name, map_key = (relationship_class_name, object_names, "relationship_parameter_values")
         else:
             raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME]
@@ -660,7 +686,10 @@ class ExpandedParameterValueMapping(ImportMapping):
         if object_class_name is not None:
             class_name, entity_name = object_class_name, state[ImportKey.OBJECT_NAME]
         elif relationship_class_name is not None:
-            class_name, entity_name = relationship_class_name, tuple(state[ImportKey.OBJECT_NAMES])
+            object_names = state[ImportKey.OBJECT_NAMES]
+            if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+                raise KeyError(ImportKey.OBJECT_NAMES)
+            class_name, entity_name = relationship_class_name, tuple(object_names)
         else:
             raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME]
