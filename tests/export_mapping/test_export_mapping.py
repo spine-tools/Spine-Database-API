@@ -1125,6 +1125,7 @@ class TestExportMapping(unittest.TestCase):
             ParameterValueMapping(4),
             ParameterValueIndexMapping(5),
             ExpandedParameterValueMapping(6),
+            FixedValueMapping(7, "gaga")
         ]
         expected_positions = [m.position for m in mappings]
         expected_types = [type(m) for m in mappings]
