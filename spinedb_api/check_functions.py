@@ -72,16 +72,17 @@ def check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names,
         raise SpineIntegrityError("Missing scenario alternative rank.")
     scen_name = scenario_names.get(scen_id)
     if scen_name is None:
-        raise SpineIntegrityError("Scenario not found.")
+        raise SpineIntegrityError(f"Scenario with id {scen_id} does not have a name.")
     alt_name = alternative_names.get(alt_id)
     if alt_name is None:
-        raise SpineIntegrityError("Alternative not found.")
+        raise SpineIntegrityError(f"Alternative with id {alt_id} does not have a name.")
     dup_id = ids_by_alt_id.get((scen_id, alt_id))
     if dup_id is not None:
         raise SpineIntegrityError(f"Alternative {alt_name} already exists in scenario {scen_name}.", id=dup_id)
     dup_id = ids_by_rank.get((scen_id, rank))
     if dup_id is not None:
-        raise SpineIntegrityError(f"Rank {rank} already exists in scenario {scen_name}.", id=dup_id)
+        raise SpineIntegrityError(f"Rank {rank} already exists in scenario {scen_name}. Cannot give the same rank for "
+                                  f"alternative {alt_name}.", id=dup_id)
 
 
 def check_object_class(item, current_items, object_class_type):
@@ -98,14 +99,15 @@ def check_object_class(item, current_items, object_class_type):
     try:
         name = item["name"]
     except KeyError:
-        raise SpineIntegrityError("Missing object class name.")
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the object class name. Probably a "
+                                  "bug, please report.")
     if not name:
-        raise SpineIntegrityError(f"Name '{name}' is not valid")
+        raise SpineIntegrityError(f"Object class name is an empty string and therefore not valid")
     if "type_id" in item and item["type_id"] != object_class_type:
-        raise SpineIntegrityError("Object class '{}' must have correct type_id.".format(name), id=current_items[name])
+        raise SpineIntegrityError(f"Object class '{name}' does not have a type_id of an object class.", id=current_items[name])
     if name in current_items:
         raise SpineIntegrityError(
-            "There can't be more than one object class called '{}'.".format(name), id=current_items[name]
+            f"There can't be more than one object class called '{name}'.", id=current_items[name]
         )
 
 
@@ -122,22 +124,23 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
-        class_id = item["class_id"]
-    except KeyError:
-        raise SpineIntegrityError("Missing object class identifier.")
-    if class_id not in object_class_ids:
-        raise SpineIntegrityError("Object class not found.")
-    try:
         name = item["name"]
     except KeyError:
-        raise SpineIntegrityError("Missing object name.")
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the object name. Probably a bug, "
+                                  "please report.")
     if not name:
-        raise SpineIntegrityError(f"Name '{name}' is not valid")
+        raise SpineIntegrityError(f"Object name is an empty string and therefore not valid")
     if "type_id" in item and item["type_id"] != object_entity_type:
-        raise SpineIntegrityError("Object '{}' must have correct type_id.".format(name), id=current_items[name])
+        raise SpineIntegrityError(f"Object '{name}' does not have entity type of and object", id=current_items[name])
+    try:
+        class_id = item["class_id"]
+    except KeyError:
+        raise SpineIntegrityError(f"Object '{name}' does not have an object class id.")
+    if class_id not in object_class_ids:
+        raise SpineIntegrityError(f"Object class id for object '{name}' not found.")
     if (class_id, name) in current_items:
         raise SpineIntegrityError(
-            "There's already an object called '{}' in the same class.".format(name), id=current_items[class_id, name]
+            f"There's already an object called '{name}' in the same object class.", id=current_items[class_id, name]
         )
 
 
@@ -154,26 +157,29 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
-        given_object_class_id_list = wide_item["object_class_id_list"]
-    except KeyError:
-        raise SpineIntegrityError("Missing object class identifiers.")
-    if not given_object_class_id_list:
-        raise SpineIntegrityError("At least one object class is needed.")
-    if not all([id_ in object_class_ids for id_ in given_object_class_id_list]):
-        raise SpineIntegrityError("Object class not found.")
-    try:
         name = wide_item["name"]
     except KeyError:
-        raise SpineIntegrityError("Missing relationship class name.")
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the relationship class name. "
+                                  "Probably a bug, please report.")
     if not name:
         raise SpineIntegrityError(f"Name '{name}' is not valid")
+    try:
+        given_object_class_id_list = wide_item["object_class_id_list"]
+    except KeyError:
+        raise SpineIntegrityError(f"Python KeyError: There are no dictionary keys in the object class ids of the "
+                                  f"relationship class '{name}'. Probably a bug, please report.")
+    if not given_object_class_id_list:
+        raise SpineIntegrityError(f"At least one object class is needed for the relationship class '{name}'.")
+    if not all([id_ in object_class_ids for id_ in given_object_class_id_list]):
+        raise SpineIntegrityError(f"At least one of the object class ids of the relationship '{name}' is not in the "
+                                  f"database.")
     if "type_id" in wide_item and wide_item["type_id"] != relationship_class_type:
         raise SpineIntegrityError(
-            "Relationship class '{}' must have correct type_id .".format(name), id=current_items[name]
+            f"Relationship class '{name}' must have correct type_id .", id=current_items[name]
         )
     if name in current_items:
         raise SpineIntegrityError(
-            "There can't be more than one relationship class called '{}'.".format(name), id=current_items[name]
+            f"There can't be more than one relationship class with the name '{name}'.", id=current_items[name]
         )
 
 
@@ -199,39 +205,41 @@ def check_wide_relationship(
     try:
         name = wide_item["name"]
     except KeyError:
-        raise SpineIntegrityError("Missing relationship name.")
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the relationship name. "
+                                  "Probably a bug, please report.")
     if not name:
-        raise SpineIntegrityError(f"Name '{name}' is not valid")
+        raise SpineIntegrityError(f"Relationship name is an empty string, which not valid")
     try:
         class_id = wide_item["class_id"]
     except KeyError:
-        raise SpineIntegrityError("Missing relationship class identifier.")
+        raise SpineIntegrityError(f"Python KeyError: There is no dictionary key for the relationship class id"
+                                  f"of the relationship '{name}'. Probably a bug, please report")
     if "type_id" in wide_item and wide_item["type_id"] != relationship_entity_type:
         raise SpineIntegrityError(
-            "Relationship '{}' must have correct type_id .".format(name), id=current_items_by_name[class_id, name]
+            f"Relationship '{name}' does not have entity type of a relationship.", id=current_items_by_name[class_id, name]
         )
     if (class_id, name) in current_items_by_name:
         raise SpineIntegrityError(
-            "There's already a relationship called '{}' in the same class.".format(name),
+            f"There's already a relationship called '{name}' in the same class.",
             id=current_items_by_name[class_id, name],
         )
     try:
         object_class_id_list = relationship_classes[class_id]["object_class_id_list"]
     except KeyError:
-        raise SpineIntegrityError("Relationship class not found.")
+        raise SpineIntegrityError(f"There is no object class id list for the relationship '{name}'")
     try:
         object_id_list = wide_item["object_id_list"]
     except KeyError:
-        raise SpineIntegrityError("Missing object identifier.")
+        raise SpineIntegrityError(f"There is no object id list for the relationship '{name}'")
     try:
         given_object_class_id_list = [objects[id]["class_id"] for id in object_id_list]
     except KeyError as e:
-        raise SpineIntegrityError("Object id '{}' not found.".format(e))
+        raise SpineIntegrityError(f"During the processing of relationship '{name}' a Python KeyError occurred.")
     if given_object_class_id_list != object_class_id_list:
         object_name_list = [objects[id]["name"] for id in object_id_list]
         relationship_class_name = relationship_classes[class_id]["name"]
         raise SpineIntegrityError(
-            "Incorrect objects '{}' for relationship class '{}'.".format(object_name_list, relationship_class_name)
+            f"Incorrect objects '{object_name_list}' for relationship class '{relationship_class_name}'."
         )
     join_object_id_list = ",".join([str(x) for x in object_id_list])
     if (class_id, join_object_id_list) in current_items_by_obj_lst:
@@ -259,26 +267,38 @@ def check_entity_group(item, current_items, entities):
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the entity name of an entity group. "
+                                  "Probably a bug, please report.")
+    if not name:
+        raise SpineIntegrityError("Entity group has an empty name")
+    try:
         entity_id = item["entity_id"]
     except KeyError:
-        raise SpineIntegrityError("Missing entity identifier.")
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the entity id of entity group "
+                                  f"'{name}'. Probably a bug, please report.")
+    if not entity_id:
+        raise SpineIntegrityError(f"Entity group '{name}' does not have an entity id")
     try:
         member_id = item["member_id"]
     except KeyError:
-        raise SpineIntegrityError("Missing member identifier.")
+        raise SpineIntegrityError(f"Python KeyError: There is no dictionary key for the member id of an entity group "
+                                  f"'{name}'. Probably a bug, please report.")
     try:
         entity_class_id = item["entity_class_id"]
     except KeyError:
-        raise SpineIntegrityError("Missing entity class identifier.")
+        raise SpineIntegrityError("Python KeyError: There is no dictionary key for the entity class id of entity group "
+                                  f"'{name}'. Probably a bug, please report.")
     ents = entities.get(entity_class_id)
     if ents is None:
-        raise SpineIntegrityError("Entity class not found.")
+        raise SpineIntegrityError(f"Entity class not found for entity group '{name}'.")
     entity = ents.get(entity_id)
     if not entity:
-        raise SpineIntegrityError("Entity not found.")
+        raise SpineIntegrityError(f"No entity id for the entity group '{name}'.")
     member = ents.get(member_id)
     if not member:
-        raise SpineIntegrityError("Member not found.")
+        raise SpineIntegrityError(f"Entity group '{name}' has no members.")
     if (entity_id, member_id) in current_items:
         raise SpineIntegrityError(
             "{0} is already a member in {1}.".format(member["name"], entity["name"]),
@@ -302,15 +322,16 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
     """
     name = item.get("name")
     if not name:
-        raise SpineIntegrityError("Missing parameter name.")
+        raise SpineIntegrityError("No name provided for a parameter definition.")
     entity_class_id = item.get("entity_class_id")
     if not entity_class_id:
-        raise SpineIntegrityError("Missing entity class identifier.")
+        raise SpineIntegrityError(f"Missing entity class id for parameter definition '{name}'.")
     if entity_class_id not in entity_class_ids:
-        raise SpineIntegrityError("Entity class not found.")
+        raise SpineIntegrityError(f"Entity class id for parameter definition '{name}' not found in the entity class "
+                                  f"ids of the current database.")
     if (entity_class_id, name) in current_items:
         raise SpineIntegrityError(
-            "There's already a parameter called '{}' in this class.".format(name),
+            "There's already a parameter called {0} in entity class with id {1}.".format(name, entity_class_id),
             id=current_items[entity_class_id, name],
         )
     parameter_value_list_id = item.get("parameter_value_list_id")
