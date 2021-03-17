@@ -174,7 +174,10 @@ class CSVConnector(SourceConnection):
             tuple:
         """
         csv_iter = self.file_iterator(options, max_rows)
-
+        try:
+            first_row = next(csv_iter)
+        except StopIteration:
+            return iter([]), []
         _, _, has_header, _ = self.parse_options(options)
         if has_header:
             # Very good, we already have the first row
