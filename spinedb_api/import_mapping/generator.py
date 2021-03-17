@@ -79,7 +79,7 @@ def get_mapped_data(
                 mapping.import_row(row, read_state, mapped_data)
             continue
         # There are pivoted mappings. We will unpivot the table
-        unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos = _unpivot_rows(
+        unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos, unpivoted_column_pos = _unpivot_rows(
             rows, data_header, pivoted, non_pivoted, pivoted_from_header, mapping.skip_columns
         )
         # If there are only pivoted mappings, we can just feed the unpivoted rows
@@ -104,10 +104,10 @@ def get_mapped_data(
         for i, row in enumerate(rows[start_pos:]):
             regular_row = row[:last_non_pivoted_column_pos]
             regular_row = _convert_row(regular_row, column_convert_fns, start_pos + i, errors)
-            for k, unpivoted_row in enumerate(unpivoted_rows):
+            for column_pos, unpivoted_row in zip(unpivoted_column_pos, unpivoted_rows):
                 unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = regular_row + unpivoted_row
-                full_row.append(row[last_non_pivoted_column_pos + k])
+                full_row.append(row[column_pos])
                 mapping.import_row(full_row, read_state, mapped_data)
     _make_parameter_values(mapped_data)
     return mapped_data, errors
@@ -171,6 +171,7 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
         list(list): Unpivoted rows
         int: Position of last pivoted row
         int: Position of last non-pivoted row
+        list(int): Columns positions corresponding to unpivoted rows
     """
     # First we collect pivoted and unpivoted positions
     pivoted_pos = [-(m.position + 1) for m in pivoted]  # (-1) -> (0), (-2) -> (1), (-3) -> (2), etc.
@@ -192,7 +193,8 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     unpivoted_rows = [list(row) for row in zip(*pivoted_rows)]
     last_pivoted_row_pos = max(pivoted_pos, default=0) + 1
     last_non_pivoted_column_pos = max(non_pivoted_pos, default=0) + 1
-    return unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos
+    unpivoted_column_pos = [k for k in range(len(rows[0])) if k not in skip_pos]
+    return unpivoted_rows, last_pivoted_row_pos, last_non_pivoted_column_pos, unpivoted_column_pos
 
 
 def _make_parameter_values(mapped_data):
