@@ -49,8 +49,6 @@ class ExcelWriter(Writer):
 
     def finish_table(self):
         """See base class."""
-        if self._current_sheet.calculate_dimension() == "A1:A1":
-            self._removable_sheet_names.add(self._current_sheet.title)
         self._current_sheet = None
 
     def start(self):
