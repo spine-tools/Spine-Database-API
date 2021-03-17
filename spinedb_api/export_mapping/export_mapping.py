@@ -389,16 +389,23 @@ class FixedValueMapping(ExportMapping):
 
     MAP_TYPE = "FixedValue"
 
-    def __init__(self, position, value, group_fn=None):
+    def __init__(self, position, value, header="", filter_re="", group_fn=None):
         """
         Args:
             position (int or Position, optional): mapping's position
             value (Any): value to yield
+            header (str, optional); A string column header that's yielt as 'first row', if not empty.
+                The default is an empty string (so it's not yielt).
+            filter_re (str, optional): A regular expression to filter the mapped values by
             group_fn (str, Optional): Only for topmost mappings. The name of one of our supported group functions,
                 for aggregating values over repeated 'headers' (in tables with hidden elements).
                 If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
-        super().__init__(position, value, group_fn=group_fn)
+        super().__init__(position, value, header, filter_re, group_fn)
+
+    def _data(self, db_row):
+        # Will be replaced by base class constructor.
+        raise NotImplementedError()
 
     def _update_state(self, state, db_row):
         return
