@@ -183,12 +183,10 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
         pivoted.insert(0, pivoted_from_header)
         pivoted_rows.insert(0, data_header)
         pivoted_pos.append(-1)  # This is so ``last_pivoted_row_pos`` below gets the right value
-    # Remove items in non pivoted and skipped positions from pivoted rows
+    # Collect non pivoted and skipped positions
     skip_pos = set(skip_columns) | set(non_pivoted_pos)
-    skip_pos = sorted(skip_pos, reverse=True)
-    for row in pivoted_rows:
-        for j in skip_pos:
-            row.pop(j)
+    # Remove items in those positions from pivoted rows
+    pivoted_rows = [[item for k, item in enumerate(row) if k not in skip_pos] for row in pivoted_rows]
     # Unpivot
     unpivoted_rows = [list(row) for row in zip(*pivoted_rows)]
     last_pivoted_row_pos = max(pivoted_pos, default=0) + 1
