@@ -107,6 +107,6 @@ class SourceConnection:
                 continue
             for key, value in data.items():
                 mapped_data.setdefault(key, []).extend(value)
-            errors.extend([(table, f"Could not map row: {row_number}, Error: {err}") for row_number, err in t_errors])
+            errors.extend([(table, err) for err in t_errors])
 
         return mapped_data, errors
