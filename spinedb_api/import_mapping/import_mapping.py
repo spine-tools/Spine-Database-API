@@ -110,12 +110,14 @@ class ImportMapping(Mapping):
             self._skip_columns = [skip_columns]
             return
         if isinstance(skip_columns, list):
-            i = next(iter(i for i, column in enumerate(skip_columns) if not isinstance(column, (str, int))), None)
-            if i is not None:
-                raise TypeError(
-                    "skip_columns must be str, int or list of str, int, "
-                    f"instead got list with {type(skip_columns[i]).__name__} on index {i}"
-                )
+            bad_types = [
+                f"{type(column).__name__} at index {i}"
+                for i, column in enumerate(skip_columns)
+                if not isinstance(column, (str, int))
+            ]
+            if bad_types:
+                bad_types = ", ".join(bad_types)
+                raise TypeError(f"skip_columns must be str, int or list of str, int, instead got list with {bad_types}")
             self._skip_columns = skip_columns
             return
         raise TypeError(f"skip_columns must be str, int or list of str, int, instead got {type(skip_columns).__name__}")
@@ -224,6 +226,14 @@ class ImportMapping(Mapping):
         if self.child is None:
             return False
         return self.child.is_pivoted()
+
+    def to_dict(self):
+        d = super().to_dict()
+        if self.skip_columns:
+            d["skip_columns"] = self.skip_columns
+        if self.read_start_row:
+            d["read_start_row"] = self.read_start_row
+        return d
 
     @classmethod
     def reconstruct(cls, position, mapping_dict):
