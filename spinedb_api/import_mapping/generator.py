@@ -120,11 +120,6 @@ def _convert_row(row, convert_fns, row_number, errors):
         return None
     new_row = []
     for j, item in enumerate(row):
-        if isinstance(item, str) and not item:
-            item = None
-        if item is None:
-            new_row.append(item)
-            continue
         convert_fn = convert_fns.get(j, lambda x: x)
         try:
             item = convert_fn(item)

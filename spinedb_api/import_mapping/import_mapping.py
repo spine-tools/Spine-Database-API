@@ -501,8 +501,10 @@ class ParameterDefaultValueMapping(ImportMapping):
     MAP_TYPE = "ParameterDefaultValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
         default_value = source_data
+        if default_value == "":
+            return
+        parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
         parameter_definition.append(default_value)
         value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
         if value_list_name is not None:
@@ -590,6 +592,9 @@ class ParameterValueMapping(ImportMapping):
     MAP_TYPE = "ParameterValue"
 
     def _import_row(self, source_data, state, mapped_data):
+        value = source_data
+        if value == "":
+            return
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
         relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
         if object_class_name is not None:
@@ -606,7 +611,6 @@ class ParameterValueMapping(ImportMapping):
         else:
             raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME]
-        value = source_data
         parameter_value = [class_name, entity_name, parameter_name, value]
         alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
         if alternative_name is not None:
@@ -745,8 +749,10 @@ class ParameterValueListValueMapping(ImportMapping):
     MAP_TYPE = "ParameterValueListValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME]
         list_value = source_data
+        if list_value == "":
+            return
+        value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME]
         mapped_data.setdefault("parameter_value_lists", list()).append([value_list_name, list_value])
 
 
@@ -943,8 +949,10 @@ class ToolFeatureMethodMethodMapping(ImportMapping):
     MAP_TYPE = "ToolFeatureMethodMethod"
 
     def _import_row(self, source_data, state, mapped_data):
-        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
         method = source_data
+        if method == "":
+            return
+        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
         tool_feature_method.append(method)
 
 
