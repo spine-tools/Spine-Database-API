@@ -16,10 +16,9 @@ Contains ExcelConnector class and a help function.
 :date:   1.6.2019
 """
 
-from itertools import islice, takewhile
+from itertools import islice, takewhile, chain
 import io
 from openpyxl import load_workbook
-from spinedb_api import from_database, ParameterValueFormatError
 from .reader import SourceConnection
 
 
@@ -109,60 +108,41 @@ class ExcelConnector(SourceConnection):
         """
         if not self._wb:
             return iter([]), []
-
-        if not table in self._wb:
+        if table not in self._wb:
             # table not found
             return iter([]), []
         worksheet = self._wb[table]
-
         # get options
         has_header = options.get("header", False)
         skip_rows = options.get("row", 0)
         skip_columns = options.get("column", 0)
         stop_at_empty_col = options.get("read_until_col", False)
         stop_at_empty_row = options.get("read_until_row", False)
-
         if max_rows == -1:
             max_rows = None
         else:
             max_rows += skip_rows
-
+        rows = islice(worksheet.iter_rows(), skip_rows, max_rows)
+        first_row = next(rows, None)
+        if first_row is None:
+            return iter([]), []
         read_to_col = None
-        try:
-            first_row = next(islice(worksheet.iter_rows(), skip_rows, max_rows))
-            if stop_at_empty_col:
-                # find first empty col in top row and use that as a stop
-                num_cols = 0
-                for i, column in enumerate(islice(first_row, skip_columns, None)):
-
-                    if column.value is None:
-                        read_to_col = i + skip_columns
-                        break
-                    num_cols = num_cols + 1
-            else:
-                num_cols = len(first_row) - skip_columns
-        except StopIteration:
-            # no data
-            num_cols = 0
-
-        header = []
-        rows = worksheet.iter_rows()
-        rows = islice(rows, skip_rows, max_rows)
-        # find header if it has one
+        if stop_at_empty_col:
+            for i, column in enumerate(islice(first_row, skip_columns, None)):
+                if column.value is None:
+                    read_to_col = i + skip_columns
+                    break
         if has_header:
-            try:
-                header = [c.value for c in islice(next(rows), skip_columns, read_to_col)]
-            except StopIteration:
-                # no data
-                return iter([]), []
-
+            header = [c.value for c in islice(first_row, skip_columns, read_to_col)]
+        else:
+            header = []
+            rows = chain((first_row,), rows)
         # iterator for selected columns and and skipped rows
         data_iterator = (list(cell.value for cell in islice(row, skip_columns, read_to_col)) for row in rows)
         if stop_at_empty_row:
             # add condition to iterator
             condition = lambda row: row[0] is not None
             data_iterator = takewhile(condition, data_iterator)
-
         return data_iterator, header
 
 
