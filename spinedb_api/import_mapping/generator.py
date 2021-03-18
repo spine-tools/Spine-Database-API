@@ -102,6 +102,8 @@ def get_mapped_data(
         # and feed that to the mapping
         start_pos = max(mapping.read_start_row, last_pivoted_row_pos)
         for i, row in enumerate(rows[start_pos:]):
+            if not row:
+                continue
             row = _convert_row(row, column_convert_fns, start_pos + i, errors)
             regular_row = row[:last_non_pivoted_column_pos]
             for column_pos, unpivoted_row in zip(unpivoted_column_pos, unpivoted_rows):

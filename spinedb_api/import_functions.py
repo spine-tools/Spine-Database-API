@@ -696,13 +696,13 @@ def _get_scenario_alternatives_for_import(db_map, data):
         scenario_id = scenario_ids.get(scenario_name)
         if not scenario_id:
             error_log.append(
-                ImportErrorLogItem(msg=f"Scenario {scenario_name} not found.", db_type="scenario alternative")
+                ImportErrorLogItem(msg=f"Scenario '{scenario_name}' not found.", db_type="scenario alternative")
             )
             continue
         alternative_id = alternative_ids.get(alternative_name)
         if not alternative_id:
             error_log.append(
-                ImportErrorLogItem(msg=f"Alternative {alternative_name} not found.", db_type="scenario alternative")
+                ImportErrorLogItem(msg=f"Alternative '{alternative_name}' not found.", db_type="scenario alternative")
             )
             continue
         if (scenario_name, alternative_name) in checked:
@@ -843,7 +843,7 @@ def _get_relationship_classes_for_import(db_map, data):
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
-                    f"Could not import relationship class '{name}' with object classes '{oc_names}': {e.msg}",
+                    f"Could not import relationship class '{name}' with object classes {tuple(oc_names)}: {e.msg}",
                     db_type="relationship class",
                 )
             )
@@ -1034,12 +1034,8 @@ def _get_relationships_for_import(db_map, data):
             to_add.append(item)
             seen.add((rc_id, o_ids))
         except SpineIntegrityError as e:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg=f"Could not import relationship with objects '{object_names}' into '{class_name}': {e.msg}",
-                    db_type="relationship",
-                )
-            )
+            msg = f"Could not import relationship with objects {tuple(object_names)} into '{class_name}': {e.msg}"
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship"))
     return to_add, [], error_log
 
 
@@ -1458,7 +1454,7 @@ def _get_parameter_value_lists_for_import(db_map, data):
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
-                    msg=f"Could not import parameter value list '{name}' with values '{value_list}': {e.msg}",
+                    msg=f"Could not import parameter value list '{name}' with values {tuple(value_list)}: {e.msg}",
                     db_type="parameter value list",
                 )
             )
@@ -1585,7 +1581,7 @@ def _get_object_metadata_for_import(db_map, data):
         if o_id is None:
             error_log.append(
                 ImportErrorLogItem(
-                    msg=f"Could not import object metadata: unknown object {object_name} of class {class_name}",
+                    msg=f"Could not import object metadata: unknown object '{object_name}' of class '{class_name}'",
                     db_type="object metadata",
                 )
             )
@@ -1595,7 +1591,7 @@ def _get_object_metadata_for_import(db_map, data):
             if m_id is None:
                 error_log.append(
                     ImportErrorLogItem(
-                        msg=f"Could not import object metadata: unknown metadata {name}: {value}",
+                        msg=f"Could not import object metadata: unknown metadata '{name}': '{value}'",
                         db_type="object metadata",
                     )
                 )
@@ -1654,7 +1650,7 @@ def _get_relationship_metadata_for_import(db_map, data):
         if r_id is None:
             error_log.append(
                 ImportErrorLogItem(
-                    msg="Could not import relationship metadata: unknown relationship {0} of class {1}".format(
+                    msg="Could not import relationship metadata: unknown relationship '{0}' of class '{1}'".format(
                         object_names, class_name
                     ),
                     db_type="relationship metadata",
@@ -1666,7 +1662,7 @@ def _get_relationship_metadata_for_import(db_map, data):
             if m_id is None:
                 error_log.append(
                     ImportErrorLogItem(
-                        msg=f"Could not import relationship metadata: unknown metadata {name}: {value}",
+                        msg=f"Could not import relationship metadata: unknown metadata '{name}': '{value}'",
                         db_type="relationship metadata",
                     )
                 )
@@ -1738,7 +1734,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data):
             if m_id is None:
                 error_log.append(
                     ImportErrorLogItem(
-                        msg=f"Could not import object parameter value metadata: unknown metadata {name}: {value}",
+                        msg=f"Could not import object parameter value metadata: unknown metadata '{name}': '{value}'",
                         db_type="object parameter value metadata",
                     )
                 )
@@ -1807,7 +1803,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
         if pv_id is None:
             msg = (
                 "Could not import relationship parameter value metadata: "
-                "parameter {0} doesn't have a value for relationship {1}, alternative {2}".format(
+                "parameter '{0}' doesn't have a value for relationship '{1}', alternative '{2}'".format(
                     parameter_name, object_names, alternative_name
                 )
             )
@@ -1816,7 +1812,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data):
         for name, value in _parse_metadata(metadata):
             m_id = metadata_ids.get((name, value), None)
             if m_id is None:
-                msg = f"Could not import relationship parameter value metadata: unknown metadata {name}: {value}"
+                msg = f"Could not import relationship parameter value metadata: unknown metadata '{name}': '{value}'"
                 error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship parameter value metadata"))
                 continue
             unique_key = (pv_id, m_id)

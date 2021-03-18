@@ -103,10 +103,10 @@ def check_object_class(item, current_items, object_class_type):
         name = item["name"]
     except KeyError:
         raise SpineIntegrityError(
-            "Python KeyError: There is no dictionary key for the object class name. Probably a " "bug, please report."
+            "Python KeyError: There is no dictionary key for the object class name. Probably a bug, please report."
         )
     if not name:
-        raise SpineIntegrityError(f"Object class name is an empty string and therefore not valid")
+        raise SpineIntegrityError("Object class name is an empty string and therefore not valid")
     if "type_id" in item and item["type_id"] != object_class_type:
         raise SpineIntegrityError(
             f"Object class '{name}' does not have a type_id of an object class.", id=current_items[name]
@@ -134,7 +134,7 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
             "Python KeyError: There is no dictionary key for the object name. Probably a bug, " "please report."
         )
     if not name:
-        raise SpineIntegrityError(f"Object name is an empty string and therefore not valid")
+        raise SpineIntegrityError("Object name is an empty string and therefore not valid")
     if "type_id" in item and item["type_id"] != object_entity_type:
         raise SpineIntegrityError(f"Object '{name}' does not have entity type of and object", id=current_items[name])
     try:
@@ -174,8 +174,8 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         given_object_class_id_list = wide_item["object_class_id_list"]
     except KeyError:
         raise SpineIntegrityError(
-            f"Python KeyError: There are no dictionary keys in the object class ids of the "
-            f"relationship class '{name}'. Probably a bug, please report."
+            f"Python KeyError: There is no dictionary keys for the object class ids of relationship class '{name}'. "
+            "Probably a bug, please report."
         )
     if not given_object_class_id_list:
         raise SpineIntegrityError(f"At least one object class is needed for the relationship class '{name}'.")
@@ -214,16 +214,16 @@ def check_wide_relationship(
         name = wide_item["name"]
     except KeyError:
         raise SpineIntegrityError(
-            "Python KeyError: There is no dictionary key for the relationship name. " "Probably a bug, please report."
+            "Python KeyError: There is no dictionary key for the relationship name. Probably a bug, please report."
         )
     if not name:
-        raise SpineIntegrityError(f"Relationship name is an empty string, which not valid")
+        raise SpineIntegrityError("Relationship name is an empty string, which is not valid")
     try:
         class_id = wide_item["class_id"]
     except KeyError:
         raise SpineIntegrityError(
-            f"Python KeyError: There is no dictionary key for the relationship class id"
-            f"of the relationship '{name}'. Probably a bug, please report"
+            f"Python KeyError: There is no dictionary key for the relationship class id of relationship '{name}'. "
+            "Probably a bug, please report"
         )
     if "type_id" in wide_item and wide_item["type_id"] != relationship_entity_type:
         raise SpineIntegrityError(
@@ -238,15 +238,15 @@ def check_wide_relationship(
     try:
         object_class_id_list = relationship_classes[class_id]["object_class_id_list"]
     except KeyError:
-        raise SpineIntegrityError(f"There is no object class id list for the relationship '{name}'")
+        raise SpineIntegrityError(f"There is no object class id list for relationship '{name}'")
     try:
         object_id_list = wide_item["object_id_list"]
     except KeyError:
-        raise SpineIntegrityError(f"There is no object id list for the relationship '{name}'")
+        raise SpineIntegrityError(f"There is no object id list for relationship '{name}'")
     try:
         given_object_class_id_list = [objects[id]["class_id"] for id in object_id_list]
-    except KeyError as e:
-        raise SpineIntegrityError(f"During the processing of relationship '{name}' a Python KeyError occurred.")
+    except KeyError:
+        raise SpineIntegrityError(f"Some of the objects in relationship '{name}' are invalid.")
     if given_object_class_id_list != object_class_id_list:
         object_name_list = [objects[id]["name"] for id in object_id_list]
         relationship_class_name = relationship_classes[class_id]["name"]
@@ -297,7 +297,7 @@ def check_entity_group(item, current_items, entities):
     except KeyError:
         raise SpineIntegrityError(
             "Python KeyError: There is no dictionary key for the entity class id of entity group. "
-            f"Probably a bug, please report."
+            "Probably a bug, please report."
         )
     ents = entities.get(entity_class_id)
     if ents is None:
