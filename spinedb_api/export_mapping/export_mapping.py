@@ -17,7 +17,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from copy import copy
 from enum import auto, Enum, unique
-from itertools import cycle
+from itertools import cycle, dropwhile
 import re
 import json
 from spinedb_api.parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
@@ -154,13 +154,6 @@ class ExportMapping(Mapping):
             db_row (namedtuple): a database row
         """
         raise NotImplementedError()
-
-    def drop_non_positioned_tail(self):
-        """Removes children from the end of the hierarchy that don't have a position set."""
-        if self.child is not None:
-            self.child.drop_non_positioned_tail()
-            if self.child.can_drop():
-                self.child = None
 
     def _expand_state(self, state, db_map, fixed_state):
         """
@@ -378,6 +371,21 @@ class ExportMapping(Mapping):
         if ignorable:
             mapping.set_ignorable()
         return mapping
+
+
+def drop_non_positioned_tail(root_mapping):
+    """Makes a modified mapping hierarchy without hidden tail mappings.
+
+    This enable pivot tables to work correctly in certain situations.
+
+    Args:
+        root_mapping (Mapping): root mapping
+
+    Returns:
+        Mapping: modified mapping hierarchy
+    """
+    mappings = root_mapping.flatten()
+    return unflatten(reversed(list(dropwhile(lambda m: m.position == Position.hidden, reversed(mappings)))))
 
 
 class FixedValueMapping(ExportMapping):

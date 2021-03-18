@@ -15,7 +15,9 @@ Module contains the :class:`Writer` base class and functions to write tabular da
 :date:   8.12.2020
 """
 from contextlib import contextmanager
+from copy import copy
 from spinedb_api.export_mapping import rows, titles
+from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail
 
 
 def write(db_map, writer, root_mapping):
@@ -27,6 +29,7 @@ def write(db_map, writer, root_mapping):
         writer (Writer): target writer
         root_mapping (Mapping): root mapping
     """
+    root_mapping = drop_non_positioned_tail(copy(root_mapping))
     with _new_write(writer):
         for title, title_key in titles(root_mapping, db_map):
             with _new_table(title, writer) as table_started:

@@ -113,15 +113,6 @@ class Mapping:
             return NotImplemented
         return self.MAP_TYPE == other.MAP_TYPE and self.position == other.position and self.child == other.child
 
-    def can_drop(self):
-        """
-        Returns True if mapping is just dead weight and can be removed.
-
-        Returns:
-            bool: True if mapping is leaf mapping and has no position set
-        """
-        return self.child is None and self.position == Position.hidden
-
     def count_mappings(self):
         """
         Counts this and child mappings.

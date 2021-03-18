@@ -40,6 +40,7 @@ from spinedb_api.mapping import Position, to_dict
 from spinedb_api.export_mapping import rows, titles, object_parameter_export, relationship_export
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
+    drop_non_positioned_tail,
     FixedValueMapping,
     ExpandedParameterValueMapping,
     ExpandedParameterDefaultValueMapping,
@@ -1108,8 +1109,8 @@ class TestExportMapping(unittest.TestCase):
         object_mapping.child = alternative_mapping
         parameter_definition_mapping.child = object_mapping
         object_class_mapping.child = parameter_definition_mapping
-        object_class_mapping.drop_non_positioned_tail()
-        flattened = object_class_mapping.flatten()
+        tail_cut_mapping = drop_non_positioned_tail(object_class_mapping)
+        flattened = tail_cut_mapping.flatten()
         self.assertEqual(flattened, [object_class_mapping, parameter_definition_mapping, object_mapping])
 
     def test_serialization(self):
