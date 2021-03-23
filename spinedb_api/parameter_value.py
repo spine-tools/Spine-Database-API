@@ -626,11 +626,12 @@ class IndexedValue:
         self._indexes = None
 
     def __bool__(self):
-        return bool(self._indexes)
+        # NOTE: Use self.indexes rather than self._indexes, otherwise TimeSeriesFixedResolution gives wrong result
+        return bool(self.indexes)
 
     def __len__(self):
         """Returns the number of values."""
-        return len(self._indexes)
+        return len(self.indexes)
 
     @property
     def indexes(self):
