@@ -134,7 +134,7 @@ class ImportMapping(Mapping):
             raise ValueError(f"row must be >= 0 ({row})")
         self._read_start_row = row
 
-    def polish(self, table_name, source_header):
+    def polish(self, table_name, source_header, for_preview=False):
         """Polishes the mapping before an import operation.
         'Expands' transient ``position`` and ``value`` attributes into their final value.
 
@@ -142,9 +142,14 @@ class ImportMapping(Mapping):
             table_name (str)
             source_header (list(str))
         """
+        self._polish_for_import(table_name, source_header)
+        if for_preview:
+            self._polish_for_preview(source_header)
+
+    def _polish_for_import(self, table_name, source_header):
         # FIXME: Polish skip columns
         if self.child is not None:
-            self.child.polish(table_name, source_header)
+            self.child._polish_for_import(table_name, source_header)
         if isinstance(self.position, str):
             # Column mapping with string position, we need to find the index in the header
             try:
@@ -169,7 +174,7 @@ class ImportMapping(Mapping):
                 try:
                     # Not in the header, maybe it's a stringified index?
                     self.value = int(self.value)
-                except (ValueError, IndexError):
+                except ValueError:
                     msg = f"'{self.value}' is not in header '{source_header}'"
                     raise InvalidMappingComponent(msg)
             # Integer value, we try and get the actual value from that index in the header
@@ -178,6 +183,12 @@ class ImportMapping(Mapping):
             except IndexError:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
                 raise InvalidMappingComponent(msg)
+
+    def _polish_for_preview(self, source_header):
+        if self.position == Position.header and self.value is not None:
+            self.value = source_header.index(self.value)
+        if self.child is not None:
+            self.child._polish_for_preview(source_header)
 
     @property
     def rank(self):
@@ -188,7 +199,7 @@ class ImportMapping(Mapping):
     def import_row(self, source_row, state, mapped_data, errors=None):
         if errors is None:
             errors = []
-        if self.position != Position.hidden or self.value is not None:
+        if not (self.position == Position.hidden and self.value is None):
             source_data = self._data(source_row)
             if source_data is not None:
                 try:

@@ -178,7 +178,7 @@ class Mapping:
         """
         position = self.position.value if isinstance(self.position, Position) else self.position
         mapping_dict = {"map_type": self.MAP_TYPE, "position": position}
-        if self.value:
+        if self.value is not None:
             mapping_dict["value"] = self.value
         return mapping_dict
 
