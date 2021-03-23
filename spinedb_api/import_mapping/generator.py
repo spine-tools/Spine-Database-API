@@ -139,17 +139,17 @@ def _split_mapping(mapping):
     Returns:
         list(ImportMapping): Pivoted mappings (reading from rows)
         list(ImportMapping): Non-pivoted mappings ('regular', reading from columns)
-        ImportMapping,NoneType: Pivoted reading from header if any, None otherwise
+        list(ImportMapping): Pivoted from header mappings
         ImportMapping: last mapping (typically representing the parameter value)
     """
     flattened = mapping.flatten()
     pivoted = []
     non_pivoted = []
-    pivoted_from_header = None
+    pivoted_from_header = []
     for m in flattened:
-        # FIXME MAYBE: Can there be multiple pivoted from header mappings?
         if m.position == Position.header and m.value is None:
-            pivoted_from_header = m
+            pivoted_from_header.append(m)
+            continue
         if not isinstance(m.position, int):
             continue
         if m.position < 0:
@@ -167,7 +167,7 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
         data_header (list): Source table header
         pivoted (list(ImportMapping)): Pivoted mappings (reading from rows)
         non_pivoted (list(ImportMapping)): Non-pivoted mappings ('regular', reading from columns)
-        pivoted_from_header (ImportMapping,NoneType): ImportMapping pivoted from header if any, None otherwise
+        pivoted_from_header (list(ImportMapping)): Mappings pivoted from header
 
     Returns:
         list(list): Unpivoted rows
@@ -180,10 +180,11 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     non_pivoted_pos = [m.position for m in non_pivoted]
     # Collect pivoted rows
     pivoted_rows = [rows[pos] for pos in pivoted_pos]
-    # Prepend the header if needed
-    if pivoted_from_header:
-        pivoted.insert(0, pivoted_from_header)
+    # Prepend as many headers as needed
+    for m in pivoted_from_header:
+        pivoted.insert(0, m)
         pivoted_rows.insert(0, data_header)
+    if pivoted_from_header:
         pivoted_pos.append(-1)  # This is so ``last_pivoted_row_pos`` below gets the right value
     # Collect non pivoted and skipped positions
     skip_pos = set(skip_columns) | set(non_pivoted_pos)
