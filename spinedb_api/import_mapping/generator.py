@@ -60,9 +60,9 @@ def get_mapped_data(
         row_convert_fns = {}
     mapped_data = {}
     errors = []
-    read_state = {}
     rows = list(data_source)
     for mapping in mappings:
+        read_state = {}
         mapping = deepcopy(mapping)
         mapping.polish(table_name, data_header)
         mapping_errors = check_validity(mapping)
