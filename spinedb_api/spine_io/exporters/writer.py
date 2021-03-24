@@ -20,25 +20,26 @@ from spinedb_api.export_mapping import rows, titles
 from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail
 
 
-def write(db_map, writer, root_mapping):
+def write(db_map, writer, *mappings):
     """
     Writes given mapping.
 
     Args:
         db_map (DatabaseMappingBase): database map
         writer (Writer): target writer
-        root_mapping (Mapping): root mapping
+        mappings (Mapping): root mappings
     """
-    root_mapping = drop_non_positioned_tail(copy(root_mapping))
     with _new_write(writer):
-        for title, title_key in titles(root_mapping, db_map):
-            with _new_table(title, writer) as table_started:
-                if not table_started:
-                    break
-                for row in rows(root_mapping, db_map, title_key):
-                    write_more = writer.write_row(row)
-                    if not write_more:
+        for mapping in mappings:
+            mapping = drop_non_positioned_tail(copy(mapping))
+            for title, title_key in titles(mapping, db_map):
+                with _new_table(title, writer) as table_started:
+                    if not table_started:
                         break
+                    for row in rows(mapping, db_map, title_key):
+                        write_more = writer.write_row(row)
+                        if not write_more:
+                            break
 
 
 class Writer:

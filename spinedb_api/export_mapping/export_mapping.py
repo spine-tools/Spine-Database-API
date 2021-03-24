@@ -104,6 +104,7 @@ class ExportMapping(Mapping):
         self.header = header
         self.filter_re = filter_re
         self.group_fn = group_fn
+        self._query_cache = {}
 
     @property
     def filter_re(self):
@@ -485,8 +486,15 @@ class ObjectMapping(ExportMapping):
 
     def _query(self, db_map, state, fixed_state):
         if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.object_sq).filter_by(class_id=state[ExportKey.CLASS_ROW_CACHE].id)
+            self._update_query_cache(db_map)
+            return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
         return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        for x in db_map.query(db_map.object_sq):
+            self._query_cache.setdefault(x.class_id, []).append(x)
 
 
 class ObjectGroupMapping(ExportMapping):
@@ -504,9 +512,13 @@ class ObjectGroupMapping(ExportMapping):
         return
 
     def _query(self, db_map, state, fixed_state):
-        return db_map.query(db_map.ext_object_group_sq).filter_by(
-            class_id=state[ExportKey.CLASS_ROW_CACHE].id, member_id=state[ExportKey.ENTITY_ROW_CACHE].id
-        )
+        return self._query_cache.get((state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.ENTITY_ROW_CACHE].id), [])
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        for x in db_map.query(db_map.ext_object_group_sq):
+            self._query_cache.setdefault((x.class_id, x.member_id), []).append(x)
 
 
 class RelationshipClassMapping(ExportMapping):
@@ -578,8 +590,15 @@ class RelationshipMapping(ExportMapping):
 
     def _query(self, db_map, state, fixed_state):
         if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.wide_relationship_sq).filter_by(class_id=state[ExportKey.CLASS_ROW_CACHE].id)
+            self._update_query_cache(db_map)
+            return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
         return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        for x in db_map.query(db_map.wide_relationship_sq):
+            self._query_cache.setdefault(x.class_id, []).append(x)
 
 
 class RelationshipObjectMapping(ExportMapping):
@@ -629,10 +648,15 @@ class ParameterDefinitionMapping(ExportMapping):
 
     def _query(self, db_map, state, fixed_state):
         if ExportKey.PARAMETER_DEFINITION_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.parameter_definition_sq).filter_by(
-                entity_class_id=state[ExportKey.CLASS_ROW_CACHE].id
-            )
+            self._update_query_cache(db_map)
+            return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
         return [fixed_state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE]]
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        for x in db_map.query(db_map.parameter_definition_sq):
+            self._query_cache.setdefault(x.entity_class_id, []).append(x)
 
 
 class ParameterDefaultValueMapping(ExportMapping):
@@ -721,7 +745,8 @@ class ParameterValueMapping(ExportMapping):
         if ExportKey.PARAMETER_VALUE_ROW_CACHE in fixed_state:
             return [fixed_state[ExportKey.PARAMETER_VALUE_ROW_CACHE]]
         if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
-            state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
+            self._update_query_cache(db_map)
+            state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = self._query_cache
         definition_id = state[ExportKey.PARAMETER_DEFINITION_ID]
         entity_id = state[ExportKey.ENTITY_ROW_CACHE].id
         alternative_id = state[ExportKey.ALTERNATIVE_ROW_CACHE].id
@@ -729,6 +754,11 @@ class ParameterValueMapping(ExportMapping):
         if value_row is None:
             return []
         return [value_row]
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        self._query_cache = _make_parameter_value_lookup(db_map)
 
 
 class ParameterValueTypeMapping(ParameterValueMapping):
@@ -764,10 +794,16 @@ class ParameterValueIndexMapping(ExportMapping):
         cached_parameter = state.get(ExportKey.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
             if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
-                state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
+                self._update_query_cache(db_map)
+                state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = self._query_cache
             yield from _expand_parameter_value_from_state(state, fixed_state)
         else:
             yield from _expand_values_from_parameter(cached_parameter)
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        self._query_cache = _make_parameter_value_lookup(db_map)
 
 
 class ExpandedParameterValueMapping(ExportMapping):
@@ -792,10 +828,16 @@ class ExpandedParameterValueMapping(ExportMapping):
         cached_parameter = state.get(ExportKey.EXPANDED_PARAMETER_CACHE)
         if cached_parameter is None or not cached_parameter.same(state):
             if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
-                state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
+                self._update_query_cache(db_map)
+                state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = self._query_cache
             yield from _expand_parameter_value_from_state(state, fixed_state)
         else:
             yield cached_parameter
+
+    def _update_query_cache(self, db_map):
+        if self._query_cache:
+            return
+        self._query_cache = _make_parameter_value_lookup(db_map)
 
 
 class ParameterValueListMapping(ExportMapping):
@@ -1246,7 +1288,8 @@ def _expand_parameter_value_from_state(state, fixed_state):
     definition_id = state[ExportKey.PARAMETER_DEFINITION_ID]
     entity_id = state[ExportKey.ENTITY_ROW_CACHE].id
     alternative_id = state[ExportKey.ALTERNATIVE_ROW_CACHE].id
-    for expanded_value in _load_and_expand(state, definition_id, entity_id, alternative_id, fixed_state):
+    value_row = state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
+    for expanded_value in _load_and_expand(value_row, fixed_state):
         for index, x in expanded_value.items():
             yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
 
@@ -1296,21 +1339,16 @@ def _type_from_value(db_value):
     return "single_value"
 
 
-def _load_and_expand(state, definition_id, entity_id, alternative_id, fixed_state):
+def _load_and_expand(value_row, fixed_state):
     """
     Loads and parses parameter values from database and expands them into a dict.
 
     Args:
-        state (dict): a state with parameter value data, notably ``ExportKey.PARAMETER_VALUE_LOOKUP_CACHE``
-            holding the output of ``_make_parameter_value_lookup``
-        definition_id (int): parameter definition id
-        entity_id (int): entity id
-        alternative_id (int): alternative id
+        value_row: a parameter value row
 
     Yields:
         dict: a (nested) dictionary mapping parameter index (or None in case of scalar) to value
     """
-    value_row = state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
     if value_row is None:
         return []
     value_type = fixed_state.get(ExportKey.PARAMETER_VALUE_TYPE)
