@@ -512,6 +512,7 @@ class ObjectGroupMapping(ExportMapping):
         return
 
     def _query(self, db_map, state, fixed_state):
+        self._update_query_cache(db_map)
         return self._query_cache.get((state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.ENTITY_ROW_CACHE].id), [])
 
     def _update_query_cache(self, db_map):
