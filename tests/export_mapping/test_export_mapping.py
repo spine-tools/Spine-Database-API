@@ -90,23 +90,6 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(list(rows(object_class_mapping, db_map)), [["object_class"]])
         db_map.connection.close()
 
-    def test_export_object_classes_as_single_row(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
-        db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(Position.single_row)
-        self.assertEqual(list(rows(object_class_mapping, db_map)), [["oc1", "oc2", "oc3"]])
-        db_map.connection.close()
-
-    def test_single_row_does_not_export_empty_data(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
-        import_objects(db_map, (("oc2", "o1"), ("oc2", "o2")))
-        db_map.commit_session("Add test data.")
-        mapping = unflatten([ObjectClassMapping(0), ObjectMapping(Position.single_row)])
-        self.assertEqual(list(rows(mapping, db_map)), [["oc2", "o1", "o2"]])
-        db_map.connection.close()
-
     def test_export_objects(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
@@ -141,35 +124,6 @@ class TestExportMapping(unittest.TestCase):
         object_class_mapping = ObjectClassMapping(-1)
         object_class_mapping.child = ObjectMapping(Position.hidden)
         self.assertEqual(object_class_mapping.check_validity(), ["Cannot be pivoted."])
-
-    def test_single_row_with_hidden_column(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1",))
-        import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12")))
-        import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
-        db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(Position.hidden)
-        parameter_definition_mapping = ParameterDefinitionMapping(0)
-        parameter_definition_mapping.child = ObjectMapping(Position.single_row)
-        object_class_mapping.child = parameter_definition_mapping
-        expected = [["p11", "o11", "o12"], ["p12", "o11", "o12"]]
-        self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
-        db_map.connection.close()
-
-    def test_export_objects_on_single_row(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
-        import_objects(
-            db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
-        )
-        db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
-        object_class_mapping.child = ObjectMapping(Position.single_row)
-        self.assertEqual(
-            list(rows(object_class_mapping, db_map)),
-            [["oc1", "o11", "o12"], ["oc2", "o21"], ["oc3", "o31", "o32", "o33"]],
-        )
-        db_map.connection.close()
 
     def test_object_groups(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)

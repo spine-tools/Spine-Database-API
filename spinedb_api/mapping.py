@@ -23,7 +23,6 @@ class Position(Enum):
     """Export item positions when they are not in columns."""
 
     hidden = "hidden"
-    single_row = "single_row"
     table_name = "table_name"
     header = "header"
 

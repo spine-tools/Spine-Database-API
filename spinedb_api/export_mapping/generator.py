@@ -42,21 +42,18 @@ def rows(root_mapping, db_map, fixed_key=None):
         def split_row(row):
             row.pop(Position.hidden, None)
             row.pop(Position.table_name, None)
-            single_row = row.pop(Position.single_row, [])
             straight = (max(row) + 1) * [None] if row else []
             for index, data in row.items():
                 straight[index] = data
-            return straight, single_row
+            return straight
 
         row_iter = root_mapping.rows(db_map, dict(), fixed_key)
-        # Yield header. Ignore the single row
         header = next(row_iter, {})
-        straight, _ = split_row(header)
-        yield straight
-        # Yield normal rows
+        normal_row = split_row(header)
+        yield normal_row
         for row in row_iter:
-            straight, single_row = split_row(row)
-            yield straight + single_row
+            normal_row = split_row(row)
+            yield normal_row
 
     if fixed_key is None:
         fixed_key = dict()

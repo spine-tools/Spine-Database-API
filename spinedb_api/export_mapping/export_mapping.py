@@ -141,12 +141,8 @@ class ExportMapping(Mapping):
             is_effective_leaf = any(
                 child.position in (Position.hidden, Position.table_name) for child in self.child.flatten()
             )
-        if not is_effective_leaf:
-            if self.position == Position.single_row:
-                issues.append("Cannot span multiple columns.")
-        else:
-            if is_pivoted(self.position):
-                issues.append("Cannot be pivoted.")
+        if is_effective_leaf and is_pivoted(self.position):
+            issues.append("Cannot be pivoted.")
         return issues
 
     def _update_state(self, state, db_row):
@@ -249,11 +245,6 @@ class ExportMapping(Mapping):
             # Non-recursive case
             if self.position == Position.hidden:
                 yield {}
-                return
-            if self.position == Position.single_row:
-                row = [self._data(db_row) for db_row in self._query(db_map, state, fixed_state)]
-                if row:
-                    yield {self.position: row}
                 return
             for db_row in self._query(db_map, state, fixed_state):
                 yield {self.position: self._data(db_row)}
