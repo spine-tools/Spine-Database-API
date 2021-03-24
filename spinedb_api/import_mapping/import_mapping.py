@@ -201,7 +201,9 @@ class ImportMapping(Mapping):
             errors = []
         if not (self.position == Position.hidden and self.value is None):
             source_data = self._data(source_row)
-            if source_data is not None:
+            if source_data is None:
+                self._skip_row(state)
+            else:
                 try:
                     self._import_row(source_data, state, mapped_data)
                 except KeyError as err:
@@ -225,6 +227,9 @@ class ImportMapping(Mapping):
 
     def _import_row(self, source_data, state, mapped_data):
         raise NotImplementedError()
+
+    def _skip_row(self, state):
+        """Called when the source data is None. Do necessary clean ups on state."""
 
     def is_constant(self):
         return self.position == Position.hidden and self.value is not None
@@ -592,6 +597,9 @@ class ExpandedParameterDefaultValueMapping(ImportMapping):
         indexes = state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES)
         data.append(indexes + [val])
 
+    def _skip_row(self, state):
+        state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
+
 
 class ParameterValueMapping(ImportMapping):
     """Maps scalar (non-indexed) parameter values.
@@ -732,6 +740,9 @@ class ExpandedParameterValueMapping(ImportMapping):
             return
         indexes = state.pop(ImportKey.PARAMETER_VALUE_INDEXES)
         data.append(indexes + [val])
+
+    def _skip_row(self, state):
+        state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
 
 
 class ParameterValueListMapping(ImportMapping):

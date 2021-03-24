@@ -245,7 +245,7 @@ def _table_to_map(table, compress=False):
 def _table_to_dict(table):
     map_dict = dict()
     for row in table:
-        row = [item for item in row if item]
+        row = [item for item in row if item not in (None, "")]
         if len(row) < 2:
             continue
         d = map_dict
