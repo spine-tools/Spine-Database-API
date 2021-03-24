@@ -90,6 +90,8 @@ def _convert_to_excel(x):
         float or str: Excel compatible value
     """
     if isinstance(x, numpy.float_):
+        if numpy.isnan(x):
+            return "nan"
         return float(x)
     if not isinstance(x, (float, int, str)) and x is not None:
         return str(x)
