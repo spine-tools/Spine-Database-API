@@ -17,7 +17,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from copy import copy
 from enum import auto, Enum, unique
-from itertools import cycle, dropwhile
+from itertools import cycle, dropwhile, chain
 import re
 import json
 from spinedb_api.parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
@@ -79,6 +79,9 @@ def check_validity(root_mapping):
 
 
 class ExportMapping(Mapping):
+
+    _TITLE_SEP = ","
+
     def __init__(self, position, value=None, header="", filter_re="", group_fn=None):
         """
         Args:
@@ -317,24 +320,53 @@ class ExportMapping(Mapping):
             fixed_state (dict, optional): state for fixed items
 
         Yields:
-            dict: a mapping from column index to cell data
+            tuple(str,dict): unique title, and associated 'title' state dictionary
         """
         if fixed_state is None:
             fixed_state = dict()
-        if self.position is Position.table_name:
+        titles = {}
+        for title, title_state in self.make_titles(db_map, state, fixed_state):
+            titles.setdefault(title, {}).update(title_state)
+        yield from titles.items()
+
+    def make_titles(self, db_map, state, fixed_state):
+        """
+        Generates titles recursively.
+
+        Yields
+            tuple(str,dict): title string and associated state dictionary
+        """
+        if self.child is None:
+            # Non-recursive case
+            if self.position is not Position.table_name:
+                return ()
             for db_row in self._query(db_map, state, fixed_state):
-                fixed_state = copy(fixed_state)
-                self._update_state(fixed_state, db_row)
-                yield self._data(db_row), fixed_state
-        elif self.child is None:
-            yield None, fixed_state
-        else:
-            for db_row in self._query(db_map, state, fixed_state):
-                self._update_state(state, db_row)
-                fixed_state = copy(fixed_state)
-                self._update_state(fixed_state, db_row)
-                for title_data in self.child.title(db_map, state, fixed_state):
-                    yield title_data
+                title = self._data(db_row)
+                title_state = dict()
+                self._update_state(title_state, db_row)
+                yield title, title_state
+            return
+        # Recursive case
+        for db_row in self._query(db_map, state, fixed_state):
+            self._update_state(state, db_row)
+            fixed_state = copy(fixed_state)
+            self._update_state(fixed_state, db_row)
+            child_titles = self.child.make_titles(db_map, state, fixed_state)
+            if self.position is not Position.table_name:
+                yield from child_titles
+                continue
+            title = self._data(db_row)
+            title_state = dict()
+            self._update_state(title_state, db_row)
+            first_child_title = next(child_titles, None)
+            if first_child_title is None:
+                yield title, title_state
+                continue
+            for child_title, child_title_state in chain((first_child_title,), child_titles):
+                final_title = title + self._TITLE_SEP + child_title
+                final_title_state = copy(title_state)
+                final_title_state.update(child_title_state)
+                yield final_title, final_title_state
 
     def to_dict(self):
         """
@@ -517,7 +549,13 @@ class RelationshipClassObjectClassMapping(ExportMapping):
     MAP_TYPE = "RelationshipClassObjectClass"
 
     def _update_state(self, state, db_row):
-        state[ExportKey.OBJECT_CLASS_LIST_INDEX] += 1
+        try:
+            state[ExportKey.OBJECT_CLASS_LIST_INDEX] += 1
+        except KeyError:
+            # Could happen when forming title states.
+            # Since only the mappings that go into Position.table_name update such state, this key might be missing.
+            # E.g. relationship class mapping goes to some row, member object class mapping goes to table_name.
+            state[ExportKey.OBJECT_CLASS_LIST_INDEX] = 1
 
     def _data(self, db_row):
         return db_row
@@ -563,7 +601,13 @@ class RelationshipObjectMapping(ExportMapping):
     MAP_TYPE = "RelationshipObject"
 
     def _update_state(self, state, db_row):
-        state[ExportKey.OBJECT_LIST_INDEX] += 1
+        try:
+            state[ExportKey.OBJECT_LIST_INDEX] += 1
+        except KeyError:
+            # Could happen when forming title states.
+            # Since only the mappings that go into Position.table_name update such state, this key might be missing.
+            # E.g. relationship mapping goes to some row, member object mapping goes to table_name.
+            state[ExportKey.OBJECT_LIST_INDEX] = 1
 
     def _data(self, db_row):
         return db_row
