@@ -43,6 +43,7 @@ class ExportKey(Enum):
     PARAMETER_VALUE_LIST_ROW_CACHE = auto()
     PARAMETER_VALUE_ROW_CACHE = auto()
     PARAMETER_VALUE_LOOKUP_CACHE = auto()
+    PARAMETER_VALUE_TYPE = auto()
     EXPANDED_PARAMETER_CACHE = auto()
     SCENARIO_ID = auto()
     SCENARIO_ROW_CACHE = auto()
@@ -242,24 +243,26 @@ class ExportMapping(Mapping):
             header = self.make_header()
             yield header
         if self.child is None:
+            # Non-recursive case
             if self.position == Position.hidden:
                 yield {}
-            elif self.position == Position.single_row:
+                return
+            if self.position == Position.single_row:
                 row = [self._data(db_row) for db_row in self._query(db_map, state, fixed_state)]
                 if row:
                     yield {self.position: row}
-            else:
-                for db_row in self._query(db_map, state, fixed_state):
-                    yield {self.position: self._data(db_row)}
-        else:
-            # Yield normal rows
+                return
             for db_row in self._query(db_map, state, fixed_state):
-                self._update_state(state, db_row)
-                data = self._data(db_row)
-                for child_row in self.child.rows(db_map, state, fixed_state):
-                    row = {self.position: data}
-                    row.update(child_row)
-                    yield row
+                yield {self.position: self._data(db_row)}
+            return
+        # Recursive case
+        for db_row in self._query(db_map, state, fixed_state):
+            self._update_state(state, db_row)
+            data = self._data(db_row)
+            for child_row in self.child.rows(db_map, state, fixed_state):
+                row = {self.position: data}
+                row.update(child_row)
+                yield row
 
     def make_header(self):
         """
@@ -328,6 +331,7 @@ class ExportMapping(Mapping):
         else:
             for db_row in self._query(db_map, state, fixed_state):
                 self._update_state(state, db_row)
+                fixed_state = copy(fixed_state)
                 self._update_state(fixed_state, db_row)
                 for title_data in self.child.title(db_map, state, fixed_state):
                     yield title_data
@@ -695,19 +699,15 @@ class ParameterValueMapping(ExportMapping):
 class ParameterValueTypeMapping(ParameterValueMapping):
     MAP_TYPE = "ParameterValueType"
 
+    def _update_state(self, state, db_row):
+        state[ExportKey.PARAMETER_VALUE_TYPE] = db_row
+
     def _data(self, db_row):
-        value = json.loads(db_row.value)
-        if isinstance(value, dict):
-            type_ = value["type"]
-            if type_ != "map":
-                return type_
-            inner_value = value["data"]
-            k = 1
-            while isinstance(inner_value, dict) and inner_value["type"] == "map":
-                inner_value = inner_value["data"]
-                k += 1
-            return f"{k}d_map"
-        return type(value).__name__
+        return db_row
+
+    def _query(self, db_map, state, fixed_state):
+        qry = super()._query(db_map, state, fixed_state)
+        return [_type_from_value(db_row.value) for db_row in qry]
 
 
 class ParameterValueIndexMapping(ExportMapping):
@@ -730,7 +730,7 @@ class ParameterValueIndexMapping(ExportMapping):
         if cached_parameter is None or not cached_parameter.same(state):
             if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
                 state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
-            yield from _expand_parameter_value_from_state(state)
+            yield from _expand_parameter_value_from_state(state, fixed_state)
         else:
             yield from _expand_values_from_parameter(cached_parameter)
 
@@ -758,7 +758,7 @@ class ExpandedParameterValueMapping(ExportMapping):
         if cached_parameter is None or not cached_parameter.same(state):
             if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
                 state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = _make_parameter_value_lookup(db_map)
-            yield from _expand_parameter_value_from_state(state)
+            yield from _expand_parameter_value_from_state(state, fixed_state)
         else:
             yield cached_parameter
 
@@ -1198,7 +1198,7 @@ def _expand_default_value_from_state(state):
         yield ExpandedParameter(index, x, definition_id)
 
 
-def _expand_parameter_value_from_state(state):
+def _expand_parameter_value_from_state(state, fixed_state):
     """
     Expands the value from the given state into ExpandedParameter instances.
 
@@ -1211,7 +1211,7 @@ def _expand_parameter_value_from_state(state):
     definition_id = state[ExportKey.PARAMETER_DEFINITION_ID]
     entity_id = state[ExportKey.ENTITY_ROW_CACHE].id
     alternative_id = state[ExportKey.ALTERNATIVE_ROW_CACHE].id
-    for expanded_value in _load_and_expand(state, definition_id, entity_id, alternative_id):
+    for expanded_value in _load_and_expand(state, definition_id, entity_id, alternative_id, fixed_state):
         for index, x in expanded_value.items():
             yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
 
@@ -1238,7 +1238,30 @@ def _expand_values_from_parameter(cached_parameter):
         yield db_row
 
 
-def _load_and_expand(state, definition_id, entity_id, alternative_id):
+def _type_from_value(db_value):
+    """
+
+    Args:
+        str (db_value): Value in the database
+    Returns:
+        str: The type key in case of indexed parameter value, 'single_value' otherwise
+    """
+    value = json.loads(db_value)
+    if isinstance(value, dict):
+        type_ = value["type"]
+        if type_ == "map":
+            inner_value = value["data"]
+            k = 1
+            while isinstance(inner_value, dict) and inner_value["type"] == "map":
+                inner_value = inner_value["data"]
+                k += 1
+            return f"{k}d_map"
+        if type_ in ("array", "time_series", "time_pattern"):
+            return type_
+    return "single_value"
+
+
+def _load_and_expand(state, definition_id, entity_id, alternative_id, fixed_state):
     """
     Loads and parses parameter values from database and expands them into a dict.
 
@@ -1254,6 +1277,9 @@ def _load_and_expand(state, definition_id, entity_id, alternative_id):
     """
     value_row = state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
     if value_row is None:
+        return []
+    value_type = fixed_state.get(ExportKey.PARAMETER_VALUE_TYPE)
+    if value_type is not None and _type_from_value(value_row.value) != value_type:
         return []
     yield _expand_value(from_database(value_row.value))
 
