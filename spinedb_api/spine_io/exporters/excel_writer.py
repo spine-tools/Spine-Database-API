@@ -33,6 +33,7 @@ class ExcelWriter(Writer):
         self._workbook = None
         self._current_sheet = None
         self._removable_sheet_names = set()
+        self._next_table_name = None
 
     def finish(self):
         """See base class."""
@@ -65,12 +66,14 @@ class ExcelWriter(Writer):
 
     def start_table(self, table_name):
         """See base class."""
-        self._current_sheet = self._workbook.create_sheet(table_name)
-        self._removable_sheet_names.discard(self._current_sheet.title)
+        self._next_table_name = table_name
         return True
 
     def write_row(self, row):
         """See base class."""
+        if self._current_sheet is None:
+            self._current_sheet = self._workbook.create_sheet(self._next_table_name)
+            self._removable_sheet_names.discard(self._current_sheet.title)
         row = [_convert_to_excel(cell) for cell in row]
         self._current_sheet.append(row)
         return True
