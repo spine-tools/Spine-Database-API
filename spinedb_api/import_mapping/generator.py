@@ -75,6 +75,8 @@ def get_mapped_data(
         if not (pivoted or pivoted_from_header):
             start_pos = mapping.read_start_row
             for k, row in enumerate(rows[mapping.read_start_row :]):
+                if not _is_valid_row(row):
+                    continue
                 row = _convert_row(row, column_convert_fns, start_pos + k, errors)
                 mapping.import_row(row, read_state, mapped_data)
             continue
@@ -91,6 +93,8 @@ def get_mapped_data(
             for k, m in enumerate(pivoted):
                 m.position = k
             for k, row in enumerate(unpivoted_rows):
+                if not _is_valid_row(row):
+                    continue
                 row = _convert_row(row, row_convert_fns, k, errors)
                 mapping.import_row(row, read_state, mapped_data)
             continue
@@ -107,11 +111,13 @@ def get_mapped_data(
         last_non_pivoted_column_pos = max(non_pivoted_pos, default=0) + 1
         start_pos = max(mapping.read_start_row, last_pivoted_row_pos)
         for i, row in enumerate(rows[start_pos:]):
-            if not row:
+            if not _is_valid_row(row):
                 continue
             row = _convert_row(row, column_convert_fns, start_pos + i, errors)
             non_pivoted_row = row[:last_non_pivoted_column_pos]
             for column_pos, unpivoted_row in zip(unpivoted_column_pos, unpivoted_rows):
+                if not _is_valid_row(unpivoted_row):
+                    continue
                 unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = non_pivoted_row + unpivoted_row
                 full_row.append(row[column_pos])
@@ -120,15 +126,20 @@ def get_mapped_data(
     return mapped_data, errors
 
 
+def _is_valid_row(row):
+    return row is not None and not all(i is None for i in row)
+
+
 def _convert_row(row, convert_fns, row_number, errors):
-    if row is None:
-        return None
     new_row = []
     for j, item in enumerate(row):
+        if item is None:
+            new_row.append(item)
+            continue
         convert_fn = convert_fns.get(j, lambda x: x)
         try:
             item = convert_fn(item)
-        except (ValueError, TypeError, ParameterValueFormatError):
+        except (ValueError, ParameterValueFormatError):
             error = f"Could not convert '{item}' to type '{convert_fn.DISPLAY_NAME}' (near row {row_number})"
             errors.append(error)
         new_row.append(item)
