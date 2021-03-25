@@ -598,7 +598,7 @@ class ExpandedParameterDefaultValueMapping(ImportMapping):
         data.append(indexes + [val])
 
     def _skip_row(self, state):
-        state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
+        state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, None)
 
 
 class ParameterValueMapping(ImportMapping):
@@ -701,7 +701,7 @@ class ParameterValueIndexMapping(ImportMapping):
     MAP_TYPE = "ParameterValueIndex"
 
     def _import_row(self, source_data, state, mapped_data):
-        _ = state.get(ImportKey.PARAMETER_NAME)
+        _ = state[ImportKey.PARAMETER_NAME]
         index = source_data
         state.setdefault(ImportKey.PARAMETER_VALUE_INDEXES, []).append(index)
 
