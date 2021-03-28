@@ -188,7 +188,7 @@ def create_mapping_from_sheet(ws):
             return None, None
         return _create_entity_mappings(metadata, header, index_dim_count)
     options = {"header": True, "row": len(metadata) + 1, "read_until_col": True, "read_until_row": True}
-    if metadata["sheet_type"] == "object group":
+    if metadata["sheet_type"] == "object_group":
         map_dict = {"map_type": "ObjectGroup", "name": metadata["class_name"], "groups": 0, "members": 1}
         return map_dict, options
     if metadata["sheet_type"] == "alternative":
@@ -197,7 +197,7 @@ def create_mapping_from_sheet(ws):
     if metadata["sheet_type"] == "scenario":
         map_dict = {"map_type": "Scenario", "name": 0, "active": 1}
         return map_dict, options
-    if metadata["sheet_type"] == "scenario alternative":
+    if metadata["sheet_type"] == "scenario_alternative":
         map_dict = {
             "map_type": "ScenarioAlternative",
             "name": 0,
@@ -273,7 +273,7 @@ def _create_entity_mappings(metadata, header, index_dim_count):
     options = {
         "header": not index_dim_count,
         "row": len(metadata) + 1,
-        "read_until_col": True,
+        "read_until_col": not index_dim_count,
         "read_until_row": not index_dim_count,
     }
     return map_dict, options

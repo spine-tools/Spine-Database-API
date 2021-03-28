@@ -43,7 +43,7 @@ class GdxWriter(Writer):
     def start(self):
         self._gdx_file = GdxFile(self._file_path, "w", self._gams_dir)
 
-    def start_table(self, table_name):
+    def start_table(self, table_name, title_key):
         self._current_table_name = table_name
         self._current_table = list()
         return True

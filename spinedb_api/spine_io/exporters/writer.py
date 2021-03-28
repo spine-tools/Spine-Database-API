@@ -33,7 +33,7 @@ def write(db_map, writer, *mappings):
         for mapping in mappings:
             mapping = drop_non_positioned_tail(copy(mapping))
             for title, title_key in titles(mapping, db_map):
-                with _new_table(title, writer) as table_started:
+                with _new_table(writer, title, title_key) as table_started:
                     if not table_started:
                         break
                     for row in rows(mapping, db_map, title_key):
@@ -52,12 +52,13 @@ class Writer:
     def start(self):
         """Prepares writer for writing."""
 
-    def start_table(self, table_name):
+    def start_table(self, table_name, title_key):
         """
         Starts a new table.
 
         Args:
             table_name (str): table's name
+            title_key (dict): table state dictionary
 
         Returns:
             bool: True if the table was successfully started, False otherwise
@@ -100,19 +101,20 @@ def _new_write(writer):
 
 
 @contextmanager
-def _new_table(table_name, writer):
+def _new_table(writer, table_name, title_key):
     """
     Manages table contexts.
 
     Args:
-        table_name (str): table's name
         writer (Writer): a writer
+        table_name (str): table's name
+        title_key (dict,optional)
 
     Yields:
         bool: whether or not the new table was successfully started
     """
     try:
-        table_started = writer.start_table(table_name)
+        table_started = writer.start_table(table_name, title_key)
         yield table_started
     finally:
         writer.finish_table()

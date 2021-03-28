@@ -524,9 +524,6 @@ class DateTime:
         """Returns the value as a datetime object."""
         return self._value
 
-    def indexed_values(self):
-        yield None, self.to_database()
-
 
 class Duration:
     """
@@ -579,9 +576,6 @@ class Duration:
     def value(self):
         """Returns the duration as a :class:`relativedelta`."""
         return self._value
-
-    def indexed_values(self):
-        yield None, self.to_database()
 
 
 class _Indexes(np.ndarray):
@@ -718,10 +712,6 @@ class Array(IndexedValue):
         """See base class."""
         return self._values
 
-    def indexed_values(self):
-        for index, value in zip(self.indexes, self.values):
-            yield index, value
-
 
 class IndexedNumberArray(IndexedValue):
     """
@@ -795,10 +785,6 @@ class TimeSeries(IndexedNumberArray):
         """Return the database representation of the value."""
         raise NotImplementedError()
 
-    def indexed_values(self):
-        for index, value in zip(self.indexes, self.values):
-            yield str(index), value
-
 
 class TimePattern(IndexedNumberArray):
     """
@@ -831,10 +817,6 @@ class TimePattern(IndexedNumberArray):
         for index, value in zip(self._indexes, self._values):
             data[index] = value
         return {"type": "time_pattern", "data": data}
-
-    def indexed_values(self):
-        for index, value in zip(self.indexes, self.values):
-            yield index, value
 
 
 class TimeSeriesFixedResolution(TimeSeries):
@@ -1082,17 +1064,6 @@ class Map(IndexedValue):
             "index_type": _map_index_type_to_database(self._index_type),
             "data": self.value_to_database_data(),
         }
-
-    def indexed_values(self):
-        yield from _map_indexed_values(self)
-
-
-def _map_indexed_values(value, k=1, prefix=()):
-    try:
-        for index, new_value in zip(value.indexes, value.values):
-            yield from _map_indexed_values(new_value, k=k + 1, prefix=(*prefix, str(_map_index_to_database(index))))
-    except AttributeError:
-        yield prefix, value
 
 
 def convert_leaf_maps_to_specialized_containers(map_):

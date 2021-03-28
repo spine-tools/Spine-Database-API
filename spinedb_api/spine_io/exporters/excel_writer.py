@@ -64,16 +64,19 @@ class ExcelWriter(Writer):
             if not self._removable_sheet_names:
                 self._removable_sheet_names = set(self._workbook.sheetnames)
 
-    def start_table(self, table_name):
+    def start_table(self, table_name, title_key):
         """See base class."""
         self._next_table_name = table_name
         return True
 
+    def _create_current_sheet(self):
+        self._current_sheet = self._workbook.create_sheet(self._next_table_name)
+        self._removable_sheet_names.discard(self._current_sheet.title)
+
     def write_row(self, row):
         """See base class."""
         if self._current_sheet is None:
-            self._current_sheet = self._workbook.create_sheet(self._next_table_name)
-            self._removable_sheet_names.discard(self._current_sheet.title)
+            self._create_current_sheet()
         row = [_convert_to_excel(cell) for cell in row]
         self._current_sheet.append(row)
         return True

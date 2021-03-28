@@ -50,7 +50,7 @@ class CsvWriter(Writer):
         """
         return self._finished_files
 
-    def start_table(self, table_name):
+    def start_table(self, table_name, title_key):
         """See base class."""
         if table_name is None:
             table_name = self._default_table_name

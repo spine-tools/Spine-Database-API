@@ -129,8 +129,16 @@ class TestExcelIntegration(unittest.TestCase):
             self.assertEqual(input_, output)
         input_val = input_obj_param_val[3]
         output_val = output_obj_param_val[3]
-        self.assertEqual(sorted(input_val.indexed_values()), sorted(output_val.indexed_values()))
+        self.assertEqual(set(indexed_values(output_val)), set(indexed_values(input_val)))
         assert_import_equivalent(self, input_data, output_data, strict=False)
+
+
+def indexed_values(value, k=1, prefix=()):
+    try:
+        for index, new_value in zip(value.indexes, value.values):
+            yield from indexed_values(new_value, k=k + 1, prefix=(*prefix, str(index)))
+    except AttributeError:
+        yield str(prefix), value
 
 
 if __name__ == "__main__":

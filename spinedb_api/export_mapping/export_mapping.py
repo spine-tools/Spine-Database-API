@@ -18,6 +18,7 @@ Contains export mappings for database items such as entities, entity classes and
 from copy import copy
 from enum import auto, Enum, unique
 from itertools import cycle, dropwhile, chain
+from collections import namedtuple
 import re
 import json
 from spinedb_api.parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
@@ -283,12 +284,9 @@ class ExportMapping(Mapping):
         return self._unignorable_data(db_row)
 
     def _ignorable_query(self, db_map, state, fixed_state):
-        yielded = False
-        for db_row in self._unignorable_query(db_map, state, fixed_state):
-            yielded = True
-            yield db_row
-        if not yielded:
-            yield _ignored
+        qry = iter(self._unignorable_query(db_map, state, fixed_state))
+        yield next(qry, _ignored)
+        yield from qry
 
     def set_ignorable(self):
         """
@@ -355,9 +353,11 @@ class ExportMapping(Mapping):
                 yield title, title_state
                 continue
             for child_title, child_title_state in chain((first_child_title,), child_titles):
-                final_title = title + self._TITLE_SEP + child_title
+                final_title = title
                 final_title_state = copy(title_state)
-                final_title_state.update(child_title_state)
+                if child_title is not None:
+                    final_title += self._TITLE_SEP + child_title
+                    final_title_state.update(child_title_state)
                 yield final_title, final_title_state
 
     def to_dict(self):
@@ -769,7 +769,9 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         state[ExportKey.PARAMETER_VALUE_TYPE] = db_row
 
     def _data(self, db_row):
-        return db_row
+        if db_row.type_ != "map":
+            return db_row.type_
+        return f"{db_row.dimension_count}d_{db_row.type_}"
 
     def _query(self, db_map, state, fixed_state):
         qry = super()._query(db_map, state, fixed_state)
@@ -1317,27 +1319,41 @@ def _expand_values_from_parameter(cached_parameter):
         yield db_row
 
 
+_ParameterValueType = namedtuple('_ParameterValueType', ['type_', 'dimension_count'])
+
+
 def _type_from_value(db_value):
     """
 
     Args:
         str (db_value): Value in the database
     Returns:
-        str: The type key in case of indexed parameter value, 'single_value' otherwise
+        _ParameterValueType: The type key in case of indexed parameter value, 'single_value' otherwise;
+            and dimension count.
     """
     value = json.loads(db_value)
     if isinstance(value, dict):
         type_ = value["type"]
         if type_ == "map":
-            inner_value = value["data"]
+            data = value["data"]
             k = 1
-            while isinstance(inner_value, dict) and inner_value["type"] == "map":
-                inner_value = inner_value["data"]
+            while True:
+                if isinstance(data, dict):
+                    values = data.values()
+                elif isinstance(data[0], list):
+                    values = (x[-1] for x in data)
+                else:
+                    values = iter(data)
+                nested_types = ("map", "time_series", "time_pattern")
+                next_value = next((v for v in values if isinstance(v, dict) and v.get("type") in nested_types), None)
+                if next_value is None:
+                    break
+                data = next_value["data"]
                 k += 1
-            return f"{k}d_map"
+            return _ParameterValueType(type_, k)
         if type_ in ("array", "time_series", "time_pattern"):
-            return type_
-    return "single_value"
+            return _ParameterValueType(type_, 1)
+    return _ParameterValueType("single_value", 0)
 
 
 def _load_and_expand(value_row, fixed_state):
