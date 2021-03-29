@@ -1468,6 +1468,7 @@ def from_dict(serialized):
             FixedValueMapping,
             ObjectClassMapping,
             ObjectGroupMapping,
+            ObjectGroupObjectMapping,
             ObjectMapping,
             ParameterDefinitionMapping,
             ParameterValueIndexMapping,
