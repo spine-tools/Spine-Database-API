@@ -569,10 +569,10 @@ class ObjectGroupObjectMapping(ExportMapping):
                 member_entity.c.name.label("name"),
                 member_entity.c.description.label("description"),
             )
-                .filter(db_map.entity_group_sq.c.entity_class_id == db_map.entity_class_sq.c.id)
-                .join(group_entity, db_map.entity_group_sq.c.entity_id == group_entity.c.id)
-                .join(member_entity, db_map.entity_group_sq.c.member_id == member_entity.c.id)
-                .subquery()
+            .filter(db_map.entity_group_sq.c.entity_class_id == db_map.entity_class_sq.c.id)
+            .join(group_entity, db_map.entity_group_sq.c.entity_id == group_entity.c.id)
+            .join(member_entity, db_map.entity_group_sq.c.member_id == member_entity.c.id)
+            .subquery()
         )
         for x in db_map.query(member_object_sq):
             self._query_cache.setdefault((x.class_id, x.group_id), []).append(x)
