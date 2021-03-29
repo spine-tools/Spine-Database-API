@@ -21,6 +21,7 @@ from itertools import cycle, dropwhile, chain
 from collections import namedtuple
 import re
 import json
+from sqlalchemy.orm import aliased
 from spinedb_api.parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from spinedb_api.export_mapping.group_functions import NoGroup
 from spinedb_api.mapping import Mapping, Position, is_pivoted, unflatten
@@ -36,6 +37,7 @@ class ExportKey(Enum):
     FEATURE_ROW_CACHE = auto()
     OBJECT_CLASS_LIST_INDEX = auto()
     OBJECT_CLASS_NAME_LIST = auto()
+    OBJECT_GROUP_ROW_CACHE = auto()
     OBJECT_LIST_INDEX = auto()
     OBJECT_NAME_LIST = auto()
     PARAMETER_DEFINITION_ID = auto()
@@ -500,7 +502,7 @@ class ObjectMapping(ExportMapping):
 class ObjectGroupMapping(ExportMapping):
     """Maps object groups.
 
-    Cannot be used as the topmost mapping; must have :class:`ObjectClassMapping` and :class:`ObjectMapping` as parents.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`ObjectClassMapping`.
     """
 
     MAP_TYPE = "ObjectGroup"
@@ -509,17 +511,71 @@ class ObjectGroupMapping(ExportMapping):
         return db_row.group_name
 
     def _update_state(self, state, db_row):
-        return
+        state[ExportKey.OBJECT_GROUP_ROW_CACHE] = db_row
 
     def _query(self, db_map, state, fixed_state):
-        self._update_query_cache(db_map)
-        return self._query_cache.get((state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.ENTITY_ROW_CACHE].id), [])
+        if not self._query_cache:
+            self._update_query_cache(db_map)
+        return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
 
     def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        for x in db_map.query(db_map.ext_object_group_sq):
-            self._query_cache.setdefault((x.class_id, x.member_id), []).append(x)
+        group_entity = aliased(db_map.entity_sq)
+        group_sq = (
+            db_map.query(
+                db_map.entity_group_sq.c.entity_class_id,
+                db_map.entity_group_sq.c.entity_id,
+                group_entity.c.name.label("group_name"),
+            )
+            .group_by(db_map.entity_group_sq.c.entity_id)
+            .join(group_entity, db_map.entity_group_sq.c.entity_id == group_entity.c.id)
+            .subquery()
+        )
+        for x in db_map.query(group_sq):
+            self._query_cache.setdefault(x.entity_class_id, []).append(x)
+
+
+class ObjectGroupObjectMapping(ExportMapping):
+    """Maps objects in object groups.
+
+    Cannot be used as the topmost mapping; one of the parents must be :class:`ObjectGroupMapping`.
+    """
+
+    MAP_TYPE = "ObjectGroupObject"
+
+    def _data(self, db_row):
+        return db_row.name
+
+    def _update_state(self, state, db_row):
+        state[ExportKey.ENTITY_ROW_CACHE] = db_row
+
+    def _query(self, db_map, state, fixed_state):
+        if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
+            if not self._query_cache:
+                self._update_query_cache(db_map)
+            return self._query_cache.get(
+                (state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.OBJECT_GROUP_ROW_CACHE].entity_id), []
+            )
+        return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
+
+    def _update_query_cache(self, db_map):
+        group_entity = aliased(db_map.object_sq)
+        member_entity = aliased(db_map.object_sq)
+        member_object_sq = (
+            db_map.query(
+                db_map.entity_group_sq.c.member_id.label("id"),
+                db_map.entity_group_sq.c.entity_class_id.label("class_id"),
+                db_map.entity_group_sq.c.entity_id.label("group_id"),
+                db_map.entity_class_sq.c.name.label("class_name"),
+                member_entity.c.name.label("name"),
+                member_entity.c.description.label("description"),
+            )
+                .filter(db_map.entity_group_sq.c.entity_class_id == db_map.entity_class_sq.c.id)
+                .join(group_entity, db_map.entity_group_sq.c.entity_id == group_entity.c.id)
+                .join(member_entity, db_map.entity_group_sq.c.member_id == member_entity.c.id)
+                .subquery()
+        )
+        for x in db_map.query(member_object_sq):
+            self._query_cache.setdefault((x.class_id, x.group_id), []).append(x)
 
 
 class RelationshipClassMapping(ExportMapping):
@@ -1326,7 +1382,7 @@ def _type_from_value(db_value):
     """
 
     Args:
-        str (db_value): Value in the database
+        db_value (str): Value in the database
     Returns:
         _ParameterValueType: The type key in case of indexed parameter value, 'single_value' otherwise;
             and dimension count.

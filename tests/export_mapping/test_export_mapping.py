@@ -48,6 +48,7 @@ from spinedb_api.export_mapping.export_mapping import (
     FeatureParameterDefinitionMapping,
     from_dict,
     ObjectGroupMapping,
+    ObjectGroupObjectMapping,
     ObjectMapping,
     ObjectClassMapping,
     ParameterDefaultValueMapping,
@@ -129,11 +130,47 @@ class TestExportMapping(unittest.TestCase):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
-        import_object_groups(db_map, (("oc", "o1", "g1"), ("oc", "o2", "g1"), ("oc", "o3", "g2")))
+        import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
         db_map.commit_session("Add test data.")
-        flattened = [ObjectClassMapping(0), ObjectMapping(2), ObjectGroupMapping(1)]
+        flattened = [ObjectClassMapping(0), ObjectGroupMapping(1)]
         mapping = unflatten(flattened)
-        self.assertEqual(list(rows(mapping, db_map)), [["oc", "o1", "g1"], ["oc", "o2", "g1"], ["oc", "o3", "g2"]])
+        self.assertEqual(list(rows(mapping, db_map)), [["oc", "g1"], ["oc", "g2"]])
+        db_map.connection.close()
+
+    def test_object_groups_with_objects(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
+        import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
+        db_map.commit_session("Add test data.")
+        flattened = [ObjectClassMapping(0), ObjectGroupMapping(1), ObjectGroupObjectMapping(2)]
+        mapping = unflatten(flattened)
+        self.assertEqual(list(rows(mapping, db_map)), [["oc", "g1", "o1"], ["oc", "g1", "o2"], ["oc", "g2", "o3"]])
+        db_map.connection.close()
+
+    def test_object_groups_with_parameter_values(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
+        import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_object_parameter_values(
+            db_map, (("oc", "o1", "p", -11.0), ("oc", "o2", "p", -12.0), ("oc", "o3", "p", -13.0))
+        )
+        db_map.commit_session("Add test data.")
+        flattened = [
+            ObjectClassMapping(0),
+            ObjectGroupMapping(1),
+            ObjectGroupObjectMapping(2),
+            ParameterDefinitionMapping(Position.hidden),
+            AlternativeMapping(Position.hidden),
+            ParameterValueMapping(3),
+        ]
+        mapping = unflatten(flattened)
+        self.assertEqual(
+            list(rows(mapping, db_map)),
+            [["oc", "g1", "o1", -11.0], ["oc", "g1", "o2", -12.0], ["oc", "g2", "o3", -13.0]],
+        )
         db_map.connection.close()
 
     def test_export_parameter_definitions(self):
