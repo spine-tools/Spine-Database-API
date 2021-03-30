@@ -85,8 +85,7 @@ def get_mapped_data(
             rows, data_header, pivoted, non_pivoted, pivoted_from_header, mapping.skip_columns
         )
         # Reposition row convert functions
-        pivoted_pos_to_index = {pos: k for k, pos in enumerate(pivoted_pos)}
-        row_convert_fns = {pivoted_pos_to_index[row]: fn for row, fn in row_convert_fns.items()}
+        row_convert_fns = {k: row_convert_fns[pos] for k, pos in enumerate(pivoted_pos)}
         # If there are only pivoted mappings, we can just feed the unpivoted rows
         if not non_pivoted:
             # Reposition pivoted mappings:
