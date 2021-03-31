@@ -22,7 +22,6 @@ from spinedb_api.export_mapping.pivot import make_pivot
 class TestPivot(unittest.TestCase):
     def test_pivot(self):
         table = [
-            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -33,7 +32,7 @@ class TestPivot(unittest.TestCase):
             ["B", "c", "3", -8.8],
             ["C", "a", "1", -9.9],
         ]
-        pivot_table = list(make_pivot(table, 3, [0], [1], [2]))
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2]))
         expected = [
             ["H", "1", "2", "3"],
             ["A", -1.1, -2.2, None],
@@ -47,7 +46,6 @@ class TestPivot(unittest.TestCase):
 
     def test_half_pivot(self):
         table = [
-            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -58,7 +56,7 @@ class TestPivot(unittest.TestCase):
             ["B", "c", "3", -8.8],
             ["C", "a", "1", -9.9],
         ]
-        pivot_table = list(make_pivot(table, 3, [], [], [0, 1, 2]))
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [], [], [0, 1, 2]))
         expected = [
             ["H", "A", "A", "A", "A", "A", "B", "B", "B", "C"],
             ["h", "a", "a", "b", "b", "b", "a", "b", "c", "a"],
@@ -69,7 +67,6 @@ class TestPivot(unittest.TestCase):
 
     def test_pivot_group_concat(self):
         table = [
-            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -80,7 +77,7 @@ class TestPivot(unittest.TestCase):
             ["B", "c", "3", -8.8],
             ["C", "a", "1", -9.9],
         ]
-        pivot_table = list(make_pivot(table, 3, [0], [1], [2], "concat"))
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2], "concat"))
         expected = [
             ["H", "1", "2", "3"],
             ["A", "-1.1,-3.3", "-2.2,-4.4", "-5.5"],
@@ -91,7 +88,6 @@ class TestPivot(unittest.TestCase):
 
     def test_pivot_group_sum(self):
         table = [
-            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -102,7 +98,7 @@ class TestPivot(unittest.TestCase):
             ["B", "c", "3", -8.8],
             ["C", "a", "1", -9.9],
         ]
-        pivot_table = list(make_pivot(table, 3, [0], [1], [2], "sum"))
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2], "sum"))
         expected = [
             ["H", "1", "2", "3"],
             ["A", -1.1 - 3.3, -2.2 - 4.4, -5.5],
@@ -113,7 +109,6 @@ class TestPivot(unittest.TestCase):
 
     def test_pivot_group_one_or_none(self):
         table = [
-            ["H", "h", "#", "xx"],
             ["A", "a", "1", -1.1],
             ["A", "a", "2", -2.2],
             ["A", "b", "1", -3.3],
@@ -124,7 +119,7 @@ class TestPivot(unittest.TestCase):
             ["B", "c", "3", -8.8],
             ["C", "a", "1", -9.9],
         ]
-        pivot_table = list(make_pivot(table, 3, [0], [1], [2], "one_or_none"))
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2], "one_or_none"))
         expected = [["H", "1", "2", "3"], ["A", None, None, -5.5], ["B", None, None, -8.8], ["C", -9.9, None, None]]
         self.assertEqual(pivot_table, expected)
 

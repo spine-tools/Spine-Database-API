@@ -292,7 +292,7 @@ class ExportMapping(Mapping):
         try:
             db_row = next(iter(self._query(db_map, state, fixed_state)))
         except StopIteration:
-            return self.child.make_header(db_map, state, fixed_state, buddies)
+            return {}
         self._update_state(state, db_row)
         header = self.child.make_header(db_map, state, fixed_state, buddies)
         if self.position == Position.header:
