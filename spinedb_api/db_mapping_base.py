@@ -208,7 +208,7 @@ class DatabaseMappingBase:
                     if not create:
                         raise SpineDBAPIError(
                             "Unable to determine db revision. "
-                            f"Please check that\n\n\t{db_url}\n\nis the URL of a valid Spine db."
+                            f"Please check that\n\n\t{self.db_url}\n\nis the URL of a valid Spine db."
                         )
                     return create_new_spine_database(self.db_url)
             if current != head:
