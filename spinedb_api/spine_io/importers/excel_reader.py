@@ -52,15 +52,12 @@ class ExcelConnector(SourceConnection):
         """
         if source:
             self._filename = source
-            try:
-                # FIXME: there seems to be no way of closing the workbook
-                # when read_only=True, read file into memory first and then
-                # open to avoid locking file while toolbox is running.
-                with open(self._filename, "rb") as bin_file:
-                    in_mem_file = io.BytesIO(bin_file.read())
-                self._wb = load_workbook(in_mem_file, read_only=True, data_only=True)
-            except Exception as error:
-                raise error
+            # NOTE: there seems to be no way of closing the workbook
+            # when read_only=True, read file into memory first and then
+            # open to avoid locking file while toolbox is running.
+            with open(self._filename, "rb") as bin_file:
+                in_mem_file = io.BytesIO(bin_file.read())
+            self._wb = load_workbook(in_mem_file, read_only=True, data_only=True)
 
     def disconnect(self):
         """Disconnect from connected source.
