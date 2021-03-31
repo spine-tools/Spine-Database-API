@@ -41,8 +41,10 @@ class DatabaseMappingCommitMixin:
             self._transaction = self.connection.begin()
             user = self.username
             date = datetime.now(timezone.utc)
-            ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment="")
-            self._commit_id = self.connection.execute(ins).inserted_primary_key[0]
+            ins = self._metadata.tables["commit"].insert()
+            self._commit_id = self._checked_execute(
+                ins, {"user": user, "date": date, "comment": ""}
+            ).inserted_primary_key[0]
         return self._commit_id
 
     def commit_session(self, comment):

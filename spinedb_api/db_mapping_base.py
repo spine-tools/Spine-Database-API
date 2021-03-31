@@ -75,7 +75,7 @@ class DatabaseMappingBase:
         self.sa_url = make_url(self.db_url)
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
-        self.engine = self._create_engine(db_url, upgrade=upgrade, create=create)
+        self.engine = self._create_engine(upgrade=upgrade, create=create)
         self.connection = self.engine.connect()
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
@@ -167,26 +167,28 @@ class DatabaseMappingBase:
         hashing.update(bytes(str(time.time()), "utf-8"))
         return hashing.hexdigest()
 
-    @staticmethod
-    def _create_engine(db_url, upgrade=False, create=False):
+    def _create_engine(self, upgrade=False, create=False):
         """Create engine.
 
         Args
-            db_url (str): A URL to be passed to sqlalchemy.create_engine
             upgrade (bool, optional): If True, upgrade the db to the latest version.
             create (bool, optional): If True, create a new Spine db at the given url if none found.
 
         Returns
             Engine
         """
+        if self.sa_url.drivername == "sqlite":
+            connect_args = {'timeout': 1800}
+        else:
+            connect_args = {}
         try:
-            engine = create_engine(db_url)
+            engine = create_engine(self.db_url, connect_args=connect_args)
             with engine.connect():
                 pass
         except Exception as e:
             raise SpineDBAPIError(
-                f"Could not connect to '{db_url}': {str(e)}. "
-                f"Please make sure that '{db_url}' is a valid sqlalchemy URL."
+                f"Could not connect to '{self.db_url}': {str(e)}. "
+                f"Please make sure that '{self.db_url}' is a valid sqlalchemy URL."
             )
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
@@ -208,15 +210,17 @@ class DatabaseMappingBase:
                             "Unable to determine db revision. "
                             f"Please check that\n\n\t{db_url}\n\nis the URL of a valid Spine db."
                         )
-                    return create_new_spine_database(db_url)
+                    return create_new_spine_database(self.db_url)
             if current != head:
                 if not upgrade:
                     try:
                         script.get_revision(current)  # Check if current revision is part of alembic rev. history
                     except CommandError:
                         # Can't find 'current' revision
-                        raise SpineDBVersionError(url=db_url, current=current, expected=head, upgrade_available=False)
-                    raise SpineDBVersionError(url=db_url, current=current, expected=head)
+                        raise SpineDBVersionError(
+                            url=self.db_url, current=current, expected=head, upgrade_available=False
+                        )
+                    raise SpineDBVersionError(url=self.db_url, current=current, expected=head)
 
                 # Upgrade function
                 def upgrade_to_head(rev, context):
@@ -1716,7 +1720,7 @@ class DatabaseMappingBase:
     def _checked_execute(self, stmt, items):
         if not items:
             return
-        self.connection.execute(stmt, items)
+        return self.connection.execute(stmt, items)
 
     def _get_primary_key(self, tablename):
         pk = self.composite_pks.get(tablename)

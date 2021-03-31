@@ -102,7 +102,7 @@ class DatabaseMappingAddMixin:
                 max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
                 next_id = max_id + 1 if max_id else 1
             new_next_id = next_id + len(items)
-            self.connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
+            self._checked_execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
         ids = list(range(next_id, new_next_id))
         items_to_add = list()
         append_item = items_to_add.append
