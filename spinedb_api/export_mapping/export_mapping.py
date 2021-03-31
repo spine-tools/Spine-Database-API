@@ -767,10 +767,6 @@ class ParameterDefinitionMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.name
 
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, (ObjectClassMapping, RelationshipClassMapping))
-
     def _query(self, db_map, state, fixed_state):
         if ExportKey.PARAMETER_DEFINITION_ROW_CACHE not in fixed_state:
             self._update_query_cache(db_map)
@@ -996,10 +992,6 @@ class ParameterValueListMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.name
 
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ParameterDefinitionMapping)
-
     def _query(self, db_map, state, fixed_state):
         if ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE in fixed_state:
             return [fixed_state[ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE]]
@@ -1091,10 +1083,6 @@ class ScenarioActiveFlagMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ScenarioMapping)
 
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.SCENARIO_ROW_CACHE].active
@@ -1275,10 +1263,6 @@ class ToolFeatureRequiredFlagMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.required
 
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolFeatureEntityClassMapping)
-
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_ROW_CACHE]
 
@@ -1296,10 +1280,6 @@ class ToolFeatureMethodEntityClassMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.entity_class_name
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolMapping)
 
     def _query(self, db_map, state, fixed_state):
         return db_map.query(db_map.ext_tool_feature_method_sq).filter_by(tool_id=state[ExportKey.TOOL_ID])
@@ -1319,10 +1299,6 @@ class ToolFeatureMethodParameterDefinitionMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.parameter_definition_name
 
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolFeatureMethodEntityClassMapping)
-
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE]
 
@@ -1340,10 +1316,6 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     def _data(self, db_row):
         return from_database(db_row.method)
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolFeatureMethodEntityClassMapping)
 
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE]

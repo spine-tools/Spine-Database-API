@@ -1141,6 +1141,47 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
 
+    def test_pivot_without_left_hand_side_has_padding_column_for_headers(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_alternatives(db_map, ("alt",))
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p1"),))
+        import_object_parameters(db_map, (("oc", "p2"),))
+        import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
+        import_object_parameter_values(
+            db_map,
+            (
+                ("oc", "o1", "p1", Map(["A", "B"], [-1.1, -2.2]), "Base"),
+                ("oc", "o1", "p1", Map(["A", "B"], [-3.3, -4.4]), "alt"),
+                ("oc", "o1", "p2", Map(["A", "B"], [-5.5, -6.6]), "Base"),
+                ("oc", "o1", "p2", Map(["A", "B"], [-7.7, -8.8]), "alt"),
+                ("oc", "o2", "p1", Map(["A", "B"], [-9.9, -10.1]), "Base"),
+                ("oc", "o2", "p1", Map(["A", "B"], [-11.1, -12.2]), "alt"),
+                ("oc", "o2", "p2", Map(["A", "B"], [-13.3, -14.4]), "Base"),
+                ("oc", "o2", "p2", Map(["A", "B"], [-15.5, -16.6]), "alt"),
+            ),
+        )
+        db_map.commit_session("Add test data.")
+        mapping = unflatten(
+            [
+                ObjectClassMapping(Position.header),
+                ParameterDefinitionMapping(Position.hidden, header="parameter"),
+                ObjectMapping(-1),
+                AlternativeMapping(-2, header="alternative"),
+                ParameterValueIndexMapping(-3, header="index"),
+                ExpandedParameterValueMapping(2, header="value"),
+            ]
+        )
+        expected = [
+            ["oc", "o1", "o1", "o1", "o1", "o2", "o2", "o2", "o2"],
+            ["alternative", "Base", "Base", "alt", "alt", "Base", "Base", "alt", "alt"],
+            ["index", "A", "B", "A", "B", "A", "B", "A", "B"],
+            [None, -1.1, -2.2, -3.3, -4.4, -9.9, -10.1, -11.1, -12.2],
+            [None, -5.5, -6.6, -7.7, -8.8, -13.3, -14.4, -15.5, -16.6],
+        ]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
     def test_count_mappings(self):
         object_class_mapping = ObjectClassMapping(2)
         parameter_definition_mapping = ParameterDefinitionMapping(0)

@@ -160,11 +160,17 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
         # Yield regular rows
         regular_rows = regular_rows()
         values = value_tree()
-        for row_key in sorted(regular_rows.keys()):
-            pivot_branch = leaf(values, row_key)
-            row = regular_rows[row_key]
-            row += [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
-            yield row
+        if not any(regular_rows.values()) and pivot_header:
+            # Need a padding column for pivot header.
+            for row_key in sorted(regular_rows.keys()):
+                pivot_branch = leaf(values, row_key)
+                yield [None] + [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
+        else:
+            for row_key in sorted(regular_rows.keys()):
+                pivot_branch = leaf(values, row_key)
+                row = regular_rows[row_key]
+                row += [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
+                yield row
     else:
         for row in half_pivot():
             yield row
