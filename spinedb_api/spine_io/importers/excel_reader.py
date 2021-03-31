@@ -58,7 +58,7 @@ class ExcelConnector(SourceConnection):
                 # open to avoid locking file while toolbox is running.
                 with open(self._filename, "rb") as bin_file:
                     in_mem_file = io.BytesIO(bin_file.read())
-                self._wb = load_workbook(in_mem_file, read_only=True)
+                self._wb = load_workbook(in_mem_file, read_only=True, data_only=True)
             except Exception as error:
                 raise error
 
