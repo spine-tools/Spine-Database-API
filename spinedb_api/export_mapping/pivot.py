@@ -19,11 +19,12 @@ from ..mapping import is_regular, is_pivoted, Position, unflatten
 from .group_functions import from_str as group_function_from_str, NoGroup
 
 
-def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_columns, group_fn=None):
+def make_pivot(table, header, value_column, regular_columns, hidden_columns, pivot_columns, group_fn=None):
     """Turns a regular table into a pivot table.
 
     Args:
         table (list of list): table to convert
+        header (list, optional): header row
         value_column (int): index of data column in ``table``
         regular_columns (Iterable of int): indexes of non-pivoted columns in ``table``
         hidden_columns (Iterable of int): indexes of columns that will not show on the pivot table
@@ -89,7 +90,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             list: table row
         """
         for i in range(len(pivot_columns)):
-            row = [pivot_header[i]] if any(pivot_header) else []
+            row = [pivot_header[i]] if pivot_header is not None else []
             row += list(k[i] for k in pivot_keys)
             yield row
         values = dict()
@@ -100,7 +101,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             branch.setdefault(row[pivot_columns[-1]], list()).append(row[value_column])
         height = max(len(leaf(values, key)) for key in pivot_keys)
         for i in range(height):
-            row = [None] if any(pivot_header) else []
+            row = [None] if pivot_header is not None else []
             for key in pivot_keys:
                 v = leaf(values, key)
                 if i < len(v):
@@ -122,14 +123,13 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         else:
             row.append(header)
 
-    header = table.pop(0)
     if not table:
         return []
     pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table})
-    pivot_header = tuple(header[i] for i in pivot_columns)
+    pivot_header = tuple(header[i] for i in pivot_columns) if header is not None else None
     if regular_columns or hidden_columns:
         regular_column_width = max(regular_columns) + 1 if regular_columns else 0
-        regular_header = [header[i] for i in range(regular_column_width)]
+        regular_header = [header[i] for i in range(regular_column_width)] if header is not None else None
         # If grouping, key columns are the 'visible' regular columns
         # If not grouping, we add the hidden columns
         key_columns = regular_columns
@@ -139,13 +139,13 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
         # Yield pivot rows (all but last)
         for i in range(len(pivot_columns) - 1):
             row = regular_column_width * [None]
-            if any(pivot_header):
+            if pivot_header is not None:
                 put_pivot_header(row, pivot_header[i])
             row += list(k[i] for k in pivot_keys)
             yield row
-        # Yield last pivot row. This one has the regular header (if any) at the begining
+        # Yield last pivot row. This one has the regular header (if any) at the beginning
         if pivot_columns:
-            if any(regular_header):
+            if regular_header is not None:
                 last_pivot_row = regular_header
             else:
                 last_pivot_row = regular_column_width * [None]
@@ -153,7 +153,7 @@ def make_pivot(table, value_column, regular_columns, hidden_columns, pivot_colum
             # This is an arbitrary decision so the tables are more compact; otherwise we'd have an empty row or column
             # at the last header position.
             # To solve the conflict, we take the regular header if not None or empty, and the pivot header otherwise.
-            if pivot_header[-1]:
+            if pivot_header is not None and pivot_header[-1]:
                 put_pivot_header(last_pivot_row, pivot_header[-1])
             last_pivot_row += list(k[-1] for k in pivot_keys)
             yield last_pivot_row

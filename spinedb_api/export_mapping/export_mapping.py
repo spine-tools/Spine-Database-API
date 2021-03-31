@@ -16,15 +16,16 @@ Contains export mappings for database items such as entities, entity classes and
 """
 
 from copy import copy
+from dataclasses import dataclass
 from enum import auto, Enum, unique
 from itertools import cycle, dropwhile, chain
 from collections import namedtuple
 import re
 import json
 from sqlalchemy.orm import aliased
-from spinedb_api.parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
-from spinedb_api.export_mapping.group_functions import NoGroup
-from spinedb_api.mapping import Mapping, Position, is_pivoted, unflatten
+from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
+from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
+from .group_functions import NoGroup
 
 
 @unique
@@ -89,8 +90,9 @@ class ExportMapping(Mapping):
         """
         Args:
             position (int or Position): column index or Position
-            header (str, optional); A string column header that's yielt as 'first row', if not empty.
-                The default is an empty string (so it's not yielt).
+            value (Any, optional): A fixed value
+            header (str, optional); A string column header that's yielded as 'first row', if not empty.
+                The default is an empty string (so it's not yielded).
             filter_re (str, optional): A regular expression to filter the mapped values by
             group_fn (str, Optional): Only for topmost mappings. The name of one of our supported group functions,
                 for aggregating values over repeated 'headers' (in tables with hidden elements).
@@ -241,10 +243,6 @@ class ExportMapping(Mapping):
         Yields:
             dict: a mapping from column index to cell data
         """
-        # Yield header if topmost mapping
-        if self.parent is None:
-            header = self.make_header()
-            yield header
         if self.child is None:
             # Non-recursive case
             if self.position == Position.hidden:
@@ -262,18 +260,60 @@ class ExportMapping(Mapping):
                 row.update(child_row)
                 yield row
 
-    def make_header(self):
+    def has_header(self):
+        """Recursively checks if mapping would create a header row.
+
+        Returns:
+            bool: True if make_header() would return something useful
+        """
+        if self.header or self.position == Position.header:
+            return True
+        if self.child is None:
+            return False
+        return self.child.has_header()
+
+    def make_header(self, db_map, state, fixed_state, buddies):
         """
         Generates the header recursively.
+
+        Args:
+            db_map (DatabaseMappingBase): database map
+            state (dict): state
+            fixed_state (dict): state for fixed items
+            buddies (list of tuple): buddy mappings
 
         Returns
             dict: a mapping from column index to string header
         """
-        header = {self.position: self.header}
-        if self.child is not None:
-            child_header = self.child.make_header()
-            header.update(child_header)
+        if self.child is None:
+            if not is_regular(self.position):
+                return {}
+            return {self.position: self.header}
+        try:
+            db_row = next(iter(self._query(db_map, state, fixed_state)))
+        except StopIteration:
+            return self.child.make_header(db_map, state, fixed_state, buddies)
+        self._update_state(state, db_row)
+        header = self.child.make_header(db_map, state, fixed_state, buddies)
+        if self.position == Position.header:
+            buddy = find_my_buddy(self, buddies)
+            if buddy is not None:
+                header[buddy.position] = self._data(db_row)
+        else:
+            header[self.position] = self.header
         return header
+
+    @staticmethod
+    def is_buddy(parent):
+        """Checks if mapping uses a parent's state for its data.
+
+        Args:
+            parent (ExportMapping): a parent mapping
+
+        Returns:
+            bool: True if parent's state affects what a mapping yields
+        """
+        return False
 
     def _ignorable_update_state(self, state, db_row):
         if db_row is _ignored:
@@ -492,6 +532,10 @@ class ObjectMapping(ExportMapping):
             return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
         return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ObjectClassMapping)
+
     def _update_query_cache(self, db_map):
         if self._query_cache:
             return
@@ -509,6 +553,10 @@ class ObjectGroupMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.group_name
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ObjectClassMapping)
 
     def _update_state(self, state, db_row):
         state[ExportKey.OBJECT_GROUP_ROW_CACHE] = db_row
@@ -544,6 +592,10 @@ class ObjectGroupObjectMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.name
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ObjectGroupMapping)
 
     def _update_state(self, state, db_row):
         state[ExportKey.ENTITY_ROW_CACHE] = db_row
@@ -620,6 +672,10 @@ class RelationshipClassObjectClassMapping(ExportMapping):
     def _data(self, db_row):
         return db_row
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, RelationshipClassMapping)
+
     def _query(self, db_map, state, fixed_state):
         name_list = state[ExportKey.OBJECT_CLASS_NAME_LIST]
         try:
@@ -644,6 +700,10 @@ class RelationshipMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.name
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, RelationshipClassMapping)
 
     def _query(self, db_map, state, fixed_state):
         if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
@@ -679,6 +739,10 @@ class RelationshipObjectMapping(ExportMapping):
     def _data(self, db_row):
         return db_row
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, RelationshipClassObjectClassMapping)
+
     def _query(self, db_map, state, fixed_state):
         name_list = state[ExportKey.OBJECT_NAME_LIST]
         try:
@@ -702,6 +766,10 @@ class ParameterDefinitionMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.name
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, (ObjectClassMapping, RelationshipClassMapping))
 
     def _query(self, db_map, state, fixed_state):
         if ExportKey.PARAMETER_DEFINITION_ROW_CACHE not in fixed_state:
@@ -730,6 +798,10 @@ class ParameterDefaultValueMapping(ExportMapping):
     def _data(self, db_row):
         default_value = from_database(db_row.default_value)
         return default_value if not isinstance(default_value, IndexedValue) else type(default_value).__name__
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ParameterDefinitionMapping)
 
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE]
@@ -798,6 +870,10 @@ class ParameterValueMapping(ExportMapping):
         value = from_database(db_row.value)
         return value if not isinstance(value, IndexedValue) else type(value).__name__
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, (ParameterDefinitionMapping, ObjectMapping, RelationshipMapping, AlternativeMapping))
+
     def _query(self, db_map, state, fixed_state):
         if ExportKey.PARAMETER_VALUE_ROW_CACHE in fixed_state:
             return [fixed_state[ExportKey.PARAMETER_VALUE_ROW_CACHE]]
@@ -819,6 +895,12 @@ class ParameterValueMapping(ExportMapping):
 
 
 class ParameterValueTypeMapping(ParameterValueMapping):
+    """Maps parameter value types.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
+    an :class:`AlternativeMapping` as parents.
+    """
+
     MAP_TYPE = "ParameterValueType"
 
     def _update_state(self, state, db_row):
@@ -914,6 +996,10 @@ class ParameterValueListMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.name
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ParameterDefinitionMapping)
+
     def _query(self, db_map, state, fixed_state):
         if ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE in fixed_state:
             return [fixed_state[ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE]]
@@ -937,6 +1023,10 @@ class ParameterValueListValueMapping(ExportMapping):
 
     def _data(self, db_row):
         return from_database(db_row)
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ParameterValueListMapping)
 
     def _query(self, db_map, state, fixed_state):
         return state[ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE].value_list.split(";")
@@ -1002,6 +1092,10 @@ class ScenarioActiveFlagMapping(ExportMapping):
     def _data(self, db_row):
         return db_row
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ScenarioMapping)
+
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.SCENARIO_ROW_CACHE].active
 
@@ -1019,6 +1113,10 @@ class ScenarioAlternativeMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ScenarioMapping)
 
     def _query(self, db_map, state, fixed_state):
         state[ExportKey.ALTERNATIVE_LIST_INDEX] = 0
@@ -1041,6 +1139,10 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ScenarioAlternativeMapping)
 
     def _query(self, db_map, state, fixed_state):
         alternative_name_list = state[ExportKey.ALTERNATIVE_NAME_LIST]
@@ -1107,6 +1209,10 @@ class FeatureParameterDefinitionMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.parameter_definition_name
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, FeatureEntityClassMapping)
+
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.FEATURE_ROW_CACHE]
 
@@ -1124,6 +1230,10 @@ class ToolFeatureEntityClassMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.entity_class_name
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ToolMapping)
 
     def _query(self, db_map, state, fixed_state):
         return db_map.query(db_map.ext_tool_feature_sq).filter_by(tool_id=state[ExportKey.TOOL_ID])
@@ -1143,6 +1253,10 @@ class ToolFeatureParameterDefinitionMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.parameter_definition_name
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ToolFeatureEntityClassMapping)
+
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_ROW_CACHE]
 
@@ -1160,6 +1274,10 @@ class ToolFeatureRequiredFlagMapping(ExportMapping):
 
     def _data(self, db_row):
         return db_row.required
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ToolFeatureEntityClassMapping)
 
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_ROW_CACHE]
@@ -1179,6 +1297,10 @@ class ToolFeatureMethodEntityClassMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.entity_class_name
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ToolMapping)
+
     def _query(self, db_map, state, fixed_state):
         return db_map.query(db_map.ext_tool_feature_method_sq).filter_by(tool_id=state[ExportKey.TOOL_ID])
 
@@ -1197,6 +1319,10 @@ class ToolFeatureMethodParameterDefinitionMapping(ExportMapping):
     def _data(self, db_row):
         return db_row.parameter_definition_name
 
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ToolFeatureMethodEntityClassMapping)
+
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE]
 
@@ -1214,6 +1340,10 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     def _data(self, db_row):
         return from_database(db_row.method)
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, ToolFeatureMethodEntityClassMapping)
 
     def _query(self, db_map, state, fixed_state):
         yield state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE]
@@ -1445,6 +1575,50 @@ def _expand_value(value):
     else:
         expanded_value = {None: value}
     return expanded_value
+
+
+def pair_header_buddies(root_mapping):
+    """Pairs mappings that have Position.header to their 'buddy' child mappings.
+
+    Args:
+        root_mapping (ExportMapping): root mapping
+
+    Returns:
+        list of tuple: pairs of parent mapping - buddy child mapping
+    """
+
+    @dataclass
+    class Pairable:
+        mapping: ExportMapping
+        paired: bool
+
+    pairables = [Pairable(m, False) for m in root_mapping.flatten()]
+    buddies = list()
+    for i, parent in enumerate(pairables):
+        if parent.mapping.position != Position.header:
+            continue
+        for child in pairables[i + 1 :]:
+            if child.mapping.is_buddy(parent.mapping) and not child.paired:
+                buddies.append((parent.mapping, child.mapping))
+                child.paired = True
+                break
+    return buddies
+
+
+def find_my_buddy(mapping, buddies):
+    """Finds mapping's buddy.
+
+    Args:
+        mapping (ExportMapping): a mapping
+        buddies (list of tuple): list of mapping - buddy mapping pairs
+
+    Returns:
+        ExportMapping: buddy mapping or None if not found
+    """
+    for parent, buddy in buddies:
+        if mapping is parent:
+            return buddy
+    return None
 
 
 def from_dict(serialized):

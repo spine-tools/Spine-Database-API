@@ -14,22 +14,41 @@ Contains generator functions that convert a Spine database into rows of tabular 
 :author: A. Soininen (VTT)
 :date:   10.12.2020
 """
+from copy import deepcopy
 from ..mapping import Position
 from .pivot import make_pivot, make_regular
+from .export_mapping import pair_header_buddies
 
 
-def rows(root_mapping, db_map, fixed_key=None):
+def rows(root_mapping, db_map, fixed_state=None):
     """
     Generates table's rows.
 
     Args:
         root_mapping (Mapping): root export mapping
         db_map (DatabaseMappingBase): a database map
-        fixed_key (Key, optional): a key that fixes items
+        fixed_state (dict, optional): mapping state that fixes items
 
     Yields:
         list: a list of row's cells
     """
+
+    def listify_row(row):
+        """Converts row dictionary to Python list representing the actual row.
+
+        Args:
+            row (dict): mapping from Position to cell data
+
+        Returns:
+            list: row as list
+        """
+        row.pop(Position.hidden, None)
+        row.pop(Position.table_name, None)
+        row.pop(Position.header, None)
+        straight = (max(row) + 1) * [None] if row else []
+        for index, data in row.items():
+            straight[index] = data
+        return straight
 
     def row_iterator():
         """
@@ -39,40 +58,33 @@ def rows(root_mapping, db_map, fixed_key=None):
             row (list): a table row
         """
 
-        def split_row(row):
-            row.pop(Position.hidden, None)
-            row.pop(Position.table_name, None)
-            straight = (max(row) + 1) * [None] if row else []
-            for index, data in row.items():
-                straight[index] = data
-            return straight
-
-        row_iter = root_mapping.rows(db_map, dict(), fixed_key)
-        header = next(row_iter, {})
-        normal_row = split_row(header)
-        yield normal_row
+        row_iter = root_mapping.rows(db_map, dict(), fixed_state)
         for row in row_iter:
-            normal_row = split_row(row)
+            normal_row = listify_row(row)
             yield normal_row
 
-    if fixed_key is None:
-        fixed_key = dict()
+    if fixed_state is None:
+        fixed_state = dict()
     if root_mapping.is_pivoted():
         root_mapping, value_column, regular_columns, hidden_columns, pivot_columns = make_regular(root_mapping)
+        if root_mapping.has_header():
+            header_root = deepcopy(root_mapping)
+            buddies = pair_header_buddies(header_root)
+            header = listify_row(header_root.make_header(db_map, {}, fixed_state, buddies))
+        else:
+            header = None
         regularized = list(row_iterator())
         for row in make_pivot(
-            regularized, value_column, regular_columns, hidden_columns, pivot_columns, root_mapping.group_fn
+            regularized, header, value_column, regular_columns, hidden_columns, pivot_columns, root_mapping.group_fn
         ):
             yield row
     else:
-        row_iter = row_iterator()
-        header = next(row_iter, [])
-        first_row = next(row_iter, None)
-        if first_row:
-            if any(header):
-                yield header
-            yield first_row
-            yield from row_iter
+        if root_mapping.has_header():
+            header_root = deepcopy(root_mapping)
+            buddies = pair_header_buddies(header_root)
+            header = listify_row(header_root.make_header(db_map, {}, fixed_state, buddies))
+            yield header
+        yield from row_iterator()
 
 
 def titles(root_mapping, db_map):

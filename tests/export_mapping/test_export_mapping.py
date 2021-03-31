@@ -1059,6 +1059,88 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(tables, expected)
         db_map.connection.close()
 
+    def test_header(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"),))
+        db_map.commit_session("Add test data.")
+        root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="entity")])
+        expected = [["class", "entity"], ["oc", "o1"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
+    def test_header_position(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"),))
+        db_map.commit_session("Add test data.")
+        root = unflatten([ObjectClassMapping(Position.header), ObjectMapping(0)])
+        expected = [["oc"], ["o1"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
+    def test_header_position_with_relationships(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_objects(db_map, (("oc1", "o11"), ("oc2", "o21")))
+        import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
+        import_relationships(db_map, (("rc", ("o11", "o21")),))
+        db_map.commit_session("Add test data.")
+        root = unflatten(
+            [
+                RelationshipClassMapping(0),
+                RelationshipClassObjectClassMapping(Position.header),
+                RelationshipClassObjectClassMapping(Position.header),
+                RelationshipMapping(1),
+                RelationshipObjectMapping(2),
+                RelationshipObjectMapping(3),
+            ]
+        )
+        expected = [["", "", "oc1", "oc2"], ["rc", "rc_o11__o21", "o11", "o21"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
+    def test_header_and_pivot(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_alternatives(db_map, ("alt",))
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p1"),))
+        import_object_parameters(db_map, (("oc", "p2"),))
+        import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
+        import_object_parameter_values(
+            db_map,
+            (
+                ("oc", "o1", "p1", Map(["A", "B"], [-1.1, -2.2]), "Base"),
+                ("oc", "o1", "p1", Map(["A", "B"], [-3.3, -4.4]), "alt"),
+                ("oc", "o1", "p2", Map(["A", "B"], [-5.5, -6.6]), "Base"),
+                ("oc", "o1", "p2", Map(["A", "B"], [-7.7, -8.8]), "alt"),
+                ("oc", "o2", "p1", Map(["A", "B"], [-9.9, -10.1]), "Base"),
+                ("oc", "o2", "p1", Map(["A", "B"], [-11.1, -12.2]), "alt"),
+                ("oc", "o2", "p2", Map(["A", "B"], [-13.3, -14.4]), "Base"),
+                ("oc", "o2", "p2", Map(["A", "B"], [-15.5, -16.6]), "alt"),
+            ),
+        )
+        db_map.commit_session("Add test data.")
+        mapping = unflatten(
+            [
+                ObjectClassMapping(0, header="class"),
+                ParameterDefinitionMapping(1, header="parameter"),
+                ObjectMapping(-1, header="object"),
+                AlternativeMapping(-2, header="alternative"),
+                ParameterValueIndexMapping(-3, header=""),
+                ExpandedParameterValueMapping(2, header="value"),
+            ]
+        )
+        expected = [
+            [None, "object", "o1", "o1", "o1", "o1", "o2", "o2", "o2", "o2"],
+            [None, "alternative", "Base", "Base", "alt", "alt", "Base", "Base", "alt", "alt"],
+            ["class", "parameter", "A", "B", "A", "B", "A", "B", "A", "B"],
+            ["oc", "p1", -1.1, -2.2, -3.3, -4.4, -9.9, -10.1, -11.1, -12.2],
+            ["oc", "p2", -5.5, -6.6, -7.7, -8.8, -13.3, -14.4, -15.5, -16.6],
+        ]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
     def test_count_mappings(self):
         object_class_mapping = ObjectClassMapping(2)
         parameter_definition_mapping = ParameterDefinitionMapping(0)
