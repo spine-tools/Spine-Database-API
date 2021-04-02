@@ -80,7 +80,7 @@ class DatabaseMappingBase:
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
-        self.session = None
+        self.session = Session(self.connection)
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -151,7 +151,6 @@ class DatabaseMappingBase:
             "relationship_entity": ("entity_id", "dimension"),
             "relationship_entity_class": ("entity_class_id", "dimension"),
         }
-        self._create_session()
 
     def make_commit_id(self):
         return None
@@ -239,10 +238,6 @@ class DatabaseMappingBase:
                     with environment_context.begin_transaction():
                         environment_context.run_migrations()
         return engine
-
-    def _create_session(self):
-        """Create session."""
-        self.session = Session(self.connection, autocommit=True)
 
     def reconnect(self):
         self.connection = self.engine.connect()

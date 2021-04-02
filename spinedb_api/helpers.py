@@ -833,14 +833,14 @@ def _create_first_spine_database(db_url):
     return engine
 
 
-def forward_sweep(root, func):
+def forward_sweep(root, fn):
     """Recursively visit, using `get_children()`, the given sqlalchemy object.
-    Apply `func` on every visited node."""
+    Apply `fn` on every visited node."""
     current = root
     parent = {}
     children = {current: iter(current.get_children(column_collections=False))}
     while True:
-        func(current)
+        fn(current)
         # Try and visit next children
         next_ = next(children[current], None)
         if next_ is not None:

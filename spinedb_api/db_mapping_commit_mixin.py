@@ -17,6 +17,8 @@ Provides :class:`.QuickDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
+from sqlalchemy import event
+from sqlalchemy.sql import Select
 from .exception import SpineDBAPIError
 
 
@@ -32,6 +34,13 @@ class DatabaseMappingCommitMixin:
         super().__init__(*args, **kwargs)
         self._transaction = None
         self._commit_id = None
+        event.listen(self.engine, 'before_execute', self._receive_before_execute)
+
+    def _receive_before_execute(self, conn, clauseelement, _multiparams, _params):
+        """Makes commit id."""
+        if isinstance(clauseelement, Select) or conn != self.connection:
+            return
+        self.make_commit_id()
 
     def has_pending_changes(self):
         return self._commit_id is not None
@@ -42,6 +51,7 @@ class DatabaseMappingCommitMixin:
             user = self.username
             date = datetime.now(timezone.utc)
             ins = self._metadata.tables["commit"].insert()
+            self._commit_id = 0  # To avoid recursion
             self._commit_id = self._checked_execute(
                 ins, {"user": user, "date": date, "comment": ""}
             ).inserted_primary_key[0]
@@ -53,8 +63,8 @@ class DatabaseMappingCommitMixin:
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)
-        upd = commit.update().where(commit.c.id == self.make_commit_id()).values(user=user, date=date, comment=comment)
-        self.connection.execute(upd)
+        upd = commit.update().where(commit.c.id == self.make_commit_id())
+        self._checked_execute(upd, dict(user=user, date=date, comment=comment))
         self._transaction.commit()
         self._commit_id = None
 
