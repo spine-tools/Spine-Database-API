@@ -1022,14 +1022,9 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
     def test_update_objects(self):
         """Test that updating objects works."""
         db_map = create_diff_db_map()
-        query_wrapper = create_query_wrapper(db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq:
-            mock_query.side_effect = query_wrapper
-            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1}, {"id": 2, "name": "dory", "class_id": 1})
-            ids, intgr_error_log = db_map.update_objects({"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"})
+        db_map.add_object_classes({"id": 1, "name": "fish"})
+        db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1}, {"id": 2, "name": "dory", "class_id": 1})
+        ids, intgr_error_log = db_map.update_objects({"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"})
         sq = db_map.object_sq
         objects = {x.id: x.name for x in db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
@@ -1037,7 +1032,7 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         self.assertEqual(objects[2], "squidward")
         db_map.connection.close()
 
-    def test_update_objects_not_commited(self):
+    def test_update_objects_not_committed(self):
         """Test that updating objects works."""
         db_map = create_diff_db_map()
         db_map.add_object_classes({"id": 1, "name": "some_class"})

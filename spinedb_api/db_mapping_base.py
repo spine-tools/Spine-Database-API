@@ -259,6 +259,11 @@ class DatabaseMappingBase:
         self._checked_execute(in_value.insert(), [{"value": val} for val in set(values)])
         return column.in_(self.query(in_value.c.value))
 
+    def _get_table_to_sq_attr(self):
+        if not self._table_to_sq_attr:
+            self._table_to_sq_attr = self._make_table_to_sq_attr()
+        return self._table_to_sq_attr
+
     def _make_table_to_sq_attr(self):
         """Returns a dict mapping table names to subquery attribute names, involving that table.
         """
@@ -285,7 +290,7 @@ class DatabaseMappingBase:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        attrs = set(attr for table in tablenames for attr in self._table_to_sq_attr.get(table, []))
+        attrs = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
         for attr in attrs:
             setattr(self, attr, None)
 

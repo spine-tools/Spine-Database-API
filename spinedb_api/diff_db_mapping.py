@@ -52,7 +52,6 @@ class DiffDatabaseMapping(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._table_to_sq_attr = self._make_table_to_sq_attr()
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
