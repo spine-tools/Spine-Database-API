@@ -58,15 +58,14 @@ class DataPackageConnector(SourceConnection):
 
         Returns:
             dict: key is resource name, value is mapping and options.
-
-        Raises:
-            Exception: If something goes wrong.
         """
         if not self._datapackage:
             return {}
         tables = {}
-        for name in self._datapackage.resource_names:
-            tables[name] = {"options": {}}  # FIXME?
+        for resource in self._datapackage.resources:
+            if resource.name is None:
+                resource.infer()
+            tables[resource.name] = {"options": {}}  # FIXME?
         return tables
 
     def get_data_iterator(self, table, options, max_rows=-1):
@@ -75,12 +74,14 @@ class DataPackageConnector(SourceConnection):
         specified only that number of rows.
         """
         if not self._datapackage:
-            return iter([]), [], 0
+            return iter([]), []
 
-        if not table in self._datapackage.resource_names:
-            # table not found
-            return iter([]), [], 0
-        resource = self._datapackage.get_resource(table)
-        iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
-        header = resource.schema.field_names
-        return iterator, header
+        for resource in self._datapackage.resources:
+            if resource.name is None:
+                resource.infer()
+            if table == resource.name:
+                iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
+                header = resource.schema.field_names
+                return iterator, header
+        # table not found
+        return iter([]), []
