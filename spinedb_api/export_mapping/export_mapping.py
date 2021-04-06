@@ -567,19 +567,8 @@ class ObjectGroupMapping(ExportMapping):
         return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
 
     def _update_query_cache(self, db_map):
-        group_entity = aliased(db_map.entity_sq)
-        group_sq = (
-            db_map.query(
-                db_map.entity_group_sq.c.entity_class_id,
-                db_map.entity_group_sq.c.entity_id,
-                group_entity.c.name.label("group_name"),
-            )
-            .group_by(db_map.entity_group_sq.c.entity_id)
-            .join(group_entity, db_map.entity_group_sq.c.entity_id == group_entity.c.id)
-            .subquery()
-        )
-        for x in db_map.query(group_sq):
-            self._query_cache.setdefault(x.entity_class_id, []).append(x)
+        for x in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.group_id):
+            self._query_cache.setdefault(x.class_id, []).append(x)
 
 
 class ObjectGroupObjectMapping(ExportMapping):
@@ -591,7 +580,7 @@ class ObjectGroupObjectMapping(ExportMapping):
     MAP_TYPE = "ObjectGroupObject"
 
     def _data(self, db_row):
-        return db_row.name
+        return db_row.member_name
 
     @staticmethod
     def is_buddy(parent):
@@ -605,28 +594,12 @@ class ObjectGroupObjectMapping(ExportMapping):
             if not self._query_cache:
                 self._update_query_cache(db_map)
             return self._query_cache.get(
-                (state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.OBJECT_GROUP_ROW_CACHE].entity_id), []
+                (state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.OBJECT_GROUP_ROW_CACHE].group_id), []
             )
         return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
 
     def _update_query_cache(self, db_map):
-        group_entity = aliased(db_map.object_sq)
-        member_entity = aliased(db_map.object_sq)
-        member_object_sq = (
-            db_map.query(
-                db_map.entity_group_sq.c.member_id.label("id"),
-                db_map.entity_group_sq.c.entity_class_id.label("class_id"),
-                db_map.entity_group_sq.c.entity_id.label("group_id"),
-                db_map.entity_class_sq.c.name.label("class_name"),
-                member_entity.c.name.label("name"),
-                member_entity.c.description.label("description"),
-            )
-            .filter(db_map.entity_group_sq.c.entity_class_id == db_map.entity_class_sq.c.id)
-            .join(group_entity, db_map.entity_group_sq.c.entity_id == group_entity.c.id)
-            .join(member_entity, db_map.entity_group_sq.c.member_id == member_entity.c.id)
-            .subquery()
-        )
-        for x in db_map.query(member_object_sq):
+        for x in db_map.query(db_map.ext_entity_group_sq):
             self._query_cache.setdefault((x.class_id, x.group_id), []).append(x)
 
 
