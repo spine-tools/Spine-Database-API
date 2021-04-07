@@ -1069,6 +1069,13 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
+    def test_header_without_data_still_creates_header(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="object")])
+        expected = [["class", "object"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
     def test_header_position(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
@@ -1097,6 +1104,25 @@ class TestExportMapping(unittest.TestCase):
             ]
         )
         expected = [["", "", "oc1", "oc2"], ["rc", "rc_o11__o21", "o11", "o21"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
+    def test_header_position_with_relationships_but_no_data(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
+        db_map.commit_session("Add test data.")
+        root = unflatten(
+            [
+                RelationshipClassMapping(0),
+                RelationshipClassObjectClassMapping(Position.header),
+                RelationshipClassObjectClassMapping(Position.header),
+                RelationshipMapping(1),
+                RelationshipObjectMapping(2),
+                RelationshipObjectMapping(3),
+            ]
+        )
+        expected = [["", "", "oc1", "oc2"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 

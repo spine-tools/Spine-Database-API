@@ -289,11 +289,13 @@ class ExportMapping(Mapping):
             if not is_regular(self.position):
                 return {}
             return {self.position: self.header}
+        db_row = None
         try:
             db_row = next(iter(self._query(db_map, state, fixed_state)))
-        except StopIteration:
-            return {}
-        self._update_state(state, db_row)
+        except (KeyError, StopIteration):
+            pass
+        else:
+            self._update_state(state, db_row)
         header = self.child.make_header(db_map, state, fixed_state, buddies)
         if self.position == Position.header:
             buddy = find_my_buddy(self, buddies)
