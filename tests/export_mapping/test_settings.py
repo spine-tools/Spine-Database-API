@@ -58,7 +58,7 @@ class TestObjectGroupParameterExport(unittest.TestCase):
         )
         e = import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
         db_map.commit_session("Add test data.")
-        mapping = object_group_parameter_export(0, 1, 2, 3, 4, 5, 6, None)
+        mapping = object_group_parameter_export(0, 1, 2, 3, 4, 5, 6, 7, None)
         expected = [
             ["oc", "param", None, "g1", "o1", "Base", -11.0],
             ["oc", "param", None, "g1", "o2", "Base", -22.0],

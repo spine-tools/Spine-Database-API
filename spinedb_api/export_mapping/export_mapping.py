@@ -1596,6 +1596,7 @@ def from_dict(serialized):
             ParameterValueListMapping,
             ParameterValueListValueMapping,
             ParameterValueMapping,
+            ParameterValueTypeMapping,
             RelationshipMapping,
             RelationshipClassMapping,
             RelationshipClassObjectClassMapping,

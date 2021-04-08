@@ -254,7 +254,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(1, 2, Position.hidden, 0, -2, 4, [3])
+        mapping = object_parameter_export(1, 2, Position.hidden, 0, -2, Position.hidden, 4, [3])
         expected = [
             [None, None, None, None, "Base", "alt"],
             ["o", "oc", "p", "A", -1.1, -5.5],
@@ -454,7 +454,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-5.5, -6.6])))
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, 5, [4])
+        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [4])
         expected = [
             [None, None, None, None, None, "o1", "o2"],
             ["oc", None, "p", "Base", "A", -1.1, -5.5],
@@ -479,7 +479,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, 5, [4])
+        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [4])
         expected = [
             [None, None, None, None, None, "o1", "o2"],
             ["oc", None, "p", "Base", "A", -1.1, -5.5],
@@ -499,7 +499,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-3.3, -4.4])))
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, 4, [-2])
+        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 4, [-2])
         expected = [
             [None, None, None, None, "o1", "o1", "o2", "o2"],
             [None, None, None, None, "A", "B", "A", "B"],
@@ -529,7 +529,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 1, Position.hidden, -1, -2, 2, [-3])
+        mapping = object_parameter_export(0, 1, Position.hidden, -1, -2, Position.hidden, 2, [-3])
         expected = [
             [None, None, "o1", "o1", "o1", "o1", "o2", "o2", "o2", "o2"],
             [None, None, "Base", "Base", "alt", "alt", "Base", "Base", "alt", "alt"],

@@ -33,6 +33,7 @@ from .export_mapping import (
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
+    ParameterValueTypeMapping,
     Position,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
@@ -102,6 +103,7 @@ def object_parameter_export(
     value_list_position=Position.hidden,
     object_position=Position.hidden,
     alternative_position=Position.hidden,
+    value_type_position=Position.hidden,
     value_position=Position.hidden,
     index_positions=None,
 ):
@@ -113,7 +115,8 @@ def object_parameter_export(
         definition_position (int or Position): position of parameter names in a table
         value_list_position (int or Position): position of parameter value lists
         object_position (int or Position): position of objects in a table
-        alternative_position (int or position): position of alternatives in a table
+        alternative_position (int or Position): position of alternatives in a table
+        value_type_position (int or Position): position of parameter value types in a table
         value_position (int or Position): position of parameter values in a table
         index_positions (list or int, optional): positions of parameter indexes in a table
 
@@ -125,7 +128,7 @@ def object_parameter_export(
     value_list = ParameterValueListMapping(value_list_position)
     value_list.set_ignorable()
     object_ = ObjectMapping(object_position)
-    _generate_parameter_value_mappings(object_, alternative_position, value_position, index_positions)
+    _generate_parameter_value_mappings(object_, alternative_position, value_type_position, value_position, index_positions)
     value_list.child = object_
     definition.child = value_list
     class_.child = definition
@@ -139,6 +142,7 @@ def object_group_parameter_export(
     group_position=Position.hidden,
     object_position=Position.hidden,
     alternative_position=Position.hidden,
+    value_type_position=Position.hidden,
     value_position=Position.hidden,
     index_positions=None,
 ):
@@ -152,6 +156,7 @@ def object_group_parameter_export(
         group_position (int or Position): position of groups
         object_position (int or Position): position of objects
         alternative_position (int or position): position of alternatives in a table
+        value_type_position (int or Position): position of parameter value types in a table
         value_position (int or Position): position of parameter values in a table
         index_positions (list or int, optional): positions of parameter indexes in a table
 
@@ -165,7 +170,7 @@ def object_group_parameter_export(
     group = ObjectGroupMapping(group_position)
     object_ = ObjectGroupObjectMapping(object_position)
     group.child = object_
-    _generate_parameter_value_mappings(object_, alternative_position, value_position, index_positions)
+    _generate_parameter_value_mappings(object_, alternative_position, value_type_position, value_position, index_positions)
     value_list.child = group
     definition.child = value_list
     class_.child = definition
@@ -259,6 +264,7 @@ def relationship_parameter_export(
     object_class_positions=None,
     object_positions=None,
     alternative_position=Position.hidden,
+    value_type_position=Position.hidden,
     value_position=Position.hidden,
     index_positions=None,
 ):
@@ -273,6 +279,7 @@ def relationship_parameter_export(
         object_class_positions (list of int, optional): positions of object classes
         object_positions (list of int, optional): positions of objects
         alternative_position (int or Position): positions of alternatives
+        value_type_position (int or Position): position of parameter value types
         value_position (int or Position): position of parameter values
         index_positions (list of int, optional): positions of parameter indexes
 
@@ -295,7 +302,7 @@ def relationship_parameter_export(
     definition.child = value_list
     value_list.child = relationship
     object_or_relationship = _generate_dimensions(relationship, RelationshipObjectMapping, object_positions)
-    _generate_parameter_value_mappings(object_or_relationship, alternative_position, value_position, index_positions)
+    _generate_parameter_value_mappings(object_or_relationship, alternative_position, value_type_position, value_position, index_positions)
     return relationship_class
 
 
@@ -530,7 +537,7 @@ def _generate_dimensions(parent, cls, positions):
     return _generate_dimensions(mapping, cls, positions[1:])
 
 
-def _generate_parameter_value_mappings(mapping, alternative_position, value_position, index_positions):
+def _generate_parameter_value_mappings(mapping, alternative_position, value_type_position, value_position, index_positions):
     """
     Appends alternative, value and (optionally) index mappings to given mapping.
 
@@ -539,15 +546,18 @@ def _generate_parameter_value_mappings(mapping, alternative_position, value_posi
     Args:
         mapping (Mapping): mapping where to add parameter mappings
         alternative_position (int or Position): position of alternatives
+        value_type_position (int or Position): position of parameter value types
         value_position (int or Position,): position of parameter values
         index_positions (list of int, optional): positions of parameter indexes
     """
     alternative = AlternativeMapping(alternative_position)
+    value_type = ParameterValueTypeMapping(value_type_position)
+    alternative.child = value_type
     if not index_positions:
         value = ParameterValueMapping(value_position)
-        alternative.child = value
+        value_type.child = value
     else:
-        last_index = _generate_dimensions(alternative, ParameterValueIndexMapping, index_positions)
+        last_index = _generate_dimensions(value_type, ParameterValueIndexMapping, index_positions)
         last_index.child = ExpandedParameterValueMapping(value_position)
     mapping.child = alternative
 
