@@ -26,7 +26,7 @@ class ExcelWriter(Writer):
     def __init__(self, file_path):
         """
         Args:
-            file_path (str): path ot output file
+            file_path (str): path to output file
         """
         super().__init__()
         self._file_path = file_path
