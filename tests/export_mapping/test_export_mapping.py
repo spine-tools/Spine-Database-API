@@ -58,6 +58,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
+    ParameterValueTypeMapping,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
     RelationshipMapping,
@@ -1267,8 +1268,9 @@ class TestExportMapping(unittest.TestCase):
             AlternativeMapping(3),
             ParameterValueMapping(4),
             ParameterValueIndexMapping(5),
-            ExpandedParameterValueMapping(6),
-            FixedValueMapping(7, "gaga"),
+            ParameterValueTypeMapping(6),
+            ExpandedParameterValueMapping(7),
+            FixedValueMapping(8, "gaga"),
         ]
         expected_positions = [m.position for m in mappings]
         expected_types = [type(m) for m in mappings]

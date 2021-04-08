@@ -60,9 +60,9 @@ class TestObjectGroupParameterExport(unittest.TestCase):
         db_map.commit_session("Add test data.")
         mapping = object_group_parameter_export(0, 1, 2, 3, 4, 5, 6, 7, None)
         expected = [
-            ["oc", "param", None, "g1", "o1", "Base", -11.0],
-            ["oc", "param", None, "g1", "o2", "Base", -22.0],
-            ["oc", "param", None, "g2", "o3", "Base", -33.0],
+            ["oc", "param", None, "g1", "o1", "Base", "single_value", -11.0],
+            ["oc", "param", None, "g1", "o2", "Base", "single_value", -22.0],
+            ["oc", "param", None, "g2", "o3", "Base", "single_value", -33.0],
         ]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
