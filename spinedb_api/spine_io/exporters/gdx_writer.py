@@ -16,7 +16,7 @@ Module contains a .gdx writer implementation.
 """
 
 from gdx2py import GAMSSet, GAMSScalar, GAMSParameter, GdxFile
-from .writer import Writer
+from .writer import Writer, WriterException
 
 
 class GdxWriter(Writer):
@@ -32,22 +32,48 @@ class GdxWriter(Writer):
         self._gdx_file = None
         self._current_table_name = None
         self._current_table = None
+        self._dimensions = None
 
     def finish(self):
-        self._gdx_file.close()
+        if self._gdx_file is not None:
+            self._gdx_file.close()
 
     def finish_table(self):
-        set_ = GAMSSet(self._current_table, "*")
+        first_row = self._current_table[0] if self._current_table else []
+        if first_row:
+            is_parameter = isinstance(self._current_table[-1][-1], (float, int))
+            if is_parameter:
+                if len(first_row) == 1:
+                    set_ = GAMSScalar(first_row[0])
+                else:
+                    n_dimensions = len(first_row) - 1
+                    data = {row[:-1]: row[-1] for row in self._current_table}
+                    set_ = GAMSParameter(data, self._dimensions[:n_dimensions])
+            else:
+                try:
+                    set_ = GAMSSet(self._current_table, self._dimensions)
+                except ValueError as e:
+                    raise WriterException(f"Error writing empty table '{self._current_table_name}': {e}")
+        else:
+            set_ = GAMSSet(self._current_table, self._dimensions)
         self._gdx_file[self._current_table_name] = set_
 
     def start(self):
-        self._gdx_file = GdxFile(self._file_path, "w", self._gams_dir)
+        try:
+            self._gdx_file = GdxFile(self._file_path, "w", self._gams_dir)
+        except RuntimeError as e:
+            raise WriterException(f"Could not open .gdx file : {e}")
 
     def start_table(self, table_name, title_key):
         self._current_table_name = table_name
         self._current_table = list()
+        self._dimensions = None
         return True
 
     def write_row(self, row):
-        self._current_table.append(row)
+        # First row should contain dimensions unless we are exporting a GAMS scalar.
+        if self._dimensions is None and row and isinstance(row[0], str):
+            self._dimensions = tuple(row)
+            return True
+        self._current_table.append(tuple(row))
         return True

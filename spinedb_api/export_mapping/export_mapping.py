@@ -22,7 +22,6 @@ from itertools import cycle, dropwhile, chain
 from collections import namedtuple
 import re
 import json
-from sqlalchemy.orm import aliased
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from .group_functions import NoGroup
