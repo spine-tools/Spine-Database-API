@@ -29,6 +29,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
         regular_columns (Iterable of int): indexes of non-pivoted columns in ``table``
         hidden_columns (Iterable of int): indexes of columns that will not show on the pivot table
         pivot_columns (Iterable of int): indexes of pivoted columns in ``table``
+        group_fn (str, optional): grouping function's name
 
     Yields:
         list: pivoted table row
@@ -125,7 +126,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
 
     if not table:
         return []
-    pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table})
+    pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table}, key=_convert_elements_to_strings)
     pivot_header = tuple(header[i] for i in pivot_columns) if header is not None else None
     if regular_columns or hidden_columns:
         regular_column_width = max(regular_columns) + 1 if regular_columns else 0
@@ -166,7 +167,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
                 pivot_branch = leaf(values, row_key)
                 yield [None] + [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
         else:
-            for row_key in sorted(regular_rows.keys()):
+            for row_key in sorted(regular_rows.keys(), key=_convert_elements_to_strings):
                 pivot_branch = leaf(values, row_key)
                 row = regular_rows[row_key]
                 row += [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
@@ -174,6 +175,18 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
     else:
         for row in half_pivot():
             yield row
+
+
+def _convert_elements_to_strings(key):
+    """Converts tuple's elements to strings replacing Nones with empty strings.
+
+    Args:
+        key (tuple): tuple to convert
+
+    Returns:
+        tuple of str: sortable tuple
+    """
+    return tuple(map(lambda x: str(x) if x is not None else "", key))
 
 
 def make_regular(root_mapping):

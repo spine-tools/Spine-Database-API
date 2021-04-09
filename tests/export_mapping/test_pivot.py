@@ -123,6 +123,54 @@ class TestPivot(unittest.TestCase):
         expected = [["H", "1", "2", "3"], ["A", None, None, -5.5], ["B", None, None, -8.8], ["C", -9.9, None, None]]
         self.assertEqual(pivot_table, expected)
 
+    def test_Nones_in_regular_keys(self):
+        table = [
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            [None, "a", "2", -6.6],
+            [None, "b", "2", -7.7],
+            [None, "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, None, 3, [0], [1], [2]))
+        expected = [
+            [None, "1", "2", "3"],
+            [None, None, -6.6, None],
+            [None, None, -7.7, None],
+            [None, None, None, -8.8],
+            ["A", -1.1, -2.2, None],
+            ["A", -3.3, -4.4, -5.5],
+            ["C", -9.9, None, None],
+        ]
+        self.assertEqual(pivot_table, expected)
+
+    def test_Nones_in_pivot_keys(self):
+        table = [
+            ["A", "a", "1", -1.1],
+            ["A", "a", None, -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", None, -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", None, -6.6],
+            ["B", "b", None, -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, None, 3, [0], [1], [2]))
+        expected = [
+            [None, None, "1", "3"],
+            ["A", -2.2, -1.1, None],
+            ["A", -4.4, -3.3, -5.5],
+            ["B", -6.6, None, None],
+            ["B", -7.7, None, None],
+            ["B", None, None, -8.8],
+            ["C", None, -9.9, None],
+        ]
+        self.assertEqual(pivot_table, expected)
+
 
 if __name__ == "__main__":
     unittest.main()

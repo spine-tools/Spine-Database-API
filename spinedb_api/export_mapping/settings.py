@@ -128,7 +128,9 @@ def object_parameter_export(
     value_list = ParameterValueListMapping(value_list_position)
     value_list.set_ignorable()
     object_ = ObjectMapping(object_position)
-    _generate_parameter_value_mappings(object_, alternative_position, value_type_position, value_position, index_positions)
+    _generate_parameter_value_mappings(
+        object_, alternative_position, value_type_position, value_position, index_positions
+    )
     value_list.child = object_
     definition.child = value_list
     class_.child = definition
@@ -170,7 +172,9 @@ def object_group_parameter_export(
     group = ObjectGroupMapping(group_position)
     object_ = ObjectGroupObjectMapping(object_position)
     group.child = object_
-    _generate_parameter_value_mappings(object_, alternative_position, value_type_position, value_position, index_positions)
+    _generate_parameter_value_mappings(
+        object_, alternative_position, value_type_position, value_position, index_positions
+    )
     value_list.child = group
     definition.child = value_list
     class_.child = definition
@@ -302,7 +306,9 @@ def relationship_parameter_export(
     definition.child = value_list
     value_list.child = relationship
     object_or_relationship = _generate_dimensions(relationship, RelationshipObjectMapping, object_positions)
-    _generate_parameter_value_mappings(object_or_relationship, alternative_position, value_type_position, value_position, index_positions)
+    _generate_parameter_value_mappings(
+        object_or_relationship, alternative_position, value_type_position, value_position, index_positions
+    )
     return relationship_class
 
 
@@ -537,7 +543,9 @@ def _generate_dimensions(parent, cls, positions):
     return _generate_dimensions(mapping, cls, positions[1:])
 
 
-def _generate_parameter_value_mappings(mapping, alternative_position, value_type_position, value_position, index_positions):
+def _generate_parameter_value_mappings(
+    mapping, alternative_position, value_type_position, value_position, index_positions
+):
     """
     Appends alternative, value and (optionally) index mappings to given mapping.
 
