@@ -18,6 +18,7 @@ General helper functions and classes.
 
 import json
 import warnings
+from collections import namedtuple
 from sqlalchemy import (
     Boolean,
     BigInteger,
@@ -900,6 +901,41 @@ def get_parameter_value_list_items(item):
 
 def labelled_columns(table):
     return [c.label(c.name) for c in table.columns]
+
+
+def type_from_value(db_value):
+    """
+
+    Args:
+        db_value (str): Value in the database
+    Returns:
+        _ParameterValueType: The type key in case of indexed parameter value, 'single_value' otherwise;
+            and dimension count.
+    """
+    ParameterValueType = namedtuple('_ParameterValueType', ['type_', 'dimension_count'])
+    value = json.loads(db_value)
+    if isinstance(value, dict):
+        type_ = value["type"]
+        if type_ == "map":
+            data = value["data"]
+            k = 1
+            while True:
+                if isinstance(data, dict):
+                    values = data.values()
+                elif isinstance(data[0], list):
+                    values = (x[-1] for x in data)
+                else:
+                    values = iter(data)
+                nested_types = ("map", "time_series", "time_pattern")
+                next_value = next((v for v in values if isinstance(v, dict) and v.get("type") in nested_types), None)
+                if next_value is None:
+                    break
+                data = next_value["data"]
+                k += 1
+            return ParameterValueType(type_, k)
+        if type_ in ("array", "time_series", "time_pattern"):
+            return ParameterValueType(type_, 1)
+    return ParameterValueType("single_value", 0)
 
 
 class AsteriskType:

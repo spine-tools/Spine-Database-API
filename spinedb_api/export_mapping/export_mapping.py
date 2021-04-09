@@ -19,11 +19,11 @@ from copy import copy
 from dataclasses import dataclass
 from enum import auto, Enum, unique
 from itertools import cycle, dropwhile, chain
-from collections import namedtuple
 import re
 import json
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
+from ..helpers import type_from_value
 from .group_functions import NoGroup
 
 
@@ -883,7 +883,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
 
     def _query(self, db_map, state, fixed_state):
         qry = super()._query(db_map, state, fixed_state)
-        return [_type_from_value(db_row.value) for db_row in qry]
+        return [type_from_value(db_row.value) for db_row in qry]
 
 
 class ParameterValueIndexMapping(ExportMapping):
@@ -1451,43 +1451,6 @@ def _expand_values_from_parameter(cached_parameter):
         yield db_row
 
 
-_ParameterValueType = namedtuple('_ParameterValueType', ['type_', 'dimension_count'])
-
-
-def _type_from_value(db_value):
-    """
-
-    Args:
-        db_value (str): Value in the database
-    Returns:
-        _ParameterValueType: The type key in case of indexed parameter value, 'single_value' otherwise;
-            and dimension count.
-    """
-    value = json.loads(db_value)
-    if isinstance(value, dict):
-        type_ = value["type"]
-        if type_ == "map":
-            data = value["data"]
-            k = 1
-            while True:
-                if isinstance(data, dict):
-                    values = data.values()
-                elif isinstance(data[0], list):
-                    values = (x[-1] for x in data)
-                else:
-                    values = iter(data)
-                nested_types = ("map", "time_series", "time_pattern")
-                next_value = next((v for v in values if isinstance(v, dict) and v.get("type") in nested_types), None)
-                if next_value is None:
-                    break
-                data = next_value["data"]
-                k += 1
-            return _ParameterValueType(type_, k)
-        if type_ in ("array", "time_series", "time_pattern"):
-            return _ParameterValueType(type_, 1)
-    return _ParameterValueType("single_value", 0)
-
-
 def _load_and_expand(value_row, fixed_state):
     """
     Loads and parses parameter values from database and expands them into a dict.
@@ -1501,7 +1464,7 @@ def _load_and_expand(value_row, fixed_state):
     if value_row is None:
         return []
     value_type = fixed_state.get(ExportKey.PARAMETER_VALUE_TYPE)
-    if value_type is not None and _type_from_value(value_row.value) != value_type:
+    if value_type is not None and type_from_value(value_row.value) != value_type:
         return []
     yield _expand_value(from_database(value_row.value))
 

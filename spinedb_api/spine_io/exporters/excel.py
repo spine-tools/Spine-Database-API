@@ -38,12 +38,11 @@ from spinedb_api.export_mapping.export_mapping import (
     RelationshipMapping,
     RelationshipObjectMapping,
 )
+from spinedb_api.helpers import type_from_value
 from .excel_writer import ExcelWriter
 from .writer import write
 
 # FIXME: Use multiple sheets if data doesn't fit
-
-MAX_MAP_DIM_COUNT = 3
 
 
 class ExcelWriterWithPreamble(ExcelWriter):
@@ -132,8 +131,8 @@ def _make_scenario_alternative_mapping():
 
 
 def _make_object_group_mappings(db_map):
-    for obj_cls in db_map.query(db_map.object_class_sq):
-        root_mapping = ObjectClassMapping(Position.table_name, filter_re=obj_cls.name)
+    for obj_grp in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.class_name):
+        root_mapping = ObjectClassMapping(Position.table_name, filter_re=obj_grp.class_name)
         group_mapping = root_mapping.child = FixedValueMapping(Position.table_name, value="group")
         object_mapping = group_mapping.child = ObjectMapping(1, header="member")
         object_mapping.child = ObjectGroupMapping(0, header="group")
@@ -161,42 +160,42 @@ def _make_indexed_parameter_value_mapping(alt_pos=-2, filter_re="array|time_patt
     return alternative_mapping
 
 
-def _make_object_mapping(object_class, pivoted=False):
-    root_mapping = ObjectClassMapping(Position.table_name, filter_re=f"^{object_class.name}$", group_fn="one_or_none")
+def _make_object_mapping(object_class_name, pivoted=False):
+    root_mapping = ObjectClassMapping(Position.table_name, filter_re=f"^{object_class_name}$", group_fn="one_or_none")
     pos = 0 if not pivoted else -1
-    root_mapping.child = ObjectMapping(pos, header=object_class.name)
+    root_mapping.child = ObjectMapping(pos, header=object_class_name)
     return root_mapping
 
 
-def _make_object_scalar_parameter_value_mapping(object_class):
-    root_mapping = _make_object_mapping(object_class)
+def _make_object_scalar_parameter_value_mapping(object_class_name):
+    root_mapping = _make_object_mapping(object_class_name)
     object_mapping = root_mapping.child
     object_mapping.child = _make_scalar_parameter_value_mapping(alt_pos=1)
     return root_mapping
 
 
-def _make_object_indexed_parameter_value_mapping(object_class):
-    root_mapping = _make_object_mapping(object_class, pivoted=True)
+def _make_object_indexed_parameter_value_mapping(object_class_name):
+    root_mapping = _make_object_mapping(object_class_name, pivoted=True)
     object_mapping = root_mapping.child
     object_mapping.child = _make_indexed_parameter_value_mapping(alt_pos=-2)
     return root_mapping
 
 
-def _make_object_map_parameter_value_mapping(object_class, dim_count):
-    root_mapping = _make_object_mapping(object_class, pivoted=True)
+def _make_object_map_parameter_value_mapping(object_class_name, dim_count):
+    root_mapping = _make_object_mapping(object_class_name, pivoted=True)
     object_mapping = root_mapping.child
     filter_re = f"{dim_count}d_map"
     object_mapping.child = _make_indexed_parameter_value_mapping(alt_pos=-2, filter_re=filter_re, dim_count=dim_count)
     return root_mapping
 
 
-def _make_relationship_mapping(relationship_class, pivoted=False):
+def _make_relationship_mapping(relationship_class_name, object_class_name_list, pivoted=False):
     root_mapping = RelationshipClassMapping(
-        Position.table_name, filter_re=f"^{relationship_class.name}$", group_fn="one_or_none"
+        Position.table_name, filter_re=f"^{relationship_class_name}$", group_fn="one_or_none"
     )
     relationship_mapping = root_mapping.child = RelationshipMapping(Position.hidden)
     parent_mapping = relationship_mapping
-    for d, class_name in enumerate(relationship_class.object_class_name_list.split(",")):
+    for d, class_name in enumerate(object_class_name_list):
         if pivoted:
             d = -(d + 1)
         object_mapping = parent_mapping.child = RelationshipObjectMapping(d, header=class_name)
@@ -204,41 +203,73 @@ def _make_relationship_mapping(relationship_class, pivoted=False):
     return root_mapping
 
 
-def _make_relationship_scalar_parameter_value_mapping(relationship_class):
-    root_mapping = _make_relationship_mapping(relationship_class)
+def _make_relationship_scalar_parameter_value_mapping(relationship_class_name, object_class_name_list):
+    root_mapping = _make_relationship_mapping(relationship_class_name, object_class_name_list)
     parent_mapping = root_mapping.flatten()[-1]
-    d = len(relationship_class.object_class_name_list.split(","))
+    d = len(object_class_name_list)
     parent_mapping.child = _make_scalar_parameter_value_mapping(alt_pos=d)
     return root_mapping
 
 
-def _make_relationship_indexed_parameter_value_mapping(relationship_class):
-    root_mapping = _make_relationship_mapping(relationship_class, pivoted=True)
+def _make_relationship_indexed_parameter_value_mapping(relationship_class_name, object_class_name_list):
+    root_mapping = _make_relationship_mapping(relationship_class_name, object_class_name_list, pivoted=True)
     parent_mapping = root_mapping.flatten()[-1]
-    d = len(relationship_class.object_class_name_list.split(",")) + 1
+    d = len(object_class_name_list) + 1
     parent_mapping.child = _make_indexed_parameter_value_mapping(alt_pos=-d)
     return root_mapping
 
 
-def _make_relationship_map_parameter_value_mapping(relationship_class, dim_count):
-    root_mapping = _make_relationship_mapping(relationship_class, pivoted=True)
+def _make_relationship_map_parameter_value_mapping(relationship_class_name, object_class_name_list, dim_count):
+    root_mapping = _make_relationship_mapping(relationship_class_name, object_class_name_list, pivoted=True)
     parent_mapping = root_mapping.flatten()[-1]
-    d = len(relationship_class.object_class_name_list.split(",")) + 1
+    d = len(object_class_name_list) + 1
     filter_re = f"{dim_count}d_map"
     parent_mapping.child = _make_indexed_parameter_value_mapping(alt_pos=-d, filter_re=filter_re, dim_count=dim_count)
     return root_mapping
 
 
 def _make_parameter_value_mappings(db_map):
+    object_class_names = set()
+    relationship_class_names = set()
+    object_class_names_per_value_type = {}
+    relationship_classes_per_value_type = {}
+    for pval in db_map.query(db_map.object_parameter_value_sq):
+        value_type = type_from_value(pval.value)
+        object_class_names_per_value_type.setdefault(value_type, set()).add(pval.object_class_name)
+        object_class_names.add(pval.object_class_name)
+    for pval in db_map.query(db_map.relationship_parameter_value_sq):
+        value_type = type_from_value(pval.value)
+        object_class_name_list = tuple(pval.object_class_name_list.split(","))
+        relationship_classes_per_value_type.setdefault(value_type, set()).add(
+            (pval.relationship_class_name, object_class_name_list)
+        )
+        relationship_class_names.add(pval.relationship_class_name)
     for object_class in db_map.query(db_map.object_class_sq):
-        yield _make_object_mapping(object_class)
-        yield _make_object_scalar_parameter_value_mapping(object_class)
-        yield _make_object_indexed_parameter_value_mapping(object_class)
-        for k in range(1, MAX_MAP_DIM_COUNT + 1):
-            yield _make_object_map_parameter_value_mapping(object_class, k)
+        if object_class.name in object_class_names:
+            continue
+        yield _make_object_mapping(object_class.name)
     for relationship_class in db_map.query(db_map.wide_relationship_class_sq):
-        yield _make_relationship_mapping(relationship_class)
-        yield _make_relationship_scalar_parameter_value_mapping(relationship_class)
-        yield _make_relationship_indexed_parameter_value_mapping(relationship_class)
-        for k in range(1, MAX_MAP_DIM_COUNT + 1):
-            yield _make_relationship_map_parameter_value_mapping(relationship_class, k)
+        if relationship_class.name in relationship_class_names:
+            continue
+        object_class_name_list = tuple(relationship_class.object_class_name_list.split(","))
+        yield _make_relationship_mapping(relationship_class.name, object_class_name_list)
+    for value_type, object_class_names in object_class_names_per_value_type.items():
+        if value_type.type_ == "single_value":
+            for object_class_name in object_class_names:
+                yield _make_object_scalar_parameter_value_mapping(object_class_name)
+        elif value_type.type_ == "map":
+            for object_class_name in object_class_names:
+                yield _make_object_map_parameter_value_mapping(object_class_name, value_type.dimension_count)
+        else:
+            for object_class_name in object_class_names:
+                yield _make_object_indexed_parameter_value_mapping(object_class_name)
+    for value_type, relationship_classes in relationship_classes_per_value_type.items():
+        if value_type.type_ == "single_value":
+            for relationship_class in relationship_classes:
+                yield _make_relationship_scalar_parameter_value_mapping(*relationship_class)
+        elif value_type.type_ == "map":
+            for relationship_class in relationship_classes:
+                yield _make_relationship_map_parameter_value_mapping(*relationship_class, value_type.dimension_count)
+        else:
+            for relationship_class in relationship_classes:
+                yield _make_relationship_indexed_parameter_value_mapping(*relationship_class)
