@@ -19,7 +19,9 @@ from ..mapping import is_regular, is_pivoted, Position, unflatten
 from .group_functions import from_str as group_function_from_str, NoGroup
 
 
-def make_pivot(table, header, value_column, regular_columns, hidden_columns, pivot_columns, group_fn=None):
+def make_pivot(
+    table, header, value_column, regular_columns, hidden_columns, pivot_columns, group_fn=None, empty_data_header=True
+):
     """Turns a regular table into a pivot table.
 
     Args:
@@ -30,6 +32,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
         hidden_columns (Iterable of int): indexes of columns that will not show on the pivot table
         pivot_columns (Iterable of int): indexes of pivoted columns in ``table``
         group_fn (str, optional): grouping function's name
+        empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
 
     Yields:
         list: pivoted table row
@@ -124,7 +127,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
         else:
             row.append(header)
 
-    if not table and not header:
+    if not table and (not empty_data_header or not header):
         return
     pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table}, key=_convert_elements_to_strings)
     pivot_header = tuple(header[i] for i in pivot_columns) if header is not None else None

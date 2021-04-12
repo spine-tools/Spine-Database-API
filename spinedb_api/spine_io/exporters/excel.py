@@ -98,14 +98,11 @@ def export_spine_database_to_xlsx(db_map, filepath):
         db_map (spinedb_api.DatabaseMapping): database mapping.
         filepath (str): destination path.
     """
-    mappings = []
-    mappings.append(_make_alternative_mapping())
-    mappings.append(_make_scenario_mapping())
-    mappings.append(_make_scenario_alternative_mapping())
+    mappings = [_make_alternative_mapping(), _make_scenario_mapping(), _make_scenario_alternative_mapping()]
     mappings.extend(_make_object_group_mappings(db_map))
     mappings.extend(_make_parameter_value_mappings(db_map))
     writer = ExcelWriterWithPreamble(filepath)
-    write(db_map, writer, *mappings)
+    write(db_map, writer, *mappings, empty_data_header=False)
 
 
 def _make_alternative_mapping():

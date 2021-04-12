@@ -20,7 +20,7 @@ from .pivot import make_pivot, make_regular
 from .export_mapping import pair_header_buddies
 
 
-def rows(root_mapping, db_map, fixed_state=None):
+def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
     """
     Generates table's rows.
 
@@ -28,6 +28,7 @@ def rows(root_mapping, db_map, fixed_state=None):
         root_mapping (Mapping): root export mapping
         db_map (DatabaseMappingBase): a database map
         fixed_state (dict, optional): mapping state that fixes items
+        empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
 
     Yields:
         list: a list of row's cells
@@ -75,15 +76,31 @@ def rows(root_mapping, db_map, fixed_state=None):
             header = None
         regularized = list(row_iterator())
         yield from make_pivot(
-            regularized, header, value_column, regular_columns, hidden_columns, pivot_columns, root_mapping.group_fn
+            regularized,
+            header,
+            value_column,
+            regular_columns,
+            hidden_columns,
+            pivot_columns,
+            root_mapping.group_fn,
+            empty_data_header,
         )
     else:
+        row_iter = iter(row_iterator())
+        try:
+            peeked_row = next(row_iter)
+        except StopIteration:
+            if not empty_data_header:
+                return
+            peeked_row = None
         if root_mapping.has_header():
-            header_root = deepcopy(root_mapping)
-            buddies = pair_header_buddies(header_root)
-            header = listify_row(header_root.make_header(db_map, {}, fixed_state, buddies))
+            buddies = pair_header_buddies(root_mapping)
+            header = listify_row(root_mapping.make_header(db_map, {}, fixed_state, buddies))
             yield header
-        yield from row_iterator()
+        if peeked_row is None:
+            return
+        yield peeked_row
+        yield from row_iter
 
 
 def titles(root_mapping, db_map):

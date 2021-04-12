@@ -20,7 +20,7 @@ from spinedb_api.export_mapping import rows, titles
 from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail
 
 
-def write(db_map, writer, *mappings):
+def write(db_map, writer, *mappings, empty_data_header=True):
     """
     Writes given mapping.
 
@@ -28,15 +28,19 @@ def write(db_map, writer, *mappings):
         db_map (DatabaseMappingBase): database map
         writer (Writer): target writer
         mappings (Mapping): root mappings
+        empty_data_header (bool or Iterable of bool): True to write at least header rows even if there is no data,
+            False to write nothing; a list of booleans applies to each mapping individually
     """
+    if isinstance(empty_data_header, bool):
+        empty_data_header = len(mappings) * [empty_data_header]
     with _new_write(writer):
-        for mapping in mappings:
+        for mapping, header_for_empty_data in zip(mappings, empty_data_header):
             mapping = drop_non_positioned_tail(copy(mapping))
             for title, title_key in titles(mapping, db_map):
                 with _new_table(writer, title, title_key) as table_started:
                     if not table_started:
                         break
-                    for row in rows(mapping, db_map, title_key):
+                    for row in rows(mapping, db_map, title_key, header_for_empty_data):
                         write_more = writer.write_row(row)
                         if not write_more:
                             break
