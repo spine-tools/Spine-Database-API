@@ -74,10 +74,9 @@ def rows(root_mapping, db_map, fixed_state=None):
         else:
             header = None
         regularized = list(row_iterator())
-        for row in make_pivot(
+        yield from make_pivot(
             regularized, header, value_column, regular_columns, hidden_columns, pivot_columns, root_mapping.group_fn
-        ):
-            yield row
+        )
     else:
         if root_mapping.has_header():
             header_root = deepcopy(root_mapping)

@@ -1077,6 +1077,28 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
+    def test_header_in_half_pivot_table_without_data_still_creates_header(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        root = unflatten([ObjectClassMapping(-1, header="class"), ObjectMapping(9, header="object")])
+        expected = [["class"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
+    def test_header_in_pivot_table_without_data_still_creates_header(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        root = unflatten(
+            [
+                ObjectClassMapping(-1, header="class"),
+                ParameterDefinitionMapping(0, header="parameter"),
+                ObjectMapping(-2, header="object"),
+                AlternativeMapping(1, header="alternative"),
+                ParameterValueMapping(0),
+            ]
+        )
+        expected = [[None, "class"], ["parameter", "alternative"]]
+        self.assertEqual(list(rows(root, db_map)), expected)
+        db_map.connection.close()
+
     def test_header_position(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))

@@ -100,7 +100,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
             for c in pivot_columns[:-1]:
                 branch = branch.setdefault(row[c], dict())
             branch.setdefault(row[pivot_columns[-1]], list()).append(row[value_column])
-        height = max(len(leaf(values, key)) for key in pivot_keys)
+        height = max(len(leaf(values, key)) for key in pivot_keys) if pivot_keys else 0
         for i in range(height):
             row = [None] if pivot_header is not None else []
             for key in pivot_keys:
@@ -124,8 +124,8 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
         else:
             row.append(header)
 
-    if not table:
-        return []
+    if not table and not header:
+        return
     pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table}, key=_convert_elements_to_strings)
     pivot_header = tuple(header[i] for i in pivot_columns) if header is not None else None
     if regular_columns or hidden_columns:
@@ -161,7 +161,7 @@ def make_pivot(table, header, value_column, regular_columns, hidden_columns, piv
         # Yield regular rows
         regular_rows = regular_rows()
         values = value_tree()
-        if not any(regular_rows.values()) and pivot_header:
+        if not any(regular_rows.values()) and pivot_header and table:
             # Need a padding column for pivot header.
             for row_key in sorted(regular_rows.keys()):
                 pivot_branch = leaf(values, row_key)
