@@ -36,6 +36,7 @@ class SqlWriter(Writer):
         self._column_names = None
         self._column_converters = None
         self._table = None
+        self._finished_table_names = set()
 
     def finish(self):
         """Closes the database connection."""
@@ -49,18 +50,19 @@ class SqlWriter(Writer):
             columns = [Column(name, String) for name in self._column_names]
             self._table = Table(self._table_name, self._metadata, *columns)
             self._table.create(self._engine)
+        self._finished_table_names.add(self._table_name)
         self._session.commit()
 
     def start_table(self, table_name, title_key):
         """See base class."""
         if not table_name:
-            raise WriterException("Cannot create unnamed SQL tables.")
-        table = self._metadata.tables.get(table_name)
-        if table is not None:
-            table.drop(self._engine)
-            self._metadata.remove(table)
+            raise WriterException("Cannot create anonymous SQL tables.")
+        self._table = self._metadata.tables.get(table_name)
+        if self._table is not None and table_name not in self._finished_table_names:
+            self._table.drop(self._engine)
+            self._metadata.remove(self._table)
+            self._table = None
         self._table_name = table_name
-        self._table = None  # Create the table later when we know more.
         self._column_names = None
         return True
 
@@ -111,4 +113,4 @@ def _database_columns_and_converters(names, row):
         else:
             types.append(String)
             converters.append(str)
-    return [Column(name, type_) for name, type_ in zip(names, types)], converters
+    return [Column(name, type_, nullable=True) for name, type_ in zip(names, types)], converters

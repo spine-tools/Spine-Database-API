@@ -34,6 +34,7 @@ class ExcelWriter(Writer):
         self._current_sheet = None
         self._removable_sheet_names = set()
         self._next_table_name = None
+        self._default_sheet_title = None
 
     def finish(self):
         """See base class."""
@@ -69,14 +70,25 @@ class ExcelWriter(Writer):
         self._next_table_name = table_name
         return True
 
-    def _create_current_sheet(self):
-        self._current_sheet = self._workbook.create_sheet(self._next_table_name)
+    def _set_current_sheet(self):
+        """Gets an existing sheet from workbook or creates a new one if needed."""
+        if self._next_table_name is not None:
+            if self._next_table_name in self._workbook:
+                self._current_sheet = self._workbook[self._next_table_name]
+            else:
+                self._current_sheet = self._workbook.create_sheet(self._next_table_name)
+        else:
+            if self._default_sheet_title:
+                self._current_sheet = self._workbook[self._default_sheet_title]
+            else:
+                self._current_sheet = self._workbook.create_sheet(None)
+                self._default_sheet_title = self._current_sheet.title
         self._removable_sheet_names.discard(self._current_sheet.title)
 
     def write_row(self, row):
         """See base class."""
         if self._current_sheet is None:
-            self._create_current_sheet()
+            self._set_current_sheet()
         row = [_convert_to_excel(cell) for cell in row]
         self._current_sheet.append(row)
         return True

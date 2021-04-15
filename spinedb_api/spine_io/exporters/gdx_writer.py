@@ -65,6 +65,10 @@ class GdxWriter(Writer):
             raise WriterException(f"Could not open .gdx file : {e}")
 
     def start_table(self, table_name, title_key):
+        if not table_name:
+            raise WriterException("Gdx does not support anonymous tables.")
+        if self._current_table_name in self._gdx_file:
+            raise WriterException("Gdx does not support appending data to existing sets.")
         self._current_table_name = table_name
         self._current_table = list()
         self._dimensions = None

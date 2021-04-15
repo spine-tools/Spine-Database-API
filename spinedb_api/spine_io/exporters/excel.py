@@ -82,8 +82,8 @@ class ExcelWriterWithPreamble(ExcelWriter):
             preamble["index_dim_count"] = value_type.dimension_count
         return preamble
 
-    def _create_current_sheet(self):
-        super()._create_current_sheet()
+    def _set_current_sheet(self):
+        super()._set_current_sheet()
         if not self._preamble:
             return
         for row in self._preamble.items():

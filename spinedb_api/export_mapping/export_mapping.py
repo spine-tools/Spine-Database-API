@@ -110,6 +110,18 @@ class ExportMapping(Mapping):
         self.group_fn = group_fn
         self._query_cache = {}
 
+    def __eq__(self, other):
+        if not isinstance(other, ExportMapping):
+            return NotImplemented
+        if not super().__eq__(other):
+            return False
+        return (
+            self._filter_re == other._filter_re
+            and self._group_fn == other._group_fn
+            and self._ignorable == other._ignorable
+            and self.header == other.header
+        )
+
     @property
     def filter_re(self):
         return self._filter_re
@@ -1538,7 +1550,7 @@ def from_dict(serialized):
         serialized (list): serialize mappings
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     mappings = {
         klass.MAP_TYPE: klass

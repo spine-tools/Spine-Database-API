@@ -23,7 +23,7 @@ class CsvWriter(Writer):
     def __init__(self, path, backup_file_name):
         """
         Args:
-            path (str): path to output directory
+            path (Path or str): path to output directory
             backup_file_name (str): output file name if no table name is provided by the mappings
         """
         super().__init__()
@@ -57,7 +57,7 @@ class CsvWriter(Writer):
         else:
             table_name = table_name + ".csv"
         self._file_name = os.path.join(self._path, table_name)
-        self._file = open(self._file_name, "w", newline="")
+        self._file = open(self._file_name, "a", newline="")
         self._out = csv.writer(self._file)
         return True
 

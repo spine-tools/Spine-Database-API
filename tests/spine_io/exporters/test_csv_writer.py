@@ -33,36 +33,38 @@ class TestCsvWriter(unittest.TestCase):
 
     def test_write_empty_database(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
-        settings = object_export(0, 1)
+        root_mapping = object_export(0, 1)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
-        write(db_map, writer, settings)
+        write(db_map, writer, root_mapping)
         self.assertTrue(out_path.exists())
         with open(out_path) as out_file:
             self.assertEqual(out_file.readlines(), [])
+        db_map.connection.close()
 
     def test_write_single_object_class_and_object(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        settings = object_export(0, 1)
+        root_mapping = object_export(0, 1)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
-        write(db_map, writer, settings)
+        write(db_map, writer, root_mapping)
         self.assertTrue(out_path.exists())
         with open(out_path) as out_file:
             self.assertEqual(out_file.readlines(), ["oc,o1\n"])
+        db_map.connection.close()
 
     def test_tables_are_written_to_separate_files(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
         db_map.commit_session("Add test data.")
-        settings = object_export(Position.table_name, 0)
+        root_mapping = object_export(Position.table_name, 0)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
-        write(db_map, writer, settings)
+        write(db_map, writer, root_mapping)
         self.assertFalse(out_path.exists())
         out_files = list()
         for real_out_path in Path(self._temp_dir.name).iterdir():
@@ -76,6 +78,22 @@ class TestCsvWriter(unittest.TestCase):
                 self.assertEqual(out_file.readlines(), expected)
         self.assertEqual(len(out_files), 2)
         self.assertEqual(set(out_files), {"oc1.csv", "oc2.csv"})
+        db_map.connection.close()
+
+    def test_append_to_table(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"),))
+        db_map.commit_session("Add test data.")
+        root_mapping1 = object_export(0, 1)
+        root_mapping2 = object_export(0, 1)
+        out_path = Path(self._temp_dir.name, "out.csv")
+        writer = CsvWriter(out_path.parent, out_path.name)
+        write(db_map, writer, root_mapping1, root_mapping2)
+        self.assertTrue(out_path.exists())
+        with open(out_path) as out_file:
+            self.assertEqual(out_file.readlines(), ["oc,o1\n", "oc,o1\n"])
+        db_map.connection.close()
 
 
 if __name__ == "__main__":

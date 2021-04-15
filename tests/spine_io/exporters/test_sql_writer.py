@@ -30,6 +30,7 @@ from spinedb_api import (
     import_object_parameter_values,
 )
 from spinedb_api.mapping import Position, unflatten
+from spinedb_api.export_mapping import object_export
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
     FixedValueMapping,
@@ -196,6 +197,42 @@ class TestSqlWriter(unittest.TestCase):
             )
             for class_ in session.query(table):
                 self.assertEqual(class_, ("oc", "o1", "p", "3h"))
+            session.close()
+        finally:
+            connection.close()
+
+    def test_append_to_table(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"), ("oc", "q1")))
+        db_map.commit_session("Add test data.")
+        root_mapping1 = object_export(Position.table_name, 0)
+        root_mapping1.child.header = "objects"
+        root_mapping1.child.filter_re = "o1"
+        root_mapping2 = object_export(Position.table_name, 0)
+        root_mapping2.child.header = "objects"
+        root_mapping2.child.filter_re = "q1"
+        out_path = Path(self._temp_dir.name, "out.sqlite")
+        writer = SqlWriter(str(out_path))
+        write(db_map, writer, root_mapping1)
+        write(db_map, writer, root_mapping2)
+        db_map.connection.close()
+        self.assertTrue(out_path.exists())
+        engine = create_engine("sqlite:///" + str(out_path))
+        connection = engine.connect()
+        try:
+            metadata = MetaData()
+            metadata.reflect(bind=engine)
+            session = Session(engine)
+            self.assertIn("oc", metadata.tables)
+            table = metadata.tables["oc"]
+            column_names = [str(c) for c in table.c]
+            self.assertEqual(column_names, ["oc.objects"])
+            expected_rows = (("o1",), ("q1",))
+            rows = session.query(table).all()
+            self.assertEqual(len(rows), len(expected_rows))
+            for row, expected in zip(rows, expected_rows):
+                self.assertEqual(row, expected)
             session.close()
         finally:
             connection.close()
