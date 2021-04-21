@@ -343,6 +343,14 @@ class ExportMapping(Mapping):
         yield next(qry, _ignored)
         yield from qry
 
+    def is_ignorable(self):
+        """Returns True if the mapping is ignorable, False otherwise.
+
+        Returns:
+            bool: True if mapping is ignorable, False otherwise
+        """
+        return self._ignorable
+
     def set_ignorable(self, ignorable):
         """
         Sets mapping as ignorable.

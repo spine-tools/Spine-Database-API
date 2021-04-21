@@ -1323,6 +1323,7 @@ class TestExportMapping(unittest.TestCase):
         object_mapping = ObjectMapping(1)
         root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
         object_mapping.set_ignorable(True)
+        self.assertTrue(object_mapping.is_ignorable())
         expected = [
             ["oc", None]
         ]
@@ -1337,7 +1338,9 @@ class TestExportMapping(unittest.TestCase):
         object_mapping = ObjectMapping(1)
         root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
         object_mapping.set_ignorable(True)
+        self.assertTrue(object_mapping.is_ignorable())
         object_mapping.set_ignorable(False)
+        self.assertFalse(object_mapping.is_ignorable())
         expected = [
             ["oc", "o1"]
         ]
