@@ -343,17 +343,27 @@ class ExportMapping(Mapping):
         yield next(qry, _ignored)
         yield from qry
 
-    def set_ignorable(self):
+    def set_ignorable(self, ignorable):
         """
         Sets mapping as ignorable.
 
         Mappings that are ignorable map to None if there is no other data to yield.
         This allows 'incomplete' rows if child mappings do not depend on the ignored mapping.
+
+        Args:
+            ignorable (bool): True to set mapping ignorable, False to unset
         """
-        self._ignorable = True
-        self._data = self._ignorable_data
-        self._query = self._ignorable_query
-        self._update_state = self._ignorable_update_state
+        if ignorable == self._ignorable:
+            return
+        self._ignorable = ignorable
+        if self._ignorable:
+            self._data = self._ignorable_data
+            self._query = self._ignorable_query
+            self._update_state = self._ignorable_update_state
+        else:
+            self._data = self._unignorable_data
+            self._query = self._unignorable_query
+            self._update_state = self._unignorable_update_state
 
     def title(self, db_map, state, fixed_state=None):
         """
@@ -451,8 +461,7 @@ class ExportMapping(Mapping):
         filter_re = mapping_dict.get("filter_re", "")
         group_fn = mapping_dict.get("group_fn")
         mapping = cls(position, value=value, header=header, filter_re=filter_re, group_fn=group_fn)
-        if ignorable:
-            mapping.set_ignorable()
+        mapping.set_ignorable(ignorable)
         return mapping
 
 

@@ -670,7 +670,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_parameter_values(db_map, (("oc", "o", "p1", -1.0), ("oc", "o", "p2", 5.0)))
         db_map.commit_session("Add test data.")
         value_list_mapping = ParameterValueListMapping(2)
-        value_list_mapping.set_ignorable()
+        value_list_mapping.set_ignorable(True)
         flattened = [
             ObjectClassMapping(0),
             ParameterDefinitionMapping(1),
@@ -1315,6 +1315,34 @@ class TestExportMapping(unittest.TestCase):
         deserialized = from_dict(serialized)
         self.assertEqual([type(m) for m in deserialized.flatten()], expected_types)
         self.assertEqual([m.position for m in deserialized.flatten()], expected_positions)
+
+    def test_setting_ignorable_flag(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        db_map.commit_session("Add test data.")
+        object_mapping = ObjectMapping(1)
+        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        object_mapping.set_ignorable(True)
+        expected = [
+            ["oc", None]
+        ]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_unsetting_ignorable_flag(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"),))
+        db_map.commit_session("Add test data.")
+        object_mapping = ObjectMapping(1)
+        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        object_mapping.set_ignorable(True)
+        object_mapping.set_ignorable(False)
+        expected = [
+            ["oc", "o1"]
+        ]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
 
 
 if __name__ == "__main__":

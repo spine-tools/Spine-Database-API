@@ -126,7 +126,7 @@ def object_parameter_export(
     class_ = ObjectClassMapping(class_position)
     definition = ParameterDefinitionMapping(definition_position)
     value_list = ParameterValueListMapping(value_list_position)
-    value_list.set_ignorable()
+    value_list.set_ignorable(True)
     object_ = ObjectMapping(object_position)
     _generate_parameter_value_mappings(
         object_, alternative_position, value_type_position, value_position, index_positions
@@ -168,7 +168,7 @@ def object_group_parameter_export(
     class_ = ObjectClassMapping(class_position)
     definition = ParameterDefinitionMapping(definition_position)
     value_list = ParameterValueListMapping(value_list_position)
-    value_list.set_ignorable()
+    value_list.set_ignorable(True)
     group = ObjectGroupMapping(group_position)
     object_ = ObjectGroupObjectMapping(object_position)
     group.child = object_
@@ -299,7 +299,7 @@ def relationship_parameter_export(
         relationship_class, RelationshipClassObjectClassMapping, object_class_positions
     )
     value_list = ParameterValueListMapping(value_list_position)
-    value_list.set_ignorable()
+    value_list.set_ignorable(True)
     definition = ParameterDefinitionMapping(definition_position)
     object_or_relationship_class.child = definition
     relationship = RelationshipMapping(relationship_position)

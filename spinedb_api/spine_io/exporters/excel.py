@@ -151,7 +151,7 @@ def _make_indexed_parameter_value_mapping(alt_pos=-2, filter_re="array|time_patt
     parent_mapping = type_mapping
     for k in range(dim_count):
         index_mapping = parent_mapping.child = ParameterValueIndexMapping(k, header="index")
-        index_mapping.set_ignorable()
+        index_mapping.set_ignorable(True)
         parent_mapping = index_mapping
     parent_mapping.child = ExpandedParameterValueMapping(420)
     return alternative_mapping
