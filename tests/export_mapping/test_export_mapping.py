@@ -1324,9 +1324,7 @@ class TestExportMapping(unittest.TestCase):
         root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
         object_mapping.set_ignorable(True)
         self.assertTrue(object_mapping.is_ignorable())
-        expected = [
-            ["oc", None]
-        ]
+        expected = [["oc", None]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 
@@ -1341,9 +1339,7 @@ class TestExportMapping(unittest.TestCase):
         self.assertTrue(object_mapping.is_ignorable())
         object_mapping.set_ignorable(False)
         self.assertFalse(object_mapping.is_ignorable())
-        expected = [
-            ["oc", "o1"]
-        ]
+        expected = [["oc", "o1"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 

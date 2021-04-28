@@ -41,7 +41,6 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 from .exception import ParameterValueFormatError
 
-
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 _NUMPY_DATETIME64_UNIT = "s"
@@ -588,8 +587,8 @@ class _Indexes(np.ndarray):
     which might be too slow compared to dictionary lookup.
     """
 
-    def __new__(cls, other):
-        obj = np.asarray(other).view(cls)
+    def __new__(cls, other, dtype=None):
+        obj = np.asarray(other, dtype=dtype).view(cls)
         obj.position_lookup = {index: k for k, index in enumerate(other)}
         return obj
 
@@ -659,9 +658,17 @@ class IndexedValue:
         if pos is not None:
             self.values[pos] = value
 
+    def to_dict(self):
+        """Converts the value to a Python dictionary.
+
+        Returns:
+            dict(): mapping from indexes to values
+        """
+        raise NotImplementedError()
+
 
 class Array(IndexedValue):
-    """An one dimensional array with zero based indexing."""
+    """A one dimensional array with zero based indexing."""
 
     VALUE_TYPE = "array"
 
@@ -810,6 +817,11 @@ class TimePattern(IndexedNumberArray):
         if not isinstance(other, TimePattern):
             return NotImplemented
         return self._indexes == other._indexes and np.all(self._values == other._values)
+
+    @IndexedNumberArray.indexes.setter
+    def indexes(self, indexes):
+        """Sets the indexes."""
+        self._indexes = _Indexes(indexes, dtype=np.object_)
 
     def to_dict(self):
         """Returns the database representation of this time pattern."""
