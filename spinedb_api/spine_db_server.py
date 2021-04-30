@@ -111,7 +111,7 @@ _servers = {}
 
 
 def start_spine_db_server(db_url, upgrade=False):
-    host = "localhost"
+    host = "127.0.0.1"
     with socketserver.TCPServer((host, 0), None) as s:
         port = s.server_address[1]
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
