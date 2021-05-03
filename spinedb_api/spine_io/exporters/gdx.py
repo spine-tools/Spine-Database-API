@@ -2236,7 +2236,7 @@ class SetSettings:
             records (Records): domain's records
             metadata (SetMetadata): domain's metadata
         Returns:
-            bool: True if a new domain was added, False if an existing domain was replaced
+            bool: True if an existing domain was replaced, False if a new domain was added
         """
         if domain_name in self._set_names:
             raise GdxExportException(f"A set named '{domain_name}' already exists.")
