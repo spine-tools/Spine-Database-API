@@ -221,6 +221,12 @@ class TestParameterValue(unittest.TestCase):
         value_as_dict = json.loads(database_value)
         self.assertEqual(value_as_dict, {"type": "time_pattern", "data": {"m1-4,m9-12": 300.0, "m5-8": 221.0}})
 
+    def test_TimePattern_index_length_is_not_limited(self):
+        value = TimePattern(["m1-4", "m5-12"], [300, 221])
+        value.indexes[0] = "m1,m3,m5,m7,m9,m11"
+        value.indexes[1] = "m2,m4,m6,m8,m10,m12"
+        self.assertEqual(list(value.indexes), ["m1,m3,m5,m7,m9,m11", "m2,m4,m6,m8,m10,m12"])
+
     def test_from_database_TimeSeriesVariableResolution_as_dictionary(self):
         releases = """{
                           "type": "time_series",
