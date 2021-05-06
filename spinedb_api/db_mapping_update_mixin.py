@@ -183,7 +183,7 @@ class DatabaseMappingUpdateMixin:
             raise SpineDBAPIError(msg)
 
     def get_data_to_set_scenario_alternatives(self, *items):
-        """Returns data to add, update, and remove, in order to set wide scenario alternatives.
+        """Returns data to add and remove, in order to set wide scenario alternatives.
 
         Args:
             items (Iterable): One or more wide scenario_alternative :class:`dict` objects to set.
@@ -217,7 +217,7 @@ class DatabaseMappingUpdateMixin:
         return items_to_add, ids_to_remove
 
     def get_data_to_set_parameter_definition_tags(self, *items):
-        """Returns data to add, and remove, in order to set wide parameter definition tags.
+        """Returns data to add and remove, in order to set wide parameter definition tags.
 
         Args:
             items (Iterable): One or more wide parameter_definition_tag :class:`dict` objects to set.
