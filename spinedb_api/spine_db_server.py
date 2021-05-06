@@ -26,6 +26,7 @@ from sqlalchemy.exc import DBAPIError
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .helpers import ReceiveAllMixing
+from .exception import SpineDBVersionError, SpineDBAPIError
 
 REQUIRED_SPINE_INTERFACE_VERSION = "0.5.6"
 
@@ -37,18 +38,29 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
     The request handler class for our server.
     """
 
-    def __init__(self, db_url, upgrade, *args, **kwargs):
+    def __init__(self, db_url, upgrade_ok, *args, **kwargs):
         self._db_url = db_url
-        self._upgrade = upgrade
+        self._upgrade_ok = upgrade_ok
         super().__init__(*args, **kwargs)
+
+    def _make_db_map(self, upgrade=False):
+        try:
+            return DatabaseMapping(self._db_url, upgrade=upgrade), None
+        except SpineDBVersionError as error:
+            if self._upgrade_ok():
+                return self._make_db_map(upgrade=True)
+            return None, error
+        except SpineDBAPIError as error:
+            return None, error
 
     @contextmanager
     def _closing_db_map(self):
-        db_map = DatabaseMapping(self._db_url, upgrade=self._upgrade)
+        db_map, error = self._make_db_map()
         try:
-            yield db_map
+            yield db_map, error
         finally:
-            db_map.connection.close()
+            if db_map is not None:
+                db_map.connection.close()
 
     def _get_db_url(self):
         """
@@ -60,10 +72,14 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
     def _get_data(self, *args):
         """
         Returns:
-            dict: mapping sq names in args to a list of items from thay subquery
+            dict: Dictionary mapping subquery names to a list of items from thay subquery, if successful.
+                Dictionary {"error": "msg"}, otherwise.
+
         """
         data = {}
-        with self._closing_db_map() as db_map:
+        with self._closing_db_map() as (db_map, error):
+            if error:
+                return {"error": str(error)}
             for name in args:
                 sq = getattr(db_map, name, None)
                 if sq is None:
@@ -78,10 +94,11 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
             data (dict)
             comment (str)
         Returns:
-            int: Import count
-            list: Errors
+            list or dict: list of import errors, if successful. Dictionary {"error": "msg"}, otherwise.
         """
-        with self._closing_db_map() as db_map:
+        with self._closing_db_map() as (db_map, error):
+            if error:
+                return {"error": str(error)}
             count, errors = import_data(db_map, **data)
             if count:
                 try:
@@ -110,13 +127,21 @@ class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 _servers = {}
 
 
-def start_spine_db_server(db_url, upgrade=False):
+def start_spine_db_server(db_url, upgrade_ok):
+    """
+    Args:
+        db_url (str): Spine db url
+        upgrade_ok (function): A function that returns True or False
+
+    Returns:
+        str: server url (e.g. http://127.0.0.1:54321)
+    """
     host = "127.0.0.1"
     with socketserver.TCPServer((host, 0), None) as s:
         port = s.server_address[1]
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
     server = _servers[server_url] = SpineDBServer(
-        (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs)
+        (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade_ok, *args, **kwargs)
     )
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
