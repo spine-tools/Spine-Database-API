@@ -26,7 +26,6 @@ from sqlalchemy.exc import DBAPIError
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .helpers import ReceiveAllMixing
-from .exception import SpineDBVersionError, SpineDBAPIError
 
 REQUIRED_SPINE_INTERFACE_VERSION = "0.5.6"
 
@@ -38,19 +37,15 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
     The request handler class for our server.
     """
 
-    def __init__(self, db_url, upgrade_ok, *args, **kwargs):
+    def __init__(self, db_url, upgrade, *args, **kwargs):
         self._db_url = db_url
-        self._upgrade_ok = upgrade_ok
+        self._upgrade = upgrade
         super().__init__(*args, **kwargs)
 
     def _make_db_map(self, upgrade=False):
         try:
-            return DatabaseMapping(self._db_url, upgrade=upgrade), None
-        except SpineDBVersionError as error:
-            if self._upgrade_ok():
-                return self._make_db_map(upgrade=True)
-            return None, error
-        except SpineDBAPIError as error:
+            return DatabaseMapping(self._db_url, upgrade=self._upgrade), None
+        except Exception as error:
             return None, error
 
     @contextmanager
@@ -127,11 +122,11 @@ class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 _servers = {}
 
 
-def start_spine_db_server(db_url, upgrade_ok):
+def start_spine_db_server(db_url, upgrade=False):
     """
     Args:
         db_url (str): Spine db url
-        upgrade_ok (function): A function that returns True or False
+        upgrade (bool): Whether to upgrade db or not
 
     Returns:
         str: server url (e.g. http://127.0.0.1:54321)
@@ -141,7 +136,7 @@ def start_spine_db_server(db_url, upgrade_ok):
         port = s.server_address[1]
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
     server = _servers[server_url] = SpineDBServer(
-        (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade_ok, *args, **kwargs)
+        (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs)
     )
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
