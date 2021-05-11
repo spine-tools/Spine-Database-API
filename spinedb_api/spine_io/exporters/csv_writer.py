@@ -15,6 +15,7 @@ Module contains a .csv writer implementation.
 :date:   9.12.2020
 """
 import csv
+import os
 import os.path
 from .writer import Writer
 
@@ -57,6 +58,8 @@ class CsvWriter(Writer):
         else:
             table_name = table_name + ".csv"
         self._file_name = os.path.join(self._path, table_name)
+        if self._file_name not in self._finished_files and os.path.exists(self._file_name):
+            os.remove(self._file_name)
         self._file = open(self._file_name, "a", newline="")
         self._out = csv.writer(self._file)
         return True
