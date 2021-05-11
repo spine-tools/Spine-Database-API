@@ -33,12 +33,12 @@ class CsvWriter(Writer):
         self._file = None
         self._out = None
         self._file_name = None
-        self._finished_files = list()
+        self._finished_files = set()
 
     def finish_table(self):
         """See base class."""
         self._file.close()
-        self._finished_files.append(self._file_name)
+        self._finished_files.add(self._file_name)
         self._file_name = None
         self._file = None
         self._out = None
@@ -47,7 +47,7 @@ class CsvWriter(Writer):
         """Returns absolute paths to files that have been written.
 
         Returns:
-            list of str: list of file paths
+            set of str: file paths
         """
         return self._finished_files
 
