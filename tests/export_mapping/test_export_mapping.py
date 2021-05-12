@@ -107,14 +107,44 @@ class TestExportMapping(unittest.TestCase):
         )
         db_map.connection.close()
 
-    def test_None_column_on_leaf_item_is_not_exported(self):
+    def test_hidden_tail(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1",))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
         db_map.commit_session("Add test data.")
         object_class_mapping = ObjectClassMapping(0)
         object_class_mapping.child = ObjectMapping(Position.hidden)
-        self.assertEqual(list(rows(object_class_mapping, db_map)), [["oc1"]])
+        self.assertEqual(list(rows(object_class_mapping, db_map)), [["oc1"], ["oc1"]])
+        db_map.connection.close()
+
+    def test_pivot_without_values(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1",))
+        import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
+        db_map.commit_session("Add test data.")
+        object_class_mapping = ObjectClassMapping(-1)
+        object_class_mapping.child = ObjectMapping(Position.hidden)
+        self.assertEqual(list(rows(object_class_mapping, db_map)), [])
+        db_map.connection.close()
+
+    def test_hidden_tail_pivoted(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p1"), ("oc", "p2")))
+        import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
+        import_object_parameter_values(db_map, (("oc", "o1", "p1", -11.0), ("oc", "o1", "p2", -12.0)))
+        db_map.commit_session("Add test data.")
+        root_mapping = unflatten(
+            [
+                ObjectClassMapping(0),
+                ParameterDefinitionMapping(-1),
+                ObjectMapping(1),
+                AlternativeMapping(2),
+                ParameterValueMapping(Position.hidden),
+            ]
+        )
+        expected = [[None, None, "p1", "p2"], ["oc", "o1", "Base", "Base"]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 
     def test_hidden_leaf_item_in_regular_table_valid(self):
@@ -1340,6 +1370,30 @@ class TestExportMapping(unittest.TestCase):
         object_mapping.set_ignorable(False)
         self.assertFalse(object_mapping.is_ignorable())
         expected = [["oc", "o1"]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_filter(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
+        db_map.commit_session("Add test data.")
+        object_mapping = ObjectMapping(1)
+        object_mapping.filter_re = "o1"
+        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        expected = [["oc", "o1"]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_hidden_tail_filter(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
+        db_map.commit_session("Add test data.")
+        object_mapping = ObjectMapping(Position.hidden)
+        object_mapping.filter_re = "o1"
+        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        expected = [["oc1"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 

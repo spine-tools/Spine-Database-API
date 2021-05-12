@@ -133,7 +133,7 @@ class ExportMapping(Mapping):
 
     def _set_query_filtered(self):
         """
-        Overrides ``self._query()`` so the output is filtered according to ``self.filter_re``
+        Overrides ``self._query()`` so the output is filtered according to ``self.filter_re()``
         """
         if not self._filter_re:
             self._query = self._unfiltered_query
@@ -142,7 +142,7 @@ class ExportMapping(Mapping):
 
     def _filtered_query(self, *args, **kwargs):
         for db_row in self._unfiltered_query(*args, **kwargs):
-            if re.search(self._filter_re, self._data(db_row)):
+            if re.search(self._filter_re, str(self._data(db_row))):
                 yield db_row
 
     def check_validity(self):
@@ -256,9 +256,6 @@ class ExportMapping(Mapping):
         """
         if self.child is None:
             # Non-recursive case
-            if self.position == Position.hidden:
-                yield {}
-                return
             for db_row in self._query(db_map, state, fixed_state):
                 yield {self.position: self._data(db_row)}
             return
@@ -476,7 +473,7 @@ class ExportMapping(Mapping):
 def drop_non_positioned_tail(root_mapping):
     """Makes a modified mapping hierarchy without hidden tail mappings.
 
-    This enable pivot tables to work correctly in certain situations.
+    This enables pivot tables to work correctly in certain situations.
 
     Args:
         root_mapping (Mapping): root mapping
@@ -485,7 +482,9 @@ def drop_non_positioned_tail(root_mapping):
         Mapping: modified mapping hierarchy
     """
     mappings = root_mapping.flatten()
-    return unflatten(reversed(list(dropwhile(lambda m: m.position == Position.hidden, reversed(mappings)))))
+    return unflatten(
+        reversed(list(dropwhile(lambda m: m.position == Position.hidden and not m.filter_re, reversed(mappings))))
+    )
 
 
 class FixedValueMapping(ExportMapping):

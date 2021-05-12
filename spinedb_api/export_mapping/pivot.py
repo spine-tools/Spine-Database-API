@@ -15,7 +15,7 @@ Contains functions and methods to turn a regular export table into a pivot table
 :date:   1.2.2021
 """
 from copy import deepcopy
-from ..mapping import is_regular, is_pivoted, Position, unflatten
+from ..mapping import is_regular, is_pivoted, Position, unflatten, value_index
 from .group_functions import from_str as group_function_from_str, NoGroup
 
 
@@ -127,7 +127,7 @@ def make_pivot(
         else:
             row.append(header)
 
-    if not table and (not empty_data_header or not header):
+    if (not table and (not empty_data_header or not header)) or not pivot_columns:
         return
     pivot_keys = sorted({tuple(row[i] for i in pivot_columns) for row in table}, key=_convert_elements_to_strings)
     pivot_header = tuple(header[i] for i in pivot_columns) if header is not None else None
@@ -205,9 +205,10 @@ def make_regular(root_mapping):
         tuple: non-pivoted root mapping, value column, regular columns, hidden columns, pivot columns
     """
     mappings = deepcopy(root_mapping).flatten()
-    regular_columns = [m.position for m in mappings[:-1] if is_regular(m.position)]
+    value_i = value_index(mappings)
+    regular_columns = [m.position for m in mappings[:value_i] if is_regular(m.position)]
     regular_column_count = max(regular_columns) + 1 if regular_columns else 0
-    pivoted_positions = sorted((m.position for m in mappings[:-1] if is_pivoted(m.position)), reverse=True)
+    pivoted_positions = sorted((m.position for m in mappings[:value_i] if is_pivoted(m.position)), reverse=True)
     pivot_position_to_row = {position: i for i, position in enumerate(pivoted_positions)}
     pivot_column_count = len(pivot_position_to_row)
     pivot_column_base = regular_column_count
@@ -215,7 +216,7 @@ def make_regular(root_mapping):
     hidden_column_base = pivot_column_base + pivot_column_count
     current_hidden_column = 0
     hidden_columns = list()
-    for mapping in mappings[:-1]:
+    for mapping in mappings[:value_i]:
         position = mapping.position
         if is_pivoted(position):
             mapping.position = pivot_column_base + pivot_position_to_row[mapping.position]
@@ -226,5 +227,7 @@ def make_regular(root_mapping):
             hidden_columns.append(column)
             current_hidden_column += 1
     value_column = hidden_column_base + current_hidden_column + 1
-    mappings[-1].position = value_column
+    for i, mapping in enumerate(mappings[value_i + 1 :]):
+        mapping.position = value_column + i + 1
+    mappings[value_i].position = value_column
     return unflatten(mappings), value_column, regular_columns, hidden_columns, sorted(pivot_columns)

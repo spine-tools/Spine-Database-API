@@ -10,36 +10,27 @@
 ######################################################################################################################
 
 """
-Unit tests for helpers.py.
+Unit tests for :mod:`spinedb_api.mapping`.
 
-:author: P. Vennström (VTT)
-:date:   17.12.2018
+:author: A. Soininen (VTT)
+:date:   12.5.2021
 """
-
-
 import unittest
-from spinedb_api.helpers import compare_schemas, create_new_spine_database
+from spinedb_api.mapping import Mapping, Position, value_index
 
 
-class TestHelpers(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_same_schema(self):
-        """Test that importing object class works"""
-        engine1 = create_new_spine_database('sqlite://')
-        engine2 = create_new_spine_database('sqlite://')
-        self.assertTrue(compare_schemas(engine1, engine2))
-
-    def test_different_schema(self):
-        """Test that importing object class works"""
-        engine1 = create_new_spine_database('sqlite://')
-        engine2 = create_new_spine_database('sqlite://')
-        engine2.execute("drop table entity_type")
-        self.assertFalse(compare_schemas(engine1, engine2))
+class TestMapping(unittest.TestCase):
+    def test_value_index(self):
+        mapping = Mapping(0)
+        self.assertEqual(value_index(mapping.flatten()), 0)
+        mapping.position = Position.hidden
+        self.assertEqual(value_index(mapping.flatten()), -1)
+        mapping.child = Mapping(0)
+        self.assertEqual(value_index(mapping.flatten()), 1)
+        mapping.child.position = Position.hidden
+        self.assertEqual(value_index(mapping.flatten()), -1)
+        mapping.position = 0
+        self.assertEqual(value_index(mapping.flatten()), 0)
 
 
 if __name__ == "__main__":

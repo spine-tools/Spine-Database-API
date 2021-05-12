@@ -16,6 +16,7 @@ Contains export mappings for database items such as entities, entity classes and
 """
 
 from enum import Enum, unique
+from itertools import takewhile
 
 
 @unique
@@ -97,6 +98,9 @@ class Mapping:
     def value(self, value):
         self._value = value
         self._set_fixed_value_data()
+
+    def _data(self, row):
+        raise NotImplementedError()
 
     def _fixed_value_data(self, _row):
         return self._value
@@ -202,6 +206,23 @@ def unflatten(mappings):
         current = mapping
     current.child = None
     return root
+
+
+def value_index(flattened_mappings):
+    """
+    Returns index of last non-hidden mapping in flattened mapping list.
+
+    Args:
+        flattened_mappings (list of Mapping): flattened mappings
+
+    Returns:
+        int: value mapping index
+    """
+    return (
+        len(flattened_mappings)
+        - 1
+        - len(list(takewhile(lambda m: m.position == Position.hidden, reversed(flattened_mappings))))
+    )
 
 
 def to_dict(root_mapping):

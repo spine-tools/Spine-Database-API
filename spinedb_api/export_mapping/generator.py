@@ -51,19 +51,6 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             straight[index] = data
         return straight
 
-    def row_iterator():
-        """
-        Yields non pivoted rows.
-
-        Yields:
-            row (list): a table row
-        """
-
-        row_iter = root_mapping.rows(db_map, dict(), fixed_state)
-        for row in row_iter:
-            normal_row = listify_row(row)
-            yield normal_row
-
     if fixed_state is None:
         fixed_state = dict()
     if root_mapping.is_pivoted():
@@ -74,7 +61,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             header = listify_row(header_root.make_header(db_map, {}, fixed_state, buddies))
         else:
             header = None
-        regularized = list(row_iterator())
+        regularized = list(map(listify_row, root_mapping.rows(db_map, dict(), fixed_state)))
         yield from make_pivot(
             regularized,
             header,
@@ -86,7 +73,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             empty_data_header,
         )
     else:
-        row_iter = iter(row_iterator())
+        row_iter = iter(map(listify_row, root_mapping.rows(db_map, dict(), fixed_state)))
         try:
             peeked_row = next(row_iter)
         except StopIteration:
