@@ -16,16 +16,19 @@ documentation and manual are released under the Creative Commons BY-SA 4.0 licen
 
 To install the package run:
 
-    $ pip install git+https://github.com/Spine-project/Spine-Database-API.git
+    $ pip install spinedb_api
 
 To upgrade to the most recent version, run:
 
-    $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git
+    $ pip install --upgrade spinedb_api
 
 You can also specify a branch, or a tag, for instance:
 
-    $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git@dev
-    $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git@v0.0.10
+    $ pip install spinedb_api==0.12.1
+
+To install the latest development version use the Git repository url:
+
+    $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git
 
 
 ## Building the documentation
