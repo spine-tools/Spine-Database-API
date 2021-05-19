@@ -4,8 +4,8 @@ version = {}
 with open("spinedb_api/version.py") as fp:
     exec(fp.read(), version)
 
-with open("README.md", "r") as f:
-    long_description = f.read()
+with open("README.md") as fp:
+    long_description = fp.read()
 
 setup(
     name="spinedb_api",
