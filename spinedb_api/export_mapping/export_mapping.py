@@ -105,6 +105,7 @@ class ExportMapping(Mapping):
         self.header = header
         self.filter_re = filter_re
         self.group_fn = group_fn
+        self._query = None
 
     def __eq__(self, other):
         if not isinstance(other, ExportMapping):
@@ -286,16 +287,15 @@ class ExportMapping(Mapping):
     def filter_query(self, db_map, query):
         return query
 
-    def _make_query(self, db_map, title_state):
-        """Builds and returns the query to run for this mapping hierarchy.
+    def _build_query(self, db_map, title_state):
+        """Builds the query to run for this mapping hierarchy.
 
         Args:
             db_map (DatabaseMappingBase)
             title_state (dict)
-
-        Returns:
-            Query
         """
+        if self._query is None:
+            return
         qry = db_map.query()
         for m in self.flatten():
             qry = m.add_query_columns(db_map, qry)
@@ -303,11 +303,9 @@ class ExportMapping(Mapping):
             qry = m.filter_query(db_map, qry)
         # Apply title filters
         sq = qry.subquery(reduce_columns=True)
-        qry = db_map.query(sq)
+        self._query = db_map.query(sq)
         for key, value in title_state.items():
-            qry = qry.filter(getattr(sq.c, key) == value)
-        qry = qry.distinct()
-        return qry
+            self._query = self._query.filter(getattr(sq.c, key) == value)
 
     def _data(self, db_row):  # pylint: disable=arguments-differ
         """Returns the data relevant to this mapping for a given database row.
@@ -405,8 +403,8 @@ class ExportMapping(Mapping):
         Returns:
             generator(dict,dict)
         """
-        qry = self._make_query(db_map, title_state)
-        for db_row in qry:
+        self._build_query(db_map, title_state)
+        for db_row in self._query:
             yield from self.get_rows_and_title_state_recursive(db_row)
 
     def rows(self, db_map, title_state):
@@ -510,8 +508,8 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        qry = self._make_query(db_map, title_state)
-        first_row = next(iter(qry), None)
+        self._build_query(db_map, title_state)
+        first_row = self._query.first()
         return self.make_header_recursive(first_row, title_state, buddies)
 
 
