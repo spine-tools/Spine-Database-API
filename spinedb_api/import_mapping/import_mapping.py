@@ -220,7 +220,7 @@ class ImportMapping(Mapping):
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
-    def _data(self, source_row):
+    def _data(self, source_row):  # pylint: disable=arguments-differ
         if source_row is None:
             return None
         return source_row[self.position]

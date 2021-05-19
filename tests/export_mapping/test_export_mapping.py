@@ -216,8 +216,8 @@ class TestExportMapping(unittest.TestCase):
         object_class_mapping.child = parameter_definition_mapping
         expected = [
             ["oc1", "p11", "o11"],
-            ["oc1", "p11", "o12"],
             ["oc1", "p12", "o11"],
+            ["oc1", "p11", "o12"],
             ["oc1", "p12", "o12"],
             ["oc2", "p21", "o21"],
         ]
@@ -365,10 +365,10 @@ class TestExportMapping(unittest.TestCase):
         expected = [
             ["oc", "o1", "p1", "a"],
             ["oc", "o1", "p1", "b"],
-            ["oc", "o2", "p1", "e"],
-            ["oc", "o2", "p1", "f"],
             ["oc", "o1", "p2", "c"],
             ["oc", "o1", "p2", "d"],
+            ["oc", "o2", "p1", "e"],
+            ["oc", "o2", "p1", "f"],
             ["oc", "o2", "p2", "g"],
             ["oc", "o2", "p2", "h"],
         ]
@@ -975,7 +975,7 @@ class TestExportMapping(unittest.TestCase):
         tables = dict()
         for title, title_key in titles(scenario_mapping, db_map):
             tables[title] = list(rows(scenario_mapping, db_map, title_key))
-        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a3"], ["s2", "a2"]]})
+        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a2"], ["s2", "a3"]]})
         db_map.connection.close()
 
     def test_tool_mapping(self):
