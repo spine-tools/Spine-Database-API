@@ -18,7 +18,6 @@ Framework for exporting a database to Excel file.
 
 from spinedb_api.export_mapping.export_mapping import (
     Position,
-    ExportKey,
     AlternativeMapping,
     AlternativeDescriptionMapping,
     ObjectClassMapping,
@@ -76,7 +75,7 @@ class ExcelWriterWithPreamble(ExcelWriter):
             "class_name": class_name,
             "entity_dim_count": entity_dim_count,
         }
-        value_type = title_key.get(ExportKey.PARAMETER_VALUE_TYPE)
+        value_type = title_key.get("value_type")
         if value_type is not None:
             preamble["value_type"] = value_type.type_
             preamble["index_dim_count"] = value_type.dimension_count
