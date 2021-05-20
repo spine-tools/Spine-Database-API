@@ -61,8 +61,7 @@ class _IndexMappingMixin:
 
     @staticmethod
     def _expand_value(value):
-        """
-        Expands given parsed parameter value into a dict.
+        """Expands given parsed parameter value into a dict.
 
         Args:
             value (Any): parsed parameter value
@@ -268,8 +267,8 @@ class ExportMapping(Mapping):
 
     def filter_query_by_title(self, query, title_state):
         """Filters the query using pertinent information from the given title state.
-        Typically, title filters can be applied by calling ``filter()`` on the query directly.
-        However, subclasses may need to do something more specific, for example, to filter parameter values by type.
+        Typically, title filters can be applied by calling ``filter()`` on the query directly (see ``_build_query()``).
+        However, subclasses may need something more specific, for example, to filter parameter values by type.
 
         The base class implementations just returns the unaltered query.
 
@@ -303,7 +302,7 @@ class ExportMapping(Mapping):
         # Create a subquery to apply title filters
         sq = qry.subquery()
         qry = db_map.query(sq)
-        # Apply special title filters (first, so we can clean up the state)
+        # Apply special title filters (first, so we clean up the state)
         for m in mappings:
             qry = m.filter_query_by_title(qry, title_state)
         # Apply standard title filters
@@ -324,7 +323,7 @@ class ExportMapping(Mapping):
     @staticmethod
     def id_field():
         """Returns the 'id' field associated to this mapping within the query.
-        Used to obtain the title state.
+        Used to compose the title state.
 
         Returns:
             str
@@ -359,7 +358,7 @@ class ExportMapping(Mapping):
         yield data
 
     def _get_data_iterator(self, data):
-        """Applies regexp filtering and data conversion on the output of ``_expand_data()`` to produce the final
+        """Applies regexp filtering and data conversion on the output of ``_expand_data()`` to produce the final data
         iterator for this mapping.
 
         Args:
