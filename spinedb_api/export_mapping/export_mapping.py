@@ -266,6 +266,21 @@ class ExportMapping(Mapping):
         """
         return query
 
+    def filter_query_by_title(self, query, title_state):
+        """Filters the query using pertinent information from the given title state.
+        Typically, title filters can be applied by calling ``filter()`` on the query directly.
+        However, subclasses may need to do something more specific, for example, to filter parameter values by type.
+
+        The base class implementations just returns the unaltered query.
+
+        Args:
+            title_state (dict)
+
+        Returns:
+            Query or _FilteredQuery
+        """
+        return query
+
     def _build_query(self, db_map, title_state):
         """Builds and returns the query to run for this mapping hierarchy.
 
@@ -276,17 +291,22 @@ class ExportMapping(Mapping):
         Returns:
             Query
         """
+        mappings = self.flatten()
         # Start with empty query
         qry = db_map.query(literal(None))
         # Add columns
-        for m in self.flatten():
+        for m in mappings:
             qry = m.add_query_columns(db_map, qry)
         # Apply filters
-        for m in self.flatten():
+        for m in mappings:
             qry = m.filter_query(db_map, qry)
-        # Apply title filters
+        # Create a subquery to apply title filters
         sq = qry.subquery()
         qry = db_map.query(sq)
+        # Apply special title filters (first, so we can clean up the state)
+        for m in mappings:
+            qry = m.filter_query_by_title(qry, title_state)
+        # Apply standard title filters
         for key, value in title_state.items():
             qry = qry.filter(getattr(sq.c, key) == value)
         return qry
@@ -312,7 +332,7 @@ class ExportMapping(Mapping):
         raise NotImplementedError()
 
     def _data(self, db_row):  # pylint: disable=arguments-differ
-        """Returns the data relevant to this mapping for a given database row.
+        """Returns the data relevant to this mapping from given database row.
 
         The base class implementation returns the field given by ``name_field()``.
 
@@ -418,6 +438,23 @@ class ExportMapping(Mapping):
             return self.child.has_titles()
         return False
 
+    def _title_state(self, db_row):
+        """Returns the title state associated to this mapping from given database row.
+
+        The base class implementation returns a dict mapping the output of ``id_field()``
+        to the corresponding field from the row.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            dict
+        """
+        id_field = self.id_field()
+        if id_field is None:
+            return {}
+        return {id_field: getattr(db_row, id_field)}
+
     def _get_titles(self, db_row):
         """Yields pairs (title, title state) issued by this mapping for given database row.
 
@@ -432,8 +469,7 @@ class ExportMapping(Mapping):
             return
         data = self._data(db_row)
         data_iterator = self._get_data_iterator(data)
-        id_field = self.id_field()
-        title_state = {} if id_field is None else {id_field: getattr(db_row, id_field)}
+        title_state = self._title_state(db_row)
         for data in data_iterator:
             if data is None:
                 data = ""
@@ -605,7 +641,8 @@ class ObjectClassMapping(ExportMapping):
 
     @staticmethod
     def id_field():
-        return "object_class_id"
+        # Use the class name here, for the benefit of the standard excel export
+        return "object_class_name"
 
 
 class ObjectMapping(ExportMapping):
@@ -711,7 +748,8 @@ class RelationshipClassMapping(ExportMapping):
 
     @staticmethod
     def id_field():
-        return "relationship_class_id"
+        # Use the class name here, for the benefit of the standard excel export
+        return "relationship_class_name"
 
     def index(self):
         return -1
@@ -738,14 +776,6 @@ class RelationshipClassObjectClassMapping(ExportMapping):
     @staticmethod
     def id_field():
         return "object_class_id_list"
-
-    def _title_state(self, db_row):
-        object_class_id_list = db_row.object_class_id_list.split(",")
-        index = self.index()
-        try:
-            return {"object_class_id": int(object_class_id_list[index])}
-        except IndexError:
-            return {}
 
     def _data(self, db_row):
         data = super()._data(db_row).split(",")
@@ -820,14 +850,6 @@ class RelationshipObjectMapping(ExportMapping):
     @staticmethod
     def id_field():
         return "object_id_list"
-
-    def _title_state(self, db_row):
-        object_id_list = db_row.object_id_list.split(",")
-        index = self.index()
-        try:
-            return {"object_id": int(object_id_list[index])}
-        except IndexError:
-            return {}
 
     def _data(self, db_row):
         data = super()._data(db_row).split(",")
@@ -1023,12 +1045,34 @@ class ParameterValueTypeMapping(ParameterValueMapping):
     """
 
     MAP_TYPE = "ParameterValueType"
+    _value_type = None
+
+    def _cache_value_type(self, db_row):
+        """Caches the value type so we don't need to compute it more than once.
+
+        Args:
+            db_row (KeyedTuple)
+        """
+        if self._value_type is None:
+            self._value_type = type_from_value(db_row.value)
 
     def _data(self, db_row):
-        data = type_from_value(db_row.value)
-        if data.type_ != "map":
-            return data.type_
-        return f"{data.dimension_count}d_{data.type_}"
+        self._cache_value_type(db_row)
+        if self._value_type.type_ != "map":
+            return self._value_type.type_
+        return f"{self._value_type.dimension_count}d_{self._value_type.type_}"
+
+    def _title_state(self, db_row):
+        self._cache_value_type(db_row)
+        return {"value_type": self._value_type}
+
+    def filter_query_by_title(self, query, title_state):
+        value_type = title_state.pop("value_type", None)
+        if value_type is None:
+            return query
+        if "value" not in {c["name"] for c in query.column_descriptions}:
+            return query
+        return _FilteredQuery(query, lambda db_row: type_from_value(db_row.value) == value_type)
 
 
 class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
@@ -1515,6 +1559,39 @@ class ScenarioDescriptionMapping(_DescriptionMappingBase):
     """
 
     MAP_TYPE = "ScenarioDescription"
+
+
+class _FilteredQuery:
+    """Helper class to define non-standard query filters.
+
+    It implements everything we use from the standard sqlalchemy's ``Query``.
+    """
+
+    def __init__(self, query, condition):
+        """
+        Args:
+            query (Query): a query to filter
+            condition (function): the filter condition
+        """
+        self._query = query
+        self._condition = condition
+
+    def first(self):
+        first = self._query.first()
+        if self._condition(first):
+            return first
+        return None
+
+    def yield_per(self, count):
+        return _FilteredQuery(self._query.yield_per(count), self._condition)
+
+    def filter(self, *args, **kwargs):
+        return _FilteredQuery(self._query.filter(*args, **kwargs), self._condition)
+
+    def __iter__(self):
+        for db_row in self._query:
+            if self._condition(db_row):
+                yield db_row
 
 
 def pair_header_buddies(root_mapping):
