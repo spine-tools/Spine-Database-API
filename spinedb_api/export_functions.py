@@ -212,7 +212,7 @@ def export_scenario_alternatives(db_map, ids=Asterisk):
     """
     return sorted(
         (
-            (x.scenario_name, x.alternative_name, x.next_alternative_name)
+            (x.scenario_name, x.alternative_name, x.before_alternative_name)
             for x in _make_query(db_map, "ext_linked_scenario_alternative_sq", ids)
         ),
         key=lambda x: x[0],

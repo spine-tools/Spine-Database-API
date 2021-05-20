@@ -101,8 +101,8 @@ def titles(root_mapping, db_map):
     Yield:
         tuple: title and title's fixed key
     """
-    if not root_mapping.has_title():
+    if not root_mapping.has_titles():
         yield None, None
         return
-    for title, title_key in root_mapping.title(db_map):
+    for title, title_key in root_mapping.titles(db_map):
         yield title, title_key
