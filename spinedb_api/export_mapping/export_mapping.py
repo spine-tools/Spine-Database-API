@@ -601,13 +601,9 @@ class ObjectClassMapping(ExportMapping):
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(
-            db_map.entity_class_sq.c.id.label("object_class_id"),
-            db_map.entity_class_sq.c.name.label("object_class_name"),
+            db_map.object_class_sq.c.id.label("object_class_id"),
+            db_map.object_class_sq.c.name.label("object_class_name"),
         )
-
-    def filter_query(self, db_map, query):
-        object_class_sq = db_map._subquery("object_class")
-        return query.filter(db_map.entity_class_sq.c.id == object_class_sq.c.entity_class_id)
 
     @staticmethod
     def name_field():
@@ -627,13 +623,10 @@ class ObjectMapping(ExportMapping):
     MAP_TYPE = "Object"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.entity_sq.c.id.label("object_id"), db_map.entity_sq.c.name.label("object_name"))
+        return query.add_columns(db_map.object_sq.c.id.label("object_id"), db_map.object_sq.c.name.label("object_name"))
 
     def filter_query(self, db_map, query):
-        object_sq = db_map._subquery("object")
-        return query.outerjoin(db_map.entity_sq, db_map.entity_sq.c.class_id == db_map.entity_class_sq.c.id).outerjoin(
-            object_sq, object_sq.c.entity_id == db_map.entity_sq.c.id
-        )
+        return query.outerjoin(db_map.object_sq, db_map.object_sq.c.class_id == db_map.object_class_sq.c.id)
 
     @staticmethod
     def name_field():
@@ -661,7 +654,7 @@ class ObjectGroupMapping(ExportMapping):
 
     def filter_query(self, db_map, query):
         return query.outerjoin(
-            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.entity_class_sq.c.id
+            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.object_class_sq.c.id
         ).distinct()
 
     @staticmethod
@@ -686,10 +679,10 @@ class ObjectGroupObjectMapping(ExportMapping):
     MAP_TYPE = "ObjectGroupObject"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.entity_sq.c.id.label("object_id"), db_map.entity_sq.c.name.label("object_name"))
+        return query.add_columns(db_map.object_sq.c.id.label("object_id"), db_map.object_sq.c.name.label("object_name"))
 
     def filter_query(self, db_map, query):
-        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.entity_sq.c.id)
+        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.object_sq.c.id)
 
     @staticmethod
     def name_field():
@@ -714,13 +707,9 @@ class RelationshipClassMapping(ExportMapping):
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(
-            db_map.entity_class_sq.c.id.label("relationship_class_id"),
-            db_map.entity_class_sq.c.name.label("relationship_class_name"),
+            db_map.wide_relationship_class_sq.c.id.label("relationship_class_id"),
+            db_map.wide_relationship_class_sq.c.name.label("relationship_class_name"),
         )
-
-    def filter_query(self, db_map, query):
-        relationship_class_sq = db_map._subquery("relationship_class")
-        return query.filter(db_map.entity_class_sq.c.id == relationship_class_sq.c.entity_class_id)
 
     @staticmethod
     def name_field():
@@ -747,9 +736,6 @@ class RelationshipClassObjectClassMapping(ExportMapping):
             db_map.wide_relationship_class_sq.c.object_class_id_list,
             db_map.wide_relationship_class_sq.c.object_class_name_list,
         )
-
-    def filter_query(self, db_map, query):
-        return query.filter(db_map.entity_class_sq.c.id == db_map.wide_relationship_class_sq.c.id)
 
     @staticmethod
     def name_field():
@@ -793,13 +779,14 @@ class RelationshipMapping(ExportMapping):
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(
-            db_map.entity_sq.c.id.label("relationship_id"), db_map.entity_sq.c.name.label("relationship_name")
+            db_map.wide_relationship_sq.c.id.label("relationship_id"),
+            db_map.wide_relationship_sq.c.name.label("relationship_name"),
         )
 
     def filter_query(self, db_map, query):
-        relationship_sq = db_map._subquery("relationship")
-        return query.outerjoin(db_map.entity_sq, db_map.entity_sq.c.class_id == db_map.entity_class_sq.c.id).outerjoin(
-            relationship_sq, relationship_sq.c.entity_id == db_map.entity_sq.c.id
+        return query.outerjoin(
+            db_map.wide_relationship_sq,
+            db_map.wide_relationship_sq.c.class_id == db_map.wide_relationship_class_sq.c.id,
         )
 
     @staticmethod
@@ -831,9 +818,6 @@ class RelationshipObjectMapping(ExportMapping):
         return query.add_columns(
             db_map.wide_relationship_sq.c.object_id_list, db_map.wide_relationship_sq.c.object_name_list
         )
-
-    def filter_query(self, db_map, query):
-        return query.filter(db_map.entity_sq.c.id == db_map.wide_relationship_sq.c.id)
 
     @staticmethod
     def name_field():
@@ -882,10 +866,17 @@ class ParameterDefinitionMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        return query.outerjoin(
-            db_map.parameter_definition_sq,
-            db_map.parameter_definition_sq.c.entity_class_id == db_map.entity_class_sq.c.id,
-        )
+        if "object_class_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_definition_sq,
+                db_map.parameter_definition_sq.c.object_class_id == db_map.object_class_sq.c.id,
+            )
+        if "relationship_class_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_definition_sq,
+                db_map.parameter_definition_sq.c.relationship_class_id == db_map.wide_relationship_class_sq.c.id,
+            )
+        return query
 
     @staticmethod
     def name_field():
@@ -994,13 +985,23 @@ class ParameterValueMapping(ExportMapping):
     def filter_query(self, db_map, query):
         if not self._selects_value:
             return query
-        return query.outerjoin(
-            db_map.parameter_value_sq,
-            and_(
-                db_map.parameter_value_sq.c.entity_id == db_map.entity_sq.c.id,
-                db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
-            ),
-        )
+        if "object_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_value_sq,
+                and_(
+                    db_map.parameter_value_sq.c.object_id == db_map.object_sq.c.id,
+                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                ),
+            )
+        if "relationship_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_value_sq,
+                and_(
+                    db_map.parameter_value_sq.c.relationship_id == db_map.wide_relationship_sq.c.id,
+                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                ),
+            )
+        return query
 
     @staticmethod
     def name_field():

@@ -365,10 +365,10 @@ class TestExportMapping(unittest.TestCase):
         expected = [
             ["oc", "o1", "p1", "a"],
             ["oc", "o1", "p1", "b"],
-            ["oc", "o2", "p1", "e"],
-            ["oc", "o2", "p1", "f"],
             ["oc", "o1", "p2", "c"],
             ["oc", "o1", "p2", "d"],
+            ["oc", "o2", "p1", "e"],
+            ["oc", "o2", "p1", "f"],
             ["oc", "o2", "p2", "g"],
             ["oc", "o2", "p2", "h"],
         ]
