@@ -1062,6 +1062,7 @@ class ScenarioMapping(ExportMapping):
         else:
             state[ExportKey.ALTERNATIVE_NAME_LIST] = None
         state[ExportKey.SCENARIO_ROW_CACHE] = db_row
+        state[ExportKey.ALTERNATIVE_LIST_INDEX] = 0
 
     def _data(self, db_row):
         return db_row.name
@@ -1109,7 +1110,6 @@ class ScenarioAlternativeMapping(ExportMapping):
         return isinstance(parent, ScenarioMapping)
 
     def _query(self, db_map, state, fixed_state):
-        state[ExportKey.ALTERNATIVE_LIST_INDEX] = 0
         alternative_name_list = state[ExportKey.ALTERNATIVE_NAME_LIST]
         if alternative_name_list is None:
             return []
