@@ -18,7 +18,6 @@ Framework for exporting a database to Excel file.
 
 from spinedb_api.export_mapping.export_mapping import (
     Position,
-    ExportKey,
     AlternativeMapping,
     AlternativeDescriptionMapping,
     ObjectClassMapping,
@@ -59,24 +58,23 @@ class ExcelWriterWithPreamble(ExcelWriter):
     def _make_preamble(table_name, title_key):
         if table_name in ("alternative", "scenario", "scenario_alternative"):
             return {"sheet_type": table_name}
-        class_row = title_key[ExportKey.CLASS_ROW_CACHE]
-        class_name = class_row.name
+        class_name = title_key.get("object_class_name") or title_key.get("relationship_class_name")
         if table_name.endswith(",group"):
             return {"sheet_type": "object_group", "class_name": class_name}
-        object_class_name_list = title_key.get(ExportKey.OBJECT_CLASS_NAME_LIST)
-        if object_class_name_list is None:
+        object_class_id_list = title_key.get("object_class_id_list")
+        if object_class_id_list is None:
             entity_type = "object"
             entity_dim_count = 1
         else:
             entity_type = "relationship"
-            entity_dim_count = len(object_class_name_list)
+            entity_dim_count = len(object_class_id_list)
         preamble = {
             "sheet_type": "entity",
             "entity_type": entity_type,
             "class_name": class_name,
             "entity_dim_count": entity_dim_count,
         }
-        value_type = title_key.get(ExportKey.PARAMETER_VALUE_TYPE)
+        value_type = title_key.get("value_type")
         if value_type is not None:
             preamble["value_type"] = value_type.type_
             preamble["index_dim_count"] = value_type.dimension_count

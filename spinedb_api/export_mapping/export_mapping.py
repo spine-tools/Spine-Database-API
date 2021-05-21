@@ -15,48 +15,15 @@ Contains export mappings for database items such as entities, entity classes and
 :date:   10.12.2020
 """
 
-from copy import copy
 from dataclasses import dataclass
-from enum import auto, Enum, unique
-from itertools import cycle, dropwhile, chain
+from itertools import cycle, dropwhile
 import re
-import json
+from sqlalchemy import and_
+from sqlalchemy.sql.expression import literal
 from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from ..helpers import type_from_value
 from .group_functions import NoGroup
-
-
-@unique
-class ExportKey(Enum):
-    ALTERNATIVE_LIST_INDEX = auto()
-    ALTERNATIVE_NAME_LIST = auto()
-    ALTERNATIVE_ROW_CACHE = auto()
-    CLASS_ROW_CACHE = auto()
-    ENTITY_ROW_CACHE = auto()
-    FEATURE_ROW_CACHE = auto()
-    OBJECT_CLASS_LIST_INDEX = auto()
-    OBJECT_CLASS_NAME_LIST = auto()
-    OBJECT_GROUP_ROW_CACHE = auto()
-    OBJECT_LIST_INDEX = auto()
-    OBJECT_NAME_LIST = auto()
-    PARAMETER_DEFINITION_ID = auto()
-    PARAMETER_DEFINITION_ROW_CACHE = auto()
-    PARAMETER_ROW_CACHE = auto()
-    PARAMETER_VALUE_LIST_ROW_CACHE = auto()
-    PARAMETER_VALUE_ROW_CACHE = auto()
-    PARAMETER_VALUE_LOOKUP_CACHE = auto()
-    PARAMETER_VALUE_TYPE = auto()
-    EXPANDED_PARAMETER_CACHE = auto()
-    SCENARIO_ID = auto()
-    SCENARIO_ROW_CACHE = auto()
-    TOOL_FEATURE_ROW_CACHE = auto()
-    TOOL_FEATURE_METHOD_ROW_CACHE = auto()
-    TOOL_ID = auto()
-
-
-_ignored = object()
-"""A sentinel object to tag ignored database rows."""
 
 
 def check_validity(root_mapping):
@@ -75,10 +42,54 @@ def check_validity(root_mapping):
     non_title_mappings = [m for m in flattened if m.position != Position.table_name]
     if len(non_title_mappings) == 2 and is_pivoted(non_title_mappings[0].position):
         issues.append("First mapping cannot be pivoted")
-    title_mappings = [m for m in flattened if m.position == Position.table_name]
-    if len(title_mappings) > 1:
-        issues.append("Only a single mapping can be the table name.")
     return issues
+
+
+class _IndexMappingMixin:
+    """Provides complex value expansion for ParameterValueIndexMapping and ParameterDefaultValueIndexMapping."""
+
+    _current_leaf = None
+
+    def current_leaf(self):
+        """The current leaf in the parameter value dictionary.
+        Gets updated as the mapping expands and yields more data.
+
+        Returns:
+            any
+        """
+        return self._current_leaf
+
+    @staticmethod
+    def _expand_value(value):
+        """Expands given parsed parameter value into a dict.
+
+        Args:
+            value (Any): parsed parameter value
+
+        Returns:
+            dict: a (nested) dictionary mapping parameter index (or None in case of scalar) to value
+        """
+        if isinstance(value, IndexedValue):
+            return convert_map_to_dict(convert_containers_to_maps(value))
+        return {None: value}
+
+    def _expand_data(self, data):
+        """Implements ``ExportMapping._expand_data()``."""
+        if not isinstance(self.parent, _IndexMappingMixin):
+            # Expand
+            current_leaf = self._expand_value(data)
+        else:
+            # Get leaf from parent
+            current_leaf = self.parent.current_leaf()
+        if not isinstance(current_leaf, dict):
+            # Nothing to expand. Set the current leaf so the child can find it
+            self._current_leaf = current_leaf
+            yield None
+            return
+        # Expand and set the current leaf so the child can find it
+        for index, value in current_leaf.items():
+            self._current_leaf = value
+            yield index
 
 
 class ExportMapping(Mapping):
@@ -101,14 +112,10 @@ class ExportMapping(Mapping):
         self._filter_re = ""
         self._group_fn = None
         self._ignorable = False
-        self._unignorable_update_state = self._update_state
-        self._unignorable_query = self._query
-        self._unignorable_data = self._data
-        self._unfiltered_query = self._query
         self.header = header
         self.filter_re = filter_re
         self.group_fn = group_fn
-        self._query_cache = {}
+        self._convert_data = None
 
     def __eq__(self, other):
         if not isinstance(other, ExportMapping):
@@ -129,21 +136,6 @@ class ExportMapping(Mapping):
     @filter_re.setter
     def filter_re(self, filter_re):
         self._filter_re = filter_re
-        self._set_query_filtered()
-
-    def _set_query_filtered(self):
-        """
-        Overrides ``self._query()`` so the output is filtered according to ``self.filter_re()``
-        """
-        if not self._filter_re:
-            self._query = self._unfiltered_query
-            return
-        self._query = self._filtered_query
-
-    def _filtered_query(self, *args, **kwargs):
-        for db_row in self._unfiltered_query(*args, **kwargs):
-            if re.search(self._filter_re, str(self._data(db_row))):
-                yield db_row
 
     def check_validity(self):
         """Checks if mapping is valid.
@@ -162,74 +154,6 @@ class ExportMapping(Mapping):
             issues.append("Cannot be pivoted.")
         return issues
 
-    def _update_state(self, state, db_row):
-        """
-        Modifies current sate.
-
-        Args:
-            state (dict): state instance to modify
-            db_row (namedtuple): a database row
-        """
-        raise NotImplementedError()
-
-    def _expand_state(self, state, db_map, fixed_state):
-        """
-        Expands a pivoted state.
-
-        Args:
-            state (dict): a state to expand
-            db_map (DatabaseMappingBase): a database map
-            fixed_state (dict): state for fixed items
-
-        Returns:
-            list of dict: expanded states
-        """
-        expanded = list()
-        for db_row in self._query(db_map, state, fixed_state):
-            expanded_state = copy(state)
-            self._update_state(expanded_state, db_row)
-            expanded.append(expanded_state)
-        return expanded
-
-    def has_title(self):
-        """
-        Returns True if this mapping or one of its children generates titles.
-
-        Returns:
-            bool: True if mappings generate titles, False otherwise
-        """
-        if self.position == Position.table_name:
-            return True
-        if self.child is not None:
-            return self.child.has_title()
-        return False
-
-    def _data(self, db_row):
-        """
-        Extracts item's cell data from database row.
-
-        Args:
-            db_row (namedtuple): database row
-
-        Returns:
-            str: cell data
-        """
-        raise NotImplementedError()
-
-    def _query(self, db_map, state, fixed_state):
-        """
-        Creates a database subquery.
-
-        Args:
-            db_map (DatabaseMappingBase): a database map
-            state (dict): state for filtering
-            fixed_state (dict): state that fixes current item
-
-        Returns:
-            Alias: a subquery
-        """
-        raise NotImplementedError()
-
     def replace_data(self, data):
         """
         Replaces the data generated by this item by user given data.
@@ -240,78 +164,7 @@ class ExportMapping(Mapping):
             data (Iterable): user data
         """
         data_iterator = cycle(data)
-        self._data = lambda _: next(data_iterator)
-
-    def rows(self, db_map, state, fixed_state):
-        """
-        Generates a row of non-pivoted data.
-
-        Args:
-            db_map (DatabaseMappingBase): a database map
-            state (dict): state
-            fixed_state (dict): state for fixed items
-
-        Yields:
-            dict: a mapping from column index to cell data
-        """
-        if self.child is None:
-            # Non-recursive case
-            for db_row in self._query(db_map, state, fixed_state):
-                yield {self.position: self._data(db_row)}
-            return
-        # Recursive case
-        for db_row in self._query(db_map, state, fixed_state):
-            self._update_state(state, db_row)
-            data = self._data(db_row)
-            for child_row in self.child.rows(db_map, state, fixed_state):
-                row = {self.position: data}
-                row.update(child_row)
-                yield row
-
-    def has_header(self):
-        """Recursively checks if mapping would create a header row.
-
-        Returns:
-            bool: True if make_header() would return something useful
-        """
-        if self.header or self.position == Position.header:
-            return True
-        if self.child is None:
-            return False
-        return self.child.has_header()
-
-    def make_header(self, db_map, state, fixed_state, buddies):
-        """
-        Generates the header recursively.
-
-        Args:
-            db_map (DatabaseMappingBase): database map
-            state (dict): state
-            fixed_state (dict): state for fixed items
-            buddies (list of tuple): buddy mappings
-
-        Returns
-            dict: a mapping from column index to string header
-        """
-        if self.child is None:
-            if not is_regular(self.position):
-                return {}
-            return {self.position: self.header}
-        db_row = None
-        try:
-            db_row = next(iter(self._query(db_map, state, fixed_state)))
-        except (KeyError, StopIteration):
-            pass
-        else:
-            self._update_state(state, db_row)
-        header = self.child.make_header(db_map, state, fixed_state, buddies)
-        if self.position == Position.header:
-            buddy = find_my_buddy(self, buddies)
-            if buddy is not None:
-                header[buddy.position] = self._data(db_row)
-        else:
-            header[self.position] = self.header
-        return header
+        self._convert_data = lambda _: next(data_iterator)
 
     @staticmethod
     def is_buddy(parent):
@@ -324,21 +177,6 @@ class ExportMapping(Mapping):
             bool: True if parent's state affects what a mapping yields
         """
         return False
-
-    def _ignorable_update_state(self, state, db_row):
-        if db_row is _ignored:
-            return
-        self._unignorable_update_state(state, db_row)
-
-    def _ignorable_data(self, db_row):
-        if db_row is _ignored:
-            return None
-        return self._unignorable_data(db_row)
-
-    def _ignorable_query(self, db_map, state, fixed_state):
-        qry = iter(self._unignorable_query(db_map, state, fixed_state))
-        yield next(qry, _ignored)
-        yield from qry
 
     def is_ignorable(self):
         """Returns True if the mapping is ignorable, False otherwise.
@@ -358,77 +196,7 @@ class ExportMapping(Mapping):
         Args:
             ignorable (bool): True to set mapping ignorable, False to unset
         """
-        if ignorable == self._ignorable:
-            return
         self._ignorable = ignorable
-        if self._ignorable:
-            self._data = self._ignorable_data
-            self._query = self._ignorable_query
-            self._update_state = self._ignorable_update_state
-        else:
-            self._data = self._unignorable_data
-            self._query = self._unignorable_query
-            self._update_state = self._unignorable_update_state
-
-    def title(self, db_map, state, fixed_state=None):
-        """
-        Generates title data.
-
-        Args:
-            db_map (DatabaseMappingBase): a database map
-            state (dict): state
-            fixed_state (dict, optional): state for fixed items
-
-        Yields:
-            tuple(str,dict): unique title, and associated 'title' state dictionary
-        """
-        if fixed_state is None:
-            fixed_state = dict()
-        titles = {}
-        for title, title_state in self.make_titles(db_map, state, fixed_state):
-            titles.setdefault(title, {}).update(title_state)
-        yield from titles.items()
-
-    def make_titles(self, db_map, state, fixed_state):
-        """
-        Generates titles recursively.
-
-        Yields
-            tuple(str,dict): title string and associated state dictionary
-        """
-        if self.child is None:
-            # Non-recursive case
-            if self.position is not Position.table_name:
-                return ()
-            for db_row in self._query(db_map, state, fixed_state):
-                title = self._data(db_row)
-                title_state = dict()
-                self._update_state(title_state, db_row)
-                yield title, title_state
-            return
-        # Recursive case
-        for db_row in self._query(db_map, state, fixed_state):
-            self._update_state(state, db_row)
-            fixed_state = copy(fixed_state)
-            self._update_state(fixed_state, db_row)
-            child_titles = self.child.make_titles(db_map, state, fixed_state)
-            if self.position is not Position.table_name:
-                yield from child_titles
-                continue
-            title = self._data(db_row)
-            title_state = dict()
-            self._update_state(title_state, db_row)
-            first_child_title = next(child_titles, None)
-            if first_child_title is None:
-                yield title, title_state
-                continue
-            for child_title, child_title_state in chain((first_child_title,), child_titles):
-                final_title = title
-                final_title_state = copy(title_state)
-                if child_title is not None:
-                    final_title += self._TITLE_SEP + child_title
-                    final_title_state.update(child_title_state)
-                yield final_title, final_title_state
 
     def to_dict(self):
         """
@@ -468,6 +236,339 @@ class ExportMapping(Mapping):
         mapping = cls(position, value=value, header=header, filter_re=filter_re, group_fn=group_fn)
         mapping.set_ignorable(ignorable)
         return mapping
+
+    def add_query_columns(self, db_map, query):
+        """Adds columns to the mapping query if needed, and returns the new query.
+
+        The base class implementation just returns the same query without adding any new columns.
+
+        Args:
+            db_map (DatabaseMappingBase)
+            query (dict)
+
+        Returns:
+            Query: expanded query, or the same if nothing to add.
+        """
+        return query
+
+    def filter_query(self, db_map, query):
+        """Filters the mapping query if needed, and returns the new query.
+
+        The base class implementation just returns the same query without applying any new filters.
+
+        Args:
+            db_map (DatabaseMappingBase)
+            query (dict)
+
+        Returns:
+            Query: expanded query, or the same if nothing to add.
+        """
+        return query
+
+    def filter_query_by_title(self, query, title_state):
+        """Filters the query using pertinent information from the given title state.
+        Typically, title filters can be applied by calling ``filter()`` on the query directly (see ``_build_query()``).
+        However, subclasses may need something more specific, for example, to filter parameter values by type.
+
+        The base class implementations just returns the unaltered query.
+
+        Args:
+            title_state (dict)
+
+        Returns:
+            Query or _FilteredQuery
+        """
+        return query
+
+    def _build_query(self, db_map, title_state):
+        """Builds and returns the query to run for this mapping hierarchy.
+
+        Args:
+            db_map (DatabaseMappingBase)
+            title_state (dict)
+
+        Returns:
+            Query
+        """
+        mappings = self.flatten()
+        # Start with empty query
+        qry = db_map.query(literal(None))
+        # Add columns
+        for m in mappings:
+            qry = m.add_query_columns(db_map, qry)
+        # Apply filters
+        for m in mappings:
+            qry = m.filter_query(db_map, qry)
+        # Create a subquery to apply title filters
+        sq = qry.subquery()
+        qry = db_map.query(sq)
+        # Apply special title filters (first, so we clean up the state)
+        for m in mappings:
+            qry = m.filter_query_by_title(qry, title_state)
+        # Apply standard title filters
+        for key, value in title_state.items():
+            qry = qry.filter(getattr(sq.c, key) == value)
+        return qry
+
+    @staticmethod
+    def name_field():
+        """Returns the 'name' field associated to this mapping within the query.
+        Used to obtain the relevant data from a db row.
+
+        Returns:
+            str
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def id_field():
+        """Returns the 'id' field associated to this mapping within the query.
+        Used to compose the title state.
+
+        Returns:
+            str
+        """
+        raise NotImplementedError()
+
+    def _data(self, db_row):  # pylint: disable=arguments-differ
+        """Returns the data relevant to this mapping from given database row.
+
+        The base class implementation returns the field given by ``name_field()``.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            any
+        """
+        return getattr(db_row, self.name_field(), None)
+
+    def _expand_data(self, data):
+        """Takes data from an individual field in the db and yields all data generated by this mapping.
+
+        The base class implementation simply yields the given data.
+        Reimplement in subclasses that need to expand the data into multiple elements (e.g., indexed value mappings).
+
+        Args:
+            data (any)
+
+        Returns:
+            generator(any)
+        """
+        yield data
+
+    def _get_data_iterator(self, data):
+        """Applies regexp filtering and data conversion on the output of ``_expand_data()`` to produce the final data
+        iterator for this mapping.
+
+        Args:
+            data (any)
+
+        Returns:
+            generator(any)
+        """
+        data_iterator = self._expand_data(data)
+        if self._filter_re:
+            data_iterator = (x for x in data_iterator if re.search(self._filter_re, str(x)))
+        if self._convert_data is not None:
+            data_iterator = (self._convert_data(x) for x in data_iterator)
+        return data_iterator
+
+    def _get_rows(self, db_row):
+        """Yields rows issued by this mapping for given database row.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            generator(dict)
+        """
+        if self.position == Position.table_name:
+            yield {}
+            return
+        data = self._data(db_row)
+        if data is None and not self._ignorable:
+            return ()
+        data_iterator = self._get_data_iterator(data)
+        for data in data_iterator:
+            yield {self.position: data}
+
+    def get_rows_recursive(self, db_row):
+        """Takes a database row and yields rows issued by this mapping and its children combined.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            generator(dict)
+        """
+        if self.child is None:
+            yield from self._get_rows(db_row)
+            return
+        for row in self._get_rows(db_row):
+            for child_row in self.child.get_rows_recursive(db_row):
+                row = row.copy()
+                row.update(child_row)
+                yield row
+
+    def rows(self, db_map, title_state):
+        """Yields rows issued by this mapping and its children combined.
+
+        Args:
+            db_map (DatabaseMappingBase)
+            title_state (dict)
+
+        Returns:
+            generator(dict)
+        """
+        qry = self._build_query(db_map, title_state)
+        for db_row in qry.yield_per(1000):
+            yield from self.get_rows_recursive(db_row)
+
+    def has_titles(self):
+        """Returns True if this mapping or one of its children generates titles.
+
+        Returns:
+            bool: True if mappings generate titles, False otherwise
+        """
+        if self.position == Position.table_name:
+            return True
+        if self.child is not None:
+            return self.child.has_titles()
+        return False
+
+    def _title_state(self, db_row):
+        """Returns the title state associated to this mapping from given database row.
+
+        The base class implementation returns a dict mapping the output of ``id_field()``
+        to the corresponding field from the row.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            dict
+        """
+        id_field = self.id_field()
+        if id_field is None:
+            return {}
+        return {id_field: getattr(db_row, id_field)}
+
+    def _get_titles(self, db_row):
+        """Yields pairs (title, title state) issued by this mapping for given database row.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            generator(str,dict)
+        """
+        if self.position != Position.table_name:
+            yield "", {}
+            return
+        data = self._data(db_row)
+        data_iterator = self._get_data_iterator(data)
+        title_state = self._title_state(db_row)
+        for data in data_iterator:
+            if data is None:
+                data = ""
+            yield data, title_state
+
+    def get_titles_recursive(self, db_row):
+        """Takes a database row and yields pairs (title, title state) issued by this mapping and its children combined.
+
+        Args:
+            db_row (KeyedTuple)
+
+        Returns:
+            generator(str,dict)
+        """
+        if self.child is None:
+            yield from self._get_titles(db_row)
+            return
+        for title, title_state in self._get_titles(db_row):
+            for child_title, child_title_state in self.child.get_titles_recursive(db_row):
+                title_sep = self._TITLE_SEP if title and child_title else ""
+                final_title = title + title_sep + child_title
+                yield final_title, {**title_state, **child_title_state}
+
+    def _non_unique_titles(self, db_map):
+        """Yields all titles, not necessarily unique, and associated state dictionaries.
+
+        Args:
+            db_map (DatabaseMappingBase): a database map
+
+        Yields:
+            tuple(str,dict): title, and associated title state dictionary
+        """
+        qry = self._build_query(db_map, dict())
+        for db_row in qry.yield_per(1000):
+            yield from self.get_titles_recursive(db_row)
+
+    def titles(self, db_map):
+        """Yields unique titles and associated state dictionaries.
+
+        Args:
+            db_map (DatabaseMappingBase): a database map
+
+        Yields:
+            tuple(str,dict): unique title, and associated title state dictionary
+        """
+        titles = {}
+        for title, title_state in self._non_unique_titles(db_map):
+            titles.setdefault(title, {}).update(title_state)
+        yield from titles.items()
+
+    def has_header(self):
+        """Recursively checks if mapping would create a header row.
+
+        Returns:
+            bool: True if make_header() would return something useful
+        """
+        if self.header or self.position == Position.header:
+            return True
+        if self.child is None:
+            return False
+        return self.child.has_header()
+
+    def make_header_recursive(self, first_row, title_state, buddies):
+        """Builds the header recursively.
+
+        Args:
+            db_map (DatabaseMappingBase): database map
+            title_state (dict): title state
+            buddies (list of tuple): buddy mappings
+
+        Returns
+            dict: a mapping from column index to string header
+        """
+        if self.child is None:
+            if not is_regular(self.position):
+                return {}
+            return {self.position: self.header}
+        header = self.child.make_header_recursive(first_row, title_state, buddies)
+        if self.position == Position.header:
+            buddy = find_my_buddy(self, buddies)
+            if buddy is not None:
+                header[buddy.position] = self._data(first_row)
+        else:
+            header[self.position] = self.header
+        return header
+
+    def make_header(self, db_map, title_state, buddies):
+        """Returns the header for this mapping.
+
+        Args:
+            db_map (DatabaseMappingBase): database map
+            title_state (dict): title state
+            buddies (list of tuple): buddy mappings
+
+        Returns
+            dict: a mapping from column index to string header
+        """
+        qry = self._build_query(db_map, title_state)
+        first_row = qry.first()
+        return self.make_header_recursive(first_row, title_state, buddies)
 
 
 def drop_non_positioned_tail(root_mapping):
@@ -510,15 +611,13 @@ class FixedValueMapping(ExportMapping):
         """
         super().__init__(position, value, header, filter_re, group_fn)
 
-    def _data(self, db_row):
-        # Will be replaced by base class constructor.
-        raise NotImplementedError()
+    @staticmethod
+    def name_field():
+        return None
 
-    def _update_state(self, state, db_row):
-        return
-
-    def _query(self, db_map, state, fixed_state):
-        yield None
+    @staticmethod
+    def id_field():
+        return None
 
 
 class ObjectClassMapping(ExportMapping):
@@ -529,16 +628,20 @@ class ObjectClassMapping(ExportMapping):
 
     MAP_TYPE = "ObjectClass"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.CLASS_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.object_class_sq.c.id.label("object_class_id"),
+            db_map.object_class_sq.c.name.label("object_class_name"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    @staticmethod
+    def name_field():
+        return "object_class_name"
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.CLASS_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.object_class_sq)
-        return [fixed_state[ExportKey.CLASS_ROW_CACHE]]
+    @staticmethod
+    def id_field():
+        # Use the class name here, for the benefit of the standard excel export
+        return "object_class_name"
 
 
 class ObjectMapping(ExportMapping):
@@ -549,27 +652,23 @@ class ObjectMapping(ExportMapping):
 
     MAP_TYPE = "Object"
 
-    def _data(self, db_row):
-        return db_row.name
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.object_sq.c.id.label("object_id"), db_map.object_sq.c.name.label("object_name"))
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.ENTITY_ROW_CACHE] = db_row
+    def filter_query(self, db_map, query):
+        return query.outerjoin(db_map.object_sq, db_map.object_sq.c.class_id == db_map.object_class_sq.c.id)
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
-            self._update_query_cache(db_map)
-            return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
-        return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
+    @staticmethod
+    def name_field():
+        return "object_name"
+
+    @staticmethod
+    def id_field():
+        return "object_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ObjectClassMapping)
-
-    def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        for x in db_map.query(db_map.object_sq):
-            self._query_cache.setdefault(x.class_id, []).append(x)
 
 
 class ObjectGroupMapping(ExportMapping):
@@ -580,24 +679,25 @@ class ObjectGroupMapping(ExportMapping):
 
     MAP_TYPE = "ObjectGroup"
 
-    def _data(self, db_row):
-        return db_row.group_name
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.ext_entity_group_sq.c.group_id, db_map.ext_entity_group_sq.c.group_name)
+
+    def filter_query(self, db_map, query):
+        return query.outerjoin(
+            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.object_class_sq.c.id
+        ).distinct()
+
+    @staticmethod
+    def name_field():
+        return "group_name"
+
+    @staticmethod
+    def id_field():
+        return "group_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ObjectClassMapping)
-
-    def _update_state(self, state, db_row):
-        state[ExportKey.OBJECT_GROUP_ROW_CACHE] = db_row
-
-    def _query(self, db_map, state, fixed_state):
-        if not self._query_cache:
-            self._update_query_cache(db_map)
-        return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
-
-    def _update_query_cache(self, db_map):
-        for x in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.group_id):
-            self._query_cache.setdefault(x.class_id, []).append(x)
 
 
 class ObjectGroupObjectMapping(ExportMapping):
@@ -608,28 +708,23 @@ class ObjectGroupObjectMapping(ExportMapping):
 
     MAP_TYPE = "ObjectGroupObject"
 
-    def _data(self, db_row):
-        return db_row.member_name
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.object_sq.c.id.label("object_id"), db_map.object_sq.c.name.label("object_name"))
+
+    def filter_query(self, db_map, query):
+        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.object_sq.c.id)
+
+    @staticmethod
+    def name_field():
+        return "object_name"
+
+    @staticmethod
+    def id_field():
+        return "object_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ObjectGroupMapping)
-
-    def _update_state(self, state, db_row):
-        state[ExportKey.ENTITY_ROW_CACHE] = db_row
-
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
-            if not self._query_cache:
-                self._update_query_cache(db_map)
-            return self._query_cache.get(
-                (state[ExportKey.CLASS_ROW_CACHE].id, state[ExportKey.OBJECT_GROUP_ROW_CACHE].group_id), []
-            )
-        return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
-
-    def _update_query_cache(self, db_map):
-        for x in db_map.query(db_map.ext_entity_group_sq):
-            self._query_cache.setdefault((x.class_id, x.group_id), []).append(x)
 
 
 class RelationshipClassMapping(ExportMapping):
@@ -640,18 +735,23 @@ class RelationshipClassMapping(ExportMapping):
 
     MAP_TYPE = "RelationshipClass"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.CLASS_ROW_CACHE] = db_row
-        state[ExportKey.OBJECT_CLASS_LIST_INDEX] = 0
-        state[ExportKey.OBJECT_CLASS_NAME_LIST] = db_row.object_class_name_list.split(",")
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.wide_relationship_class_sq.c.id.label("relationship_class_id"),
+            db_map.wide_relationship_class_sq.c.name.label("relationship_class_name"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    @staticmethod
+    def name_field():
+        return "relationship_class_name"
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.CLASS_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.wide_relationship_class_sq)
-        return [fixed_state[ExportKey.CLASS_ROW_CACHE]]
+    @staticmethod
+    def id_field():
+        # Use the class name here, for the benefit of the standard excel export
+        return "relationship_class_name"
+
+    def index(self):
+        return -1
 
 
 class RelationshipClassObjectClassMapping(ExportMapping):
@@ -662,29 +762,34 @@ class RelationshipClassObjectClassMapping(ExportMapping):
 
     MAP_TYPE = "RelationshipClassObjectClass"
 
-    def _update_state(self, state, db_row):
-        try:
-            state[ExportKey.OBJECT_CLASS_LIST_INDEX] += 1
-        except KeyError:
-            # Could happen when forming title states.
-            # Since only the mappings that go into Position.table_name update such state, this key might be missing.
-            # E.g. relationship class mapping goes to some row, member object class mapping goes to table_name.
-            state[ExportKey.OBJECT_CLASS_LIST_INDEX] = 1
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.wide_relationship_class_sq.c.object_class_id_list,
+            db_map.wide_relationship_class_sq.c.object_class_name_list,
+        )
+
+    @staticmethod
+    def name_field():
+        return "object_class_name_list"
+
+    @staticmethod
+    def id_field():
+        return "object_class_id_list"
 
     def _data(self, db_row):
-        return db_row
+        data = super()._data(db_row).split(",")
+        index = self.index()
+        try:
+            return data[index]
+        except IndexError:
+            return ""
+
+    def index(self):
+        return self.parent.index() + 1
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, RelationshipClassMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        name_list = state[ExportKey.OBJECT_CLASS_NAME_LIST]
-        try:
-            name = name_list[state[ExportKey.OBJECT_CLASS_LIST_INDEX]]
-        except IndexError:
-            name = None
-        yield name
 
 
 class RelationshipMapping(ExportMapping):
@@ -695,29 +800,32 @@ class RelationshipMapping(ExportMapping):
 
     MAP_TYPE = "Relationship"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.ENTITY_ROW_CACHE] = db_row
-        state[ExportKey.OBJECT_LIST_INDEX] = 0
-        state[ExportKey.OBJECT_NAME_LIST] = db_row.object_name_list.split(",")
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.wide_relationship_sq.c.id.label("relationship_id"),
+            db_map.wide_relationship_sq.c.name.label("relationship_name"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    def filter_query(self, db_map, query):
+        return query.outerjoin(
+            db_map.wide_relationship_sq,
+            db_map.wide_relationship_sq.c.class_id == db_map.wide_relationship_class_sq.c.id,
+        )
+
+    @staticmethod
+    def name_field():
+        return "relationship_name"
+
+    @staticmethod
+    def id_field():
+        return "relationship_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, RelationshipClassMapping)
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.ENTITY_ROW_CACHE not in fixed_state:
-            self._update_query_cache(db_map)
-            return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
-        return [fixed_state[ExportKey.ENTITY_ROW_CACHE]]
-
-    def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        for x in db_map.query(db_map.wide_relationship_sq):
-            self._query_cache.setdefault(x.class_id, []).append(x)
+    def index(self):
+        return -1
 
 
 class RelationshipObjectMapping(ExportMapping):
@@ -729,29 +837,33 @@ class RelationshipObjectMapping(ExportMapping):
 
     MAP_TYPE = "RelationshipObject"
 
-    def _update_state(self, state, db_row):
-        try:
-            state[ExportKey.OBJECT_LIST_INDEX] += 1
-        except KeyError:
-            # Could happen when forming title states.
-            # Since only the mappings that go into Position.table_name update such state, this key might be missing.
-            # E.g. relationship mapping goes to some row, member object mapping goes to table_name.
-            state[ExportKey.OBJECT_LIST_INDEX] = 1
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.wide_relationship_sq.c.object_id_list, db_map.wide_relationship_sq.c.object_name_list
+        )
+
+    @staticmethod
+    def name_field():
+        return "object_name_list"
+
+    @staticmethod
+    def id_field():
+        return "object_id_list"
 
     def _data(self, db_row):
-        return db_row
+        data = super()._data(db_row).split(",")
+        index = self.index()
+        try:
+            return data[index]
+        except IndexError:
+            return ""
+
+    def index(self):
+        return self.parent.index() + 1
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, RelationshipClassObjectClassMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        name_list = state[ExportKey.OBJECT_NAME_LIST]
-        try:
-            name = name_list[state[ExportKey.OBJECT_LIST_INDEX]]
-        except IndexError:
-            name = None
-        yield name
 
 
 class ParameterDefinitionMapping(ExportMapping):
@@ -762,24 +874,32 @@ class ParameterDefinitionMapping(ExportMapping):
 
     MAP_TYPE = "ParameterDefinition"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.PARAMETER_DEFINITION_ID] = db_row.id
-        state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.parameter_definition_sq.c.id.label("parameter_definition_id"),
+            db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    def filter_query(self, db_map, query):
+        if "object_class_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_definition_sq,
+                db_map.parameter_definition_sq.c.object_class_id == db_map.object_class_sq.c.id,
+            )
+        if "relationship_class_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_definition_sq,
+                db_map.parameter_definition_sq.c.relationship_class_id == db_map.wide_relationship_class_sq.c.id,
+            )
+        return query
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.PARAMETER_DEFINITION_ROW_CACHE not in fixed_state:
-            self._update_query_cache(db_map)
-            return self._query_cache.get(state[ExportKey.CLASS_ROW_CACHE].id, [])
-        return [fixed_state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE]]
+    @staticmethod
+    def name_field():
+        return "parameter_definition_name"
 
-    def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        for x in db_map.query(db_map.parameter_definition_sq):
-            self._query_cache.setdefault(x.entity_class_id, []).append(x)
+    @staticmethod
+    def id_field():
+        return "parameter_definition_id"
 
 
 class ParameterDefaultValueMapping(ExportMapping):
@@ -790,41 +910,52 @@ class ParameterDefaultValueMapping(ExportMapping):
 
     MAP_TYPE = "ParameterDefaultValue"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.parameter_definition_sq.c.default_value)
+
+    @staticmethod
+    def name_field():
+        return "default_value"
+
+    @staticmethod
+    def id_field():
+        return "default_value"
 
     def _data(self, db_row):
-        default_value = from_database(db_row.default_value)
-        return default_value if not isinstance(default_value, IndexedValue) else type(default_value).__name__
+        data = super()._data(db_row)
+        data = from_database(data)
+        return data if not isinstance(data, IndexedValue) else type(data).__name__
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ParameterDefinitionMapping)
 
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE]
 
-
-class ParameterDefaultValueIndexMapping(ExportMapping):
+class ParameterDefaultValueIndexMapping(_IndexMappingMixin, ExportMapping):
     """Maps default value indexes.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
     """
 
     MAP_TYPE = "ParameterDefaultValueIndex"
+    _expanded_value = None
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.EXPANDED_PARAMETER_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        if "default_value" in {c["name"] for c in query.column_descriptions}:
+            return query
+        return query.add_columns(db_map.parameter_definition_sq.c.default_value)
+
+    @staticmethod
+    def name_field():
+        return "default_value"
+
+    @staticmethod
+    def id_field():
+        return "default_value"
 
     def _data(self, db_row):
-        return db_row.index
-
-    def _query(self, db_map, state, fixed_state):
-        cached_parameter = state.get(ExportKey.EXPANDED_PARAMETER_CACHE)
-        if cached_parameter is None or not cached_parameter.same(state):
-            yield from _expand_default_value_from_state(state)
-        else:
-            yield from _expand_values_from_parameter(cached_parameter)
+        data = super()._data(db_row)
+        return from_database(data)
 
 
 class ExpandedParameterDefaultValueMapping(ExportMapping):
@@ -838,18 +969,16 @@ class ExpandedParameterDefaultValueMapping(ExportMapping):
 
     MAP_TYPE = "ExpandedDefaultValue"
 
-    def _update_state(self, state, db_row):
-        return
+    @staticmethod
+    def name_field():
+        return "default_value"
+
+    @staticmethod
+    def id_field():
+        return "default_value"
 
     def _data(self, db_row):
-        return db_row.value
-
-    def _query(self, db_map, state, fixed_state):
-        cached_parameter = state.get(ExportKey.EXPANDED_PARAMETER_CACHE)
-        if cached_parameter is None or not cached_parameter.same(state):
-            yield from _expand_default_value_from_state(state)
-        else:
-            yield cached_parameter
+        return self.parent.current_leaf()
 
 
 class ParameterValueMapping(ExportMapping):
@@ -860,36 +989,51 @@ class ParameterValueMapping(ExportMapping):
     """
 
     MAP_TYPE = "ParameterValue"
+    _selects_value = False
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.PARAMETER_VALUE_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        if "value" in {c["name"] for c in query.column_descriptions}:
+            return query
+        self._selects_value = True
+        return query.add_columns(db_map.parameter_value_sq.c.value)
+
+    def filter_query(self, db_map, query):
+        if not self._selects_value:
+            return query
+        if "object_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_value_sq,
+                and_(
+                    db_map.parameter_value_sq.c.object_id == db_map.object_sq.c.id,
+                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                ),
+            )
+        if "relationship_id" in {c["name"] for c in query.column_descriptions}:
+            return query.outerjoin(
+                db_map.parameter_value_sq,
+                and_(
+                    db_map.parameter_value_sq.c.relationship_id == db_map.wide_relationship_sq.c.id,
+                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                ),
+            )
+        return query
+
+    @staticmethod
+    def name_field():
+        return "value"
+
+    @staticmethod
+    def id_field():
+        return "value"
 
     def _data(self, db_row):
-        value = from_database(db_row.value)
-        return value if not isinstance(value, IndexedValue) else type(value).__name__
+        data = super()._data(db_row)
+        data = from_database(data)
+        return data if not isinstance(data, IndexedValue) else type(data).__name__
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, (ParameterDefinitionMapping, ObjectMapping, RelationshipMapping, AlternativeMapping))
-
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.PARAMETER_VALUE_ROW_CACHE in fixed_state:
-            return [fixed_state[ExportKey.PARAMETER_VALUE_ROW_CACHE]]
-        if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
-            self._update_query_cache(db_map)
-            state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = self._query_cache
-        definition_id = state[ExportKey.PARAMETER_DEFINITION_ID]
-        entity_id = state[ExportKey.ENTITY_ROW_CACHE].id
-        alternative_id = state[ExportKey.ALTERNATIVE_ROW_CACHE].id
-        value_row = state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
-        if value_row is None:
-            return []
-        return [value_row]
-
-    def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        self._query_cache = _make_parameter_value_lookup(db_map)
 
 
 class ParameterValueTypeMapping(ParameterValueMapping):
@@ -900,21 +1044,37 @@ class ParameterValueTypeMapping(ParameterValueMapping):
     """
 
     MAP_TYPE = "ParameterValueType"
+    _value_type = None
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.PARAMETER_VALUE_TYPE] = db_row
+    def _cache_value_type(self, db_row):
+        """Caches the value type so we don't need to compute it more than once.
+
+        Args:
+            db_row (KeyedTuple)
+        """
+        if self._value_type is None:
+            self._value_type = type_from_value(db_row.value)
 
     def _data(self, db_row):
-        if db_row.type_ != "map":
-            return db_row.type_
-        return f"{db_row.dimension_count}d_{db_row.type_}"
+        self._cache_value_type(db_row)
+        if self._value_type.type_ != "map":
+            return self._value_type.type_
+        return f"{self._value_type.dimension_count}d_{self._value_type.type_}"
 
-    def _query(self, db_map, state, fixed_state):
-        qry = super()._query(db_map, state, fixed_state)
-        return [type_from_value(db_row.value) for db_row in qry]
+    def _title_state(self, db_row):
+        self._cache_value_type(db_row)
+        return {"value_type": self._value_type}
+
+    def filter_query_by_title(self, query, title_state):
+        value_type = title_state.pop("value_type", None)
+        if value_type is None:
+            return query
+        if "value" not in {c["name"] for c in query.column_descriptions}:
+            return query
+        return _FilteredQuery(query, lambda db_row: type_from_value(db_row.value) == value_type)
 
 
-class ParameterValueIndexMapping(ExportMapping):
+class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
     """Maps parameter value indexes.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
@@ -923,26 +1083,10 @@ class ParameterValueIndexMapping(ExportMapping):
 
     MAP_TYPE = "ParameterValueIndex"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.EXPANDED_PARAMETER_CACHE] = db_row
-
     def _data(self, db_row):
-        return db_row.index
-
-    def _query(self, db_map, state, fixed_state):
-        cached_parameter = state.get(ExportKey.EXPANDED_PARAMETER_CACHE)
-        if cached_parameter is None or not cached_parameter.same(state):
-            if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
-                self._update_query_cache(db_map)
-                state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = self._query_cache
-            yield from _expand_parameter_value_from_state(state, fixed_state)
-        else:
-            yield from _expand_values_from_parameter(cached_parameter)
-
-    def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        self._query_cache = _make_parameter_value_lookup(db_map)
+        # pylint: disable=bad-super-call
+        data = super(ParameterValueMapping, self)._data(db_row)
+        return from_database(data)
 
 
 class ExpandedParameterValueMapping(ExportMapping):
@@ -957,26 +1101,16 @@ class ExpandedParameterValueMapping(ExportMapping):
 
     MAP_TYPE = "ExpandedValue"
 
-    def _update_state(self, state, db_row):
-        return
+    @staticmethod
+    def name_field():
+        return "value"
+
+    @staticmethod
+    def id_field():
+        return "value"
 
     def _data(self, db_row):
-        return db_row.value
-
-    def _query(self, db_map, state, fixed_state):
-        cached_parameter = state.get(ExportKey.EXPANDED_PARAMETER_CACHE)
-        if cached_parameter is None or not cached_parameter.same(state):
-            if ExportKey.PARAMETER_VALUE_LOOKUP_CACHE not in state:
-                self._update_query_cache(db_map)
-                state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE] = self._query_cache
-            yield from _expand_parameter_value_from_state(state, fixed_state)
-        else:
-            yield cached_parameter
-
-    def _update_query_cache(self, db_map):
-        if self._query_cache:
-            return
-        self._query_cache = _make_parameter_value_lookup(db_map)
+        return self.parent.current_leaf()
 
 
 class ParameterValueListMapping(ExportMapping):
@@ -988,19 +1122,27 @@ class ParameterValueListMapping(ExportMapping):
 
     MAP_TYPE = "ParameterValueList"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.parameter_value_list_sq.c.id.label("parameter_value_list_id"),
+            db_map.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    def filter_query(self, db_map, query):
+        if self.parent is None:
+            return query
+        return query.outerjoin(
+            db_map.parameter_value_list_sq,
+            db_map.parameter_value_list_sq.c.id == db_map.parameter_definition_sq.c.parameter_value_list_id,
+        )
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE in fixed_state:
-            return [fixed_state[ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE]]
-        qry = db_map.query(db_map.wide_parameter_value_list_sq)
-        if ExportKey.PARAMETER_DEFINITION_ROW_CACHE in state:
-            qry = qry.filter_by(id=state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE].parameter_value_list_id)
-        return qry
+    @staticmethod
+    def name_field():
+        return "parameter_value_list_name"
+
+    @staticmethod
+    def id_field():
+        return "parameter_value_list_id"
 
 
 class ParameterValueListValueMapping(ExportMapping):
@@ -1012,18 +1154,24 @@ class ParameterValueListValueMapping(ExportMapping):
 
     MAP_TYPE = "ParameterValueListValue"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.parameter_value_list_sq.c.value)
+
+    @staticmethod
+    def name_field():
+        return "value"
+
+    @staticmethod
+    def id_field():
+        return "value"
 
     def _data(self, db_row):
-        return from_database(db_row)
+        data = super()._data(db_row)
+        return from_database(data)
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ParameterValueListMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        return state[ExportKey.PARAMETER_VALUE_LIST_ROW_CACHE].value_list.split(";")
 
 
 class AlternativeMapping(ExportMapping):
@@ -1034,16 +1182,25 @@ class AlternativeMapping(ExportMapping):
 
     MAP_TYPE = "Alternative"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.ALTERNATIVE_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.alternative_sq.c.id.label("alternative_id"),
+            db_map.alternative_sq.c.name.label("alternative_name"),
+            db_map.alternative_sq.c.description.label("description"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    def filter_query(self, db_map, query):
+        if self.parent is None:
+            return query
+        return query.filter(db_map.alternative_sq.c.id == db_map.parameter_value_sq.c.alternative_id)
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.ALTERNATIVE_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.alternative_sq)
-        return [fixed_state[ExportKey.ALTERNATIVE_ROW_CACHE]]
+    @staticmethod
+    def name_field():
+        return "alternative_name"
+
+    @staticmethod
+    def id_field():
+        return "alternative_id"
 
 
 class ScenarioMapping(ExportMapping):
@@ -1054,23 +1211,20 @@ class ScenarioMapping(ExportMapping):
 
     MAP_TYPE = "Scenario"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.SCENARIO_ID] = db_row.id
-        alternative_name_list = db_row.alternative_name_list
-        if alternative_name_list is not None:
-            state[ExportKey.ALTERNATIVE_NAME_LIST] = alternative_name_list.split(",")
-        else:
-            state[ExportKey.ALTERNATIVE_NAME_LIST] = None
-        state[ExportKey.SCENARIO_ROW_CACHE] = db_row
-        state[ExportKey.ALTERNATIVE_LIST_INDEX] = 0
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.scenario_sq.c.id.label("scenario_id"),
+            db_map.scenario_sq.c.name.label("scenario_name"),
+            db_map.scenario_sq.c.description.label("description"),
+        )
 
-    def _data(self, db_row):
-        return db_row.name
+    @staticmethod
+    def name_field():
+        return "scenario_name"
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.SCENARIO_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.wide_scenario_sq)
-        return [fixed_state[ExportKey.SCENARIO_ROW_CACHE]]
+    @staticmethod
+    def id_field():
+        return "scenario_id"
 
 
 class ScenarioActiveFlagMapping(ExportMapping):
@@ -1081,14 +1235,16 @@ class ScenarioActiveFlagMapping(ExportMapping):
 
     MAP_TYPE = "ScenarioActiveFlag"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.scenario_sq.c.active)
 
-    def _data(self, db_row):
-        return db_row
+    @staticmethod
+    def name_field():
+        return "active"
 
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.SCENARIO_ROW_CACHE].active
+    @staticmethod
+    def id_field():
+        return "active"
 
 
 class ScenarioAlternativeMapping(ExportMapping):
@@ -1099,21 +1255,29 @@ class ScenarioAlternativeMapping(ExportMapping):
 
     MAP_TYPE = "ScenarioAlternative"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.ALTERNATIVE_LIST_INDEX] += 1
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_linked_scenario_alternative_sq.c.alternative_id,
+            db_map.ext_linked_scenario_alternative_sq.c.alternative_name,
+        )
 
-    def _data(self, db_row):
-        return db_row
+    def filter_query(self, db_map, query):
+        return query.outerjoin(
+            db_map.ext_linked_scenario_alternative_sq,
+            db_map.ext_linked_scenario_alternative_sq.c.scenario_id == db_map.scenario_sq.c.id,
+        )
+
+    @staticmethod
+    def name_field():
+        return "alternative_name"
+
+    @staticmethod
+    def id_field():
+        return "alternative_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ScenarioMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        alternative_name_list = state[ExportKey.ALTERNATIVE_NAME_LIST]
-        if alternative_name_list is None:
-            return []
-        return alternative_name_list
 
 
 class ScenarioBeforeAlternativeMapping(ExportMapping):
@@ -1124,45 +1288,23 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
 
     MAP_TYPE = "ScenarioBeforeAlternative"
 
-    def _update_state(self, state, db_row):
-        pass
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_linked_scenario_alternative_sq.c.before_alternative_id,
+            db_map.ext_linked_scenario_alternative_sq.c.before_alternative_name,
+        )
 
-    def _data(self, db_row):
-        return db_row
+    @staticmethod
+    def name_field():
+        return "before_alternative_name"
+
+    @staticmethod
+    def id_field():
+        return "before_alternative_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ScenarioAlternativeMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        alternative_name_list = state[ExportKey.ALTERNATIVE_NAME_LIST]
-        if alternative_name_list is None:
-            return []
-        i = state[ExportKey.ALTERNATIVE_LIST_INDEX]
-        try:
-            return [alternative_name_list[i]]
-        except IndexError:
-            return [""]
-
-
-class ToolMapping(ExportMapping):
-    """Maps tools.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "Tool"
-
-    def _update_state(self, state, db_row):
-        state[ExportKey.TOOL_ID] = db_row.id
-
-    def _data(self, db_row):
-        return db_row.name
-
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.TOOL_ID not in fixed_state:
-            return db_map.query(db_map.tool_sq)
-        return db_map.query(db_map.tool_sq).filter_by(id=fixed_state[ExportKey.TOOL_ID])
 
 
 class FeatureEntityClassMapping(ExportMapping):
@@ -1173,16 +1315,16 @@ class FeatureEntityClassMapping(ExportMapping):
 
     MAP_TYPE = "FeatureEntityClass"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.FEATURE_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.ext_feature_sq.c.entity_class_id, db_map.ext_feature_sq.c.entity_class_name)
 
-    def _data(self, db_row):
-        return db_row.entity_class_name
+    @staticmethod
+    def name_field():
+        return "entity_class_name"
 
-    def _query(self, db_map, state, fixed_state):
-        if ExportKey.FEATURE_ROW_CACHE not in fixed_state:
-            return db_map.query(db_map.ext_feature_sq)
-        return [fixed_state[ExportKey.FEATURE_ROW_CACHE]]
+    @staticmethod
+    def id_field():
+        return "entity_class_id"
 
 
 class FeatureParameterDefinitionMapping(ExportMapping):
@@ -1193,18 +1335,42 @@ class FeatureParameterDefinitionMapping(ExportMapping):
 
     MAP_TYPE = "FeatureParameterDefinition"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_feature_sq.c.parameter_definition_id, db_map.ext_feature_sq.c.parameter_definition_name
+        )
 
-    def _data(self, db_row):
-        return db_row.parameter_definition_name
+    @staticmethod
+    def name_field():
+        return "parameter_definition_name"
+
+    @staticmethod
+    def id_field():
+        return "parameter_definition_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, FeatureEntityClassMapping)
 
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.FEATURE_ROW_CACHE]
+
+class ToolMapping(ExportMapping):
+    """Maps tools.
+
+    Can be used as the topmost mapping.
+    """
+
+    MAP_TYPE = "Tool"
+
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.tool_sq.c.id.label("tool_id"), db_map.tool_sq.c.name.label("tool_name"))
+
+    @staticmethod
+    def name_field():
+        return "tool_name"
+
+    @staticmethod
+    def id_field():
+        return "tool_id"
 
 
 class ToolFeatureEntityClassMapping(ExportMapping):
@@ -1215,18 +1381,25 @@ class ToolFeatureEntityClassMapping(ExportMapping):
 
     MAP_TYPE = "ToolFeatureEntityClass"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.TOOL_FEATURE_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_tool_feature_sq.c.entity_class_id, db_map.ext_tool_feature_sq.c.entity_class_name
+        )
 
-    def _data(self, db_row):
-        return db_row.entity_class_name
+    def filter_query(self, db_map, query):
+        return query.outerjoin(db_map.ext_tool_feature_sq, db_map.ext_tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
+
+    @staticmethod
+    def name_field():
+        return "entity_class_name"
+
+    @staticmethod
+    def id_field():
+        return "entity_class_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ToolMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        return db_map.query(db_map.ext_tool_feature_sq).filter_by(tool_id=state[ExportKey.TOOL_ID])
 
 
 class ToolFeatureParameterDefinitionMapping(ExportMapping):
@@ -1237,18 +1410,22 @@ class ToolFeatureParameterDefinitionMapping(ExportMapping):
 
     MAP_TYPE = "ToolFeatureParameterDefinition"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_tool_feature_sq.c.parameter_definition_id, db_map.ext_tool_feature_sq.c.parameter_definition_name
+        )
 
-    def _data(self, db_row):
-        return db_row.parameter_definition_name
+    @staticmethod
+    def name_field():
+        return "parameter_definition_name"
+
+    @staticmethod
+    def id_field():
+        return "parameter_definition_id"
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ToolFeatureEntityClassMapping)
-
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.TOOL_FEATURE_ROW_CACHE]
 
 
 class ToolFeatureRequiredFlagMapping(ExportMapping):
@@ -1259,14 +1436,16 @@ class ToolFeatureRequiredFlagMapping(ExportMapping):
 
     MAP_TYPE = "ToolFeatureRequiredFlag"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.ext_tool_feature_sq.c.required)
 
-    def _data(self, db_row):
-        return db_row.required
+    @staticmethod
+    def name_field():
+        return "required"
 
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.TOOL_FEATURE_ROW_CACHE]
+    @staticmethod
+    def id_field():
+        return "required"
 
 
 class ToolFeatureMethodEntityClassMapping(ExportMapping):
@@ -1277,14 +1456,21 @@ class ToolFeatureMethodEntityClassMapping(ExportMapping):
 
     MAP_TYPE = "ToolFeatureMethodEntityClass"
 
-    def _update_state(self, state, db_row):
-        state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE] = db_row
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_tool_feature_sq.c.entity_class_id, db_map.ext_tool_feature_sq.c.entity_class_name
+        )
 
-    def _data(self, db_row):
-        return db_row.entity_class_name
+    def filter_query(self, db_map, query):
+        return query.outerjoin(db_map.ext_tool_feature_sq, db_map.ext_tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
 
-    def _query(self, db_map, state, fixed_state):
-        return db_map.query(db_map.ext_tool_feature_method_sq).filter_by(tool_id=state[ExportKey.TOOL_ID])
+    @staticmethod
+    def name_field():
+        return "entity_class_name"
+
+    @staticmethod
+    def id_field():
+        return "entity_class_id"
 
 
 class ToolFeatureMethodParameterDefinitionMapping(ExportMapping):
@@ -1295,14 +1481,18 @@ class ToolFeatureMethodParameterDefinitionMapping(ExportMapping):
 
     MAP_TYPE = "ToolFeatureMethodParameterDefinition"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(
+            db_map.ext_tool_feature_sq.c.parameter_definition_id, db_map.ext_tool_feature_sq.c.parameter_definition_name
+        )
 
-    def _data(self, db_row):
-        return db_row.parameter_definition_name
+    @staticmethod
+    def name_field():
+        return "parameter_definition_name"
 
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE]
+    @staticmethod
+    def id_field():
+        return "parameter_definition_id"
 
 
 class ToolFeatureMethodMethodMapping(ExportMapping):
@@ -1313,30 +1503,43 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     MAP_TYPE = "ToolFeatureMethodMethod"
 
-    def _update_state(self, state, db_row):
-        return
+    def add_query_columns(self, db_map, query):
+        return query.add_columns(db_map.ext_tool_feature_method_sq.c.method)
+
+    def filter_query(self, db_map, query):
+        return query.outerjoin(
+            db_map.ext_tool_feature_method_sq,
+            and_(
+                db_map.ext_tool_feature_method_sq.c.tool_id == db_map.ext_tool_feature_sq.c.tool_id,
+                db_map.ext_tool_feature_method_sq.c.feature_id == db_map.ext_tool_feature_sq.c.feature_id,
+            ),
+        )
+
+    @staticmethod
+    def name_field():
+        return "method"
+
+    @staticmethod
+    def id_field():
+        return "method"
 
     def _data(self, db_row):
-        return from_database(db_row.method)
-
-    def _query(self, db_map, state, fixed_state):
-        yield state[ExportKey.TOOL_FEATURE_METHOD_ROW_CACHE]
+        data = super()._data(db_row)
+        return from_database(data)
 
 
 class _DescriptionMappingBase(ExportMapping):
     """Maps descriptions."""
 
     MAP_TYPE = "Description"
-    _key = NotImplemented
 
-    def _update_state(self, state, db_row):
-        return
+    @staticmethod
+    def name_field():
+        return "description"
 
-    def _data(self, db_row):
-        return db_row
-
-    def _query(self, db_map, state, fixed_state):
-        yield state[self._key].description
+    @staticmethod
+    def id_field():
+        return "description"
 
 
 class AlternativeDescriptionMapping(_DescriptionMappingBase):
@@ -1346,7 +1549,6 @@ class AlternativeDescriptionMapping(_DescriptionMappingBase):
     """
 
     MAP_TYPE = "AlternativeDescription"
-    _key = ExportKey.ALTERNATIVE_ROW_CACHE
 
 
 class ScenarioDescriptionMapping(_DescriptionMappingBase):
@@ -1356,162 +1558,39 @@ class ScenarioDescriptionMapping(_DescriptionMappingBase):
     """
 
     MAP_TYPE = "ScenarioDescription"
-    _key = ExportKey.SCENARIO_ROW_CACHE
 
 
-class ExpandedParameter:
-    """
-    Replaces ``db_row`` for mappings that deal with indexed parameters.
+class _FilteredQuery:
+    """Helper class to define non-standard query filters.
 
-    Attributes:
-        index (object): current index
-        value (object): current value
+    It implements everything we use from the standard sqlalchemy's ``Query``.
     """
 
-    def __init__(self, index, value, definition_id, entity_id=None, alternative_id=None):
+    def __init__(self, query, condition):
         """
         Args:
-            index (object): current index
-            value (object): current parameter value
-            definition_id (int): parameter definition id
-            entity_id (int, optional): entity id
-            alternative_id (int, optional): alternative_id
+            query (Query): a query to filter
+            condition (function): the filter condition
         """
-        self.index = index
-        self.value = value
-        self._definition_id = definition_id
-        self._entity_id = entity_id
-        self._alternative_id = alternative_id
+        self._query = query
+        self._condition = condition
 
-    def same(self, state):
-        """
-        Checks if state refers to the same parameter.
+    def first(self):
+        first = self._query.first()
+        if self._condition(first):
+            return first
+        return None
 
-        Args:
-            state (dict): a state
+    def yield_per(self, count):
+        return _FilteredQuery(self._query.yield_per(count), self._condition)
 
-        Returns:
-            bool: True if the parameter is the same, False otherwise
-        """
-        entity_row_cache = state.get(ExportKey.ENTITY_ROW_CACHE)
-        alternative_row_cache = state.get(ExportKey.ALTERNATIVE_ROW_CACHE)
-        entity_id = entity_row_cache.id if entity_row_cache is not None else None
-        alternative_id = alternative_row_cache.id if alternative_row_cache is not None else None
-        return (
-            self._definition_id == state.get(ExportKey.PARAMETER_DEFINITION_ID)
-            and self._entity_id == entity_id
-            and self._alternative_id == alternative_id
-        )
+    def filter(self, *args, **kwargs):
+        return _FilteredQuery(self._query.filter(*args, **kwargs), self._condition)
 
-
-def _make_parameter_value_lookup(db_map):
-    """
-    Returns a dictionary mapping triplets (parameter_definition_id, entity_id, alternative_id)
-    to the corresponding parameter value row from the given db.
-
-    Args:
-        db_map (DatabaseMappingBase): a database map
-
-    Returns:
-        dict
-    """
-    return {
-        (db_row.parameter_definition_id, db_row.entity_id, db_row.alternative_id): db_row
-        for db_row in db_map.query(db_map.parameter_value_sq)
-    }
-
-
-def _expand_default_value_from_state(state):
-    """
-    Expands the default value from the given state into ExpandedParameter instances.
-
-    Args:
-        state (dict): a state with parameter definition data
-
-    Yields:
-        ExpandedParameter
-    """
-    definition_id = state[ExportKey.PARAMETER_DEFINITION_ID]
-    default_value = from_database(state[ExportKey.PARAMETER_DEFINITION_ROW_CACHE].default_value)
-    expanded_value = _expand_value(default_value)
-    for index, x in expanded_value.items():
-        yield ExpandedParameter(index, x, definition_id)
-
-
-def _expand_parameter_value_from_state(state, fixed_state):
-    """
-    Expands the value from the given state into ExpandedParameter instances.
-
-    Args:
-        state (dict): a state with parameter value data
-
-    Yields:
-        ExpandedParameter
-    """
-    definition_id = state[ExportKey.PARAMETER_DEFINITION_ID]
-    entity_id = state[ExportKey.ENTITY_ROW_CACHE].id
-    alternative_id = state[ExportKey.ALTERNATIVE_ROW_CACHE].id
-    value_row = state[ExportKey.PARAMETER_VALUE_LOOKUP_CACHE].get((definition_id, entity_id, alternative_id))
-    for expanded_value in _load_and_expand(value_row, fixed_state):
-        for index, x in expanded_value.items():
-            yield ExpandedParameter(index, x, definition_id, entity_id, alternative_id)
-
-
-def _expand_values_from_parameter(cached_parameter):
-    """Expands a cached parameter into indexed values.
-
-    Args:
-        cached_parameter (ExpandedParameter)
-
-    Yields:
-        ExpandedParameter
-    """
-    if isinstance(cached_parameter.value, dict):
-        for index, x in cached_parameter.value.items():
-            db_row = copy(cached_parameter)
-            db_row.index = index
-            db_row.value = x
-            yield db_row
-    else:
-        db_row = copy(cached_parameter)
-        db_row.index = None
-        db_row.value = cached_parameter.value
-        yield db_row
-
-
-def _load_and_expand(value_row, fixed_state):
-    """
-    Loads and parses parameter values from database and expands them into a dict.
-
-    Args:
-        value_row: a parameter value row
-
-    Yields:
-        dict: a (nested) dictionary mapping parameter index (or None in case of scalar) to value
-    """
-    if value_row is None:
-        return []
-    value_type = fixed_state.get(ExportKey.PARAMETER_VALUE_TYPE)
-    if value_type is not None and type_from_value(value_row.value) != value_type:
-        return []
-    yield _expand_value(from_database(value_row.value))
-
-
-def _expand_value(value):
-    """
-    Expands parsed values into a dict.
-
-    Args:
-        value (Any): parameter's default value
-
-    Returns:
-        dict: a (nested) dictionary mapping parameter index (or None in case of scalar) to value
-    """
-    if isinstance(value, IndexedValue):
-        expanded_value = convert_map_to_dict(convert_containers_to_maps(value))
-    else:
-        expanded_value = {None: value}
-    return expanded_value
+    def __iter__(self):
+        for db_row in self._query:
+            if self._condition(db_row):
+                yield db_row
 
 
 def pair_header_buddies(root_mapping):

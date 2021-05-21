@@ -61,6 +61,8 @@ class TestSqlWriter(unittest.TestCase):
 
     def test_write_header_only(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        db_map.commit_session("Add test data.")
         root_mapping = unflatten(
             [
                 FixedValueMapping(Position.table_name, "table 1"),

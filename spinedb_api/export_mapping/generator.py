@@ -58,10 +58,10 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
         if root_mapping.has_header():
             header_root = deepcopy(root_mapping)
             buddies = pair_header_buddies(header_root)
-            header = listify_row(header_root.make_header(db_map, {}, fixed_state, buddies))
+            header = listify_row(header_root.make_header(db_map, fixed_state, buddies))
         else:
             header = None
-        regularized = list(map(listify_row, root_mapping.rows(db_map, dict(), fixed_state)))
+        regularized = list(map(listify_row, root_mapping.rows(db_map, fixed_state)))
         yield from make_pivot(
             regularized,
             header,
@@ -73,7 +73,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             empty_data_header,
         )
     else:
-        row_iter = iter(map(listify_row, root_mapping.rows(db_map, dict(), fixed_state)))
+        row_iter = iter(map(listify_row, root_mapping.rows(db_map, fixed_state)))
         try:
             peeked_row = next(row_iter)
         except StopIteration:
@@ -82,7 +82,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             peeked_row = None
         if root_mapping.has_header():
             buddies = pair_header_buddies(root_mapping)
-            header = listify_row(root_mapping.make_header(db_map, {}, fixed_state, buddies))
+            header = listify_row(root_mapping.make_header(db_map, fixed_state, buddies))
             yield header
         if peeked_row is None:
             return
@@ -101,8 +101,8 @@ def titles(root_mapping, db_map):
     Yield:
         tuple: title and title's fixed key
     """
-    if not root_mapping.has_title():
+    if not root_mapping.has_titles():
         yield None, None
         return
-    for title, title_key in root_mapping.title(db_map, dict()):
+    for title, title_key in root_mapping.titles(db_map):
         yield title, title_key

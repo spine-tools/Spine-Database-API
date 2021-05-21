@@ -746,7 +746,7 @@ class DatabaseMappingBase:
                     self.scenario_alternative_sq.c.id.label("id"),
                     self.scenario_alternative_sq.c.scenario_id.label("scenario_id"),
                     self.scenario_alternative_sq.c.alternative_id.label("alternative_id"),
-                    scenario_next_alternative.c.alternative_id.label("next_alternative_id"),
+                    scenario_next_alternative.c.alternative_id.label("before_alternative_id"),
                 )
                 .outerjoin(
                     scenario_next_alternative,
@@ -771,13 +771,14 @@ class DatabaseMappingBase:
                     self.scenario_sq.c.name.label("scenario_name"),
                     self.linked_scenario_alternative_sq.c.alternative_id.label("alternative_id"),
                     self.alternative_sq.c.name.label("alternative_name"),
-                    self.linked_scenario_alternative_sq.c.next_alternative_id.label("next_alternative_id"),
-                    next_alternative.c.name.label("next_alternative_name"),
+                    self.linked_scenario_alternative_sq.c.before_alternative_id.label("before_alternative_id"),
+                    next_alternative.c.name.label("before_alternative_name"),
                 )
                 .filter(self.linked_scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id)
                 .filter(self.alternative_sq.c.id == self.linked_scenario_alternative_sq.c.alternative_id)
                 .outerjoin(
-                    next_alternative, next_alternative.c.id == self.linked_scenario_alternative_sq.c.next_alternative_id
+                    next_alternative,
+                    next_alternative.c.id == self.linked_scenario_alternative_sq.c.before_alternative_id,
                 )
                 .subquery()
             )
