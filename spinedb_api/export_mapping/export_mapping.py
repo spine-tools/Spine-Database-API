@@ -16,7 +16,7 @@ Contains export mappings for database items such as entities, entity classes and
 """
 
 from dataclasses import dataclass
-from itertools import cycle, dropwhile
+from itertools import cycle, dropwhile, islice
 import re
 from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
@@ -366,11 +366,12 @@ class ExportMapping(Mapping):
             data_iterator = (self._convert_data(x) for x in data_iterator)
         return data_iterator
 
-    def _get_rows(self, db_row):
+    def _get_rows(self, db_row, limit=None):
         """Yields rows issued by this mapping for given database row.
 
         Args:
             db_row (KeyedTuple)
+            limit (int, optional): yield only this many items
 
         Returns:
             generator(dict)
@@ -381,40 +382,45 @@ class ExportMapping(Mapping):
         data = self._data(db_row)
         if data is None and not self._ignorable:
             return ()
-        for data in self._get_data_iterator(data):
+        data_iterator = self._get_data_iterator(data)
+        if limit is not None:
+            data_iterator = islice(data_iterator, limit)
+        for data in data_iterator:
             yield {self.position: data}
 
-    def get_rows_recursive(self, db_row):
+    def get_rows_recursive(self, db_row, limit=None):
         """Takes a database row and yields rows issued by this mapping and its children combined.
 
         Args:
             db_row (KeyedTuple)
+            limit (int, optional): yield only this many items
 
         Returns:
             generator(dict)
         """
         if self.child is None:
-            yield from self._get_rows(db_row)
+            yield from self._get_rows(db_row, limit=limit)
             return
-        for row in self._get_rows(db_row):
-            for child_row in self.child.get_rows_recursive(db_row):
+        for row in self._get_rows(db_row, limit=limit):
+            for child_row in self.child.get_rows_recursive(db_row, limit=limit):
                 row = row.copy()
                 row.update(child_row)
                 yield row
 
-    def rows(self, db_map, title_state):
+    def rows(self, db_map, title_state, limit=None):
         """Yields rows issued by this mapping and its children combined.
 
         Args:
             db_map (DatabaseMappingBase)
             title_state (dict)
+            limit (int, optional): yield only this many items
 
         Returns:
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
         for db_row in qry.yield_per(1000):
-            yield from self.get_rows_recursive(db_row)
+            yield from self.get_rows_recursive(db_row, limit=limit)
 
     def has_titles(self):
         """Returns True if this mapping or one of its children generates titles.
@@ -445,11 +451,12 @@ class ExportMapping(Mapping):
             return {}
         return {id_field: getattr(db_row, id_field)}
 
-    def _get_titles(self, db_row):
+    def _get_titles(self, db_row, limit=None):
         """Yields pairs (title, title state) issued by this mapping for given database row.
 
         Args:
             db_row (KeyedTuple)
+            limit (int, optional): yield only this many items
 
         Returns:
             generator(str,dict)
@@ -459,53 +466,59 @@ class ExportMapping(Mapping):
             return
         data = self._data(db_row)
         title_state = self._title_state(db_row)
+        data_iterator = self._get_data_iterator(data)
+        if limit is not None:
+            data_iterator = islice(data_iterator, limit)
         for data in self._get_data_iterator(data):
             if data is None:
                 data = ""
             yield data, title_state
 
-    def get_titles_recursive(self, db_row):
+    def get_titles_recursive(self, db_row, limit=None):
         """Takes a database row and yields pairs (title, title state) issued by this mapping and its children combined.
 
         Args:
             db_row (KeyedTuple)
+            limit (int, optional): yield only this many items
 
         Returns:
             generator(str,dict)
         """
         if self.child is None:
-            yield from self._get_titles(db_row)
+            yield from self._get_titles(db_row, limit=limit)
             return
-        for title, title_state in self._get_titles(db_row):
-            for child_title, child_title_state in self.child.get_titles_recursive(db_row):
+        for title, title_state in self._get_titles(db_row, limit=limit):
+            for child_title, child_title_state in self.child.get_titles_recursive(db_row, limit=limit):
                 title_sep = self._TITLE_SEP if title and child_title else ""
                 final_title = title + title_sep + child_title
                 yield final_title, {**title_state, **child_title_state}
 
-    def _non_unique_titles(self, db_map):
+    def _non_unique_titles(self, db_map, limit=None):
         """Yields all titles, not necessarily unique, and associated state dictionaries.
 
         Args:
             db_map (DatabaseMappingBase): a database map
+            limit (int, optional): yield only this many items
 
         Yields:
             tuple(str,dict): title, and associated title state dictionary
         """
         qry = self._build_query(db_map, dict())
         for db_row in qry.yield_per(1000):
-            yield from self.get_titles_recursive(db_row)
+            yield from self.get_titles_recursive(db_row, limit=limit)
 
-    def titles(self, db_map):
+    def titles(self, db_map, limit=None):
         """Yields unique titles and associated state dictionaries.
 
         Args:
             db_map (DatabaseMappingBase): a database map
+            limit (int, optional): yield only this many items
 
         Yields:
             tuple(str,dict): unique title, and associated title state dictionary
         """
         titles = {}
-        for title, title_state in self._non_unique_titles(db_map):
+        for title, title_state in self._non_unique_titles(db_map, limit=limit):
             titles.setdefault(title, {}).update(title_state)
         yield from titles.items()
 

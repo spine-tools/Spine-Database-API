@@ -20,7 +20,7 @@ from .pivot import make_pivot, make_regular
 from .export_mapping import pair_header_buddies
 
 
-def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
+def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=None):
     """
     Generates table's rows.
 
@@ -61,7 +61,8 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             header = listify_row(header_root.make_header(db_map, fixed_state, buddies))
         else:
             header = None
-        regularized = list(map(listify_row, root_mapping.rows(db_map, fixed_state)))
+        mapping_rows = root_mapping.rows(db_map, fixed_state, limit=limit)
+        regularized = list(map(listify_row, mapping_rows))
         yield from make_pivot(
             regularized,
             header,
@@ -73,7 +74,8 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
             empty_data_header,
         )
     else:
-        row_iter = iter(map(listify_row, root_mapping.rows(db_map, fixed_state)))
+        mapping_rows = root_mapping.rows(db_map, fixed_state, limit=limit)
+        row_iter = iter(map(listify_row, mapping_rows))
         try:
             peeked_row = next(row_iter)
         except StopIteration:
@@ -90,7 +92,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True):
         yield from row_iter
 
 
-def titles(root_mapping, db_map):
+def titles(root_mapping, db_map, limit=None):
     """
     Generates titles.
 
@@ -104,5 +106,6 @@ def titles(root_mapping, db_map):
     if not root_mapping.has_titles():
         yield None, None
         return
-    for title, title_key in root_mapping.titles(db_map):
+    mapping_titles = root_mapping.titles(db_map, limit=limit)
+    for title, title_key in mapping_titles:
         yield title, title_key
