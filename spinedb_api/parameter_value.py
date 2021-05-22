@@ -504,7 +504,7 @@ class DateTime:
         return hash(self._value)
 
     def __str__(self):
-        return str(self._value)
+        return self._value.isoformat()
 
     def value_to_database_data(self):
         """Returns the database representation of the datetime."""

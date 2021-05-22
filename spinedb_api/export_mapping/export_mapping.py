@@ -20,10 +20,9 @@ from itertools import cycle, dropwhile
 import re
 from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
-from ..parameter_value import convert_containers_to_maps, convert_map_to_dict, from_database, IndexedValue
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
-from ..helpers import type_from_value
 from .group_functions import NoGroup
+from .light_parameter_value import LightParameterValue
 
 
 def check_validity(root_mapping):
@@ -59,25 +58,18 @@ class _IndexMappingMixin:
         """
         return self._current_leaf
 
-    @staticmethod
-    def _expand_value(value):
-        """Expands given parsed parameter value into a dict.
+    def _expand_data(self, data):
+        """Implements ``ExportMapping._expand_data()``.
 
         Args:
-            value (Any): parsed parameter value
+            data(LightParameterValue)
 
         Returns:
-            dict: a (nested) dictionary mapping parameter index (or None in case of scalar) to value
+            generator(any)
         """
-        if isinstance(value, IndexedValue):
-            return convert_map_to_dict(convert_containers_to_maps(value))
-        return {None: value}
-
-    def _expand_data(self, data):
-        """Implements ``ExportMapping._expand_data()``."""
         if not isinstance(self.parent, _IndexMappingMixin):
-            # Expand
-            current_leaf = self._expand_value(data)
+            # Get dict
+            current_leaf = data.to_dict()
         else:
             # Get leaf from parent
             current_leaf = self.parent.current_leaf()
@@ -261,7 +253,7 @@ class ExportMapping(Mapping):
             query (dict)
 
         Returns:
-            Query: expanded query, or the same if nothing to add.
+            Query: filtered query, or the same if nothing to add.
         """
         return query
 
@@ -389,8 +381,7 @@ class ExportMapping(Mapping):
         data = self._data(db_row)
         if data is None and not self._ignorable:
             return ()
-        data_iterator = self._get_data_iterator(data)
-        for data in data_iterator:
+        for data in self._get_data_iterator(data):
             yield {self.position: data}
 
     def get_rows_recursive(self, db_row):
@@ -467,9 +458,8 @@ class ExportMapping(Mapping):
             yield "", {}
             return
         data = self._data(db_row)
-        data_iterator = self._get_data_iterator(data)
         title_state = self._title_state(db_row)
-        for data in data_iterator:
+        for data in self._get_data_iterator(data):
             if data is None:
                 data = ""
             yield data, title_state
@@ -535,7 +525,7 @@ class ExportMapping(Mapping):
         """Builds the header recursively.
 
         Args:
-            db_map (DatabaseMappingBase): database map
+            first_row (KeyedTuple): first row in the mapping query
             title_state (dict): title state
             buddies (list of tuple): buddy mappings
 
@@ -891,6 +881,7 @@ class ParameterDefinitionMapping(ExportMapping):
                 db_map.parameter_definition_sq,
                 db_map.parameter_definition_sq.c.relationship_class_id == db_map.wide_relationship_class_sq.c.id,
             )
+        # We should never end up here
         return query
 
     @staticmethod
@@ -923,8 +914,7 @@ class ParameterDefaultValueMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        data = from_database(data)
-        return data if not isinstance(data, IndexedValue) else type(data).__name__
+        return LightParameterValue(data).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -955,7 +945,7 @@ class ParameterDefaultValueIndexMapping(_IndexMappingMixin, ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return from_database(data)
+        return LightParameterValue(data)
 
 
 class ExpandedParameterDefaultValueMapping(ExportMapping):
@@ -1016,6 +1006,7 @@ class ParameterValueMapping(ExportMapping):
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
                 ),
             )
+        # We should never end up here
         return query
 
     @staticmethod
@@ -1028,8 +1019,7 @@ class ParameterValueMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        data = from_database(data)
-        return data if not isinstance(data, IndexedValue) else type(data).__name__
+        return LightParameterValue(data).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -1044,34 +1034,34 @@ class ParameterValueTypeMapping(ParameterValueMapping):
     """
 
     MAP_TYPE = "ParameterValueType"
-    _value_type = None
+    _pv = None
 
-    def _cache_value_type(self, db_row):
+    def _cache_pv(self, db_row):
         """Caches the value type so we don't need to compute it more than once.
 
         Args:
             db_row (KeyedTuple)
         """
-        if self._value_type is None:
-            self._value_type = type_from_value(db_row.value)
+        if self._pv is None:
+            self._pv = LightParameterValue(db_row.value)
 
     def _data(self, db_row):
-        self._cache_value_type(db_row)
-        if self._value_type.type_ != "map":
-            return self._value_type.type_
-        return f"{self._value_type.dimension_count}d_{self._value_type.type_}"
+        self._cache_pv(db_row)
+        if self._pv.type != "map":
+            return self._pv.type
+        return f"{self._pv.dimension_count}d_map"
 
     def _title_state(self, db_row):
-        self._cache_value_type(db_row)
-        return {"value_type": self._value_type}
+        self._cache_pv(db_row)
+        return {"light_parameter_value": self._pv}
 
     def filter_query_by_title(self, query, title_state):
-        value_type = title_state.pop("value_type", None)
-        if value_type is None:
+        pv = title_state.pop("light_parameter_value", None)
+        if pv is None:
             return query
         if "value" not in {c["name"] for c in query.column_descriptions}:
             return query
-        return _FilteredQuery(query, lambda db_row: type_from_value(db_row.value) == value_type)
+        return _FilteredQuery(query, lambda db_row: LightParameterValue(db_row.value).similar(pv))
 
 
 class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
@@ -1086,7 +1076,7 @@ class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
     def _data(self, db_row):
         # pylint: disable=bad-super-call
         data = super(ParameterValueMapping, self)._data(db_row)
-        return from_database(data)
+        return LightParameterValue(data)
 
 
 class ExpandedParameterValueMapping(ExportMapping):
@@ -1167,7 +1157,7 @@ class ParameterValueListValueMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return from_database(data)
+        return LightParameterValue(data).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -1525,7 +1515,7 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return from_database(data)
+        return LightParameterValue(data).to_single_value()
 
 
 class _DescriptionMappingBase(ExportMapping):

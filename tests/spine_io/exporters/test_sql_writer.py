@@ -128,6 +128,7 @@ class TestSqlWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
+        dt = DateTime("2021-04-08T08:00")
         import_object_parameter_values(db_map, (("oc", "o1", "p", DateTime("2021-04-08T08:00")),))
         db_map.commit_session("Add test data.")
         root_mapping = unflatten(
@@ -158,7 +159,7 @@ class TestSqlWriter(unittest.TestCase):
                 column_names, ["table 1.classes", "table 1.objects", "table 1.parameters", "table 1.values"]
             )
             for class_ in session.query(table):
-                self.assertEqual(class_, ("oc", "o1", "p", datetime(year=2021, month=4, day=8, hour=8, minute=0)))
+                self.assertEqual(class_, ("oc", "o1", "p", str(dt)))
             session.close()
         finally:
             connection.close()

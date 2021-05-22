@@ -37,7 +37,7 @@ from spinedb_api.export_mapping.export_mapping import (
     RelationshipMapping,
     RelationshipObjectMapping,
 )
-from spinedb_api.helpers import type_from_value
+from spinedb_api.export_mapping.light_parameter_value import LightParameterValue
 from .excel_writer import ExcelWriter
 from .writer import write
 
@@ -74,10 +74,10 @@ class ExcelWriterWithPreamble(ExcelWriter):
             "class_name": class_name,
             "entity_dim_count": entity_dim_count,
         }
-        value_type = title_key.get("value_type")
-        if value_type is not None:
-            preamble["value_type"] = value_type.type_
-            preamble["index_dim_count"] = value_type.dimension_count
+        pv = title_key.get("light_parameter_value")
+        if pv is not None:
+            preamble["value_type"] = pv.type
+            preamble["index_dim_count"] = pv.dimension_count
         return preamble
 
     def _set_current_sheet(self):
@@ -229,13 +229,15 @@ def _make_parameter_value_mappings(db_map):
     object_class_names_per_value_type = {}
     relationship_classes_per_value_type = {}
     for pval in db_map.query(db_map.object_parameter_value_sq):
-        value_type = type_from_value(pval.value)
-        object_class_names_per_value_type.setdefault(value_type, set()).add(pval.object_class_name)
+        pv = LightParameterValue(pval.value)
+        key = (pv.type, pv.dimension_count)
+        object_class_names_per_value_type.setdefault(key, set()).add(pval.object_class_name)
         object_class_names.add(pval.object_class_name)
     for pval in db_map.query(db_map.relationship_parameter_value_sq):
-        value_type = type_from_value(pval.value)
+        pv = LightParameterValue(pval.value)
+        key = (pv.type, pv.dimension_count)
         object_class_name_list = tuple(pval.object_class_name_list.split(","))
-        relationship_classes_per_value_type.setdefault(value_type, set()).add(
+        relationship_classes_per_value_type.setdefault(key, set()).add(
             (pval.relationship_class_name, object_class_name_list)
         )
         relationship_class_names.add(pval.relationship_class_name)
@@ -248,23 +250,23 @@ def _make_parameter_value_mappings(db_map):
             continue
         object_class_name_list = tuple(relationship_class.object_class_name_list.split(","))
         yield _make_relationship_mapping(relationship_class.name, object_class_name_list)
-    for value_type, object_class_names in object_class_names_per_value_type.items():
-        if value_type.type_ == "single_value":
+    for (type_, dimension_count), object_class_names in object_class_names_per_value_type.items():
+        if type_ == "single_value":
             for object_class_name in object_class_names:
                 yield _make_object_scalar_parameter_value_mapping(object_class_name)
-        elif value_type.type_ == "map":
+        elif type_ == "map":
             for object_class_name in object_class_names:
-                yield _make_object_map_parameter_value_mapping(object_class_name, value_type.dimension_count)
+                yield _make_object_map_parameter_value_mapping(object_class_name, dimension_count)
         else:
             for object_class_name in object_class_names:
                 yield _make_object_indexed_parameter_value_mapping(object_class_name)
-    for value_type, relationship_classes in relationship_classes_per_value_type.items():
-        if value_type.type_ == "single_value":
+    for (type_, dimension_count), relationship_classes in relationship_classes_per_value_type.items():
+        if type_ == "single_value":
             for relationship_class in relationship_classes:
                 yield _make_relationship_scalar_parameter_value_mapping(*relationship_class)
-        elif value_type.type_ == "map":
+        elif type_ == "map":
             for relationship_class in relationship_classes:
-                yield _make_relationship_map_parameter_value_mapping(*relationship_class, value_type.dimension_count)
+                yield _make_relationship_map_parameter_value_mapping(*relationship_class, dimension_count)
         else:
             for relationship_class in relationship_classes:
                 yield _make_relationship_indexed_parameter_value_mapping(*relationship_class)

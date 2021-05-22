@@ -57,7 +57,7 @@ class TestExcelIntegration(unittest.TestCase):
                                     "2000-01-01T00:00:00",
                                     {
                                         "type": "time_series",
-                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "index": {"start": "2000-01-01T00:00:00", "resolution": "1h"},
                                         "data": [0.732885319, 0.658604529],
                                     },
                                 ]
@@ -74,7 +74,7 @@ class TestExcelIntegration(unittest.TestCase):
                                     "2000-01-01T00:00:00",
                                     {
                                         "type": "time_series",
-                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "index": {"start": "2000-01-01T00:00:00", "resolution": "1h"},
                                         "data": [0.65306041, 0.60853286],
                                     },
                                 ]
@@ -91,7 +91,7 @@ class TestExcelIntegration(unittest.TestCase):
                                     "2000-01-01T00:00:00",
                                     {
                                         "type": "time_series",
-                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "index": {"start": "2000-01-01T00:00:00", "resolution": "1h"},
                                         "data": [0.680549132, 0.636555097],
                                     },
                                 ]
