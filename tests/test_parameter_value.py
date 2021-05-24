@@ -40,6 +40,7 @@ from spinedb_api.parameter_value import (
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    TRANSFORM_TAG,
 )
 
 
@@ -843,6 +844,48 @@ class TestParameterValue(unittest.TestCase):
         map2 = Map(["c", "d"], [3.2, 2.3])
         nested_map = Map(["A", "B"], [map1, map2])
         self.assertEqual(nested_map, {"A": {"a": -3.2, "b": -2.3}, "B": {"c": 3.2, "d": 2.3}})
+
+    def test_multiply_single_value(self):
+        database_value = to_database(-23.0)
+        instructions = [{"operation": "multiply", "rhs": 5.0}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, -5.0 * 23.0)
+
+    def test_multiply_nested_Map(self):
+        database_value = to_database(Map(["a"], [Map(["A"], [5.0])]))
+        instructions = [{"operation": "multiply", "rhs": 2.3}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, Map(["a"], [Map(["A"], [2.3 * 5.0])]))
+
+    def test_negate_single_value(self):
+        database_value = to_database(-23.0)
+        instructions = [{"operation": "negate"}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, 23.0)
+
+    def test_negate_nested_Map(self):
+        database_value = to_database(Map(["a"], [Map(["A"], [5.0])]))
+        instructions = [{"operation": "negate"}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, Map(["a"], [Map(["A"], [-5.0])]))
+
+    def test_invert_single_value(self):
+        database_value = to_database(-23.0)
+        instructions = [{"operation": "invert"}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, -1.0 / 23.0)
+
+    def test_invert_nested_Map(self):
+        database_value = to_database(Map(["a"], [Map(["A"], [5.0])]))
+        instructions = [{"operation": "invert"}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, Map(["a"], [Map(["A"], [1.0 / 5.0])]))
+
+    def test_invert_and_negate_single_value(self):
+        database_value = to_database(-23.0)
+        instructions = [{"operation": "invert"}, {"operation": "negate"}]
+        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        self.assertEqual(value, 1.0 / 23.0)
 
 
 if __name__ == "__main__":
