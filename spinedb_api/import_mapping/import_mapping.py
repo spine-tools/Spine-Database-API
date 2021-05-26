@@ -666,7 +666,7 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         if key in values:
             return
         value_type = str(source_data)
-        value = values[key] = {"type": value_type}
+        value = values[key] = {"type": value_type}  # See import_mapping.generator._parameter_value_from_dict()
         if self.compress and value_type == "map":
             value["compress"] = self.compress
         if self.options and value_type == "time_series":

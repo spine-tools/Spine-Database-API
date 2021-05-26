@@ -1201,10 +1201,8 @@ def import_object_parameter_values(db_map, data):
     Example::
 
             data = [('object_class_name', 'object_name', 'parameter_name', 123.4),
-                    ('object_class_name', 'object_name', 'parameter_name2',
-                        '{"type":"time_series", "data": [1,2,3]}'),
-                    ('object_class_name', 'object_name', 'parameter_name',
-                        '{"type":"time_series", "data": [1,2,3]}'), 'alternative')]
+                    ('object_class_name', 'object_name', 'parameter_name2', <TimeSeries>),
+                    ('object_class_name', 'object_name', 'parameter_name', <TimeSeries>, 'alternative')]
             import_object_parameter_values(db_map, data)
 
     Args:
