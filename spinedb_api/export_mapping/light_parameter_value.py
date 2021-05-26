@@ -25,16 +25,17 @@ class LightParameterValue:
     the end.
     """
 
-    def __init__(self, db_value):
+    def __init__(self, db_value, value_type=None):
         """
         Args:
             db_value (str): Value directly from the database
+            value_type (str, NoneType): Value type
         """
         self._db_value = db_value
         self._value = None
-        self._type = None
         self._data = None
         self._dimension_count = None
+        self.type = value_type if value_type in ("map", "time_series", "time_pattern", "array") else "single_value"
 
     @property
     def value(self):
@@ -44,12 +45,6 @@ class LightParameterValue:
             except (TypeError, JSONDecodeError):
                 self._value = None
         return self._value
-
-    @property
-    def type(self):
-        if self._type is None:
-            self._type = _get_value_type(self.value)
-        return self._type
 
     @property
     def data(self):

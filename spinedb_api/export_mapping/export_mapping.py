@@ -915,19 +915,20 @@ class ParameterDefaultValueMapping(ExportMapping):
     MAP_TYPE = "ParameterDefaultValue"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.parameter_definition_sq.c.default_value)
+        return query.add_columns(
+            db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
+        )
 
     @staticmethod
     def name_field():
-        return "default_value"
+        return None
 
     @staticmethod
     def id_field():
-        return "default_value"
+        return None
 
     def _data(self, db_row):
-        data = super()._data(db_row)
-        return LightParameterValue(data).to_single_value()
+        return LightParameterValue(db_row.default_value, db_row.default_type).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -941,24 +942,24 @@ class ParameterDefaultValueIndexMapping(_IndexMappingMixin, ExportMapping):
     """
 
     MAP_TYPE = "ParameterDefaultValueIndex"
-    _expanded_value = None
 
     def add_query_columns(self, db_map, query):
         if "default_value" in {c["name"] for c in query.column_descriptions}:
             return query
-        return query.add_columns(db_map.parameter_definition_sq.c.default_value)
+        return query.add_columns(
+            db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
+        )
 
     @staticmethod
     def name_field():
-        return "default_value"
+        return None
 
     @staticmethod
     def id_field():
-        return "default_value"
+        return None
 
     def _data(self, db_row):
-        data = super()._data(db_row)
-        return LightParameterValue(data)
+        return LightParameterValue(db_row.default_value, db_row.default_type)
 
 
 class ExpandedParameterDefaultValueMapping(ExportMapping):
@@ -998,7 +999,7 @@ class ParameterValueMapping(ExportMapping):
         if "value" in {c["name"] for c in query.column_descriptions}:
             return query
         self._selects_value = True
-        return query.add_columns(db_map.parameter_value_sq.c.value)
+        return query.add_columns(db_map.parameter_value_sq.c.value, db_map.parameter_value_sq.c.type)
 
     def filter_query(self, db_map, query):
         if not self._selects_value:
@@ -1024,15 +1025,14 @@ class ParameterValueMapping(ExportMapping):
 
     @staticmethod
     def name_field():
-        return "value"
+        return None
 
     @staticmethod
     def id_field():
-        return "value"
+        return None
 
     def _data(self, db_row):
-        data = super()._data(db_row)
-        return LightParameterValue(data).to_single_value()
+        return LightParameterValue(db_row.value, db_row.type).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -1056,7 +1056,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
             db_row (KeyedTuple)
         """
         if self._pv is None:
-            self._pv = LightParameterValue(db_row.value)
+            self._pv = LightParameterValue(db_row.value, db_row.type)
 
     def _data(self, db_row):
         self._cache_pv(db_row)
@@ -1074,7 +1074,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
             return query
         if "value" not in {c["name"] for c in query.column_descriptions}:
             return query
-        return _FilteredQuery(query, lambda db_row: LightParameterValue(db_row.value).similar(pv))
+        return _FilteredQuery(query, lambda db_row: LightParameterValue(db_row.value, db_row.type).similar(pv))
 
 
 class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
@@ -1087,9 +1087,7 @@ class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
     MAP_TYPE = "ParameterValueIndex"
 
     def _data(self, db_row):
-        # pylint: disable=bad-super-call
-        data = super(ParameterValueMapping, self)._data(db_row)
-        return LightParameterValue(data)
+        return LightParameterValue(db_row.value, db_row.type)
 
 
 class ExpandedParameterValueMapping(ExportMapping):
@@ -1170,7 +1168,7 @@ class ParameterValueListValueMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return LightParameterValue(data).to_single_value()
+        return LightParameterValue(data, value_type=None).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -1528,7 +1526,7 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return LightParameterValue(data).to_single_value()
+        return LightParameterValue(data, value_type=None).to_single_value()
 
 
 class _DescriptionMappingBase(ExportMapping):

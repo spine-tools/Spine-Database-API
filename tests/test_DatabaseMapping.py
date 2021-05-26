@@ -109,11 +109,11 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "id",
             "name",
             "description",
-            "data_type",
             "entity_class_id",
             "object_class_id",
             "relationship_class_id",
             "default_value",
+            "default_type",
             "commit_id",
             "parameter_value_list_id",
         ]
@@ -132,6 +132,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "object_id",
             "relationship_id",
             "value",
+            "type",
             "commit_id",
             "alternative_id",
         ]
@@ -219,6 +220,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "parameter_tag_id_list",
             "parameter_tag_list",
             "default_value",
+            "default_type",
             "description",
         ]
         self.assertEqual(len(self._db_map.object_parameter_definition_sq.c), len(columns))
@@ -239,6 +241,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "parameter_tag_id_list",
             "parameter_tag_list",
             "default_value",
+            "default_type",
             "description",
         ]
         self.assertEqual(len(self._db_map.relationship_parameter_definition_sq.c), len(columns))
@@ -259,6 +262,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "alternative_id",
             "alternative_name",
             "value",
+            "type",
         ]
         self.assertEqual(len(self._db_map.object_parameter_value_sq.c), len(columns))
         for column_name in columns:
@@ -281,6 +285,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "alternative_id",
             "alternative_name",
             "value",
+            "type",
         ]
         self.assertEqual(len(self._db_map.relationship_parameter_value_sq.c), len(columns))
         for column_name in columns:

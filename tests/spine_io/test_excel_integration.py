@@ -31,14 +31,14 @@ _TEMP_EXCEL_FILENAME = "excel.xlsx"
 class TestExcelIntegration(unittest.TestCase):
     def test_array(self):
         array = '{"type": "array", "data": [1, 2, 3]}'
-        array = from_database(array)
+        array = from_database(array, value_type="array")
         self._check_parameter_value(array)
 
     def test_time_series(self):
         ts = (
             '{"type": "time_series", "index": {"start": "1999-12-31 23:00:00", "resolution": "1h"}, "data": [0.1, 0.2]}'
         )
-        ts = from_database(ts)
+        ts = from_database(ts, value_type="time_series")
         self._check_parameter_value(ts)
 
     def test_map(self):
@@ -101,7 +101,7 @@ class TestExcelIntegration(unittest.TestCase):
                 ],
             }
         )
-        map_ = from_database(map_)
+        map_ = from_database(map_, value_type="map")
         self._check_parameter_value(map_)
 
     def _check_parameter_value(self, val):

@@ -229,12 +229,12 @@ def _make_parameter_value_mappings(db_map):
     object_class_names_per_value_type = {}
     relationship_classes_per_value_type = {}
     for pval in db_map.query(db_map.object_parameter_value_sq):
-        pv = LightParameterValue(pval.value)
+        pv = LightParameterValue(pval.value, pval.type)
         key = (pv.type, pv.dimension_count)
         object_class_names_per_value_type.setdefault(key, set()).add(pval.object_class_name)
         object_class_names.add(pval.object_class_name)
     for pval in db_map.query(db_map.relationship_parameter_value_sq):
-        pv = LightParameterValue(pval.value)
+        pv = LightParameterValue(pval.value, pval.type)
         key = (pv.type, pv.dimension_count)
         object_class_name_list = tuple(pval.object_class_name_list.split(","))
         relationship_classes_per_value_type.setdefault(key, set()).add(
