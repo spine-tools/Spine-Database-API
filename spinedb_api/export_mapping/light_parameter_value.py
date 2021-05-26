@@ -49,7 +49,7 @@ class LightParameterValue:
     @property
     def data(self):
         if self._data is None:
-            self._data = _get_value_data(self.value)
+            self._data = _get_value_data(self.value, self.type)
         return self._data
 
     @property
@@ -128,13 +128,15 @@ def _get_time_series_data(data, index):
     raise ValueError(f"Invalid time series format, expected JSON array or object, got {data}")
 
 
-def _get_value_data(value):
+def _get_value_data(value, value_type=None):
     if not isinstance(value, dict):
         if isinstance(value, Number) and not isinstance(value, bool):
             return float(value)
         return value
     try:
-        if value["type"] != "time_series":
+        if value_type is None:
+            value_type = value["type"]
+        if value_type != "time_series":
             return value["data"]
         return _get_time_series_data(value["data"], value.get("index", {}))
     except KeyError as key:

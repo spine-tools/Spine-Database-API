@@ -29,18 +29,27 @@ def upgrade():
         val = json.loads(row.value)
         if not isinstance(val, dict):
             continue
-        type_ = val.get("type")
+        type_ = val.pop("type", None)
         if type_ is None:
             continue
-        conn.execute("UPDATE parameter_value SET type = :type WHERE id = :id", type=type_, id=row.id)
+        value = json.dumps(val)
+        conn.execute(
+            "UPDATE parameter_value SET type = :type, value = :value WHERE id = :id", type=type_, value=value, id=row.id
+        )
     for row in conn.execute("SELECT id, default_value FROM parameter_definition"):
         val = json.loads(row.default_value)
         if not isinstance(val, dict):
             continue
-        type_ = val.get("type")
+        type_ = val.pop("type", None)
         if type_ is None:
             continue
-        conn.execute("UPDATE parameter_definition SET default_type = :type WHERE id = :id", type=type_, id=row.id)
+        value = json.dumps(val)
+        conn.execute(
+            "UPDATE parameter_definition SET default_type = :type, default_value = :value WHERE id = :id",
+            type=type_,
+            value=value,
+            id=row.id,
+        )
 
 
 def downgrade():

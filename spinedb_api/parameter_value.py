@@ -419,7 +419,9 @@ def _map_index_to_database(index):
 def _map_value_to_database(value):
     """Converts a single map value to database format."""
     if hasattr(value, "to_dict"):
-        return value.to_dict()
+        d = value.to_dict()
+        d["type"] = value.type_()
+        return d
     return value
 
 
@@ -494,7 +496,7 @@ class DateTime:
 
     def to_dict(self):
         """Returns the database representation of this object."""
-        return {"type": "date_time", "data": self.value_to_database_data()}
+        return {"data": self.value_to_database_data()}
 
     @staticmethod
     def type_():
@@ -551,7 +553,7 @@ class Duration:
 
     def to_dict(self):
         """Returns the database representation of the duration."""
-        return {"type": "duration", "data": self.value_to_database_data()}
+        return {"data": self.value_to_database_data()}
 
     @staticmethod
     def type_():
@@ -701,7 +703,7 @@ class Array(IndexedValue):
             data = self._values
         else:
             data = [x.value_to_database_data() for x in self._values]
-        return {"type": "array", "value_type": value_type_id, "data": data}
+        return {"value_type": value_type_id, "data": data}
 
     @property
     def value_type(self):
@@ -830,7 +832,7 @@ class TimePattern(IndexedNumberArray):
         data = dict()
         for index, value in zip(self._indexes, self._values):
             data[index] = value
-        return {"type": "time_pattern", "data": data}
+        return {"data": data}
 
 
 class TimeSeriesFixedResolution(TimeSeries):
@@ -952,7 +954,6 @@ class TimeSeriesFixedResolution(TimeSeries):
         else:
             resolution_as_json = relativedelta_to_duration(self._resolution[0])
         return {
-            "type": "time_series",
             "index": {
                 "start": str(self._start),
                 "resolution": resolution_as_json,
@@ -1006,21 +1007,21 @@ class TimeSeriesVariableResolution(TimeSeries):
 
     def to_dict(self):
         """Returns the value in its database representation"""
-        database_value = {"type": "time_series"}
+        d = {}
         data = dict()
         for index, value in zip(self._indexes, self._values):
             data[str(index)] = float(value)
-        database_value["data"] = data
+        d["data"] = data
         # Add "index" entry only if its contents are not set to their default values.
         if self._ignore_year:
-            if "index" not in database_value:
-                database_value["index"] = dict()
-            database_value["index"]["ignore_year"] = self._ignore_year
+            if "index" not in d:
+                d["index"] = dict()
+            d["index"]["ignore_year"] = self._ignore_year
         if self._repeat:
-            if "index" not in database_value:
-                database_value["index"] = dict()
-            database_value["index"]["repeat"] = self._repeat
-        return database_value
+            if "index" not in d:
+                d["index"] = dict()
+            d["index"]["repeat"] = self._repeat
+        return d
 
 
 class Map(IndexedValue):
@@ -1077,11 +1078,7 @@ class Map(IndexedValue):
 
     def to_dict(self):
         """Returns map's database representation."""
-        return {
-            "type": "map",
-            "index_type": _map_index_type_to_database(self._index_type),
-            "data": self.value_to_database_data(),
-        }
+        return {"index_type": _map_index_type_to_database(self._index_type), "data": self.value_to_database_data()}
 
 
 def convert_leaf_maps_to_specialized_containers(map_):
