@@ -128,7 +128,7 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def from_database(database_value):
+def from_database(database_value, value_type=None):
     """
     Converts a (relationship) parameter value from its database representation to a Python object.
 
@@ -145,7 +145,7 @@ def from_database(database_value):
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}")
     if isinstance(value, dict):
-        return from_dict(value)
+        return from_dict(value, value_type=value_type)
     if isinstance(value, bool):
         return value
     if isinstance(value, Number):
@@ -158,36 +158,19 @@ def to_database(value):
     Converts a value object into its database representation.
 
     Args:
-        value: a value to convert
+        value: a value to convert (can be a dict)
 
     Returns:
         value's database representation as a string
     """
     if hasattr(value, "to_database"):
         return value.to_database()
+    value_type = value.get("type") if isinstance(value, dict) else None
     db_value = json.dumps(value)
-    return check_database(db_value)
+    return db_value, value_type
 
 
-def check_database(db_value):
-    """Checks if a value is in valid db format.
-
-    Args:
-        db_value (str): A value in db format
-
-    Returns:
-        str: A value in 'canonical' db format
-
-    Raises:
-        ParameterValueFormatError: if the given value is not well formatted.
-    """
-    value = from_database(db_value)
-    if hasattr(value, "to_database"):
-        return value.to_database()
-    return db_value
-
-
-def from_dict(value_dict):
+def from_dict(value_dict, value_type=None):
     """
     Converts complex a (relationship) parameter value from its dictionary representation to a Python object.
 
@@ -198,7 +181,6 @@ def from_dict(value_dict):
         the encoded (relationship) parameter value
     """
     try:
-        value_type = value_dict["type"]
         if value_type == "date_time":
             return _datetime_from_database(value_dict["data"])
         if value_type == "duration":
@@ -447,7 +429,7 @@ def _map_values_from_database(values_in_db):
         return list()
     values = list()
     for value_in_db in values_in_db:
-        value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
+        value = from_dict(value_in_db, value_in_db["type"]) if isinstance(value_in_db, dict) else value_in_db
         if not isinstance(value, (float, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
@@ -514,9 +496,13 @@ class DateTime:
         """Returns the database representation of this object."""
         return {"type": "date_time", "data": self.value_to_database_data()}
 
+    @staticmethod
+    def type_():
+        return "date_time"
+
     def to_database(self):
         """Returns the database representation of this object as JSON."""
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict()), self.type_()
 
     @property
     def value(self):
@@ -567,9 +553,13 @@ class Duration:
         """Returns the database representation of the duration."""
         return {"type": "duration", "data": self.value_to_database_data()}
 
+    @staticmethod
+    def type_():
+        return "duration"
+
     def to_database(self):
         """Returns the database representation of the duration as JSON."""
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict()), self.type_()
 
     @property
     def value(self):
@@ -638,7 +628,7 @@ class IndexedValue:
 
     def to_database(self):
         """Return the database representation of the value."""
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict()), self.type_()
 
     @property
     def values(self):
@@ -692,6 +682,10 @@ class Array(IndexedValue):
         if not isinstance(other, Array):
             return NotImplemented
         return self._values == other._values
+
+    @staticmethod
+    def type_():
+        return "array"
 
     def to_dict(self):
         """See base class."""
@@ -788,6 +782,10 @@ class TimeSeries(IndexedNumberArray):
     def repeat(self, repeat):
         self._repeat = bool(repeat)
 
+    @staticmethod
+    def type_():
+        return "time_series"
+
     def to_dict(self):
         """Return the database representation of the value."""
         raise NotImplementedError()
@@ -822,6 +820,10 @@ class TimePattern(IndexedNumberArray):
     def indexes(self, indexes):
         """Sets the indexes."""
         self._indexes = _Indexes(indexes, dtype=np.object_)
+
+    @staticmethod
+    def type_():
+        return "time_pattern"
 
     def to_dict(self):
         """Returns the database representation of this time pattern."""
@@ -1068,6 +1070,10 @@ class Map(IndexedValue):
             value_in_db = _map_value_to_database(value)
             data.append([index_in_db, value_in_db])
         return data
+
+    @staticmethod
+    def type_():
+        return "map"
 
     def to_dict(self):
         """Returns map's database representation."""

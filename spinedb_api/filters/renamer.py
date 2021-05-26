@@ -271,11 +271,11 @@ def _make_renaming_parameter_definition_sq(db_map, state):
         subquery.c.id,
         new_parameter_name.label("name"),
         subquery.c.description,
-        subquery.c.data_type,
         subquery.c.entity_class_id,
         subquery.c.object_class_id,
         subquery.c.relationship_class_id,
         subquery.c.default_value,
+        subquery.c.default_type,
         subquery.c.commit_id,
         subquery.c.parameter_value_list_id,
     ).subquery()

@@ -111,19 +111,33 @@ def export_relationship_classes(db_map, ids=Asterisk):
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk):
-    return sorted((x.name, from_database(x.value)) for x in _make_query(db_map, "parameter_value_list_sq", ids))
+    return sorted(
+        (x.name, from_database(x.value, value_type=None)) for x in _make_query(db_map, "parameter_value_list_sq", ids)
+    )
 
 
 def export_object_parameters(db_map, ids=Asterisk):
     return sorted(
-        (x.object_class_name, x.parameter_name, from_database(x.default_value), x.value_list_name, x.description)
+        (
+            x.object_class_name,
+            x.parameter_name,
+            from_database(x.default_value, x.default_type),
+            x.value_list_name,
+            x.description,
+        )
         for x in _make_query(db_map, "object_parameter_definition_sq", ids)
     )
 
 
 def export_relationship_parameters(db_map, ids=Asterisk):
     return sorted(
-        (x.relationship_class_name, x.parameter_name, from_database(x.default_value), x.value_list_name, x.description)
+        (
+            x.relationship_class_name,
+            x.parameter_name,
+            from_database(x.default_value, x.default_type),
+            x.value_list_name,
+            x.description,
+        )
         for x in _make_query(db_map, "relationship_parameter_definition_sq", ids)
     )
 
@@ -141,7 +155,7 @@ def export_object_groups(db_map, ids=Asterisk):
 def export_object_parameter_values(db_map, ids=Asterisk):
     return sorted(
         (
-            (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value), x.alternative_name)
+            (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value, x.type), x.alternative_name)
             for x in _make_query(db_map, "object_parameter_value_sq", ids)
         ),
         key=lambda x: x[:3] + (x[-1],),
@@ -155,7 +169,7 @@ def export_relationship_parameter_values(db_map, ids=Asterisk):
                 x.relationship_class_name,
                 x.object_name_list.split(","),
                 x.parameter_name,
-                from_database(x.value),
+                from_database(x.value, x.type),
                 x.alternative_name,
             )
             for x in _make_query(db_map, "relationship_parameter_value_sq", ids)
@@ -239,6 +253,6 @@ def export_tool_features(db_map, ids=Asterisk):
 
 def export_tool_feature_methods(db_map, ids=Asterisk):
     return sorted(
-        (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method))
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method, value_type=None))
         for x in _make_query(db_map, "ext_tool_feature_method_sq", ids)
     )

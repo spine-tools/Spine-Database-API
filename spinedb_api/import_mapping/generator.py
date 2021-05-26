@@ -228,7 +228,7 @@ def _make_parameter_values(mapped_data):
                 row[value_pos] = _parameter_value_from_dict(value)
             if isinstance(value, str):
                 try:
-                    row[value_pos] = from_database(value)
+                    row[value_pos] = from_database(value, value_type=None)
                 except ParameterValueFormatError:
                     pass
 

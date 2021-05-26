@@ -851,10 +851,10 @@ def _python_interpreter_bitness():
     return 64 if sys.maxsize > 2 ** 32 else 32
 
 
-def _read_value(value_in_database):
+def _read_value(db_value, value_type):
     """Converts a parameter from its database representation to a value object."""
     try:
-        value = from_database(value_in_database)
+        value = from_database(db_value, value_type)
     except ParameterValueFormatError:
         raise GdxExportException("Failed to read parameter_value.")
     if value is not None and not isinstance(value, (float, IndexedValue)):
@@ -1269,20 +1269,20 @@ def object_parameters(db_map, fallback_on_none, logger):
     parameters, default_values = _read_object_parameter_definitions(
         db_map, classes_with_ignored_parameters, fallback_on_none
     )
-    for parameter_row in db_map.query(db_map.object_parameter_value_sq).all():
-        domain = parameter_row.object_class_name
-        name = parameter_row.parameter_name
+    for value_row in db_map.query(db_map.object_parameter_value_sq).all():
+        domain = value_row.object_class_name
+        name = value_row.parameter_name
         try:
-            parsed_value = _read_value(parameter_row.value)
+            parsed_value = _read_value(value_row.value, value_row.type)
         except GdxUnsupportedValueTypeException as error:
             if classes_with_ignored_parameters is not None:
                 classes_with_ignored_parameters.add(domain)
                 continue
-            raise GdxExportException(f"Error with parameter '{parameter_row.parameter_name}': {error}")
+            raise GdxExportException(f"Error with parameter '{value_row.parameter_name}': {error}")
         if fallback_on_none == NoneFallback.USE_DEFAULT_VALUE and parsed_value is None:
             parsed_value = default_values[name][(domain,)]
         dimensions = (domain,)
-        parameters[name][dimensions].data[(parameter_row.object_name,)] = parsed_value
+        parameters[name][dimensions].data[(value_row.object_name,)] = parsed_value
     for name, by_dimensions in parameters.items():
         for parameter in by_dimensions.values():
             if not parameter.is_consistent():
@@ -1320,7 +1320,7 @@ def _read_object_parameter_definitions(db_map, classes_with_ignored_parameters, 
         if fallback_on_none != NoneFallback.USE_DEFAULT_VALUE:
             continue
         try:
-            parsed_default_value = _read_value(definition_row.default_value)
+            parsed_default_value = _read_value(definition_row.default_value, definition_row.default_type)
         except GdxUnsupportedValueTypeException as error:
             if classes_with_ignored_parameters is not None:
                 classes_with_ignored_parameters.add(domain_name)
@@ -1349,20 +1349,20 @@ def relationship_parameters(db_map, fallback_on_none, logger):
     parameters, default_values = _read_relationship_parameter_definitions(
         db_map, classes_with_ignored_parameters, fallback_on_none
     )
-    for parameter_row in db_map.query(db_map.relationship_parameter_value_sq).all():
-        set_name = parameter_row.relationship_class_name
-        name = parameter_row.parameter_name
+    for value_row in db_map.query(db_map.relationship_parameter_value_sq).all():
+        set_name = value_row.relationship_class_name
+        name = value_row.parameter_name
         try:
-            parsed_value = _read_value(parameter_row.value)
+            parsed_value = _read_value(value_row.value, value_row.type)
         except GdxUnsupportedValueTypeException as error:
             if classes_with_ignored_parameters is not None:
                 classes_with_ignored_parameters.add(set_name)
                 continue
-            raise GdxExportException(f"Error with parameter '{parameter_row.parameter_name}': {error}")
-        dimensions = tuple(parameter_row.object_class_name_list.split(","))
+            raise GdxExportException(f"Error with parameter '{value_row.parameter_name}': {error}")
+        dimensions = tuple(value_row.object_class_name_list.split(","))
         if fallback_on_none == NoneFallback.USE_DEFAULT_VALUE and parsed_value is None:
             parsed_value = default_values[name][dimensions]
-        keys = tuple(parameter_row.object_name_list.split(","))
+        keys = tuple(value_row.object_name_list.split(","))
         parameters[name][dimensions].data[keys] = parsed_value
     for name, by_dimensions in parameters.items():
         for parameter in by_dimensions.values():
@@ -1400,7 +1400,7 @@ def _read_relationship_parameter_definitions(db_map, classes_with_ignored_parame
         if fallback_on_none != NoneFallback.USE_DEFAULT_VALUE:
             continue
         try:
-            parsed_default_value = _read_value(definition_row.default_value)
+            parsed_default_value = _read_value(definition_row.default_value, definition_row.default_type)
         except GdxUnsupportedValueTypeException as error:
             if classes_with_ignored_parameters is not None:
                 classes_with_ignored_parameters.add(definition_row.relationship_class_name)
@@ -1427,21 +1427,21 @@ def _update_using_existing_relationship_parameter_values(
         classes_with_ignored_parameters (set, optional): a set of problematic relationship_class names; if not None,
             class names are added to this set in case of errors instead of raising an exception
     """
-    for parameter_row in db_map.relationship_parameter_value_list():
-        name = parameter_row.parameter_name
+    for value_row in db_map.relationship_parameter_value_list():
+        name = value_row.parameter_name
         parameter = parameters.get(name)
         if parameter is None:
             continue
         try:
-            parsed_value = _read_value(parameter_row.value)
+            parsed_value = _read_value(value_row.value, value_row.type)
         except GdxUnsupportedValueTypeException as error:
             if classes_with_ignored_parameters is not None:
-                class_name = sets_with_ids[parameter_row.relationship_class_id].name
+                class_name = sets_with_ids[value_row.relationship_class_id].name
                 classes_with_ignored_parameters.add(class_name)
                 continue
-            raise GdxExportException(f"Error with parameter '{parameter_row.parameter_name}': {error}")
+            raise GdxExportException(f"Error with parameter '{value_row.parameter_name}': {error}")
         if parsed_value is not None:
-            keys = tuple(parameter_row.object_name_list.split(","))
+            keys = tuple(value_row.object_name_list.split(","))
             parameter.data[keys] = parsed_value
 
 
@@ -1621,41 +1621,41 @@ def _aggregate_object_indexed_parameters(db_map, aggregator, none_fallback, logg
     settings = dict()
     classes_with_unsupported_value_types = set() if logger is not None else None
     parameter_names_to_skip_on_second_pass = set()
-    for parameter_row in db_map.object_parameter_value_list():
+    for value_row in db_map.object_parameter_value_list():
         try:
-            value = _read_value(parameter_row.value)
+            value = _read_value(value_row.value, value_row.type)
         except GdxUnsupportedValueTypeException as error:
             if logger is not None:
-                classes_with_unsupported_value_types.add(parameter_row.object_class_name)
+                classes_with_unsupported_value_types.add(value_row.object_class_name)
                 continue
-            raise GdxExportException(f"Error with parameter '{parameter_row.parameter_name}': {error}")
+            raise GdxExportException(f"Error with parameter '{value_row.parameter_name}': {error}")
         if isinstance(value, IndexedValue):
-            object_class_name = parameter_row.object_class_name
+            object_class_name = value_row.object_class_name
             dimensions = (object_class_name,)
-            index_keys = (parameter_row.object_name,)
-            aggregator(settings, parameter_row.parameter_name, dimensions, value, index_keys)
-            parameter_names_to_skip_on_second_pass.add(parameter_row.parameter_name)
+            index_keys = (value_row.object_name,)
+            aggregator(settings, value_row.parameter_name, dimensions, value, index_keys)
+            parameter_names_to_skip_on_second_pass.add(value_row.parameter_name)
         if none_fallback != NoneFallback.USE_DEFAULT_VALUE:
             continue
-        name = parameter_row.parameter_name
-        for definition_row in db_map.object_parameter_definition_list(parameter_row.object_class_id):
+        name = value_row.parameter_name
+        for definition_row in db_map.object_parameter_definition_list(value_row.object_class_id):
             if definition_row.parameter_name != name:
                 continue
             parameter_names_to_skip_on_second_pass.add(name)
             try:
-                value = _read_value(definition_row.default_value)
+                value = _read_value(definition_row.default_value, definition_row.default_type)
             except GdxUnsupportedValueTypeException as error:
                 if logger is not None:
-                    classes_with_unsupported_value_types.add(parameter_row.object_class_name)
+                    classes_with_unsupported_value_types.add(value_row.object_class_name)
                     continue
                 raise GdxExportException(
-                    f"Error with the default value of parameter '{parameter_row.parameter_name}': {error}"
+                    f"Error with the default value of parameter '{value_row.parameter_name}': {error}"
                 )
             if not isinstance(value, IndexedValue):
                 break
-            object_class_name = parameter_row.object_class_name
+            object_class_name = value_row.object_class_name
             dimensions = (object_class_name,)
-            index_keys = (parameter_row.object_name,)
+            index_keys = (value_row.object_name,)
             aggregator(settings, name, dimensions, value, index_keys)
             break
     if classes_with_unsupported_value_types:
@@ -1681,39 +1681,39 @@ def _aggregate_relationship_indexed_parameters(db_map, aggregator, none_fallback
     aggregate = dict()
     classes_with_unsupported_value_types = set() if logger is not None else None
     parameter_names_to_skip_on_second_pass = set()
-    for parameter_row in db_map.relationship_parameter_value_list():
+    for value_row in db_map.relationship_parameter_value_list():
         try:
-            value = _read_value(parameter_row.value)
+            value = _read_value(value_row.value, value_row.type)
         except GdxUnsupportedValueTypeException as error:
             if logger is not None:
-                classes_with_unsupported_value_types.add(parameter_row.relationship_class_name)
+                classes_with_unsupported_value_types.add(value_row.relationship_class_name)
                 continue
-            raise GdxExportException(f"Error with parameter '{parameter_row.parameter_name}': {error}")
+            raise GdxExportException(f"Error with parameter '{value_row.parameter_name}': {error}")
         if isinstance(value, IndexedValue):
-            dimensions = tuple(parameter_row.object_class_name_list.split(","))
-            index_keys = tuple(parameter_row.object_name_list.split(","))
-            aggregator(aggregate, parameter_row.parameter_name, dimensions, value, index_keys)
-            parameter_names_to_skip_on_second_pass.add(parameter_row.parameter_name)
+            dimensions = tuple(value_row.object_class_name_list.split(","))
+            index_keys = tuple(value_row.object_name_list.split(","))
+            aggregator(aggregate, value_row.parameter_name, dimensions, value, index_keys)
+            parameter_names_to_skip_on_second_pass.add(value_row.parameter_name)
         if none_fallback != NoneFallback.USE_DEFAULT_VALUE:
             continue
-        name = parameter_row.parameter_name
-        for definition_row in db_map.relationship_parameter_definition_list(parameter_row.relationship_class_id):
+        name = value_row.parameter_name
+        for definition_row in db_map.relationship_parameter_definition_list(value_row.relationship_class_id):
             if definition_row.parameter_name != name:
                 continue
             parameter_names_to_skip_on_second_pass.add(name)
             try:
-                value = _read_value(definition_row.default_value)
+                value = _read_value(definition_row.default_value, definition_row.default_type)
             except GdxUnsupportedValueTypeException as error:
                 if logger is not None:
-                    classes_with_unsupported_value_types.add(parameter_row.relationship_class_name)
+                    classes_with_unsupported_value_types.add(value_row.relationship_class_name)
                     continue
                 raise GdxExportException(
-                    f"Error with the default value of parameter '{parameter_row.parameter_name}': {error}"
+                    f"Error with the default value of parameter '{value_row.parameter_name}': {error}"
                 )
             if not isinstance(value, IndexedValue):
                 break
-            dimensions = tuple(parameter_row.object_class_name_list.split(","))
-            index_keys = tuple(parameter_row.object_name_list.split(","))
+            dimensions = tuple(value_row.object_class_name_list.split(","))
+            index_keys = tuple(value_row.object_name_list.split(","))
             aggregator(aggregate, name, dimensions, value, index_keys)
             break
     if classes_with_unsupported_value_types:
@@ -1861,7 +1861,7 @@ def _find_indexed_parameter(parameter_name, db_map, none_fallback, logger=None):
     parameter = None
     for value_row in value_rows:
         try:
-            parsed_value = _read_value(value_row.value)
+            parsed_value = _read_value(value_row.value, value_row.type)
         except GdxUnsupportedValueTypeException as error:
             if object_classes_with_unsupported_parameter_types is not None:
                 object_classes_with_unsupported_parameter_types.add(class_name)
@@ -1870,7 +1870,7 @@ def _find_indexed_parameter(parameter_name, db_map, none_fallback, logger=None):
         if parsed_value is None and none_fallback == NoneFallback.USE_DEFAULT_VALUE:
             if default_value is None:
                 try:
-                    default_value = _read_value(definition_row.default_value)
+                    default_value = _read_value(definition_row.default_value, definition_row.default_type)
                 except GdxUnsupportedValueTypeException as error:
                     if object_classes_with_unsupported_parameter_types is not None:
                         object_classes_with_unsupported_parameter_types.add(class_name)
