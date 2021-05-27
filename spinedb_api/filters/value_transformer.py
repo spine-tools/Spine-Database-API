@@ -15,12 +15,13 @@ Provides a database query manipulator that applies mathematical transformations 
 :author: A. Soininen
 :date:   20.5.2021
 """
+
 import json
 from functools import partial
-
-from sqlalchemy import case
-from sqlalchemy.sql.expression import label
-from ..parameter_value import TRANSFORM_TAG, VALUE_TRANSFORMS
+from sqlalchemy import case, LargeBinary, Text
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.expression import FunctionElement, label, cast
+from ..parameter_value import TRANSFORM_TAG
 
 VALUE_TRANSFORMER_TYPE = "value_transformer"
 VALUE_TRANSFORMER_SHORTHAND_TAG = "value_transform"
@@ -121,25 +122,18 @@ class _ValueTransformerState:
         """
         Args:
             db_map (DatabaseMappingBase): a database map
-            instructions (dict): mapping from entity class name to mapping from parameter name to list of
-                instructions
+            instructions (dict): mapping from entity class name to parameter name to list of instructions
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
-        self.instructions = {
-            id_: (
-                bytes(TRANSFORM_TAG + json.dumps(param_instructions) + TRANSFORM_TAG, "UTF8") if instructions else None
-            )
-            for id_, param_instructions in self._ids(db_map, instructions).items()
-        }
+        self.instructions = self._collect_instructions(db_map, instructions)
 
     @staticmethod
-    def _ids(db_map, instructions):
+    def _collect_instructions(db_map, instructions):
         """Searches the database for applicable parameter definition ids.
 
         Args:
             db_map (DatabaseMappingBase): a database map
-            instructions (dict): mapping from entity class name to mapping from parameter name to list of
-                instructions
+            instructions (dict): mapping from entity class name to parameter name to list of instructions
 
         Returns:
             dict: mapping from parameter definition ids to list of instructions
@@ -154,8 +148,14 @@ class _ValueTransformerState:
             )
         }
         return {
-            id_: instructions[path[0]][path[1]] for path, id_ in id_to_names.items() if path[1] in instructions[path[0]]
+            id_: instructions[klass][param]
+            for (klass, param), id_ in id_to_names.items()
+            if param in instructions[klass]
         }
+
+
+def _encode_instructions(instructions):
+    return TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG
 
 
 def _make_parameter_value_transforming_sq(db_map, state):
@@ -173,7 +173,10 @@ def _make_parameter_value_transforming_sq(db_map, state):
     if not state.instructions:
         return subquery
     cases = [
-        (subquery.c.parameter_definition_id == id_, instructions + subquery.c.value)
+        (
+            subquery.c.parameter_definition_id == id_,
+            prepend_instructions(subquery.c.value, _encode_instructions(instructions)),
+        )
         for id_, instructions in state.instructions.items()
     ]
     new_parameter_value = case(cases, else_=subquery.c.value)
@@ -209,3 +212,76 @@ def _make_parameter_value_transforming_sq(db_map, state):
         .subquery()
     )
     return parameter_value_sq
+
+
+class prepend_instructions(FunctionElement):
+    type = LargeBinary()
+    name = 'prepend_instructions'
+
+
+@compiles(prepend_instructions)
+def compile_prepend_instructions(element, compiler, **kw):
+    value, instructions = element.clauses
+    result = compiler.process(cast(instructions + cast(value, Text), LargeBinary))
+    return result
+
+
+# Alternative transform system to apply the transformation directly on SQL
+# Not in use at the moment, but we should consider it to alleviate issues with the current approach
+# See https://github.com/Spine-project/Spine-Toolbox/issues/1395
+class negate(FunctionElement):
+    type = LargeBinary()
+    name = 'negate'
+
+
+class invert(FunctionElement):
+    type = LargeBinary()
+    name = 'invert'
+
+
+class multiply(FunctionElement):
+    type = LargeBinary()
+    name = 'multiply'
+
+
+@compiles(negate)
+def compile_negate(element, compiler, **kw):
+    x = next(iter(element.clauses))
+    result = compiler.process(cast(-x, LargeBinary))
+    return result
+
+
+@compiles(invert)
+def compile_invert(element, compiler, **kw):
+    x = next(iter(element.clauses))
+    result = compiler.process(cast(1.0 / x, LargeBinary))
+    return result
+
+
+@compiles(multiply)
+def compile_multiply(element, compiler, **kw):
+    x, y = element.clauses
+    result = compiler.process(cast(x * y, LargeBinary))
+    return result
+
+
+def _negate(value, instruction):
+    return negate(value)
+
+
+def _invert(value, instruction):
+    return invert(value)
+
+
+def _multiply(value, instruction):
+    return multiply(instruction["rhs"], value)
+
+
+def _transform(value, instructions):
+    for instruction in instructions:
+        operation = instruction["operation"]
+        value = VALUE_TRANSFORMS[operation](value, instruction)
+    return value
+
+
+VALUE_TRANSFORMS = {"invert": _invert, "multiply": _multiply, "negate": _negate}
