@@ -16,6 +16,7 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
+import json
 from itertools import groupby
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
@@ -522,7 +523,7 @@ def _get_tool_feature_methods_for_import(db_map, data):
         )
         parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
         value_to_index = parameter_value_list.get("value_to_index", {})
-        method_index = value_to_index.get(to_database(method)[0])
+        method_index = value_to_index.get(json.dumps(method))
         if (tool_feature_id, method_index) in seen | tool_feature_method_ids.keys():
             continue
         item = {

@@ -392,7 +392,7 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         value_list = parameter_value_lists.get(parameter_value_list_id)
         if value_list is not None:
             value_list = value_list.split(";")
-            if value not in value_list:
+            if str(value, "UTF8") not in value_list:
                 valid_values = ", ".join(value_list)
                 raise SpineIntegrityError(
                     "The value '{}' is not a valid value for parameter '{}' (valid values are: {})".format(

@@ -81,14 +81,14 @@ class TestAlternative_filter(unittest.TestCase):
             apply_alternative_filter_to_parameter_value_sq(db_map, ["alternative"])
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
+            self.assertEqual(parameters[0].value, b"23.0")
 
     def test_alternative_filter_uncommitted_data(self):
         self._build_data_with_single_alternative()
         apply_alternative_filter_to_parameter_value_sq(self._out_map, ["alternative"])
         parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
+        self.assertEqual(parameters[0].value, b"23.0")
         self._out_map.rollback_session()
 
     def test_alternative_filter_config(self):
@@ -102,7 +102,7 @@ class TestAlternative_filter(unittest.TestCase):
         alternative_filter_from_dict(self._db_map, config)
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
+        self.assertEqual(parameters[0].value, b"23.0")
 
     def test_alternative_names_from_dict(self):
         config = alternative_filter_config(["alternative1", "alternative2"])

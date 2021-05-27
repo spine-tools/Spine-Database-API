@@ -216,7 +216,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         db_map.add_parameter_values(
             {
-                "value": "0",
+                "value": b"0",
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -240,7 +240,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         db_map.add_parameter_values(
             {
-                "value": "0",
+                "value": b"0",
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -265,7 +265,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         db_map.add_parameter_values(
             {
-                "value": "0",
+                "value": b"0",
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -289,7 +289,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
         db_map.add_parameter_values(
             {
-                "value": "0",
+                "value": b"0",
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -800,14 +800,14 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "parameter_definition_id": color_id,
                 "entity_id": nemo_row.id,
                 "entity_class_id": nemo_row.class_id,
-                "value": '"orange"',
+                "value": b'"orange"',
                 "alternative_id": 1,
             },
             {
                 "parameter_definition_id": rel_speed_id,
                 "entity_id": nemo__pluto_row.id,
                 "entity_class_id": nemo__pluto_row.class_id,
-                "value": "125",
+                "value": b"125",
                 "alternative_id": 1,
             },
         )
@@ -816,10 +816,10 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(parameter_values), 2)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].entity_id, 1)
-        self.assertEqual(parameter_values[0].value, '"orange"')
+        self.assertEqual(parameter_values[0].value, b'"orange"')
         self.assertEqual(parameter_values[1].parameter_definition_id, 2)
         self.assertEqual(parameter_values[1].entity_id, 3)
-        self.assertEqual(parameter_values[1].value, "125")
+        self.assertEqual(parameter_values[1].value, b"125")
         db_map.connection.close()
 
     def test_add_parameter_value_for_both_object_and_relationship(self):
@@ -854,7 +854,8 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 db_map.add_parameter_values(
-                    {"parameter_definition_id": 1, "object_id": 1, "relationship_id": 1, "value": "orange"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 1, "relationship_id": 1, "value": b"orange"},
+                    strict=True,
                 )
         db_map.connection.close()
 
@@ -890,11 +891,11 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 db_map.add_parameter_values(
-                    {"parameter_definition_id": 1, "object_id": 3, "value": "orange"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 3, "value": b"orange"}, strict=True
                 )
             with self.assertRaises(SpineIntegrityError):
                 db_map.add_parameter_values(
-                    {"parameter_definition_id": 2, "relationship_id": 2, "value": "125"}, strict=True
+                    {"parameter_definition_id": 2, "relationship_id": 2, "value": b"125"}, strict=True
                 )
         db_map.connection.close()
 
@@ -931,11 +932,11 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 db_map.add_parameter_values(
-                    {"parameter_definition_id": 1, "object_id": 2, "value": "orange"}, strict=True
+                    {"parameter_definition_id": 1, "object_id": 2, "value": b"orange"}, strict=True
                 )
             with self.assertRaises(SpineIntegrityError):
                 db_map.add_parameter_values(
-                    {"parameter_definition_id": 2, "relationship_id": 2, "value": "125"}, strict=True
+                    {"parameter_definition_id": 2, "relationship_id": 2, "value": b"125"}, strict=True
                 )
         db_map.connection.close()
 
@@ -954,14 +955,14 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "parameter_definition_id": color_id,
                 "entity_id": nemo_row.id,
                 "entity_class_id": nemo_row.class_id,
-                "value": '"orange"',
+                "value": b'"orange"',
                 "alternative_id": 1,
             },
             {
                 "parameter_definition_id": color_id,
                 "entity_id": nemo_row.id,
                 "entity_class_id": nemo_row.class_id,
-                "value": '"blue"',
+                "value": b'"blue"',
                 "alternative_id": 1,
             },
         )
@@ -970,7 +971,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(parameter_values), 1)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].entity_id, 1)
-        self.assertEqual(parameter_values[0].value, '"orange"')
+        self.assertEqual(parameter_values[0].value, b'"orange"')
         db_map.connection.close()
 
     def test_add_existing_parameter_value(self):
@@ -1001,7 +1002,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             ]
             with self.assertRaises(SpineIntegrityError):
                 db_map.add_parameter_values(
-                    {"parameter_definition_id": 1, "entity_id": 1, "value": "blue", "alternative_id": 1}, strict=True
+                    {"parameter_definition_id": 1, "entity_id": 1, "value": b"blue", "alternative_id": 1}, strict=True
                 )
         db_map.connection.close()
 

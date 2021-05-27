@@ -130,13 +130,14 @@ def relativedelta_to_duration(delta):
 
 def from_database(database_value, value_type=None):
     """
-    Converts a (relationship) parameter value from its database representation to a Python object.
+    Converts a parameter value from its database representation to a Python object.
 
     Args:
-        database_value (str): a value in the database; a JSON string or None
+        database_value (bytes): a value in the database (can be None)
+        value_type (str, optional): the type in case of complex ones
 
     Returns:
-        the encoded (relationship) parameter value
+        the encoded parameter value
     """
     if database_value is None:
         return None
@@ -161,12 +162,13 @@ def to_database(value):
         value: a value to convert (can be a dict)
 
     Returns:
-        value's database representation as a string
+        bytes: value's database representation as bytes
+        str: the value type
     """
     if hasattr(value, "to_database"):
         return value.to_database()
     value_type = value.get("type") if isinstance(value, dict) else None
-    db_value = json.dumps(value)
+    db_value = json.dumps(value).encode("UTF8")
     return db_value, value_type
 
 
@@ -504,7 +506,7 @@ class DateTime:
 
     def to_database(self):
         """Returns the database representation of this object as JSON."""
-        return json.dumps(self.to_dict()), self.type_()
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def value(self):
@@ -561,7 +563,7 @@ class Duration:
 
     def to_database(self):
         """Returns the database representation of the duration as JSON."""
-        return json.dumps(self.to_dict()), self.type_()
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def value(self):
@@ -630,7 +632,7 @@ class IndexedValue:
 
     def to_database(self):
         """Return the database representation of the value."""
-        return json.dumps(self.to_dict()), self.type_()
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def values(self):
