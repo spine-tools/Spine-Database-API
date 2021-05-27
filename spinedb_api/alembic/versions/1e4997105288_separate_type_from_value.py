@@ -5,9 +5,12 @@ Revises: fbb540efbf15
 Create Date: 2021-05-26 16:00:49.244440
 
 """
+
 import json
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import sessionmaker
 
 
 # revision identifiers, used by Alembic.
@@ -21,62 +24,57 @@ LONGTEXT_LENGTH = 2 ** 32 - 1
 
 def upgrade():
     conn = op.get_bind()
-    m = sa.MetaData(conn)
-    m.reflect()
+    Session = sessionmaker(bind=conn)
+    session = Session()
+    Base = automap_base()
+    Base.prepare(conn, reflect=True)
     # Get items to update
-    pd_items = _get_items(m, conn, "parameter_definition")
-    pv_items = _get_items(m, conn, "parameter_value")
+    pd_items = _get_items(session, Base, "parameter_definition")
+    pv_items = _get_items(session, Base, "parameter_value")
+    pvl_items = _get_pvl_items(session, Base)
     # Alter tables
     with op.batch_alter_table("parameter_definition") as batch_op:
-        batch_op.alter_column("default_value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null())
-        batch_op.add_column(sa.Column('default_type', sa.String(length=255), nullable=True))
         batch_op.drop_column('data_type')
+        batch_op.drop_column("default_value")
+        batch_op.add_column(sa.Column("default_value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
+        batch_op.add_column(sa.Column('default_type', sa.String(length=255), nullable=True))
     with op.batch_alter_table("parameter_value") as batch_op:
-        batch_op.alter_column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null())
+        batch_op.drop_column("value")
+        batch_op.add_column(sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
         batch_op.add_column(sa.Column('type', sa.String(length=255), nullable=True))
+    with op.batch_alter_table("parameter_value_list") as batch_op:
+        batch_op.drop_column("value")
+        batch_op.add_column(sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
     # Do update items
-    _update_table(m, conn, "parameter_definition", pd_items)
-    _update_table(m, conn, "parameter_value", pv_items)
-    # TODO: update values in value lists
+    session.bulk_update_mappings(Base.classes.parameter_definition, pd_items)
+    session.bulk_update_mappings(Base.classes.parameter_value, pv_items)
+    session.bulk_update_mappings(Base.classes.parameter_value_list, pvl_items)
+    session.commit()
 
 
-def _get_table_and_fields(m, tablename):
-    value_field, type_field = {
-        "parameter_definition": ("default_value", "default_type"),
-        "parameter_value": ("value", "type"),
-    }[tablename]
-    table = m.tables[tablename]
-    return table, value_field, type_field
-
-
-def _get_items(m, conn, tablename):
-    table, value_field, type_field = _get_table_and_fields(m, tablename)
+def _get_items(session, Base, tablename):
+    fields = {"parameter_definition": ("default_value", "default_type"), "parameter_value": ("value", "type")}[
+        tablename
+    ]
     items = []
-    for row in conn.execute(table.select()):
-        value = getattr(row, value_field, None)
+    for row in session.query(getattr(Base.classes, tablename)):
+        value = getattr(row, fields[0], None)
         if value is None:
             continue
         parsed_value = json.loads(value)
-        if not isinstance(parsed_value, dict):
-            continue
-        type_ = parsed_value.pop("type", None)
-        if type_ is None:
-            continue
+        type_ = parsed_value.pop("type", None) if isinstance(parsed_value, dict) else None
         value = bytes(json.dumps(parsed_value), "UTF8")
-        items.append({"b_id": row.id, value_field: value, type_field: type_})
+        item = dict(zip(fields, (value, type_)))
+        item["id"] = row.id
+        items.append(item)
     return items
 
 
-def _update_table(m, conn, tablename, items):
-    if not items:
-        return
-    table, value_field, type_field = _get_table_and_fields(m, tablename)
-    upd = (
-        table.update()
-        .where(table.c.id == sa.bindparam('b_id'))
-        .values(**{value_field: sa.bindparam(value_field), type_field: sa.bindparam(type_field)})
-    )
-    conn.execute(upd, items)
+def _get_pvl_items(session, Base):
+    return [
+        {"id": row.id, "value_index": row.value_index, "value": bytes(row.value, "UTF8")}
+        for row in session.query(Base.classes.parameter_value_list)
+    ]
 
 
 def downgrade():
