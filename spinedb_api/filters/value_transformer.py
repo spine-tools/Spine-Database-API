@@ -125,11 +125,12 @@ class _ValueTransformerState:
                 instructions
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
-        self.instructions = {}
-        for id, param_instructions in self._ids(db_map, instructions).items():
-            self.instructions[id] = (
-                TRANSFORM_TAG + json.dumps(param_instructions) + TRANSFORM_TAG if instructions else None
+        self.instructions = {
+            id_: (
+                bytes(TRANSFORM_TAG + json.dumps(param_instructions) + TRANSFORM_TAG, "UTF8") if instructions else None
             )
+            for id_, param_instructions in self._ids(db_map, instructions).items()
+        }
 
     @staticmethod
     def _ids(db_map, instructions):

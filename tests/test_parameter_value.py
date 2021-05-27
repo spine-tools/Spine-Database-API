@@ -144,7 +144,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(duration, "7Y")
 
     def test_from_database_plain_number(self):
-        database_value = "23.0"
+        database_value = b"23.0"
         value = from_database(database_value, value_type=None)
         self.assertTrue(isinstance(value, float))
         self.assertEqual(value, 23.0)
@@ -164,7 +164,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_type, "date_time")
 
     def test_from_database_DateTime(self):
-        database_value = '{"data": "2019-06-01T22:15:00+01:00"}'
+        database_value = b'{"data": "2019-06-01T22:15:00+01:00"}'
         value = from_database(database_value, value_type="date_time")
         self.assertEqual(value.value, dateutil.parser.parse("2019-06-01T22:15:00+01:00"))
 
@@ -176,17 +176,17 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_type, "date_time")
 
     def test_from_database_Duration(self):
-        database_value = '{"data": "4 seconds"}'
+        database_value = b'{"data": "4 seconds"}'
         value = from_database(database_value, value_type="duration")
         self.assertEqual(value.value, relativedelta(seconds=4))
 
     def test_from_database_Duration_default_units(self):
-        database_value = '{"data": 23}'
+        database_value = b'{"data": 23}'
         value = from_database(database_value, value_type="duration")
         self.assertEqual(value.value, relativedelta(minutes=23))
 
     def test_from_database_Duration_legacy_list_format_converted_to_Array(self):
-        database_value = '{"data": ["1 hour", "1h", 60, "2 hours"]}'
+        database_value = b'{"data": ["1 hour", "1h", 60, "2 hours"]}'
         value = from_database(database_value, value_type="duration")
         expected = Array([Duration("1h"), Duration("1h"), Duration("1h"), Duration("2h")])
         self.assertEqual(value, expected)
@@ -199,7 +199,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_type, "duration")
 
     def test_from_database_TimePattern(self):
-        database_value = """
+        database_value = b"""
         {
           "data": {
             "m1-4,m9-12": 300,
@@ -233,7 +233,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(list(value.indexes), ["m1,m3,m5,m7,m9,m11", "m2,m4,m6,m8,m10,m12"])
 
     def test_from_database_TimeSeriesVariableResolution_as_dictionary(self):
-        releases = """{
+        releases = b"""{
                           "data": {
                               "1977-05-25": 4,
                               "1980-05-21": 5,
@@ -253,7 +253,7 @@ class TestParameterValue(unittest.TestCase):
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
     def test_from_database_TimeSeriesVariableResolution_as_two_column_array(self):
-        releases = """{
+        releases = b"""{
                           "data": [
                               ["1977-05-25", 4],
                               ["1980-05-21", 5],
@@ -273,7 +273,7 @@ class TestParameterValue(unittest.TestCase):
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
 
     def test_from_database_TimeSeriesFixedResolution_default_repeat(self):
-        database_value = """{
+        database_value = b"""{
                                    "index": {
                                        "ignore_year": true
                                    },
@@ -309,7 +309,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_type, "time_series")
 
     def test_from_database_TimeSeriesFixedResolution(self):
-        days_of_our_lives = """{
+        days_of_our_lives = b"""{
                                    "index": {
                                        "start": "2019-03-23",
                                        "resolution": "1 day",
@@ -336,7 +336,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertFalse(time_series.repeat)
 
     def test_from_database_TimeSeriesFixedResolution_no_index(self):
-        database_value = """{
+        database_value = b"""{
                                 "data": [1, 2, 3, 4, 5, 8]
                             }
         """
@@ -364,7 +364,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertTrue(time_series.repeat)
 
     def test_from_database_TimeSeriesFixedResolution_resolution_list(self):
-        database_value = """{
+        database_value = b"""{
                                 "index": {
                                     "start": "2019-01-31",
                                     "resolution": ["1 day", "1M"],
@@ -395,7 +395,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertFalse(time_series.repeat)
 
     def test_from_database_TimeSeriesFixedResolution_default_resolution_is_1hour(self):
-        database_value = """{
+        database_value = b"""{
                                    "index": {
                                        "start": "2019-03-23",
                                        "ignore_year": false,
@@ -409,7 +409,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
 
     def test_from_database_TimeSeriesFixedResolution_default_resolution_unit_is_minutes(self):
-        database_value = """{
+        database_value = b"""{
                                    "index": {
                                        "start": "2019-03-23",
                                        "resolution": 30
@@ -420,7 +420,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(len(time_series), 3)
         self.assertEqual(len(time_series.resolution), 1)
         self.assertEqual(time_series.resolution[0], relativedelta(minutes=30))
-        database_value = """{
+        database_value = b"""{
                                    "index": {
                                        "start": "2019-03-23",
                                        "resolution": [30, 45]
@@ -435,7 +435,7 @@ class TestParameterValue(unittest.TestCase):
 
     def test_from_database_TimeSeriesFixedResolution_default_ignore_year(self):
         # Should be false if start is given
-        database_value = """{
+        database_value = b"""{
                                    "index": {
                                        "start": "2019-03-23",
                                        "resolution": "1 day",
@@ -446,7 +446,7 @@ class TestParameterValue(unittest.TestCase):
         time_series = from_database(database_value, value_type="time_series")
         self.assertFalse(time_series.ignore_year)
         # Should be true if start is omitted
-        database_value = """{
+        database_value = b"""{
                                    "index": {
                                        "resolution": "1 day",
                                        "repeat": false
@@ -514,21 +514,21 @@ class TestParameterValue(unittest.TestCase):
         self.assertTrue(isinstance(series.values, np.ndarray))
 
     def test_from_database_Map_dictionary_format(self):
-        database_value = '{"index_type":"str", "data":{"a": 1.1, "b": 2.2}}'
+        database_value = b'{"index_type":"str", "data":{"a": 1.1, "b": 2.2}}'
         value = from_database(database_value, value_type="map")
         self.assertIsInstance(value, Map)
         self.assertEqual(value.indexes, ["a", "b"])
         self.assertEqual(value.values, [1.1, 2.2])
 
     def test_from_database_Map_two_column_array_format(self):
-        database_value = '{"index_type":"float", "data":[[1.1, "a"], [2.2, "b"]]}'
+        database_value = b'{"index_type":"float", "data":[[1.1, "a"], [2.2, "b"]]}'
         value = from_database(database_value, value_type="map")
         self.assertIsInstance(value, Map)
         self.assertEqual(value.indexes, [1.1, 2.2])
         self.assertEqual(value.values, ["a", "b"])
 
     def test_from_database_Map_nested_maps(self):
-        database_value = '''
+        database_value = b'''
         {
              "index_type": "duration",
               "data":[["1 hour", {"type": "map",
@@ -543,7 +543,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(nested_map.values, [Duration("3 hours")])
 
     def test_from_database_Map_with_TimeSeries_values(self):
-        database_value = '''
+        database_value = b'''
         {
              "index_type": "duration",
               "data":[["1 hour", {"type": "time_series",
@@ -559,7 +559,7 @@ class TestParameterValue(unittest.TestCase):
         )
 
     def test_from_database_Map_with_Array_values(self):
-        database_value = '''
+        database_value = b'''
         {
              "index_type": "duration",
               "data":[["1 hour", {"type": "array", "data": [-3.0, -9.3]}]]
@@ -569,7 +569,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value.values, [Array([-3.0, -9.3])])
 
     def test_from_database_Map_with_TimePattern_values(self):
-        database_value = '''
+        database_value = b'''
         {
              "index_type": "float",
               "data":[["2.3", {"type": "time_pattern", "data": {"1m,2m": -9.3, "3-12m": -3.9}}]]
@@ -651,7 +651,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value_type, "array")
 
     def test_Array_of_floats_from_database(self):
-        database_value = """{
+        database_value = b"""{
             "value_type": "float",
             "data": [1.2, 2.3]
         }"""
@@ -660,7 +660,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(array.indexes, [0, 1])
 
     def test_Array_of_default_value_type_from_database(self):
-        database_value = """{
+        database_value = b"""{
             "data": [1.2, 2.3]
         }"""
         array = from_database(database_value, value_type="array")
@@ -668,7 +668,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(array.indexes, [0, 1])
 
     def test_Array_of_strings_from_database(self):
-        database_value = """{
+        database_value = b"""{
             "value_type": "str",
             "data": ["A", "B"]
         }"""
@@ -677,7 +677,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(array.indexes, [0, 1])
 
     def test_Array_of_DateTimes_from_database(self):
-        database_value = """{
+        database_value = b"""{
             "value_type": "date_time",
             "data": ["2020-03-25T10:34:00"]
         }"""
@@ -686,7 +686,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(array.indexes, [0])
 
     def test_Array_of_Durations_from_database(self):
-        database_value = """{
+        database_value = b"""{
             "value_type": "duration",
             "data": ["2 years", "7 seconds"]
         }"""
@@ -836,45 +836,59 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(nested_map, {"A": {"a": -3.2, "b": -2.3}, "B": {"c": 3.2, "d": 2.3}})
 
     def test_multiply_single_value(self):
-        database_value = to_database(-23.0)
+        database_value, value_type = to_database(-23.0)
         instructions = [{"operation": "multiply", "rhs": 5.0}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, -5.0 * 23.0)
 
     def test_multiply_nested_Map(self):
-        database_value = to_database(Map(["a"], [Map(["A"], [5.0])]))
+        database_value, value_type = to_database(Map(["a"], [Map(["A"], [5.0])]))
         instructions = [{"operation": "multiply", "rhs": 2.3}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, Map(["a"], [Map(["A"], [2.3 * 5.0])]))
 
     def test_negate_single_value(self):
-        database_value = to_database(-23.0)
+        database_value, value_type = to_database(-23.0)
         instructions = [{"operation": "negate"}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, 23.0)
 
     def test_negate_nested_Map(self):
-        database_value = to_database(Map(["a"], [Map(["A"], [5.0])]))
+        database_value, value_type = to_database(Map(["a"], [Map(["A"], [5.0])]))
         instructions = [{"operation": "negate"}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, Map(["a"], [Map(["A"], [-5.0])]))
 
     def test_invert_single_value(self):
-        database_value = to_database(-23.0)
+        database_value, value_type = to_database(-23.0)
         instructions = [{"operation": "invert"}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, -1.0 / 23.0)
 
     def test_invert_nested_Map(self):
-        database_value = to_database(Map(["a"], [Map(["A"], [5.0])]))
+        database_value, value_type = to_database(Map(["a"], [Map(["A"], [5.0])]))
         instructions = [{"operation": "invert"}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, Map(["a"], [Map(["A"], [1.0 / 5.0])]))
 
     def test_invert_and_negate_single_value(self):
-        database_value = to_database(-23.0)
+        database_value, value_type = to_database(-23.0)
         instructions = [{"operation": "invert"}, {"operation": "negate"}]
-        value = from_database(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG + database_value)
+        value = from_database(
+            bytes(TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG, "UTF8") + database_value, value_type
+        )
         self.assertEqual(value, 1.0 / 23.0)
 
 

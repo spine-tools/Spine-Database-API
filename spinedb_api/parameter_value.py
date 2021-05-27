@@ -160,7 +160,7 @@ def from_database(database_value, value_type=None):
     else:
         value = parsed
     if transform_instructions:
-        return transform(value, transform_instructions)
+        return _transform(value, transform_instructions)
     return value
 
 
