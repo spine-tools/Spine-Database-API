@@ -108,17 +108,17 @@ def apply_renaming_to_parameter_definition_sq(db_map, name_map):
     db_map.override_parameter_definition_sq_maker(renaming)
 
 
-def parameter_renamer_config(**renames):
+def parameter_renamer_config(renames):
     """
     Creates a config dict for renamer.
 
     Args:
-        **renames: keyword is the old name, value is the new name
+        renames (dict): mapping from entity class name to mapping from parameter name to new name
 
     Returns:
         dict: renamer configuration
     """
-    return {"type": PARAMETER_RENAMER_TYPE, "name_map": dict(renames)}
+    return {"type": PARAMETER_RENAMER_TYPE, "name_map": renames}
 
 
 def parameter_renamer_from_dict(db_map, config):
@@ -143,8 +143,9 @@ def parameter_renamer_config_to_shorthand(config):
         str: a shorthand string
     """
     shorthand = ""
-    for old_name, new_name in config["name_map"].items():
-        shorthand = shorthand + ":" + old_name + ":" + new_name
+    for class_name, renaming in config["name_map"].items():
+        for old_name, new_name in renaming.items():
+            shorthand = shorthand + ":" + class_name + ":" + old_name + ":" + new_name
     return PARAMETER_RENAMER_SHORTHAND_TAG + shorthand
 
 
@@ -160,9 +161,9 @@ def parameter_renamer_shorthand_to_config(shorthand):
     """
     names = shorthand.split(":")
     name_map = {}
-    for old_name, new_name in zip(names[1::2], names[2::2]):
-        name_map[old_name] = new_name
-    return parameter_renamer_config(**name_map)
+    for class_name, old_name, new_name in zip(names[1::3], names[2::3], names[3::3]):
+        name_map.setdefault(class_name, {})[old_name] = new_name
+    return parameter_renamer_config(name_map)
 
 
 class _EntityClassRenamerState:
@@ -227,7 +228,7 @@ class _ParameterRenamerState:
         """
         Args:
             db_map (DatabaseMappingBase): a database map
-            name_map (dict): a mapping from original name to a new name.
+            name_map (dict): mapping from entity class name to mapping from parameter name to new name
         """
         self.id_to_name = self._ids(db_map, name_map)
         self.original_parameter_definition_sq = db_map.parameter_definition_sq
@@ -242,13 +243,16 @@ class _ParameterRenamerState:
         Returns:
             dict: a mapping from entity class id to a new name
         """
-        names = set(name_map.keys())
-        return {
-            class_row.id: name_map[class_row.name]
-            for class_row in db_map.query(db_map.parameter_definition_sq)
-            .filter(db_map.parameter_definition_sq.c.name.in_(names))
-            .all()
+        class_names = set(name_map.keys())
+        param_names = set(old_name for renaming in name_map.values() for old_name in renaming)
+        id_to_names = {
+            (definition_row.entity_class_name, definition_row.parameter_name): definition_row.id
+            for definition_row in db_map.query(db_map.entity_parameter_definition_sq).filter(
+                db_map.entity_parameter_definition_sq.c.entity_class_name.in_(class_names)
+                & db_map.entity_parameter_definition_sq.c.parameter_name.in_(param_names)
+            )
         }
+        return {id_: name_map[path[0]][path[1]] for path, id_ in id_to_names.items() if path[1] in name_map[path[0]]}
 
 
 def _make_renaming_parameter_definition_sq(db_map, state):
