@@ -26,15 +26,41 @@ from sqlalchemy.exc import DBAPIError
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .helpers import ReceiveAllMixing
-
-REQUIRED_SPINE_INTERFACE_VERSION = "0.5.6"
-
-_db_maps = {}
+from .light_parameter_value import LightParameterValue
 
 
-class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
+def _process_parameter_definition_row(row):
+    value, type_ = row.pop("default_value"), row.pop("default_type")
+    row["default_value"] = LightParameterValue(value, type_).to_str()
+    return row
+
+
+def _process_parameter_value_row(row):
+    value, type_ = row.pop("value"), row.pop("type")
+    row["value"] = LightParameterValue(value, type_).to_str()
+    return row
+
+
+def _process_parameter_value_list_row(row):
+    value = row.pop("value")
+    row["value"] = LightParameterValue(value, None).to_str()
+    return row
+
+
+def _get_row_processor(sq_name):
+    if sq_name == "parameter_definition_sq":
+        return _process_parameter_definition_row
+    if sq_name == "parameter_value_sq":
+        return _process_parameter_value_row
+    if sq_name == "parameter_value_list_sq":
+        return _process_parameter_value_list_row
+    return lambda row: row
+
+
+class DBHandler:
     """
-    The request handler class for our server.
+    Helper class to do key interactions with a db, while closing the db_map afterwards.
+    Used by DBRequestHandler and by SpineInterface's legacy PyCall path.
     """
 
     def __init__(self, db_url, upgrade, *args, **kwargs):
@@ -42,29 +68,29 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
         self._upgrade = upgrade
         super().__init__(*args, **kwargs)
 
-    def _make_db_map(self, upgrade=False):
+    def _make_db_map(self, create=False):
         try:
-            return DatabaseMapping(self._db_url, upgrade=self._upgrade), None
-        except Exception as error:
+            return DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create), None
+        except Exception as error:  # pylint: disable=broad-except
             return None, error
 
     @contextmanager
-    def _closing_db_map(self):
-        db_map, error = self._make_db_map()
+    def _closing_db_map(self, create=False):
+        db_map, error = self._make_db_map(create=create)
         try:
             yield db_map, error
         finally:
             if db_map is not None:
                 db_map.connection.close()
 
-    def _get_db_url(self):
+    def get_db_url(self):
         """
         Returns:
             str: The underlying db url
         """
         return self._db_url
 
-    def _get_data(self, *args):
+    def get_data(self, *args):
         """
         Returns:
             dict: Dictionary mapping subquery names to a list of items from thay subquery, if successful.
@@ -79,10 +105,11 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
                 sq = getattr(db_map, name, None)
                 if sq is None:
                     continue
-                data[name] = [x._asdict() for x in db_map.query(sq)]
+                process_row = _get_row_processor(name)
+                data[name] = [process_row(x._asdict()) for x in db_map.query(sq)]
         return data
 
-    def _import_data(self, data, comment):
+    def import_data(self, data, comment):
         """Imports data and commit.
 
         Args:
@@ -91,7 +118,7 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
         Returns:
             list or dict: list of import errors, if successful. Dictionary {"error": "msg"}, otherwise.
         """
-        with self._closing_db_map() as (db_map, error):
+        with self._closing_db_map(create=True) as (db_map, error):
             if error:
                 return {"error": str(error)}
             count, errors = import_data(db_map, **data)
@@ -102,10 +129,16 @@ class DBRequestHandler(ReceiveAllMixing, socketserver.BaseRequestHandler):
                     db_map.rollback_session()
         return [err.msg for err in errors]
 
+
+class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHandler):
+    """
+    The request handler class for our server.
+    """
+
     def handle(self):
         data = self._recvall()
         request, args = json.loads(data)
-        handler = {"get_data": self._get_data, "import_data": self._import_data, "get_db_url": self._get_db_url}.get(
+        handler = {"get_data": self.get_data, "import_data": self.import_data, "get_db_url": self.get_db_url}.get(
             request
         )
         if handler is None:

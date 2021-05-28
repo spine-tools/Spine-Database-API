@@ -25,23 +25,24 @@ class LightParameterValue:
     the end.
     """
 
-    def __init__(self, db_value, value_type=None):
+    def __init__(self, db_value, db_type=None):
         """
         Args:
             db_value (str): Value directly from the database
-            value_type (str, NoneType): Value type
+            db_type (str, NoneType): Value type
         """
         self._db_value = db_value
+        self._db_type = db_type
         self._value = None
         self._data = None
         self._dimension_count = None
-        self.type = value_type if value_type in ("map", "time_series", "time_pattern", "array") else "single_value"
+        self.type = db_type if db_type in ("map", "time_series", "time_pattern", "array") else "single_value"
 
     @property
     def value(self):
         if self._value is None:
             try:
-                self._value = json.loads(self._db_value)
+                self._value = json.loads(self._db_value)  # NOTE: json.loads() accepts bytes
             except (TypeError, JSONDecodeError):
                 self._value = None
         return self._value
@@ -63,10 +64,14 @@ class LightParameterValue:
             return self.data
         return self.type
 
-    def to_dict(self):
+    def to_nested_dict(self):
         if self.type == "single_value":
             return {None: self.data}
-        return _indexed_to_dict(self.data, self.type)
+        return _indexed_to_nested_dict(self.data, self.type)
+
+    def to_str(self):
+        value = {"type": self._db_type, **self.value} if isinstance(self.value, dict) else self.value
+        return json.dumps(value)
 
     def similar(self, other):
         return self.type == other.type and self.dimension_count == other.dimension_count
@@ -95,14 +100,14 @@ def _non_map_to_dict(data, type_):
     return to_dict(data)
 
 
-def _indexed_to_dict(data, type_):
+def _indexed_to_nested_dict(data, type_):
     if type_ == "single_value":
         return data
     if type_ != "map":
         return _non_map_to_dict(data, type_)
     if isinstance(data, dict):
         data = data.items()
-    return {k: _indexed_to_dict(_get_value_data(v), _get_value_type(v)) for k, v in data}
+    return {k: _indexed_to_nested_dict(_get_value_data(v), _get_value_type(v)) for k, v in data}
 
 
 def _get_time_series_data(data, index):

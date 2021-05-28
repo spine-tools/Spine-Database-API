@@ -169,7 +169,7 @@ def to_database(value):
     Converts a value object into its database representation.
 
     Args:
-        value: a value to convert (can be a dict)
+        value: a value to convert (can be a dict with a "type" key)
 
     Returns:
         bytes: value's database representation as bytes

@@ -22,7 +22,7 @@ from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from .group_functions import NoGroup
-from .light_parameter_value import LightParameterValue
+from ..light_parameter_value import LightParameterValue
 
 
 def check_validity(root_mapping):
@@ -69,7 +69,7 @@ class _IndexMappingMixin:
         """
         if not isinstance(self.parent, _IndexMappingMixin):
             # Get dict
-            current_leaf = data.to_dict()
+            current_leaf = data.to_nested_dict()
         else:
             # Get leaf from parent
             current_leaf = self.parent.current_leaf()

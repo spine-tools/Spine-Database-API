@@ -37,7 +37,7 @@ from spinedb_api.export_mapping.export_mapping import (
     RelationshipMapping,
     RelationshipObjectMapping,
 )
-from spinedb_api.export_mapping.light_parameter_value import LightParameterValue
+from spinedb_api.light_parameter_value import LightParameterValue
 from .excel_writer import ExcelWriter
 from .writer import write
 
