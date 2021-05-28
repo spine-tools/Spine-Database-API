@@ -46,6 +46,8 @@ def upgrade():
         batch_op.drop_column("value")
         batch_op.add_column(sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
     # Do update items
+    Base = automap_base()
+    Base.prepare(conn, reflect=True)
     session.bulk_update_mappings(Base.classes.parameter_definition, pd_items)
     session.bulk_update_mappings(Base.classes.parameter_value, pv_items)
     session.bulk_update_mappings(Base.classes.parameter_value_list, pvl_items)
