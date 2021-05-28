@@ -1168,7 +1168,7 @@ class ParameterValueListValueMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return LightParameterValue(data, value_type=None).to_single_value()
+        return LightParameterValue(data, db_type=None).to_single_value()
 
     @staticmethod
     def is_buddy(parent):
@@ -1526,7 +1526,7 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return LightParameterValue(data, value_type=None).to_single_value()
+        return LightParameterValue(data, db_type=None).to_single_value()
 
 
 class _DescriptionMappingBase(ExportMapping):
