@@ -130,6 +130,35 @@ class DBHandler:
         return [err.msg for err in errors]
 
 
+_db_maps = {}
+
+
+class PersistentDBHandler(DBHandler):
+    """
+    Helper class to reuse DatabaseMapping objects for the same url.
+    Used by SpineOpt unit-tests.
+    """
+
+    def _make_db_map(self, create=True):
+        if self._db_url not in _db_maps:
+            _db_maps[self._db_url] = DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create)
+        return _db_maps[self._db_url], None
+
+    @contextmanager
+    def _closing_db_map(self, create=True):
+        db_map, error = self._make_db_map(create=create)
+        try:
+            yield db_map, error
+        finally:
+            pass
+
+
+def close_persistent_db_map(db_url):
+    db_map = _db_maps.pop(db_url, None)
+    if db_map is not None:
+        db_map.connection.close()
+
+
 class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHandler):
     """
     The request handler class for our server.
