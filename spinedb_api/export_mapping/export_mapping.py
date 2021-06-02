@@ -1124,17 +1124,22 @@ class ParameterValueListMapping(ExportMapping):
     MAP_TYPE = "ParameterValueList"
 
     def add_query_columns(self, db_map, query):
+        if self.parent is None:
+            return query.add_columns(
+                db_map.parameter_value_list_sq.c.id.label("parameter_value_list_id"),
+                db_map.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+            )
         return query.add_columns(
-            db_map.parameter_value_list_sq.c.id.label("parameter_value_list_id"),
-            db_map.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+            db_map.wide_parameter_value_list_sq.c.id.label("parameter_value_list_id"),
+            db_map.wide_parameter_value_list_sq.c.name.label("parameter_value_list_name"),
         )
 
     def filter_query(self, db_map, query):
         if self.parent is None:
             return query
         return query.outerjoin(
-            db_map.parameter_value_list_sq,
-            db_map.parameter_value_list_sq.c.id == db_map.parameter_definition_sq.c.parameter_value_list_id,
+            db_map.wide_parameter_value_list_sq,
+            db_map.wide_parameter_value_list_sq.c.id == db_map.parameter_definition_sq.c.parameter_value_list_id,
         )
 
     @staticmethod
