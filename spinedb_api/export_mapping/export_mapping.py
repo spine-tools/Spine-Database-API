@@ -1047,26 +1047,15 @@ class ParameterValueTypeMapping(ParameterValueMapping):
     """
 
     MAP_TYPE = "ParameterValueType"
-    _pv = None
-
-    def _cache_pv(self, db_row):
-        """Caches the value type so we don't need to compute it more than once.
-
-        Args:
-            db_row (KeyedTuple)
-        """
-        if self._pv is None:
-            self._pv = LightParameterValue(db_row.value, db_row.type)
 
     def _data(self, db_row):
-        self._cache_pv(db_row)
-        if self._pv.type != "map":
-            return self._pv.type
-        return f"{self._pv.dimension_count}d_map"
+        pv = LightParameterValue(db_row.value, db_row.type)
+        if pv.type != "map":
+            return pv.type
+        return f"{pv.dimension_count}d_map"
 
     def _title_state(self, db_row):
-        self._cache_pv(db_row)
-        return {"light_parameter_value": self._pv}
+        return {"light_parameter_value": LightParameterValue(db_row.value, db_row.type)}
 
     def filter_query_by_title(self, query, title_state):
         pv = title_state.pop("light_parameter_value", None)
