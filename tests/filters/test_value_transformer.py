@@ -108,7 +108,7 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
         url = append_filter_config(str(self._db_url), config)
         db_map = DatabaseMapping(url)
         try:
-            values = [from_database(row.value) for row in db_map.query(db_map.parameter_value_sq)]
+            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [2.3])
         finally:
             db_map.connection.close()
@@ -124,7 +124,7 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
         url = append_filter_config(str(self._db_url), config)
         db_map = DatabaseMapping(url)
         try:
-            values = [from_database(row.value) for row in db_map.query(db_map.parameter_value_sq)]
+            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [-23.0])
         finally:
             db_map.connection.close()

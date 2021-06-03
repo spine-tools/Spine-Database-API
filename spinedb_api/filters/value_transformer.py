@@ -206,6 +206,7 @@ def _make_parameter_value_transforming_sq(db_map, state):
             new_parameter_value.label("value"),
             subquery.c.commit_id.label("commit_id"),
             subquery.c.alternative_id,
+            subquery.c.type,
         )
         .join(db_map.entity_sq, db_map.entity_sq.c.id == subquery.c.entity_id)
         .join(db_map.entity_class_sq, db_map.entity_class_sq.c.id == subquery.c.entity_class_id)
