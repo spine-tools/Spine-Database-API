@@ -148,6 +148,8 @@ def from_database(database_value, value_type=None):
         raise ParameterValueFormatError(f"Could not decode the value: {err}")
     if isinstance(parsed, dict):
         return from_dict(parsed, value_type=value_type)
+    if isinstance(parsed, bool):
+        return parsed
     if isinstance(parsed, Number):
         return float(parsed)
     return parsed

@@ -148,6 +148,12 @@ class TestParameterValue(unittest.TestCase):
         self.assertTrue(isinstance(value, float))
         self.assertEqual(value, 23.0)
 
+    def test_from_database_boolean(self):
+        database_value = b"true"
+        value = from_database(database_value, value_type=None)
+        self.assertTrue(isinstance(value, bool))
+        self.assertEqual(value, True)
+
     def test_to_database_plain_number(self):
         value = 23.0
         database_value, value_type = to_database(value)
