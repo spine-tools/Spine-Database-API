@@ -56,7 +56,9 @@ class ParameterValueEncoder(json.JSONEncoder):
     """A class to serialize Spine parameter values."""
 
     def default(self, o):
-        return o.to_dict()
+        d = o.to_dict()
+        d["type"] = o.type_()
+        return d
 
 
 def duration_to_relativedelta(duration):
