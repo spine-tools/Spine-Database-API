@@ -16,12 +16,13 @@ Provides a database query manipulator that applies mathematical transformations 
 :date:   20.5.2021
 """
 
-import json
 from functools import partial
-from sqlalchemy import case, LargeBinary, Text
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.sql.expression import FunctionElement, label, cast
-from ..parameter_value import TRANSFORM_TAG
+from numbers import Number
+from sqlalchemy import case, literal, Integer, LargeBinary, String
+from sqlalchemy.sql.expression import label, select, cast, union_all
+
+from ..helpers import LONGTEXT_LENGTH
+from ..parameter_value import from_database, IndexedValue, to_database
 
 VALUE_TRANSFORMER_TYPE = "value_transformer"
 VALUE_TRANSFORMER_SHORTHAND_TAG = "value_transform"
@@ -80,9 +81,9 @@ def value_transformer_config_to_shorthand(config):
     instructions = config["instructions"]
     for class_name, param_instructions in instructions.items():
         for param_name, instruction_list in param_instructions.items():
-            shorthand = shorthand + ":" + class_name
-            shorthand = shorthand + ":" + param_name
             for instruction in instruction_list:
+                shorthand = shorthand + ":" + class_name
+                shorthand = shorthand + ":" + param_name
                 shorthand = shorthand + ":" + instruction["operation"]
                 for key, value in instruction.items():
                     if key == "operation":
@@ -125,10 +126,10 @@ class _ValueTransformerState:
             instructions (dict): mapping from entity class name to parameter name to list of instructions
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
-        self.instructions = self._collect_instructions(db_map, instructions)
+        self.transformed = self._transform(db_map, instructions)
 
     @staticmethod
-    def _collect_instructions(db_map, instructions):
+    def _transform(db_map, instructions):
         """Searches the database for applicable parameter definition ids.
 
         Args:
@@ -140,22 +141,24 @@ class _ValueTransformerState:
         """
         class_names = set(instructions.keys())
         param_names = set(name for class_instructions in instructions.values() for name in class_instructions)
-        id_to_names = {
-            (definition_row.entity_class_name, definition_row.parameter_name): definition_row.id
+        definition_ids = {
+            definition_row.id
             for definition_row in db_map.query(db_map.entity_parameter_definition_sq).filter(
                 db_map.entity_parameter_definition_sq.c.entity_class_name.in_(class_names)
                 & db_map.entity_parameter_definition_sq.c.parameter_name.in_(param_names)
             )
         }
-        return {
-            id_: instructions[klass][param]
-            for (klass, param), id_ in id_to_names.items()
-            if param in instructions[klass]
-        }
-
-
-def _encode_instructions(instructions):
-    return TRANSFORM_TAG + json.dumps(instructions) + TRANSFORM_TAG
+        transformed = dict()
+        for value_row in db_map.query(db_map.entity_parameter_value_sq).filter(
+            db_map.entity_parameter_value_sq.c.parameter_id.in_(definition_ids)
+        ):
+            # definition_ids may contain class-parameter name combinations that don't exist in instructions.
+            param_instructions = instructions[value_row.entity_class_name].get(value_row.parameter_name)
+            if param_instructions is not None:
+                transformed[value_row.id] = to_database(
+                    _transform(from_database(value_row.value, value_row.type), param_instructions)
+                )
+        return transformed
 
 
 def _make_parameter_value_transforming_sq(db_map, state):
@@ -170,17 +173,25 @@ def _make_parameter_value_transforming_sq(db_map, state):
         Alias: a value transforming parameter value subquery
     """
     subquery = state.original_parameter_value_sq
-    if not state.instructions:
+    if not state.transformed:
         return subquery
-    cases = [
-        (
-            subquery.c.parameter_definition_id == id_,
-            prepend_instructions(subquery.c.value, _encode_instructions(instructions)),
+    transformed_rows = [(id_, value, type_) for id_, (value, type_) in state.transformed.items()]
+    # Little optimization: SqlAlchemy can infer types from the first row, so we need to use cast only on that.
+    statements = [
+        select(
+            [
+                cast(literal(transformed_rows[0][0]), Integer()).label("id"),
+                cast(literal(transformed_rows[0][1]), LargeBinary(LONGTEXT_LENGTH)).label("transformed_value"),
+                cast(literal(transformed_rows[0][2]), String()).label("transformed_type"),
+            ]
         )
-        for id_, instructions in state.instructions.items()
     ]
-    new_parameter_value = case(cases, else_=subquery.c.value)
-
+    statements += [select([literal(i), literal(v), literal(t)]) for i, v, t in transformed_rows[1:]]
+    temp_sq = union_all(*statements).alias("transformed_values")
+    new_parameter_value = case(
+        [(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value
+    )
+    new_type = case([(temp_sq.c.transformed_type != None, temp_sq.c.transformed_type)], else_=subquery.c.type)
     object_class_case = case(
         [(db_map.entity_class_sq.c.type_id == db_map.object_class_type, subquery.c.entity_class_id)], else_=None
     )
@@ -206,8 +217,9 @@ def _make_parameter_value_transforming_sq(db_map, state):
             new_parameter_value.label("value"),
             subquery.c.commit_id.label("commit_id"),
             subquery.c.alternative_id,
-            subquery.c.type,
+            new_type.label("type"),
         )
+        .join(temp_sq, subquery.c.id == temp_sq.c.id, isouter=True)
         .join(db_map.entity_sq, db_map.entity_sq.c.id == subquery.c.entity_id)
         .join(db_map.entity_class_sq, db_map.entity_class_sq.c.id == subquery.c.entity_class_id)
         .subquery()
@@ -215,74 +227,78 @@ def _make_parameter_value_transforming_sq(db_map, state):
     return parameter_value_sq
 
 
-class prepend_instructions(FunctionElement):
-    type = LargeBinary()
-    name = 'prepend_instructions'
-
-
-@compiles(prepend_instructions)
-def compile_prepend_instructions(element, compiler, **kw):
-    value, instructions = element.clauses
-    result = compiler.process(cast(instructions + cast(value, Text), LargeBinary))
-    return result
-
-
-# Alternative transform system to apply the transformation directly on SQL
-# Not in use at the moment, but we should consider it to alleviate issues with the current approach
-# See https://github.com/Spine-project/Spine-Toolbox/issues/1395
-class negate(FunctionElement):
-    type = LargeBinary()
-    name = 'negate'
-
-
-class invert(FunctionElement):
-    type = LargeBinary()
-    name = 'invert'
-
-
-class multiply(FunctionElement):
-    type = LargeBinary()
-    name = 'multiply'
-
-
-@compiles(negate)
-def compile_negate(element, compiler, **kw):
-    x = next(iter(element.clauses))
-    result = compiler.process(cast(-x, LargeBinary))
-    return result
-
-
-@compiles(invert)
-def compile_invert(element, compiler, **kw):
-    x = next(iter(element.clauses))
-    result = compiler.process(cast(1.0 / x, LargeBinary))
-    return result
-
-
-@compiles(multiply)
-def compile_multiply(element, compiler, **kw):
-    x, y = element.clauses
-    result = compiler.process(cast(x * y, LargeBinary))
-    return result
-
-
-def _negate(value, instruction):
-    return negate(value)
-
-
-def _invert(value, instruction):
-    return invert(value)
-
-
-def _multiply(value, instruction):
-    return multiply(instruction["rhs"], value)
-
-
 def _transform(value, instructions):
+    """Transforms a value according to instructions.
+
+    Args:
+        value (Any): value to transform
+        instructions (list of dict): transformation instructions
+
+    Returns:
+        Any: transformed value
+    """
+
     for instruction in instructions:
         operation = instruction["operation"]
-        value = VALUE_TRANSFORMS[operation](value, instruction)
+        value = _VALUE_TRANSFORMS[operation](value, instruction)
     return value
 
 
-VALUE_TRANSFORMS = {"invert": _invert, "multiply": _multiply, "negate": _negate}
+def _negate(value, instruction):
+    """Negates a value.
+
+    Args:
+        value (Any): value to negate
+        instruction (dict): instruction for the operation
+
+    Returns:
+        Any: negated value
+    """
+    if isinstance(value, Number):
+        return -value
+    if isinstance(value, IndexedValue):
+        for i, element in enumerate(value.values):
+            value.values[i] = _negate(element, instruction)
+        return value
+    return value
+
+
+def _invert(value, instruction):
+    """Calculates the reciprocal of a value.
+
+    Args:
+        value (Any): value to invert
+        instruction (dict): instruction for the operation
+
+    Returns:
+        Any: reciprocal of value
+    """
+    if isinstance(value, Number):
+        return 1.0 / value
+    if isinstance(value, IndexedValue):
+        for i, element in enumerate(value.values):
+            value.values[i] = _invert(element, instruction)
+        return value
+    return value
+
+
+def _multiply(value, instruction):
+    """Multiplies a value.
+
+    Args:
+        value (Any): value to multiply
+        instruction (dict): instruction for the operation
+
+    Returns:
+        Any: multiplied value
+    """
+    if isinstance(value, Number):
+        return instruction["rhs"] * value
+    if isinstance(value, IndexedValue):
+        for i, element in enumerate(value.values):
+            value.values[i] = _multiply(element, instruction)
+        return value
+    return value
+
+
+_VALUE_TRANSFORMS = {"invert": _invert, "multiply": _multiply, "negate": _negate}

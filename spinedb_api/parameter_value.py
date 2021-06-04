@@ -41,8 +41,6 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 from .exception import ParameterValueFormatError
 
-TRANSFORM_TAG = "@"
-
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
 _NUMPY_DATETIME64_UNIT = "s"
@@ -144,24 +142,15 @@ def from_database(database_value, value_type=None):
     if database_value is None:
         return None
     database_value = str(database_value, "UTF8")
-    transform_instructions = None
-    if database_value.startswith(TRANSFORM_TAG):
-        transform_instructions, _, database_value = database_value[1:].partition(TRANSFORM_TAG)
     try:
         parsed = json.loads(database_value)
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}")
     if isinstance(parsed, dict):
-        value = from_dict(parsed, value_type=value_type)
-    elif isinstance(parsed, bool):
-        value = parsed
-    elif isinstance(parsed, Number):
-        value = float(parsed)
-    else:
-        value = parsed
-    if transform_instructions:
-        return _transform(value, transform_instructions)
-    return value
+        return from_dict(parsed, value_type=value_type)
+    if isinstance(parsed, Number):
+        return float(parsed)
+    return parsed
 
 
 def to_database(value):
@@ -464,83 +453,6 @@ def _array_from_database(value_dict):
         raise ParameterValueFormatError(f'Failed to read values for Array: {error}')
     else:
         return Array(data, value_type)
-
-
-def _transform(value, instructions):
-    """Transforms a value according to instructions.
-
-    Args:
-        value (Any): value to transform
-        instructions (str): transformation instructions
-
-    Returns:
-        Any: transformed value
-    """
-
-    for instruction in json.loads(instructions):
-        operation = instruction["operation"]
-        value = VALUE_TRANSFORMS[operation](value, instruction)
-    return value
-
-
-def _negate(value, instruction):
-    """Negates a value.
-
-    Args:
-        value (Any): value to negate
-        instruction (dict): instruction for the operation
-
-    Returns:
-        Any: negated value
-    """
-    if isinstance(value, Number):
-        return -value
-    if isinstance(value, IndexedValue):
-        for i, element in enumerate(value.values):
-            value.values[i] = _negate(element, instruction)
-        return value
-    return value
-
-
-def _invert(value, instruction):
-    """Calculates the reciprocal of a value.
-
-    Args:
-        value (Any): value to invert
-        instruction (dict): instruction for the operation
-
-    Returns:
-        Any: reciprocal of value
-    """
-    if isinstance(value, Number):
-        return 1.0 / value
-    if isinstance(value, IndexedValue):
-        for i, element in enumerate(value.values):
-            value.values[i] = _invert(element, instruction)
-        return value
-    return value
-
-
-def _multiply(value, instruction):
-    """Multiplies a value.
-
-    Args:
-        value (Any): value to multiply
-        instruction (dict): instruction for the operation
-
-    Returns:
-        Any: multiplied value
-    """
-    if isinstance(value, Number):
-        return instruction["rhs"] * value
-    if isinstance(value, IndexedValue):
-        for i, element in enumerate(value.values):
-            value.values[i] = _multiply(element, instruction)
-        return value
-    return value
-
-
-VALUE_TRANSFORMS = {"invert": _invert, "multiply": _multiply, "negate": _negate}
 
 
 class DateTime:

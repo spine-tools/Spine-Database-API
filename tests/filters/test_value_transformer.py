@@ -30,6 +30,7 @@ from spinedb_api import (
     append_filter_config,
     create_new_spine_database,
     from_database,
+    Map,
 )
 from spinedb_api.filters.value_transformer import (
     value_transformer_config,
@@ -61,6 +62,13 @@ class TestValueTransformerFunctions(unittest.TestCase):
         )
         self.assertEqual(shorthand, expected)
 
+    def test_config_to_shorthand_multiple_instructions_for_single_parameter(self):
+        instructions = {"class": {"parameter": [{"operation": "negate"}, {"operation": "reciprocal"}]}}
+        config = value_transformer_config(instructions)
+        shorthand = value_transformer_config_to_shorthand(config)
+        expected = "value_transform:class:parameter:negate:end:class:parameter:reciprocal:end"
+        self.assertEqual(shorthand, expected)
+
     def test_shorthand_to_config(self):
         shorthand = (
             "value_transform:class1:parameter1:negate:end:class1:parameter2:reciprocal:end"
@@ -73,6 +81,15 @@ class TestValueTransformerFunctions(unittest.TestCase):
                 "class1": {"parameter1": [{"operation": "negate"}], "parameter2": [{"operation": "reciprocal"}]},
                 "class2": {"parameter2": [{"operation": "enchant"}], "parameter3": [{"operation": "integrate"}]},
             },
+        }
+        self.assertEqual(config, expected)
+
+    def test_shorthand_to_config_with_multiple_instructions_for_single_parameter(self):
+        shorthand = "value_transform:class:parameter:negate:end:class:parameter:reciprocal:end"
+        config = value_transformer_shorthand_to_config(shorthand)
+        expected = {
+            "type": "value_transformer",
+            "instructions": {"class": {"parameter": [{"operation": "negate"}, {"operation": "reciprocal"}]}},
         }
         self.assertEqual(config, expected)
 
@@ -113,6 +130,24 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
         finally:
             db_map.connection.close()
 
+    def test_negate_manipulator_with_nested_map(self):
+        import_object_classes(self._out_map, ("class",))
+        import_object_parameters(self._out_map, (("class", "parameter"),))
+        import_objects(self._out_map, (("class", "object"),))
+        value = Map(["A"], [Map(["1"], [2.3])])
+        import_object_parameter_values(self._out_map, (("class", "object", "parameter", value),))
+        self._out_map.commit_session("Add test data.")
+        instructions = {"class": {"parameter": [{"operation": "negate"}]}}
+        config = value_transformer_config(instructions)
+        url = append_filter_config(str(self._db_url), config)
+        db_map = DatabaseMapping(url)
+        try:
+            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+            expected = Map(["A"], [Map(["1"], [-2.3])])
+            self.assertEqual(values, [expected])
+        finally:
+            db_map.connection.close()
+
     def test_multiply_manipulator(self):
         import_object_classes(self._out_map, ("class",))
         import_object_parameters(self._out_map, (("class", "parameter"),))
@@ -126,6 +161,38 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
         try:
             values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [-23.0])
+        finally:
+            db_map.connection.close()
+
+    def test_invert_manipulator(self):
+        import_object_classes(self._out_map, ("class",))
+        import_object_parameters(self._out_map, (("class", "parameter"),))
+        import_objects(self._out_map, (("class", "object"),))
+        import_object_parameter_values(self._out_map, (("class", "object", "parameter", -2.3),))
+        self._out_map.commit_session("Add test data.")
+        instructions = {"class": {"parameter": [{"operation": "invert"}]}}
+        config = value_transformer_config(instructions)
+        url = append_filter_config(str(self._db_url), config)
+        db_map = DatabaseMapping(url)
+        try:
+            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+            self.assertEqual(values, [-1.0 / 2.3])
+        finally:
+            db_map.connection.close()
+
+    def test_multiple_instructions(self):
+        import_object_classes(self._out_map, ("class",))
+        import_object_parameters(self._out_map, (("class", "parameter"),))
+        import_objects(self._out_map, (("class", "object"),))
+        import_object_parameter_values(self._out_map, (("class", "object", "parameter", -2.3),))
+        self._out_map.commit_session("Add test data.")
+        instructions = {"class": {"parameter": [{"operation": "invert"}, {"operation": "negate"}]}}
+        config = value_transformer_config(instructions)
+        url = append_filter_config(str(self._db_url), config)
+        db_map = DatabaseMapping(url)
+        try:
+            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+            self.assertEqual(values, [1.0 / 2.3])
         finally:
             db_map.connection.close()
 
