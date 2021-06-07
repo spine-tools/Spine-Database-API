@@ -216,6 +216,21 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(len(value), 2)
         self.assertEqual(value.indexes, ["m1-4,m9-12", "m5-8"])
         numpy.testing.assert_equal(value.values, numpy.array([300.0, 221.5]))
+        self.assertEqual(value.index_name, "p")
+
+    def test_from_database_TimePattern_with_index_name(self):
+        database_value = b"""
+        {
+          "index_name": "index",
+          "data": {
+            "m1-12": 300
+          }
+        }
+        """
+        value = from_database(database_value, value_type="time_pattern")
+        self.assertEqual(value.indexes, ["m1-12"])
+        numpy.testing.assert_equal(value.values, numpy.array([300.0]))
+        self.assertEqual(value.index_name, "index")
 
     def test_TimePattern_to_database(self):
         value = TimePattern(["m1-4,m9-12", "m5-8"], numpy.array([300.0, 221.5]))
@@ -229,6 +244,14 @@ class TestParameterValue(unittest.TestCase):
         database_value, value_type = value.to_database()
         value_as_dict = json.loads(database_value)
         self.assertEqual(value_as_dict, {"data": {"m1-4,m9-12": 300.0, "m5-8": 221.0}})
+        self.assertEqual(value_type, "time_pattern")
+
+    def test_TimePattern_to_database_with_index_name(self):
+        value = TimePattern(["m1-12"], [300.0])
+        value.index_name = "index"
+        database_value, value_type = value.to_database()
+        value_as_dict = json.loads(database_value)
+        self.assertEqual(value_as_dict, {"index_name": "index", "data": {"m1-12": 300.0}})
         self.assertEqual(value_type, "time_pattern")
 
     def test_TimePattern_index_length_is_not_limited(self):
@@ -256,6 +279,18 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(len(time_series), 3)
         self.assertTrue(isinstance(time_series.values, numpy.ndarray))
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
+        self.assertEqual(time_series.index_name, "t")
+
+    def test_from_database_TimeSeriesVariableResolution_as_dictionary_with_index_name(self):
+        releases = b"""{
+                          "data": {
+                              "1977-05-25": 4,
+                              "1980-05-21": 5
+                          },
+                          "index_name": "index"
+                      }"""
+        time_series = from_database(releases, value_type="time_series")
+        self.assertEqual(time_series.index_name, "index")
 
     def test_from_database_TimeSeriesVariableResolution_as_two_column_array(self):
         releases = b"""{
@@ -276,6 +311,18 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(len(time_series), 3)
         self.assertTrue(isinstance(time_series.values, numpy.ndarray))
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
+        self.assertEqual(time_series.index_name, "t")
+
+    def test_from_database_TimeSeriesVariableResolution_as_two_column_array_with_index_name(self):
+        releases = b"""{
+                          "data": [
+                              ["1977-05-25", 4],
+                              ["1980-05-21", 5]
+                          ],
+                          "index_name": "index"
+                      }"""
+        time_series = from_database(releases, value_type="time_series")
+        self.assertEqual(time_series.index_name, "index")
 
     def test_from_database_TimeSeriesFixedResolution_default_repeat(self):
         database_value = b"""{
@@ -296,6 +343,15 @@ class TestParameterValue(unittest.TestCase):
         db_value, value_type = value.to_database()
         releases = json.loads(db_value)
         self.assertEqual(releases, {"data": {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3}})
+        self.assertEqual(value_type, "time_series")
+
+    def test_TimeSeriesVariableResolution_to_database_with_index_name(self):
+        dates = numpy.array(["2002-05-16", "2005-05-19"], dtype="datetime64[D]")
+        episodes = numpy.array([1, 2], dtype=float)
+        value = TimeSeriesVariableResolution(dates, episodes, False, False, "index")
+        db_value, value_type = value.to_database()
+        releases = json.loads(db_value)
+        self.assertEqual(releases, {"index_name": "index", "data": {"2002-05-16": 1, "2005-05-19": 2}})
         self.assertEqual(value_type, "time_series")
 
     def test_TimeSeriesVariableResolution_to_database_with_ignore_year_and_repeat(self):
@@ -339,6 +395,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(time_series.resolution[0], relativedelta(days=1))
         self.assertFalse(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
+        self.assertEqual(time_series.index_name, "t")
 
     def test_from_database_TimeSeriesFixedResolution_no_index(self):
         database_value = b"""{
@@ -367,6 +424,15 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(time_series.resolution[0], relativedelta(hours=1))
         self.assertTrue(time_series.ignore_year)
         self.assertTrue(time_series.repeat)
+
+    def test_from_database_TimeSeriesFixedResolution_index_name(self):
+        database_value = b"""{
+                                "data": [1],
+                                "index_name": "index"
+                            }
+        """
+        time_series = from_database(database_value, value_type="time_series")
+        self.assertEqual(time_series.index_name, "index")
 
     def test_from_database_TimeSeriesFixedResolution_resolution_list(self):
         database_value = b"""{
@@ -477,6 +543,23 @@ class TestParameterValue(unittest.TestCase):
         )
         self.assertEqual(value_type, "time_series")
 
+    def test_TimeSeriesFixedResolution_to_database_with_index_type(self):
+        values = numpy.array([3, 2, 4], dtype=float)
+        resolution = [duration_to_relativedelta("1 months")]
+        start = datetime(year=2007, month=6, day=1)
+        value = TimeSeriesFixedResolution(start, resolution, values, True, True, "index")
+        db_value, value_type = value.to_database()
+        releases = json.loads(db_value)
+        self.assertEqual(
+            releases,
+            {
+                "index_name": "index",
+                "index": {"start": "2007-06-01 00:00:00", "resolution": "1M", "ignore_year": True, "repeat": True},
+                "data": [3, 2, 4],
+            },
+        )
+        self.assertEqual(value_type, "time_series")
+
     def test_TimeSeriesFixedResolution_resolution_list_to_database(self):
         start = datetime(year=2007, month=1, day=1)
         resolutions = ["1 month", "1 year"]
@@ -518,12 +601,21 @@ class TestParameterValue(unittest.TestCase):
             self.assertTrue(isinstance(index, np.datetime64))
         self.assertTrue(isinstance(series.values, np.ndarray))
 
+    def test_from_database_Map_with_index_name(self):
+        database_value = b'{"index_type":"str", "index_name": "index", "data":[["a", 1.1]]}'
+        value = from_database(database_value, value_type="map")
+        self.assertIsInstance(value, Map)
+        self.assertEqual(value.indexes, ["a"])
+        self.assertEqual(value.values, [1.1])
+        self.assertEqual(value.index_name, "index")
+
     def test_from_database_Map_dictionary_format(self):
         database_value = b'{"index_type":"str", "data":{"a": 1.1, "b": 2.2}}'
         value = from_database(database_value, value_type="map")
         self.assertIsInstance(value, Map)
         self.assertEqual(value.indexes, ["a", "b"])
         self.assertEqual(value.values, [1.1, 2.2])
+        self.assertEqual(value.index_name, "x")
 
     def test_from_database_Map_two_column_array_format(self):
         database_value = b'{"index_type":"float", "data":[[1.1, "a"], [2.2, "b"]]}'
@@ -531,6 +623,7 @@ class TestParameterValue(unittest.TestCase):
         self.assertIsInstance(value, Map)
         self.assertEqual(value.indexes, [1.1, 2.2])
         self.assertEqual(value.values, ["a", "b"])
+        self.assertEqual(value.index_name, "x")
 
     def test_from_database_Map_nested_maps(self):
         database_value = b'''
@@ -588,6 +681,25 @@ class TestParameterValue(unittest.TestCase):
         db_value, value_type = to_database(map_value)
         raw = json.loads(db_value)
         self.assertEqual(raw, {"index_type": "str", "data": [["a", 1.1], ["b", 2.2]]})
+        self.assertEqual(value_type, "map")
+
+    def test_Map_to_database_with_index_names(self):
+        nested_map = Map(["a"], [0.3])
+        nested_map.index_name = "nested index"
+        map_value = Map(["A"], [nested_map])
+        map_value.index_name = "index"
+        db_value, value_type = to_database(map_value)
+        raw = json.loads(db_value)
+        self.assertEqual(
+            raw,
+            {
+                "index_type": "str",
+                "index_name": "index",
+                "data": [
+                    ["A", {"type": "map", "index_type": "str", "index_name": "nested index", "data": [["a", 0.3]]}]
+                ],
+            },
+        )
         self.assertEqual(value_type, "map")
 
     def test_Map_to_database_with_TimeSeries_values(self):
@@ -663,6 +775,7 @@ class TestParameterValue(unittest.TestCase):
         array = from_database(database_value, value_type="array")
         self.assertEqual(array.values, [1.2, 2.3])
         self.assertEqual(array.indexes, [0, 1])
+        self.assertEqual(array.index_name, "i")
 
     def test_Array_of_default_value_type_from_database(self):
         database_value = b"""{
@@ -671,6 +784,7 @@ class TestParameterValue(unittest.TestCase):
         array = from_database(database_value, value_type="array")
         self.assertEqual(array.values, [1.2, 2.3])
         self.assertEqual(array.indexes, [0, 1])
+        self.assertEqual(array.index_name, "i")
 
     def test_Array_of_strings_from_database(self):
         database_value = b"""{
@@ -680,6 +794,7 @@ class TestParameterValue(unittest.TestCase):
         array = from_database(database_value, value_type="array")
         self.assertEqual(array.values, ["A", "B"])
         self.assertEqual(array.indexes, [0, 1])
+        self.assertEqual(array.index_name, "i")
 
     def test_Array_of_DateTimes_from_database(self):
         database_value = b"""{
@@ -689,6 +804,7 @@ class TestParameterValue(unittest.TestCase):
         array = from_database(database_value, value_type="array")
         self.assertEqual(array.values, [DateTime("2020-03-25T10:34:00")])
         self.assertEqual(array.indexes, [0])
+        self.assertEqual(array.index_name, "i")
 
     def test_Array_of_Durations_from_database(self):
         database_value = b"""{
@@ -698,6 +814,18 @@ class TestParameterValue(unittest.TestCase):
         array = from_database(database_value, value_type="array")
         self.assertEqual(array.values, [Duration("2 years"), Duration("7s")])
         self.assertEqual(array.indexes, [0, 1])
+        self.assertEqual(array.index_name, "i")
+
+    def test_Array_from_database_with_index_name(self):
+        database_value = b"""{
+            "value_type": "float",
+            "index_name": "index",
+            "data": [1.2]
+        }"""
+        array = from_database(database_value, value_type="array")
+        self.assertEqual(array.values, [1.2])
+        self.assertEqual(array.indexes, [0])
+        self.assertEqual(array.index_name, "index")
 
     def test_DateTime_copy_construction(self):
         date_time = DateTime("2019-07-03T09:09:09")
@@ -757,10 +885,10 @@ class TestParameterValue(unittest.TestCase):
         self.assertNotEqual(series, inequal_series)
 
     def test_IndexedValue_constructor_converts_values_to_floats(self):
-        value = IndexedNumberArray([4, -9, 11])
+        value = IndexedNumberArray("", [4, -9, 11])
         self.assertEqual(value.values.dtype, np.dtype(float))
         numpy.testing.assert_equal(value.values, numpy.array([4.0, -9.0, 11.0]))
-        value = IndexedNumberArray(numpy.array([16, -251, 99]))
+        value = IndexedNumberArray("", numpy.array([16, -251, 99]))
         self.assertEqual(value.values.dtype, np.dtype(float))
         numpy.testing.assert_equal(value.values, numpy.array([16.0, -251.0, 99.0]))
 
