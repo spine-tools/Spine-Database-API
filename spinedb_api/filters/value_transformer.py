@@ -15,14 +15,14 @@ Provides a database query manipulator that applies mathematical transformations 
 :author: A. Soininen
 :date:   20.5.2021
 """
-
 from functools import partial
 from numbers import Number
 from sqlalchemy import case, literal, Integer, LargeBinary, String
 from sqlalchemy.sql.expression import label, select, cast, union_all
 
+from ..exception import SpineDBAPIError
 from ..helpers import LONGTEXT_LENGTH
-from ..parameter_value import from_database, IndexedValue, to_database
+from ..parameter_value import from_database, IndexedValue, to_database, Map
 
 VALUE_TRANSFORMER_TYPE = "value_transformer"
 VALUE_TRANSFORMER_SHORTHAND_TAG = "value_transform"
@@ -84,12 +84,12 @@ def value_transformer_config_to_shorthand(config):
             for instruction in instruction_list:
                 shorthand = shorthand + ":" + class_name
                 shorthand = shorthand + ":" + param_name
-                shorthand = shorthand + ":" + instruction["operation"]
-                for key, value in instruction.items():
-                    if key == "operation":
-                        continue
-                    shorthand = shorthand + ":" + key + ":" + str(value)
-                shorthand = shorthand + ":end"
+                operation = instruction["operation"]
+                shorthand = shorthand + ":" + operation
+                if operation == "multiply":
+                    shorthand = shorthand + ":" + str(instruction["rhs"])
+                elif operation == "generate_index":
+                    shorthand = shorthand + ":" + instruction["expression"]
     return VALUE_TRANSFORMER_SHORTHAND_TAG + shorthand
 
 
@@ -108,12 +108,12 @@ def value_transformer_shorthand_to_config(shorthand):
     while tokens:
         class_name = tokens.pop(0)
         param_name = tokens.pop(0)
-        instruction = {"operation": tokens.pop(0)}
-        while True:
-            key = tokens.pop(0)
-            if key == "end":
-                break
-            instruction[key] = float(tokens.pop(0))
+        operation = tokens.pop(0)
+        instruction = {"operation": operation}
+        if operation == "multiply":
+            instruction["rhs"] = float(tokens.pop(0))
+        elif operation == "generate_index":
+            instruction["expression"] = tokens.pop(0)
         instructions.setdefault(class_name, {}).setdefault(param_name, []).append(instruction)
     return value_transformer_config(instructions)
 
@@ -130,14 +130,14 @@ class _ValueTransformerState:
 
     @staticmethod
     def _transform(db_map, instructions):
-        """Searches the database for applicable parameter definition ids.
+        """Transforms applicable parameter values for caching.
 
         Args:
             db_map (DatabaseMappingBase): a database map
             instructions (dict): mapping from entity class name to parameter name to list of instructions
 
         Returns:
-            dict: mapping from parameter definition ids to list of instructions
+            dict: mapping from parameter value ids to transformed values
         """
         class_names = set(instructions.keys())
         param_names = set(name for class_instructions in instructions.values() for name in class_instructions)
@@ -301,4 +301,32 @@ def _multiply(value, instruction):
     return value
 
 
-_VALUE_TRANSFORMS = {"invert": _invert, "multiply": _multiply, "negate": _negate}
+def _generate_index(value, instruction):
+    """Converts value to Map and generates new indexes for the first dimension.
+
+    Args:
+        value (IndexedValue): value to modify
+        instruction (dict): rename instruction
+
+    Returns:
+        Map or Any: modified value or value as-is if it does not have indexes
+    """
+    if not isinstance(value, IndexedValue):
+        return value
+    if len(value) == 0:
+        return Map([], [], str)
+    try:
+        compiled = compile(instruction["expression"], "<string>", "eval")
+    except (SyntaxError, ValueError):
+        raise SpineDBAPIError("Failed to compile index generator expression.")
+    generate_index = partial(eval, compiled, {})
+    try:
+        indexes = [generate_index({"i": i}) for i in range(1, len(value) + 1)]  # pylint: disable=eval-used
+    except (AttributeError, NameError, ValueError):
+        raise SpineDBAPIError("Failed to evaluate index generator expression.")
+    if len(indexes) != len(set(indexes)):
+        raise SpineDBAPIError(f"Expression '{instruction['expression']}' does not generate unique indexes.")
+    return Map(indexes, value.values)
+
+
+_VALUE_TRANSFORMS = {"generate_index": _generate_index, "invert": _invert, "multiply": _multiply, "negate": _negate}

@@ -31,6 +31,7 @@ from spinedb_api import (
     create_new_spine_database,
     from_database,
     Map,
+    TimeSeriesFixedResolution,
 )
 from spinedb_api.filters.value_transformer import (
     value_transformer_config,
@@ -57,8 +58,8 @@ class TestValueTransformerFunctions(unittest.TestCase):
         config = value_transformer_config(instructions)
         shorthand = value_transformer_config_to_shorthand(config)
         expected = (
-            "value_transform:class1:parameter1:negate:end:class1:parameter2:reciprocal:end"
-            + ":class2:parameter2:enchant:end:class2:parameter3:integrate:end"
+            "value_transform:class1:parameter1:negate:class1:parameter2:reciprocal"
+            + ":class2:parameter2:enchant:class2:parameter3:integrate"
         )
         self.assertEqual(shorthand, expected)
 
@@ -66,13 +67,13 @@ class TestValueTransformerFunctions(unittest.TestCase):
         instructions = {"class": {"parameter": [{"operation": "negate"}, {"operation": "reciprocal"}]}}
         config = value_transformer_config(instructions)
         shorthand = value_transformer_config_to_shorthand(config)
-        expected = "value_transform:class:parameter:negate:end:class:parameter:reciprocal:end"
+        expected = "value_transform:class:parameter:negate:class:parameter:reciprocal"
         self.assertEqual(shorthand, expected)
 
     def test_shorthand_to_config(self):
         shorthand = (
-            "value_transform:class1:parameter1:negate:end:class1:parameter2:reciprocal:end"
-            + ":class2:parameter2:enchant:end:class2:parameter3:integrate:end"
+            "value_transform:class1:parameter1:negate:class1:parameter2:reciprocal"
+            + ":class2:parameter2:enchant:class2:parameter3:integrate"
         )
         config = value_transformer_shorthand_to_config(shorthand)
         expected = {
@@ -85,7 +86,7 @@ class TestValueTransformerFunctions(unittest.TestCase):
         self.assertEqual(config, expected)
 
     def test_shorthand_to_config_with_multiple_instructions_for_single_parameter(self):
-        shorthand = "value_transform:class:parameter:negate:end:class:parameter:reciprocal:end"
+        shorthand = "value_transform:class:parameter:negate:class:parameter:reciprocal"
         config = value_transformer_shorthand_to_config(shorthand)
         expected = {
             "type": "value_transformer",
@@ -193,6 +194,24 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
         try:
             values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [1.0 / 2.3])
+        finally:
+            db_map.connection.close()
+
+    def test_index_generator_on_time_series(self):
+        import_object_classes(self._out_map, ("class",))
+        import_object_parameters(self._out_map, (("class", "parameter"),))
+        import_objects(self._out_map, (("class", "object"),))
+        value = TimeSeriesFixedResolution("2021-06-07T08:00", "1D", [-5.0, -2.3], False, False)
+        import_object_parameter_values(self._out_map, (("class", "object", "parameter", value),))
+        self._out_map.commit_session("Add test data.")
+        instructions = {"class": {"parameter": [{"operation": "generate_index", "expression": "float(i)"}]}}
+        config = value_transformer_config(instructions)
+        url = append_filter_config(str(self._db_url), config)
+        db_map = DatabaseMapping(url)
+        try:
+            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+            expected = Map([1.0, 2.0], [-5.0, -2.3])
+            self.assertEqual(values, [expected])
         finally:
             db_map.connection.close()
 
