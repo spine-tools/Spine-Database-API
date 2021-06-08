@@ -82,14 +82,14 @@ class TestScenarioFilter(unittest.TestCase):
             apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
+            self.assertEqual(parameters[0].value, b"23.0")
 
     def test_scenario_filter_uncommitted_data(self):
         self._build_data_with_single_scenario()
         apply_scenario_filter_to_parameter_value_sq(self._out_map, "scenario")
         parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
+        self.assertEqual(parameters[0].value, b"23.0")
         self._out_map.rollback_session()
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
@@ -99,7 +99,7 @@ class TestScenarioFilter(unittest.TestCase):
             apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.object_parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
+            self.assertEqual(parameters[0].value, b"23.0")
 
     def test_scenario_filter_works_for_relationship_parameter_value_sq(self):
         self._build_data_with_single_scenario()
@@ -117,7 +117,7 @@ class TestScenarioFilter(unittest.TestCase):
             apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.relationship_parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "23.0")
+            self.assertEqual(parameters[0].value, b"23.0")
 
     def test_scenario_filter_selects_highest_ranked_alternative(self):
         import_alternatives(self._out_map, ["alternative3"])
@@ -144,7 +144,7 @@ class TestScenarioFilter(unittest.TestCase):
             apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "2000.0")
+            self.assertEqual(parameters[0].value, b"2000.0")
 
     def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
         import_alternatives(self._out_map, ["alternative3"])
@@ -182,7 +182,7 @@ class TestScenarioFilter(unittest.TestCase):
             apply_scenario_filter_to_parameter_value_sq(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, "2000.0")
+            self.assertEqual(parameters[0].value, b"2000.0")
 
     def test_scenario_filter_for_multiple_objects_and_parameters(self):
         import_alternatives(self._out_map, ["alternative"])
@@ -217,8 +217,8 @@ class TestScenarioFilter(unittest.TestCase):
             self.assertEqual(
                 datamined_values,
                 {
-                    "object1": {"parameter1": "10.0", "parameter2": "11.0"},
-                    "object2": {"parameter1": "20.0", "parameter2": "22.0"},
+                    "object1": {"parameter1": b"10.0", "parameter2": b"11.0"},
+                    "object2": {"parameter1": b"20.0", "parameter2": b"22.0"},
                 },
             )
 
@@ -233,7 +233,7 @@ class TestScenarioFilter(unittest.TestCase):
         scenario_filter_from_dict(self._db_map, config)
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, "23.0")
+        self.assertEqual(parameters[0].value, b"23.0")
 
     def test_scenario_name_from_dict(self):
         config = scenario_filter_config("scenario name")

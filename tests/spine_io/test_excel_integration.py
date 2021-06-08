@@ -30,15 +30,13 @@ _TEMP_EXCEL_FILENAME = "excel.xlsx"
 
 class TestExcelIntegration(unittest.TestCase):
     def test_array(self):
-        array = '{"type": "array", "data": [1, 2, 3]}'
-        array = from_database(array)
+        array = b'{"type": "array", "data": [1, 2, 3]}'
+        array = from_database(array, value_type="array")
         self._check_parameter_value(array)
 
     def test_time_series(self):
-        ts = (
-            '{"type": "time_series", "index": {"start": "1999-12-31 23:00:00", "resolution": "1h"}, "data": [0.1, 0.2]}'
-        )
-        ts = from_database(ts)
+        ts = b'{"type": "time_series", "index": {"start": "1999-12-31 23:00:00", "resolution": "1h"}, "data": [0.1, 0.2]}'
+        ts = from_database(ts, value_type="time_series")
         self._check_parameter_value(ts)
 
     def test_map(self):
@@ -57,7 +55,7 @@ class TestExcelIntegration(unittest.TestCase):
                                     "2000-01-01T00:00:00",
                                     {
                                         "type": "time_series",
-                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "index": {"start": "2000-01-01T00:00:00", "resolution": "1h"},
                                         "data": [0.732885319, 0.658604529],
                                     },
                                 ]
@@ -74,7 +72,7 @@ class TestExcelIntegration(unittest.TestCase):
                                     "2000-01-01T00:00:00",
                                     {
                                         "type": "time_series",
-                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "index": {"start": "2000-01-01T00:00:00", "resolution": "1h"},
                                         "data": [0.65306041, 0.60853286],
                                     },
                                 ]
@@ -91,7 +89,7 @@ class TestExcelIntegration(unittest.TestCase):
                                     "2000-01-01T00:00:00",
                                     {
                                         "type": "time_series",
-                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "index": {"start": "2000-01-01T00:00:00", "resolution": "1h"},
                                         "data": [0.680549132, 0.636555097],
                                     },
                                 ]
@@ -100,8 +98,8 @@ class TestExcelIntegration(unittest.TestCase):
                     ],
                 ],
             }
-        )
-        map_ = from_database(map_)
+        ).encode("UTF8")
+        map_ = from_database(map_, value_type="map")
         self._check_parameter_value(map_)
 
     def _check_parameter_value(self, val):

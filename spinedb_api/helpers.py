@@ -18,7 +18,6 @@ General helper functions and classes.
 
 import json
 import warnings
-from collections import namedtuple
 from sqlalchemy import (
     Boolean,
     BigInteger,
@@ -34,6 +33,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    LargeBinary,
     UniqueConstraint,
     create_engine,
     false,
@@ -486,8 +486,8 @@ def create_spine_metadata():
         ),
         Column("name", String(155), nullable=False),
         Column("description", Text(), server_default=null()),
-        Column("data_type", String(155), server_default="NUMERIC"),
-        Column("default_value", Text(LONGTEXT_LENGTH), server_default=null()),
+        Column("default_type", String(255)),
+        Column("default_value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         Column("parameter_value_list_id", Integer),
         UniqueConstraint("id", "entity_class_id"),
@@ -523,7 +523,8 @@ def create_spine_metadata():
         Column("parameter_definition_id", Integer, nullable=False),
         Column("entity_id", Integer, nullable=False),
         Column("entity_class_id", Integer, nullable=False),
-        Column("value", Text(LONGTEXT_LENGTH), server_default=null()),
+        Column("type", String(255)),
+        Column("value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         Column("alternative_id", Integer, ForeignKey("alternative.id"), nullable=False),
         UniqueConstraint("parameter_definition_id", "entity_id", "alternative_id", name="uq_parameter_value"),
@@ -543,7 +544,7 @@ def create_spine_metadata():
         Column("id", Integer, primary_key=True),
         Column("name", String(155), nullable=False),
         Column("value_index", Integer, primary_key=True, nullable=False),
-        Column("value", Text(LONGTEXT_LENGTH), nullable=False),
+        Column("value", LargeBinary(LONGTEXT_LENGTH), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
@@ -675,7 +676,7 @@ def create_new_spine_database(db_url):
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('fbb540efbf15')")
+        engine.execute("INSERT INTO alembic_version VALUES ('1e4997105288')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine
@@ -901,41 +902,6 @@ def get_parameter_value_list_items(item):
 
 def labelled_columns(table):
     return [c.label(c.name) for c in table.columns]
-
-
-def type_from_value(db_value):
-    """
-
-    Args:
-        db_value (str): Value in the database
-    Returns:
-        _ParameterValueType: The type key in case of indexed parameter value, 'single_value' otherwise;
-            and dimension count.
-    """
-    ParameterValueType = namedtuple('_ParameterValueType', ['type_', 'dimension_count'])
-    value = json.loads(db_value)
-    if isinstance(value, dict):
-        type_ = value["type"]
-        if type_ == "map":
-            data = value["data"]
-            k = 1
-            while True:
-                if isinstance(data, dict):
-                    values = data.values()
-                elif isinstance(data[0], list):
-                    values = (x[-1] for x in data)
-                else:
-                    values = iter(data)
-                nested_types = ("map", "time_series", "time_pattern")
-                next_value = next((v for v in values if isinstance(v, dict) and v.get("type") in nested_types), None)
-                if next_value is None:
-                    break
-                data = next_value["data"]
-                k += 1
-            return ParameterValueType(type_, k)
-        if type_ in ("array", "time_series", "time_pattern"):
-            return ParameterValueType(type_, 1)
-    return ParameterValueType("single_value", 0)
 
 
 class AsteriskType:

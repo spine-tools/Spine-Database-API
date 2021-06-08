@@ -20,7 +20,7 @@ from spinedb_api.export_mapping import rows, titles
 from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail
 
 
-def write(db_map, writer, *mappings, empty_data_header=True):
+def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, max_rows=None):
     """
     Writes given mapping.
 
@@ -36,11 +36,11 @@ def write(db_map, writer, *mappings, empty_data_header=True):
     with _new_write(writer):
         for mapping, header_for_empty_data in zip(mappings, empty_data_header):
             mapping = drop_non_positioned_tail(copy(mapping))
-            for title, title_key in titles(mapping, db_map):
+            for title, title_key in titles(mapping, db_map, limit=max_tables):
                 with _new_table(writer, title, title_key) as table_started:
                     if not table_started:
                         break
-                    for row in rows(mapping, db_map, title_key, header_for_empty_data):
+                    for row in rows(mapping, db_map, title_key, header_for_empty_data, limit=max_rows):
                         write_more = writer.write_row(row)
                         if not write_more:
                             break

@@ -132,6 +132,8 @@ class TestEntityClassRenamer(unittest.TestCase):
             self.assertIn(expected_key, keys)
         self.assertEqual(class_row.name, "new_name")
 
+
+class TestEntityClassRenamerWithoutDatabase(unittest.TestCase):
     def test_entity_class_renamer_config_to_shorthand(self):
         config = entity_class_renamer_config(class1="renamed1", class2="renamed2")
         shorthand = entity_class_renamer_config_to_shorthand(config)
@@ -168,7 +170,7 @@ class TestParameterRenamer(unittest.TestCase):
         import_object_classes(self._out_map, ("object_class",))
         import_object_parameters(self._out_map, (("object_class", "old_name"),))
         self._out_map.commit_session("Add test data")
-        apply_renaming_to_parameter_definition_sq(self._db_map, {"old_name": "new_name"})
+        apply_renaming_to_parameter_definition_sq(self._db_map, {"object_class": {"old_name": "new_name"}})
         parameters = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
         self.assertEqual(len(parameters), 1)
         parameter_row = parameters[0]
@@ -177,11 +179,11 @@ class TestParameterRenamer(unittest.TestCase):
             "id",
             "name",
             "description",
-            "data_type",
             "entity_class_id",
             "object_class_id",
             "relationship_class_id",
             "default_value",
+            "default_type",
             "commit_id",
             "parameter_value_list_id",
         )
@@ -190,17 +192,31 @@ class TestParameterRenamer(unittest.TestCase):
             self.assertIn(expected_key, keys)
         self.assertEqual(parameter_row.name, "new_name")
 
+    def test_renaming_applies_to_correct_parameter(self):
+        import_object_classes(self._out_map, ("oc1", "oc2"))
+        import_object_parameters(self._out_map, (("oc1", "param"), ("oc2", "param")))
+        self._out_map.commit_session("Add test data")
+        apply_renaming_to_parameter_definition_sq(self._db_map, {"oc2": {"param": "new_name"}})
+        parameters = list(self._db_map.query(self._db_map.entity_parameter_definition_sq).all())
+        self.assertEqual(len(parameters), 2)
+        for parameter_row in parameters:
+            if parameter_row.entity_class_name == "oc2":
+                self.assertEqual(parameter_row.parameter_name, "new_name")
+            else:
+                self.assertEqual(parameter_row.parameter_name, "param")
+
     def test_parameter_renamer_config(self):
-        config = parameter_renamer_config(parameter1="renamed1", parameter2="renamed2")
+        config = parameter_renamer_config({"class": {"parameter1": "renamed1", "parameter2": "renamed2"}})
         self.assertEqual(
-            config, {"type": "parameter_renamer", "name_map": {"parameter1": "renamed1", "parameter2": "renamed2"}}
+            config,
+            {"type": "parameter_renamer", "name_map": {"class": {"parameter1": "renamed1", "parameter2": "renamed2"}}},
         )
 
     def test_parameter_renamer_from_dict(self):
         import_object_classes(self._out_map, ("object_class",))
         import_object_parameters(self._out_map, (("object_class", "old_name"),))
         self._out_map.commit_session("Add test data")
-        config = parameter_renamer_config(old_name="new_name")
+        config = parameter_renamer_config({"object_class": {"old_name": "new_name"}})
         parameter_renamer_from_dict(self._db_map, config)
         parameters = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
         self.assertEqual(len(parameters), 1)
@@ -210,11 +226,11 @@ class TestParameterRenamer(unittest.TestCase):
             "id",
             "name",
             "description",
-            "data_type",
             "entity_class_id",
             "object_class_id",
             "relationship_class_id",
             "default_value",
+            "default_type",
             "commit_id",
             "parameter_value_list_id",
         )
@@ -223,15 +239,20 @@ class TestParameterRenamer(unittest.TestCase):
             self.assertIn(expected_key, keys)
         self.assertEqual(parameter_row.name, "new_name")
 
+
+class TestParameterRenamerWithoutDatabase(unittest.TestCase):
     def test_parameter_renamer_config_to_shorthand(self):
-        config = parameter_renamer_config(parameter1="renamed1", parameter2="renamed2")
+        config = parameter_renamer_config({"class": {"parameter1": "renamed1", "parameter2": "renamed2"}})
         shorthand = parameter_renamer_config_to_shorthand(config)
-        self.assertEqual(shorthand, "parameter_rename:parameter1:renamed1:parameter2:renamed2")
+        self.assertEqual(shorthand, "parameter_rename:class:parameter1:renamed1:class:parameter2:renamed2")
 
     def test_parameter_renamer_shorthand_to_config(self):
-        config = parameter_renamer_shorthand_to_config("parameter_rename:parameter1:renamed1:parameter2:renamed2")
+        config = parameter_renamer_shorthand_to_config(
+            "parameter_rename:class:parameter1:renamed1:class:parameter2:renamed2"
+        )
         self.assertEqual(
-            config, {"type": "parameter_renamer", "name_map": {"parameter1": "renamed1", "parameter2": "renamed2"}}
+            config,
+            {"type": "parameter_renamer", "name_map": {"class": {"parameter1": "renamed1", "parameter2": "renamed2"}}},
         )
 
 

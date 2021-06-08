@@ -16,6 +16,7 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
+import json
 from itertools import groupby
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
@@ -522,7 +523,7 @@ def _get_tool_feature_methods_for_import(db_map, data):
         )
         parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
         value_to_index = parameter_value_list.get("value_to_index", {})
-        method_index = value_to_index.get(to_database(method))
+        method_index = value_to_index.get(json.dumps(method))
         if (tool_feature_id, method_index) in seen | tool_feature_method_ids.keys():
             continue
         item = {
@@ -1076,7 +1077,7 @@ def _get_object_parameters_for_import(db_map, data):
     error_log = []
     to_add = []
     to_update = []
-    functions = [to_database, parameter_value_list_ids.get, lambda x: x]
+    functions = [to_database, lambda x: (parameter_value_list_ids.get(x),), lambda x: (x,)]
     for class_name, parameter_name, *optionals in data:
         oc_id = object_class_ids.get(class_name, None)
         checked_key = (oc_id, parameter_name)
@@ -1086,11 +1087,12 @@ def _get_object_parameters_for_import(db_map, data):
             "name": parameter_name,
             "entity_class_id": oc_id,
             "default_value": None,
+            "default_type": None,
             "parameter_value_list_id": None,
             "description": None,
         }
-        optionals = [f(x) for f, x in zip(functions, optionals)]
-        item.update(dict(zip(("default_value", "parameter_value_list_id", "description"), optionals)))
+        optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
+        item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
         p_id = parameter_ids.pop((oc_id, parameter_name), None)
         try:
             check_parameter_definition(item, parameter_ids, object_class_names.keys(), parameter_value_lists)
@@ -1154,7 +1156,7 @@ def _get_relationship_parameters_for_import(db_map, data):
     to_add = []
     to_update = []
     checked = set()
-    functions = [to_database, parameter_value_list_ids.get, lambda x: x]
+    functions = [to_database, lambda x: (parameter_value_list_ids.get(x),), lambda x: (x,)]
     for class_name, parameter_name, *optionals in data:
         rc_id = relationship_class_ids.get(class_name, None)
         checked_key = (rc_id, parameter_name)
@@ -1164,11 +1166,12 @@ def _get_relationship_parameters_for_import(db_map, data):
             "name": parameter_name,
             "entity_class_id": rc_id,
             "default_value": None,
+            "default_type": None,
             "parameter_value_list_id": None,
             "description": None,
         }
-        optionals = [f(x) for f, x in zip(functions, optionals)]
-        item.update(dict(zip(("default_value", "parameter_value_list_id", "description"), optionals)))
+        optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
+        item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
         p_id = parameter_ids.pop((rc_id, parameter_name), None)
         try:
             check_parameter_definition(item, parameter_ids, relationship_class_names.keys(), parameter_value_lists)
@@ -1199,10 +1202,8 @@ def import_object_parameter_values(db_map, data):
     Example::
 
             data = [('object_class_name', 'object_name', 'parameter_name', 123.4),
-                    ('object_class_name', 'object_name', 'parameter_name2',
-                        '{"type":"time_series", "data": [1,2,3]}'),
-                    ('object_class_name', 'object_name', 'parameter_name',
-                        '{"type":"time_series", "data": [1,2,3]}'), 'alternative')]
+                    ('object_class_name', 'object_name', 'parameter_name2', <TimeSeries>),
+                    ('object_class_name', 'object_name', 'parameter_name', <TimeSeries>, 'alternative')]
             import_object_parameter_values(db_map, data)
 
     Args:
@@ -1262,11 +1263,13 @@ def _get_object_parameter_values_for_import(db_map, data):
             )
             error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value"))
             continue
+        value, type_ = to_database(value)
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": oc_id,
             "entity_id": o_id,
-            "value": to_database(value),
+            "value": value,
+            "type": type_,
             "alternative_id": alt_id,
         }
         pv_id = parameter_value_ids.pop((o_id, p_id, alt_id), None)
@@ -1376,11 +1379,13 @@ def _get_relationship_parameter_values_for_import(db_map, data):
             )
             error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value"))
             continue
+        value, type_ = to_database(value)
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": rc_id,
             "entity_id": r_id,
-            "value": to_database(value),
+            "value": value,
+            "type": type_,
             "alternative_id": alt_id,
         }
         pv_id = parameter_value_ids.pop((r_id, p_id, alt_id), None)
@@ -1447,7 +1452,7 @@ def _get_parameter_value_lists_for_import(db_map, data):
                 )
             )
             continue
-        item = {"name": name, "value_list": [to_database(value) for value in value_list]}
+        item = {"name": name, "value_list": [to_database(value)[0] for value in value_list]}
         pvl_id = parameter_value_list_ids.pop(name, None)
         try:
             check_wide_parameter_value_list(item, parameter_value_list_ids)

@@ -349,8 +349,9 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
     if parameter_value_list_id is not None and parameter_value_list_id not in parameter_value_lists:
         raise SpineIntegrityError("Invalid parameter value list.")
     default_value = item.get("default_value")
+    default_type = item.get("default_type")
     try:
-        _ = from_database(default_value)
+        _ = from_database(default_value, default_type)
     except ParameterValueFormatError as err:
         raise SpineIntegrityError("Invalid default value '{}': {}".format(default_value, err))
 
@@ -378,11 +379,12 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
     except KeyError:
         raise SpineIntegrityError("Parameter not found.")
     value = item.get("value")
+    value_type = item.get("type")
     alt_id = item.get("alternative_id")
     if alt_id not in alternatives:
         raise SpineIntegrityError("Alternative not found.")
     try:
-        _ = from_database(value)
+        _ = from_database(value, value_type)
     except ParameterValueFormatError as err:
         raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
     if value is not None:
@@ -390,7 +392,7 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         value_list = parameter_value_lists.get(parameter_value_list_id)
         if value_list is not None:
             value_list = value_list.split(";")
-            if value not in value_list:
+            if str(value, "UTF8") not in value_list:
                 valid_values = ", ".join(value_list)
                 raise SpineIntegrityError(
                     "The value '{}' is not a valid value for parameter '{}' (valid values are: {})".format(
@@ -502,7 +504,7 @@ def check_wide_parameter_value_list(wide_item, current_items):
         raise SpineIntegrityError("Values must be unique.")
     for value in value_list:
         try:
-            _ = from_database(value)
+            _ = from_database(value, value_type=None)
         except ParameterValueFormatError as err:
             raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
 

@@ -56,6 +56,13 @@ from .tool_filter import (
     tool_filter_shorthand_to_config,
     tool_name_from_dict,
 )
+from .value_transformer import (
+    VALUE_TRANSFORMER_SHORTHAND_TAG,
+    VALUE_TRANSFORMER_TYPE,
+    value_transformer_shorthand_to_config,
+    value_transformer_from_dict,
+    value_transformer_config_to_shorthand,
+)
 from .execution_filter import (
     EXECUTION_SHORTHAND_TAG,
     EXECUTION_FILTER_TYPE,
@@ -84,6 +91,7 @@ def apply_filter_stack(db_map, stack):
         SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
         TOOL_FILTER_TYPE: tool_filter_from_dict,
         EXECUTION_FILTER_TYPE: execution_filter_from_dict,
+        VALUE_TRANSFORMER_TYPE: value_transformer_from_dict,
     }
     for filter_ in stack:
         appliers[filter_["type"]](db_map, filter_)
@@ -279,6 +287,7 @@ def config_to_shorthand(config):
         SCENARIO_FILTER_TYPE: scenario_filter_config_to_shorthand,
         TOOL_FILTER_TYPE: tool_filter_config_to_shorthand,
         EXECUTION_FILTER_TYPE: execution_filter_config_to_shorthand,
+        VALUE_TRANSFORMER_TYPE: value_transformer_config_to_shorthand,
     }
     return SHORTHAND_TAG + shorthands[config["type"]](config)
 
@@ -300,6 +309,7 @@ def _parse_shorthand(shorthand):
         SCENARIO_SHORTHAND_TAG: scenario_filter_shorthand_to_config,
         TOOL_SHORTHAND_TAG: tool_filter_shorthand_to_config,
         EXECUTION_SHORTHAND_TAG: execution_filter_shorthand_to_config,
+        VALUE_TRANSFORMER_SHORTHAND_TAG: value_transformer_shorthand_to_config,
     }
     tag, _, _ = shorthand.partition(":")
     return shorthand_parsers[tag](shorthand)

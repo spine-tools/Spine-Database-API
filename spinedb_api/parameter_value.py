@@ -56,7 +56,9 @@ class ParameterValueEncoder(json.JSONEncoder):
     """A class to serialize Spine parameter values."""
 
     def default(self, o):
-        return o.to_dict()
+        d = o.to_dict()
+        d["type"] = o.type_()
+        return d
 
 
 def duration_to_relativedelta(duration):
@@ -128,29 +130,31 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def from_database(database_value):
+def from_database(database_value, value_type=None):
     """
-    Converts a (relationship) parameter value from its database representation to a Python object.
+    Converts a parameter value from its database representation to a Python object.
 
     Args:
-        database_value (str): a value in the database; a JSON string or None
+        database_value (bytes): a value in the database (can be None)
+        value_type (str, optional): the type in case of complex ones
 
     Returns:
-        the encoded (relationship) parameter value
+        the encoded parameter value
     """
     if database_value is None:
         return None
+    database_value = str(database_value, "UTF8")
     try:
-        value = json.loads(database_value)
+        parsed = json.loads(database_value)
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}")
-    if isinstance(value, dict):
-        return from_dict(value)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, Number):
-        return float(value)
-    return value
+    if isinstance(parsed, dict):
+        return from_dict(parsed, value_type=value_type)
+    if isinstance(parsed, bool):
+        return parsed
+    if isinstance(parsed, Number):
+        return float(parsed)
+    return parsed
 
 
 def to_database(value):
@@ -158,36 +162,20 @@ def to_database(value):
     Converts a value object into its database representation.
 
     Args:
-        value: a value to convert
+        value: a value to convert (can be a dict with a "type" key)
 
     Returns:
-        value's database representation as a string
+        bytes: value's database representation as bytes
+        str: the value type
     """
     if hasattr(value, "to_database"):
         return value.to_database()
-    db_value = json.dumps(value)
-    return check_database(db_value)
+    value_type = value.get("type") if isinstance(value, dict) else None
+    db_value = json.dumps(value).encode("UTF8")
+    return db_value, value_type
 
 
-def check_database(db_value):
-    """Checks if a value is in valid db format.
-
-    Args:
-        db_value (str): A value in db format
-
-    Returns:
-        str: A value in 'canonical' db format
-
-    Raises:
-        ParameterValueFormatError: if the given value is not well formatted.
-    """
-    value = from_database(db_value)
-    if hasattr(value, "to_database"):
-        return value.to_database()
-    return db_value
-
-
-def from_dict(value_dict):
+def from_dict(value_dict, value_type=None):
     """
     Converts complex a (relationship) parameter value from its dictionary representation to a Python object.
 
@@ -198,7 +186,6 @@ def from_dict(value_dict):
         the encoded (relationship) parameter value
     """
     try:
-        value_type = value_dict["type"]
         if value_type == "date_time":
             return _datetime_from_database(value_dict["data"])
         if value_type == "duration":
@@ -437,7 +424,9 @@ def _map_index_to_database(index):
 def _map_value_to_database(value):
     """Converts a single map value to database format."""
     if hasattr(value, "to_dict"):
-        return value.to_dict()
+        d = value.to_dict()
+        d["type"] = value.type_()
+        return d
     return value
 
 
@@ -447,7 +436,7 @@ def _map_values_from_database(values_in_db):
         return list()
     values = list()
     for value_in_db in values_in_db:
-        value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
+        value = from_dict(value_in_db, value_in_db["type"]) if isinstance(value_in_db, dict) else value_in_db
         if not isinstance(value, (float, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
@@ -504,7 +493,7 @@ class DateTime:
         return hash(self._value)
 
     def __str__(self):
-        return str(self._value)
+        return self._value.isoformat()
 
     def value_to_database_data(self):
         """Returns the database representation of the datetime."""
@@ -512,11 +501,15 @@ class DateTime:
 
     def to_dict(self):
         """Returns the database representation of this object."""
-        return {"type": "date_time", "data": self.value_to_database_data()}
+        return {"data": self.value_to_database_data()}
+
+    @staticmethod
+    def type_():
+        return "date_time"
 
     def to_database(self):
         """Returns the database representation of this object as JSON."""
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def value(self):
@@ -565,11 +558,15 @@ class Duration:
 
     def to_dict(self):
         """Returns the database representation of the duration."""
-        return {"type": "duration", "data": self.value_to_database_data()}
+        return {"data": self.value_to_database_data()}
+
+    @staticmethod
+    def type_():
+        return "duration"
 
     def to_database(self):
         """Returns the database representation of the duration as JSON."""
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def value(self):
@@ -638,7 +635,7 @@ class IndexedValue:
 
     def to_database(self):
         """Return the database representation of the value."""
-        return json.dumps(self.to_dict())
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def values(self):
@@ -693,6 +690,10 @@ class Array(IndexedValue):
             return NotImplemented
         return self._values == other._values
 
+    @staticmethod
+    def type_():
+        return "array"
+
     def to_dict(self):
         """See base class."""
         value_type_id = {
@@ -707,7 +708,7 @@ class Array(IndexedValue):
             data = self._values
         else:
             data = [x.value_to_database_data() for x in self._values]
-        return {"type": "array", "value_type": value_type_id, "data": data}
+        return {"value_type": value_type_id, "data": data}
 
     @property
     def value_type(self):
@@ -788,6 +789,10 @@ class TimeSeries(IndexedNumberArray):
     def repeat(self, repeat):
         self._repeat = bool(repeat)
 
+    @staticmethod
+    def type_():
+        return "time_series"
+
     def to_dict(self):
         """Return the database representation of the value."""
         raise NotImplementedError()
@@ -823,12 +828,16 @@ class TimePattern(IndexedNumberArray):
         """Sets the indexes."""
         self._indexes = _Indexes(indexes, dtype=np.object_)
 
+    @staticmethod
+    def type_():
+        return "time_pattern"
+
     def to_dict(self):
         """Returns the database representation of this time pattern."""
         data = dict()
         for index, value in zip(self._indexes, self._values):
             data[index] = value
-        return {"type": "time_pattern", "data": data}
+        return {"data": data}
 
 
 class TimeSeriesFixedResolution(TimeSeries):
@@ -950,7 +959,6 @@ class TimeSeriesFixedResolution(TimeSeries):
         else:
             resolution_as_json = relativedelta_to_duration(self._resolution[0])
         return {
-            "type": "time_series",
             "index": {
                 "start": str(self._start),
                 "resolution": resolution_as_json,
@@ -1004,21 +1012,21 @@ class TimeSeriesVariableResolution(TimeSeries):
 
     def to_dict(self):
         """Returns the value in its database representation"""
-        database_value = {"type": "time_series"}
+        d = {}
         data = dict()
         for index, value in zip(self._indexes, self._values):
             data[str(index)] = float(value)
-        database_value["data"] = data
+        d["data"] = data
         # Add "index" entry only if its contents are not set to their default values.
         if self._ignore_year:
-            if "index" not in database_value:
-                database_value["index"] = dict()
-            database_value["index"]["ignore_year"] = self._ignore_year
+            if "index" not in d:
+                d["index"] = dict()
+            d["index"]["ignore_year"] = self._ignore_year
         if self._repeat:
-            if "index" not in database_value:
-                database_value["index"] = dict()
-            database_value["index"]["repeat"] = self._repeat
-        return database_value
+            if "index" not in d:
+                d["index"] = dict()
+            d["index"]["repeat"] = self._repeat
+        return d
 
 
 class Map(IndexedValue):
@@ -1069,13 +1077,13 @@ class Map(IndexedValue):
             data.append([index_in_db, value_in_db])
         return data
 
+    @staticmethod
+    def type_():
+        return "map"
+
     def to_dict(self):
         """Returns map's database representation."""
-        return {
-            "type": "map",
-            "index_type": _map_index_type_to_database(self._index_type),
-            "data": self.value_to_database_data(),
-        }
+        return {"index_type": _map_index_type_to_database(self._index_type), "data": self.value_to_database_data()}
 
 
 def convert_leaf_maps_to_specialized_containers(map_):

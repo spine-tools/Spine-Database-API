@@ -411,7 +411,7 @@ class TestImportParameterValue(unittest.TestCase):
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]])
         self.assertFalse(errors)
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
-        expected = {"object1": "1"}
+        expected = {"object1": b"1"}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -421,7 +421,7 @@ class TestImportParameterValue(unittest.TestCase):
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "value_string"]])
         self.assertFalse(errors)
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
-        expected = {"object1": '"value_string"'}
+        expected = {"object1": b'"value_string"'}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -432,7 +432,7 @@ class TestImportParameterValue(unittest.TestCase):
         _, errors = import_object_parameter_values(db_map, [["object_class1", "duplicate_object", "parameter", 1]])
         self.assertFalse(errors)
         values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
-        expected = {"object_class1": {"duplicate_object": "1"}}
+        expected = {"object_class1": {"duplicate_object": b"1"}}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -443,7 +443,7 @@ class TestImportParameterValue(unittest.TestCase):
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]])
         self.assertFalse(errors)
         values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
-        expected = {"object_class1": {"object1": "1"}}
+        expected = {"object_class1": {"object1": b"1"}}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -453,7 +453,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_object_parameters(db_map, [["object_class", "parameter"]])
         _, errors = import_object_parameter_values(db_map, [["object_class", "nonexistent_object", "parameter", 1]])
         self.assertTrue(errors)
-        self.assertFalse([v for v in db_map.query(db_map.object_parameter_value_sq)])
+        self.assertFalse(db_map.query(db_map.object_parameter_value_sq).all())
         db_map.connection.close()
 
     def test_import_object_parameter_value_with_invalid_parameter(self):
@@ -462,7 +462,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_objects(db_map, ["object_class", "object"])
         _, errors = import_object_parameter_values(db_map, [["object_class", "object", "nonexistent_parameter", 1]])
         self.assertTrue(errors)
-        self.assertFalse([v for v in db_map.query(db_map.object_parameter_value_sq)])
+        self.assertFalse(db_map.query(db_map.object_parameter_value_sq).all())
         db_map.connection.close()
 
     def test_import_existing_object_parameter_value_update_the_value(self):
@@ -472,7 +472,7 @@ class TestImportParameterValue(unittest.TestCase):
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "new_value"]])
         self.assertFalse(errors)
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
-        expected = {"object1": '"new_value"'}
+        expected = {"object1": b'"new_value"'}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -485,7 +485,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertTrue(errors)
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
-        expected = {"object1": '"first"'}
+        expected = {"object1": b'"first"'}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -506,7 +506,7 @@ class TestImportParameterValue(unittest.TestCase):
             .filter(db_map.object_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
             .all()
         }
-        expected = {"object1": ("1", "alternative")}
+        expected = {"object1": (b"1", "alternative")}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -528,7 +528,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertFalse(errors)
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
-        expected = {"object1,object2": "1"}
+        expected = {"object1,object2": b"1"}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -542,7 +542,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertFalse(errors)
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
-        expected = {"object1,object2": "1"}
+        expected = {"object1,object2": b"1"}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -556,7 +556,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertFalse(errors)
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
-        expected = {"duplicate_object,duplicate_object": "1"}
+        expected = {"duplicate_object,duplicate_object": b"1"}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -567,7 +567,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["nonexistent_object", "object2"], "parameter", 1]]
         )
         self.assertTrue(errors)
-        self.assertFalse([v for v in db_map.query(db_map.relationship_parameter_value_sq)])
+        self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
         db_map.connection.close()
 
     def test_import_relationship_parameter_value_with_invalid_relationship_class(self):
@@ -577,7 +577,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["nonexistent_class", ["object1", "object2"], "parameter", 1]]
         )
         self.assertTrue(errors)
-        self.assertFalse([v for v in db_map.query(db_map.relationship_parameter_value_sq)])
+        self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
         db_map.connection.close()
 
     def test_import_relationship_parameter_value_with_invalid_parameter(self):
@@ -587,7 +587,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["object1", "object2"], "nonexistent_parameter", 1]]
         )
         self.assertTrue(errors)
-        self.assertFalse([v for v in db_map.query(db_map.relationship_parameter_value_sq)])
+        self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
         db_map.connection.close()
 
     def test_import_existing_relationship_parameter_value(self):
@@ -601,7 +601,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertFalse(errors)
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
-        expected = {"object1,object2": '"new_value"'}
+        expected = {"object1,object2": b'"new_value"'}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -617,7 +617,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertTrue(errors)
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
-        expected = {"object1,object2": '"first"'}
+        expected = {"object1,object2": b'"first"'}
         self.assertEqual(values, expected)
         db_map.connection.close()
 
@@ -638,7 +638,7 @@ class TestImportParameterValue(unittest.TestCase):
             .filter(db_map.relationship_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
             .all()
         }
-        expected = {"object1,object2": ("1", "alternative")}
+        expected = {"object1,object2": (b"1", "alternative")}
         self.assertEqual(values, expected)
         db_map.connection.close()
 

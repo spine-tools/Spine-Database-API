@@ -365,10 +365,10 @@ class TestExportMapping(unittest.TestCase):
         expected = [
             ["oc", "o1", "p1", "a"],
             ["oc", "o1", "p1", "b"],
-            ["oc", "o2", "p1", "e"],
-            ["oc", "o2", "p1", "f"],
             ["oc", "o1", "p2", "c"],
             ["oc", "o1", "p2", "d"],
+            ["oc", "o2", "p1", "e"],
+            ["oc", "o2", "p1", "f"],
             ["oc", "o2", "p2", "g"],
             ["oc", "o2", "p2", "h"],
         ]
@@ -632,7 +632,9 @@ class TestExportMapping(unittest.TestCase):
         tables = dict()
         for title, title_key in titles(object_class_mapping, db_map):
             tables[title] = list(rows(object_class_mapping, db_map, title_key))
-        self.assertEqual(tables, {"oc1,p11": [["o11"], ["o12"]], "oc2,p21": [["o21"]], "oc2,p22": [["o21"]], "oc3": []})
+        self.assertEqual(
+            tables, {"oc1,p11": [["o11"], ["o12"]], "oc2,p21": [["o21"]], "oc2,p22": [["o21"]], "oc3": [["o31"]]}
+        )
         db_map.connection.close()
 
     def test_object_relationship_name_as_table_name(self):
@@ -842,8 +844,8 @@ class TestExportMapping(unittest.TestCase):
         for title, title_key in titles(relationship_class_mapping, db_map):
             tables[title] = list(rows(relationship_class_mapping, db_map, title_key))
         expected = [
-            ["rc1D", "oc1", None, "o11", None],
-            ["rc1D", "oc1", None, "o12", None],
+            ["rc1D", "oc1", "", "o11", ""],
+            ["rc1D", "oc1", "", "o12", ""],
             ["rc2D", "oc1", "oc2", "o11", "o21"],
             ["rc2D", "oc1", "oc2", "o11", "o22"],
             ["rc2D", "oc1", "oc2", "o12", "o21"],
@@ -975,7 +977,7 @@ class TestExportMapping(unittest.TestCase):
         tables = dict()
         for title, title_key in titles(scenario_mapping, db_map):
             tables[title] = list(rows(scenario_mapping, db_map, title_key))
-        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a3"], ["s2", "a2"]]})
+        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a2"], ["s2", "a3"]]})
         db_map.connection.close()
 
     def test_tool_mapping(self):
@@ -1300,13 +1302,13 @@ class TestExportMapping(unittest.TestCase):
         root = unflatten(mapping_list[:1])
         self.assertIsNone(root.child)
 
-    def test_has_title(self):
+    def test_has_titles(self):
         object_class_mapping = ObjectClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(Position.table_name)
         object_mapping = ObjectMapping(1)
         parameter_definition_mapping.child = object_mapping
         object_class_mapping.child = parameter_definition_mapping
-        self.assertTrue(object_class_mapping.has_title())
+        self.assertTrue(object_class_mapping.has_titles())
 
     def test_drop_non_positioned_tail(self):
         object_class_mapping = ObjectClassMapping(0)
