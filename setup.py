@@ -14,7 +14,7 @@ setup(
     license="LGPL-3.0-or-later",
     packages=find_packages(),
     install_requires=[
-        "sqlalchemy<1.4",
+        "sqlalchemy>=1.3, <1.4",
         "alembic>=1.5.8",
         "faker>=8.1.2",
         "python-dateutil>=2.8.1",
