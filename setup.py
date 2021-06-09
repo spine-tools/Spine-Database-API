@@ -17,7 +17,7 @@ setup(
     author="Spine Project consortium",
     author_email="spine_info@vtt.fi",
     license="LGPL-3.0-or-later",
-    packages=find_packages(),
+    packages=find_packages(exclude=("tests", "tests.*")),
     install_requires=[
         "sqlalchemy==1.3.24",
         "alembic==1.5.8",
