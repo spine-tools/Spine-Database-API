@@ -80,7 +80,7 @@ def get_mapped_data(
                 row = _convert_row(row, column_convert_fns, start_pos + k, errors)
                 mapping.import_row(row, read_state, mapped_data)
             continue
-        # There are pivoted mappings. We will unpivot the table
+        # There are pivoted mappings. We unpivot the table
         unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos = _unpivot_rows(
             rows, data_header, pivoted, non_pivoted, pivoted_from_header, mapping.skip_columns
         )
@@ -110,12 +110,12 @@ def get_mapped_data(
         last_non_pivoted_column_pos = max(non_pivoted_pos, default=0) + 1
         start_pos = max(mapping.read_start_row, last_pivoted_row_pos)
         for i, row in enumerate(rows[start_pos:]):
-            if not _is_valid_row(row):
+            if not _is_valid_row(row[:last_non_pivoted_column_pos]):
                 continue
             row = _convert_row(row, column_convert_fns, start_pos + i, errors)
             non_pivoted_row = row[:last_non_pivoted_column_pos]
             for column_pos, unpivoted_row in zip(unpivoted_column_pos, unpivoted_rows):
-                if not _is_valid_row(unpivoted_row):
+                if not _is_valid_row(unpivoted_row) or row[column_pos] is None:
                     continue
                 unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = non_pivoted_row + unpivoted_row
