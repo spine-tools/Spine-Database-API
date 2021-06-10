@@ -16,6 +16,7 @@ Contains a class template for a data source connector used in import ui.
 :date:   1.6.2019
 """
 
+from itertools import islice
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
@@ -70,12 +71,13 @@ class SourceConnection:
         """
         raise NotImplementedError()
 
-    def get_data(self, table, options, max_rows=-1):
+    def get_data(self, table, options, max_rows=-1, start=0):
         """
         Return data read from data source table in table. If max_rows is
         specified only that number of rows.
         """
         data_iter, header = self.get_data_iterator(table, options, max_rows)
+        data_iter = islice(data_iter, start, None)
         data = list(data_iter)
         return data, header
 
