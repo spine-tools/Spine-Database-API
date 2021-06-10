@@ -18,8 +18,22 @@ Unit tests for import Mappings.
 import unittest
 from unittest.mock import Mock
 from spinedb_api.exception import InvalidMapping
-from spinedb_api.mapping import Position, to_dict as mapping_to_dict
-from spinedb_api.import_mapping.import_mapping import ImportMapping, check_validity
+from spinedb_api.mapping import Position, to_dict as mapping_to_dict, unflatten
+from spinedb_api.import_mapping.import_mapping import (
+    ImportMapping,
+    check_validity,
+    ParameterDefinitionMapping,
+    ObjectClassMapping,
+    ObjectMapping,
+    IndexNameMapping,
+    ParameterValueIndexMapping,
+    ExpandedParameterValueMapping,
+    ParameterValueTypeMapping,
+    ParameterDefaultValueTypeMapping,
+    DefaultValueIndexNameMapping,
+    ParameterDefaultValueIndexMapping,
+    ExpandedParameterDefaultValueMapping,
+)
 from spinedb_api.import_mapping.import_mapping_compat import (
     import_mapping_from_dict,
     parameter_mapping_from_dict,
@@ -355,6 +369,7 @@ class TestImportMappingLegacy(unittest.TestCase):
             {'map_type': 'Alternative', 'position': 'hidden'},
             {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
             {'map_type': 'ParameterValueType', 'position': 'hidden', 'value': 'array'},
+            {'map_type': 'IndexName', 'position': 'hidden'},
             {'map_type': 'ParameterValueIndex', 'position': 'hidden', 'value': 'dim'},
             {'map_type': 'ExpandedValue', 'position': 2},
         ]
@@ -478,6 +493,7 @@ class TestImportMappingLegacy(unittest.TestCase):
         out = mapping_to_dict(parameter_mapping)
         expected = [
             {'map_type': 'ParameterValueType', 'position': 'hidden', 'value': 'map', 'compress': True},
+            {'map_type': 'IndexName', 'position': 'hidden'},
             {'map_type': 'ParameterValueIndex', 'position': 'fifth column'},
             {'map_type': 'ExpandedValue', 'position': -24},
         ]
@@ -499,6 +515,7 @@ class TestImportMappingLegacy(unittest.TestCase):
                 'value': 'time_series',
                 'options': {'repeat': True, 'ignore_year': False, 'fixed_resolution': False},
             },
+            {'map_type': 'IndexName', 'position': 'hidden'},
             {'map_type': 'ParameterValueIndex', 'position': 'fifth column'},
             {'map_type': 'ExpandedValue', 'position': -24},
         ]
@@ -1774,6 +1791,67 @@ class TestMappingIntegration(unittest.TestCase):
         expected["object_classes"] = ["object_class"]
         expected_map = Map(["key11", "key21"], [Map(["key12"], [-2]), Map(["key22"], [-1])])
         expected["object_parameters"] = [("object_class", "parameter", expected_map)]
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
+    def test_read_map_index_names_from_columns(self):
+        input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping_root = unflatten(
+            [
+                ObjectClassMapping(Position.hidden, value="object_class"),
+                ParameterDefinitionMapping(Position.hidden, value="parameter"),
+                ObjectMapping(Position.hidden, value="object"),
+                ParameterValueTypeMapping(Position.hidden, value="map"),
+                IndexNameMapping(Position.header, value=0),
+                ParameterValueIndexMapping(0),
+                IndexNameMapping(Position.header, value=1),
+                ParameterValueIndexMapping(1),
+                ExpandedParameterValueMapping(2),
+            ]
+        )
+        out, errors = get_mapped_data(data, [mapping_root], data_header)
+        expected_map = Map(
+            ["key11", "key21"],
+            [Map(["key12"], [-2], index_name="Index 2"), Map(["key22"], [-1], index_name="Index 2")],
+            index_name="Index 1",
+        )
+        expected = {
+            "object_classes": ["object_class"],
+            "objects": [("object_class", "object")],
+            "object_parameter_values": [("object_class", "object", "parameter", expected_map)],
+            "object_parameters": [("object_class", "parameter")],
+        }
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
+    def test_read_default_value_index_names_from_columns(self):
+        input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping_root = unflatten(
+            [
+                ObjectClassMapping(Position.hidden, value="object_class"),
+                ParameterDefinitionMapping(Position.hidden, value="parameter"),
+                ParameterDefaultValueTypeMapping(Position.hidden, value="map"),
+                DefaultValueIndexNameMapping(Position.header, value=0),
+                ParameterDefaultValueIndexMapping(0),
+                DefaultValueIndexNameMapping(Position.header, value=1),
+                ParameterDefaultValueIndexMapping(1),
+                ExpandedParameterDefaultValueMapping(2),
+            ]
+        )
+        out, errors = get_mapped_data(data, [mapping_root], data_header)
+        expected_map = Map(
+            ["key11", "key21"],
+            [Map(["key12"], [-2], index_name="Index 2"), Map(["key22"], [-1], index_name="Index 2")],
+            index_name="Index 1",
+        )
+        expected = {
+            "object_classes": ["object_class"],
+            "object_parameters": [("object_class", "parameter", expected_map)],
+        }
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 

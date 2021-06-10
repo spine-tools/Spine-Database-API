@@ -234,17 +234,21 @@ def _make_parameter_values(mapped_data):
 
 
 def _parameter_value_from_dict(d):
+    index_names = d.get("index_names", [""])
     if d["type"] == "map":
-        return _table_to_map(d["data"], compress=d.get("compress", False))
+        map_ = _table_to_map(d["data"], compress=d.get("compress", False))
+        if index_names != [""]:
+            _apply_index_names(map_, index_names)
+        return map_
     if d["type"] == "time_pattern":
-        return TimePattern(*zip(*d["data"]))
+        return TimePattern(*zip(*d["data"]), index_name=index_names[0])
     if d["type"] == "time_series":
         options = d.get("options", {})
         ignore_year = options.get("ignore_year", False)
         repeat = options.get("repeat", False)
-        return TimeSeriesVariableResolution(*zip(*d["data"]), ignore_year, repeat)
+        return TimeSeriesVariableResolution(*zip(*d["data"]), ignore_year, repeat, index_name=index_names[0])
     if d["type"] == "array":
-        return Array(d["data"])
+        return Array(d["data"], index_name=index_names[0])
 
 
 def _table_to_map(table, compress=False):
@@ -277,3 +281,16 @@ def _dict_to_map_recursive(d):
         indexes.append(key)
         values.append(value)
     return Map(indexes, values)
+
+
+def _apply_index_names(map_, index_names):
+    """Applies index names to Map.
+
+    Args:
+        map_ (Map): target Map.
+        index_names (Sequence of str): index names, one for each Map depth
+    """
+    map_.index_name = index_names[0]
+    for v in map_.values:
+        if isinstance(v, Map):
+            _apply_index_names(v, index_names[1:])

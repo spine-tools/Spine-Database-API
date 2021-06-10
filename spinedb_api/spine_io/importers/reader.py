@@ -87,7 +87,15 @@ class SourceConnection:
         """
         Reads all mappings in dict tables_mappings, where key is name of table
         and value is the mappings for that table.
-        emits mapped data when ready.
+
+        Args:
+            tables_mappings (dict): mapping from table name to list of import mappings
+            table_options (dict): mapping from table name to table-specific import options
+            table_column_convert_specs (dict): mapping from table name to column data type conversion settings
+            table_row_convert_specs (dict): mapping from table name to row data type conversion settings
+
+        Returns:
+            tuple: mapped data and a list of errors, if any
         """
         mapped_data = {}
         errors = []

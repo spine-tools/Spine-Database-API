@@ -53,6 +53,8 @@ from .import_mapping import (
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     from_dict as mapping_from_dict,
+    IndexNameMapping,
+    DefaultValueIndexNameMapping,
 )
 from ..mapping import to_dict as import_mapping_to_dict
 
@@ -298,9 +300,11 @@ def parameter_default_value_mapping_from_dict(default_value_dict):
     root_mapping = ParameterDefaultValueTypeMapping(Position.hidden, value_type, compress=compress, options=options)
     parent_mapping = root_mapping
     for ed in extra_dimensions:
-        mapping = ParameterDefaultValueIndexMapping(*_pos_and_val(ed))
-        parent_mapping.child = mapping
-        parent_mapping = mapping
+        name_mapping = DefaultValueIndexNameMapping(Position.hidden, value=None)
+        parent_mapping.child = name_mapping
+        index_mapping = ParameterDefaultValueIndexMapping(*_pos_and_val(ed))
+        name_mapping.child = index_mapping
+        parent_mapping = index_mapping
     parent_mapping.child = ExpandedParameterDefaultValueMapping(*_pos_and_val(main_value))
     return root_mapping
 
@@ -318,9 +322,11 @@ def parameter_value_mapping_from_dict(value_dict):
     root_mapping = ParameterValueTypeMapping(Position.hidden, value_type, compress=compress, options=options)
     parent_mapping = root_mapping
     for ed in extra_dimensions:
-        mapping = ParameterValueIndexMapping(*_pos_and_val(ed))
-        parent_mapping.child = mapping
-        parent_mapping = mapping
+        name_mapping = IndexNameMapping(Position.hidden, value=None)
+        parent_mapping.child = name_mapping
+        index_mapping = ParameterValueIndexMapping(*_pos_and_val(ed))
+        name_mapping.child = index_mapping
+        parent_mapping = index_mapping
     parent_mapping.child = ExpandedParameterValueMapping(*_pos_and_val(main_value))
     return root_mapping
 
