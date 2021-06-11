@@ -551,6 +551,20 @@ class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
             parameter_definition.append(value_list_name)
 
 
+class DefaultValueIndexNameMapping(ImportMapping):
+    """Maps default value index names.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefaultValueTypeMapping` as parent.
+    """
+
+    MAP_TYPE = "DefaultValueIndexName"
+
+    def _import_row(self, source_data, state, mapped_data):
+        values = state[ImportKey.PARAMETER_DEFAULT_VALUES]
+        value = values[_default_value_key(state)]
+        value.setdefault("index_names", []).append(source_data)
+
+
 class ParameterDefaultValueIndexMapping(ImportMapping):
     """Maps default value indexes.
 
@@ -577,18 +591,8 @@ class ExpandedParameterDefaultValueMapping(ImportMapping):
     MAP_TYPE = "ExpandedDefaultValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-        if object_class_name is not None:
-            class_name = object_class_name
-        elif relationship_class_name is not None:
-            class_name = relationship_class_name
-        else:
-            raise KeyError(ImportKey.CLASS_NAME)
-        parameter_name = state[ImportKey.PARAMETER_NAME]
-        key = (class_name, parameter_name)
         values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
-        value = values[key]
+        value = values[_default_value_key(state)]
         val = source_data
         data = value.setdefault("data", [])
         if value["type"] == "array":
@@ -706,6 +710,20 @@ class ParameterValueIndexMapping(ImportMapping):
         state.setdefault(ImportKey.PARAMETER_VALUE_INDEXES, []).append(index)
 
 
+class IndexNameMapping(ImportMapping):
+    """Maps index names for indexed parameter values.
+
+    Cannot be used as the topmost mapping; must have an :class:`ParameterValueTypeMapping` as a parent.
+    """
+
+    MAP_TYPE = "IndexName"
+
+    def _import_row(self, source_data, state, mapped_data):
+        values = state[ImportKey.PARAMETER_VALUES]
+        value = values[_parameter_value_key(state)]
+        value.setdefault("index_names", []).append(source_data)
+
+
 class ExpandedParameterValueMapping(ImportMapping):
     """Maps parameter values.
 
@@ -719,20 +737,8 @@ class ExpandedParameterValueMapping(ImportMapping):
     MAP_TYPE = "ExpandedValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-        if object_class_name is not None:
-            class_name, entity_name = object_class_name, state[ImportKey.OBJECT_NAME]
-        elif relationship_class_name is not None:
-            object_names = state[ImportKey.OBJECT_NAMES]
-            if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-                raise KeyError(ImportKey.OBJECT_NAMES)
-            class_name, entity_name = relationship_class_name, tuple(object_names)
-        else:
-            raise KeyError(ImportKey.CLASS_NAME)
-        parameter_name = state[ImportKey.PARAMETER_NAME]
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
-        value = values[class_name, entity_name, parameter_name]
+        value = values[_parameter_value_key(state)]
         val = source_data
         data = value.setdefault("data", [])
         if value["type"] == "array":
@@ -1008,6 +1014,7 @@ def from_dict(serialized):
             ParameterValueMapping,
             ParameterValueTypeMapping,
             ParameterValueMetadataMapping,
+            IndexNameMapping,
             ParameterValueIndexMapping,
             ExpandedParameterValueMapping,
             ParameterValueListMapping,
@@ -1037,3 +1044,45 @@ def from_dict(serialized):
             position = Position(position)
         flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, mapping_dict))
     return unflatten(flattened)
+
+
+def _parameter_value_key(state):
+    """Creates parameter value's key from current state.
+
+    Args:
+        state (dict): import state
+
+    Returns:
+        tuple of str: class name, entity name and parameter name
+    """
+    object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
+    if object_class_name is not None:
+        class_name, entity_name = object_class_name, state[ImportKey.OBJECT_NAME]
+    else:
+        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
+        if relationship_class_name is None:
+            raise KeyError(ImportKey.CLASS_NAME)
+        object_names = state[ImportKey.OBJECT_NAMES]
+        if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+            raise KeyError(ImportKey.OBJECT_NAMES)
+        class_name, entity_name = relationship_class_name, tuple(object_names)
+    parameter_name = state[ImportKey.PARAMETER_NAME]
+    return class_name, entity_name, parameter_name
+
+
+def _default_value_key(state):
+    """Creates parameter default value's key from current state.
+
+    Args:
+        state (dict): import state
+
+    Returns:
+        tuple of str: class name and parameter name
+    """
+    class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
+    if class_name is None:
+        class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
+        if class_name is None:
+            raise KeyError(ImportKey.CLASS_NAME)
+    parameter_name = state[ImportKey.PARAMETER_NAME]
+    return class_name, parameter_name
