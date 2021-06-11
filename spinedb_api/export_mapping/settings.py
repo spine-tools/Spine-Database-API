@@ -15,6 +15,7 @@ Contains convenience functions to set up different database export schemes.
 :date:   10.12.2020
 """
 from itertools import takewhile
+
 from .export_mapping import (
     AlternativeMapping,
     AlternativeDescriptionMapping,
@@ -51,6 +52,9 @@ from .export_mapping import (
     ToolFeatureParameterDefinitionMapping,
     ToolFeatureRequiredFlagMapping,
     ToolMapping,
+    IndexNameMapping,
+    DefaultValueIndexNameMapping,
+    ParameterDefaultValueTypeMapping,
 )
 from ..mapping import unflatten
 
@@ -60,11 +64,11 @@ def object_export(class_position=Position.hidden, object_position=Position.hidde
     Sets up export mappings for exporting objects without parameters.
 
     Args:
-        class_position (int or Position): position of object classes in a table
-        object_position (int or Position): position of objects in a table
+        class_position (int or Position): position of object classes
+        object_position (int or Position): position of objects
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     class_ = ObjectClassMapping(class_position)
     object_ = ObjectMapping(object_position)
@@ -75,24 +79,30 @@ def object_export(class_position=Position.hidden, object_position=Position.hidde
 def object_parameter_default_value_export(
     class_position=Position.hidden,
     definition_position=Position.hidden,
+    value_type_position=Position.hidden,
     value_position=Position.hidden,
+    index_name_positions=None,
     index_positions=None,
 ):
     """
     Sets up export mappings for exporting objects classes and default parameter values.
 
     Args:
-        class_position (int or Position): position of object classes in a table
-        definition_position (int or Position): position of parameter names in a table
-        value_position (int or Position): position of parameter values in a table
-        index_positions (list or int, optional): positions of parameter indexes in a table
+        class_position (int or Position): position of object classes
+        definition_position (int or Position): position of parameter names
+        value_type_position (int or Position): position of parameter value types
+        value_position (int or Position): position of parameter values
+        index_name_positions (list of int, optional): positions of index names
+        index_positions (list of int, optional): positions of parameter indexes
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     class_ = ObjectClassMapping(class_position)
     definition = ParameterDefinitionMapping(definition_position)
-    _generate_default_value_mappings(definition, value_position, index_positions)
+    _generate_default_value_mappings(
+        definition, value_type_position, value_position, index_name_positions, index_positions
+    )
     class_.child = definition
     return class_
 
@@ -105,6 +115,7 @@ def object_parameter_export(
     alternative_position=Position.hidden,
     value_type_position=Position.hidden,
     value_position=Position.hidden,
+    index_name_positions=None,
     index_positions=None,
 ):
     """
@@ -118,10 +129,11 @@ def object_parameter_export(
         alternative_position (int or Position): position of alternatives in a table
         value_type_position (int or Position): position of parameter value types in a table
         value_position (int or Position): position of parameter values in a table
-        index_positions (list or int, optional): positions of parameter indexes in a table
+        index_name_positions (list of int, optional): positions of index names
+        index_positions (list of int, optional): positions of parameter indexes in a table
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     class_ = ObjectClassMapping(class_position)
     definition = ParameterDefinitionMapping(definition_position)
@@ -129,7 +141,7 @@ def object_parameter_export(
     value_list.set_ignorable(True)
     object_ = ObjectMapping(object_position)
     _generate_parameter_value_mappings(
-        object_, alternative_position, value_type_position, value_position, index_positions
+        object_, alternative_position, value_type_position, value_position, index_name_positions, index_positions
     )
     value_list.child = object_
     definition.child = value_list
@@ -146,6 +158,7 @@ def object_group_parameter_export(
     alternative_position=Position.hidden,
     value_type_position=Position.hidden,
     value_position=Position.hidden,
+    index_name_positions=None,
     index_positions=None,
 ):
     """
@@ -160,10 +173,11 @@ def object_group_parameter_export(
         alternative_position (int or position): position of alternatives in a table
         value_type_position (int or Position): position of parameter value types in a table
         value_position (int or Position): position of parameter values in a table
-        index_positions (list or int, optional): positions of parameter indexes in a table
+        index_name_positions (list of int, optional): positions of index names
+        index_positions (list of int, optional): positions of parameter indexes in a table
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     class_ = ObjectClassMapping(class_position)
     definition = ParameterDefinitionMapping(definition_position)
@@ -173,7 +187,7 @@ def object_group_parameter_export(
     object_ = ObjectGroupObjectMapping(object_position)
     group.child = object_
     _generate_parameter_value_mappings(
-        object_, alternative_position, value_type_position, value_position, index_positions
+        object_, alternative_position, value_type_position, value_position, index_name_positions, index_positions
     )
     value_list.child = group
     definition.child = value_list
@@ -193,7 +207,7 @@ def object_group_export(
         object_position (int or Position): position of objects
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     class_ = ObjectClassMapping(class_position)
     group = ObjectGroupMapping(group_position)
@@ -219,7 +233,7 @@ def relationship_export(
         object_positions (Iterable, optional): positions of object in a table
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     if object_class_positions is None:
         object_class_positions = list()
@@ -238,7 +252,9 @@ def relationship_export(
 def relationship_parameter_default_value_export(
     relationship_class_position=Position.hidden,
     definition_position=Position.hidden,
+    value_type_position=Position.hidden,
     value_position=Position.hidden,
+    index_name_positions=None,
     index_positions=None,
 ):
     """
@@ -247,15 +263,19 @@ def relationship_parameter_default_value_export(
     Args:
         relationship_class_position (int or Position): position of relationship classes
         definition_position (int or Position): position of parameter definitions
+        value_type_position (int or Position): position of parameter value types
         value_position (int or Position): position of parameter values
+        index_name_positions (list of int, optional): positions of index names
         index_positions (list of int, optional): positions of parameter indexes
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     relationship_class = RelationshipClassMapping(relationship_class_position)
     definition = ParameterDefinitionMapping(definition_position)
-    _generate_default_value_mappings(definition, value_position, index_positions)
+    _generate_default_value_mappings(
+        definition, value_type_position, value_position, index_name_positions, index_positions
+    )
     relationship_class.child = definition
     return relationship_class
 
@@ -270,6 +290,7 @@ def relationship_parameter_export(
     alternative_position=Position.hidden,
     value_type_position=Position.hidden,
     value_position=Position.hidden,
+    index_name_positions=None,
     index_positions=None,
 ):
     """
@@ -285,10 +306,11 @@ def relationship_parameter_export(
         alternative_position (int or Position): positions of alternatives
         value_type_position (int or Position): position of parameter value types
         value_position (int or Position): position of parameter values
+        index_name_positions (list of int, optional): positions of index names
         index_positions (list of int, optional): positions of parameter indexes
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     if object_class_positions is None:
         object_class_positions = list()
@@ -307,7 +329,12 @@ def relationship_parameter_export(
     value_list.child = relationship
     object_or_relationship = _generate_dimensions(relationship, RelationshipObjectMapping, object_positions)
     _generate_parameter_value_mappings(
-        object_or_relationship, alternative_position, value_type_position, value_position, index_positions
+        object_or_relationship,
+        alternative_position,
+        value_type_position,
+        value_position,
+        index_name_positions,
+        index_positions,
     )
     return relationship_class
 
@@ -317,7 +344,7 @@ def set_relationship_dimensions(relationship_mapping, dimensions):
     Modifies given relationship mapping's dimensions (number of object classes and objects).
 
     Args:
-        relationship_mapping (mapping): a relationship mapping
+        relationship_mapping (ExportMapping): a relationship mapping
         dimensions (int): number of dimensions
     """
     mapping_list = relationship_mapping.flatten()
@@ -411,11 +438,16 @@ def set_parameter_dimensions(mapping, dimensions):
     Modifies given mapping's parameter dimensions (number of parameter indexes).
 
     Args:
-        mapping (mapping): a mapping (object or relationship mapping with parameters)
+        mapping (ExportMapping): a mapping (object or relationship mapping with parameters)
         dimensions (int): number of dimensions
     """
     _change_amount_of_dimensions(
-        mapping, dimensions, ParameterValueMapping, ExpandedParameterValueMapping, ParameterValueIndexMapping
+        mapping,
+        dimensions,
+        ParameterValueMapping,
+        ExpandedParameterValueMapping,
+        ParameterValueIndexMapping,
+        IndexNameMapping,
     )
 
 
@@ -424,7 +456,7 @@ def set_parameter_default_value_dimensions(mapping, dimensions):
     Modifies given mapping's default dimensions (number of default value indexes).
 
     Args:
-        mapping (mapping): a mapping (object or relationship mapping with parameter default values)
+        mapping (ExportMapping): a mapping (object or relationship mapping with parameter default values)
         dimensions (int): number of dimensions
     """
     _change_amount_of_dimensions(
@@ -433,6 +465,7 @@ def set_parameter_default_value_dimensions(mapping, dimensions):
         ParameterDefaultValueMapping,
         ExpandedParameterDefaultValueMapping,
         ParameterDefaultValueIndexMapping,
+        DefaultValueIndexNameMapping,
     )
 
 
@@ -445,7 +478,7 @@ def feature_export(class_position=Position.hidden, definition_position=Position.
         definition_position (int or Position): position of parameter definitions
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     class_ = FeatureEntityClassMapping(class_position)
     definition = FeatureParameterDefinitionMapping(definition_position)
@@ -461,7 +494,7 @@ def tool_export(tool_position=Position.hidden):
         tool_position (int or Position): position of tools
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     return ToolMapping(tool_position)
 
@@ -482,7 +515,7 @@ def tool_feature_export(
         required_flag_position (int or Position): position of required flags
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     tool = ToolMapping(tool_position)
     class_ = ToolFeatureEntityClassMapping(class_position)
@@ -510,7 +543,7 @@ def tool_feature_method_export(
         method_position (int or Position): position of methods
 
     Returns:
-        Mapping: root mapping
+        ExportMapping: root mapping
     """
     tool = ToolMapping(tool_position)
     class_ = ToolFeatureMethodEntityClassMapping(class_position)
@@ -527,12 +560,12 @@ def _generate_dimensions(parent, cls, positions):
     Nests mappings of same type as children of given ``parent``.
 
     Args:
-        parent (Mapping): parent mapping
+        parent (ExportMapping): parent mapping
         cls (Type): mapping type
         positions (Iterable): list of child positions
 
     Returns:
-        Mapping: final leaf mapping
+        ExportMapping: final leaf mapping
     """
     if not positions:
         return parent
@@ -544,7 +577,7 @@ def _generate_dimensions(parent, cls, positions):
 
 
 def _generate_parameter_value_mappings(
-    mapping, alternative_position, value_type_position, value_position, index_positions
+    mapping, alternative_position, value_type_position, value_position, index_name_positions, index_positions
 ):
     """
     Appends alternative, value and (optionally) index mappings to given mapping.
@@ -552,10 +585,11 @@ def _generate_parameter_value_mappings(
     Note: does not append parameter definition mapping.
 
     Args:
-        mapping (Mapping): mapping where to add parameter mappings
+        mapping (ExportMapping): mapping where to add parameter mappings
         alternative_position (int or Position): position of alternatives
         value_type_position (int or Position): position of parameter value types
         value_position (int or Position,): position of parameter values
+        index_name_positions (list of int, optional): positions of index names
         index_positions (list of int, optional): positions of parameter indexes
     """
     alternative = AlternativeMapping(alternative_position)
@@ -565,27 +599,45 @@ def _generate_parameter_value_mappings(
         value = ParameterValueMapping(value_position)
         value_type.child = value
     else:
-        last_index = _generate_dimensions(value_type, ParameterValueIndexMapping, index_positions)
-        last_index.child = ExpandedParameterValueMapping(value_position)
+        current = value_type
+        for name_position, index_position in zip(index_name_positions, index_positions):
+            name_mapping = IndexNameMapping(name_position)
+            current.child = name_mapping
+            index_mapping = ParameterValueIndexMapping(index_position)
+            name_mapping.child = index_mapping
+            current = index_mapping
+        current.child = ExpandedParameterValueMapping(value_position)
     mapping.child = alternative
 
 
-def _generate_default_value_mappings(mapping, value_position, index_positions):
+def _generate_default_value_mappings(
+    mapping, value_type_position, value_position, index_name_positions, index_positions
+):
     """
     Appends default value and (optionally) index mappings to given mapping.
 
     Note: does not append parameter definition mapping.
 
     Args:
-        mapping (Mapping): mapping where to add default value mappings
+        mapping (ExportMapping): mapping where to add default value mappings
+        value_type_position (int or Position): position of parameter value types in a table
         value_position (int or Position): position of values
+        index_name_positions (list of int, optional): positions of index names
         index_positions (list of int, optional): positions of indexes
     """
+    type_mapping = ParameterDefaultValueTypeMapping(value_type_position)
+    mapping.child = type_mapping
     if not index_positions:
-        mapping.child = ParameterDefaultValueMapping(value_position)
+        type_mapping.child = ParameterDefaultValueMapping(value_position)
     else:
-        last_index = _generate_dimensions(mapping, ParameterDefaultValueIndexMapping, index_positions)
-        last_index.child = ExpandedParameterDefaultValueMapping(value_position)
+        current = type_mapping
+        for name_position, index_position in zip(index_name_positions, index_positions):
+            name_mapping = DefaultValueIndexNameMapping(name_position)
+            current.child = name_mapping
+            index_mapping = ParameterDefaultValueIndexMapping(index_position)
+            name_mapping.child = index_mapping
+            current = index_mapping
+        current.child = ExpandedParameterDefaultValueMapping(value_position)
 
 
 def _change_amount_of_consecutive_mappings(mapping_list, after_class, new_class, count):
@@ -593,7 +645,7 @@ def _change_amount_of_consecutive_mappings(mapping_list, after_class, new_class,
     Inserts or removes mappings of same type from mapping list.
 
     Args:
-        mapping_list (list of Mapping): flattened mappings
+        mapping_list (list of ExportMapping): flattened mappings
         after_class (Type): modified mappings are children of this type of mapping
         new_class (Type): if new mappings are needed, they will be of this type
         count (int): number of consecutive mappings after the operation
@@ -620,22 +672,25 @@ def _change_amount_of_consecutive_mappings(mapping_list, after_class, new_class,
     return final_mapping_list
 
 
-def _change_amount_of_dimensions(mapping, dimensions, single_value_mapping, expanded_value_mapping, index_mapping):
+def _change_amount_of_dimensions(
+    mapping, dimensions, single_value_mapping, expanded_value_mapping, index_mapping, index_name_mapping
+):
     """
     Changes the number of dimensions of parameter values or default values.
 
     Args:
-        mapping (Mapping): root mapping
+        mapping (ExportMapping): root mapping
         dimensions (int): number of dimensions
         single_value_mapping (Type): single value mapping class
         expanded_value_mapping (Type): expanded value mapping class
         index_mapping (Type): index mapping class
+        index_name_mapping (Type): index name mapping class
     """
     mapping_list = mapping.flatten()
     if dimensions == 0:
         if type(mapping_list[-1]) == expanded_value_mapping:
             position = mapping_list[-1].position
-            mapping_list = list(takewhile(lambda m: type(m) != index_mapping, mapping_list))
+            mapping_list = list(takewhile(lambda m: type(m) != index_name_mapping, mapping_list))
             mapping_list.append(single_value_mapping(position))
             unflatten(mapping_list)
         return
@@ -644,12 +699,13 @@ def _change_amount_of_dimensions(mapping, dimensions, single_value_mapping, expa
         mapping_list[-1] = expanded_value_mapping(position)
     existing_dimensions = len([m for m in mapping_list if type(m) == index_mapping])
     if existing_dimensions < dimensions:
+        n = dimensions - existing_dimensions
+        name_mappings = [index_name_mapping(Position.hidden) for _ in range(n)]
+        index_mappings = [index_mapping(Position.hidden) for _ in range(n)]
         mapping_list = (
-            mapping_list[:-1]
-            + [index_mapping(Position.hidden) for _ in range(dimensions - existing_dimensions)]
-            + mapping_list[-1:]
+            mapping_list[:-1] + [m for pair in zip(name_mappings, index_mappings) for m in pair] + mapping_list[-1:]
         )
         unflatten(mapping_list)
     elif existing_dimensions > dimensions:
-        mapping_list = mapping_list[: -(existing_dimensions - dimensions + 1)] + mapping_list[-1:]
+        mapping_list = mapping_list[: -2 * (existing_dimensions - dimensions) - 1] + mapping_list[-1:]
         unflatten(mapping_list)

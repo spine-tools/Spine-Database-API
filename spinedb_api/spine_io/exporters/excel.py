@@ -15,7 +15,6 @@ Framework for exporting a database to Excel file.
 :author: P. Vennström (VTT), A. Soininen (VTT), M. Marin (KTH)
 :date:   31.1.2020
 """
-
 from spinedb_api.export_mapping.export_mapping import (
     Position,
     AlternativeMapping,
@@ -37,7 +36,7 @@ from spinedb_api.export_mapping.export_mapping import (
     RelationshipMapping,
     RelationshipObjectMapping,
 )
-from spinedb_api.light_parameter_value import LightParameterValue
+from ...parameter_value import from_database_to_dimension_count
 from .excel_writer import ExcelWriter
 from .writer import write
 
@@ -74,10 +73,10 @@ class ExcelWriterWithPreamble(ExcelWriter):
             "class_name": class_name,
             "entity_dim_count": entity_dim_count,
         }
-        pv = title_key.get("light_parameter_value")
-        if pv is not None:
-            preamble["value_type"] = pv.type
-            preamble["index_dim_count"] = pv.dimension_count
+        td = title_key.get("type_and_dimensions")
+        if td is not None:
+            preamble["value_type"] = td[0]
+            preamble["index_dim_count"] = td[1]
         return preamble
 
     def _set_current_sheet(self):
@@ -224,18 +223,19 @@ def _make_relationship_map_parameter_value_mapping(relationship_class_name, obje
 
 
 def _make_parameter_value_mappings(db_map):
+    def db_value_type(type_):
+        return type_ if type_ in ("map", "time_series", "time_pattern", "array") else "single_value"
+
     object_class_names = set()
     relationship_class_names = set()
     object_class_names_per_value_type = {}
     relationship_classes_per_value_type = {}
     for pval in db_map.query(db_map.object_parameter_value_sq):
-        pv = LightParameterValue(pval.value, pval.type)
-        key = (pv.type, pv.dimension_count)
+        key = (db_value_type(pval.type), from_database_to_dimension_count(pval.value, pval.type))
         object_class_names_per_value_type.setdefault(key, set()).add(pval.object_class_name)
         object_class_names.add(pval.object_class_name)
     for pval in db_map.query(db_map.relationship_parameter_value_sq):
-        pv = LightParameterValue(pval.value, pval.type)
-        key = (pv.type, pv.dimension_count)
+        key = (db_value_type(pval.type), from_database_to_dimension_count(pval.value, pval.type))
         object_class_name_list = tuple(pval.object_class_name_list.split(","))
         relationship_classes_per_value_type.setdefault(key, set()).add(
             (pval.relationship_class_name, object_class_name_list)

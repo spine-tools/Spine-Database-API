@@ -1519,7 +1519,15 @@ class TestMappingIntegration(unittest.TestCase):
         expected["objects"] = [("object_class", "object")]
         expected_map = Map(
             ["key"],
-            [TimeSeriesVariableResolution(["2020-09-10T08:00", "2020-09-11T08:00"], [-2.0, -1.0], False, False)],
+            [
+                TimeSeriesVariableResolution(
+                    ["2020-09-10T08:00", "2020-09-11T08:00"],
+                    [-2.0, -1.0],
+                    False,
+                    False,
+                    index_name=Map.DEFAULT_INDEX_NAME,
+                )
+            ],
         )
         expected["object_parameter_values"] = [("object_class", "object", "parameter", expected_map)]
         expected["object_parameters"] = [("object_class", "parameter")]

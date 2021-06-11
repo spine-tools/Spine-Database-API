@@ -37,7 +37,14 @@ from spinedb_api import (
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.mapping import Position, to_dict
-from spinedb_api.export_mapping import rows, titles, object_parameter_export, relationship_export
+from spinedb_api.export_mapping import (
+    rows,
+    titles,
+    object_parameter_default_value_export,
+    object_parameter_export,
+    relationship_export,
+    relationship_parameter_export,
+)
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
     drop_non_positioned_tail,
@@ -285,7 +292,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(1, 2, Position.hidden, 0, -2, Position.hidden, 4, [3])
+        mapping = object_parameter_export(1, 2, Position.hidden, 0, -2, Position.hidden, 4, [Position.hidden], [3])
         expected = [
             [None, None, None, None, "Base", "alt"],
             ["o", "oc", "p", "A", -1.1, -5.5],
@@ -485,7 +492,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-5.5, -6.6])))
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [4])
+        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [Position.hidden], [4])
         expected = [
             [None, None, None, None, None, "o1", "o2"],
             ["oc", None, "p", "Base", "A", -1.1, -5.5],
@@ -510,7 +517,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [4])
+        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [Position.hidden], [4])
         expected = [
             [None, None, None, None, None, "o1", "o2"],
             ["oc", None, "p", "Base", "A", -1.1, -5.5],
@@ -530,7 +537,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-3.3, -4.4])))
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 4, [-2])
+        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 4, [Position.hidden], [-2])
         expected = [
             [None, None, None, None, "o1", "o1", "o2", "o2"],
             [None, None, None, None, "A", "B", "A", "B"],
@@ -560,7 +567,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 1, Position.hidden, -1, -2, Position.hidden, 2, [-3])
+        mapping = object_parameter_export(0, 1, Position.hidden, -1, -2, Position.hidden, 2, [Position.hidden], [-3])
         expected = [
             [None, None, "o1", "o1", "o1", "o1", "o2", "o2", "o2", "o2"],
             [None, None, "Base", "Base", "alt", "alt", "Base", "Base", "alt", "alt"],
@@ -1397,6 +1404,101 @@ class TestExportMapping(unittest.TestCase):
         root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
         expected = [["oc1"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_index_names(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_objects(db_map, (("oc", "o"),))
+        import_object_parameter_values(db_map, (("oc", "o", "p", Map(["a"], [5.0], index_name="index")),))
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_export(0, 2, Position.hidden, 1, 3, Position.hidden, 5, [Position.header], [4])
+        expected = [["", "", "", "", "index", ""], ["oc", "o", "p", "Base", "a", 5.0]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_default_value_index_names_with_nested_map(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(
+            db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3], index_name="idx2")], index_name="idx1")),)
+        )
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_default_value_export(
+            0, 1, Position.hidden, 4, [Position.header, Position.header], [2, 3]
+        )
+        expected = [["", "", "idx1", "idx2", ""], ["oc", "p", "A", "b", 2.3]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_multiple_index_names_with_empty_database(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        mapping = relationship_parameter_export(
+            0, 4, Position.hidden, 1, [2], [3], 5, Position.hidden, 8, [Position.header, Position.header], [6, 7]
+        )
+        expected = [9 * [""]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_parameter_default_value_type(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
+        import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
+        db_map.commit_session("Add test data.")
+        root_mapping = object_parameter_default_value_export(0, 1, 2, 3, None, None)
+        expected = [
+            ["oc1", "p11", "single_value", 3.14],
+            ["oc2", "p21", "single_value", 14.3],
+            ["oc2", "p22", "single_value", -1.0],
+        ]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_map_with_more_dimensions_than_index_mappings(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_objects(db_map, (("oc", "o"),))
+        import_object_parameter_values(db_map, (("oc", "o", "p", Map(["A"], [Map(["b"], [2.3])])),))
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_export(
+            0, 1, Position.hidden, 2, Position.hidden, Position.hidden, 4, [Position.hidden], [3]
+        )
+        expected = [["oc", "p", "o", "A", "map"]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_default_map_value_with_more_dimensions_than_index_mappings(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3])])),))
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
+        expected = [["oc", "p", "A", "map"]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_map_with_single_value_mapping(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_objects(db_map, (("oc", "o"),))
+        import_object_parameter_values(db_map, (("oc", "o", "p", Map(["A"], [2.3])),))
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_export(0, 1, Position.hidden, 2, Position.hidden, Position.hidden, 3, None, None)
+        expected = [["oc", "p", "o", "map"]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_default_map_value_with_single_value_mapping(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p", Map(["A"], [2.3])),))
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
+        expected = [["oc", "p", "map"]]
+        self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
 
 

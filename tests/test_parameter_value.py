@@ -39,6 +39,7 @@ from spinedb_api.parameter_value import (
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    TimeSeries,
 )
 
 
@@ -904,7 +905,9 @@ class TestParameterValue(unittest.TestCase):
         converted = convert_leaf_maps_to_specialized_containers(map_value)
         self.assertEqual(
             converted,
-            TimeSeriesVariableResolution(["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False),
+            TimeSeriesVariableResolution(
+                ["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False, index_name=Map.DEFAULT_INDEX_NAME
+            ),
         )
 
     def test_convert_leaf_maps_to_specialized_containers_no_conversion(self):
@@ -917,7 +920,9 @@ class TestParameterValue(unittest.TestCase):
         nested2 = Map([DateTime("2000-01-01T00:00"), DateTime("2000-01-02T00:00")], [-3.2, -2.3])
         map_value = Map([1.0, 2.0, 3.0], [nested1, nested2, 4.4])
         converted = convert_leaf_maps_to_specialized_containers(map_value)
-        time_series = TimeSeriesVariableResolution(["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False)
+        time_series = TimeSeriesVariableResolution(
+            ["2000-01-01T00:00", "2000-01-02T00:00"], [-3.2, -2.3], False, False, index_name=Map.DEFAULT_INDEX_NAME
+        )
         expected = Map([1.0, 2.0, 3.0], [nested1, time_series, 4.4])
         self.assertEqual(converted, expected)
 
@@ -951,14 +956,29 @@ class TestParameterValue(unittest.TestCase):
     def test_convert_containers_to_maps_time_series(self):
         time_series = TimeSeriesVariableResolution(["2020-11-27T12:55", "2020-11-27T13:00"], [2.5, 2.3], False, False)
         map_ = convert_containers_to_maps(time_series)
-        self.assertEqual(map_, Map([DateTime("2020-11-27T12:55"), DateTime("2020-11-27T13:00")], [2.5, 2.3]))
+        self.assertEqual(
+            map_,
+            Map(
+                [DateTime("2020-11-27T12:55"), DateTime("2020-11-27T13:00")],
+                [2.5, 2.3],
+                index_name=TimeSeries.DEFAULT_INDEX_NAME,
+            ),
+        )
 
     def test_convert_containers_to_maps_map_with_time_series(self):
         time_series = TimeSeriesVariableResolution(["2020-11-27T12:55", "2020-11-27T13:00"], [2.5, 2.3], False, False)
         map_ = Map(["a", "b"], [-1.1, time_series])
         converted = convert_containers_to_maps(map_)
         expected = Map(
-            ["a", "b"], [-1.1, Map([DateTime("2020-11-27T12:55"), DateTime("2020-11-27T13:00")], [2.5, 2.3])]
+            ["a", "b"],
+            [
+                -1.1,
+                Map(
+                    [DateTime("2020-11-27T12:55"), DateTime("2020-11-27T13:00")],
+                    [2.5, 2.3],
+                    index_name=TimeSeries.DEFAULT_INDEX_NAME,
+                ),
+            ],
         )
         self.assertEqual(converted, expected)
 

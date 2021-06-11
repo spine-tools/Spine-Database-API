@@ -135,7 +135,7 @@ def from_database(database_value, value_type=None):
     Converts a parameter value from its database representation to a Python object.
 
     Args:
-        database_value (bytes): a value in the database (can be None)
+        database_value (bytes, optional): a value in the database
         value_type (str, optional): the type in case of complex ones
 
     Returns:
@@ -143,7 +143,6 @@ def from_database(database_value, value_type=None):
     """
     if database_value is None:
         return None
-    database_value = str(database_value, "UTF8")
     try:
         parsed = json.loads(database_value)
     except JSONDecodeError as err:
@@ -155,6 +154,44 @@ def from_database(database_value, value_type=None):
     if isinstance(parsed, Number):
         return float(parsed)
     return parsed
+
+
+def from_database_to_single_value(database_value, value_type):
+    """
+    Converts a value from its database representation to single value.
+
+    Indexed values get converted to strings representing the value's type.
+
+    Args:
+        database_value (bytes): a value in the database
+        value_type (str, optional): value's type
+
+    Returns:
+        Any: single-value representation
+    """
+    if value_type is None or value_type not in ("map", "time_series", "time_pattern", "array"):
+        return from_database(database_value, value_type)
+    return value_type
+
+
+def from_database_to_dimension_count(database_value, value_type):
+    """
+    Counts dimensions of value's database representation
+
+    Args:
+        database_value (bytes): a value in the database
+        value_type (str, optional): value's type
+
+    Returns:
+        int: number of dimensions
+    """
+
+    if value_type in {"time_series", "time_pattern", "array"}:
+        return 1
+    if value_type == "map":
+        map_value = from_database(database_value, value_type)
+        return map_dimensions(map_value)
+    return 0
 
 
 def to_database(value):
@@ -181,6 +218,7 @@ def from_dict(value_dict, value_type=None):
 
     Args:
         value_dict (dict): value's dictionary; a parsed JSON object
+        value_type (str, optional): value's type
 
     Returns:
         the encoded (relationship) parameter value
@@ -667,6 +705,8 @@ class IndexedValue:
     Attributes:
         index_name (str): index name
     """
+
+    VALUE_TYPE = NotImplemented
 
     def __init__(self, index_name):
         """
@@ -1180,6 +1220,24 @@ class Map(IndexedValue):
         return value_dict
 
 
+def map_dimensions(map_):
+    """Counts Map's dimensions.
+
+    Args:
+        map_ (Map): a Map
+
+    Returns:
+        int: number of dimensions
+    """
+    nested = 0
+    for v in map_.values:
+        if isinstance(v, Map):
+            nested = max(nested, map_dimensions(v))
+        elif isinstance(v, IndexedValue):
+            nested = max(nested, 1)
+    return 1 + nested
+
+
 def convert_leaf_maps_to_specialized_containers(map_):
     """
     Converts suitable leaf maps to corresponding specialized containers.
@@ -1204,7 +1262,7 @@ def convert_leaf_maps_to_specialized_containers(map_):
             new_values.append(converted)
         else:
             new_values.append(value)
-    return Map(map_.indexes, new_values)
+    return Map(map_.indexes, new_values, index_name=map_.index_name)
 
 
 def convert_containers_to_maps(value):
@@ -1228,13 +1286,13 @@ def convert_containers_to_maps(value):
                 new_values.append(convert_containers_to_maps(x))
             else:
                 new_values.append(x)
-        return Map(list(value.indexes), new_values)
+        return Map(list(value.indexes), new_values, index_name=value.index_name)
     if isinstance(value, IndexedValue):
         if not value:
             if isinstance(value, TimeSeries):
-                return Map([], [], DateTime)
+                return Map([], [], DateTime, index_name=TimeSeries.DEFAULT_INDEX_NAME)
             return Map([], [], str)
-        return Map(list(value.indexes), list(value.values))
+        return Map(list(value.indexes), list(value.values), index_name=value.index_name)
     return value
 
 
@@ -1307,7 +1365,7 @@ def _try_convert_to_container(map_):
             return None
         stamps.append(index)
         values.append(value)
-    return TimeSeriesVariableResolution(stamps, values, False, False)
+    return TimeSeriesVariableResolution(stamps, values, False, False, index_name=map_.index_name)
 
 
 # List of scalar types that are supported by the spinedb_api
