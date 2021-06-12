@@ -28,6 +28,7 @@ from ..parameter_value import (
     TimePattern,
     Array,
     from_database,
+    split_value_and_type,
 )
 from ..exception import ParameterValueFormatError
 
@@ -228,7 +229,7 @@ def _make_parameter_values(mapped_data):
                 row[value_pos] = _parameter_value_from_dict(value)
             if isinstance(value, str):
                 try:
-                    row[value_pos] = from_database(bytes(value, "UTF8"), value_type=None)
+                    row[value_pos] = from_database(*split_value_and_type(value))
                 except ParameterValueFormatError:
                     pass
 
