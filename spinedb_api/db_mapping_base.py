@@ -53,6 +53,8 @@ class DatabaseMappingBase:
     It provides the :meth:`query` method for custom db querying.
     """
 
+    _session_kwargs = {}
+
     def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
         """
         Args:
@@ -80,7 +82,7 @@ class DatabaseMappingBase:
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
-        self.session = Session(self.connection)
+        self.session = Session(self.connection, **self._session_kwargs)
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
