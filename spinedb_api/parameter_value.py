@@ -56,9 +56,7 @@ class ParameterValueEncoder(json.JSONEncoder):
     """A class to serialize Spine parameter values."""
 
     def default(self, o):
-        d = o.to_dict()
-        d["type"] = o.type_()
-        return d
+        return dict(type=o.type_(), **o.to_dict())
 
 
 def duration_to_relativedelta(duration):
@@ -507,9 +505,7 @@ def _map_index_to_database(index):
 def _map_value_to_database(value):
     """Converts a single map value to database format."""
     if hasattr(value, "to_dict"):
-        d = value.to_dict()
-        d["type"] = value.type_()
-        return d
+        return dict(type=value.type_(), **value.to_dict())
     return value
 
 
