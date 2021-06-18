@@ -20,9 +20,17 @@ from itertools import cycle, dropwhile, islice
 import re
 from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
+from ..parameter_value import (
+    from_database_to_single_value,
+    from_database,
+    IndexedValue,
+    Map,
+    from_database_to_dimension_count,
+    map_dimensions,
+    convert_containers_to_maps,
+)
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from .group_functions import NoGroup
-from ..light_parameter_value import LightParameterValue
 
 
 def check_validity(root_mapping):
@@ -44,44 +52,10 @@ def check_validity(root_mapping):
     return issues
 
 
-class _IndexMappingMixin:
-    """Provides complex value expansion for ParameterValueIndexMapping and ParameterDefaultValueIndexMapping."""
+class _MappingWithLeafMixin:
+    """Provides current_leaf field."""
 
-    _current_leaf = None
-
-    def current_leaf(self):
-        """The current leaf in the parameter value dictionary.
-        Gets updated as the mapping expands and yields more data.
-
-        Returns:
-            any
-        """
-        return self._current_leaf
-
-    def _expand_data(self, data):
-        """Implements ``ExportMapping._expand_data()``.
-
-        Args:
-            data(LightParameterValue)
-
-        Returns:
-            generator(any)
-        """
-        if not isinstance(self.parent, _IndexMappingMixin):
-            # Get dict
-            current_leaf = data.to_nested_dict()
-        else:
-            # Get leaf from parent
-            current_leaf = self.parent.current_leaf()
-        if not isinstance(current_leaf, dict):
-            # Nothing to expand. Set the current leaf so the child can find it
-            self._current_leaf = current_leaf
-            yield None
-            return
-        # Expand and set the current leaf so the child can find it
-        for index, value in current_leaf.items():
-            self._current_leaf = value
-            yield index
+    current_leaf = None
 
 
 class ExportMapping(Mapping):
@@ -236,10 +210,10 @@ class ExportMapping(Mapping):
 
         Args:
             db_map (DatabaseMappingBase)
-            query (dict)
+            query (Alias or dict)
 
         Returns:
-            Query: expanded query, or the same if nothing to add.
+            Alias: expanded query, or the same if nothing to add.
         """
         return query
 
@@ -250,10 +224,10 @@ class ExportMapping(Mapping):
 
         Args:
             db_map (DatabaseMappingBase)
-            query (dict)
+            query (Alias or dict)
 
         Returns:
-            Query: filtered query, or the same if nothing to add.
+            Alias: filtered query, or the same if nothing to add.
         """
         return query
 
@@ -553,7 +527,8 @@ class ExportMapping(Mapping):
         if self.position == Position.header:
             buddy = find_my_buddy(self, buddies)
             if buddy is not None:
-                header[buddy.position] = self._data(first_row)
+                data = next(iter(self._expand_data(self._data(first_row)))) if first_row is not None else ""
+                header[buddy.position] = data
         else:
             header[self.position] = self.header
         return header
@@ -928,14 +903,69 @@ class ParameterDefaultValueMapping(ExportMapping):
         return None
 
     def _data(self, db_row):
-        return LightParameterValue(db_row.default_value, db_row.default_type).to_single_value()
+        return from_database_to_single_value(db_row.default_value, db_row.default_type)
 
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, ParameterDefinitionMapping)
 
 
-class ParameterDefaultValueIndexMapping(_IndexMappingMixin, ExportMapping):
+class ParameterDefaultValueTypeMapping(ParameterDefaultValueMapping):
+    """Maps parameter value types.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
+    an :class:`AlternativeMapping` as parents.
+    """
+
+    MAP_TYPE = "ParameterValueType"
+
+    def _data(self, db_row):
+        type_ = db_row.default_type
+        if type_ == "map":
+            return f"{map_dimensions(from_database(db_row.default_value, type_))}d_map"
+        elif type_ in ("time_series", "time_pattern", "array"):
+            return type_
+        return "single_value"
+
+    def _title_state(self, db_row):
+        return {
+            "type_and_dimensions": (
+                db_row.default_type,
+                from_database_to_dimension_count(db_row.default_value, db_row.default_type),
+            )
+        }
+
+    def filter_query_by_title(self, query, title_state):
+        pv = title_state.pop("type_and_dimensions", None)
+        if pv is None:
+            return query
+        if "default_value" not in {c["name"] for c in query.column_descriptions}:
+            return query
+        return _FilteredQuery(
+            query,
+            lambda db_row: (
+                db_row.default_type,
+                from_database_to_dimension_count(db_row.default_value, db_row.default_type) == pv,
+            ),
+        )
+
+
+class DefaultValueIndexNameMapping(_MappingWithLeafMixin, ParameterDefaultValueMapping):
+    """Maps parameter default value index names.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as a parent.
+    """
+
+    MAP_TYPE = "DefaultValueIndexName"
+
+    def _data(self, db_row):
+        return db_row.default_value, db_row.default_type
+
+    def _expand_data(self, data):
+        yield from _expand_index_names(data, self)
+
+
+class ParameterDefaultValueIndexMapping(_MappingWithLeafMixin, ExportMapping):
     """Maps default value indexes.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
@@ -950,6 +980,9 @@ class ParameterDefaultValueIndexMapping(_IndexMappingMixin, ExportMapping):
             db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
         )
 
+    def _expand_data(self, data):
+        yield from _expand_indexed_data(data, self)
+
     @staticmethod
     def name_field():
         return None
@@ -959,7 +992,11 @@ class ParameterDefaultValueIndexMapping(_IndexMappingMixin, ExportMapping):
         return None
 
     def _data(self, db_row):
-        return LightParameterValue(db_row.default_value, db_row.default_type)
+        return db_row.default_value, db_row.default_type
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, DefaultValueIndexNameMapping)
 
 
 class ExpandedParameterDefaultValueMapping(ExportMapping):
@@ -982,7 +1019,8 @@ class ExpandedParameterDefaultValueMapping(ExportMapping):
         return "default_value"
 
     def _data(self, db_row):
-        return self.parent.current_leaf()
+        value = self.parent.current_leaf
+        return value if not isinstance(value, IndexedValue) else value.VALUE_TYPE
 
 
 class ParameterValueMapping(ExportMapping):
@@ -1032,7 +1070,7 @@ class ParameterValueMapping(ExportMapping):
         return None
 
     def _data(self, db_row):
-        return LightParameterValue(db_row.value, db_row.type).to_single_value()
+        return from_database_to_single_value(db_row.value, db_row.type)
 
     @staticmethod
     def is_buddy(parent):
@@ -1049,24 +1087,44 @@ class ParameterValueTypeMapping(ParameterValueMapping):
     MAP_TYPE = "ParameterValueType"
 
     def _data(self, db_row):
-        pv = LightParameterValue(db_row.value, db_row.type)
-        if pv.type != "map":
-            return pv.type
-        return f"{pv.dimension_count}d_map"
+        type_ = db_row.type
+        if type_ == "map":
+            return f"{map_dimensions(from_database(db_row.value, type_))}d_map"
+        elif type_ in ("time_series", "time_pattern", "array"):
+            return type_
+        return "single_value"
 
     def _title_state(self, db_row):
-        return {"light_parameter_value": LightParameterValue(db_row.value, db_row.type)}
+        return {"type_and_dimensions": (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type))}
 
     def filter_query_by_title(self, query, title_state):
-        pv = title_state.pop("light_parameter_value", None)
+        pv = title_state.pop("type_and_dimensions", None)
         if pv is None:
             return query
         if "value" not in {c["name"] for c in query.column_descriptions}:
             return query
-        return _FilteredQuery(query, lambda db_row: LightParameterValue(db_row.value, db_row.type).similar(pv))
+        return _FilteredQuery(
+            query, lambda db_row: (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type) == pv)
+        )
 
 
-class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
+class IndexNameMapping(_MappingWithLeafMixin, ParameterValueMapping):
+    """Maps parameter value index names.
+
+    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
+    an :class:`AlternativeMapping` as parents.
+    """
+
+    MAP_TYPE = "IndexName"
+
+    def _data(self, db_row):
+        return db_row.value, db_row.type
+
+    def _expand_data(self, data):
+        yield from _expand_index_names(data, self)
+
+
+class ParameterValueIndexMapping(_MappingWithLeafMixin, ParameterValueMapping):
     """Maps parameter value indexes.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
@@ -1076,7 +1134,14 @@ class ParameterValueIndexMapping(_IndexMappingMixin, ParameterValueMapping):
     MAP_TYPE = "ParameterValueIndex"
 
     def _data(self, db_row):
-        return LightParameterValue(db_row.value, db_row.type)
+        return db_row.value, db_row.type
+
+    def _expand_data(self, data):
+        yield from _expand_indexed_data(data, self)
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, IndexNameMapping)
 
 
 class ExpandedParameterValueMapping(ExportMapping):
@@ -1100,7 +1165,8 @@ class ExpandedParameterValueMapping(ExportMapping):
         return "value"
 
     def _data(self, db_row):
-        return self.parent.current_leaf()
+        value = self.parent.current_leaf
+        return value if not isinstance(value, IndexedValue) else value.VALUE_TYPE
 
 
 class ParameterValueListMapping(ExportMapping):
@@ -1162,7 +1228,7 @@ class ParameterValueListValueMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return LightParameterValue(data, db_type=None).to_single_value()
+        return from_database_to_single_value(data, None)
 
     @staticmethod
     def is_buddy(parent):
@@ -1520,7 +1586,7 @@ class ToolFeatureMethodMethodMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row)
-        return LightParameterValue(data, db_type=None).to_single_value()
+        return from_database_to_single_value(data, None)
 
 
 class _DescriptionMappingBase(ExportMapping):
@@ -1647,14 +1713,20 @@ def from_dict(serialized):
         for klass in (
             AlternativeDescriptionMapping,
             AlternativeMapping,
+            DefaultValueIndexNameMapping,
+            ExpandedParameterDefaultValueMapping,
             ExpandedParameterValueMapping,
             FeatureEntityClassMapping,
             FeatureParameterDefinitionMapping,
             FixedValueMapping,
+            IndexNameMapping,
             ObjectClassMapping,
             ObjectGroupMapping,
             ObjectGroupObjectMapping,
             ObjectMapping,
+            ParameterDefaultValueIndexMapping,
+            ParameterDefaultValueMapping,
+            ParameterDefaultValueTypeMapping,
             ParameterDefinitionMapping,
             ParameterValueIndexMapping,
             ParameterValueListMapping,
@@ -1688,3 +1760,52 @@ def from_dict(serialized):
         ignorable = mapping_dict.get("ignorable", False)
         flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, ignorable, mapping_dict))
     return unflatten(flattened)
+
+
+def _expand_indexed_data(data, mapping):
+    """Expands indexed data and updates the current_leaf attribute.
+
+    Args:
+        data (Any): data to expand
+        mapping (ExportMapping): mapping whose data is being expanded
+
+    Yields:
+        Any: parameter value index
+    """
+    if not isinstance(mapping.parent, _MappingWithLeafMixin):
+        # Get dict
+        current_leaf = from_database(data[0], data[1])
+        if data[1] == "map":
+            current_leaf = convert_containers_to_maps(current_leaf)
+    else:
+        # Get leaf from parent
+        current_leaf = mapping.parent.current_leaf
+    if not isinstance(current_leaf, IndexedValue):
+        # Nothing to expand. Set the current leaf so the child can find it
+        mapping.current_leaf = current_leaf
+        yield None
+        return
+    # Expand and set the current leaf so the child can find it
+    for index, value in zip(current_leaf.indexes, current_leaf.values):
+        mapping.current_leaf = value
+        yield index
+
+
+def _expand_index_names(data, mapping):
+    """Expands index names and updates the current_leaf attribute.
+
+    Args:
+        data (Any): data to expand
+        mapping (ExportMapping): mapping whose data is being expanded
+
+    Yields:
+        str: index name
+    """
+    if not isinstance(mapping.parent, _MappingWithLeafMixin):
+        current_leaf = from_database(data[0], data[1])
+        if data[1] == "map":
+            current_leaf = convert_containers_to_maps(current_leaf)
+    else:
+        current_leaf = mapping.parent.current_leaf
+    mapping.current_leaf = current_leaf
+    yield current_leaf.index_name if isinstance(current_leaf, IndexedValue) else None

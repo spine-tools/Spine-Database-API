@@ -33,6 +33,7 @@ class DiffDatabaseMappingCommitMixin:
         """
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to commit.")
+        transaction = self.connection.begin()
         try:
             user = self.username
             date = datetime.now(timezone.utc)
@@ -77,7 +78,7 @@ class DiffDatabaseMappingCommitMixin:
                     new_items.append(kwargs)
                 self._checked_execute(orig_table.insert(), new_items)
             self._reset_diff_mapping()
-            self.session.commit()
+            transaction.commit()
             self._reset_diff_dicts()
         except DBAPIError as e:
             msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
@@ -88,9 +89,10 @@ class DiffDatabaseMappingCommitMixin:
         """
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
+        transaction = self.connection.begin()
         try:
             self._reset_diff_mapping()
-            self.session.commit()
+            transaction.commit()
             self._reset_diff_dicts()
         except DBAPIError as e:
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)

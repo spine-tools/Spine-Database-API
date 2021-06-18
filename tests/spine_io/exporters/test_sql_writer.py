@@ -159,7 +159,7 @@ class TestSqlWriter(unittest.TestCase):
                 column_names, ["table 1.classes", "table 1.objects", "table 1.parameters", "table 1.values"]
             )
             for class_ in session.query(table):
-                self.assertEqual(class_, ("oc", "o1", "p", str(dt)))
+                self.assertEqual(class_, ("oc", "o1", "p", dt.value))
             session.close()
         finally:
             connection.close()

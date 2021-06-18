@@ -16,6 +16,7 @@ Unit tests for export settings.
 """
 
 import unittest
+
 from spinedb_api import (
     DiffDatabaseMapping,
     import_object_classes,
@@ -29,6 +30,12 @@ from spinedb_api.export_mapping.settings import (
     object_group_parameter_export,
     relationship_export,
     set_relationship_dimensions,
+    object_parameter_export,
+    set_parameter_dimensions,
+    relationship_parameter_default_value_export,
+    set_parameter_default_value_dimensions,
+    object_parameter_default_value_export,
+    relationship_parameter_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
     Position,
@@ -36,6 +43,16 @@ from spinedb_api.export_mapping.export_mapping import (
     RelationshipClassObjectClassMapping,
     RelationshipMapping,
     RelationshipObjectMapping,
+    ExpandedParameterValueMapping,
+    ParameterValueIndexMapping,
+    IndexNameMapping,
+    ParameterValueTypeMapping,
+    ParameterValueMapping,
+    ExpandedParameterDefaultValueMapping,
+    ParameterDefaultValueIndexMapping,
+    DefaultValueIndexNameMapping,
+    ParameterDefaultValueTypeMapping,
+    ParameterDefaultValueMapping,
 )
 
 
@@ -138,6 +155,98 @@ class TestSetRelationshipDimensions(unittest.TestCase):
         )
         positions = [mapping.position for mapping in flattened]
         self.assertEqual(positions, [0, 2, 1, 4])
+
+
+class TestSetParameterDimensions(unittest.TestCase):
+    def test_set_dimensions_from_zero_to_one(self):
+        root_mapping = object_parameter_export()
+        set_parameter_dimensions(root_mapping, 1)
+        expected_types = [
+            ExpandedParameterValueMapping,
+            ParameterValueIndexMapping,
+            IndexNameMapping,
+            ParameterValueTypeMapping,
+        ]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_default_value_dimensions_from_zero_to_one(self):
+        root_mapping = relationship_parameter_default_value_export()
+        set_parameter_default_value_dimensions(root_mapping, 1)
+        expected_types = [
+            ExpandedParameterDefaultValueMapping,
+            ParameterDefaultValueIndexMapping,
+            DefaultValueIndexNameMapping,
+            ParameterDefaultValueTypeMapping,
+        ]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_dimensions_from_one_to_zero(self):
+        root_mapping = relationship_parameter_export(index_name_positions=[0], index_positions=[1])
+        set_parameter_dimensions(root_mapping, 0)
+        expected_types = [ParameterValueMapping, ParameterValueTypeMapping]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_default_value_dimensions_from_one_to_zero(self):
+        root_mapping = object_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
+        set_parameter_default_value_dimensions(root_mapping, 0)
+        expected_types = [ParameterDefaultValueMapping, ParameterDefaultValueTypeMapping]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_dimensions_from_one_to_two(self):
+        root_mapping = relationship_parameter_export(index_name_positions=[0], index_positions=[1])
+        set_parameter_dimensions(root_mapping, 2)
+        expected_types = [
+            ExpandedParameterValueMapping,
+            ParameterValueIndexMapping,
+            IndexNameMapping,
+            ParameterValueIndexMapping,
+            IndexNameMapping,
+            ParameterValueTypeMapping,
+        ]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_default_value_dimensions_from_one_to_two(self):
+        root_mapping = relationship_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
+        set_parameter_default_value_dimensions(root_mapping, 2)
+        expected_types = [
+            ExpandedParameterDefaultValueMapping,
+            ParameterDefaultValueIndexMapping,
+            DefaultValueIndexNameMapping,
+            ParameterDefaultValueIndexMapping,
+            DefaultValueIndexNameMapping,
+            ParameterDefaultValueTypeMapping,
+        ]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_dimensions_from_two_to_one(self):
+        root_mapping = relationship_parameter_export(index_name_positions=[0, 2], index_positions=[1, 3])
+        set_parameter_dimensions(root_mapping, 1)
+        expected_types = [
+            ExpandedParameterValueMapping,
+            ParameterValueIndexMapping,
+            IndexNameMapping,
+            ParameterValueTypeMapping,
+        ]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
+
+    def test_set_default_value_dimensions_from_two_to_one(self):
+        root_mapping = relationship_parameter_default_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
+        set_parameter_default_value_dimensions(root_mapping, 1)
+        expected_types = [
+            ExpandedParameterDefaultValueMapping,
+            ParameterDefaultValueIndexMapping,
+            DefaultValueIndexNameMapping,
+            ParameterDefaultValueTypeMapping,
+        ]
+        for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
+            self.assertIsInstance(mapping, expected_type)
 
 
 if __name__ == "__main__":

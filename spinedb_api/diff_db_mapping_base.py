@@ -36,6 +36,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
     # NOTE: It works by creating and mapping a set of
     # temporary 'diff' tables, where temporary changes are staged until the moment of commit.
 
+    _session_kwargs = dict(autocommit=True)
+
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)

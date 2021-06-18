@@ -108,6 +108,8 @@ def _convert_to_excel(x):
         if numpy.isnan(x):
             return "nan"
         return float(x)
+    elif isinstance(x, numpy.int_):
+        return int(x)
     if not isinstance(x, (float, int, str)) and x is not None:
         return str(x)
     return x
