@@ -684,7 +684,7 @@ class _Indexes(np.ndarray):
 
     def __setitem__(self, position, index):
         old_index = self.__getitem__(position)
-        self.position_lookup[index] = self.position_lookup.pop(old_index)
+        self.position_lookup[index] = self.position_lookup.pop(old_index, '')
         super().__setitem__(position, index)
 
     def __eq__(self, other):
