@@ -168,7 +168,7 @@ class DatabaseMappingUpdateMixin:
             updated_item = wide_parameter_value_lists.get(id_)
             if updated_item is None:
                 continue
-            updated_item["value_list"] = updated_item["value_list"].split(";")
+            updated_item["value_list"] = [bytes(x, "UTF8") for x in updated_item["value_list"].split(";")]
             if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
                 continue
             updated_item.update(item)
