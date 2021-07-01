@@ -24,7 +24,6 @@ from ..parameter_value import (
     from_database_to_single_value,
     from_database,
     IndexedValue,
-    Map,
     from_database_to_dimension_count,
     map_dimensions,
     convert_containers_to_maps,
@@ -618,7 +617,7 @@ class ObjectClassMapping(ExportMapping):
 
     @staticmethod
     def id_field():
-        # Use the class name here, for the benefit of the standard excel export
+        # Use the class name here, for the sake of the standard excel export
         return "object_class_name"
 
 
@@ -717,6 +716,8 @@ class RelationshipClassMapping(ExportMapping):
         return query.add_columns(
             db_map.wide_relationship_class_sq.c.id.label("relationship_class_id"),
             db_map.wide_relationship_class_sq.c.name.label("relationship_class_name"),
+            db_map.wide_relationship_class_sq.c.object_class_id_list,
+            db_map.wide_relationship_class_sq.c.object_class_name_list,
         )
 
     @staticmethod
@@ -725,8 +726,13 @@ class RelationshipClassMapping(ExportMapping):
 
     @staticmethod
     def id_field():
-        # Use the class name here, for the benefit of the standard excel export
+        # Use the class name here, for the sake of the standard excel export
         return "relationship_class_name"
+
+    def _title_state(self, db_row):
+        state = super()._title_state(db_row)
+        state["object_class_id_list"] = getattr(db_row, "object_class_id_list")
+        return state
 
     def index(self):
         return -1
@@ -739,12 +745,6 @@ class RelationshipClassObjectClassMapping(ExportMapping):
     """
 
     MAP_TYPE = "RelationshipClassObjectClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.wide_relationship_class_sq.c.object_class_id_list,
-            db_map.wide_relationship_class_sq.c.object_class_name_list,
-        )
 
     @staticmethod
     def name_field():
@@ -782,6 +782,8 @@ class RelationshipMapping(ExportMapping):
         return query.add_columns(
             db_map.wide_relationship_sq.c.id.label("relationship_id"),
             db_map.wide_relationship_sq.c.name.label("relationship_name"),
+            db_map.wide_relationship_sq.c.object_id_list,
+            db_map.wide_relationship_sq.c.object_name_list,
         )
 
     def filter_query(self, db_map, query):
@@ -797,6 +799,11 @@ class RelationshipMapping(ExportMapping):
     @staticmethod
     def id_field():
         return "relationship_id"
+
+    def _title_state(self, db_row):
+        state = super()._title_state(db_row)
+        state["object_id_list"] = getattr(db_row, "object_id_list")
+        return state
 
     @staticmethod
     def is_buddy(parent):
@@ -814,11 +821,6 @@ class RelationshipObjectMapping(ExportMapping):
     """
 
     MAP_TYPE = "RelationshipObject"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.wide_relationship_sq.c.object_id_list, db_map.wide_relationship_sq.c.object_name_list
-        )
 
     @staticmethod
     def name_field():
@@ -923,7 +925,7 @@ class ParameterDefaultValueTypeMapping(ParameterDefaultValueMapping):
         type_ = db_row.default_type
         if type_ == "map":
             return f"{map_dimensions(from_database(db_row.default_value, type_))}d_map"
-        elif type_ in ("time_series", "time_pattern", "array"):
+        if type_ in ("time_series", "time_pattern", "array"):
             return type_
         return "single_value"
 
@@ -1090,7 +1092,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         type_ = db_row.type
         if type_ == "map":
             return f"{map_dimensions(from_database(db_row.value, type_))}d_map"
-        elif type_ in ("time_series", "time_pattern", "array"):
+        if type_ in ("time_series", "time_pattern", "array"):
             return type_
         return "single_value"
 

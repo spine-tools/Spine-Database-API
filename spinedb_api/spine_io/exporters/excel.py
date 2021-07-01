@@ -66,7 +66,7 @@ class ExcelWriterWithPreamble(ExcelWriter):
             entity_dim_count = 1
         else:
             entity_type = "relationship"
-            entity_dim_count = len(object_class_id_list)
+            entity_dim_count = len(object_class_id_list.split(","))
         preamble = {
             "sheet_type": "entity",
             "entity_type": entity_type,

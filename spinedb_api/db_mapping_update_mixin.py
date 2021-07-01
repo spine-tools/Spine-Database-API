@@ -161,7 +161,7 @@ class DatabaseMappingUpdateMixin:
         updated_ids = set()
         for item in checked_items:
             id_ = item.get("id")
-            if "id" is None:
+            if id_ is None:
                 continue
             if list(item.keys()) == ["id"]:
                 continue
