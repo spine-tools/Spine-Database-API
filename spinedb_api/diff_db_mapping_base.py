@@ -16,6 +16,7 @@ Provides :class:`.DiffDatabaseMappingBase`.
 :date:   11.8.2018
 """
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from sqlalchemy import Table, select
 from sqlalchemy.sql.expression import literal, union_all
@@ -50,6 +51,17 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Initialize stuff
         self._init_diff_dicts()
         self._create_diff_tables()
+
+    @contextmanager
+    def original_tables(self):
+        base_subquery = self._subquery
+        try:
+            self._clear_subqueries(*self._tablenames)
+            self._subquery = self._orig_subquery
+            yield None
+        finally:
+            self._clear_subqueries(*self._tablenames)
+            self._subquery = base_subquery
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""

@@ -174,7 +174,8 @@ class DatabaseMappingAddMixin:
     def readd_items(self, tablename, *items):
         """Add known items to database."""
         ids = set(x["id"] for x in items)
-        self._do_add_items(tablename, *items)
+        for _ in self._do_add_items(tablename, *items):
+            pass
         return ids, []
 
     def _items_to_add_per_table(self, tablename, items_to_add):
@@ -260,60 +261,60 @@ class DatabaseMappingAddMixin:
         else:
             yield (tablename, items_to_add)
 
-    def add_object_classes(self, *items, strict=False, return_dups=False):
-        return self.add_items("object_class", *items, strict=strict, return_dups=return_dups)
+    def add_object_classes(self, *items, **kwargs):
+        return self.add_items("object_class", *items, **kwargs)
 
-    def add_objects(self, *items, strict=False, return_dups=False):
-        return self.add_items("object", *items, strict=strict, return_dups=return_dups)
+    def add_objects(self, *items, **kwargs):
+        return self.add_items("object", *items, **kwargs)
 
-    def add_wide_relationship_classes(self, *items, strict=False, return_dups=False):
-        return self.add_items("relationship_class", *items, strict=strict, return_dups=return_dups)
+    def add_wide_relationship_classes(self, *items, **kwargs):
+        return self.add_items("relationship_class", *items, **kwargs)
 
-    def add_wide_relationships(self, *items, strict=False, return_dups=False):
-        return self.add_items("relationship", *items, strict=strict, return_dups=return_dups)
+    def add_wide_relationships(self, *items, **kwargs):
+        return self.add_items("relationship", *items, **kwargs)
 
-    def add_parameter_definitions(self, *items, strict=False, return_dups=False):
-        return self.add_items("parameter_definition", *items, strict=strict, return_dups=return_dups)
+    def add_parameter_definitions(self, *items, **kwargs):
+        return self.add_items("parameter_definition", *items, **kwargs)
 
-    def add_parameter_values(self, *items, strict=False, return_dups=False):
-        return self.add_items("parameter_value", *items, strict=strict, return_dups=return_dups)
+    def add_parameter_values(self, *items, **kwargs):
+        return self.add_items("parameter_value", *items, **kwargs)
 
     def add_checked_parameter_values(self, *checked_items):
         ids = self._add_parameter_values(*checked_items)
         return ids, []
 
-    def add_wide_parameter_value_lists(self, *items, strict=False, return_dups=False):
-        return self.add_items("parameter_value_list", *items, strict=strict, return_dups=return_dups)
+    def add_wide_parameter_value_lists(self, *items, **kwargs):
+        return self.add_items("parameter_value_list", *items, **kwargs)
 
-    def add_features(self, *items, strict=False, return_dups=False):
-        return self.add_items("feature", *items, strict=strict, return_dups=return_dups)
+    def add_features(self, *items, **kwargs):
+        return self.add_items("feature", *items, **kwargs)
 
-    def add_tools(self, *items, strict=False, return_dups=False):
-        return self.add_items("tool", *items, strict=strict, return_dups=return_dups)
+    def add_tools(self, *items, **kwargs):
+        return self.add_items("tool", *items, **kwargs)
 
-    def add_tool_features(self, *items, strict=False, return_dups=False):
-        return self.add_items("tool_feature", *items, strict=strict, return_dups=return_dups)
+    def add_tool_features(self, *items, **kwargs):
+        return self.add_items("tool_feature", *items, **kwargs)
 
-    def add_tool_feature_methods(self, *items, strict=False, return_dups=False):
-        return self.add_items("tool_feature_method", *items, strict=strict, return_dups=return_dups)
+    def add_tool_feature_methods(self, *items, **kwargs):
+        return self.add_items("tool_feature_method", *items, **kwargs)
 
-    def add_alternatives(self, *items, strict=False, return_dups=False):
-        return self.add_items("alternative", *items, strict=strict, return_dups=return_dups)
+    def add_alternatives(self, *items, **kwargs):
+        return self.add_items("alternative", *items, **kwargs)
 
-    def add_scenarios(self, *items, strict=False, return_dups=False):
-        return self.add_items("scenario", *items, strict=strict, return_dups=return_dups)
+    def add_scenarios(self, *items, **kwargs):
+        return self.add_items("scenario", *items, **kwargs)
 
-    def add_scenario_alternatives(self, *items, strict=False, return_dups=False):
-        return self.add_items("scenario_alternative", *items, strict=strict, return_dups=return_dups)
+    def add_scenario_alternatives(self, *items, **kwargs):
+        return self.add_items("scenario_alternative", *items, **kwargs)
 
-    def add_entity_groups(self, *items, strict=False, return_dups=False):
-        return self.add_items("entity_group", *items, strict=strict, return_dups=return_dups)
+    def add_entity_groups(self, *items, **kwargs):
+        return self.add_items("entity_group", *items, **kwargs)
 
-    def add_parameter_tags(self, *items, strict=False, return_dups=False):
-        return self.add_items("parameter_tag", *items, strict=strict, return_dups=return_dups)
+    def add_parameter_tags(self, *items, **kwargs):
+        return self.add_items("parameter_tag", *items, **kwargs)
 
-    def add_parameter_definition_tags(self, *items, strict=False, return_dups=False):
-        return self.add_items("parameter_definition_tag", *items, strict=strict, return_dups=return_dups)
+    def add_parameter_definition_tags(self, *items, **kwargs):
+        return self.add_items("parameter_definition_tag", *items, **kwargs)
 
     def _add_object_classes(self, *items):
         return self._add_items("object_class", *items)
