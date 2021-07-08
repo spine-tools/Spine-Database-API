@@ -950,6 +950,14 @@ class TestParameterValue(unittest.TestCase):
         table = convert_map_to_table(nested_map, True)
         self.assertEqual(table, [["A", "a", -3.2], ["A", "b", -2.3], ["B", 42.0, None]])
 
+    def test_convert_nested_map_to_table_using_special_empty_cells(self):
+        map1 = Map(["a"], [-2.3])
+        nested_map = Map(["A", "B", "C"], [map1, 42.0, map1])
+        empty = object()
+        table = convert_map_to_table(nested_map, True, empty=empty)
+        self.assertEqual(table, [["A", "a", -2.3], ["B", 42.0, empty], ["C", "a", -2.3]])
+        self.assertIs(table[1][2], empty)
+
     def test_convert_containers_to_maps_empty_map(self):
         self.assertEqual(convert_containers_to_maps(Map([], [], str)), Map([], [], str))
 
