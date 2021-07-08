@@ -516,7 +516,7 @@ def _map_values_from_database(values_in_db):
     values = list()
     for value_in_db in values_in_db:
         value = from_dict(value_in_db, value_in_db["type"]) if isinstance(value_in_db, dict) else value_in_db
-        if not isinstance(value, (float, Duration, IndexedValue, str, DateTime)):
+        if value is not None and not isinstance(value, (float, bool, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
     return values
