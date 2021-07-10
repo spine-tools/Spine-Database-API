@@ -104,7 +104,7 @@ class DatabaseMappingCheckMixin:
             "tool_feature_method": "tool_feature_method_sq",
             "parameter_value_list": "wide_parameter_value_list_sq",
             "alternative": "alternative_sq",
-            "scenario": "scenario_sq",
+            "scenario": "wide_scenario_sq",
             "scenario_alternative": "scenario_alternative_sq",
             "object_class": "object_class_sq",
             "object": "object_sq",
@@ -115,8 +115,7 @@ class DatabaseMappingCheckMixin:
             "parameter_value": "entity_parameter_value_sq",
         }
         return {
-            item_type: {x.id: x for x in self.query(getattr(self, sqs[item_type]))}
-            for item_type in set(item_types) & sqs.keys()
+            item_type: self.query(getattr(self, sqs[item_type])).all() for item_type in set(item_types) & sqs.keys()
         }
 
     def check_features_for_insert(self, *items, strict=False, cache=None):

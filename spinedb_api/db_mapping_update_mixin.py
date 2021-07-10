@@ -154,34 +154,17 @@ class DatabaseMappingUpdateMixin:
         return checked_items if return_items else updated_ids, intgr_error_log
 
     def _update_wide_parameter_value_lists(self, *checked_items):
-        # FIXME: use cache for this query
-        wide_parameter_value_lists = {x.id: x._asdict() for x in self.query(self.wide_parameter_value_list_sq)}
-        updated_items = list()
-        updated_ids = set()
-        for item in checked_items:
-            id_ = item.get("id")
-            if id_ is None:
-                continue
-            if list(item.keys()) == ["id"]:
-                continue
-            updated_item = wide_parameter_value_lists.get(id_)
-            if updated_item is None:
-                continue
-            updated_item["value_list"] = [bytes(x, "UTF8") for x in updated_item["value_list"].split(";")]
-            if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
-                continue
-            updated_item.update(item)
-            updated_items.append(updated_item)
-            updated_ids.add(id_)
+        checked_items = list(checked_items)
+        ids = {item["id"] for item in checked_items}
         try:
-            self.remove_items(parameter_value_list=updated_ids)
-            self.readd_wide_parameter_value_lists(*updated_items)
-            return updated_ids
+            self.remove_items(parameter_value_list=ids)
+            self.add_wide_parameter_value_lists(*checked_items, readd=True)
+            return ids
         except SpineDBAPIError as e:
             msg = "DBAPIError while updating parameter value lists: {}".format(e.msg)
             raise SpineDBAPIError(msg)
 
-    def get_data_to_set_scenario_alternatives(self, *items):
+    def get_data_to_set_scenario_alternatives(self, *items, cache=None):
         """Returns data to add and remove, in order to set wide scenario alternatives.
 
         Args:
@@ -194,10 +177,11 @@ class DatabaseMappingUpdateMixin:
             list: narrow scenario_alternative :class:`dict` objects to add.
             set: integer scenario_alternative ids to remove
         """
-        # FIXME: use cache for these queries
-        current_alternative_id_lists = {x.id: x.alternative_id_list for x in self.query(self.wide_scenario_sq)}
+        if cache is None:
+            cache = self._make_cache("scenario_alternative", "scenario")
+        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", ())}
         scenario_alternative_ids = {
-            (x.scenario_id, x.alternative_id): x.id for x in self.query(self.scenario_alternative_sq)
+            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", ())
         }
         items_to_add = list()
         ids_to_remove = set()
