@@ -43,13 +43,12 @@ class DatabaseMappingUpdateMixin:
             "object": "entity",
             "relationship": "entity",
         }.get(tablename, tablename)
-        item = items[0]
         table = self._metadata.tables[real_tablename]
         items, ids = self._items_to_update_and_ids(*items)
         upd = table.update()
         for k in self._get_primary_key(real_tablename):
             upd = upd.where(getattr(table.c, k) == bindparam(k))
-        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & item.keys()})
+        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
         try:
             self._checked_execute(upd, items)
         except DBAPIError as e:
@@ -57,105 +56,105 @@ class DatabaseMappingUpdateMixin:
             raise SpineDBAPIError(msg)
         return set(ids)
 
-    def update_items(self, tablename, *items, strict=False):
+    def update_items(self, tablename, *items, strict=False, return_items=False, cache=None):
         """Update items."""
-        checked_items, intgr_error_log = self.check_items_for_update(tablename, *items, strict=strict)
+        checked_items, intgr_error_log = self.check_items_for_update(tablename, *items, strict=strict, cache=cache)
         updated_ids = self._update_items(tablename, *checked_items)
-        return updated_ids, intgr_error_log
+        return checked_items if return_items else updated_ids, intgr_error_log
 
-    def update_alternatives(self, *items, strict=False):
-        return self.update_items("alternative", *items, strict=strict)
+    def update_alternatives(self, *items, **kwargs):
+        return self.update_items("alternative", *items, **kwargs)
 
     def _update_alternatives(self, *items):
         return self._update_items("alternative", *items)
 
-    def update_scenarios(self, *items, strict=False):
-        return self.update_items("scenario", *items, strict=strict)
+    def update_scenarios(self, *items, **kwargs):
+        return self.update_items("scenario", *items, **kwargs)
 
     def _update_scenarios(self, *items):
         return self._update_items("scenario", *items)
 
-    def update_scenario_alternatives(self, *items, strict=False):
-        return self.update_items("scenario_alternative", *items, strict=strict)
+    def update_scenario_alternatives(self, *items, **kwargs):
+        return self.update_items("scenario_alternative", *items, **kwargs)
 
     def _update_scenario_alternatives(self, *items):
         return self._update_items("scenario_alternative", *items)
 
-    def update_object_classes(self, *items, strict=False):
-        return self.update_items("object_class", *items, strict=strict)
+    def update_object_classes(self, *items, **kwargs):
+        return self.update_items("object_class", *items, **kwargs)
 
     def _update_object_classes(self, *items):
         return self._update_items("object_class", *items)
 
-    def update_objects(self, *items, strict=False):
-        return self.update_items("object", *items, strict=strict)
+    def update_objects(self, *items, **kwargs):
+        return self.update_items("object", *items, **kwargs)
 
     def _update_objects(self, *items):
         return self._update_items("object", *items)
 
-    def update_wide_relationship_classes(self, *items, strict=False):
-        return self.update_items("relationship_class", *items, strict=strict)
+    def update_wide_relationship_classes(self, *items, **kwargs):
+        return self.update_items("relationship_class", *items, **kwargs)
 
     def _update_wide_relationship_classes(self, *items):
         return self._update_items("relationship_class", *items)
 
-    def update_wide_relationships(self, *items, strict=False):
-        return self.update_items("relationship_class", *items, strict=strict)
+    def update_wide_relationships(self, *items, **kwargs):
+        return self.update_items("relationship", *items, **kwargs)
 
     def _update_wide_relationships(self, *items):
-        return self._update_items("entity", *items)
+        return self._update_items("relationship", *items)
 
-    def update_parameter_definitions(self, *items, strict=False):
-        return self.update_items("parameter_definition", *items, strict=strict)
+    def update_parameter_definitions(self, *items, **kwargs):
+        return self.update_items("parameter_definition", *items, **kwargs)
 
     def _update_parameter_definitions(self, *items):
         return self._update_items("parameter_definition", *items)
 
-    def update_parameter_values(self, *items, strict=False):
-        return self.update_items("parameter_value", *items, strict=strict)
-
-    def update_checked_parameter_values(self, *items, strict=False):
-        return self._update_items("parameter_value", *items), []
+    def update_parameter_values(self, *items, **kwargs):
+        return self.update_items("parameter_value", *items, **kwargs)
 
     def _update_parameter_values(self, *items):
         return self._update_items("parameter_value", *items)
 
-    def update_parameter_tags(self, *items, strict=False):
-        return self.update_items("parameter_tag", *items, strict=strict)
+    def update_parameter_tags(self, *items, **kwargs):
+        return self.update_items("parameter_tag", *items, **kwargs)
 
     def _update_parameter_tags(self, *items):
         return self._update_items("parameter_tag", *items)
 
-    def update_features(self, *items, strict=False):
-        return self.update_items("feature", *items, strict=strict)
+    def update_features(self, *items, **kwargs):
+        return self.update_items("feature", *items, **kwargs)
 
     def _update_features(self, *items):
         return self._update_items("feature", *items)
 
-    def update_tools(self, *items, strict=False):
-        return self.update_items("tool", *items, strict=strict)
+    def update_tools(self, *items, **kwargs):
+        return self.update_items("tool", *items, **kwargs)
 
     def _update_tools(self, *items):
         return self._update_items("tool", *items)
 
-    def update_tool_features(self, *items, strict=False):
-        return self.update_items("tool_feature", *items, strict=strict)
+    def update_tool_features(self, *items, **kwargs):
+        return self.update_items("tool_feature", *items, **kwargs)
 
     def _update_tool_features(self, *items):
         return self._update_items("tool_feature", *items)
 
-    def update_tool_feature_methods(self, *items, strict=False):
-        return self.update_items("tool_feature_method", *items, strict=strict)
+    def update_tool_feature_methods(self, *items, **kwargs):
+        return self.update_items("tool_feature_method", *items, **kwargs)
 
     def _update_tool_feature_methods(self, *items):
         return self._update_items("tool_feature_method", *items)
 
-    def update_wide_parameter_value_lists(self, *items, strict=False):
-        checked_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(*items, strict=strict)
+    def update_wide_parameter_value_lists(self, *items, strict=False, return_items=False, cache=None):
+        checked_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
+            *items, strict=strict, cache=cache
+        )
         updated_ids = self._update_wide_parameter_value_lists(*checked_items)
-        return updated_ids, intgr_error_log
+        return checked_items if return_items else updated_ids, intgr_error_log
 
-    def _update_wide_parameter_value_lists(self, *checked_items, strict=False):
+    def _update_wide_parameter_value_lists(self, *checked_items):
+        # FIXME: use cache for this query
         wide_parameter_value_lists = {x.id: x._asdict() for x in self.query(self.wide_parameter_value_list_sq)}
         updated_items = list()
         updated_ids = set()
@@ -195,6 +194,7 @@ class DatabaseMappingUpdateMixin:
             list: narrow scenario_alternative :class:`dict` objects to add.
             set: integer scenario_alternative ids to remove
         """
+        # FIXME: use cache for these queries
         current_alternative_id_lists = {x.id: x.alternative_id_list for x in self.query(self.wide_scenario_sq)}
         scenario_alternative_ids = {
             (x.scenario_id, x.alternative_id): x.id for x in self.query(self.scenario_alternative_sq)
@@ -229,6 +229,7 @@ class DatabaseMappingUpdateMixin:
             list: narrow parameter_definition_tag :class:`dict` objects to add.
             set: integer parameter_definition_tag ids to remove
         """
+        # FIXME: use cache for these queries
         current_tag_id_lists = {
             x.id: x.parameter_tag_id_list for x in self.query(self.wide_parameter_definition_tag_sq)
         }

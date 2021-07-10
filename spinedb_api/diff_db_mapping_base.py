@@ -16,7 +16,6 @@ Provides :class:`.DiffDatabaseMappingBase`.
 :date:   11.8.2018
 """
 
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from sqlalchemy import Table, select
 from sqlalchemy.sql.expression import literal, union_all
@@ -51,17 +50,6 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         # Initialize stuff
         self._init_diff_dicts()
         self._create_diff_tables()
-
-    @contextmanager
-    def original_tables(self):
-        base_subquery = self._subquery
-        try:
-            self._clear_subqueries(*self._tablenames)
-            self._subquery = self._orig_subquery
-            yield None
-        finally:
-            self._clear_subqueries(*self._tablenames)
-            self._subquery = base_subquery
 
     def _init_diff_dicts(self):
         """Initialize dictionaries that help keeping track of the differences."""
@@ -110,17 +98,15 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             diff_row_selects = [
                 select([literal(v).label(k) for k, v in row._asdict().items()]) for row in self.query(diff_table)
             ]
-            if not diff_row_selects:
-                return super()._subquery(tablename)
             diff_table = union_all(*diff_row_selects).alias()
         orig_table = self._metadata.tables[tablename]
         table_id = self.table_ids.get(tablename, "id")
-        return (
-            self.query(*labelled_columns(orig_table))
-            .filter(~self.in_(getattr(orig_table.c, table_id), self.dirty_item_id[tablename]))
-            .union_all(self.query(*labelled_columns(diff_table)))
-            .subquery()
+        qry = self.query(*labelled_columns(orig_table)).filter(
+            ~self.in_(getattr(orig_table.c, table_id), self.dirty_item_id[tablename])
         )
+        if self.added_item_id[tablename] or self.updated_item_id[tablename]:
+            qry = qry.union_all(self.query(*labelled_columns(diff_table)))
+        return qry.subquery()
 
     def _orig_subquery(self, tablename):
         """A subquery of the form:

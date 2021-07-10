@@ -112,7 +112,14 @@ class DatabaseMappingAddMixin:
             append_item(item)
         return items_to_add, set(ids)
 
-    def add_items(self, tablename, *items, strict=False, return_dups=False):
+    def _readd_items(self, tablename, *items):
+        """Add known items to database."""
+        for _ in self._do_add_items(tablename, *items):
+            pass
+
+    def add_items(
+        self, tablename, *items, strict=False, return_dups=False, return_items=False, cache=None, readd=False
+    ):
         """Add items to db.
 
         Args:
@@ -126,13 +133,16 @@ class DatabaseMappingAddMixin:
             set: ids succesfully staged
             list(SpineIntegrityError): found violations
         """
-        checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict)
-        ids = self._add_items(tablename, *checked_items)
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
+        if readd:
+            self._readd_items(tablename, *items)
+            return
+        checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict, cache=cache)
+        result = self._add_items(tablename, *checked_items, return_items=return_items)
+        if return_dups and not return_items:
+            result.update(set(x.id for x in intgr_error_log if x.id))
+        return result, intgr_error_log
 
-    def _add_items(self, tablename, *items):
+    def _add_items(self, tablename, *items, return_items=False):
         """Add items to database without checking integrity.
 
         Args:
@@ -147,7 +157,7 @@ class DatabaseMappingAddMixin:
         items_to_add, ids = self._items_and_ids(tablename, *items)
         for _ in self._do_add_items(tablename, *items_to_add):
             pass
-        return ids
+        return items_to_add if return_items else ids
 
     def _get_table_for_insert(self, tablename):
         """
@@ -171,13 +181,6 @@ class DatabaseMappingAddMixin:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg)
 
-    def readd_items(self, tablename, *items):
-        """Add known items to database."""
-        ids = set(x["id"] for x in items)
-        for _ in self._do_add_items(tablename, *items):
-            pass
-        return ids, []
-
     def _items_to_add_per_table(self, tablename, items_to_add):
         """
         Yields tuples of string tablename, list of items to insert. Needed because some insert queries
@@ -194,7 +197,6 @@ class DatabaseMappingAddMixin:
             oc_items_to_add = list()
             append_oc_items_to_add = oc_items_to_add.append
             for item in items_to_add:
-                item["type_id"] = self.object_class_type
                 append_oc_items_to_add({"entity_class_id": item["id"], "type_id": self.object_class_type})
             yield ("entity_class", items_to_add)
             yield ("object_class", oc_items_to_add)
@@ -202,7 +204,6 @@ class DatabaseMappingAddMixin:
             o_items_to_add = list()
             append_o_items_to_add = o_items_to_add.append
             for item in items_to_add:
-                item["type_id"] = self.object_entity_type
                 append_o_items_to_add({"entity_id": item["id"], "type_id": item["type_id"]})
             yield ("entity", items_to_add)
             yield ("object", o_items_to_add)
@@ -210,7 +211,6 @@ class DatabaseMappingAddMixin:
             rc_items_to_add = list()
             rec_items_to_add = list()
             for item in items_to_add:
-                item["type_id"] = self.relationship_class_type
                 rc_items_to_add.append({"entity_class_id": item["id"], "type_id": self.relationship_class_type})
                 rec_items_to_add += get_relationship_entity_class_items(item, self.object_class_type)
             yield ("entity_class", items_to_add)
@@ -220,7 +220,6 @@ class DatabaseMappingAddMixin:
             re_items_to_add = list()
             r_items_to_add = list()
             for item in items_to_add:
-                item["type_id"] = self.relationship_entity_type
                 r_items_to_add.append(
                     {
                         "entity_id": item["id"],
@@ -278,10 +277,6 @@ class DatabaseMappingAddMixin:
 
     def add_parameter_values(self, *items, **kwargs):
         return self.add_items("parameter_value", *items, **kwargs)
-
-    def add_checked_parameter_values(self, *checked_items):
-        ids = self._add_parameter_values(*checked_items)
-        return ids, []
 
     def add_wide_parameter_value_lists(self, *items, **kwargs):
         return self.add_items("parameter_value_list", *items, **kwargs)
@@ -375,57 +370,6 @@ class DatabaseMappingAddMixin:
 
     def _add_entity_metadata(self, *items):
         return self._add_items("entity_metadata", *items)
-
-    def readd_object_classes(self, *items):
-        return self.readd_items("object_class", *items)
-
-    def readd_objects(self, *items):
-        return self.readd_items("object", *items)
-
-    def readd_wide_relationship_classes(self, *items):
-        return self.readd_items("relationship_class", *items)
-
-    def readd_wide_relationships(self, *items):
-        return self.readd_items("relationship", *items)
-
-    def readd_parameter_definitions(self, *items):
-        return self.readd_items("parameter_definition", *items)
-
-    def readd_parameter_values(self, *items):
-        return self.readd_items("parameter_value", *items)
-
-    def readd_wide_parameter_value_lists(self, *items):
-        return self.readd_items("parameter_value_list", *items)
-
-    def readd_features(self, *items):
-        return self.readd_items("feature", *items)
-
-    def readd_tools(self, *items):
-        return self.readd_items("tool", *items)
-
-    def readd_tool_features(self, *items):
-        return self.readd_items("tool_feature", *items)
-
-    def readd_tool_feature_methods(self, *items):
-        return self.readd_items("tool_feature_method", *items)
-
-    def readd_alternatives(self, *items):
-        return self.readd_items("alternative", *items)
-
-    def readd_scenarios(self, *items):
-        return self.readd_items("scenario", *items)
-
-    def readd_scenario_alternatives(self, *items):
-        return self.readd_items("scenario_alternative", *items)
-
-    def readd_entity_groups(self, *items):
-        return self.readd_items("entity_group", *items)
-
-    def readd_parameter_tags(self, *items):
-        return self.readd_items("parameter_tag", *items)
-
-    def readd_parameter_definition_tags(self, *items):
-        return self.readd_items("parameter_definition_tag", *items)
 
     def add_object_class(self, **kwargs):
         """Stage an object class item for insertion.

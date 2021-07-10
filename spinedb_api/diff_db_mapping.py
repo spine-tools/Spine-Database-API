@@ -56,77 +56,42 @@ class DiffDatabaseMapping(
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
 
-    def _add_items(self, tablename, *items):
+    def _add_items(self, tablename, *items, return_items=False):
         items_to_add, ids = self._items_and_ids(tablename, *items)
         for tablename_ in self._do_add_items(tablename, *items_to_add):
             self.added_item_id[tablename_].update(ids)
             if self.sa_url.drivername.startswith("mysql"):
                 self._clear_subqueries(tablename_)
-        return ids
+        return items_to_add if return_items else ids
 
-    def readd_items(self, tablename, *items):
+    def _readd_items(self, tablename, *items):
         ids = set(x["id"] for x in items)
         for tablename_ in self._do_add_items(tablename, *items):
             self.added_item_id[tablename_].update(ids)
             if self.sa_url.drivername.startswith("mysql"):
                 self._clear_subqueries(tablename_)
-        return ids, []
 
     def _get_table_for_insert(self, tablename):
         return self._diff_table(tablename)
 
     def _get_items_for_update_and_insert(self, tablename, checked_items):
         """Return lists of items for update and insert.
-        Items found in the diff classes should be updated, whereas items found in the orig classes
-        should be marked as dirty and inserted into the corresponding diff class."""
-        orig_sq = self._orig_subquery(tablename)
-        diff_sq = self._diff_subquery(tablename)
+        Items in the diff table should be updated, whereas items in the original table
+        should be marked as dirty and inserted into the corresponding diff table."""
         items_for_update = list()
-        items_for_insert = dict()
+        items_for_insert = list()
         dirty_ids = set()
         updated_ids = set()
-        table_id = self.table_ids.get(tablename, "id")
-        pk = self._get_primary_key(tablename)
-        diff_items = (x._asdict() for x in self.query(diff_sq))
-        diff_items = {tuple(x[k] for k in pk): x for x in diff_items}
-        orig_items = (x._asdict() for x in self.query(orig_sq))
-        orig_items = {tuple(x[k] for k in pk): x for x in orig_items}
+        id_field = self.table_ids.get(tablename, "id")
         for item in checked_items:
-            try:
-                key = tuple(item[k] for k in pk)
-            except KeyError:
-                continue
-            if len(key) == len(item):
-                continue
-            updated_item = diff_items.get(key)
-            if updated_item is not None:
-                if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
-                    continue
-                updated_item.update(item)
-                items_for_update.append(updated_item)
-                updated_ids.add(updated_item[table_id])
-                continue
-            updated_item = orig_items.get(key)
-            if updated_item is not None:
-                if all(updated_item[k] == item[k] for k in updated_item.keys() & item.keys()):
-                    continue
-                updated_item.update(item)
-                key = tuple(item[k] for k in pk)
-                items_for_insert[key] = updated_item
-                updated_id = updated_item[table_id]
-                dirty_ids.add(updated_id)
-                updated_ids.add(updated_id)
-
-        # Handle tables where a single id spans multiple rows, notably relationship_entity_class and relationship_entity
-        # Basically we need to collect all rows having dirty ids into all_items_for_insert,
-        # even if only one of those rows was updated.
-        all_items_for_insert = {}
-        for orig_item in self.query(orig_sq).filter(self.in_(getattr(orig_sq.c, table_id), dirty_ids)):
-            dirty_item = orig_item._asdict()
-            key = tuple(dirty_item[k] for k in pk)
-            all_items_for_insert[key] = dirty_item
-        all_items_for_insert.update(items_for_insert)
-        return items_for_update, list(all_items_for_insert.values()), dirty_ids, updated_ids
+            id_ = item[id_field]
+            updated_ids.add(id_)
+            if id_ in self.added_item_id[tablename] | self.updated_item_id[tablename]:
+                items_for_update.append(item)
+            else:
+                items_for_insert.append(item)
+                dirty_ids.add(id_)
+        return items_for_update, items_for_insert, dirty_ids, updated_ids
 
     def _update_items(self, tablename, *checked_items):
         """Update items without checking integrity."""
@@ -151,33 +116,36 @@ class DiffDatabaseMapping(
     def _do_update_items(self, tablename, items_for_update, items_for_insert):
         diff_table = self._diff_table(tablename)
         if items_for_update:
-            item = items_for_update[0]
             upd = diff_table.update()
             for k in self._get_primary_key(tablename):
                 upd = upd.where(getattr(diff_table.c, k) == bindparam(k))
-            upd = upd.values({key: bindparam(key) for key in diff_table.columns.keys() & item.keys()})
+            upd = upd.values({key: bindparam(key) for key in diff_table.columns.keys() & items_for_update[0].keys()})
             self._checked_execute(upd, items_for_update)
         ins = diff_table.insert()
         self._checked_execute(ins, items_for_insert)
 
-    def update_wide_relationships(self, *items, strict=False):
+    # pylint: disable=arguments-differ
+    def update_wide_relationships(self, *items, strict=False, return_items=False, cache=None):
         """Update relationships."""
-        checked_items, intgr_error_log = self.check_wide_relationships_for_update(*items, strict=strict)
+        checked_items, intgr_error_log = self.check_wide_relationships_for_update(*items, strict=strict, cache=cache)
         updated_ids = self._update_wide_relationships(*checked_items)
-        return updated_ids, intgr_error_log
+        return checked_items if return_items else updated_ids, intgr_error_log
 
     def _update_wide_relationships(self, *checked_items):
         """Update relationships without checking integrity."""
         ent_items = []
         rel_ent_items = []
         for item in checked_items:
-            ent_item = dict(item)
+            ent_item = item.copy()
+            object_class_id_list = ent_item.pop("object_class_id_list", [])
             object_id_list = ent_item.pop("object_id_list", [])
             ent_items.append(ent_item)
-            for dimension, member_id in enumerate(object_id_list):
-                rel_ent_item = dict(ent_item)
+            for dimension, (member_class_id, member_id) in enumerate(zip(object_class_id_list, object_id_list)):
+                rel_ent_item = ent_item.copy()
+                rel_ent_item["entity_class_id"] = rel_ent_item.pop("class_id", None)
                 rel_ent_item["entity_id"] = rel_ent_item.pop("id", None)
                 rel_ent_item["dimension"] = dimension
+                rel_ent_item["member_class_id"] = member_class_id
                 rel_ent_item["member_id"] = member_id
                 rel_ent_items.append(rel_ent_item)
         try:
@@ -191,9 +159,9 @@ class DiffDatabaseMapping(
                 updated_rel_ent_ids,
             ) = self._get_items_for_update_and_insert("relationship_entity", rel_ent_items)
             self._do_update_items("entity", ents_for_update, ents_for_insert)
-            self._do_update_items("relationship_entity", rel_ents_for_update, rel_ents_for_insert)
             self._mark_as_dirty("entity", dirty_ent_ids)
             self.updated_item_id["entity"].update(dirty_ent_ids)
+            self._do_update_items("relationship_entity", rel_ents_for_update, rel_ents_for_insert)
             self._mark_as_dirty("relationship_entity", dirty_rel_ent_ids)
             self.updated_item_id["relationship_entity"].update(dirty_rel_ent_ids)
             return updated_ent_ids.union(updated_rel_ent_ids)

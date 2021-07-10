@@ -16,7 +16,7 @@
 """
 # TODO: Review docstrings, they are almost good
 
-
+from itertools import chain
 from .exception import SpineIntegrityError
 from .check_functions import (
     check_alternative,
@@ -56,7 +56,7 @@ class DatabaseMappingCheckMixin:
             if value != current_value:
                 raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
 
-    def check_items_for_insert(self, tablename, *items, strict=False):
+    def check_items_for_insert(self, tablename, *items, strict=False, cache=None):
         return {
             "alternative": self.check_alternatives_for_insert,
             "scenario": self.check_scenarios_for_insert,
@@ -75,9 +75,9 @@ class DatabaseMappingCheckMixin:
             "tool": self.check_tools_for_insert,
             "tool_feature": self.check_tool_features_for_insert,
             "tool_feature_method": self.check_tool_feature_methods_for_insert,
-        }[tablename](*items, strict=strict)
+        }[tablename](*items, strict=strict, cache=cache)
 
-    def check_items_for_update(self, tablename, *items, strict=False):
+    def check_items_for_update(self, tablename, *items, strict=False, cache=None):
         return {
             "alternative": self.check_alternatives_for_update,
             "scenario": self.check_scenarios_for_update,
@@ -94,9 +94,32 @@ class DatabaseMappingCheckMixin:
             "tool": self.check_tools_for_update,
             "tool_feature": self.check_tool_features_for_update,
             "tool_feature_method": self.check_tool_feature_methods_for_update,
-        }[tablename](*items, strict=strict)
+        }[tablename](*items, strict=strict, cache=cache)
 
-    def check_features_for_insert(self, *items, strict=False):
+    def _make_cache(self, *item_types):
+        sqs = {
+            "feature": "ext_feature_sq",
+            "tool": "tool_sq",
+            "tool_feature": "tool_feature_sq",
+            "tool_feature_method": "tool_feature_method_sq",
+            "parameter_value_list": "wide_parameter_value_list_sq",
+            "alternative": "alternative_sq",
+            "scenario": "scenario_sq",
+            "scenario_alternative": "scenario_alternative_sq",
+            "object_class": "object_class_sq",
+            "object": "object_sq",
+            "relationship_class": "wide_relationship_class_sq",
+            "relationship": "wide_relationship_sq",
+            "entity_group": "entity_group_sq",
+            "parameter_definition": "entity_parameter_definition_sq",
+            "parameter_value": "entity_parameter_value_sq",
+        }
+        return {
+            item_type: {x.id: x for x in self.query(getattr(self, sqs[item_type]))}
+            for item_type in set(item_types) & sqs.keys()
+        }
+
+    def check_features_for_insert(self, *items, strict=False, cache=None):
         """Check whether features passed as argument respect integrity constraints
         for an insert operation.
 
@@ -109,16 +132,18 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("feature", "parameter_definition")
         intgr_error_log = []
         checked_items = list()
-        feature_ids = {x.parameter_definition_id: x.id for x in self.query(self.feature_sq)}
+        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", ())}
         parameter_definitions = {
             x.id: {
-                "name": x.name,
+                "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
-                "parameter_value_list_id": x.parameter_value_list_id,
+                "parameter_value_list_id": x.value_list_id,
             }
-            for x in self.query(self.parameter_definition_sq)
+            for x in cache.get("parameter_definition", ())
         }
         for item in items:
             try:
@@ -131,7 +156,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_features_for_update(self, *items, strict=False):
+    def check_features_for_update(self, *items, strict=False, cache=None):
         """Check whether features passed as argument respect integrity constraints
         for an update operation.
 
@@ -144,17 +169,19 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("feature", "parameter_definition")
         intgr_error_log = []
         checked_items = list()
-        features = {x.id: x._asdict() for x in self.query(self.feature_sq)}
-        feature_ids = {x.parameter_definition_id: x.id for x in self.query(self.feature_sq)}
+        features = {x.id: x._asdict() for x in cache.get("feature", ())}
+        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", ())}
         parameter_definitions = {
             x.id: {
-                "name": x.name,
+                "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
-                "parameter_value_list_id": x.parameter_value_list_id,
+                "parameter_value_list_id": x.value_list_id,
             }
-            for x in self.query(self.parameter_definition_sq)
+            for x in cache.get("parameter_definition", ())
         }
         for item in items:
             try:
@@ -189,7 +216,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_tools_for_insert(self, *items, strict=False):
+    def check_tools_for_insert(self, *items, strict=False, cache=None):
         """Check whether tools passed as argument respect integrity constraints
         for an insert operation.
 
@@ -202,9 +229,11 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("tool")
         intgr_error_log = []
         checked_items = list()
-        tool_ids = {x.name: x.id for x in self.query(self.tool_sq)}
+        tool_ids = {x.name: x.id for x in cache.get("tool", ())}
         for item in items:
             try:
                 check_tool(item, tool_ids)
@@ -217,7 +246,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_tools_for_update(self, *items, strict=False):
+    def check_tools_for_update(self, *items, strict=False, cache=None):
         """Check whether tools passed as argument respect integrity constraints
         for an update operation.
 
@@ -230,10 +259,12 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("tool")
         intgr_error_log = []
         checked_items = list()
-        tools = {x.id: {"name": x.name} for x in self.query(self.tool_sq)}
-        tool_ids = {x.name: x.id for x in self.query(self.tool_sq)}
+        tools = {x.id: {"name": x.name} for x in cache.get("tool", ())}
+        tool_ids = {x.name: x.id for x in cache.get("tool", ())}
         for item in items:
             try:
                 id_ = item["id"]
@@ -267,7 +298,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_tool_features_for_insert(self, *items, strict=False):
+    def check_tool_features_for_insert(self, *items, strict=False, cache=None):
         """Check whether tool features passed as argument respect integrity constraints
         for an insert operation.
 
@@ -280,16 +311,18 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("tool", "tool_feature")
         intgr_error_log = []
         checked_items = list()
-        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
-        tools = {x.id: x._asdict() for x in self.query(self.tool_sq)}
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", ())}
+        tools = {x.id: x._asdict() for x in cache.get("tool", ())}
         features = {
             x.id: {
                 "name": x.entity_class_name + "/" + x.parameter_definition_name,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in self.query(self.ext_feature_sq)
+            for x in cache.get("feature", ())
         }
         for item in items:
             try:
@@ -302,7 +335,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_tool_features_for_update(self, *items, strict=False):
+    def check_tool_features_for_update(self, *items, strict=False, cache=None):
         """Check whether tool_features passed as argument respect integrity constraints
         for an update operation.
 
@@ -315,17 +348,19 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("tool", "tool_feature")
         intgr_error_log = []
         checked_items = list()
-        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
-        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in self.query(self.tool_feature_sq)}
-        tools = {x.id: x._asdict() for x in self.query(self.tool_sq)}
+        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", ())}
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", ())}
+        tools = {x.id: x._asdict() for x in cache.get("tool", ())}
         features = {
             x.id: {
                 "name": x.entity_class_name + "/" + x.parameter_definition_name,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in self.query(self.ext_feature_sq)
+            for x in cache.get("feature", ())
         }
         for item in items:
             try:
@@ -360,7 +395,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_tool_feature_methods_for_insert(self, *items, strict=False):
+    def check_tool_feature_methods_for_insert(self, *items, strict=False, cache=None):
         """Check whether tool feature methods passed as argument respect integrity constraints
         for an insert operation.
 
@@ -373,15 +408,17 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("tool_feature", "tool_feature_method", "parameter_value_list")
         intgr_error_log = []
         checked_items = list()
         tool_feature_method_ids = {
-            (x.tool_feature_id, x.method_index): x.id for x in self.query(self.tool_feature_method_sq)
+            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", ())
         }
-        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
+        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", ())}
         parameter_value_lists = {
             x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
-            for x in self.query(self.wide_parameter_value_list_sq)
+            for x in cache.get("parameter_value_list", ())
         }
         for item in items:
             try:
@@ -394,7 +431,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_tool_feature_methods_for_update(self, *items, strict=False):
+    def check_tool_feature_methods_for_update(self, *items, strict=False, cache=None):
         """Check whether tool_feature_methods passed as argument respect integrity constraints
         for an update operation.
 
@@ -407,16 +444,18 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("tool_feature", "tool_feature_method", "parameter_value_list")
         intgr_error_log = []
         checked_items = list()
-        tool_feature_methods = {x.id: x._asdict() for x in self.query(self.tool_feature_method_sq)}
+        tool_feature_methods = {x.id: x._asdict() for x in cache.get("tool_feature_method", ())}
         tool_feature_method_ids = {
-            (x.tool_feature_id, x.method_index): x.id for x in self.query(self.tool_feature_method_sq)
+            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", ())
         }
-        tool_features = {x.id: x._asdict() for x in self.query(self.tool_feature_sq)}
+        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", ())}
         parameter_value_lists = {
             x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
-            for x in self.query(self.wide_parameter_value_list_sq)
+            for x in cache.get("parameter_value_list", ())
         }
         for item in items:
             try:
@@ -451,7 +490,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_alternatives_for_insert(self, *items, strict=False):
+    def check_alternatives_for_insert(self, *items, strict=False, cache=None):
         """Check whether alternatives passed as argument respect integrity constraints
         for an insert operation.
 
@@ -464,9 +503,11 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("alternative")
         intgr_error_log = []
         checked_items = list()
-        alternative_ids = {x.name: x.id for x in self.query(self.alternative_sq)}
+        alternative_ids = {x.name: x.id for x in cache.get("alternative", ())}
         for item in items:
             try:
                 check_alternative(item, alternative_ids)
@@ -479,7 +520,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_alternatives_for_update(self, *items, strict=False):
+    def check_alternatives_for_update(self, *items, strict=False, cache=None):
         """Check whether alternatives passed as argument respect integrity constraints
         for an update operation.
 
@@ -492,10 +533,12 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("alternative")
         intgr_error_log = []
         checked_items = list()
-        alternatives = {x.id: {"name": x.name} for x in self.query(self.alternative_sq)}
-        alternative_ids = {x.name: x.id for x in self.query(self.alternative_sq)}
+        alternatives = {x.id: {"name": x.name} for x in cache.get("alternative", ())}
+        alternative_ids = {x.name: x.id for x in cache.get("alternative", ())}
         for item in items:
             try:
                 id_ = item["id"]
@@ -529,7 +572,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_scenarios_for_insert(self, *items, strict=False):
+    def check_scenarios_for_insert(self, *items, strict=False, cache=None):
         """Check whether scenarios passed as argument respect integrity constraints
         for an insert operation.
 
@@ -542,9 +585,11 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("scenario")
         intgr_error_log = []
         checked_items = list()
-        scenario_ids = {x.name: x.id for x in self.query(self.scenario_sq)}
+        scenario_ids = {x.name: x.id for x in cache.get("scenario", ())}
         for item in items:
             try:
                 check_scenario(item, scenario_ids)
@@ -556,7 +601,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_scenarios_for_update(self, *items, strict=False):
+    def check_scenarios_for_update(self, *items, strict=False, cache=None):
         """Check whether scenarios passed as argument respect integrity constraints
         for an update operation.
 
@@ -569,10 +614,12 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("scenario")
         intgr_error_log = []
         checked_items = list()
-        scenarios = {x.id: {"name": x.name} for x in self.query(self.scenario_sq)}
-        scenario_ids = {x.name: x.id for x in self.query(self.scenario_sq)}
+        scenarios = {x.id: {"name": x.name} for x in cache.get("scenario", ())}
+        scenario_ids = {x.name: x.id for x in cache.get("scenario", ())}
         for item in items:
             try:
                 id_ = item["id"]
@@ -606,7 +653,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_scenario_alternatives_for_insert(self, *items, strict=False):
+    def check_scenario_alternatives_for_insert(self, *items, strict=False, cache=None):
         """Check whether scenario alternatives passed as argument respect integrity constraints
         for an insert operation.
 
@@ -619,15 +666,17 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("scenario", "alternative", "scenario_alternative")
         intgr_error_log = []
         checked_items = list()
         ids_by_alt_id = {}
         ids_by_rank = {}
-        for item in self.query(self.scenario_alternative_sq):
+        for item in cache.get("scenario_alternative", ()):
             ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
             ids_by_rank[item.scenario_id, item.rank] = item.id
-        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
-        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
+        scenario_names = {s.id: s.name for s in cache.get("scenario", ())}
+        alternative_names = {s.id: s.name for s in cache.get("alternative", ())}
         for item in items:
             try:
                 check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
@@ -640,7 +689,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_scenario_alternatives_for_update(self, *items, strict=False):
+    def check_scenario_alternatives_for_update(self, *items, strict=False, cache=None):
         """Check whether scenario alternatives passed as argument respect integrity constraints
         for an insert operation.
 
@@ -653,16 +702,18 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("scenario", "alternative", "scenario_alternative")
         intgr_error_log = []
         checked_items = list()
         ids_by_alt_id = {}
         ids_by_rank = {}
-        for item in self.query(self.scenario_alternative_sq):
+        for item in cache.get("scenario_alternative", ()):
             ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
             ids_by_rank[item.scenario_id, item.rank] = item.id
-        scenario_alternatives = {sa.id: sa._asdict() for sa in self.query(self.scenario_alternative_sq)}
-        scenario_names = {s.id: s.name for s in self.query(self.scenario_sq)}
-        alternative_names = {s.id: s.name for s in self.query(self.alternative_sq)}
+        scenario_alternatives = {sa.id: sa._asdict() for sa in cache.get("scenario_alternative", ())}
+        scenario_names = {s.id: s.name for s in cache.get("scenario", ())}
+        alternative_names = {s.id: s.name for s in cache.get("alternative", ())}
         for item in items:
             try:
                 id_ = item["id"]
@@ -695,7 +746,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_object_classes_for_insert(self, *items, strict=False):
+    def check_object_classes_for_insert(self, *items, strict=False, cache=None):
         """Check whether object classes passed as argument respect integrity constraints
         for an insert operation.
 
@@ -708,12 +759,15 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object_class")
         intgr_error_log = []
         checked_items = list()
-        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
+        object_class_ids = {x.name: x.id for x in cache.get("object_class", ())}
         for item in items:
             try:
                 check_object_class(item, object_class_ids, self.object_class_type)
+                item["type_id"] = self.object_class_type
                 checked_items.append(item)
                 # If the check passes, append item to `object_class_ids` for next iteration.
                 object_class_ids[item["name"]] = None
@@ -723,7 +777,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_object_classes_for_update(self, *items, strict=False):
+    def check_object_classes_for_update(self, *items, strict=False, cache=None):
         """Check whether object classes passed as argument respect integrity constraints
         for an update operation.
 
@@ -736,10 +790,12 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object_class")
         intgr_error_log = []
         checked_items = list()
-        object_classes = {x.id: {"name": x.name} for x in self.query(self.object_class_sq)}
-        object_class_ids = {x.name: x.id for x in self.query(self.object_class_sq)}
+        object_classes = {x.id: {"name": x.name} for x in cache.get("object_class", ())}
+        object_class_ids = {x.name: x.id for x in cache.get("object_class", ())}
         for item in items:
             try:
                 id_ = item["id"]
@@ -763,6 +819,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_object_class(updated_item, object_class_ids, self.object_class_type)
+                item["type_id"] = self.object_class_type
                 checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 object_classes[id_] = updated_item
@@ -773,7 +830,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_objects_for_insert(self, *items, strict=False):
+    def check_objects_for_insert(self, *items, strict=False, cache=None):
         """Check whether objects passed as argument respect integrity constraints
         for an insert operation.
 
@@ -786,13 +843,16 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object_class", "object")
         intgr_error_log = []
         checked_items = list()
-        object_ids = {(x.class_id, x.name): x.id for x in self.query(self.object_sq)}
-        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
+        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", ())}
+        object_class_ids = [x.id for x in cache.get("object_class", ())]
         for item in items:
             try:
                 check_object(item, object_ids, object_class_ids, self.object_entity_type)
+                item["type_id"] = self.object_entity_type
                 checked_items.append(item)
                 object_ids[item["class_id"], item["name"]] = None
             except SpineIntegrityError as e:
@@ -801,7 +861,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_objects_for_update(self, *items, strict=False):
+    def check_objects_for_update(self, *items, strict=False, cache=None):
         """Check whether objects passed as argument respect integrity constraints
         for an update operation.
 
@@ -814,12 +874,13 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object_class", "object")
         intgr_error_log = []
         checked_items = list()
-        object_qry = self.query(self.object_sq)
-        object_ids = {(x.class_id, x.name): x.id for x in object_qry}
-        objects = {x.id: {"name": x.name, "class_id": x.class_id} for x in object_qry}
-        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
+        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", ())}
+        objects = {x.id: {"name": x.name, "class_id": x.class_id} for x in cache.get("object", ())}
+        object_class_ids = [x.id for x in cache.get("object_class", ())]
         for item in items:
             try:
                 id_ = item["id"]
@@ -842,6 +903,7 @@ class DatabaseMappingCheckMixin:
                 self.check_immutable_fields(updated_item, item, ("class_id",))
                 updated_item.update(item)
                 check_object(updated_item, object_ids, object_class_ids, self.object_entity_type)
+                item["type_id"] = self.object_entity_type
                 checked_items.append(item)
                 objects[id_] = updated_item
                 object_ids[updated_item["class_id"], updated_item["name"]] = id_
@@ -851,7 +913,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_wide_relationship_classes_for_insert(self, *wide_items, strict=False):
+    def check_wide_relationship_classes_for_insert(self, *wide_items, strict=False, cache=None):
         """Check whether relationship classes passed as argument respect integrity constraints
         for an insert operation.
 
@@ -864,10 +926,12 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object_class", "relationship_class")
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_class_ids = {x.name: x.id for x in self.query(self.wide_relationship_class_sq)}
-        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
+        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", ())}
+        object_class_ids = [x.id for x in cache.get("object_class", ())]
         for wide_item in wide_items:
             try:
                 check_wide_relationship_class(
@@ -882,7 +946,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
 
-    def check_wide_relationship_classes_for_update(self, *wide_items, strict=False):
+    def check_wide_relationship_classes_for_update(self, *wide_items, strict=False, cache=None):
         """Check whether relationship classes passed as argument respect integrity constraints
         for an update operation.
 
@@ -895,15 +959,16 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object_class", "relationship_class")
         intgr_error_log = []
         checked_wide_items = list()
-        wide_relationship_class_qry = self.query(self.wide_relationship_class_sq)
-        relationship_class_ids = {x.name: x.id for x in wide_relationship_class_qry}
+        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", ())}
         relationship_classes = {
             x.id: {"name": x.name, "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")]}
-            for x in wide_relationship_class_qry
+            for x in cache.get("relationship_class", ())
         }
-        object_class_ids = [x.id for x in self.query(self.object_class_sq)]
+        object_class_ids = [x.id for x in cache.get("object_class", ())]
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -928,6 +993,7 @@ class DatabaseMappingCheckMixin:
                 check_wide_relationship_class(
                     updated_wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
                 )
+                wide_item["type_id"] = self.relationship_class_type
                 checked_wide_items.append(wide_item)
                 relationship_classes[id_] = updated_wide_item
                 relationship_class_ids[updated_wide_item["name"]] = id_
@@ -937,7 +1003,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
 
-    def check_wide_relationships_for_insert(self, *wide_items, strict=False):
+    def check_wide_relationships_for_insert(self, *wide_items, strict=False, cache=None):
         """Check whether relationships passed as argument respect integrity constraints
         for an insert operation.
 
@@ -950,16 +1016,17 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object", "relationship_class", "relationship")
         intgr_error_log = []
         checked_wide_items = list()
-        wide_relationship_qry = self.query(self.wide_relationship_sq)
-        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
-        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
+        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", ())}
+        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in cache.get("relationship", ())}
         relationship_classes = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-            for x in self.query(self.wide_relationship_class_sq)
+            for x in cache.get("relationship_class", ())
         }
-        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
+        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", ())}
         for wide_item in wide_items:
             try:
                 check_wide_relationship(
@@ -982,7 +1049,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
 
-    def check_wide_relationships_for_update(self, *wide_items, strict=False):
+    def check_wide_relationships_for_update(self, *wide_items, strict=False, cache=None):
         """Check whether relationships passed as argument respect integrity constraints
         for an update operation.
 
@@ -995,24 +1062,25 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object", "relationship_class", "relationship")
         intgr_error_log = []
         checked_wide_items = list()
-        wide_relationship_qry = self.query(self.wide_relationship_sq)
-        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in wide_relationship_qry}
-        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in wide_relationship_qry}
+        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", ())}
+        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in cache.get("relationship", ())}
         relationships = {
             x.id: {
                 "class_id": x.class_id,
                 "name": x.name,
                 "object_id_list": [int(y) for y in x.object_id_list.split(",")],
             }
-            for x in wide_relationship_qry
+            for x in cache.get("relationship", ())
         }
         relationship_classes = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-            for x in self.query(self.wide_relationship_class_sq)
+            for x in cache.get("relationship_class", ())
         }
-        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.object_sq)}
+        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", ())}
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -1057,7 +1125,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
 
-    def check_entity_groups_for_insert(self, *items, strict=False):
+    def check_entity_groups_for_insert(self, *items, strict=False, cache=None):
         """Check whether entity groups passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1070,11 +1138,13 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("object", "relationship", "entity_group")
         intgr_error_log = list()
         checked_items = list()
-        current_items = {(x.entity_id, x.member_id): None for x in self.query(self.entity_group_sq)}
+        current_items = {(x.entity_id, x.member_id): None for x in cache.get("entity_group", ())}
         entities = {}
-        for entity in self.query(self.entity_sq):
+        for entity in chain(cache.get("object", ()), cache.get("relationship", ())):
             entities.setdefault(entity.class_id, dict())[entity.id] = entity._asdict()
         for item in items:
             try:
@@ -1087,7 +1157,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_definitions_for_insert(self, *items, strict=False):
+    def check_parameter_definitions_for_insert(self, *items, strict=False, cache=None):
         """Check whether parameter definitions passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1100,13 +1170,19 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache(
+                "object_class", "relationship_class", "parameter_definition", "parameter_value_list"
+            )
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_ids = {(x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)}
-        object_class_ids = {x.id for x in self.query(self.object_class_sq)}
-        relationship_class_ids = {x.id for x in self.query(self.wide_relationship_class_sq)}
+        parameter_definition_ids = {
+            (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", ())
+        }
+        object_class_ids = {x.id for x in cache.get("object_class", ())}
+        relationship_class_ids = {x.id for x in cache.get("relationship_class", ())}
         entity_class_ids = object_class_ids | relationship_class_ids
-        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
         for item in items:
             checked_item = item.copy()
             object_class_id = checked_item.pop("object_class_id", None)
@@ -1136,7 +1212,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_definitions_for_update(self, *items, strict=False):
+    def check_parameter_definitions_for_update(self, *items, strict=False, cache=None):
         """Check whether parameter definitions passed as argument respect integrity constraints
         for an update operation.
 
@@ -1149,22 +1225,28 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache(
+                "object_class", "relationship_class", "parameter_definition", "parameter_value_list"
+            )
         intgr_error_log = []
         checked_items = list()
-        parameter_definition_ids = {(x.entity_class_id, x.name): x.id for x in self.query(self.parameter_definition_sq)}
+        parameter_definition_ids = {
+            (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", ())
+        }
         parameter_definitions = {
             x.id: {
-                "name": x.name,
+                "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id,
-                "parameter_value_list_id": x.parameter_value_list_id,
+                "parameter_value_list_id": x.value_list_id,
                 "default_value": x.default_value,
             }
-            for x in self.query(self.parameter_definition_sq)
+            for x in cache.get("parameter_definition", ())
         }
-        entity_class_ids = {x.id for x in self.query(self.entity_class_sq)}
-        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
+        entity_class_ids = {x.id for x in chain(cache.get("object_class", ()), cache.get("relationship_class", ()))}
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
         for item in items:
             try:
                 id_ = item["id"]
@@ -1200,7 +1282,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_values_for_insert(self, *items, strict=False):
+    def check_parameter_values_for_insert(self, *items, strict=False, cache=None):
         """Check whether parameter values passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1213,23 +1295,34 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache(
+                "alternative",
+                "object",
+                "relationship",
+                "parameter_definition",
+                "parameter_value",
+                "parameter_value_list",
+            )
         intgr_error_log = []
         checked_items = list()
         parameter_value_ids = {
-            (x.entity_id, x.parameter_definition_id, x.alternative_id): x.id
-            for x in self.query(self.parameter_value_sq)
+            (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", ())
         }
         parameter_definitions = {
             x.id: {
-                "name": x.name,
+                "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
-                "parameter_value_list_id": x.parameter_value_list_id,
+                "parameter_value_list_id": x.value_list_id,
             }
-            for x in self.query(self.parameter_definition_sq)
+            for x in cache.get("parameter_definition", ())
         }
-        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
-        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
-        alternatives = set(a.id for a in self.query(self.alternative_sq))
+        entities = {
+            x.id: {"class_id": x.class_id, "name": x.name}
+            for x in chain(cache.get("object", ()), cache.get("relationship", ()))
+        }
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
+        alternatives = set(a.id for a in cache.get("alternative", ()))
         for item in items:
             checked_item = item.copy()
             checked_item["entity_class_id"] = (
@@ -1260,7 +1353,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_values_for_update(self, *items, strict=False):
+    def check_parameter_values_for_update(self, *items, strict=False, cache=None):
         """Check whether parameter values passed as argument respect integrity constraints
         for an update operation.
 
@@ -1273,11 +1366,20 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache(
+                "alternative",
+                "object",
+                "relationship",
+                "parameter_definition",
+                "parameter_value",
+                "parameter_value_list",
+            )
         intgr_error_log = []
         checked_items = list()
         parameter_values = {
             x.id: {
-                "parameter_definition_id": x.parameter_definition_id,
+                "parameter_definition_id": x.parameter_id,
                 "entity_id": x.entity_id,
                 "object_id": x.object_id,
                 "relationship_id": x.relationship_id,
@@ -1286,25 +1388,25 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "alternative_id": x.alternative_id,
             }
-            for x in self.query(self.parameter_value_sq)
+            for x in cache.get("parameter_value", ())
         }
         parameter_value_ids = {
-            (x.entity_id, x.parameter_definition_id, x.alternative_id): x.id
-            for x in self.query(self.parameter_value_sq)
+            (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", ())
         }
         parameter_definitions = {
             x.id: {
-                "name": x.name,
+                "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
                 "object_class_id": x.object_class_id,
                 "relationship_class_id": x.relationship_class_id,
-                "parameter_value_list_id": x.parameter_value_list_id,
+                "parameter_value_list_id": x.value_list_id,
             }
-            for x in self.query(self.parameter_definition_sq)
+            for x in cache.get("parameter_definition", ())
         }
-        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in self.query(self.entity_sq)}
-        parameter_value_lists = {x.id: x.value_list for x in self.query(self.wide_parameter_value_list_sq)}
-        alternatives = set(a.id for a in self.query(self.alternative_sq))
+        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", ())}
+        entities.update({x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("relationship", ())})
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
+        alternatives = set(a.id for a in cache.get("alternative", ()))
         for item in items:
             try:
                 id_ = item["id"]
@@ -1354,7 +1456,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_tags_for_insert(self, *items, strict=False):
+    def check_parameter_tags_for_insert(self, *items, strict=False, cache=None):
         """Check whether parameter tags passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1381,7 +1483,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_tags_for_update(self, *items, strict=False):
+    def check_parameter_tags_for_update(self, *items, strict=False, cache=None):
         """Check whether parameter tags passed as argument respect integrity constraints
         for an update operation.
 
@@ -1430,7 +1532,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_parameter_definition_tags_for_insert(self, *items, strict=False):
+    def check_parameter_definition_tags_for_insert(self, *items, strict=False, cache=None):
         """Check whether parameter definition tag items passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1448,7 +1550,7 @@ class DatabaseMappingCheckMixin:
         parameter_definition_tag_ids = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
-        parameter_names = {x.id: x.name for x in self.query(self.parameter_definition_sq)}
+        parameter_names = {x.id: x.parameter_name for x in cache.get("parameter_definition", ())}
         parameter_tags = {x.id: x.tag for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
@@ -1461,7 +1563,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_wide_parameter_value_lists_for_insert(self, *wide_items, strict=False):
+    def check_wide_parameter_value_lists_for_insert(self, *wide_items, strict=False, cache=None):
         """Check whether parameter value-lists passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1474,9 +1576,11 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("parameter_value_list")
         intgr_error_log = []
         checked_wide_items = list()
-        parameter_value_list_ids = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", ())}
         for wide_item in wide_items:
             try:
                 check_wide_parameter_value_list(wide_item, parameter_value_list_ids)
@@ -1488,7 +1592,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
 
-    def check_wide_parameter_value_lists_for_update(self, *wide_items, strict=False):
+    def check_wide_parameter_value_lists_for_update(self, *wide_items, strict=False, cache=None):
         """Check whether parameter value-lists passed as argument respect integrity constraints
         for an update operation.
 
@@ -1501,13 +1605,14 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        if cache is None:
+            cache = self._make_cache("parameter_value_list")
         intgr_error_log = []
         checked_wide_items = list()
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_list": x.value_list.split(";")}
-            for x in self.query(self.wide_parameter_value_list_sq)
+            x.id: {"name": x.name, "value_list": x.value_list.split(";")} for x in cache.get("parameter_value_list", ())
         }
-        parameter_value_list_ids = {x.name: x.id for x in self.query(self.wide_parameter_value_list_sq)}
+        parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", ())}
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
