@@ -96,28 +96,6 @@ class DatabaseMappingCheckMixin:
             "tool_feature_method": self.check_tool_feature_methods_for_update,
         }[tablename](*items, strict=strict, cache=cache)
 
-    def _make_cache(self, *item_types):
-        sqs = {
-            "feature": "ext_feature_sq",
-            "tool": "tool_sq",
-            "tool_feature": "tool_feature_sq",
-            "tool_feature_method": "tool_feature_method_sq",
-            "parameter_value_list": "wide_parameter_value_list_sq",
-            "alternative": "alternative_sq",
-            "scenario": "wide_scenario_sq",
-            "scenario_alternative": "scenario_alternative_sq",
-            "object_class": "object_class_sq",
-            "object": "object_sq",
-            "relationship_class": "wide_relationship_class_sq",
-            "relationship": "wide_relationship_sq",
-            "entity_group": "entity_group_sq",
-            "parameter_definition": "entity_parameter_definition_sq",
-            "parameter_value": "entity_parameter_value_sq",
-        }
-        return {
-            item_type: self.query(getattr(self, sqs[item_type])).all() for item_type in set(item_types) & sqs.keys()
-        }
-
     def check_features_for_insert(self, *items, strict=False, cache=None):
         """Check whether features passed as argument respect integrity constraints
         for an insert operation.

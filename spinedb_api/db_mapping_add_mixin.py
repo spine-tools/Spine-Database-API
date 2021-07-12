@@ -118,25 +118,41 @@ class DatabaseMappingAddMixin:
             pass
 
     def add_items(
-        self, tablename, *items, strict=False, return_dups=False, return_items=False, cache=None, readd=False
+        self,
+        tablename,
+        *items,
+        check=True,
+        strict=False,
+        return_dups=False,
+        return_items=False,
+        cache=None,
+        readd=False,
     ):
         """Add items to db.
 
         Args:
             tablename (str)
             items (Iterable): One or more Python :class:`dict` objects representing the items to be inserted.
+            check (bool): Whether or not to check integrity
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
             return_dups (bool): Whether or not already existing and duplicated entries should also be returned.
+            return_items (bool): Return full items rather than just ids
+            cache (dict): A dict mapping table names to a list of dictionary items, to use as db replacement
+                for queries
+            readd (bool): Readds items directly
 
         Returns:
-            set: ids succesfully staged
+            set: ids or items succesfully added
             list(SpineIntegrityError): found violations
         """
         if readd:
             self._readd_items(tablename, *items)
             return
-        checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict, cache=cache)
+        if check:
+            checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict, cache=cache)
+        else:
+            checked_items, intgr_error_log = items, []
         result = self._add_items(tablename, *checked_items, return_items=return_items)
         if return_dups and not return_items:
             result.update(set(x.id for x in intgr_error_log if x.id))

@@ -56,9 +56,27 @@ class DatabaseMappingUpdateMixin:
             raise SpineDBAPIError(msg)
         return set(ids)
 
-    def update_items(self, tablename, *items, strict=False, return_items=False, cache=None):
-        """Update items."""
-        checked_items, intgr_error_log = self.check_items_for_update(tablename, *items, strict=strict, cache=cache)
+    def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None):
+        """Update items.
+
+        Args:
+            tablename (str)
+            items (Iterable): One or more Python :class:`dict` objects representing the items to be inserted.
+            check (bool): Whether or not to check integrity
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if the insertion of one of the items violates an integrity constraint.
+            return_items (bool): Return full items rather than just ids
+            cache (dict): A dict mapping table names to a list of dictionary items, to use as db replacement
+                for queries
+
+        Returns:
+            set: ids or items succesfully updated
+            list(SpineIntegrityError): found violations
+        """
+        if check:
+            checked_items, intgr_error_log = self.check_items_for_update(tablename, *items, strict=strict, cache=cache)
+        else:
+            checked_items, intgr_error_log = items, []
         updated_ids = self._update_items(tablename, *checked_items)
         return checked_items if return_items else updated_ids, intgr_error_log
 
@@ -213,7 +231,7 @@ class DatabaseMappingUpdateMixin:
             list: narrow parameter_definition_tag :class:`dict` objects to add.
             set: integer parameter_definition_tag ids to remove
         """
-        # FIXME: use cache for these queries
+        # FIXME? Use cache for these queries
         current_tag_id_lists = {
             x.id: x.parameter_tag_id_list for x in self.query(self.wide_parameter_definition_tag_sq)
         }

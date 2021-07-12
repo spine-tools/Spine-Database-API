@@ -60,16 +60,14 @@ class DiffDatabaseMapping(
         items_to_add, ids = self._items_and_ids(tablename, *items)
         for tablename_ in self._do_add_items(tablename, *items_to_add):
             self.added_item_id[tablename_].update(ids)
-            if self.sa_url.drivername.startswith("mysql"):
-                self._clear_subqueries(tablename_)
+            self._clear_subqueries(tablename_)
         return items_to_add if return_items else ids
 
     def _readd_items(self, tablename, *items):
         ids = set(x["id"] for x in items)
         for tablename_ in self._do_add_items(tablename, *items):
             self.added_item_id[tablename_].update(ids)
-            if self.sa_url.drivername.startswith("mysql"):
-                self._clear_subqueries(tablename_)
+            self._clear_subqueries(tablename_)
 
     def _get_table_for_insert(self, tablename):
         return self._diff_table(tablename)

@@ -1794,6 +1794,28 @@ class DatabaseMappingBase:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg)
 
+    def make_cache(self, *item_types):
+        sqs = {
+            "feature": "ext_feature_sq",
+            "tool": "tool_sq",
+            "tool_feature": "tool_feature_sq",
+            "tool_feature_method": "tool_feature_method_sq",
+            "parameter_value_list": "wide_parameter_value_list_sq",
+            "alternative": "alternative_sq",
+            "scenario": "wide_scenario_sq",
+            "scenario_alternative": "scenario_alternative_sq",
+            "object_class": "object_class_sq",
+            "object": "object_sq",
+            "relationship_class": "wide_relationship_class_sq",
+            "relationship": "wide_relationship_sq",
+            "entity_group": "entity_group_sq",
+            "parameter_definition": "entity_parameter_definition_sq",
+            "parameter_value": "entity_parameter_value_sq",
+        }
+        return {
+            item_type: self.query(getattr(self, sqs[item_type])).all() for item_type in set(item_types) & sqs.keys()
+        }
+
     def __del__(self):
         try:
             self.connection.close()

@@ -91,6 +91,8 @@ class DiffDatabaseMappingRemoveMixin:
         for tablename, ids in right.items():
             left.setdefault(tablename, set()).update(ids)
 
+    # FIXME: Allow using cache for queries
+
     def _alternative_cascading_ids(self, ids):
         """Returns alternative cascading ids."""
         cascading_ids = {"alternative": ids.copy()}
