@@ -110,17 +110,17 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("feature", "parameter_definition")
+            cache = self.make_cache("feature", "parameter_definition")
         intgr_error_log = []
         checked_items = list()
-        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", ())}
+        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", {}).values()}
         parameter_definitions = {
             x.id: {
                 "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
                 "parameter_value_list_id": x.value_list_id,
             }
-            for x in cache.get("parameter_definition", ())
+            for x in cache.get("parameter_definition", {}).values()
         }
         for item in items:
             try:
@@ -147,18 +147,18 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("feature", "parameter_definition")
+            cache = self.make_cache("feature", "parameter_definition")
         intgr_error_log = []
         checked_items = list()
-        features = {x.id: x._asdict() for x in cache.get("feature", ())}
-        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", ())}
+        features = {x.id: x._asdict() for x in cache.get("feature", {}).values()}
+        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", {}).values()}
         parameter_definitions = {
             x.id: {
                 "name": x.parameter_name,
                 "entity_class_id": x.entity_class_id,
                 "parameter_value_list_id": x.value_list_id,
             }
-            for x in cache.get("parameter_definition", ())
+            for x in cache.get("parameter_definition", {}).values()
         }
         for item in items:
             try:
@@ -207,10 +207,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("tool")
+            cache = self.make_cache("tool")
         intgr_error_log = []
         checked_items = list()
-        tool_ids = {x.name: x.id for x in cache.get("tool", ())}
+        tool_ids = {x.name: x.id for x in cache.get("tool", {}).values()}
         for item in items:
             try:
                 check_tool(item, tool_ids)
@@ -237,11 +237,11 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("tool")
+            cache = self.make_cache("tool")
         intgr_error_log = []
         checked_items = list()
-        tools = {x.id: {"name": x.name} for x in cache.get("tool", ())}
-        tool_ids = {x.name: x.id for x in cache.get("tool", ())}
+        tools = {x.id: {"name": x.name} for x in cache.get("tool", {}).values()}
+        tool_ids = {x.name: x.id for x in cache.get("tool", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -289,17 +289,17 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("tool", "tool_feature")
+            cache = self.make_cache("tool", "tool_feature")
         intgr_error_log = []
         checked_items = list()
-        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", ())}
-        tools = {x.id: x._asdict() for x in cache.get("tool", ())}
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", {}).values()}
+        tools = {x.id: x._asdict() for x in cache.get("tool", {}).values()}
         features = {
             x.id: {
                 "name": x.entity_class_name + "/" + x.parameter_definition_name,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in cache.get("feature", ())
+            for x in cache.get("feature", {}).values()
         }
         for item in items:
             try:
@@ -326,18 +326,18 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("tool", "tool_feature")
+            cache = self.make_cache("tool", "tool_feature")
         intgr_error_log = []
         checked_items = list()
-        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", ())}
-        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", ())}
-        tools = {x.id: x._asdict() for x in cache.get("tool", ())}
+        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
+        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", {}).values()}
+        tools = {x.id: x._asdict() for x in cache.get("tool", {}).values()}
         features = {
             x.id: {
                 "name": x.entity_class_name + "/" + x.parameter_definition_name,
                 "parameter_value_list_id": x.parameter_value_list_id,
             }
-            for x in cache.get("feature", ())
+            for x in cache.get("feature", {}).values()
         }
         for item in items:
             try:
@@ -386,16 +386,16 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("tool_feature", "tool_feature_method", "parameter_value_list")
+            cache = self.make_cache("tool_feature", "tool_feature_method", "parameter_value_list")
         intgr_error_log = []
         checked_items = list()
         tool_feature_method_ids = {
-            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", ())
+            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
         }
-        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", ())}
+        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
         parameter_value_lists = {
             x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
-            for x in cache.get("parameter_value_list", ())
+            for x in cache.get("parameter_value_list", {}).values()
         }
         for item in items:
             try:
@@ -422,17 +422,17 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("tool_feature", "tool_feature_method", "parameter_value_list")
+            cache = self.make_cache("tool_feature", "tool_feature_method", "parameter_value_list")
         intgr_error_log = []
         checked_items = list()
-        tool_feature_methods = {x.id: x._asdict() for x in cache.get("tool_feature_method", ())}
+        tool_feature_methods = {x.id: x._asdict() for x in cache.get("tool_feature_method", {}).values()}
         tool_feature_method_ids = {
-            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", ())
+            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
         }
-        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", ())}
+        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
         parameter_value_lists = {
             x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
-            for x in cache.get("parameter_value_list", ())
+            for x in cache.get("parameter_value_list", {}).values()
         }
         for item in items:
             try:
@@ -481,10 +481,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("alternative")
+            cache = self.make_cache("alternative")
         intgr_error_log = []
         checked_items = list()
-        alternative_ids = {x.name: x.id for x in cache.get("alternative", ())}
+        alternative_ids = {x.name: x.id for x in cache.get("alternative", {}).values()}
         for item in items:
             try:
                 check_alternative(item, alternative_ids)
@@ -511,11 +511,11 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("alternative")
+            cache = self.make_cache("alternative")
         intgr_error_log = []
         checked_items = list()
-        alternatives = {x.id: {"name": x.name} for x in cache.get("alternative", ())}
-        alternative_ids = {x.name: x.id for x in cache.get("alternative", ())}
+        alternatives = {x.id: {"name": x.name} for x in cache.get("alternative", {}).values()}
+        alternative_ids = {x.name: x.id for x in cache.get("alternative", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -563,10 +563,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("scenario")
+            cache = self.make_cache("scenario")
         intgr_error_log = []
         checked_items = list()
-        scenario_ids = {x.name: x.id for x in cache.get("scenario", ())}
+        scenario_ids = {x.name: x.id for x in cache.get("scenario", {}).values()}
         for item in items:
             try:
                 check_scenario(item, scenario_ids)
@@ -592,11 +592,11 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("scenario")
+            cache = self.make_cache("scenario")
         intgr_error_log = []
         checked_items = list()
-        scenarios = {x.id: {"name": x.name} for x in cache.get("scenario", ())}
-        scenario_ids = {x.name: x.id for x in cache.get("scenario", ())}
+        scenarios = {x.id: {"name": x.name} for x in cache.get("scenario", {}).values()}
+        scenario_ids = {x.name: x.id for x in cache.get("scenario", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -644,16 +644,16 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("scenario", "alternative", "scenario_alternative")
+            cache = self.make_cache("scenario", "alternative", "scenario_alternative")
         intgr_error_log = []
         checked_items = list()
         ids_by_alt_id = {}
         ids_by_rank = {}
-        for item in cache.get("scenario_alternative", ()):
+        for item in cache.get("scenario_alternative", {}).values():
             ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
             ids_by_rank[item.scenario_id, item.rank] = item.id
-        scenario_names = {s.id: s.name for s in cache.get("scenario", ())}
-        alternative_names = {s.id: s.name for s in cache.get("alternative", ())}
+        scenario_names = {s.id: s.name for s in cache.get("scenario", {}).values()}
+        alternative_names = {s.id: s.name for s in cache.get("alternative", {}).values()}
         for item in items:
             try:
                 check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
@@ -680,17 +680,17 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("scenario", "alternative", "scenario_alternative")
+            cache = self.make_cache("scenario", "alternative", "scenario_alternative")
         intgr_error_log = []
         checked_items = list()
         ids_by_alt_id = {}
         ids_by_rank = {}
-        for item in cache.get("scenario_alternative", ()):
+        for item in cache.get("scenario_alternative", {}).values():
             ids_by_alt_id[item.scenario_id, item.alternative_id] = item.id
             ids_by_rank[item.scenario_id, item.rank] = item.id
-        scenario_alternatives = {sa.id: sa._asdict() for sa in cache.get("scenario_alternative", ())}
-        scenario_names = {s.id: s.name for s in cache.get("scenario", ())}
-        alternative_names = {s.id: s.name for s in cache.get("alternative", ())}
+        scenario_alternatives = {sa.id: sa._asdict() for sa in cache.get("scenario_alternative", {}).values()}
+        scenario_names = {s.id: s.name for s in cache.get("scenario", {}).values()}
+        alternative_names = {s.id: s.name for s in cache.get("alternative", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -737,10 +737,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object_class")
+            cache = self.make_cache("object_class")
         intgr_error_log = []
         checked_items = list()
-        object_class_ids = {x.name: x.id for x in cache.get("object_class", ())}
+        object_class_ids = {x.name: x.id for x in cache.get("object_class", {}).values()}
         for item in items:
             try:
                 check_object_class(item, object_class_ids, self.object_class_type)
@@ -768,11 +768,11 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object_class")
+            cache = self.make_cache("object_class")
         intgr_error_log = []
         checked_items = list()
-        object_classes = {x.id: {"name": x.name} for x in cache.get("object_class", ())}
-        object_class_ids = {x.name: x.id for x in cache.get("object_class", ())}
+        object_classes = {x.id: {"name": x.name} for x in cache.get("object_class", {}).values()}
+        object_class_ids = {x.name: x.id for x in cache.get("object_class", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -821,11 +821,11 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object_class", "object")
+            cache = self.make_cache("object_class", "object")
         intgr_error_log = []
         checked_items = list()
-        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", ())}
-        object_class_ids = [x.id for x in cache.get("object_class", ())]
+        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", {}).values()}
+        object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
         for item in items:
             try:
                 check_object(item, object_ids, object_class_ids, self.object_entity_type)
@@ -852,12 +852,12 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object_class", "object")
+            cache = self.make_cache("object_class", "object")
         intgr_error_log = []
         checked_items = list()
-        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", ())}
-        objects = {x.id: {"name": x.name, "class_id": x.class_id} for x in cache.get("object", ())}
-        object_class_ids = [x.id for x in cache.get("object_class", ())]
+        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", {}).values()}
+        objects = {x.id: {"name": x.name, "class_id": x.class_id} for x in cache.get("object", {}).values()}
+        object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
         for item in items:
             try:
                 id_ = item["id"]
@@ -904,11 +904,11 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object_class", "relationship_class")
+            cache = self.make_cache("object_class", "relationship_class")
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", ())}
-        object_class_ids = [x.id for x in cache.get("object_class", ())]
+        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", {}).values()}
+        object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
         for wide_item in wide_items:
             try:
                 check_wide_relationship_class(
@@ -937,15 +937,15 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object_class", "relationship_class")
+            cache = self.make_cache("object_class", "relationship_class")
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", ())}
+        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", {}).values()}
         relationship_classes = {
             x.id: {"name": x.name, "object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")]}
-            for x in cache.get("relationship_class", ())
+            for x in cache.get("relationship_class", {}).values()
         }
-        object_class_ids = [x.id for x in cache.get("object_class", ())]
+        object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -994,16 +994,18 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object", "relationship_class", "relationship")
+            cache = self.make_cache("object", "relationship_class", "relationship")
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", ())}
-        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in cache.get("relationship", ())}
+        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", {}).values()}
+        relationship_ids_by_obj_lst = {
+            (x.class_id, x.object_id_list): x.id for x in cache.get("relationship", {}).values()
+        }
         relationship_classes = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-            for x in cache.get("relationship_class", ())
+            for x in cache.get("relationship_class", {}).values()
         }
-        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", ())}
+        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
         for wide_item in wide_items:
             try:
                 check_wide_relationship(
@@ -1040,24 +1042,26 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object", "relationship_class", "relationship")
+            cache = self.make_cache("object", "relationship_class", "relationship")
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", ())}
-        relationship_ids_by_obj_lst = {(x.class_id, x.object_id_list): x.id for x in cache.get("relationship", ())}
+        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", {}).values()}
+        relationship_ids_by_obj_lst = {
+            (x.class_id, x.object_id_list): x.id for x in cache.get("relationship", {}).values()
+        }
         relationships = {
             x.id: {
                 "class_id": x.class_id,
                 "name": x.name,
                 "object_id_list": [int(y) for y in x.object_id_list.split(",")],
             }
-            for x in cache.get("relationship", ())
+            for x in cache.get("relationship", {}).values()
         }
         relationship_classes = {
             x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
-            for x in cache.get("relationship_class", ())
+            for x in cache.get("relationship_class", {}).values()
         }
-        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", ())}
+        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]
@@ -1116,12 +1120,12 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("object", "relationship", "entity_group")
+            cache = self.make_cache("object", "relationship", "entity_group")
         intgr_error_log = list()
         checked_items = list()
-        current_items = {(x.entity_id, x.member_id): None for x in cache.get("entity_group", ())}
+        current_items = {(x.entity_id, x.member_id): None for x in cache.get("entity_group", {}).values()}
         entities = {}
-        for entity in chain(cache.get("object", ()), cache.get("relationship", ())):
+        for entity in chain(cache.get("object", {}).values(), cache.get("relationship", {}).values()):
             entities.setdefault(entity.class_id, dict())[entity.id] = entity._asdict()
         for item in items:
             try:
@@ -1148,18 +1152,18 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache(
+            cache = self.make_cache(
                 "object_class", "relationship_class", "parameter_definition", "parameter_value_list"
             )
         intgr_error_log = []
         checked_items = list()
         parameter_definition_ids = {
-            (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", ())
+            (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
         }
-        object_class_ids = {x.id for x in cache.get("object_class", ())}
-        relationship_class_ids = {x.id for x in cache.get("relationship_class", ())}
+        object_class_ids = {x.id for x in cache.get("object_class", {}).values()}
+        relationship_class_ids = {x.id for x in cache.get("relationship_class", {}).values()}
         entity_class_ids = object_class_ids | relationship_class_ids
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
         for item in items:
             checked_item = item.copy()
             object_class_id = checked_item.pop("object_class_id", None)
@@ -1203,13 +1207,13 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache(
+            cache = self.make_cache(
                 "object_class", "relationship_class", "parameter_definition", "parameter_value_list"
             )
         intgr_error_log = []
         checked_items = list()
         parameter_definition_ids = {
-            (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", ())
+            (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
         }
         parameter_definitions = {
             x.id: {
@@ -1220,10 +1224,12 @@ class DatabaseMappingCheckMixin:
                 "parameter_value_list_id": x.value_list_id,
                 "default_value": x.default_value,
             }
-            for x in cache.get("parameter_definition", ())
+            for x in cache.get("parameter_definition", {}).values()
         }
-        entity_class_ids = {x.id for x in chain(cache.get("object_class", ()), cache.get("relationship_class", ()))}
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
+        entity_class_ids = {
+            x.id for x in chain(cache.get("object_class", {}).values(), cache.get("relationship_class", {}).values())
+        }
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -1273,7 +1279,7 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache(
+            cache = self.make_cache(
                 "alternative",
                 "object",
                 "relationship",
@@ -1284,7 +1290,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_items = list()
         parameter_value_ids = {
-            (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", ())
+            (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
         }
         parameter_definitions = {
             x.id: {
@@ -1292,14 +1298,14 @@ class DatabaseMappingCheckMixin:
                 "entity_class_id": x.entity_class_id,
                 "parameter_value_list_id": x.value_list_id,
             }
-            for x in cache.get("parameter_definition", ())
+            for x in cache.get("parameter_definition", {}).values()
         }
         entities = {
             x.id: {"class_id": x.class_id, "name": x.name}
-            for x in chain(cache.get("object", ()), cache.get("relationship", ()))
+            for x in chain(cache.get("object", {}).values(), cache.get("relationship", {}).values())
         }
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
-        alternatives = set(a.id for a in cache.get("alternative", ()))
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+        alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
             checked_item = item.copy()
             checked_item["entity_class_id"] = (
@@ -1344,7 +1350,7 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache(
+            cache = self.make_cache(
                 "alternative",
                 "object",
                 "relationship",
@@ -1365,10 +1371,10 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "alternative_id": x.alternative_id,
             }
-            for x in cache.get("parameter_value", ())
+            for x in cache.get("parameter_value", {}).values()
         }
         parameter_value_ids = {
-            (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", ())
+            (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
         }
         parameter_definitions = {
             x.id: {
@@ -1378,12 +1384,14 @@ class DatabaseMappingCheckMixin:
                 "relationship_class_id": x.relationship_class_id,
                 "parameter_value_list_id": x.value_list_id,
             }
-            for x in cache.get("parameter_definition", ())
+            for x in cache.get("parameter_definition", {}).values()
         }
-        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", ())}
-        entities.update({x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("relationship", ())})
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", ())}
-        alternatives = set(a.id for a in cache.get("alternative", ()))
+        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
+        entities.update(
+            {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("relationship", {}).values()}
+        )
+        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+        alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
             try:
                 id_ = item["id"]
@@ -1527,7 +1535,7 @@ class DatabaseMappingCheckMixin:
         parameter_definition_tag_ids = {
             (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
         }
-        parameter_names = {x.id: x.parameter_name for x in cache.get("parameter_definition", ())}
+        parameter_names = {x.id: x.parameter_name for x in cache.get("parameter_definition", {}).values()}
         parameter_tags = {x.id: x.tag for x in self.query(self.parameter_tag_sq)}
         for item in items:
             try:
@@ -1554,10 +1562,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("parameter_value_list")
+            cache = self.make_cache("parameter_value_list")
         intgr_error_log = []
         checked_wide_items = list()
-        parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", ())}
+        parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
         for wide_item in wide_items:
             try:
                 check_wide_parameter_value_list(wide_item, parameter_value_list_ids)
@@ -1583,13 +1591,14 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self._make_cache("parameter_value_list")
+            cache = self.make_cache("parameter_value_list")
         intgr_error_log = []
         checked_wide_items = list()
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_list": x.value_list.split(";")} for x in cache.get("parameter_value_list", ())
+            x.id: {"name": x.name, "value_list": x.value_list.split(";")}
+            for x in cache.get("parameter_value_list", {}).values()
         }
-        parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", ())}
+        parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
         for wide_item in wide_items:
             try:
                 id_ = wide_item["id"]

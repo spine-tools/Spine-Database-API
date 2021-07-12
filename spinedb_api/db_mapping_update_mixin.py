@@ -196,10 +196,10 @@ class DatabaseMappingUpdateMixin:
             set: integer scenario_alternative ids to remove
         """
         if cache is None:
-            cache = self._make_cache("scenario_alternative", "scenario")
-        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", ())}
+            cache = self.make_cache("scenario_alternative", "scenario")
+        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
         scenario_alternative_ids = {
-            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", ())
+            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
         }
         items_to_add = list()
         ids_to_remove = set()

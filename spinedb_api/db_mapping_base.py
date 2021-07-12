@@ -1798,7 +1798,7 @@ class DatabaseMappingBase:
         sqs = {
             "feature": "ext_feature_sq",
             "tool": "tool_sq",
-            "tool_feature": "tool_feature_sq",
+            "tool_feature": "ext_tool_feature_sq",
             "tool_feature_method": "tool_feature_method_sq",
             "parameter_value_list": "wide_parameter_value_list_sq",
             "alternative": "alternative_sq",
@@ -1811,9 +1811,13 @@ class DatabaseMappingBase:
             "entity_group": "entity_group_sq",
             "parameter_definition": "entity_parameter_definition_sq",
             "parameter_value": "entity_parameter_value_sq",
+            "metadata": "metadata_sq",
+            "entity_metadata": "entity_metadata_sq",
+            "parameter_value_metadata": "parameter_value_metadata_sq",
         }
         return {
-            item_type: self.query(getattr(self, sqs[item_type])).all() for item_type in set(item_types) & sqs.keys()
+            item_type: {x.id: x for x in self.query(getattr(self, sqs[item_type]))}
+            for item_type in set(item_types) & sqs.keys()
         }
 
     def __del__(self):
