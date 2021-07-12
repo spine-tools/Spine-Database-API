@@ -103,8 +103,6 @@ class DatabaseMappingBase:
         self._entity_group_sq = None
         self._parameter_definition_sq = None
         self._parameter_value_sq = None
-        self._parameter_tag_sq = None
-        self._parameter_definition_tag_sq = None
         self._parameter_value_list_sq = None
         self._feature_sq = None
         self._tool_sq = None
@@ -130,8 +128,6 @@ class DatabaseMappingBase:
         self._entity_parameter_value_sq = None
         self._object_parameter_value_sq = None
         self._relationship_parameter_value_sq = None
-        self._ext_parameter_definition_tag_sq = None
-        self._wide_parameter_definition_tag_sq = None
         self._wide_parameter_value_list_sq = None
         self._ext_feature_sq = None
         self._ext_tool_feature_sq = None
@@ -604,36 +600,6 @@ class DatabaseMappingBase:
         return self._parameter_value_sq
 
     @property
-    def parameter_tag_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM parameter_tag
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._parameter_tag_sq is None:
-            self._parameter_tag_sq = self._subquery("parameter_tag")
-        return self._parameter_tag_sq
-
-    @property
-    def parameter_definition_tag_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM parameter_definition_tag
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._parameter_definition_tag_sq is None:
-            self._parameter_definition_tag_sq = self._subquery("parameter_definition_tag")
-        return self._parameter_definition_tag_sq
-
-    @property
     def parameter_value_list_sq(self):
         """A subquery of the form:
 
@@ -1056,13 +1022,10 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
                     self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
-                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
-                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
-                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
                     self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -1084,25 +1047,8 @@ class DatabaseMappingBase:
                 pd.name AS parameter_name,
                 wpvl.id AS value_list_id,
                 wpvl.name AS value_list_name,
-                wpdt.parameter_tag_id_list,
-                wpdt.parameter_tag_list,
                 pd.default_value
             FROM parameter_definition AS pd, object_class AS oc
-            LEFT JOIN (
-                SELECT
-                    parameter_definition_id,
-                    GROUP_CONCAT(parameter_tag_id) AS parameter_tag_id_list,
-                    GROUP_CONCAT(parameter_tag) AS parameter_tag_list
-                FROM (
-                    SELECT
-                        pdt.parameter_definition_id,
-                        pt.id AS parameter_tag_id,
-                        pt.tag AS parameter_tag
-                    FROM parameter_definition_tag as pdt, parameter_tag AS pt
-                    WHERE pdt.parameter_tag_id = pt.id
-                )
-                GROUP BY parameter_definition_id
-            ) AS wpdt
             ON wpdt.parameter_definition_id = pd.id
             LEFT JOIN (
                 SELECT
@@ -1132,14 +1078,11 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
                     self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
-                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
-                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
-                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
                     self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -1163,8 +1106,6 @@ class DatabaseMappingBase:
                 pd.name AS parameter_name,
                 wpvl.id AS value_list_id,
                 wpvl.name AS value_list_name,
-                wpdt.parameter_tag_id_list,
-                wpdt.parameter_tag_list,
                 pd.default_value
             FROM
                 parameter_definition AS pd,
@@ -1186,21 +1127,6 @@ class DatabaseMappingBase:
                     )
                     GROUP BY id, name
                 ) AS wrc
-            LEFT JOIN (
-                SELECT
-                    parameter_definition_id,
-                    GROUP_CONCAT(parameter_tag_id) AS parameter_tag_id_list,
-                    GROUP_CONCAT(parameter_tag) AS parameter_tag_list
-                FROM (
-                    SELECT
-                        pdt.parameter_definition_id,
-                        pt.id AS parameter_tag_id,
-                        pt.tag AS parameter_tag
-                    FROM parameter_definition_tag as pdt, parameter_tag AS pt
-                    WHERE pdt.parameter_tag_id = pt.id
-                )
-                GROUP BY parameter_definition_id
-            ) AS wpdt
             ON wpdt.parameter_definition_id = pd.id
             LEFT JOIN (
                 SELECT
@@ -1232,14 +1158,11 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
                     self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
-                    self.wide_parameter_definition_tag_sq.c.parameter_tag_id_list,
-                    self.wide_parameter_definition_tag_sq.c.parameter_tag_list,
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
-                .filter(self.wide_parameter_definition_tag_sq.c.id == self.parameter_definition_sq.c.id)
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
                     self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -1318,7 +1241,6 @@ class DatabaseMappingBase:
         Returns:
             sqlalchemy.sql.expression.Alias
         """
-        # TODO: Should this also bring `value_list` and `tag_list`?
         if self._relationship_parameter_value_sq is None:
             self._relationship_parameter_value_sq = (
                 self.query(
@@ -1346,78 +1268,6 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._relationship_parameter_value_sq
-
-    @property
-    def ext_parameter_definition_tag_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                pdt.parameter_definition_id,
-                pt.id AS parameter_tag_id,
-                pt.tag AS parameter_tag
-            FROM parameter_definition_tag as pdt, parameter_tag AS pt
-            WHERE pdt.parameter_tag_id = pt.id
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._ext_parameter_definition_tag_sq is None:
-            self._ext_parameter_definition_tag_sq = (
-                self.query(
-                    self.parameter_definition_sq.c.id.label("parameter_definition_id"),
-                    self.parameter_definition_tag_sq.c.parameter_tag_id.label("parameter_tag_id"),
-                    self.parameter_tag_sq.c.tag.label("parameter_tag"),
-                )
-                .outerjoin(
-                    self.parameter_definition_tag_sq,
-                    self.parameter_definition_tag_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id,
-                )
-                .outerjoin(
-                    self.parameter_tag_sq,
-                    self.parameter_tag_sq.c.id == self.parameter_definition_tag_sq.c.parameter_tag_id,
-                )
-                .subquery()
-            )
-        return self._ext_parameter_definition_tag_sq
-
-    @property
-    def wide_parameter_definition_tag_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                parameter_definition_id,
-                GROUP_CONCAT(parameter_tag_id) AS parameter_tag_id_list,
-                GROUP_CONCAT(parameter_tag) AS parameter_tag_list
-            FROM (
-                SELECT
-                    pdt.parameter_definition_id,
-                    pt.id AS parameter_tag_id,
-                    pt.tag AS parameter_tag
-                FROM parameter_definition_tag as pdt, parameter_tag AS pt
-                WHERE pdt.parameter_tag_id = pt.id
-            )
-            GROUP BY parameter_definition_id
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._wide_parameter_definition_tag_sq is None:
-            self._wide_parameter_definition_tag_sq = (
-                self.query(
-                    self.ext_parameter_definition_tag_sq.c.parameter_definition_id.label("id"),
-                    group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag_id).label(
-                        "parameter_tag_id_list"
-                    ),
-                    group_concat(self.ext_parameter_definition_tag_sq.c.parameter_tag).label("parameter_tag_list"),
-                )
-                .group_by(self.ext_parameter_definition_tag_sq.c.parameter_definition_id)
-                .subquery()
-            )
-        return self._wide_parameter_definition_tag_sq
 
     @property
     def wide_parameter_value_list_sq(self):

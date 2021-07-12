@@ -134,12 +134,6 @@ class DatabaseMappingUpdateMixin:
     def _update_parameter_values(self, *items):
         return self._update_items("parameter_value", *items)
 
-    def update_parameter_tags(self, *items, **kwargs):
-        return self.update_items("parameter_tag", *items, **kwargs)
-
-    def _update_parameter_tags(self, *items):
-        return self._update_items("parameter_tag", *items)
-
     def update_features(self, *items, **kwargs):
         return self.update_items("feature", *items, **kwargs)
 
@@ -216,41 +210,4 @@ class DatabaseMappingUpdateMixin:
                 items_to_add.append(item_to_add)
             for alternative_id in current_alternative_id_list:
                 ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
-        return items_to_add, ids_to_remove
-
-    def get_data_to_set_parameter_definition_tags(self, *items):
-        """Returns data to add and remove, in order to set wide parameter definition tags.
-
-        Args:
-            items (Iterable): One or more wide parameter_definition_tag :class:`dict` objects to set.
-                Each item must include the following keys:
-                    "id": parameter definition id
-                    "parameter_tag_id_list": string comma separated list of tag ids for that definition
-
-        Returns
-            list: narrow parameter_definition_tag :class:`dict` objects to add.
-            set: integer parameter_definition_tag ids to remove
-        """
-        # FIXME? Use cache for these queries
-        current_tag_id_lists = {
-            x.id: x.parameter_tag_id_list for x in self.query(self.wide_parameter_definition_tag_sq)
-        }
-        definition_tag_ids = {
-            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
-        }
-        items_to_add = list()
-        ids_to_remove = set()
-        for item in items:
-            param_def_id = item["id"]
-            tag_id_list = item["parameter_tag_id_list"]
-            tag_id_list = [int(x) for x in tag_id_list.split(",")] if tag_id_list else []
-            current_tag_id_list = current_tag_id_lists[param_def_id]
-            current_tag_id_list = [int(x) for x in current_tag_id_list.split(",")] if current_tag_id_list else []
-            for tag_id in tag_id_list:
-                if (param_def_id, tag_id) not in definition_tag_ids:
-                    item_to_add = {"parameter_definition_id": param_def_id, "parameter_tag_id": tag_id}
-                    items_to_add.append(item_to_add)
-            for tag_id in current_tag_id_list:
-                if tag_id not in tag_id_list:
-                    ids_to_remove.add(definition_tag_ids[param_def_id, tag_id])
         return items_to_add, ids_to_remove

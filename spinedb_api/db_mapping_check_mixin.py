@@ -29,8 +29,6 @@ from .check_functions import (
     check_entity_group,
     check_parameter_definition,
     check_parameter_value,
-    check_parameter_tag,
-    check_parameter_definition_tag,
     check_wide_parameter_value_list,
     check_feature,
     check_tool,
@@ -68,8 +66,6 @@ class DatabaseMappingCheckMixin:
             "entity_group": self.check_entity_groups_for_insert,
             "parameter_definition": self.check_parameter_definitions_for_insert,
             "parameter_value": self.check_parameter_values_for_insert,
-            "parameter_tag": self.check_parameter_tags_for_insert,
-            "parameter_definition_tag": self.check_parameter_definition_tags_for_insert,
             "parameter_value_list": self.check_wide_parameter_value_lists_for_insert,
             "feature": self.check_features_for_insert,
             "tool": self.check_tools_for_insert,
@@ -88,7 +84,6 @@ class DatabaseMappingCheckMixin:
             "relationship": self.check_wide_relationships_for_update,
             "parameter_definition": self.check_parameter_definitions_for_update,
             "parameter_value": self.check_parameter_values_for_update,
-            "parameter_tag": self.check_parameter_tags_for_update,
             "parameter_value_list": self.check_wide_parameter_value_lists_for_update,
             "feature": self.check_features_for_update,
             "tool": self.check_tools_for_update,
@@ -1435,113 +1430,6 @@ class DatabaseMappingCheckMixin:
                     updated_item["entity_id"], updated_item["parameter_definition_id"], updated_item["alternative_id"]
                 ] = id_
                 checked_items.append(item)
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_parameter_tags_for_insert(self, *items, strict=False, cache=None):
-        """Check whether parameter tags passed as argument respect integrity constraints
-        for an insert operation.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        parameter_tag_ids = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
-        for item in items:
-            try:
-                check_parameter_tag(item, parameter_tag_ids)
-                checked_items.append(item)
-                parameter_tag_ids[item["tag"]] = None
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_parameter_tags_for_update(self, *items, strict=False, cache=None):
-        """Check whether parameter tags passed as argument respect integrity constraints
-        for an update operation.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        parameter_tags = {x.id: {"tag": x.tag} for x in self.query(self.parameter_tag_sq)}
-        parameter_tag_ids = {x.tag: x.id for x in self.query(self.parameter_tag_sq)}
-        for item in items:
-            try:
-                id_ = item["id"]
-            except KeyError:
-                msg = "Missing parameter tag identifier."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            try:
-                # 'Remove' current instance
-                updated_item = parameter_tags.pop(id_)
-                del parameter_tag_ids[updated_item["tag"]]
-            except KeyError:
-                msg = "Parameter tag not found."
-                if strict:
-                    raise SpineIntegrityError(msg)
-                intgr_error_log.append(SpineIntegrityError(msg))
-                continue
-            # Check for an insert of the updated instance
-            try:
-                updated_item.update(item)
-                check_parameter_tag(updated_item, parameter_tag_ids)
-                checked_items.append(item)
-                parameter_tags[id_] = updated_item
-                parameter_tag_ids[updated_item["tag"]] = id_
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_parameter_definition_tags_for_insert(self, *items, strict=False, cache=None):
-        """Check whether parameter definition tag items passed as argument respect integrity constraints
-        for an insert operation.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        intgr_error_log = []
-        checked_items = list()
-        parameter_definition_tag_ids = {
-            (x.parameter_definition_id, x.parameter_tag_id): x.id for x in self.query(self.parameter_definition_tag_sq)
-        }
-        parameter_names = {x.id: x.parameter_name for x in cache.get("parameter_definition", {}).values()}
-        parameter_tags = {x.id: x.tag for x in self.query(self.parameter_tag_sq)}
-        for item in items:
-            try:
-                check_parameter_definition_tag(item, parameter_definition_tag_ids, parameter_names, parameter_tags)
-                checked_items.append(item)
-                parameter_definition_tag_ids[item["parameter_definition_id"], item["parameter_tag_id"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e

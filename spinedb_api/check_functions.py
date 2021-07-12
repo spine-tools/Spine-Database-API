@@ -419,64 +419,6 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         )
 
 
-def check_parameter_tag(item, current_items):
-    """Check whether the insertion of a parameter tag item
-    results in the violation of an integrity constraint.
-
-    Args:
-        item (dict): A parameter tag item to be checked.
-        current_items (dict): A dictionary mapping tags to ids of parameter tags already in the database.
-
-    Raises:
-        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-    """
-    try:
-        tag = item["tag"]
-    except KeyError:
-        raise SpineIntegrityError("Missing parameter tag.")
-    if not tag:
-        raise SpineIntegrityError(f"Tag '{tag}' is not valid")
-    if tag in current_items:
-        raise SpineIntegrityError("There can't be more than one '{}' tag.".format(tag), id=current_items[tag])
-
-
-def check_parameter_definition_tag(item, current_items, parameter_names, parameter_tags):
-    """Check whether the insertion of a parameter tag item
-    results in the violation of an integrity constraint.
-
-    Args:
-        item (dict): A parameter tag item to be checked.
-        current_items (dict): A dictionary mapping tuples (parameter_definition_id, parameter_tag_id)
-            to ids of parameter tags already in the database.
-        parameter_names (dict): A dictionary of parameter definition names in the database keyed by id.
-        parameter_tags (dict): A dictionary of parameter tags in the database keyed by id.
-
-    Raises:
-        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-    """
-    try:
-        parameter_definition_id = item["parameter_definition_id"]
-    except KeyError:
-        raise SpineIntegrityError("Missing parameter definition identifier.")
-    try:
-        parameter_tag_id = item["parameter_tag_id"]
-    except KeyError:
-        raise SpineIntegrityError("Missing parameter tag identifier.")
-    try:
-        parameter_name = parameter_names[parameter_definition_id]
-    except KeyError:
-        raise SpineIntegrityError("Parameter definition not found.")
-    try:
-        tag = parameter_tags[parameter_tag_id]
-    except KeyError:
-        raise SpineIntegrityError("Parameter tag not found.")
-    if (parameter_definition_id, parameter_tag_id) in current_items:
-        raise SpineIntegrityError(
-            "Parameter '{0}' already has the tag '{1}'.".format(parameter_name, tag),
-            id=current_items[parameter_definition_id, parameter_tag_id],
-        )
-
-
 def check_wide_parameter_value_list(wide_item, current_items):
     """Check whether the insertion of a parameter value-list item
     results in the violation of an integrity constraint.

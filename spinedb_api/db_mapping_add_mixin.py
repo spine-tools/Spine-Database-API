@@ -42,9 +42,7 @@ class DatabaseMappingAddMixin:
                 Column("entity_group_id", Integer, server_default=null()),
                 Column("parameter_definition_id", Integer, server_default=null()),
                 Column("parameter_value_id", Integer, server_default=null()),
-                Column("parameter_tag_id", Integer, server_default=null()),
                 Column("parameter_value_list_id", Integer, server_default=null()),
-                Column("parameter_definition_tag_id", Integer, server_default=null()),
                 Column("alternative_id", Integer, server_default=null()),
                 Column("scenario_id", Integer, server_default=null()),
                 Column("scenario_alternative_id", Integer, server_default=null()),
@@ -74,9 +72,7 @@ class DatabaseMappingAddMixin:
             "entity_group": "entity_group_id",
             "parameter_definition": "parameter_definition_id",
             "parameter_value": "parameter_value_id",
-            "parameter_tag": "parameter_tag_id",
             "parameter_value_list": "parameter_value_list_id",
-            "parameter_definition_tag": "parameter_definition_tag_id",
             "alternative": "alternative_id",
             "scenario": "scenario_id",
             "scenario_alternative": "scenario_alternative_id",
@@ -321,12 +317,6 @@ class DatabaseMappingAddMixin:
     def add_entity_groups(self, *items, **kwargs):
         return self.add_items("entity_group", *items, **kwargs)
 
-    def add_parameter_tags(self, *items, **kwargs):
-        return self.add_items("parameter_tag", *items, **kwargs)
-
-    def add_parameter_definition_tags(self, *items, **kwargs):
-        return self.add_items("parameter_definition_tag", *items, **kwargs)
-
     def _add_object_classes(self, *items):
         return self._add_items("object_class", *items)
 
@@ -371,12 +361,6 @@ class DatabaseMappingAddMixin:
 
     def _add_entity_groups(self, *items):
         return self._add_items("entity_group", *items)
-
-    def _add_parameter_tags(self, *items):
-        return self._add_items("parameter_tag", *items)
-
-    def _add_parameter_definition_tags(self, *items):
-        return self._add_items("parameter_definition_tag", *items)
 
     def _add_metadata(self, *items):
         return self._add_items("metadata", *items)

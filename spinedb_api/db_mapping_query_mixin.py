@@ -247,49 +247,6 @@ class DatabaseMappingQueryMixin:
             qry = qry.filter(self.relationship_parameter_value_sq.c.parameter_name == parameter_name)
         return qry
 
-    def parameter_tag_list(self, id_list=None, tag_list=None):
-        """Return all records from the
-        :meth:`parameter_tag_list <.DatabaseMappingBase.parameter_tag_list>` subquery.
-
-        :param id_list: If present, only return records where ``id`` is in this list.
-        :param tag_list: If present, only return records where ``tag`` is in this list.
-
-        :rtype: :class:`~sqlalchemy.orm.query.Query`
-        """
-        qry = self.query(self.parameter_tag_sq)
-        if id_list is not None:
-            qry = qry.filter(self.parameter_tag_sq.c.id.in_(id_list))
-        if tag_list is not None:
-            qry = qry.filter(self.parameter_tag_sq.c.tag.in_(tag_list))
-        return qry
-
-    def parameter_definition_tag_list(self, id_list=None):
-        """Return all records from the
-        :meth:`parameter_definition_tag_sq <.DatabaseMappingBase.parameter_definition_tag_sq>` subquery.
-
-        :param id_list: If present, only return records where ``id`` is in this list.
-
-        :rtype: :class:`~sqlalchemy.orm.query.Query`
-        """
-        qry = self.query(self.parameter_definition_tag_sq)
-        if id_list is not None:
-            qry = qry.filter(self.parameter_definition_tag_sq.c.id.in_(id_list))
-        return qry
-
-    def wide_parameter_definition_tag_list(self, parameter_definition_id=None):
-        """Return all records from the
-        :meth:`wide_parameter_definition_tag_sq <.DatabaseMappingBase.wide_parameter_definition_tag_sq>` subquery.
-
-        :param int parameter_definition_id: If present, only return records where ``parameter_definition_id``
-            is equal to this.
-
-        :rtype: :class:`~sqlalchemy.orm.query.Query`
-        """
-        qry = self.query(self.wide_parameter_definition_tag_sq)
-        if parameter_definition_id:
-            qry = qry.filter(self.wide_parameter_definition_tag_sq.c.parameter_definition_id == parameter_definition_id)
-        return qry
-
     def parameter_value_list_list(self, id_list=None):
         """Return all records from the
         :meth:`parameter_value_list_sq <.DatabaseMappingBase.parameter_value_list_sq>` subquery.
