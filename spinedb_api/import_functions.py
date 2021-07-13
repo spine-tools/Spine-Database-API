@@ -1094,9 +1094,7 @@ def _get_object_parameters_for_import(db_map, data, cache=None):
     if cache is None:
         cache = db_map.make_cache("object_class", "parameter_definition", "parameter_value_list")
     parameter_ids = {
-        (x.object_class_id, x.parameter_name): x.id
-        for x in cache.get("parameter_definition", {}).values()
-        if x.object_class_id
+        (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
     object_class_names = {x.id: x.name for x in cache.get("object_class", {}).values()}
     object_class_ids = {oc_name: oc_id for oc_id, oc_name in object_class_names.items()}
@@ -1175,9 +1173,7 @@ def _get_relationship_parameters_for_import(db_map, data, cache=None):
     if cache is None:
         cache = db_map.make_cache("relationship_class", "parameter_definition", "parameter_value_list")
     parameter_ids = {
-        (x.relationship_class_id, x.parameter_name): x.id
-        for x in cache.get("parameter_definition", {}).values()
-        if x.relationship_class_id
+        (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
     relationship_class_names = {x.id: x.name for x in cache.get("relationship_class", {}).values()}
     relationship_class_ids = {rc_name: rc_id for rc_id, rc_name in relationship_class_names.items()}

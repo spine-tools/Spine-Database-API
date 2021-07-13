@@ -140,18 +140,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.parameter_value_sq.c, column_name))
 
-    def test_parameter_tag_sq(self):
-        columns = ["id", "tag", "description", "commit_id"]
-        self.assertEqual(len(self._db_map.parameter_tag_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.parameter_tag_sq.c, column_name))
-
-    def test_parameter_definition_tag_sq(self):
-        columns = ["id", "parameter_definition_id", "parameter_tag_id", "commit_id"]
-        self.assertEqual(len(self._db_map.parameter_definition_tag_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.parameter_definition_tag_sq.c, column_name))
-
     def test_parameter_value_list_sq(self):
         columns = ["id", "name", "value_index", "value", "commit_id"]
         self.assertEqual(len(self._db_map.parameter_value_list_sq.c), len(columns))
@@ -217,8 +205,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "parameter_name",
             "value_list_id",
             "value_list_name",
-            "parameter_tag_id_list",
-            "parameter_tag_list",
             "default_value",
             "default_type",
             "description",
@@ -238,8 +224,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "parameter_name",
             "value_list_id",
             "value_list_name",
-            "parameter_tag_id_list",
-            "parameter_tag_list",
             "default_value",
             "default_type",
             "description",
@@ -290,18 +274,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
         self.assertEqual(len(self._db_map.relationship_parameter_value_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.relationship_parameter_value_sq.c, column_name))
-
-    def test_ext_parameter_definition_tag_sq(self):
-        columns = ["parameter_definition_id", "parameter_tag_id", "parameter_tag"]
-        self.assertEqual(len(self._db_map.ext_parameter_definition_tag_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.ext_parameter_definition_tag_sq.c, column_name))
-
-    def test_wide_parameter_definition_tag_sq(self):
-        columns = ["id", "parameter_tag_id_list", "parameter_tag_list"]
-        self.assertEqual(len(self._db_map.wide_parameter_definition_tag_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.wide_parameter_definition_tag_sq.c, column_name))
 
     def test_wide_parameter_value_list_sq(self):
         columns = ["id", "name", "value_index_list", "value_list"]

@@ -74,8 +74,6 @@ class DiffDatabaseMappingRemoveMixin:
         self._merge(ids, self._entity_group_cascading_ids(kwargs.get("entity_group", set())))
         self._merge(ids, self._parameter_definition_cascading_ids(kwargs.get("parameter_definition", set())))
         self._merge(ids, self._parameter_value_cascading_ids(kwargs.get("parameter_value", set())))
-        self._merge(ids, self._parameter_tag_cascading_ids(kwargs.get("parameter_tag", set())))
-        self._merge(ids, self._parameter_definition_tag_cascading_ids(kwargs.get("parameter_definition_tag", set())))
         self._merge(ids, self._parameter_value_list_cascading_ids(kwargs.get("parameter_value_list", set())))
         self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set())))
         self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set())))
@@ -184,32 +182,14 @@ class DiffDatabaseMappingRemoveMixin:
         parameter_values = self.query(self.parameter_value_sq.c.id).filter(
             self.in_(self.parameter_value_sq.c.parameter_definition_id, ids)
         )
-        param_def_tags = self.query(self.parameter_definition_tag_sq.c.id).filter(
-            self.in_(self.parameter_definition_tag_sq.c.parameter_definition_id, ids)
-        )
         features = self.query(self.feature_sq.c.id).filter(self.in_(self.feature_sq.c.parameter_definition_id, ids))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids({x.id for x in param_def_tags}))
         self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}))
         return cascading_ids
 
     def _parameter_value_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns parameter value cascading ids."""
         return {"parameter_value": ids.copy()}
-
-    def _parameter_tag_cascading_ids(self, ids):
-        """Returns parameter tag cascading ids."""
-        cascading_ids = {"parameter_tag": ids.copy()}
-        # parameter_definition_tag
-        param_def_tags = self.query(self.parameter_definition_tag_sq.c.id).filter(
-            self.in_(self.parameter_definition_tag_sq.c.parameter_tag_id, ids)
-        )
-        self._merge(cascading_ids, self._parameter_definition_tag_cascading_ids({x.id for x in param_def_tags}))
-        return cascading_ids
-
-    def _parameter_definition_tag_cascading_ids(self, ids):  # pylint: disable=no-self-use
-        """Returns parameter definition tag cascading ids."""
-        return {"parameter_definition_tag": ids.copy()}
 
     def _parameter_value_list_cascading_ids(self, ids):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries.
