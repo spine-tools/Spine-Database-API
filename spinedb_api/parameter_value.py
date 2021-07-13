@@ -516,7 +516,7 @@ def _map_values_from_database(values_in_db):
     values = list()
     for value_in_db in values_in_db:
         value = from_dict(value_in_db, value_in_db["type"]) if isinstance(value_in_db, dict) else value_in_db
-        if not isinstance(value, (float, Duration, IndexedValue, str, DateTime)):
+        if value is not None and not isinstance(value, (float, bool, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
     return values
@@ -1292,7 +1292,7 @@ def convert_containers_to_maps(value):
     return value
 
 
-def convert_map_to_table(map_, make_square=True, row_this_far=None):
+def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
     """
     Converts :class:`Map` into list of rows recursively.
 
@@ -1300,6 +1300,7 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None):
         map_ (Map): map to convert
         make_square (bool): if True, append None to shorter rows, otherwise leave the row as is
         row_this_far (list, optional): current row; used for recursion
+        empty (Any, optional): object to fill empty cells with
 
     Returns:
         list of list: map's rows
@@ -1318,7 +1319,7 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None):
             max_length = max(max_length, len(row))
         equal_length_rows = list()
         for row in rows:
-            equal_length_row = row + (max_length - len(row)) * [None]
+            equal_length_row = row + (max_length - len(row)) * [empty]
             equal_length_rows.append(equal_length_row)
         return equal_length_rows
     return rows
