@@ -465,7 +465,6 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.display_order.label("display_order"),
                     self.entity_class_sq.c.display_icon.label("display_icon"),
                     self.entity_class_sq.c.hidden.label("hidden"),
-                    self.entity_class_sq.c.type_id.label("type_id"),
                     self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.entity_class_sq.c.id == object_class_sq.c.entity_class_id)
@@ -492,7 +491,6 @@ class DatabaseMappingBase:
                     self.entity_sq.c.class_id.label("class_id"),
                     self.entity_sq.c.name.label("name"),
                     self.entity_sq.c.description.label("description"),
-                    self.entity_sq.c.type_id.label("type_id"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.entity_sq.c.id == object_sq.c.entity_id)
@@ -521,7 +519,6 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.name.label("name"),
                     self.entity_class_sq.c.description.label("description"),
                     self.entity_class_sq.c.hidden.label("hidden"),
-                    self.entity_class_sq.c.type_id.label("type_id"),
                     self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.entity_class_sq.c.id == rel_ent_cls_sq.c.entity_class_id)
@@ -549,7 +546,6 @@ class DatabaseMappingBase:
                     rel_ent_sq.c.member_id.label("object_id"),
                     rel_ent_sq.c.entity_class_id.label("class_id"),
                     self.entity_sq.c.name.label("name"),
-                    self.entity_sq.c.type_id.label("type_id"),
                     self.entity_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.entity_sq.c.id == rel_ent_sq.c.entity_id)
@@ -783,7 +779,6 @@ class DatabaseMappingBase:
                     self.object_class_sq.c.name.label("class_name"),
                     self.object_sq.c.name.label("name"),
                     self.object_sq.c.description.label("description"),
-                    self.object_sq.c.type_id.label("type_id"),
                 )
                 .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
                 .subquery()
@@ -815,7 +810,6 @@ class DatabaseMappingBase:
                     self.relationship_class_sq.c.name.label("name"),
                     self.relationship_class_sq.c.description.label("description"),
                     self.relationship_class_sq.c.dimension.label("dimension"),
-                    self.relationship_class_sq.c.type_id.label("type_id"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                 )
@@ -857,7 +851,6 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
-                    self.ext_relationship_class_sq.c.type_id,
                     group_concat(
                         self.ext_relationship_class_sq.c.object_class_id, self.ext_relationship_class_sq.c.dimension
                     ).label("object_class_id_list"),
@@ -901,7 +894,6 @@ class DatabaseMappingBase:
                     self.relationship_sq.c.name.label("name"),
                     self.relationship_sq.c.class_id.label("class_id"),
                     self.relationship_sq.c.dimension.label("dimension"),
-                    self.relationship_sq.c.type_id.label("type_id"),
                     self.wide_relationship_class_sq.c.name.label("class_name"),
                     self.ext_object_sq.c.id.label("object_id"),
                     self.ext_object_sq.c.name.label("object_name"),
@@ -951,7 +943,6 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.name,
                     self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.class_name,
-                    self.ext_relationship_sq.c.type_id,
                     group_concat(self.ext_relationship_sq.c.object_id, self.ext_relationship_sq.c.dimension).label(
                         "object_id_list"
                     ),

@@ -123,14 +123,9 @@ class DiffDatabaseMapping(
         self._checked_execute(ins, items_for_insert)
 
     # pylint: disable=arguments-differ
-    def update_wide_relationships(self, *items, check=True, strict=False, return_items=False, cache=None):
+    def update_wide_relationships(self, *items, strict=False, return_items=False, cache=None):
         """Update relationships."""
-        if check:
-            checked_items, intgr_error_log = self.check_wide_relationships_for_update(
-                *items, strict=strict, cache=cache
-            )
-        else:
-            checked_items, intgr_error_log = items, []
+        checked_items, intgr_error_log = self.check_wide_relationships_for_update(*items, strict=strict, cache=cache)
         updated_ids = self._update_wide_relationships(*checked_items)
         return checked_items if return_items else updated_ids, intgr_error_log
 
