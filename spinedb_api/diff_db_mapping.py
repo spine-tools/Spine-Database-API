@@ -91,7 +91,7 @@ class DiffDatabaseMapping(
                 dirty_ids.add(id_)
         return items_for_update, items_for_insert, dirty_ids, updated_ids
 
-    def _update_items(self, tablename, *checked_items):
+    def _update_items(self, tablename, *items):
         """Update items without checking integrity."""
         real_tablename = {
             "object_class": "entity_class",
@@ -99,9 +99,10 @@ class DiffDatabaseMapping(
             "object": "entity",
             "relationship": "entity",
         }.get(tablename, tablename)
+        items = self._items_with_type_id(tablename, *items)
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
-                real_tablename, checked_items
+                real_tablename, items
             )
             self._do_update_items(real_tablename, items_for_update, items_for_insert)
             self._mark_as_dirty(real_tablename, dirty_ids)
@@ -123,17 +124,23 @@ class DiffDatabaseMapping(
         self._checked_execute(ins, items_for_insert)
 
     # pylint: disable=arguments-differ
-    def update_wide_relationships(self, *items, strict=False, return_items=False, cache=None):
+    def update_wide_relationships(self, *items, check=True, strict=False, return_items=False, cache=None):
         """Update relationships."""
-        checked_items, intgr_error_log = self.check_wide_relationships_for_update(*items, strict=strict, cache=cache)
+        if check:
+            checked_items, intgr_error_log = self.check_wide_relationships_for_update(
+                *items, strict=strict, cache=cache
+            )
+        else:
+            checked_items, intgr_error_log = items, []
         updated_ids = self._update_wide_relationships(*checked_items)
         return checked_items if return_items else updated_ids, intgr_error_log
 
-    def _update_wide_relationships(self, *checked_items):
+    def _update_wide_relationships(self, *items):
         """Update relationships without checking integrity."""
+        items = self._items_with_type_id("relationship", *items)
         ent_items = []
         rel_ent_items = []
-        for item in checked_items:
+        for item in items:
             ent_item = item.copy()
             object_class_id_list = ent_item.pop("object_class_id_list", [])
             object_id_list = ent_item.pop("object_id_list", [])

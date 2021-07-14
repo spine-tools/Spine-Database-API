@@ -184,6 +184,7 @@ class DatabaseMappingAddMixin:
         return self._metadata.tables[tablename]
 
     def _do_add_items(self, tablename, *items_to_add):
+        items_to_add = tuple(self._items_with_type_id(tablename, *items_to_add))
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
                 table = self._get_table_for_insert(tablename_)

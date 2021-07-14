@@ -44,6 +44,7 @@ class DatabaseMappingUpdateMixin:
             "relationship": "entity",
         }.get(tablename, tablename)
         table = self._metadata.tables[real_tablename]
+        items = self._items_with_type_id(tablename, *items)
         items, ids = self._items_to_update_and_ids(*items)
         upd = table.update()
         for k in self._get_primary_key(real_tablename):

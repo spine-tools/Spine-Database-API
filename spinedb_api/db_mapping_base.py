@@ -1670,6 +1670,20 @@ class DatabaseMappingBase:
             for item_type in set(item_types) & sqs.keys()
         }
 
+    def _items_with_type_id(self, tablename, *items):
+        type_id = {
+            "object_class": self.object_class_type,
+            "relationship_class": self.relationship_class_type,
+            "object": self.object_entity_type,
+            "relationship": self.relationship_entity_type,
+        }.get(tablename)
+        if type_id is None:
+            yield from items
+            return
+        for item in items:
+            item["type_id"] = type_id
+            yield item
+
     def __del__(self):
         try:
             self.connection.close()
