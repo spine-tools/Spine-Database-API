@@ -1401,17 +1401,7 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 self.check_immutable_fields(
-                    updated_item,
-                    item,
-                    (
-                        "entity_class_id",
-                        "object_class_id",
-                        "relationship_class_id",
-                        "entity_id",
-                        "object_id",
-                        "relationship_id",
-                        "parameter_definition_id",
-                    ),
+                    updated_item, item, ("entity_class_id", "object_class_id", "relationship_class_id")
                 )
                 updated_item.update(item)
                 check_parameter_value(
