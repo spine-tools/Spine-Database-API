@@ -1644,7 +1644,7 @@ class DatabaseMappingBase:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg)
 
-    def make_cache(self, *item_types):
+    def make_cache(self, *tablenames):
         sqs = {
             "feature": "ext_feature_sq",
             "tool": "tool_sq",
@@ -1666,8 +1666,8 @@ class DatabaseMappingBase:
             "parameter_value_metadata": "parameter_value_metadata_sq",
         }
         return {
-            item_type: {x.id: x for x in self.query(getattr(self, sqs[item_type]))}
-            for item_type in set(item_types) & sqs.keys()
+            tablename: {x.id: x for x in self.query(getattr(self, sqs[tablename]))}
+            for tablename in set(tablenames) & sqs.keys()
         }
 
     def _items_with_type_id(self, tablename, *items):

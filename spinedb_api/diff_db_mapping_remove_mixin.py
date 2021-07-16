@@ -26,13 +26,13 @@ class DiffDatabaseMappingRemoveMixin:
     """
 
     # pylint: disable=redefined-builtin
-    def cascade_remove_items(self, **kwargs):
+    def cascade_remove_items(self, cache=None, **kwargs):
         """Removes items by id in cascade.
 
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
-        cascading_ids = self.cascading_ids(**kwargs)
+        cascading_ids = self.cascading_ids(cache=cache, **kwargs)
         self.remove_items(**cascading_ids)
 
     def remove_items(self, **kwargs):
@@ -57,31 +57,48 @@ class DiffDatabaseMappingRemoveMixin:
             self._mark_as_dirty(tablename, ids)
 
     # pylint: disable=redefined-builtin
-    def cascading_ids(self, **kwargs):
+    def cascading_ids(self, cache=None, **kwargs):
         """Returns cascading ids.
 
         Keyword args:
+            cache (dict, optional)
             <tablename> (set): set of ids to be removed for table
 
         Returns:
             cascading_ids (dict): cascading ids keyed by table name
         """
+        if cache is None:
+            cascading_tablenames = {
+                "alternative": ("parameter_value", "scenario_alternative"),
+                "scenario": ("scenario_alternative",),
+                "object_class": ("object", "relationship_class", "parameter_definition"),
+                "object": ("relationship", "parameter_value", "entity_group"),
+                "relationship_class": ("relationship", "parameter_definition"),
+                "relationship": ("parameter_value", "entity_group"),
+                "parameter_definition": ("parameter_value", "feature"),
+                "parameter_value_list": ("feature",),
+                "feature": ("tool_feature",),
+                "tool_feature": ("tool_feature",),
+                "tool": ("tool_feature_method",),
+            }
+            tablenames = [cascading for tablename in kwargs for cascading in cascading_tablenames.get(tablename, ())]
+            cache = self.make_cache(*tablenames)
         ids = {}
-        self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set())))
-        self._merge(ids, self._object_cascading_ids(kwargs.get("object", set())))
-        self._merge(ids, self._relationship_class_cascading_ids(kwargs.get("relationship_class", set())))
-        self._merge(ids, self._relationship_cascading_ids(kwargs.get("relationship", set())))
-        self._merge(ids, self._entity_group_cascading_ids(kwargs.get("entity_group", set())))
-        self._merge(ids, self._parameter_definition_cascading_ids(kwargs.get("parameter_definition", set())))
-        self._merge(ids, self._parameter_value_cascading_ids(kwargs.get("parameter_value", set())))
-        self._merge(ids, self._parameter_value_list_cascading_ids(kwargs.get("parameter_value_list", set())))
-        self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set())))
-        self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set())))
-        self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set())))
-        self._merge(ids, self._feature_cascading_ids(kwargs.get("feature", set())))
-        self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set())))
-        self._merge(ids, self._tool_feature_cascading_ids(kwargs.get("tool_feature", set())))
-        self._merge(ids, self._tool_feature_method_cascading_ids(kwargs.get("tool_feature_method", set())))
+        self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))
+        self._merge(ids, self._object_cascading_ids(kwargs.get("object", set()), cache))
+        self._merge(ids, self._relationship_class_cascading_ids(kwargs.get("relationship_class", set()), cache))
+        self._merge(ids, self._relationship_cascading_ids(kwargs.get("relationship", set()), cache))
+        self._merge(ids, self._entity_group_cascading_ids(kwargs.get("entity_group", set()), cache))
+        self._merge(ids, self._parameter_definition_cascading_ids(kwargs.get("parameter_definition", set()), cache))
+        self._merge(ids, self._parameter_value_cascading_ids(kwargs.get("parameter_value", set()), cache))
+        self._merge(ids, self._parameter_value_list_cascading_ids(kwargs.get("parameter_value_list", set()), cache))
+        self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set()), cache))
+        self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set()), cache))
+        self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set()), cache))
+        self._merge(ids, self._feature_cascading_ids(kwargs.get("feature", set()), cache))
+        self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set()), cache))
+        self._merge(ids, self._tool_feature_cascading_ids(kwargs.get("tool_feature", set()), cache))
+        self._merge(ids, self._tool_feature_method_cascading_ids(kwargs.get("tool_feature_method", set()), cache))
         return {key: value for key, value in ids.items() if value}
 
     @staticmethod
@@ -89,138 +106,126 @@ class DiffDatabaseMappingRemoveMixin:
         for tablename, ids in right.items():
             left.setdefault(tablename, set()).update(ids)
 
-    # FIXME: Allow using cache for queries
-
-    def _alternative_cascading_ids(self, ids):
+    def _alternative_cascading_ids(self, ids, cache):
         """Returns alternative cascading ids."""
         cascading_ids = {"alternative": ids.copy()}
-        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
-            self.in_(self.parameter_value_sq.c.alternative_id, ids)
+        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.alternative_id in ids]
+        scenario_alternatives = [x for x in cache.get("scenario_alternative", {}).values() if x.alternative_id in ids]
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
+        self._merge(
+            cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}, cache)
         )
-        scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
-            self.in_(self.scenario_alternative_sq.c.alternative_id, ids)
-        )
-        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
         return cascading_ids
 
-    def _scenario_cascading_ids(self, ids):
+    def _scenario_cascading_ids(self, ids, cache):
         cascading_ids = {"scenario": ids.copy()}
-        scenario_alternatives = self.query(self.scenario_alternative_sq.c.id).filter(
-            self.in_(self.scenario_alternative_sq.c.scenario_id, ids)
+        scenario_alternatives = [x for x in cache.get("scenario_alternative", {}).values() if x.scenario_id in ids]
+        self._merge(
+            cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}, cache)
         )
-        self._merge(cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}))
         return cascading_ids
 
-    def _object_class_cascading_ids(self, ids):
+    def _object_class_cascading_ids(self, ids, cache):
         """Returns object class cascading ids."""
         cascading_ids = {"entity_class": ids.copy(), "object_class": ids.copy()}
-        objects = self.query(self.object_sq.c.id).filter(self.in_(self.object_sq.c.class_id, ids))
-        relationship_classes = self.query(self.relationship_class_sq.c.id).filter(
-            self.in_(self.relationship_class_sq.c.object_class_id, ids)
+        objects = [x for x in cache.get("object", {}).values() if x.class_id in ids]
+        relationship_classes = (
+            x
+            for x in cache.get("relationship_class", {}).values()
+            if {int(id_) for id_ in x.object_class_id_list.split(",")}.intersection(ids)
         )
-        paramerer_definitions = self.query(self.parameter_definition_sq.c.id).filter(
-            self.in_(self.parameter_definition_sq.c.object_class_id, ids)
+        paramerer_definitions = [x for x in cache.get("parameter_definition", {}).values() if x.entity_class_id in ids]
+        self._merge(cascading_ids, self._object_cascading_ids({x.id for x in objects}, cache))
+        self._merge(cascading_ids, self._relationship_class_cascading_ids({x.id for x in relationship_classes}, cache))
+        self._merge(
+            cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}, cache)
         )
-        self._merge(cascading_ids, self._object_cascading_ids({x.id for x in objects}))
-        self._merge(cascading_ids, self._relationship_class_cascading_ids({x.id for x in relationship_classes}))
-        self._merge(cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}))
         return cascading_ids
 
-    def _object_cascading_ids(self, ids):
+    def _object_cascading_ids(self, ids, cache):
         """Returns object cascading ids."""
         cascading_ids = {"entity": ids.copy(), "object": ids.copy()}
-        relationships = self.query(self.relationship_sq.c.id).filter(self.in_(self.relationship_sq.c.object_id, ids))
-        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
-            self.in_(self.parameter_value_sq.c.object_id, ids)
+        relationships = (
+            x
+            for x in cache.get("relationship", {}).values()
+            if {int(id_) for id_ in x.object_id_list.split(",")}.intersection(ids)
         )
-        # TODO: try to use `or_` here
-        group_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.entity_id, ids))
-        member_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.member_id, ids))
-        self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}))
-        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in group_entities}))
-        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in member_entities}))
+        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
+        groups = [x for x in cache.get("entity_group", {}).values() if {x.entity_id, x.member_id}.intersection(ids)]
+        self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}, cache))
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
+        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
         return cascading_ids
 
-    def _relationship_class_cascading_ids(self, ids):
+    def _relationship_class_cascading_ids(self, ids, cache):
         """Returns relationship class cascading ids."""
         cascading_ids = {
             "relationship_class": ids.copy(),
             "relationship_entity_class": ids.copy(),
             "entity_class": ids.copy(),
         }
-        relationships = self.query(self.relationship_sq.c.id).filter(self.in_(self.relationship_sq.c.class_id, ids))
-        paramerer_definitions = self.query(self.parameter_definition_sq.c.id).filter(
-            self.in_(self.parameter_definition_sq.c.relationship_class_id, ids)
+        relationships = [x for x in cache.get("relationship", {}).values() if x.class_id in ids]
+        paramerer_definitions = [x for x in cache.get("parameter_definition", {}).values() if x.entity_class_id in ids]
+        self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}, cache))
+        self._merge(
+            cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}, cache)
         )
-        self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}))
-        self._merge(cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}))
         return cascading_ids
 
-    def _relationship_cascading_ids(self, ids):
+    def _relationship_cascading_ids(self, ids, cache):
         """Returns relationship cascading ids."""
         cascading_ids = {"relationship": ids.copy(), "entity": ids.copy(), "relationship_entity": ids.copy()}
-        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
-            self.in_(self.parameter_value_sq.c.relationship_id, ids)
-        )
-        # TODO: try to use `or_` here
-        group_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.entity_id, ids))
-        member_entities = self.query(self.entity_group_sq.c.id).filter(self.in_(self.entity_group_sq.c.member_id, ids))
-        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in group_entities}))
-        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in member_entities}))
+        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
+        groups = [x for x in cache.get("entity_group", {}).values() if {x.entity_id, x.member_id}.intersection(ids)]
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
+        self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
         return cascading_ids
 
-    def _entity_group_cascading_ids(self, ids):  # pylint: disable=no-self-use
+    def _entity_group_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns entity group cascading ids."""
         return {"entity_group": ids.copy()}
 
-    def _parameter_definition_cascading_ids(self, ids):
+    def _parameter_definition_cascading_ids(self, ids, cache):
         """Returns parameter definition cascading ids."""
         cascading_ids = {"parameter_definition": ids.copy()}
-        parameter_values = self.query(self.parameter_value_sq.c.id).filter(
-            self.in_(self.parameter_value_sq.c.parameter_definition_id, ids)
-        )
-        features = self.query(self.feature_sq.c.id).filter(self.in_(self.feature_sq.c.parameter_definition_id, ids))
-        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}))
-        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}))
+        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.parameter_id in ids]
+        features = [x for x in cache.get("feature", {}).values() if x.parameter_definition_id in ids]
+        self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
+        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
 
-    def _parameter_value_cascading_ids(self, ids):  # pylint: disable=no-self-use
+    def _parameter_value_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns parameter value cascading ids."""
         return {"parameter_value": ids.copy()}
 
-    def _parameter_value_list_cascading_ids(self, ids):  # pylint: disable=no-self-use
+    def _parameter_value_list_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries.
         """
         cascading_ids = {"parameter_value_list": ids.copy()}
-        features = self.query(self.feature_sq.c.id).filter(self.in_(self.feature_sq.c.parameter_value_list_id, ids))
-        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}))
+        features = [x for x in cache.get("feature", {}).values() if x.parameter_value_list_id in ids]
+        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
 
-    def _scenario_alternatives_cascading_ids(self, ids):
+    def _scenario_alternatives_cascading_ids(self, ids, cache):
         return {"scenario_alternative": ids.copy()}
 
-    def _feature_cascading_ids(self, ids):
+    def _feature_cascading_ids(self, ids, cache):
         cascading_ids = {"feature": ids.copy()}
-        tool_features = self.query(self.tool_feature_sq.c.id).filter(self.in_(self.tool_feature_sq.c.feature_id, ids))
-        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}))
+        tool_features = [x for x in cache.get("tool_feature", {}).values() if x.feature_id in ids]
+        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}, cache))
         return cascading_ids
 
-    def _tool_cascading_ids(self, ids):
+    def _tool_cascading_ids(self, ids, cache):
         cascading_ids = {"tool": ids.copy()}
-        tool_features = self.query(self.tool_feature_sq.c.id).filter(self.in_(self.tool_feature_sq.c.tool_id, ids))
-        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}))
+        tool_features = [x for x in cache.get("tool_feature", {}).values() if x.tool_id in ids]
+        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}, cache))
         return cascading_ids
 
-    def _tool_feature_cascading_ids(self, ids):
+    def _tool_feature_cascading_ids(self, ids, cache):
         cascading_ids = {"tool_feature": ids.copy()}
-        tool_feature_methods = self.query(self.tool_feature_method_sq.c.id).filter(
-            self.in_(self.tool_feature_method_sq.c.tool_feature_id, ids)
-        )
-        self._merge(cascading_ids, self._tool_feature_method_cascading_ids({x.id for x in tool_feature_methods}))
+        tool_feature_methods = [x for x in cache.get("tool_feature_method", {}).values() if x.tool_feature_id in ids]
+        self._merge(cascading_ids, self._tool_feature_method_cascading_ids({x.id for x in tool_feature_methods}, cache))
         return cascading_ids
 
-    def _tool_feature_method_cascading_ids(self, ids):
+    def _tool_feature_method_cascading_ids(self, ids, cache):
         return {"tool_feature_method": ids.copy()}
