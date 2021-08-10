@@ -22,9 +22,8 @@ sys.path.insert(0, os.path.abspath(root_path))
 # -- Project information -----------------------------------------------------
 
 project = "Spine Database API"
-author = "Various"
-# TODO: correctly identify authors / copyright
-copyright = "2021, Spine"
+author = 'Spine project consortium'
+copyright = '2017-2021 {}'.format(author)
 
 # The short X.Y version
 from spinedb_api import __version__ as spinedb_api_version
@@ -44,15 +43,15 @@ release = spinedb_api_version
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.todo",  # support for ".. todo:"
-    'sphinx.ext.napoleon',  # support for NumPy or Google style in-code docstrings
-    # ref: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-    "sphinx.ext.coverage",  # checks documentation coverage
-    # "sphinx.ext.githubpages",  # prepares for export to github
-    "sphinx.ext.intersphinx",  # enables link to other Sphinx based documentation
+    'sphinx.ext.todo',
+    'sphinx.ext.coverage',
+    'sphinx.ext.ifconfig',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.githubpages',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.intersphinx',
     'recommonmark',
-    # 'autoapi.extension',    # further extends sphinx.ext.autodoc???
+    'autoapi.extension'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -83,12 +82,17 @@ language = None
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = None
+pygments_style = 'sphinx'
 
 # Settings for Sphinx AutoAPI
-if 'autoapi.extension' in extensions:
-    autoapi_dirs = ['../../spinedb_api']  # package to be documented
-    autoapi_ignore = ['*_rc.py']  # ignored modules
+autoapi_python_class_content = "both"
+autoapi_add_toctree_entry = True
+autoapi_root = "autoapi"
+autoapi_dirs = ['../../spinedb_api']  # package to be documented
+autoapi_ignore = [
+    '*/spinedb_api/alembic/*',
+]  # ignored modules
+autoapi_keep_files=True
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -107,9 +111,7 @@ html_theme = "sphinx_rtd_theme"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = [
-    # "_static",  # Not used at the moment. Commented out to avoid Sphinx warning
-]
+html_static_path = []
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -149,7 +151,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "SpineDatabaseAPI.tex", "Spine Database API Documentation", "Fabiano, various", "manual")
+    (master_doc, "SpineDatabaseAPI.tex", "Spine Database API Documentation", "Spine project consortium", "manual")
 ]
 
 

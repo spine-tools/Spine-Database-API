@@ -7,12 +7,12 @@ Welcome to Spine Database API's documentation!
 ==============================================
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 1
    :caption: Contents:
 
    front_matter
    tutorial
-   autogen_apidocs/modules
+   autoapi/index
 
 Indices and tables
 ==================
