@@ -59,7 +59,6 @@ class Mapping:
         position (int or Position): defines where the data is written/read in the output table.
             Nonnegative numbers are columns, negative numbers are pivot rows, and then there are some special cases
             in the Position enum.
-        value (any): fixed value
         parent (Mapping or None): Another mapping that's the 'parent' of this one.
             Used to determine if a mapping is root, in which case it needs to yield the header.
     """
@@ -71,7 +70,7 @@ class Mapping:
         """
         Args:
             position (int or Position): column index or Position
-            value (any): fixed value
+            value (Any): fixed value
         """
         self._child = None
         self._value = None
@@ -92,6 +91,7 @@ class Mapping:
 
     @property
     def value(self):
+        """Fixed value."""
         return self._value
 
     @value.setter

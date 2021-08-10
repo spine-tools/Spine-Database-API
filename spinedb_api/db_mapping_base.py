@@ -325,7 +325,7 @@ class DatabaseMappingBase:
 
         .. code-block:: sql
 
-            SELECT * FROM {tablename}
+            SELECT * FROM tablename
 
         Args:
             tablename (str): the table to be queried.

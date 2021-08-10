@@ -9,7 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.DiffDatabaseMappingUpdateMixin`.
+"""Provides :class:`DatabaseMappingUpdateMixin`.
 
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
@@ -183,8 +183,9 @@ class DatabaseMappingUpdateMixin:
         Args:
             items (Iterable): One or more wide scenario_alternative :class:`dict` objects to set.
                 Each item must include the following keys:
-                    "id": integer scenario id
-                    "alternative_id_list": string comma separated list of alternative ids for that scenario
+
+                - "id": integer scenario id
+                - "alternative_id_list": string comma separated list of alternative ids for that scenario
 
         Returns
             list: narrow scenario_alternative :class:`dict` objects to add.

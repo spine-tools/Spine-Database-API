@@ -547,16 +547,15 @@ def _array_from_database(value_dict):
 
 
 class DateTime:
-    """
-    A single datetime value.
-
-    Attributes:
-        value (DataTime or str or datetime.datetime): a timestamp
-    """
+    """A single datetime value."""
 
     VALUE_TYPE = "single value"
 
     def __init__(self, value=None):
+        """
+        Args:
+            value (DataTime or str or datetime.datetime): a timestamp
+        """
         if value is None:
             value = datetime(year=2000, month=1, day=1)
         elif isinstance(value, str):
@@ -609,14 +608,15 @@ class Duration:
     This class represents a duration in time.
 
     Durations are always handled as relativedeltas.
-
-    Attributes:
-        value (str or relativedelta): the time step
     """
 
     VALUE_TYPE = "single value"
 
     def __init__(self, value=None):
+        """
+        Args:
+            value (str or relativedelta): the time step
+        """
         if value is None:
             value = relativedelta(hours=1)
         elif isinstance(value, str):

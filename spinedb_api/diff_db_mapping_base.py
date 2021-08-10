@@ -114,7 +114,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
 
         .. code-block:: sql
 
-            SELECT * FROM {tablename}
+            SELECT * FROM tablename
 
         :param str tablename: A string indicating the table to be queried.
         :type: :class:`~sqlalchemy.sql.expression.Alias`
@@ -127,7 +127,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
 
         .. code-block:: sql
 
-            SELECT * FROM {tablename}
+            SELECT * FROM tablename
 
         :param str tablename: A string indicating the table to be queried.
         :type: :class:`~sqlalchemy.sql.expression.Alias`
