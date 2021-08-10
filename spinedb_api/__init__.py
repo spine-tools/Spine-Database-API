@@ -9,6 +9,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
+import importlib_metadata
+
 from .db_mapping import DatabaseMapping
 from .diff_db_mapping import DiffDatabaseMapping
 from .exception import (
@@ -126,6 +128,6 @@ from .filters.tools import (
     pop_filter_configs,
     name_from_dict,
 )
-from .version import __version__
 
 name = "spinedb_api"
+__version__ = importlib_metadata.version(name)

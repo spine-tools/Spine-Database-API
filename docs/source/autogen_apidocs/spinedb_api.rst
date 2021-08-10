@@ -124,14 +124,6 @@ spinedb\_api.json\_mapping module
    :undoc-members:
    :show-inheritance:
 
-spinedb\_api.version module
----------------------------
-
-.. automodule:: spinedb_api.version
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 
 Module contents
 ---------------
