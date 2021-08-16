@@ -71,7 +71,7 @@ class DatabaseMappingUpdateMixin:
                 for queries
 
         Returns:
-            set: ids or items succesfully updated
+            set: ids or items successfully updated
             list(SpineIntegrityError): found violations
         """
         if check:
@@ -159,10 +159,13 @@ class DatabaseMappingUpdateMixin:
     def _update_tool_feature_methods(self, *items):
         return self._update_items("tool_feature_method", *items)
 
-    def update_wide_parameter_value_lists(self, *items, strict=False, return_items=False, cache=None):
-        checked_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
-            *items, strict=strict, cache=cache
-        )
+    def update_wide_parameter_value_lists(self, *items, check=True, strict=False, return_items=False, cache=None):
+        if check:
+            checked_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
+                *items, strict=strict, cache=cache
+            )
+        else:
+            checked_items, intgr_error_log = items, []
         updated_ids = self._update_wide_parameter_value_lists(*checked_items)
         return checked_items if return_items else updated_ids, intgr_error_log
 
