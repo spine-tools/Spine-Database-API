@@ -990,5 +990,15 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         db_map.connection.close()
 
 
+class TestDiffDatabaseMappingCommit(unittest.TestCase):
+    def test_commit_message(self):
+        """Tests that commit comment ends up in the database."""
+        db_map = create_diff_db_map()
+        db_map.add_object_classes({"name": "testclass"})
+        db_map.commit_session("test commit")
+        self.assertEqual(db_map.query(db_map.commit_sq).all()[-1].comment, "test commit")
+        db_map.connection.close()
+
+
 if __name__ == "__main__":
     unittest.main()

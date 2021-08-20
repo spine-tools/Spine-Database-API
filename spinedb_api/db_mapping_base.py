@@ -89,6 +89,7 @@ class DatabaseMappingBase:
         self._object_entity_type = None
         self._relationship_entity_type = None
         # Subqueries that select everything from each table
+        self._commit_sq = None
         self._alternative_sq = None
         self._scenario_sq = None
         self._scenario_alternative_sq = None
@@ -655,6 +656,12 @@ class DatabaseMappingBase:
         if self._entity_metadata_sq is None:
             self._entity_metadata_sq = self._subquery("entity_metadata")
         return self._entity_metadata_sq
+
+    @property
+    def commit_sq(self):
+        if self._commit_sq is None:
+            self._commit_sq = self._subquery("commit")
+        return self._commit_sq
 
     @property
     def ext_scenario_sq(self):

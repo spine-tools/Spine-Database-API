@@ -37,7 +37,7 @@ class DiffDatabaseMappingCommitMixin:
         try:
             user = self.username
             date = datetime.now(timezone.utc)
-            ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment="")
+            ins = self._metadata.tables["commit"].insert().values(user=user, date=date, comment=comment)
             commit_id = self.connection.execute(ins).inserted_primary_key[0]
             # NOTE: Remove first, so `scenario_alternative.rank`s become 'free'.
             # Remove
