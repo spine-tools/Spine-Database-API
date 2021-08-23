@@ -973,7 +973,7 @@ def _get_object_groups_for_import(db_map, data, cache=None):
     objects = {}
     for obj in cache.get("object", {}).values():
         objects.setdefault(obj.class_id, dict())[obj.id] = obj._asdict()
-    entity_group_ids = {(x.entity_id, x.member_id): x.id for x in cache.get("entity_group", {}).values()}
+    entity_group_ids = {(x.group_id, x.member_id): x.id for x in cache.get("entity_group", {}).values()}
     error_log = []
     to_add = []
     seen = set()
@@ -1113,21 +1113,23 @@ def _get_object_parameters_for_import(db_map, data, cache=None):
         checked_key = (oc_id, parameter_name)
         if checked_key in checked:
             continue
-        item = {
-            "name": parameter_name,
-            "entity_class_id": oc_id,
-            "default_value": None,
-            "default_type": None,
-            "parameter_value_list_id": None,
-            "description": None,
-        }
+        p_id = parameter_ids.pop((oc_id, parameter_name), None)
+        if p_id is not None:
+            item = db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
+        else:
+            item = {
+                "name": parameter_name,
+                "entity_class_id": oc_id,
+                "default_value": None,
+                "default_type": None,
+                "parameter_value_list_id": None,
+                "description": None,
+            }
         optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
         item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
-        p_id = parameter_ids.pop((oc_id, parameter_name), None)
         try:
             check_parameter_definition(item, parameter_ids, object_class_names.keys(), parameter_value_lists)
         except SpineIntegrityError as e:
-            # Object class doesn't exists
             error_log.append(
                 ImportErrorLogItem(
                     f"Could not import parameter '{parameter_name}' with class '{class_name}': {e.msg}",
@@ -1192,17 +1194,20 @@ def _get_relationship_parameters_for_import(db_map, data, cache=None):
         checked_key = (rc_id, parameter_name)
         if checked_key in checked:
             continue
-        item = {
-            "name": parameter_name,
-            "entity_class_id": rc_id,
-            "default_value": None,
-            "default_type": None,
-            "parameter_value_list_id": None,
-            "description": None,
-        }
+        p_id = parameter_ids.pop((rc_id, parameter_name), None)
+        if p_id is not None:
+            item = db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
+        else:
+            item = {
+                "name": parameter_name,
+                "entity_class_id": rc_id,
+                "default_value": None,
+                "default_type": None,
+                "parameter_value_list_id": None,
+                "description": None,
+            }
         optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
         item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
-        p_id = parameter_ids.pop((rc_id, parameter_name), None)
         try:
             check_parameter_definition(item, parameter_ids, relationship_class_names.keys(), parameter_value_lists)
         except SpineIntegrityError as e:

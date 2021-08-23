@@ -151,6 +151,31 @@ class DatabaseMappingBase:
             "relationship_entity": ("entity_id", "dimension"),
             "relationship_entity_class": ("entity_class_id", "dimension"),
         }
+        # Subqueries used to populate cache
+        self.cache_sqs = {
+            "feature": "ext_feature_sq",
+            "tool": "tool_sq",
+            "tool_feature": "ext_tool_feature_sq",
+            "tool_feature_method": "tool_feature_method_sq",
+            "parameter_value_list": "wide_parameter_value_list_sq",
+            "alternative": "alternative_sq",
+            "scenario": "wide_scenario_sq",
+            "scenario_alternative": "scenario_alternative_sq",
+            "object_class": "object_class_sq",
+            "object": "ext_object_sq",
+            "relationship_class": "wide_relationship_class_sq",
+            "relationship": "wide_relationship_sq",
+            "entity_group": "ext_entity_group_sq",
+            "parameter_definition": "entity_parameter_definition_sq",
+            "object_parameter_definition": "object_parameter_definition_sq",
+            "relationship_parameter_definition": "relationship_parameter_definition_sq",
+            "parameter_value": "entity_parameter_value_sq",
+            "object_parameter_value": "object_parameter_value_sq",
+            "relationship_parameter_value": "relationship_parameter_value_sq",
+            "metadata": "metadata_sq",
+            "entity_metadata": "entity_metadata_sq",
+            "parameter_value_metadata": "parameter_value_metadata_sq",
+        }
 
     def make_commit_id(self):
         return None
@@ -1030,6 +1055,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
                     self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
                     self.parameter_definition_sq.c.default_value,
+                    self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
@@ -1652,29 +1678,95 @@ class DatabaseMappingBase:
                 raise SpineDBAPIError(msg)
 
     def make_cache(self, *tablenames):
-        sqs = {
-            "feature": "ext_feature_sq",
-            "tool": "tool_sq",
-            "tool_feature": "ext_tool_feature_sq",
-            "tool_feature_method": "tool_feature_method_sq",
-            "parameter_value_list": "wide_parameter_value_list_sq",
-            "alternative": "alternative_sq",
-            "scenario": "wide_scenario_sq",
-            "scenario_alternative": "scenario_alternative_sq",
-            "object_class": "object_class_sq",
-            "object": "object_sq",
-            "relationship_class": "wide_relationship_class_sq",
-            "relationship": "wide_relationship_sq",
-            "entity_group": "entity_group_sq",
-            "parameter_definition": "entity_parameter_definition_sq",
-            "parameter_value": "entity_parameter_value_sq",
-            "metadata": "metadata_sq",
-            "entity_metadata": "entity_metadata_sq",
-            "parameter_value_metadata": "parameter_value_metadata_sq",
-        }
         return {
-            tablename: {x.id: x for x in self.query(getattr(self, sqs[tablename]))}
-            for tablename in set(tablenames) & sqs.keys()
+            tablename: {x.id: x for x in self.query(getattr(self, self.cache_sqs[tablename]))}
+            for tablename in set(tablenames) & self.cache_sqs.keys()
+        }
+
+    @staticmethod
+    def cache_to_db(item_type, item):
+        """
+        Returns the db equivalent of a cache item.
+
+        Args:
+            item_type (str): The item type
+            item (dict): The item in the cache
+
+        Returns:
+            dict
+        """
+        if item_type == "relationship_class":
+            return DatabaseMappingBase.cache_relationship_class_to_db(item)
+        if item_type == "relationship":
+            return DatabaseMappingBase.cache_relationship_to_db(item)
+        if item_type == "parameter_definition":
+            return DatabaseMappingBase.cache_parameter_definition_to_db(item)
+        if item_type == "parameter_value":
+            return DatabaseMappingBase.cache_parameter_value_to_db(item)
+        if item_type == "parameter_value_list":
+            return DatabaseMappingBase.cache_parameter_value_list_to_db(item)
+        if item_type == "entity_group":
+            return DatabaseMappingBase.cache_entity_group_to_db(item)
+        return item.copy()
+
+    @staticmethod
+    def cache_relationship_class_to_db(item):
+        return {
+            "id": item["id"],
+            "name": item["name"],
+            "description": item["description"],
+            "object_class_id_list": [int(id_) for id_ in item["object_class_id_list"].split(",")],
+        }
+
+    @staticmethod
+    def cache_relationship_to_db(item):
+        return {
+            "id": item["id"],
+            "name": item["name"],
+            "class_id": item["class_id"],
+            "object_class_id_list": [int(id_) for id_ in item["object_class_id_list"].split(",")],
+            "object_id_list": [int(id_) for id_ in item["object_id_list"].split(",")],
+        }
+
+    @staticmethod
+    def cache_parameter_definition_to_db(item):
+        return {
+            "id": item["id"],
+            "entity_class_id": item["entity_class_id"],
+            "name": item["parameter_name"],
+            "parameter_value_list_id": item["value_list_id"],
+            "default_value": item["default_value"],
+            "default_type": item["default_type"],
+            "description": item["description"],
+        }
+
+    @staticmethod
+    def cache_parameter_value_to_db(item):
+        return {
+            "id": item["id"],
+            "entity_class_id": item["entity_class_id"],
+            "entity_id": item["entity_id"],
+            "parameter_definition_id": item["parameter_id"],
+            "alternative_id": item["alternative_id"],
+            "value": item["value"],
+            "type": item["type"],
+        }
+
+    @staticmethod
+    def cache_parameter_value_list_to_db(item):
+        return {
+            "id": item["id"],
+            "name": item["name"],
+            "value_list": [bytes(val, "UTF8") for val in item["value_list"].split(";")],
+        }
+
+    @staticmethod
+    def cache_entity_group_to_db(item):
+        return {
+            "id": item["id"],
+            "entity_class_id": item["class_id"],
+            "entity_id": item["group_id"],
+            "member_id": item["member_id"],
         }
 
     def _items_with_type_id(self, tablename, *items):

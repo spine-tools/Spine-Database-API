@@ -350,14 +350,9 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_object_class_with_same_name_as_existing_one(self):
         """Test that adding an object class with an already taken name raises an integrity error."""
         db_map = create_diff_db_map()
-        query_wrapper = create_query_wrapper(db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq:
-            mock_query.side_effect = query_wrapper
-            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            with self.assertRaises(SpineIntegrityError):
-                db_map.add_object_classes({"name": "fish"}, strict=True)
+        db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
+        with self.assertRaises(SpineIntegrityError):
+            db_map.add_object_classes({"name": "fish"}, strict=True)
         db_map.connection.close()
 
     def test_add_objects(self):
@@ -397,28 +392,18 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_object_with_same_name_as_existing_one(self):
         """Test that adding an object with an already taken name raises an integrity error."""
         db_map = create_diff_db_map()
-        query_wrapper = create_query_wrapper(db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq, mock.patch.object(DiffDatabaseMapping, "object_sq") as mock_object_sq:
-            mock_query.side_effect = query_wrapper
-            mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            mock_object_sq.return_value = [KeyedTuple([1, 1, "nemo"], labels=["id", "class_id", "name"])]
-            with self.assertRaises(SpineIntegrityError):
-                db_map.add_objects({"name": "nemo", "class_id": 1}, strict=True)
+        db_map.add_object_classes({"name": "fish"})
+        db_map.add_objects({"name": "nemo", "class_id": 1})
+        with self.assertRaises(SpineIntegrityError):
+            db_map.add_objects({"name": "nemo", "class_id": 1}, strict=True)
         db_map.connection.close()
 
     def test_add_object_with_invalid_class(self):
         """Test that adding an object with a non existing class raises an integrity error."""
         db_map = create_diff_db_map()
-        query_wrapper = create_query_wrapper(db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq:
-            mock_query.side_effect = query_wrapper
-            mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            with self.assertRaises(SpineIntegrityError):
-                db_map.add_objects({"name": "pluto", "class_id": 2}, strict=True)
+        db_map.add_object_classes({"name": "fish"})
+        with self.assertRaises(SpineIntegrityError):
+            db_map.add_objects({"name": "pluto", "class_id": 2}, strict=True)
         db_map.connection.close()
 
     def test_add_relationship_classes(self):

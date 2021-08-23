@@ -1110,7 +1110,7 @@ class DatabaseMappingCheckMixin:
             cache = self.make_cache("object", "relationship", "entity_group")
         intgr_error_log = list()
         checked_items = list()
-        current_items = {(x.entity_id, x.member_id): None for x in cache.get("entity_group", {}).values()}
+        current_items = {(x.group_id, x.member_id): None for x in cache.get("entity_group", {}).values()}
         entities = {}
         for entity in chain(cache.get("object", {}).values(), cache.get("relationship", {}).values()):
             entities.setdefault(entity.class_id, dict())[entity.id] = entity._asdict()
