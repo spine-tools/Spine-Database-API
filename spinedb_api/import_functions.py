@@ -1556,7 +1556,7 @@ def _get_parameters_to_update_with_value_lists(db_map, parameter_value_lists_to_
         parameter_definitions.setdefault(x.value_list_id, []).append(x._asdict())
     parameter_values = {}
     for x in cache.get("parameter_value", {}).values():
-        parameter_values.setdefault(x.parameter_definition_id, []).append(x._asdict())
+        parameter_values.setdefault(x.parameter_id, []).append(x._asdict())
     parameter_value_lists = {x.id: x._asdict() for x in cache.get("parameter_value_list", {}).values()}
     defs_to_update = []
     vals_to_update = []
