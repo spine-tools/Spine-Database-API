@@ -325,13 +325,17 @@ def _get_features_for_import(db_map, data, cache=None):
         parameter_definition_id, parameter_value_list_id = parameter_ids.get((class_name, parameter_name), (None, None))
         if parameter_definition_id in checked:
             continue
-        item = {
-            "parameter_definition_id": parameter_definition_id,
-            "parameter_value_list_id": parameter_value_list_id,
-            "description": None,
-        }
-        item.update(dict(zip(("description",), optionals)))
         feature_id = feature_ids.pop(parameter_definition_id, None)
+        item = (
+            cache["feature"][feature_id]._asdict()
+            if feature_id is not None
+            else {
+                "parameter_definition_id": parameter_definition_id,
+                "parameter_value_list_id": parameter_value_list_id,
+                "description": None,
+            }
+        )
+        item.update(dict(zip(("description",), optionals)))
         try:
             check_feature(item, feature_ids, parameter_definitions)
         except SpineIntegrityError as e:
@@ -383,15 +387,13 @@ def _get_tools_for_import(db_map, data, cache=None):
     error_log = []
     for tool in data:
         if isinstance(tool, str):
-            name = tool
-            item = {"name": tool, "description": None}
-        else:
-            name, *optionals = tool
-            item = {"name": name, "description": None}
-            item.update(dict(zip(("description",), optionals)))
+            tool = (tool,)
+        name, *optionals = tool
         if name in checked:
             continue
         tool_id = tool_ids.pop(name, None)
+        item = cache["tool"][tool_id]._asdict() if tool_id is not None else {"name": name, "description": None}
+        item.update(dict(zip(("description",), optionals)))
         try:
             check_tool(item, tool_ids)
         except SpineIntegrityError as e:
@@ -455,14 +457,18 @@ def _get_tool_features_for_import(db_map, data, cache=None):
         feature_id, parameter_value_list_id = feature_ids.get((class_name, parameter_name), (None, None))
         if (tool_id, feature_id) in checked:
             continue
-        item = {
-            "tool_id": tool_id,
-            "feature_id": feature_id,
-            "parameter_value_list_id": parameter_value_list_id,
-            "required": False,
-        }
-        item.update(dict(zip(("required",), optionals)))
         tool_feature_id = tool_feature_ids.pop((tool_id, feature_id), None)
+        item = (
+            cache["tool_feature"][tool_feature_id]._asdict()
+            if tool_feature_id is not None
+            else {
+                "tool_id": tool_id,
+                "feature_id": feature_id,
+                "parameter_value_list_id": parameter_value_list_id,
+                "required": False,
+            }
+        )
+        item.update(dict(zip(("required",), optionals)))
         try:
             check_tool_feature(item, tool_feature_ids, tools, features)
         except SpineIntegrityError as e:
@@ -587,15 +593,17 @@ def _get_alternatives_for_import(db_map, data, cache=None):
     error_log = []
     for alternative in data:
         if isinstance(alternative, str):
-            name = alternative
-            item = {"name": name, "description": None}
-        else:
-            name, *optionals = alternative
-            item = {"name": name, "description": None}
-            item.update(dict(zip(("description",), optionals)))
+            alternative = (alternative,)
+        name, *optionals = alternative
         if name in checked:
             continue
         alternative_id = alternative_ids.pop(name, None)
+        item = (
+            cache["alternative"][alternative_id]._asdict()
+            if alternative_id is not None
+            else {"name": name, "description": None}
+        )
+        item.update(dict(zip(("description",), optionals)))
         try:
             check_alternative(item, alternative_ids)
         except SpineIntegrityError as e:
@@ -647,15 +655,17 @@ def _get_scenarios_for_import(db_map, data, cache=None):
     error_log = []
     for scenario in data:
         if isinstance(scenario, str):
-            name = scenario
-            item = {"name": name, "active": False, "description": None}
-        else:
-            name, *optionals = scenario
-            item = {"name": name, "active": False, "description": None}
-            item.update(dict(zip(("active", "description"), optionals)))
+            scenario = (scenario,)
+        name, *optionals = scenario
         if name in checked:
             continue
         scenario_id = scenario_ids.pop(name, None)
+        item = (
+            cache["scenario"][scenario_id]._asdict()
+            if scenario_id is not None
+            else {"name": name, "active": False, "description": None}
+        )
+        item.update(dict(zip(("active", "description"), optionals)))
         try:
             check_scenario(item, scenario_ids)
         except SpineIntegrityError as e:
@@ -746,12 +756,11 @@ def _get_scenario_alternatives_for_import(db_map, data, cache=None):
             pos = len(new_alt_id_list)
         new_alt_id_list.insert(pos, alternative_id)
         scenario_alternative_id_lists[scenario_id] = new_alt_id_list
-
     for scenario_id, new_alt_id_list in scenario_alternative_id_lists.items():
         for k, alt_id in enumerate(new_alt_id_list):
             id_ = scenario_alternative_ids.get((scenario_id, alt_id))
             if id_ is not None:
-                item = {"id": id_, "rank": k + 1}
+                item = {"id": id_, "scenario_id": scenario_id, "alternative_id": alt_id, "rank": k + 1}
                 to_update.append(item)
             else:
                 item = {"scenario_id": scenario_id, "alternative_id": alt_id, "rank": k + 1}
@@ -788,15 +797,18 @@ def _get_object_classes_for_import(db_map, data, cache=None):
     error_log = []
     for object_class in data:
         if isinstance(object_class, str):
-            name = object_class
-            item = {"name": name, "type_id": db_map.object_class_type, "description": None, "display_icon": None}
-        else:
-            name, *optionals = object_class
-            item = {"name": name, "type_id": db_map.object_class_type, "description": None, "display_icon": None}
-            item.update(dict(zip(("description", "display_icon"), optionals)))
+            object_class = (object_class,)
+        name, *optionals = object_class
         if name in checked:
             continue
         oc_id = object_class_ids.pop(name, None)
+        item = (
+            cache["object_class"][oc_id]._asdict()
+            if oc_id is not None
+            else {"name": name, "description": None, "display_icon": None}
+        )
+        item["type_id"] = db_map.object_class_type
+        item.update(dict(zip(("description", "display_icon"), optionals)))
         try:
             check_object_class(item, object_class_ids, db_map.object_class_type)
         except SpineIntegrityError as e:
@@ -850,15 +862,18 @@ def _get_relationship_classes_for_import(db_map, data, cache=None):
     for name, oc_names, *optionals in data:
         if name in checked:
             continue
-        oc_ids = tuple(object_class_ids.get(oc, None) for oc in oc_names)
-        item = {
-            "name": name,
-            "object_class_id_list": list(oc_ids),
-            "type_id": db_map.relationship_class_type,
-            "description": None,
-        }
-        item.update(dict(zip(("description",), optionals)))
         rc_id = relationship_class_ids.pop(name, None)
+        item = (
+            db_map.cache_relationship_class_to_db(cache["relationship_class"][rc_id]._asdict())
+            if rc_id is not None
+            else {
+                "name": name,
+                "object_class_id_list": [object_class_ids.get(oc, None) for oc in oc_names],
+                "description": None,
+            }
+        )
+        item["type_id"] = db_map.relationship_class_type
+        item.update(dict(zip(("description",), optionals)))
         try:
             check_wide_relationship_class(
                 item, relationship_class_ids, set(object_class_ids.values()), db_map.relationship_class_type
@@ -918,9 +933,14 @@ def _get_objects_for_import(db_map, data, cache=None):
         oc_id = object_class_ids.get(oc_name, None)
         if (oc_id, name) in checked:
             continue
-        item = {"name": name, "class_id": oc_id, "type_id": db_map.object_entity_type, "description": None}
-        item.update(dict(zip(("description",), optionals)))
         o_id = object_ids.pop((oc_id, name), None)
+        item = (
+            cache["object"][o_id]._asdict()
+            if o_id is not None
+            else {"name": name, "class_id": oc_id, "description": None}
+        )
+        item["type_id"] = db_map.object_entity_type
+        item.update(dict(zip(("description",), optionals)))
         try:
             check_object(item, object_ids, set(object_class_ids.values()), db_map.object_entity_type)
         except SpineIntegrityError as e:
@@ -1037,10 +1057,7 @@ def _get_relationships_for_import(db_map, data, cache=None):
     for class_name, object_names in data:
         rc_id = relationship_class_ids.get(class_name, None)
         oc_ids = object_class_id_lists.get(rc_id, [])
-        if len(object_names) == len(oc_ids):
-            o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
-        else:
-            o_ids = tuple(None for _ in object_names)
+        o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
         if (rc_id, o_ids) in seen or (rc_id, ",".join(str(o) for o in o_ids)) in relationship_ids_per_obj_lst:
             continue
         object_names = [str(obj) for obj in object_names]
@@ -1114,10 +1131,10 @@ def _get_object_parameters_for_import(db_map, data, cache=None):
         if checked_key in checked:
             continue
         p_id = parameter_ids.pop((oc_id, parameter_name), None)
-        if p_id is not None:
-            item = db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
-        else:
-            item = {
+        item = (
+            db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
+            if p_id is not None
+            else {
                 "name": parameter_name,
                 "entity_class_id": oc_id,
                 "default_value": None,
@@ -1125,6 +1142,7 @@ def _get_object_parameters_for_import(db_map, data, cache=None):
                 "parameter_value_list_id": None,
                 "description": None,
             }
+        )
         optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
         item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
         try:
@@ -1195,10 +1213,10 @@ def _get_relationship_parameters_for_import(db_map, data, cache=None):
         if checked_key in checked:
             continue
         p_id = parameter_ids.pop((rc_id, parameter_name), None)
-        if p_id is not None:
-            item = db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
-        else:
-            item = {
+        item = (
+            db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
+            if p_id is not None
+            else {
                 "name": parameter_name,
                 "entity_class_id": rc_id,
                 "default_value": None,
@@ -1206,6 +1224,7 @@ def _get_relationship_parameters_for_import(db_map, data, cache=None):
                 "parameter_value_list_id": None,
                 "description": None,
             }
+        )
         optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
         item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
         try:

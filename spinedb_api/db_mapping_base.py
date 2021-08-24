@@ -1714,7 +1714,7 @@ class DatabaseMappingBase:
         return {
             "id": item["id"],
             "name": item["name"],
-            "description": item["description"],
+            "description": item.get("description"),
             "object_class_id_list": [int(id_) for id_ in item["object_class_id_list"].split(",")],
         }
 
@@ -1734,10 +1734,10 @@ class DatabaseMappingBase:
             "id": item["id"],
             "entity_class_id": item["entity_class_id"],
             "name": item["parameter_name"],
-            "parameter_value_list_id": item["value_list_id"],
-            "default_value": item["default_value"],
-            "default_type": item["default_type"],
-            "description": item["description"],
+            "parameter_value_list_id": item.get("value_list_id"),
+            "default_value": item.get("default_value"),
+            "default_type": item.get("default_type"),
+            "description": item.get("description"),
         }
 
     @staticmethod
