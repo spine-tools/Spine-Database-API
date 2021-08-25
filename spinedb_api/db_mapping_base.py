@@ -176,6 +176,51 @@ class DatabaseMappingBase:
             "entity_metadata": "entity_metadata_sq",
             "parameter_value_metadata": "parameter_value_metadata_sq",
         }
+        self.ancestor_tablenames = {
+            "feature": ("parameter_definition",),
+            "tool_feature": ("tool", "feature"),
+            "tool_feature_method": ("tool_feature", "parameter_value_list"),
+            "scenario_alternative": ("scenario", "alternative"),
+            "relationship_class": ("object_class",),
+            "object": ("object_class",),
+            "entity_group": ("object_class", "relationship_class", "object", "relationship"),
+            "relationship": ("relationship_class", "object"),
+            "parameter_definition": ("object_class", "relationship_class", "parameter_value_list"),
+            "parameter_value": (
+                "alternative",
+                "object_class",
+                "relationship_class",
+                "object",
+                "relationship",
+                "parameter_definition",
+                "parameter_value_list",
+            ),
+            "entity_metadata": ("metadata",),
+            "parameter_value_metadata": ("metadata",),
+        }
+        self.descendant_tablenames = {
+            tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
+        }
+
+    def _descendant_tablenames(self, tablename):
+        child_tablenames = {
+            "alternative": ("parameter_value", "scenario_alternative"),
+            "scenario": ("scenario_alternative",),
+            "object_class": ("object", "relationship_class", "parameter_definition"),
+            "object": ("relationship", "parameter_value", "entity_group"),
+            "relationship_class": ("relationship", "parameter_definition"),
+            "relationship": ("parameter_value", "entity_group"),
+            "parameter_definition": ("parameter_value", "feature"),
+            "parameter_value_list": ("feature",),
+            "feature": ("tool_feature",),
+            "tool": ("tool_feature",),
+            "tool_feature": ("tool_feature_method",),
+        }
+        for parent, children in child_tablenames.items():
+            if tablename == parent:
+                for child in children:
+                    yield child
+                    yield from self._descendant_tablenames(child)
 
     def make_commit_id(self):
         return None
@@ -1677,10 +1722,18 @@ class DatabaseMappingBase:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg)
 
-    def make_cache(self, *tablenames):
+    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False):
+        if only_descendants:
+            tablenames = {
+                descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
+            }
+        if include_ancestors:
+            tablenames |= {
+                ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
+            }
         return {
             tablename: {x.id: x for x in self.query(getattr(self, self.cache_sqs[tablename]))}
-            for tablename in set(tablenames) & self.cache_sqs.keys()
+            for tablename in tablenames & self.cache_sqs.keys()
         }
 
     @staticmethod

@@ -68,21 +68,7 @@ class DiffDatabaseMappingRemoveMixin:
             cascading_ids (dict): cascading ids keyed by table name
         """
         if cache is None:
-            cascading_tablenames = {
-                "alternative": ("parameter_value", "scenario_alternative"),
-                "scenario": ("scenario_alternative",),
-                "object_class": ("object", "relationship_class", "parameter_definition"),
-                "object": ("relationship", "parameter_value", "entity_group"),
-                "relationship_class": ("relationship", "parameter_definition"),
-                "relationship": ("parameter_value", "entity_group"),
-                "parameter_definition": ("parameter_value", "feature"),
-                "parameter_value_list": ("feature",),
-                "feature": ("tool_feature",),
-                "tool_feature": ("tool_feature",),
-                "tool": ("tool_feature_method",),
-            }
-            tablenames = [cascading for tablename in kwargs for cascading in cascading_tablenames.get(tablename, ())]
-            cache = self.make_cache(*tablenames)
+            cache = self.make_cache(set(kwargs), only_descendants=True)
         ids = {}
         self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))
         self._merge(ids, self._object_cascading_ids(kwargs.get("object", set()), cache))
