@@ -429,6 +429,7 @@ def alter_tables_after_update(meta):
             ondelete="CASCADE",
         )
     with op.batch_alter_table("parameter_definition") as batch_op:
+        batch_op.drop_constraint("ck_parameter_obj_or_rel_class_id_is_not_null")
         batch_op.drop_column("object_class_id")
         batch_op.drop_column("relationship_class_id")
         batch_op.alter_column("entity_class_id", nullable=False)
@@ -439,6 +440,7 @@ def alter_tables_after_update(meta):
         if dummy_relationship_class:
             batch_op.drop_column(dummy_relationship_class)
     with op.batch_alter_table("parameter_value") as batch_op:
+        batch_op.drop_constraint("ck_parameter_value_obj_or_rel_id_is_not_null")
         batch_op.drop_column("object_id")
         batch_op.drop_column("relationship_id")
         batch_op.alter_column("entity_class_id", nullable=False)
