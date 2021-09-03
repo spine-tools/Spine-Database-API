@@ -132,6 +132,28 @@ class TestGdxWriter(unittest.TestCase):
                 self.assertEqual(float(gams_scalar), 2.3)
         db_map.connection.close()
 
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_two_tables(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_objects(db_map, (("oc1", "o"), ("oc2", "p")))
+        db_map.commit_session("Add test data.")
+        root_mapping = object_export(class_position=Position.table_name, object_position=0)
+        root_mapping.child.header = "*"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_two_tables.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            write(db_map, writer, root_mapping)
+            with GdxFile(str(file_path), "r", self._gams_dir) as gdx_file:
+                self.assertEqual(len(gdx_file), 2)
+                gams_set = gdx_file["oc1"]
+                self.assertIsNone(gams_set.domain)
+                self.assertEqual(gams_set.elements, ["o"])
+                gams_set = gdx_file["oc2"]
+                self.assertIsNone(gams_set.domain)
+                self.assertEqual(gams_set.elements, ["p"])
+        db_map.connection.close()
+
 
 if __name__ == '__main__':
     unittest.main()
