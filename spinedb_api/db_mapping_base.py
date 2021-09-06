@@ -1625,7 +1625,7 @@ class DatabaseMappingBase:
             cache = self.make_cache({"alternative"})
         self._import_alternative_name = "Base"
         self._import_alternative_id = next(
-            (id_ for id_, alt in cache.get("alternative", {}).items() if alt["name"] == self._import_alternative_name),
+            (id_ for id_, alt in cache.get("alternative", {}).items() if alt.name == self._import_alternative_name),
             None,
         )
         if not self._import_alternative_id:
