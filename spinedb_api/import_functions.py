@@ -1307,7 +1307,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache):
                 )
                 continue
         else:
-            alt_id, alternative_name = db_map.get_import_alternative()
+            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
             alternative_ids.add(alt_id)
         checked_key = (o_id, p_id, alt_id)
         if checked_key in checked:
@@ -1430,7 +1430,7 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache):
                 )
                 continue
         else:
-            alt_id, alternative_name = db_map.get_import_alternative()
+            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
             alternative_ids.add(alt_id)
         checked_key = (r_id, p_id, alt_id)
         if checked_key in checked:
@@ -1793,7 +1793,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data, make_cache):
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alt_id, alternative_name = db_map.get_import_alternative()
+            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
         pv_id = parameter_value_ids.get((o_id, p_id, alt_id), None)
         if pv_id is None:
             msg = (
@@ -1875,7 +1875,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cac
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alt_id, alternative_name = db_map.get_import_alternative()
+            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
         pv_id = parameter_value_ids.get((r_id, p_id, alt_id), None)
         if pv_id is None:
             msg = (

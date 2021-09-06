@@ -1608,24 +1608,25 @@ class DatabaseMappingBase:
             .subquery()
         )
 
-    def get_import_alternative(self):
+    def get_import_alternative(self, cache=None):
         """Returns the id of the alternative to use as default for all import operations.
 
         Returns:
             int, str
         """
         if self._import_alternative_id is None:
-            self._create_import_alternative()
+            self._create_import_alternative(cache=cache)
         return self._import_alternative_id, self._import_alternative_name
 
-    def _create_import_alternative(self):
+    def _create_import_alternative(self, cache=None):
         """Creates the alternative to be used as default for all import operations.
         """
+        if cache is None:
+            cache = self.make_cache({"alternative"})
         self._import_alternative_name = "Base"
-        self._import_alternative_id = (
-            self.query(self.alternative_sq.c.id)
-            .filter(self.alternative_sq.c.name == self._import_alternative_name)
-            .scalar()
+        self._import_alternative_id = next(
+            (id_ for id_, alt in cache.get("alternative", {}).items() if alt["name"] == self._import_alternative_name),
+            None,
         )
         if not self._import_alternative_id:
             ids = self._add_alternatives({"name": self._import_alternative_name})
