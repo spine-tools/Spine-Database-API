@@ -35,7 +35,7 @@ jobs:
         pip install .
         pip install coverage
         pip install codecov
-        pip freeze
+        pip list
     - name: Run tests
       env: 
         QT_QPA_PLATFORM: offscreen
