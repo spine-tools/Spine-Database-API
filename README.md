@@ -38,7 +38,7 @@ Source files for the documentation can be found in `docs/source` directory. In o
 build the HTML docs, you need to install the additional documentation building requirements
 by running:
 
-    $ pip install -r docs-requirements.txt 
+    $ pip install -r dev-requirements.txt 
 
 This installs Sphinx (among other things), which is required in building the documentation.
 When Sphinx is installed, you can build the HTML pages from the source files by running:
