@@ -43,7 +43,7 @@ by running:
 This installs Sphinx (among other things), which is required in building the documentation.
 When Sphinx is installed, you can build the HTML pages from the source files by running:
 
-    > docs\build_doc.bat
+    > docs\make.bat html
     
 or
 
