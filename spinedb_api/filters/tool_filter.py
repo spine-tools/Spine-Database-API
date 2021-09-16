@@ -119,6 +119,8 @@ class _ToolFilterState:
             tool (str or int): tool name or id
         """
         self.original_entity_sq = db_map.entity_sq
+        self.original_parameter_value_sq = db_map.parameter_value_sq
+        self.original_parameter_definition_sq = db_map.parameter_definition_sq
         self.tool_id = self._tool_id(db_map, tool)
 
     @staticmethod
@@ -180,13 +182,17 @@ def _make_ext_tool_feature_method_sq(db_map, state):
     ).subquery()
 
 
-def _make_method_filter(tool_feature_method_sq, parameter_value_sq):
+def _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_definition_sq):
     return case(
         [
             (
                 or_(
                     tool_feature_method_sq.c.method.is_(None),
                     parameter_value_sq.c.value == tool_feature_method_sq.c.method,
+                    and_(
+                        parameter_value_sq.c.value.is_(None),
+                        parameter_definition_sq.c.default_value == tool_feature_method_sq.c.method,
+                    ),
                 ),
                 True,
             )
@@ -215,9 +221,10 @@ def _make_tool_filtered_entity_sq(db_map, state):
         Alias: a subquery for entity filtered by selected tool
     """
     tool_feature_method_sq = _make_ext_tool_feature_method_sq(db_map, state)
-    parameter_value_sq = db_map._subquery("parameter_value")
+    parameter_value_sq = state.original_parameter_value_sq
+    parameter_definition_sq = state.original_parameter_definition_sq
 
-    method_filter = _make_method_filter(tool_feature_method_sq, parameter_value_sq)
+    method_filter = _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_definition_sq)
     required_filter = _make_required_filter(tool_feature_method_sq, parameter_value_sq)
 
     entity_filter_sq = (
@@ -227,12 +234,12 @@ def _make_tool_filtered_entity_sq(db_map, state):
             func.min(required_filter).label("required_filter"),
         )
         .select_from(tool_feature_method_sq)
-        .filter(tool_feature_method_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id)
-        .filter(db_map.parameter_definition_sq.c.entity_class_id == state.original_entity_sq.c.class_id)
+        .filter(tool_feature_method_sq.c.parameter_definition_id == parameter_definition_sq.c.id)
+        .filter(parameter_definition_sq.c.entity_class_id == state.original_entity_sq.c.class_id)
         .outerjoin(
             parameter_value_sq,
             and_(
-                parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                parameter_value_sq.c.parameter_definition_id == parameter_definition_sq.c.id,
                 parameter_value_sq.c.entity_id == state.original_entity_sq.c.id,
             ),
         )
