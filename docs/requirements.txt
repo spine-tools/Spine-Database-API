@@ -1,7 +1,7 @@
-# Additional requirements for compiling the documentation
-# (additional to the packages already listed in setup.py)
+# Requirements for compiling the documentation
 sphinx >= 2.2.0
 sphinx_rtd_theme >= 0.4.3
 recommonmark >= 0.6.0
 sphinx-autoapi >= 1.1.0
 
+-r "../requirements.txt"
