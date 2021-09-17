@@ -21,7 +21,7 @@ import os
 import logging
 import time
 from types import MethodType
-from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_
+from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
@@ -977,8 +977,8 @@ class DatabaseMappingBase:
                     self.ext_object_sq.c.class_id.label("object_class_id"),
                     self.ext_object_sq.c.class_name.label("object_class_name"),
                 )
-                .filter(self.relationship_sq.c.object_id == self.ext_object_sq.c.id)
                 .filter(self.relationship_sq.c.class_id == self.wide_relationship_class_sq.c.id)
+                .outerjoin(self.ext_object_sq, self.relationship_sq.c.object_id == self.ext_object_sq.c.id)
                 .order_by(self.relationship_sq.c.id, self.relationship_sq.c.dimension)
                 .subquery()
             )
@@ -1038,6 +1038,9 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.name,
                     self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.class_name,
+                )
+                .having(
+                    func.count(self.ext_relationship_sq.c.dimension) == func.count(self.ext_relationship_sq.c.object_id)
                 )
                 .subquery()
             )
