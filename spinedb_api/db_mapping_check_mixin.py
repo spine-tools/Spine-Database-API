@@ -44,16 +44,6 @@ class DatabaseMappingCheckMixin:
     """Provides methods to check whether insert and update operations violate Spine db integrity constraints.
     """
 
-    @staticmethod
-    def check_immutable_fields(current_item, item, immutable_fields):
-        for field in immutable_fields:
-            if field not in item:
-                continue
-            value = item[field]
-            current_value = current_item[field]
-            if value != current_value:
-                raise SpineIntegrityError("Cannot change field {0} from {1} to {2}".format(field, current_value, value))
-
     def check_items_for_insert(self, tablename, *items, strict=False, cache=None):
         return {
             "alternative": self.check_alternatives_for_insert,
@@ -869,7 +859,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                self.check_immutable_fields(updated_item, item, ("class_id",))
+                _fix_immutable_fields(updated_item, item, ("class_id",))
                 updated_item.update(item)
                 check_object(updated_item, object_ids, object_class_ids, self.object_entity_type)
                 checked_items.append(item)
@@ -955,7 +945,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                self.check_immutable_fields(updated_wide_item, wide_item, ("object_class_id_list",))
+                _fix_immutable_fields(updated_wide_item, wide_item, ("object_class_id_list",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship_class(
                     updated_wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
@@ -1071,7 +1061,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                self.check_immutable_fields(updated_wide_item, wide_item, ("class_id",))
+                _fix_immutable_fields(updated_wide_item, wide_item, ("class_id",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship(
                     updated_wide_item,
@@ -1232,7 +1222,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                self.check_immutable_fields(
+                _fix_immutable_fields(
                     updated_item, item, ("entity_class_id", "object_class_id", "relationship_class_id")
                 )
                 updated_item.update(item)
@@ -1382,7 +1372,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                self.check_immutable_fields(
+                _fix_immutable_fields(
                     updated_item, item, ("entity_class_id", "object_class_id", "relationship_class_id")
                 )
                 updated_item.update(item)
@@ -1482,3 +1472,8 @@ class DatabaseMappingCheckMixin:
                     raise e
                 intgr_error_log.append(e)
         return checked_wide_items, intgr_error_log
+
+
+def _fix_immutable_fields(current_item, item, immutable_fields):
+    for field in immutable_fields:
+        item[field] = current_item[field]
