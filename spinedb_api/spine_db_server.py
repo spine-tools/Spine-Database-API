@@ -26,6 +26,7 @@ from sqlalchemy.exc import DBAPIError
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .helpers import ReceiveAllMixing
+from .exception import SpineDBAPIError
 
 
 def _add_type_information(db_value, db_type):
@@ -74,6 +75,9 @@ def _get_row_processor(sq_name):
     return lambda row: row
 
 
+_open_db_maps = {}
+
+
 class DBHandler:
     """
     Helper class to do key interactions with a db, while closing the db_map afterwards.
@@ -92,13 +96,25 @@ class DBHandler:
             return None, error
 
     @contextmanager
-    def _closing_db_map(self, create=False):
-        db_map, error = self._make_db_map(create=create)
-        try:
-            yield db_map, error
-        finally:
-            if db_map is not None:
-                db_map.connection.close()
+    def _db_map_context(self, create=False):
+        """Obtains and yields a db_map to fulfil a request.
+
+        Yields:
+            DatabaseMapping: A db_map or None if unable to obtain a db_map
+            Exception: the error, or None if all good
+        """
+        db_map = _open_db_maps.get(self._db_url)
+        if db_map is not None:
+            # Persistent case
+            yield db_map, None
+        else:
+            # Non-persistent case, we create a new db_map and close it when done
+            db_map, error = self._make_db_map(create=create)
+            try:
+                yield db_map, error
+            finally:
+                if db_map is not None:
+                    db_map.connection.close()
 
     def get_db_url(self):
         """
@@ -115,7 +131,7 @@ class DBHandler:
 
         """
         data = {}
-        with self._closing_db_map() as (db_map, error):
+        with self._db_map_context() as (db_map, error):
             if error:
                 return {"error": str(error)}
             for name in args:
@@ -135,7 +151,7 @@ class DBHandler:
         Returns:
             list or dict: list of import errors, if successful. Dictionary {"error": "msg"}, otherwise.
         """
-        with self._closing_db_map(create=True) as (db_map, error):
+        with self._db_map_context(create=True) as (db_map, error):
             if error:
                 return {"error": str(error)}
             count, errors = import_data(db_map, **data)
@@ -146,34 +162,60 @@ class DBHandler:
                     db_map.rollback_session()
         return [err.msg for err in errors]
 
+    def open_connection(self):
+        """Opens a persistent connection to the url by creating and storing a db_map.
+        The same db_map will be reused for all further requests until ``close_connection`` is called.
 
-_db_maps = {}
+        Returns:
+            bool, dict: True if the db_map was created successfully, or a dict with the error
+        """
+        db_map, error = self._make_db_map(create=True)
+        if error:
+            return {"error": str(error)}
+        _open_db_maps[self._db_url] = db_map
+        return True
+
+    def close_connection(self):
+        """Closes the connection opened by ``open_connection``.
+
+        Returns:
+            bool: True or False, depending on whether or not there was a connection open when calling this.
+        """
+        db_map = _open_db_maps.pop(self._db_url, None)
+        if db_map is not None:
+            db_map.connection.close()
+            return True
+        return False
+
+    def call_method(self, method_name, *args):
+        """Calls a method from the DatabaseMapping class.
+
+        Args:
+            method_name (str): the method name
+            args: positional arguments to call the method with.
+
+        Returns:
+            any, bool: The return value of the method, or True if the method doesn't return a value.
+        """
+        with self._db_map_context(create=True) as (db_map, error):
+            if error:
+                return {"error": str(error)}
+            method = getattr(db_map, method_name)
+            result = method(*args)
+            if result is None:
+                return True
+            return result
 
 
-class PersistentDBHandler(DBHandler):
-    """
-    Helper class to reuse DatabaseMapping objects for the same url.
-    Used by SpineOpt unit-tests.
-    """
+class _CustomJSONEncoder(json.JSONEncoder):
+    """A JSON encoder that handles all the special types that can come in request responses."""
 
-    def _make_db_map(self, create=True):
-        if self._db_url not in _db_maps:
-            _db_maps[self._db_url] = DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create)
-        return _db_maps[self._db_url], None
-
-    @contextmanager
-    def _closing_db_map(self, create=True):
-        db_map, error = self._make_db_map(create=create)
-        try:
-            yield db_map, error
-        finally:
-            pass
-
-
-def close_persistent_db_map(db_url):
-    db_map = _db_maps.pop(db_url, None)
-    if db_map is not None:
-        db_map.connection.close()
+    def default(self, o):
+        if isinstance(o, set):
+            return list(o)
+        if isinstance(o, SpineDBAPIError):
+            return str(o)
+        return super().default(o)
 
 
 class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHandler):
@@ -184,17 +226,26 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
     def handle(self):
         data = self._recvall()
         request, args = json.loads(data)
-        handler = {"get_data": self.get_data, "import_data": self.import_data, "get_db_url": self.get_db_url}.get(
-            request
-        )
+        handler = {
+            "get_data": self.get_data,
+            "import_data": self.import_data,
+            "get_db_url": self.get_db_url,
+            "call_method": self.call_method,
+            "open_connection": self.open_connection,
+            "close_connection": self.close_connection,
+        }.get(request)
         if handler is None:
             return
         response = handler(*args)
         if response is not None:
-            self.request.sendall(bytes(json.dumps(response) + self._EOM, self._ENCODING))
+            self.request.sendall(bytes(json.dumps(response, cls=_CustomJSONEncoder) + self._EOM, self._ENCODING))
 
 
-class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class SpineDBServer(socketserver.TCPServer):
+    # NOTE:
+    # We can't use the socketserver.ThreadingMixIn because it processes each request in a different thread,
+    # and we want to reuse db_maps sometimes.
+    # (sqlite objects can only be used in the same thread where they were created)
     allow_reuse_address = True
 
 
