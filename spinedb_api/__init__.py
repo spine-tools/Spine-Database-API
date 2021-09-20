@@ -9,7 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-from .version import __version__
 from .db_mapping import DatabaseMapping
 from .diff_db_mapping import DiffDatabaseMapping
 from .exception import (
@@ -129,3 +128,4 @@ from .filters.tools import (
 )
 
 name = "spinedb_api"
+__version__ = "0.15.0.dev0"

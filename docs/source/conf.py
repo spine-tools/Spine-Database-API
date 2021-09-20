@@ -26,7 +26,7 @@ author = 'Spine project consortium'
 copyright = '2017-2021 {}'.format(author)
 
 # The short X.Y version
-from spinedb_api.version import __version__ as spinedb_api_version
+from spinedb_api import __version__ as spinedb_api_version
 
 version = spinedb_api_version
 # The full version, including alpha/beta/rc tags
