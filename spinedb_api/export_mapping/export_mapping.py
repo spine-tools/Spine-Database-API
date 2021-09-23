@@ -231,9 +231,10 @@ class ExportMapping(Mapping):
         return query
 
     def filter_query_by_title(self, query, title_state):
-        """Filters the query using pertinent information from the given title state.
-        Typically, title filters can be applied by calling ``filter()`` on the query directly (see ``_build_query()``).
-        However, subclasses may need something more specific, for example, to filter parameter values by type.
+        """Filters the query according to the given title state.
+        Note that ``_build_query()`` does some default filtering on the title state after calling this method.
+        Therefore, if a subclass reimplements this method, it needs to delete the consumed keys from ``title_state``
+        so they aren't consumed again by ``_build_query()``.
 
         The base class implementations just returns the unaltered query.
 
@@ -264,16 +265,16 @@ class ExportMapping(Mapping):
         # Apply filters
         for m in mappings:
             qry = m.filter_query(db_map, qry)
-        # Create a subquery to apply title filters
-        sq = qry.subquery()
-        qry = db_map.query(sq)
         # Apply special title filters (first, so we clean up the state)
         for m in mappings:
             qry = m.filter_query_by_title(qry, title_state)
         # Apply standard title filters
-        for key, value in title_state.items():
-            qry = qry.filter(getattr(sq.c, key) == value)
-        return qry
+        if not title_state:
+            return qry
+        # Use a _FilteredQuery, since building a subquery to query it again leads to parser stack overflow
+        return _FilteredQuery(
+            qry, lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())
+        )
 
     @staticmethod
     def name_field():
