@@ -1265,10 +1265,8 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_sq.c.id.label("id"),
                     self.parameter_definition_sq.c.entity_class_id,
-                    self.entity_class_sq.c.id.label("entity_class_id"),
                     self.entity_class_sq.c.name.label("entity_class_name"),
                     self.parameter_value_sq.c.entity_id,
-                    self.entity_sq.c.id.label("entity_id"),
                     self.entity_sq.c.name.label("entity_name"),
                     self.parameter_definition_sq.c.id.label("parameter_id"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
