@@ -200,6 +200,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
         columns = [
             "id",
             "entity_class_id",
+            "entity_class_name",
             "object_class_id",
             "object_class_name",
             "parameter_name",
@@ -217,6 +218,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
         columns = [
             "id",
             "entity_class_id",
+            "entity_class_name",
             "relationship_class_id",
             "relationship_class_name",
             "object_class_id_list",
