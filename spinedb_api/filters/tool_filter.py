@@ -248,11 +248,14 @@ def _make_tool_filtered_entity_sq(db_map, state):
     method_filter = _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_definition_sq)
     required_filter = _make_required_filter(tool_feature_method_sq, parameter_value_sq)
 
-    entity_filter_sq = (
+    return (
         db_map.query(
             original_entity_sq.c.id,
-            func.min(method_filter).label("method_filter"),
-            func.min(required_filter).label("required_filter"),
+            original_entity_sq.c.type_id,
+            original_entity_sq.c.class_id,
+            original_entity_sq.c.name,
+            original_entity_sq.c.description,
+            original_entity_sq.c.commit_id,
         )
         .outerjoin(parameter_definition_sq, parameter_definition_sq.c.entity_class_id == original_entity_sq.c.class_id)
         .outerjoin(
@@ -266,16 +269,5 @@ def _make_tool_filtered_entity_sq(db_map, state):
             tool_feature_method_sq, tool_feature_method_sq.c.parameter_definition_id == parameter_definition_sq.c.id
         )
         .group_by(original_entity_sq.c.id)
+        .having(and_(func.min(method_filter).is_(True), func.min(required_filter).is_(True)))
     ).subquery()
-
-    accepted_entity_sq = (
-        db_map.query(entity_filter_sq.c.id)
-        .filter(entity_filter_sq.c.method_filter.is_(True))
-        .filter(entity_filter_sq.c.required_filter.is_(True))
-    ).subquery()
-
-    return (
-        db_map.query(state.original_entity_sq)
-        .filter(state.original_entity_sq.c.id.in_(db_map.query(accepted_entity_sq.c.id).distinct()))
-        .subquery()
-    )

@@ -24,9 +24,11 @@ from spinedb_api import (
     create_new_spine_database,
     DiffDatabaseMapping,
     import_object_classes,
+    import_relationship_classes,
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
+    import_relationships,
     import_parameter_value_lists,
     import_tools,
     import_features,
@@ -176,6 +178,39 @@ class TestToolEntityFilter(unittest.TestCase):
     def test_tool_filter_shorthand_to_config(self):
         config = tool_filter_shorthand_to_config("tool:tool name")
         self.assertEqual(config, {"type": "tool_filter", "tool": "tool name"})
+
+    def test_object_activity_control_filter(self):
+        import_object_classes(self._db_map, ["node", "unit"])
+        import_relationship_classes(self._db_map, [["node__unit", ["node", "unit"]]])
+        import_objects(self._db_map, [("node", "node1"), ("node", "node2"), ("unit", "unita"), ("unit", "unitb")])
+        import_relationships(
+            self._db_map,
+            [
+                ["node__unit", ["node1", "unita"]],
+                ["node__unit", ["node1", "unitb"]],
+                ["node__unit", ["node2", "unita"]],
+            ],
+        )
+        import_parameter_value_lists(self._db_map, [("boolean", True), ("boolean", False)])
+        import_object_parameters(self._db_map, [("node", "is_active", True, "boolean")])
+        import_object_parameter_values(self._db_map, [("node", "node1", "is_active", False)])
+        import_tools(self._db_map, ["obj_act_ctrl"])
+        import_features(self._db_map, [("node", "is_active")])
+        import_tool_features(self._db_map, [("obj_act_ctrl", "node", "is_active", False)])
+        import_tool_feature_methods(self._db_map, [("obj_act_ctrl", "node", "is_active", True)])
+        self._db_map.commit_session("Add obj act ctrl filter")
+        apply_tool_filter_to_entity_sq(self._db_map, "obj_act_ctrl")
+        object_names = [x.name for x in self._db_map.query(self._db_map.object_sq).all()]
+        self.assertTrue("node1" not in object_names)
+        self.assertTrue("node2" in object_names)
+        self.assertTrue("unita" in object_names)
+        self.assertTrue("unitb" in object_names)
+        object_names = [
+            name
+            for x in self._db_map.query(self._db_map.wide_relationship_sq).all()
+            for name in x.object_name_list.split(",")
+        ]
+        self.assertTrue("node1" not in object_names)
 
 
 if __name__ == '__main__':
