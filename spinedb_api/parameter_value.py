@@ -1369,30 +1369,30 @@ def _try_convert_to_container(map_):
 SUPPORTED_TYPES = (Duration, DateTime, float, str)
 
 
-_VALUE_TYPE_SEP = "::"
-"""Separator for combining parameter value and type into a string.
-This is mainly to keep using a single 'field' for the value in Qt models.
-For copy-paste, we also need it to be a string (otherwise a tuple would have worked).
-"""
-
-
-def join_value_and_type(value, value_type):
-    """Returns a string that combines given parameter value and value type.
+def join_value_and_type(db_value, db_type):
+    """Joins database value and type into a string.
+    The resulting string is JSON string.
+    In case of complex types (duration, date_time, time_series, time_pattern, array, map),
+    the type is just added as top-level key.
 
     Args:
-        value (bytes)
-        value_type (str or NoneType)
+        db_value (bytes): database value
+        db_type (str, optional): value type
 
     Returns:
-        str
+        str: parameter value as JSON with an additional `type` field.
     """
-    if value_type is None:
-        value_type = ""
-    return str(value, "UTF8") + _VALUE_TYPE_SEP + value_type
+    try:
+        value = json.loads(db_value)
+    except (TypeError, json.JSONDecodeError):
+        value = None
+    value = {"type": db_type, **value} if isinstance(value, dict) else value
+    return json.dumps(value)
 
 
 def split_value_and_type(value_and_type):
-    """Splits the given string into parameter value and value type.
+    """Splits the given string into value and type.
+    The string must be the result of calling ``join_value_and_type`` or have the same form.
 
     Args:
         value_and_type (str)
@@ -1401,9 +1401,6 @@ def split_value_and_type(value_and_type):
         bytes
         str or NoneType
     """
-    if value_and_type is None:
-        return None, None
-    value, _, value_type = value_and_type.partition(_VALUE_TYPE_SEP)
-    if not value_type:
-        value_type = None
-    return bytes(value, "UTF8"), value_type
+    value = json.loads(value_and_type)
+    type_ = value.pop("type") if isinstance(value, dict) else None
+    return bytes(json.dumps(value), "UTF8"), type_

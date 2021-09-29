@@ -27,41 +27,24 @@ from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .helpers import ReceiveAllMixing
 from .exception import SpineDBAPIError
-
-
-def _add_type_information(db_value, db_type):
-    """Adds type information to database value.
-
-    Args:
-        db_value (bytes): database value
-        db_type (str, optional): value's type
-
-    Returns:
-        str: parameter value as JSON with an additional `type` field.
-    """
-    try:
-        value = json.loads(db_value)
-    except (TypeError, json.JSONDecodeError):
-        value = None
-    value = {"type": db_type, **value} if isinstance(value, dict) else value
-    return json.dumps(value)
+from .parameter_value import join_value_and_type
 
 
 def _process_parameter_definition_row(row):
     value, type_ = row.pop("default_value"), row.pop("default_type")
-    row["default_value"] = _add_type_information(value, type_)
+    row["default_value"] = join_value_and_type(value, type_)
     return row
 
 
 def _process_parameter_value_row(row):
     value, type_ = row.pop("value"), row.pop("type")
-    row["value"] = _add_type_information(value, type_)
+    row["value"] = join_value_and_type(value, type_)
     return row
 
 
 def _process_parameter_value_list_row(row):
     value = row.pop("value")
-    row["value"] = _add_type_information(value, None)
+    row["value"] = join_value_and_type(value, None)
     return row
 
 
