@@ -1401,6 +1401,9 @@ def split_value_and_type(value_and_type):
         bytes
         str or NoneType
     """
-    value = json.loads(value_and_type)
+    try:
+        value = json.loads(value_and_type)
+    except (TypeError, json.JSONDecodeError):
+        value = value_and_type
     type_ = value.pop("type") if isinstance(value, dict) else None
     return bytes(json.dumps(value), "UTF8"), type_
