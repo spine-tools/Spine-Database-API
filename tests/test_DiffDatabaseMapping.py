@@ -517,8 +517,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         db_map.connection.close()
 
     def test_add_identical_relationships(self):
-        """Test that adding two relationships with the same class and same objects only adds the first one.
-        """
+        """Test that adding two relationships with the same class and same objects only adds the first one."""
         db_map = create_diff_db_map()
         db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
@@ -563,8 +562,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         db_map.connection.close()
 
     def test_add_relationship_with_invalid_class(self):
-        """Test that adding a relationship with an invalid class raises an integrity error.
-        """
+        """Test that adding a relationship with an invalid class raises an integrity error."""
         db_map = create_diff_db_map()
         query_wrapper = create_query_wrapper(db_map)
         with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
@@ -589,8 +587,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         db_map.connection.close()
 
     def test_add_relationship_with_invalid_object(self):
-        """Test that adding a relationship with an invalid object raises an integrity error.
-        """
+        """Test that adding a relationship with an invalid object raises an integrity error."""
         db_map = create_diff_db_map()
         query_wrapper = create_query_wrapper(db_map)
         with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
@@ -736,21 +733,12 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding parameter_definitions associated to both and object and relationship class
         raises and integrity error."""
         db_map = create_diff_db_map()
-        query_wrapper = create_query_wrapper(db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_sq"
-        ) as mock_wide_rel_cls_sq:
-            mock_query.side_effect = query_wrapper
-            mock_object_class_sq.value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
-            mock_wide_rel_cls_sq.value = [
-                KeyedTuple([10, "1,2", "fish__dog"], labels=["id", "object_class_id_list", "name"])
-            ]
-            with self.assertRaises(SpineIntegrityError):
-                db_map.add_parameter_definitions(
-                    {"name": "color", "object_class_id": 1, "relationship_class_id": 10}, strict=True
-                )
+        db_map.add_object_classes({"name": "fish", "id": 1}, {"name": "dog", "id": 2})
+        db_map.add_wide_relationship_classes({"name": "fish__dog", "id": 10, "object_class_id_list": [1, 2]})
+        with self.assertRaises(SpineIntegrityError):
+            db_map.add_parameter_definitions(
+                {"name": "color", "object_class_id": 1, "relationship_class_id": 10}, strict=True
+            )
         db_map.connection.close()
 
     def test_add_parameter_values(self):
