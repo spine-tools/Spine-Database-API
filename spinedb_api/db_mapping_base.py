@@ -1107,6 +1107,7 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.name.label("entity_class_name"),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
+                    label("object_class_id_list", self._object_class_id_list()),
                     label("object_class_name_list", self._object_class_name_list()),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
@@ -1282,9 +1283,14 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.name.label("entity_class_name"),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
+                    label("object_class_id_list", self._object_class_id_list()),
+                    label("object_class_name_list", self._object_class_name_list()),
                     self.parameter_value_sq.c.entity_id,
                     self.entity_sq.c.name.label("entity_name"),
+                    self.parameter_value_sq.c.object_id,
+                    self.parameter_value_sq.c.relationship_id,
                     label("object_name", self._object_name()),
+                    label("object_id_list", self._object_id_list()),
                     label("object_name_list", self._object_name_list()),
                     self.parameter_definition_sq.c.id.label("parameter_id"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
@@ -1865,6 +1871,17 @@ class DatabaseMappingBase:
             [(self.parameter_definition_sq.c.relationship_class_id != None, self.entity_class_sq.c.name)], else_=None
         )
 
+    def _object_class_id_list(self):
+        return case(
+            [
+                (
+                    self.parameter_definition_sq.c.relationship_class_id != None,
+                    self.wide_relationship_class_sq.c.object_class_id_list,
+                )
+            ],
+            else_=None,
+        )
+
     def _object_class_name_list(self):
         return case(
             [
@@ -1878,6 +1895,12 @@ class DatabaseMappingBase:
 
     def _object_name(self):
         return case([(self.parameter_value_sq.c.object_id != None, self.entity_sq.c.name)], else_=None)
+
+    def _object_id_list(self):
+        return case(
+            [(self.parameter_value_sq.c.relationship_id != None, self.wide_relationship_sq.c.object_id_list)],
+            else_=None,
+        )
 
     def _object_name_list(self):
         return case(
