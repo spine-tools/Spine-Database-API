@@ -559,7 +559,10 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
-                    msg=f"Could not import tool feature method '{tool_name, class_name, parameter_name, method}': {e.msg}",
+                    msg=(
+                        f"Could not import tool feature method '{tool_name, class_name, parameter_name, method}':"
+                        f" {e.msg}"
+                    ),
                     db_type="tool_feature_method",
                 )
             )
@@ -1299,9 +1302,11 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache):
             if not alt_id:
                 error_log.append(
                     ImportErrorLogItem(
-                        msg="Could not import parameter value for "
-                        f"'{object_name}', class '{class_name}', parameter '{parameter_name}': "
-                        f"alternative '{alternative_name}' does not exist.",
+                        msg=(
+                            "Could not import parameter value for "
+                            f"'{object_name}', class '{class_name}', parameter '{parameter_name}': "
+                            f"alternative '{alternative_name}' does not exist."
+                        ),
                         db_type="parameter value",
                     )
                 )
@@ -1422,9 +1427,11 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache):
             if not alt_id:
                 error_log.append(
                     ImportErrorLogItem(
-                        msg="Could not import parameter value for "
-                        f"'{object_names}', class '{class_name}', parameter '{parameter_name}': "
-                        f"alternative {alternative_name} does not exist.",
+                        msg=(
+                            "Could not import parameter value for "
+                            f"'{object_names}', class '{class_name}', parameter '{parameter_name}': "
+                            f"alternative {alternative_name} does not exist."
+                        ),
                         db_type="parameter value",
                     )
                 )
@@ -1510,7 +1517,9 @@ def _get_parameter_value_lists_for_import(db_map, data, make_cache):
         if name in seen:
             error_log.append(
                 ImportErrorLogItem(
-                    msg=f"Could not import parameter value list '{name}': Duplicate list, only first will be considered",
+                    msg=(
+                        f"Could not import parameter value list '{name}': Duplicate list, only first will be considered"
+                    ),
                     db_type="parameter value list",
                 )
             )

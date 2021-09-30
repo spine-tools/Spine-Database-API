@@ -156,16 +156,17 @@ class DatabaseMappingBase:
             "feature": "ext_feature_sq",
             "tool": "tool_sq",
             "tool_feature": "ext_tool_feature_sq",
-            "tool_feature_method": "tool_feature_method_sq",
+            "tool_feature_method": "ext_tool_feature_method_sq",
             "parameter_value_list": "wide_parameter_value_list_sq",
             "alternative": "alternative_sq",
             "scenario": "wide_scenario_sq",
-            "scenario_alternative": "scenario_alternative_sq",
+            "scenario_alternative": "ext_linked_scenario_alternative_sq",
             "object_class": "object_class_sq",
             "object": "ext_object_sq",
             "relationship_class": "wide_relationship_class_sq",
             "relationship": "wide_relationship_sq",
             "entity_group": "ext_entity_group_sq",
+            "object_group": "ext_object_group_sq",
             "parameter_definition": "entity_parameter_definition_sq",
             "object_parameter_definition": "object_parameter_definition_sq",
             "relationship_parameter_definition": "relationship_parameter_definition_sq",
@@ -335,8 +336,7 @@ class DatabaseMappingBase:
         return self._table_to_sq_attr
 
     def _make_table_to_sq_attr(self):
-        """Returns a dict mapping table names to subquery attribute names, involving that table.
-        """
+        """Returns a dict mapping table names to subquery attribute names, involving that table."""
         # This 'loads' our subquery attributes
         for attr in dir(self):
             getattr(self, attr)
@@ -792,7 +792,9 @@ class DatabaseMappingBase:
                     self.scenario_alternative_sq.c.id.label("id"),
                     self.scenario_alternative_sq.c.scenario_id.label("scenario_id"),
                     self.scenario_alternative_sq.c.alternative_id.label("alternative_id"),
+                    self.scenario_alternative_sq.c.rank.label("rank"),
                     scenario_next_alternative.c.alternative_id.label("before_alternative_id"),
+                    scenario_next_alternative.c.rank.label("before_rank"),
                 )
                 .outerjoin(
                     scenario_next_alternative,
@@ -817,7 +819,9 @@ class DatabaseMappingBase:
                     self.scenario_sq.c.name.label("scenario_name"),
                     self.linked_scenario_alternative_sq.c.alternative_id.label("alternative_id"),
                     self.alternative_sq.c.name.label("alternative_name"),
+                    self.linked_scenario_alternative_sq.c.rank.label("rank"),
                     self.linked_scenario_alternative_sq.c.before_alternative_id.label("before_alternative_id"),
+                    self.linked_scenario_alternative_sq.c.before_rank.label("before_rank"),
                     next_alternative.c.name.label("before_alternative_name"),
                 )
                 .filter(self.linked_scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id)
@@ -1622,8 +1626,7 @@ class DatabaseMappingBase:
         return self._import_alternative_id, self._import_alternative_name
 
     def _create_import_alternative(self, cache=None):
-        """Creates the alternative to be used as default for all import operations.
-        """
+        """Creates the alternative to be used as default for all import operations."""
         if cache is None:
             cache = self.make_cache({"alternative"})
         self._import_alternative_name = "Base"
