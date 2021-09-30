@@ -95,6 +95,8 @@ def export_data(
 
 
 def _get_items(db_map, tablename, ids, make_cache):
+    if not ids:
+        return ()
     if make_cache is None:
         make_cache = db_map.make_cache
     cache = make_cache({tablename})
