@@ -140,7 +140,8 @@ def export_object_parameters(db_map, ids=Asterisk, make_cache=None):
             x.value_list_name,
             x.description,
         )
-        for x in _get_items(db_map, "object_parameter_definition", ids, make_cache)
+        for x in _get_items(db_map, "parameter_definition", ids, make_cache)
+        if x.object_class_id
     )
 
 
@@ -153,7 +154,8 @@ def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None):
             x.value_list_name,
             x.description,
         )
-        for x in _get_items(db_map, "relationship_parameter_definition", ids, make_cache)
+        for x in _get_items(db_map, "parameter_definition", ids, make_cache)
+        if x.relationship_class_id
     )
 
 
@@ -165,7 +167,9 @@ def export_relationships(db_map, ids=Asterisk, make_cache=None):
 
 def export_object_groups(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.class_name, x.group_name, x.member_name) for x in _get_items(db_map, "object_group", ids, make_cache)
+        (x.class_name, x.group_name, x.member_name)
+        for x in _get_items(db_map, "entity_group", ids, make_cache)
+        if x.object_class_id
     )
 
 
@@ -173,7 +177,8 @@ def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None):
     return sorted(
         (
             (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value, x.type), x.alternative_name)
-            for x in _get_items(db_map, "object_parameter_value", ids, make_cache)
+            for x in _get_items(db_map, "parameter_value", ids, make_cache)
+            if x.object_id
         ),
         key=lambda x: x[:3] + (x[-1],),
     )
@@ -189,7 +194,8 @@ def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None):
                 from_database(x.value, x.type),
                 x.alternative_name,
             )
-            for x in _get_items(db_map, "relationship_parameter_value", ids, make_cache)
+            for x in _get_items(db_map, "parameter_value", ids, make_cache)
+            if x.relationship_id
         ),
         key=lambda x: x[:3] + (x[-1],),
     )

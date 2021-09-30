@@ -166,13 +166,8 @@ class DatabaseMappingBase:
             "relationship_class": "wide_relationship_class_sq",
             "relationship": "wide_relationship_sq",
             "entity_group": "ext_entity_group_sq",
-            "object_group": "ext_object_group_sq",
             "parameter_definition": "entity_parameter_definition_sq",
-            "object_parameter_definition": "object_parameter_definition_sq",
-            "relationship_parameter_definition": "relationship_parameter_definition_sq",
             "parameter_value": "entity_parameter_value_sq",
-            "object_parameter_value": "object_parameter_value_sq",
-            "relationship_parameter_value": "relationship_parameter_value_sq",
             "metadata": "metadata_sq",
             "entity_metadata": "entity_metadata_sq",
             "parameter_value_metadata": "parameter_value_metadata_sq",
@@ -1069,6 +1064,8 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.name.label("class_name"),
                     group_entity.c.name.label("group_name"),
                     member_entity.c.name.label("member_name"),
+                    label("object_class_id", self._object_class_id()),
+                    label("relationship_class_id", self._relationship_class_id()),
                 )
                 .filter(self.entity_group_sq.c.entity_class_id == self.entity_class_sq.c.id)
                 .join(group_entity, self.entity_group_sq.c.entity_id == group_entity.c.id)
@@ -1076,20 +1073,6 @@ class DatabaseMappingBase:
                 .subquery()
             )
         return self._ext_entity_group_sq
-
-    @property
-    def ext_object_group_sq(self):
-        """A subquery of the form:
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        object_class_sq = self._subquery("object_class")
-        return (
-            self.query(self.ext_entity_group_sq)
-            .filter(self.ext_entity_group_sq.c.class_id == object_class_sq.c.entity_class_id)
-            .subquery()
-        )
 
     @property
     def entity_parameter_definition_sq(self):
@@ -1573,21 +1556,14 @@ class DatabaseMappingBase:
             Alias: a parameter definition subquery
         """
         par_def_sq = self._subquery("parameter_definition")
-
-        object_class_id = case(
-            [(self.entity_class_sq.c.type_id == self.object_class_type, par_def_sq.c.entity_class_id)], else_=None
-        )
-        relationship_class_id = case(
-            [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_def_sq.c.entity_class_id)], else_=None
-        )
         return (
             self.query(
                 par_def_sq.c.id.label("id"),
                 par_def_sq.c.name.label("name"),
                 par_def_sq.c.description.label("description"),
                 par_def_sq.c.entity_class_id,
-                label("object_class_id", object_class_id),
-                label("relationship_class_id", relationship_class_id),
+                label("object_class_id", self._object_class_id()),
+                label("relationship_class_id", self._relationship_class_id()),
                 par_def_sq.c.default_value.label("default_value"),
                 par_def_sq.c.default_type.label("default_type"),
                 par_def_sq.c.commit_id.label("commit_id"),
@@ -1605,26 +1581,16 @@ class DatabaseMappingBase:
             Alias: a parameter value subquery
         """
         par_val_sq = self._subquery("parameter_value")
-        object_class_id = case(
-            [(self.entity_class_sq.c.type_id == self.object_class_type, par_val_sq.c.entity_class_id)], else_=None
-        )
-        relationship_class_id = case(
-            [(self.entity_class_sq.c.type_id == self.relationship_class_type, par_val_sq.c.entity_class_id)], else_=None
-        )
-        object_id = case([(self.entity_sq.c.type_id == self.object_entity_type, par_val_sq.c.entity_id)], else_=None)
-        relationship_id = case(
-            [(self.entity_sq.c.type_id == self.relationship_entity_type, par_val_sq.c.entity_id)], else_=None
-        )
         return (
             self.query(
                 par_val_sq.c.id.label("id"),
                 par_val_sq.c.parameter_definition_id,
                 par_val_sq.c.entity_class_id,
                 par_val_sq.c.entity_id,
-                label("object_class_id", object_class_id),
-                label("relationship_class_id", relationship_class_id),
-                label("object_id", object_id),
-                label("relationship_id", relationship_id),
+                label("object_class_id", self._object_class_id()),
+                label("relationship_class_id", self._relationship_class_id()),
+                label("object_id", self._object_id()),
+                label("relationship_id", self._relationship_id()),
                 par_val_sq.c.value.label("value"),
                 par_val_sq.c.type.label("type"),
                 par_val_sq.c.commit_id.label("commit_id"),
@@ -1863,19 +1829,35 @@ class DatabaseMappingBase:
             item["type_id"] = type_id
             yield item
 
+    def _object_class_id(self):
+        return case([(self.entity_class_sq.c.type_id == self.object_class_type, self.entity_class_sq.c.id)], else_=None)
+
+    def _relationship_class_id(self):
+        return case(
+            [(self.entity_class_sq.c.type_id == self.relationship_class_type, self.entity_class_sq.c.id)], else_=None
+        )
+
+    def _object_id(self):
+        return case([(self.entity_sq.c.type_id == self.object_entity_type, self.entity_sq.c.id)], else_=None)
+
+    def _relationship_id(self):
+        return case([(self.entity_sq.c.type_id == self.relationship_entity_type, self.entity_sq.c.id)], else_=None)
+
     def _object_class_name(self):
-        return case([(self.parameter_definition_sq.c.object_class_id != None, self.entity_class_sq.c.name)], else_=None)
+        return case(
+            [(self.entity_class_sq.c.type_id == self.object_class_type, self.entity_class_sq.c.name)], else_=None
+        )
 
     def _relationship_class_name(self):
         return case(
-            [(self.parameter_definition_sq.c.relationship_class_id != None, self.entity_class_sq.c.name)], else_=None
+            [(self.entity_class_sq.c.type_id == self.relationship_class_type, self.entity_class_sq.c.name)], else_=None
         )
 
     def _object_class_id_list(self):
         return case(
             [
                 (
-                    self.parameter_definition_sq.c.relationship_class_id != None,
+                    self.entity_class_sq.c.type_id == self.relationship_class_type,
                     self.wide_relationship_class_sq.c.object_class_id_list,
                 )
             ],
@@ -1886,7 +1868,7 @@ class DatabaseMappingBase:
         return case(
             [
                 (
-                    self.parameter_definition_sq.c.relationship_class_id != None,
+                    self.entity_class_sq.c.type_id == self.relationship_class_type,
                     self.wide_relationship_class_sq.c.object_class_name_list,
                 )
             ],
@@ -1894,17 +1876,17 @@ class DatabaseMappingBase:
         )
 
     def _object_name(self):
-        return case([(self.parameter_value_sq.c.object_id != None, self.entity_sq.c.name)], else_=None)
+        return case([(self.entity_sq.c.type_id == self.object_entity_type, self.entity_sq.c.name)], else_=None)
 
     def _object_id_list(self):
         return case(
-            [(self.parameter_value_sq.c.relationship_id != None, self.wide_relationship_sq.c.object_id_list)],
+            [(self.entity_sq.c.type_id == self.relationship_entity_type, self.wide_relationship_sq.c.object_id_list)],
             else_=None,
         )
 
     def _object_name_list(self):
         return case(
-            [(self.parameter_value_sq.c.relationship_id != None, self.wide_relationship_sq.c.object_name_list)],
+            [(self.entity_sq.c.type_id == self.relationship_entity_type, self.wide_relationship_sq.c.object_name_list)],
             else_=None,
         )
 
