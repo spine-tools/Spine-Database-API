@@ -551,18 +551,44 @@ class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
             parameter_definition.append(value_list_name)
 
 
-class DefaultValueIndexNameMapping(ImportMapping):
+class IndexNameMappingBase(ImportMapping):
+    """Base class for index name mappings."""
+
+    _STATE_KEY = NotImplemented
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._id = None
+
+    def _value_key(self, state):
+        raise NotImplementedError()
+
+    def _import_row(self, source_data, state, mapped_data):
+        values = state[self._STATE_KEY]
+        value = values[self._value_key(state)]
+        if self._id is None:
+            self._id = 0
+            current = self
+            while True:
+                if current.parent is None:
+                    break
+                current = current.parent
+                if isinstance(current, type(self)):
+                    self._id += 1
+        value.setdefault("index_names", {})[self._id] = source_data
+
+
+class DefaultValueIndexNameMapping(IndexNameMappingBase):
     """Maps default value index names.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterDefaultValueTypeMapping` as parent.
     """
 
     MAP_TYPE = "DefaultValueIndexName"
+    _STATE_KEY = ImportKey.PARAMETER_DEFAULT_VALUES
 
-    def _import_row(self, source_data, state, mapped_data):
-        values = state[ImportKey.PARAMETER_DEFAULT_VALUES]
-        value = values[_default_value_key(state)]
-        value.setdefault("index_names", []).append(source_data)
+    def _value_key(self, state):
+        return _default_value_key(state)
 
 
 class ParameterDefaultValueIndexMapping(ImportMapping):
@@ -710,31 +736,17 @@ class ParameterValueIndexMapping(ImportMapping):
         state.setdefault(ImportKey.PARAMETER_VALUE_INDEXES, []).append(index)
 
 
-class IndexNameMapping(ImportMapping):
+class IndexNameMapping(IndexNameMappingBase):
     """Maps index names for indexed parameter values.
 
     Cannot be used as the topmost mapping; must have an :class:`ParameterValueTypeMapping` as a parent.
     """
 
     MAP_TYPE = "IndexName"
+    _STATE_KEY = ImportKey.PARAMETER_VALUES
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._id = None
-
-    def _import_row(self, source_data, state, mapped_data):
-        values = state[ImportKey.PARAMETER_VALUES]
-        value = values[_parameter_value_key(state)]
-        if self._id is None:
-            self._id = 0
-            current = self
-            while True:
-                if current.parent is None:
-                    break
-                current = current.parent
-                if isinstance(current, IndexNameMapping):
-                    self._id += 1
-        value.setdefault("index_names", {})[self._id] = source_data
+    def _value_key(self, state):
+        return _parameter_value_key(state)
 
 
 class ExpandedParameterValueMapping(ImportMapping):
