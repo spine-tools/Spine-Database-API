@@ -18,9 +18,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from gdx2py import GdxFile
+
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from spinedb_api.spine_io.exporters.gdx_writer import GdxWriter
-from spinedb_api.spine_io.exporters.writer import write
+from spinedb_api.spine_io.exporters.writer import write, WriterException
 from spinedb_api import (
     DiffDatabaseMapping,
     import_object_classes,
@@ -30,8 +31,9 @@ from spinedb_api import (
     import_relationship_classes,
     import_relationships,
 )
-from spinedb_api.mapping import Position
+from spinedb_api.mapping import Position, unflatten
 from spinedb_api.export_mapping import object_export, object_parameter_export, relationship_export
+from spinedb_api.export_mapping.export_mapping import FixedValueMapping
 
 
 class TestGdxWriter(unittest.TestCase):
@@ -152,6 +154,24 @@ class TestGdxWriter(unittest.TestCase):
                 gams_set = gdx_file["oc2"]
                 self.assertIsNone(gams_set.domain)
                 self.assertEqual(gams_set.elements, ["p"])
+        db_map.connection.close()
+
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_append_to_table(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_objects(db_map, (("oc1", "o"), ("oc2", "p")))
+        db_map.commit_session("Add test data.")
+        root_mapping1 = unflatten([FixedValueMapping(Position.table_name, value="set_X")] + object_export(object_position=0).flatten())
+        root_mapping1.child.filter_re = "oc1"
+        root_mapping1.child.child.header = "*"
+        root_mapping2 = unflatten([FixedValueMapping(Position.table_name, value="set_X")] + object_export(object_position=0).flatten())
+        root_mapping2.child.filter_re = "oc2"
+        root_mapping2.child.child.header = "*"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_two_tables.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            self.assertRaises(WriterException, write, db_map, writer, root_mapping1, root_mapping2)
         db_map.connection.close()
 
 

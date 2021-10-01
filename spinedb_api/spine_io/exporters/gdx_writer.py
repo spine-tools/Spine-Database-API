@@ -39,6 +39,8 @@ class GdxWriter(Writer):
             self._gdx_file.close()
 
     def finish_table(self):
+        if self._current_table_name is None:
+            return
         first_row = self._current_table[0] if self._current_table else []
         if first_row:
             is_parameter = isinstance(self._current_table[-1][-1], (float, int))
@@ -65,6 +67,7 @@ class GdxWriter(Writer):
             raise WriterException(f"Could not open .gdx file : {e}")
 
     def start_table(self, table_name, title_key):
+        self._current_table_name = None
         if not table_name:
             raise WriterException("Gdx does not support anonymous tables.")
         if table_name in self._gdx_file:
