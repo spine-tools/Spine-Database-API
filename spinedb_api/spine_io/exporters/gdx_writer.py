@@ -58,7 +58,14 @@ class GdxWriter(Writer):
                     raise WriterException(f"Error writing empty table '{self._current_table_name}': {e}")
         else:
             set_ = GAMSSet(self._current_table, self._dimensions)
-        self._gdx_file[self._current_table_name] = set_
+        try:
+            self._gdx_file[self._current_table_name] = set_
+        except TypeError as e:
+            if isinstance(set_, GAMSSet):
+                raise WriterException(f"A column contains a mixture of numeric and non-numeric elements.")
+        except ValueError as e:
+            if isinstance(set_, GAMSParameter):
+                raise WriterException(f"Failed to create GAMS parameter: {e}")
 
     def start(self):
         try:

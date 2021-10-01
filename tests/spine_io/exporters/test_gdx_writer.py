@@ -162,16 +162,56 @@ class TestGdxWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o"), ("oc2", "p")))
         db_map.commit_session("Add test data.")
-        root_mapping1 = unflatten([FixedValueMapping(Position.table_name, value="set_X")] + object_export(object_position=0).flatten())
+        root_mapping1 = unflatten(
+            [FixedValueMapping(Position.table_name, value="set_X")] + object_export(object_position=0).flatten()
+        )
         root_mapping1.child.filter_re = "oc1"
         root_mapping1.child.child.header = "*"
-        root_mapping2 = unflatten([FixedValueMapping(Position.table_name, value="set_X")] + object_export(object_position=0).flatten())
+        root_mapping2 = unflatten(
+            [FixedValueMapping(Position.table_name, value="set_X")] + object_export(object_position=0).flatten()
+        )
         root_mapping2.child.filter_re = "oc2"
         root_mapping2.child.child.header = "*"
         with TemporaryDirectory() as temp_dir:
             file_path = Path(temp_dir, "test_two_tables.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
             self.assertRaises(WriterException, write, db_map, writer, root_mapping1, root_mapping2)
+        db_map.connection.close()
+
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_parameter_value_non_convertible_to_float_raises_WriterException(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "param"),))
+        import_objects(db_map, (("oc", "o"), ("oc", "p")))
+        import_object_parameter_values(db_map, (("oc", "o", "param", "text"), ("oc", "p", "param", 2.3)))
+        db_map.commit_session("Add test data.")
+        root_mapping = object_parameter_export(
+            class_position=Position.hidden, definition_position=Position.table_name, object_position=0, value_position=1
+        )
+        root_mapping.child.child.child.header = "*"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_two_tables.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            self.assertRaises(WriterException, write, db_map, writer, root_mapping)
+        db_map.connection.close()
+
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_non_string_set_element_raises_WriterException(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "param"),))
+        import_objects(db_map, (("oc", "o"), ("oc", "p")))
+        import_object_parameter_values(db_map, (("oc", "o", "param", 2.3), ("oc", "p", "param", "text")))
+        db_map.commit_session("Add test data.")
+        root_mapping = object_parameter_export(
+            class_position=Position.hidden, definition_position=Position.table_name, object_position=0, value_position=1
+        )
+        root_mapping.child.child.child.header = "*"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_two_tables.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            self.assertRaises(WriterException, write, db_map, writer, root_mapping)
         db_map.connection.close()
 
 
