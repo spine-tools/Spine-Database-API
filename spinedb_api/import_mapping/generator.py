@@ -235,7 +235,10 @@ def _make_parameter_values(mapped_data):
 
 
 def _parameter_value_from_dict(d):
-    index_names = d.get("index_names", [""])
+    mapped_index_names = d.get("index_names", {0: ""})
+    index_names = (max(mapped_index_names) + 1) * [""]
+    for i, name in mapped_index_names.items():
+        index_names[i] = name
     if d["type"] == "map":
         map_ = _table_to_map(d["data"], compress=d.get("compress", False))
         if index_names != [""]:
@@ -291,7 +294,11 @@ def _apply_index_names(map_, index_names):
         map_ (Map): target Map.
         index_names (Sequence of str): index names, one for each Map depth
     """
-    map_.index_name = index_names[0]
+    name = index_names[0]
+    if name:
+        map_.index_name = index_names[0]
+    if len(index_names) == 1:
+        return
     for v in map_.values:
         if isinstance(v, Map):
             _apply_index_names(v, index_names[1:])

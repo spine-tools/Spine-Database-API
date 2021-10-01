@@ -1834,6 +1834,38 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
+    def test_missing_map_index_name(self):
+        input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
+        data = iter(input_data)
+        data_header = next(data)
+        mapping_root = unflatten(
+            [
+                ObjectClassMapping(Position.hidden, value="object_class"),
+                ParameterDefinitionMapping(Position.hidden, value="parameter"),
+                ObjectMapping(Position.hidden, value="object"),
+                ParameterValueTypeMapping(Position.hidden, value="map"),
+                IndexNameMapping(Position.hidden, value=None),
+                ParameterValueIndexMapping(0),
+                IndexNameMapping(Position.header, value=1),
+                ParameterValueIndexMapping(1),
+                ExpandedParameterValueMapping(2),
+            ]
+        )
+        out, errors = get_mapped_data(data, [mapping_root], data_header)
+        expected_map = Map(
+            ["key11", "key21"],
+            [Map(["key12"], [-2], index_name="Index 2"), Map(["key22"], [-1], index_name="Index 2")],
+            index_name="",
+        )
+        expected = {
+            "object_classes": ["object_class"],
+            "objects": [("object_class", "object")],
+            "object_parameter_values": [("object_class", "object", "parameter", expected_map)],
+            "object_parameters": [("object_class", "parameter")],
+        }
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
     def test_read_default_value_index_names_from_columns(self):
         input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
         data = iter(input_data)

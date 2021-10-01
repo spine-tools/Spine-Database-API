@@ -718,10 +718,23 @@ class IndexNameMapping(ImportMapping):
 
     MAP_TYPE = "IndexName"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._id = None
+
     def _import_row(self, source_data, state, mapped_data):
         values = state[ImportKey.PARAMETER_VALUES]
         value = values[_parameter_value_key(state)]
-        value.setdefault("index_names", []).append(source_data)
+        if self._id is None:
+            self._id = 0
+            current = self
+            while True:
+                if current.parent is None:
+                    break
+                current = current.parent
+                if isinstance(current, IndexNameMapping):
+                    self._id += 1
+        value.setdefault("index_names", {})[self._id] = source_data
 
 
 class ExpandedParameterValueMapping(ImportMapping):
