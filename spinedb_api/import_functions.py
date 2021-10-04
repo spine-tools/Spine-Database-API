@@ -871,10 +871,11 @@ def _get_relationship_classes_for_import(db_map, data, make_cache):
                 "name": name,
                 "object_class_id_list": [object_class_ids.get(oc, None) for oc in oc_names],
                 "description": None,
+                "display_icon": None,
             }
         )
         item["type_id"] = db_map.relationship_class_type
-        item.update(dict(zip(("description",), optionals)))
+        item.update(dict(zip(("description", "display_icon"), optionals)))
         try:
             check_wide_relationship_class(
                 item, relationship_class_ids, set(object_class_ids.values()), db_map.relationship_class_type
