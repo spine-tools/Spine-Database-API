@@ -584,6 +584,7 @@ class DatabaseMappingBase:
                     rel_ent_cls_sq.c.member_class_id.label("object_class_id"),
                     self.entity_class_sq.c.name.label("name"),
                     self.entity_class_sq.c.description.label("description"),
+                    self.entity_class_sq.c.display_icon.label("display_icon"),
                     self.entity_class_sq.c.hidden.label("hidden"),
                     self.entity_class_sq.c.commit_id.label("commit_id"),
                 )
@@ -886,6 +887,7 @@ class DatabaseMappingBase:
                     self.relationship_class_sq.c.name.label("name"),
                     self.relationship_class_sq.c.description.label("description"),
                     self.relationship_class_sq.c.dimension.label("dimension"),
+                    self.relationship_class_sq.c.display_icon.label("display_icon"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
                 )
@@ -927,6 +929,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
+                    self.ext_relationship_class_sq.c.display_icon,
                     group_concat(
                         self.ext_relationship_class_sq.c.object_class_id, self.ext_relationship_class_sq.c.dimension
                     ).label("object_class_id_list"),
@@ -938,6 +941,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.id,
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
+                    self.ext_relationship_class_sq.c.display_icon,
                 )
                 .subquery()
             )
@@ -1761,6 +1765,7 @@ class DatabaseMappingBase:
             "id": item["id"],
             "name": item["name"],
             "description": item.get("description"),
+            "display_icon": item.get("display_icon"),
             "object_class_id_list": [int(id_) for id_ in item["object_class_id_list"].split(",")],
         }
 
