@@ -66,15 +66,15 @@ class ExportMapping(Mapping):
         Args:
             position (int or Position): column index or Position
             value (Any, optional): A fixed value
-            header (str, optional); A string column header that's yielded as 'first row', if not empty.
+            header (str); A string column header that's yielded as 'first row', if not empty.
                 The default is an empty string (so it's not yielded).
-            filter_re (str, optional): A regular expression to filter the mapped values by
+            filter_re (str): A regular expression to filter the mapped values by
             group_fn (str, Optional): Only for topmost mappings. The name of one of our supported group functions,
                 for aggregating values over repeated 'headers' (in tables with hidden elements).
                 If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
         super().__init__(position, value=value)
-        self._filter_re = ""
+        self._filter_re = None
         self._group_fn = None
         self._ignorable = False
         self.header = header
@@ -96,11 +96,11 @@ class ExportMapping(Mapping):
 
     @property
     def filter_re(self):
-        return self._filter_re
+        return self._filter_re.pattern if self._filter_re is not None else ""
 
     @filter_re.setter
     def filter_re(self, filter_re):
-        self._filter_re = filter_re
+        self._filter_re = re.compile(filter_re) if filter_re else None
 
     def check_validity(self):
         """Checks if mapping is valid.
@@ -334,8 +334,8 @@ class ExportMapping(Mapping):
             generator(any)
         """
         data_iterator = self._expand_data(data)
-        if self._filter_re:
-            data_iterator = (x for x in data_iterator if re.search(self._filter_re, str(x)))
+        if self._filter_re is not None:
+            data_iterator = (x for x in data_iterator if self._filter_re.search(str(x)))
         if self._convert_data is not None:
             data_iterator = (self._convert_data(x) for x in data_iterator)
         return data_iterator
