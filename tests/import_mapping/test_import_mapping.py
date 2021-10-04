@@ -1779,6 +1779,26 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
+    def test_map_as_default_parameter_value(self):
+        input_data = [["key1", -2.3], ["key2", 5.5], ["key3", 3.2]]
+        data = iter(input_data)
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": "object_class",
+            "parameters": {
+                "name": "parameter",
+                "map_type": "ParameterDefinition",
+                "default_value": {"value_type": "map", "main_value": 1, "compress": False, "extra_dimensions": [0]},
+            },
+        }
+        out, errors = get_mapped_data(data, [mapping])
+        expected = dict()
+        expected["object_classes"] = ["object_class"]
+        expected_map = Map(["key1", "key2", "key3"], [-2.3, 5.5, 3.2])
+        expected["object_parameters"] = [("object_class", "parameter", expected_map)]
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
     def test_read_parameter_definition_with_nested_map_as_default_value(self):
         input_data = [["Index 1", "Index 2", "Value"], ["key11", "key12", -2], ["key21", "key22", -1]]
         data = iter(input_data)
@@ -1890,6 +1910,33 @@ class TestMappingIntegration(unittest.TestCase):
             "object_classes": ["object_class"],
             "object_parameters": [("object_class", "parameter", expected_map)],
         }
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
+    def test_filter_regular_expression_in_root_mapping(self):
+        input_data = [["A", "p"], ["A", "q"], ["B", "r"]]
+        data = iter(input_data)
+        mapping_root = unflatten([ObjectClassMapping(0, filter_re="B"), ObjectMapping(1)])
+        out, errors = get_mapped_data(data, [mapping_root])
+        expected = {"object_classes": ["B"], "objects": [("B", "r")]}
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
+    def test_filter_regular_expression_in_child_mapping(self):
+        input_data = [["A", "p"], ["A", "q"], ["B", "r"]]
+        data = iter(input_data)
+        mapping_root = unflatten([ObjectClassMapping(0), ObjectMapping(1, filter_re="q|r")])
+        out, errors = get_mapped_data(data, [mapping_root])
+        expected = {"object_classes": ["A", "B"], "objects": [("A", "q"), ("B", "r")]}
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
+    def test_filter_regular_expression_in_child_mapping_filters_parent_mappings_too(self):
+        input_data = [["A", "p"], ["A", "q"], ["B", "r"]]
+        data = iter(input_data)
+        mapping_root = unflatten([ObjectClassMapping(0), ObjectMapping(1, filter_re="q")])
+        out, errors = get_mapped_data(data, [mapping_root])
+        expected = {"object_classes": ["A", "B"], "objects": [("A", "q")]}
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 

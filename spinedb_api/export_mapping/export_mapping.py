@@ -73,12 +73,10 @@ class ExportMapping(Mapping):
                 for aggregating values over repeated 'headers' (in tables with hidden elements).
                 If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
-        super().__init__(position, value=value)
-        self._filter_re = None
+        super().__init__(position, value, filter_re)
         self._group_fn = None
         self._ignorable = False
         self.header = header
-        self.filter_re = filter_re
         self.group_fn = group_fn
         self._convert_data = None
 
@@ -87,20 +85,7 @@ class ExportMapping(Mapping):
             return NotImplemented
         if not super().__eq__(other):
             return False
-        return (
-            self._filter_re == other._filter_re
-            and self._group_fn == other._group_fn
-            and self._ignorable == other._ignorable
-            and self.header == other.header
-        )
-
-    @property
-    def filter_re(self):
-        return self._filter_re.pattern if self._filter_re is not None else ""
-
-    @filter_re.setter
-    def filter_re(self, filter_re):
-        self._filter_re = re.compile(filter_re) if filter_re else None
+        return self._group_fn == other._group_fn and self._ignorable == other._ignorable and self.header == other.header
 
     def check_validity(self):
         """Checks if mapping is valid.
@@ -175,30 +160,28 @@ class ExportMapping(Mapping):
             mapping_dict["ignorable"] = True
         if self.header:
             mapping_dict["header"] = self.header
-        if self.filter_re:
-            mapping_dict["filter_re"] = self.filter_re
         if self.group_fn and self.group_fn != NoGroup.NAME:
             mapping_dict["group_fn"] = self.group_fn
         return mapping_dict
 
     @classmethod
-    def reconstruct(cls, position, ignorable, mapping_dict):
+    def reconstruct(cls, position, value, header, filter_re, group_fn, ignorable, mapping_dict):
         """
         Reconstructs mapping.
 
         Args:
             position (int or Position, optional): mapping's position
+            value (Any): fixed value
+            header (str, optional): column header
+            filter_re (str): filter regular expression
+            group_fn (str): grouping function's name
             ignorable (bool): ignorable flag
             mapping_dict (dict): serialized mapping
 
         Returns:
             Mapping: reconstructed mapping
         """
-        value = mapping_dict.get("value")
-        header = mapping_dict.get("header", "")
-        filter_re = mapping_dict.get("filter_re", "")
-        group_fn = mapping_dict.get("group_fn")
-        mapping = cls(position, value=value, header=header, filter_re=filter_re, group_fn=group_fn)
+        mapping = cls(position, value, header, filter_re, group_fn)
         mapping.set_ignorable(ignorable)
         return mapping
 
@@ -1761,7 +1744,15 @@ def from_dict(serialized):
         if isinstance(position, str):
             position = Position(position)
         ignorable = mapping_dict.get("ignorable", False)
-        flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, ignorable, mapping_dict))
+        value = mapping_dict.get("value")
+        header = mapping_dict.get("header", "")
+        filter_re = mapping_dict.get("filter_re", "")
+        group_fn = mapping_dict.get("group_fn")
+        flattened.append(
+            mappings[mapping_dict["map_type"]].reconstruct(
+                position, value, header, filter_re, group_fn, ignorable, mapping_dict
+            )
+        )
     return unflatten(flattened)
 
 

@@ -90,8 +90,19 @@ def check_validity(root_mapping):
 
 
 class ImportMapping(Mapping):
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0):
-        super().__init__(position, value=value)
+    """Base class for import mappings."""
+
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, filter_re=""):
+        """
+        Args:
+            position (int or Position): what to map in the source table
+            value (Any, optional): fixed value
+            skip_columns (Iterable of int, optional): index of columns that should be skipped;
+                useful when source is pivoted
+            read_start_row (int): at which source row importing should start
+            filter_re (str): regular expression for filtering
+        """
+        super().__init__(position, value, filter_re)
         self._skip_columns = None
         self._read_start_row = None
         self.skip_columns = skip_columns
@@ -203,7 +214,7 @@ class ImportMapping(Mapping):
             source_data = self._data(source_row)
             if source_data is None:
                 self._skip_row(state)
-            else:
+            elif self._filter_re is None or self._filter_re.search(source_data) is not None:
                 try:
                     self._import_row(source_data, state, mapped_data)
                 except KeyError as err:
@@ -217,6 +228,9 @@ class ImportMapping(Mapping):
                         indexes |= {k for k, err in enumerate(errors) if err.key == key}
                     for k in sorted(indexes, reverse=True):
                         errors.pop(k)
+            else:
+                self._skip_row(state)
+                return
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
@@ -252,27 +266,28 @@ class ImportMapping(Mapping):
         return d
 
     @classmethod
-    def reconstruct(cls, position, mapping_dict):
+    def reconstruct(cls, position, value, skip_columns, read_start_row, filter_re, mapping_dict):
         """
         Reconstructs mapping.
 
         Args:
             position (int or Position, optional): mapping's position
+            value (Any): fixed value
+            skip_columns (Iterable of Int, optional): skipped columns
+            read_start_row (int): first source row to read
+            filter_re (str): filter regular expression
             mapping_dict (dict): serialized mapping
 
         Returns:
             Mapping: reconstructed mapping
         """
-        value = mapping_dict.get("value")
-        skip_columns = mapping_dict.get("skip_columns")
-        read_start_row = mapping_dict.get("read_start_row", 0)
-        mapping = cls(position, value=value, skip_columns=skip_columns, read_start_row=read_start_row)
+        mapping = cls(position, value, skip_columns, read_start_row, filter_re)
         return mapping
 
 
 class ImportObjectsMixin:
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, import_objects=False):
-        super().__init__(position, value, skip_columns, read_start_row)
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, filter_re="", import_objects=False):
+        super().__init__(position, value, skip_columns, read_start_row, filter_re)
         self.import_objects = import_objects
 
     def to_dict(self):
@@ -282,24 +297,17 @@ class ImportObjectsMixin:
         return d
 
     @classmethod
-    def reconstruct(cls, position, mapping_dict):
-        value = mapping_dict.get("value")
-        skip_columns = mapping_dict.get("skip_columns")
-        read_start_row = mapping_dict.get("read_start_row", 0)
+    def reconstruct(cls, position, value, skip_columns, read_start_row, filter_re, mapping_dict):
         import_objects = mapping_dict.get("import_objects", False)
-        mapping = cls(
-            position,
-            value=value,
-            skip_columns=skip_columns,
-            read_start_row=read_start_row,
-            import_objects=import_objects,
-        )
+        mapping = cls(position, value, skip_columns, read_start_row, filter_re, import_objects)
         return mapping
 
 
 class IndexedValueMixin:
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, compress=False, options=None):
-        super().__init__(position, value, skip_columns, read_start_row)
+    def __init__(
+        self, position, value=None, skip_columns=None, read_start_row=0, filter_re="", compress=False, options=None
+    ):
+        super().__init__(position, value, skip_columns, read_start_row, filter_re)
         if options is None:
             options = {}
         self.compress = compress
@@ -314,20 +322,10 @@ class IndexedValueMixin:
         return d
 
     @classmethod
-    def reconstruct(cls, position, mapping_dict):
-        value = mapping_dict.get("value")
-        skip_columns = mapping_dict.get("skip_columns")
-        read_start_row = mapping_dict.get("read_start_row", 0)
+    def reconstruct(cls, position, value, skip_columns, read_start_row, filter_re, mapping_dict):
         compress = mapping_dict.get("compress", False)
         options = mapping_dict.get("options")
-        mapping = cls(
-            position,
-            value=value,
-            skip_columns=skip_columns,
-            read_start_row=read_start_row,
-            compress=compress,
-            options=options,
-        )
+        mapping = cls(position, value, skip_columns, read_start_row, filter_re, compress, options)
         return mapping
 
 
@@ -505,7 +503,9 @@ class ParameterDefinitionMapping(ImportMapping):
             raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME] = str(source_data)
         parameter_definition = state[ImportKey.PARAMETER_DEFINITION] = [class_name, parameter_name]
-        mapped_data.setdefault(map_key, list()).append(parameter_definition)
+        default_values = state.get(ImportKey.PARAMETER_DEFAULT_VALUES)
+        if default_values is None or tuple(parameter_definition) not in default_values:
+            mapped_data.setdefault(map_key, list()).append(parameter_definition)
 
 
 class ParameterDefaultValueMapping(ImportMapping):
@@ -1065,9 +1065,17 @@ def from_dict(serialized):
     flattened = list()
     for mapping_dict in serialized:
         position = mapping_dict["position"]
+        value = mapping_dict.get("value")
+        skip_columns = mapping_dict.get("skip_columns")
+        read_start_row = mapping_dict.get("read_start_row", 0)
+        filter_re = mapping_dict.get("filter_re", "")
         if isinstance(position, str):
             position = Position(position)
-        flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, mapping_dict))
+        flattened.append(
+            mappings[mapping_dict["map_type"]].reconstruct(
+                position, value, skip_columns, read_start_row, filter_re, mapping_dict
+            )
+        )
     return unflatten(flattened)
 
 

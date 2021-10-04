@@ -17,6 +17,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from enum import Enum, unique
 from itertools import takewhile
+import re
 
 
 @unique
@@ -66,18 +67,21 @@ class Mapping:
     MAP_TYPE = None
     """Mapping type identifier for serialization."""
 
-    def __init__(self, position, value=None):
+    def __init__(self, position, value=None, filter_re=""):
         """
         Args:
             position (int or Position): column index or Position
             value (Any): fixed value
+            filter_re (str): regular expression for filtering
         """
         self._child = None
         self._value = None
         self._unfixed_value_data = self._data
+        self._filter_re = None
         self.parent = None
         self.position = position
         self.value = value
+        self.filter_re = filter_re
 
     @property
     def child(self):
@@ -99,6 +103,14 @@ class Mapping:
         self._value = value
         self._set_fixed_value_data()
 
+    @property
+    def filter_re(self):
+        return self._filter_re.pattern if self._filter_re is not None else ""
+
+    @filter_re.setter
+    def filter_re(self, filter_re):
+        self._filter_re = re.compile(filter_re) if filter_re else None
+
     def _data(self, row):
         raise NotImplementedError()
 
@@ -114,7 +126,12 @@ class Mapping:
     def __eq__(self, other):
         if not isinstance(other, Mapping):
             return NotImplemented
-        return self.MAP_TYPE == other.MAP_TYPE and self.position == other.position and self.child == other.child
+        return (
+            self.MAP_TYPE == other.MAP_TYPE
+            and self.position == other.position
+            and self.child == other.child
+            and self._filter_re == other._filter_re
+        )
 
     def count_mappings(self):
         """
@@ -183,6 +200,8 @@ class Mapping:
         mapping_dict = {"map_type": self.MAP_TYPE, "position": position}
         if self.value is not None:
             mapping_dict["value"] = self.value
+        if self._filter_re is not None:
+            mapping_dict["filter_re"] = self._filter_re.pattern
         return mapping_dict
 
 

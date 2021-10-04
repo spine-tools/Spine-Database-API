@@ -65,6 +65,7 @@ def assert_import_equivalent(test, obs, exp, strict=True):
 
 def _assert_same_elements(test, obs_vals, exp_vals):
     if isinstance(obs_vals, (tuple, list)) and isinstance(exp_vals, (tuple, list)):
+        test.assertEqual(len(obs_vals), len(exp_vals))
         for k, exp_val in enumerate(exp_vals):
             try:
                 obs_val = obs_vals[k]
