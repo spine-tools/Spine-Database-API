@@ -30,42 +30,25 @@ class GdxWriter(Writer):
         self._file_path = file_path
         self._gams_dir = gams_directory
         self._gdx_file = None
+        self._tables = dict()
+        self._table_dimensions = dict()
         self._current_table_name = None
         self._current_table = None
-        self._dimensions = None
+        self._dimensions_missing = True
 
     def finish(self):
         if self._gdx_file is not None:
-            self._gdx_file.close()
+            try:
+                for table_name, table in self._tables.items():
+                    _table_to_gdx(self._gdx_file, table, table_name, self._table_dimensions.get(table_name))
+            finally:
+                self._gdx_file.close()
 
     def finish_table(self):
         if self._current_table_name is None:
             return
-        first_row = self._current_table[0] if self._current_table else []
-        if first_row:
-            is_parameter = isinstance(self._current_table[-1][-1], (float, int))
-            if is_parameter:
-                if len(first_row) == 1:
-                    set_ = GAMSScalar(first_row[0])
-                else:
-                    n_dimensions = len(first_row) - 1
-                    data = {row[:-1]: row[-1] for row in self._current_table}
-                    set_ = GAMSParameter(data, self._dimensions[:n_dimensions])
-            else:
-                try:
-                    set_ = GAMSSet(self._current_table, self._dimensions)
-                except ValueError as e:
-                    raise WriterException(f"Error writing empty table '{self._current_table_name}': {e}")
-        else:
-            set_ = GAMSSet(self._current_table, self._dimensions)
-        try:
-            self._gdx_file[self._current_table_name] = set_
-        except TypeError as e:
-            if isinstance(set_, GAMSSet):
-                raise WriterException(f"A column contains a mixture of numeric and non-numeric elements.")
-        except ValueError as e:
-            if isinstance(set_, GAMSParameter):
-                raise WriterException(f"Failed to create GAMS parameter: {e}")
+        self._tables.setdefault(self._current_table_name, list()).extend(self._current_table)
+        self._current_table_name = None
 
     def start(self):
         try:
@@ -74,20 +57,64 @@ class GdxWriter(Writer):
             raise WriterException(f"Could not open .gdx file : {e}")
 
     def start_table(self, table_name, title_key):
-        self._current_table_name = None
         if not table_name:
             raise WriterException("Gdx does not support anonymous tables.")
         if table_name in self._gdx_file:
             raise WriterException("Gdx does not support appending data to existing sets.")
         self._current_table_name = table_name
         self._current_table = list()
-        self._dimensions = None
+        self._dimensions_missing = True
         return True
 
     def write_row(self, row):
         # First row should contain dimensions unless we are exporting a GAMS scalar.
-        if self._dimensions is None and row and isinstance(row[0], str):
-            self._dimensions = tuple(row)
+        if not self._current_table and self._dimensions_missing and row and isinstance(row[0], str):
+            dimensions = tuple(row)
+            previous_dimensions = self._table_dimensions.get(self._current_table_name)
+            if previous_dimensions is not None:
+                if dimensions != previous_dimensions:
+                    raise WriterException(f"Cannot append to `{self._current_table_name}`: dimensions don't match.")
+            else:
+                self._table_dimensions[self._current_table_name] = dimensions
+            self._dimensions_missing = False
             return True
         self._current_table.append(tuple(row))
         return True
+
+
+def _table_to_gdx(gdx_file, table, table_name, dimensions):
+    """Writes a table to .gdx file.
+
+    Args:
+        gdx_file (GdxFile): output file
+        table (list of list): list of table rows
+        table_name (str): output set's name
+        dimensions (tuple of str): output set's dimensions
+    """
+    first_row = table[0] if table else []
+    if first_row:
+        is_parameter = isinstance(table[-1][-1], (float, int))
+        if is_parameter:
+            if len(first_row) == 1:
+                set_ = GAMSScalar(first_row[0])
+            else:
+                n_dimensions = len(first_row) - 1
+                data = {row[:-1]: row[-1] for row in table}
+                set_ = GAMSParameter(data, dimensions[:n_dimensions])
+        else:
+            try:
+                set_ = GAMSSet(table, dimensions)
+            except ValueError as e:
+                raise WriterException(f"Error writing empty table '{table_name}': {e}")
+    else:
+        set_ = GAMSSet(table, dimensions)
+    try:
+        gdx_file[table_name] = set_
+    except TypeError as e:
+        if isinstance(set_, GAMSSet):
+            raise WriterException(f"A column contains a mixture of numeric and non-numeric elements.")
+        raise e
+    except ValueError as e:
+        if isinstance(set_, GAMSParameter):
+            raise WriterException(f"Failed to create GAMS parameter: {e}")
+        raise e

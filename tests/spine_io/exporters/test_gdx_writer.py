@@ -175,7 +175,12 @@ class TestGdxWriter(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             file_path = Path(temp_dir, "test_two_tables.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
-            self.assertRaises(WriterException, write, db_map, writer, root_mapping1, root_mapping2)
+            write(db_map, writer, root_mapping1, root_mapping2)
+            with GdxFile(str(file_path), "r", self._gams_dir) as gdx_file:
+                self.assertEqual(len(gdx_file), 1)
+                gams_set = gdx_file["set_X"]
+                self.assertIsNone(gams_set.domain)
+                self.assertEqual(gams_set.elements, ["o", "p"])
         db_map.connection.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
