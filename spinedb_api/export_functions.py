@@ -118,7 +118,7 @@ def export_objects(db_map, ids=Asterisk, make_cache=None):
 
 def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.name, x.object_class_name_list.split(","), x.description)
+        (x.name, x.object_class_name_list.split(","), x.description, x.display_icon)
         for x in _get_items(db_map, "relationship_class", ids, make_cache)
     )
 

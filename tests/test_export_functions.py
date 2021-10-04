@@ -142,7 +142,7 @@ class TestExportFunctions(unittest.TestCase):
             exported["object_parameter_values"], [("object_class", "object", "object_parameter", 2.3, "Base")]
         )
         self.assertIn("relationship_classes", exported)
-        self.assertEqual(exported["relationship_classes"], [("relationship_class", ["object_class"], None)])
+        self.assertEqual(exported["relationship_classes"], [("relationship_class", ["object_class"], None, None)])
         self.assertIn("relationship_parameters", exported)
         self.assertEqual(
             exported["relationship_parameters"], [("relationship_class", "relationship_parameter", None, None, None)]
