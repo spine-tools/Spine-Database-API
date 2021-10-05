@@ -16,9 +16,11 @@ A writer for exporting Spine databases to Excel files.
 :date:   15.1.2021
 """
 from pathlib import Path
+import re
 import numpy
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils.exceptions import InvalidFileException
+from openpyxl.workbook.child import INVALID_TITLE_REGEX
 from .writer import Writer, WriterException
 
 
@@ -67,7 +69,7 @@ class ExcelWriter(Writer):
 
     def start_table(self, table_name, title_key):
         """See base class."""
-        self._next_table_name = table_name
+        self._next_table_name = re.sub(INVALID_TITLE_REGEX, "", table_name)
         return True
 
     def _set_current_sheet(self):
@@ -108,7 +110,7 @@ def _convert_to_excel(x):
         if numpy.isnan(x):
             return "nan"
         return float(x)
-    elif isinstance(x, numpy.int_):
+    if isinstance(x, numpy.int_):
         return int(x)
     if not isinstance(x, (float, int, str)) and x is not None:
         return str(x)
