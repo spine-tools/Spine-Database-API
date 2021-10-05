@@ -69,7 +69,7 @@ class ExcelWriter(Writer):
 
     def start_table(self, table_name, title_key):
         """See base class."""
-        self._next_table_name = re.sub(INVALID_TITLE_REGEX, "", table_name)
+        self._next_table_name = re.sub(INVALID_TITLE_REGEX, "", table_name) if table_name is not None else table_name
         return True
 
     def _set_current_sheet(self):
