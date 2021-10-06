@@ -147,19 +147,36 @@ class TestDatabaseMappingBase(unittest.TestCase):
             self.assertTrue(hasattr(self._db_map.parameter_value_list_sq.c, column_name))
 
     def test_ext_object_sq(self):
-        columns = ["id", "class_id", "class_name", "name", "description"]
+        columns = ["id", "class_id", "class_name", "name", "description", "commit_id"]
         self.assertEqual(len(self._db_map.ext_object_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_object_sq.c, column_name))
 
     def test_ext_relationship_class_sq(self):
-        columns = ["id", "name", "description", "display_icon", "dimension", "object_class_id", "object_class_name"]
+        columns = [
+            "id",
+            "name",
+            "description",
+            "display_icon",
+            "dimension",
+            "object_class_id",
+            "object_class_name",
+            "commit_id",
+        ]
         self.assertEqual(len(self._db_map.ext_relationship_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_relationship_class_sq.c, column_name))
 
     def test_wide_relationship_class_sq(self):
-        columns = ["id", "name", "description", "display_icon", "object_class_id_list", "object_class_name_list"]
+        columns = [
+            "id",
+            "name",
+            "description",
+            "display_icon",
+            "commit_id",
+            "object_class_id_list",
+            "object_class_name_list",
+        ]
         self.assertEqual(len(self._db_map.wide_relationship_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_relationship_class_sq.c, column_name))
@@ -175,8 +192,8 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "object_name",
             "object_class_id",
             "object_class_name",
+            "commit_id",
         ]
-        data = self._db_map.ext_relationship_sq.c
         self.assertEqual(len(self._db_map.ext_relationship_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_relationship_sq.c, column_name))
@@ -187,6 +204,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "name",
             "class_id",
             "class_name",
+            "commit_id",
             "object_id_list",
             "object_name_list",
             "object_class_id_list",
@@ -278,7 +296,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             self.assertTrue(hasattr(self._db_map.relationship_parameter_value_sq.c, column_name))
 
     def test_wide_parameter_value_list_sq(self):
-        columns = ["id", "name", "value_index_list", "value_list"]
+        columns = ["id", "name", "value_index_list", "value_list", "commit_id"]
         self.assertEqual(len(self._db_map.wide_parameter_value_list_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_parameter_value_list_sq.c, column_name))

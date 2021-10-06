@@ -171,6 +171,7 @@ class DatabaseMappingBase:
             "metadata": "metadata_sq",
             "entity_metadata": "entity_metadata_sq",
             "parameter_value_metadata": "parameter_value_metadata_sq",
+            "commit": "commit_sq",
         }
         self.ancestor_tablenames = {
             "feature": ("parameter_definition",),
@@ -741,6 +742,7 @@ class DatabaseMappingBase:
                     self.scenario_alternative_sq.c.alternative_id.label("alternative_id"),
                     self.scenario_alternative_sq.c.rank.label("rank"),
                     self.alternative_sq.c.name.label("alternative_name"),
+                    self.scenario_sq.c.commit_id.label("commit_id"),
                 )
                 .outerjoin(
                     self.scenario_alternative_sq, self.scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id
@@ -762,6 +764,7 @@ class DatabaseMappingBase:
                     self.ext_scenario_sq.c.name.label("name"),
                     self.ext_scenario_sq.c.description.label("description"),
                     self.ext_scenario_sq.c.active.label("active"),
+                    self.ext_scenario_sq.c.commit_id.label("commit_id"),
                     group_concat(self.ext_scenario_sq.c.alternative_id, self.ext_scenario_sq.c.rank).label(
                         "alternative_id_list"
                     ),
@@ -774,6 +777,7 @@ class DatabaseMappingBase:
                     self.ext_scenario_sq.c.name,
                     self.ext_scenario_sq.c.description,
                     self.ext_scenario_sq.c.active,
+                    self.ext_scenario_sq.c.commit_id,
                 )
                 .subquery()
             )
@@ -791,6 +795,7 @@ class DatabaseMappingBase:
                     self.scenario_alternative_sq.c.rank.label("rank"),
                     scenario_next_alternative.c.alternative_id.label("before_alternative_id"),
                     scenario_next_alternative.c.rank.label("before_rank"),
+                    self.scenario_alternative_sq.c.commit_id.label("commit_id"),
                 )
                 .outerjoin(
                     scenario_next_alternative,
@@ -819,6 +824,7 @@ class DatabaseMappingBase:
                     self.linked_scenario_alternative_sq.c.before_alternative_id.label("before_alternative_id"),
                     self.linked_scenario_alternative_sq.c.before_rank.label("before_rank"),
                     next_alternative.c.name.label("before_alternative_name"),
+                    self.linked_scenario_alternative_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.linked_scenario_alternative_sq.c.scenario_id == self.scenario_sq.c.id)
                 .filter(self.alternative_sq.c.id == self.linked_scenario_alternative_sq.c.alternative_id)
@@ -856,6 +862,7 @@ class DatabaseMappingBase:
                     self.object_class_sq.c.name.label("class_name"),
                     self.object_sq.c.name.label("name"),
                     self.object_sq.c.description.label("description"),
+                    self.object_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
                 .subquery()
@@ -890,6 +897,7 @@ class DatabaseMappingBase:
                     self.relationship_class_sq.c.display_icon.label("display_icon"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
+                    self.relationship_class_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.relationship_class_sq.c.object_class_id == self.object_class_sq.c.id)
                 .order_by(self.relationship_class_sq.c.id, self.relationship_class_sq.c.dimension)
@@ -930,6 +938,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
                     self.ext_relationship_class_sq.c.display_icon,
+                    self.ext_relationship_class_sq.c.commit_id,
                     group_concat(
                         self.ext_relationship_class_sq.c.object_class_id, self.ext_relationship_class_sq.c.dimension
                     ).label("object_class_id_list"),
@@ -942,6 +951,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
                     self.ext_relationship_class_sq.c.display_icon,
+                    self.ext_relationship_class_sq.c.commit_id,
                 )
                 .subquery()
             )
@@ -979,6 +989,7 @@ class DatabaseMappingBase:
                     self.ext_object_sq.c.name.label("object_name"),
                     self.ext_object_sq.c.class_id.label("object_class_id"),
                     self.ext_object_sq.c.class_name.label("object_class_name"),
+                    self.relationship_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.relationship_sq.c.class_id == self.wide_relationship_class_sq.c.id)
                 .outerjoin(self.ext_object_sq, self.relationship_sq.c.object_id == self.ext_object_sq.c.id)
@@ -1023,6 +1034,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.name,
                     self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.class_name,
+                    self.ext_relationship_sq.c.commit_id,
                     group_concat(self.ext_relationship_sq.c.object_id, self.ext_relationship_sq.c.dimension).label(
                         "object_id_list"
                     ),
@@ -1041,6 +1053,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.name,
                     self.ext_relationship_sq.c.class_id,
                     self.ext_relationship_sq.c.class_name,
+                    self.ext_relationship_sq.c.commit_id,
                 )
                 .having(
                     func.count(self.ext_relationship_sq.c.dimension) == func.count(self.ext_relationship_sq.c.object_id)
@@ -1102,6 +1115,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
+                    self.parameter_definition_sq.c.commit_id,
                 )
                 .filter(self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
                 .outerjoin(
@@ -1285,6 +1299,7 @@ class DatabaseMappingBase:
                     self.alternative_sq.c.name.label("alternative_name"),
                     self.parameter_value_sq.c.value,
                     self.parameter_value_sq.c.type,
+                    self.parameter_value_sq.c.commit_id,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
                 .filter(self.parameter_value_sq.c.entity_id == self.entity_sq.c.id)
@@ -1390,13 +1405,18 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
+                    self.parameter_value_list_sq.c.commit_id,
                     group_concat(
                         self.parameter_value_list_sq.c.value_index, self.parameter_value_list_sq.c.value_index, ";"
                     ).label("value_index_list"),
                     group_concat(
                         self.parameter_value_list_sq.c.value, self.parameter_value_list_sq.c.value_index, ";"
                     ).label("value_list"),
-                ).group_by(self.parameter_value_list_sq.c.id, self.parameter_value_list_sq.c.name)
+                ).group_by(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.name,
+                    self.parameter_value_list_sq.c.commit_id,
+                )
             ).subquery()
         return self._wide_parameter_value_list_sq
 
@@ -1417,6 +1437,7 @@ class DatabaseMappingBase:
                     self.feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
                     self.wide_parameter_value_list_sq.c.name.label("parameter_value_list_name"),
                     self.feature_sq.c.description.label("description"),
+                    self.feature_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.feature_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
                 .filter(self.feature_sq.c.parameter_value_list_id == self.wide_parameter_value_list_sq.c.id)
@@ -1445,6 +1466,7 @@ class DatabaseMappingBase:
                     self.tool_feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
                     self.ext_feature_sq.c.parameter_value_list_name.label("parameter_value_list_name"),
                     self.tool_feature_sq.c.required.label("required"),
+                    self.tool_feature_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.tool_feature_sq.c.tool_id == self.tool_sq.c.id)
                 .filter(self.tool_feature_sq.c.feature_id == self.ext_feature_sq.c.id)
@@ -1475,6 +1497,7 @@ class DatabaseMappingBase:
                     self.ext_tool_feature_sq.c.parameter_value_list_name,
                     self.tool_feature_method_sq.c.method_index,
                     self.parameter_value_list_sq.c.value.label("method"),
+                    self.tool_feature_method_sq.c.commit_id,
                 )
                 .filter(self.tool_feature_method_sq.c.tool_feature_id == self.ext_tool_feature_sq.c.id)
                 .filter(
