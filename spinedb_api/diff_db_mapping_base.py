@@ -94,9 +94,8 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             ~self.in_(getattr(orig_table.c, table_id), self.dirty_item_id[tablename])
         )
         if self.added_item_id[tablename] or self.updated_item_id[tablename]:
-            if not self.sa_url.drivername.startswith("mysql"):
-                diff_table = self._diff_table(tablename)
-            else:
+            diff_table = self._diff_table(tablename)
+            if self.sa_url.drivername.startswith("mysql"):
                 # Work around the "can't reopen <temporary table>" error in MySQL.
                 # (This happens whenever a temporary table is used more than once in a query.)
                 # Basically what we do here, is dump the contents of the diff table into a
