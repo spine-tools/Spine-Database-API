@@ -17,7 +17,7 @@ Unit tests for gdx writer.
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from gdx2py import GdxFile
+from gdx2py import GdxFile, GAMSParameter
 
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from spinedb_api.spine_io.exporters.gdx_writer import GdxWriter
@@ -30,6 +30,7 @@ from spinedb_api import (
     import_objects,
     import_relationship_classes,
     import_relationships,
+    Map,
 )
 from spinedb_api.mapping import Position, unflatten
 from spinedb_api.export_mapping import object_export, object_parameter_export, relationship_export
@@ -113,6 +114,46 @@ class TestGdxWriter(unittest.TestCase):
                 gams_parameter = gdx_file["oc"]
                 self.assertEqual(len(gams_parameter), 1)
                 self.assertEqual(gams_parameter["o1"], 2.3)
+        db_map.connection.close()
+
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_non_numerical_parameter_value_raises_writer_expection(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_objects(db_map, (("oc", "o1"),))
+        import_object_parameter_values(db_map, (("oc", "o1", "p", "text"),))
+        db_map.commit_session("Add test data.")
+        root_mapping = object_parameter_export(class_position=Position.table_name, object_position=0, value_position=1)
+        mappings = root_mapping.flatten()
+        mappings[3].header = "*"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_write_parameters.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            self.assertRaises(WriterException, write, db_map, writer, root_mapping)
+        db_map.connection.close()
+
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_empty_parameter(self):
+        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_objects(db_map, (("oc", "o1"),))
+        import_object_parameter_values(db_map, (("oc", "o1", "p", Map([], [], str)),))
+        db_map.commit_session("Add test data.")
+        root_mapping = object_parameter_export(class_position=Position.table_name, object_position=0, value_position=1)
+        mappings = root_mapping.flatten()
+        mappings[3].header = "*"
+        mappings[-1].filter_re = "single_value"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_write_parameters.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            write(db_map, writer, root_mapping)
+            with GdxFile(str(file_path), "r", self._gams_dir) as gdx_file:
+                self.assertEqual(len(gdx_file), 1)
+                gams_parameter = gdx_file["oc"]
+                self.assertIsInstance(gams_parameter, GAMSParameter)
+                self.assertEqual(len(gams_parameter), 0)
         db_map.connection.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")

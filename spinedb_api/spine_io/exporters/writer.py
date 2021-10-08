@@ -30,6 +30,8 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
         mappings (Mapping): root mappings
         empty_data_header (bool or Iterable of bool): True to write at least header rows even if there is no data,
             False to write nothing; a list of booleans applies to each mapping individually
+        max_tables (int, optional): maximum number of tables to write
+        max_rows (int, optional): maximum number of rows/table to write
     """
     if isinstance(empty_data_header, bool):
         empty_data_header = len(mappings) * [empty_data_header]

@@ -91,23 +91,22 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
         table_name (str): output set's name
         dimensions (tuple of str): output set's dimensions
     """
+    is_parameter = dimensions is not None and dimensions[-1] == ""
     first_row = table[0] if table else []
     if first_row:
-        is_parameter = isinstance(table[-1][-1], (float, int))
-        if is_parameter:
-            if len(first_row) == 1:
+        if len(first_row) == 1 and isinstance(first_row[0], (float, int)):
                 set_ = GAMSScalar(first_row[0])
-            else:
-                n_dimensions = len(first_row) - 1
-                data = {row[:-1]: row[-1] for row in table}
-                set_ = GAMSParameter(data, dimensions[:n_dimensions])
+        elif is_parameter:
+            n_dimensions = len(first_row) - 1
+            data = {row[:-1]: row[-1] for row in table}
+            set_ = GAMSParameter(data, dimensions[:n_dimensions])
         else:
             try:
                 set_ = GAMSSet(table, dimensions)
             except ValueError as e:
                 raise WriterException(f"Error writing empty table '{table_name}': {e}")
     else:
-        set_ = GAMSSet(table, dimensions)
+        set_ = GAMSParameter({}, dimensions[:-1]) if is_parameter else GAMSSet(table, dimensions)
     try:
         gdx_file[table_name] = set_
     except TypeError as e:

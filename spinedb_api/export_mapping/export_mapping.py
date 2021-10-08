@@ -443,7 +443,7 @@ class ExportMapping(Mapping):
         data_iterator = self._get_data_iterator(data)
         if limit is not None:
             data_iterator = islice(data_iterator, limit)
-        for data in self._get_data_iterator(data):
+        for data in data_iterator:
             if data is None:
                 data = ""
             yield data, title_state
