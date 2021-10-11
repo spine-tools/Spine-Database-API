@@ -915,6 +915,68 @@ class TimeSeries(IndexedNumberArray):
         raise NotImplementedError()
 
 
+def _check_time_pattern_index(union_str):
+    """
+    Checks if a time pattern index has the right format.
+
+    Args:
+        union_str (str): The time pattern index to check. Generally assumed to be a union of interval intersections.
+
+    Raises:
+        ParameterValueFormatError: If the given string doesn't comply with time pattenr spec.
+    """
+    if not union_str:
+        return
+    union_dlm = ","
+    intersection_dlm = ";"
+    range_dlm = "-"
+    regexp = r"(Y|M|D|WD|h|m|s)"
+    for intersection_str in union_str.split(union_dlm):
+        for interval_str in intersection_str.split(intersection_dlm):
+            m = re.match(regexp, interval_str)
+            if m is None:
+                raise ParameterValueFormatError(
+                    f"Intervals must start with either Y, M, D, WD, h, m, or s, not like {interval_str}."
+                )
+            key = m.group(0)
+            lower_upper_str = interval_str[len(key) :]
+            lower_upper = lower_upper_str.split(range_dlm)
+            if len(lower_upper) != 2:
+                raise ParameterValueFormatError(
+                    "Interval must specify a lower and an upper bound separated by dash (-), not like"
+                    f" {lower_upper_str}."
+                )
+            lower_str, upper_str = lower_upper
+            try:
+                lower = int(lower_str)
+            except:
+                raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.")
+            try:
+                upper = int(upper_str)
+            except:
+                raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.")
+            if lower > upper:
+                raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
+
+
+class _TimePatternIndexes(_Indexes):
+    """An array of *checked* time pattern indexes."""
+
+    def __array_finalize__(self, obj):
+        """Checks indexes when building the array."""
+        for x in obj:
+            _check_time_pattern_index(x)
+        super().__array_finalize__(obj)
+
+    def __eq__(self, other):
+        return list(self) == list(other)
+
+    def __setitem__(self, position, index):
+        """Checks indexes when setting and item."""
+        _check_time_pattern_index(index)
+        super().__setitem__(position, index)
+
+
 class TimePattern(IndexedNumberArray):
     """Represents a time pattern (relationship) parameter value."""
 
@@ -948,7 +1010,7 @@ class TimePattern(IndexedNumberArray):
     @IndexedNumberArray.indexes.setter
     def indexes(self, indexes):
         """Sets the indexes."""
-        self._indexes = _Indexes(indexes, dtype=np.object_)
+        self._indexes = _TimePatternIndexes(indexes, dtype=np.object_)
 
     @staticmethod
     def type_():

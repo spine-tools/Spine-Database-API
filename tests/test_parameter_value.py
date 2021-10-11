@@ -224,42 +224,42 @@ class TestParameterValue(unittest.TestCase):
         {
           "index_name": "index",
           "data": {
-            "m1-12": 300
+            "M1-12": 300
           }
         }
         """
         value = from_database(database_value, value_type="time_pattern")
-        self.assertEqual(value.indexes, ["m1-12"])
+        self.assertEqual(value.indexes, ["M1-12"])
         numpy.testing.assert_equal(value.values, numpy.array([300.0]))
         self.assertEqual(value.index_name, "index")
 
     def test_TimePattern_to_database(self):
-        value = TimePattern(["m1-4,m9-12", "m5-8"], numpy.array([300.0, 221.5]))
+        value = TimePattern(["M1-4,M9-12", "M5-8"], numpy.array([300.0, 221.5]))
         database_value, value_type = value.to_database()
         value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"data": {"m1-4,m9-12": 300.0, "m5-8": 221.5}})
+        self.assertEqual(value_as_dict, {"data": {"M1-4,M9-12": 300.0, "M5-8": 221.5}})
         self.assertEqual(value_type, "time_pattern")
 
     def test_TimePattern_to_database_with_integer_values(self):
-        value = TimePattern(["m1-4,m9-12", "m5-8"], [300, 221])
+        value = TimePattern(["M1-4,M9-12", "M5-8"], [300, 221])
         database_value, value_type = value.to_database()
         value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"data": {"m1-4,m9-12": 300.0, "m5-8": 221.0}})
+        self.assertEqual(value_as_dict, {"data": {"M1-4,M9-12": 300.0, "M5-8": 221.0}})
         self.assertEqual(value_type, "time_pattern")
 
     def test_TimePattern_to_database_with_index_name(self):
-        value = TimePattern(["m1-12"], [300.0])
+        value = TimePattern(["M1-12"], [300.0])
         value.index_name = "index"
         database_value, value_type = value.to_database()
         value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"index_name": "index", "data": {"m1-12": 300.0}})
+        self.assertEqual(value_as_dict, {"index_name": "index", "data": {"M1-12": 300.0}})
         self.assertEqual(value_type, "time_pattern")
 
     def test_TimePattern_index_length_is_not_limited(self):
-        value = TimePattern(["m1-4", "m5-12"], [300, 221])
-        value.indexes[0] = "m1,m3,m5,m7,m9,m11"
-        value.indexes[1] = "m2,m4,m6,m8,m10,m12"
-        self.assertEqual(list(value.indexes), ["m1,m3,m5,m7,m9,m11", "m2,m4,m6,m8,m10,m12"])
+        value = TimePattern(["M1-4", "M5-12"], [300, 221])
+        value.indexes[0] = "M1-2,M3-4,M5-6,M7-8,M9-10,M11-12"
+        value.indexes[1] = "M2-3,M4-5,M6-7,M8-9,M10-11"
+        self.assertEqual(list(value.indexes), ["M1-2,M3-4,M5-6,M7-8,M9-10,M11-12", "M2-3,M4-5,M6-7,M8-9,M10-11"])
 
     def test_from_database_TimeSeriesVariableResolution_as_dictionary(self):
         releases = b"""{
@@ -671,11 +671,11 @@ class TestParameterValue(unittest.TestCase):
         database_value = b'''
         {
              "index_type": "float",
-              "data":[["2.3", {"type": "time_pattern", "data": {"1m,2m": -9.3, "3-12m": -3.9}}]]
+              "data":[["2.3", {"type": "time_pattern", "data": {"M1-2": -9.3, "M3-12": -3.9}}]]
         }'''
         value = from_database(database_value, value_type="map")
         self.assertEqual(value.indexes, [2.3])
-        self.assertEqual(value.values, [TimePattern(["1m,2m", "3-12m"], [-9.3, -3.9])])
+        self.assertEqual(value.values, [TimePattern(["M1-2", "M3-12"], [-9.3, -3.9])])
 
     def test_Map_to_database(self):
         map_value = Map(["a", "b"], [1.1, 2.2])
@@ -862,11 +862,11 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(map_value, Map(["A"], [Map(["a"], [-2.3])]))
 
     def test_TimePattern_equality(self):
-        pattern = TimePattern(["1d", "2-7d"], np.array([-2.3, -5.0]))
+        pattern = TimePattern(["D1-2", "D3-7"], np.array([-2.3, -5.0]))
         self.assertEqual(pattern, pattern)
-        equal_pattern = TimePattern(["1d", "2-7d"], np.array([-2.3, -5.0]))
+        equal_pattern = TimePattern(["D1-2", "D3-7"], np.array([-2.3, -5.0]))
         self.assertEqual(pattern, equal_pattern)
-        inequal_pattern = TimePattern(["1-3m", "4-12m"], np.array([-5.0, 23.0]))
+        inequal_pattern = TimePattern(["M1-3", "M4-12"], np.array([-5.0, 23.0]))
         self.assertNotEqual(pattern, inequal_pattern)
 
     def test_TimeSeriesFixedResolution_equality(self):

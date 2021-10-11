@@ -774,13 +774,11 @@ class TestMappingIsValid(unittest.TestCase):
 class TestMappingIntegration(unittest.TestCase):
     # just a placeholder test for different mapping testings
     def _assert_equivalent(self, obs, exp):
-        """Asserts that two dictionaries will have the same effect if passed to ``import_functions.import_data()``
-        """
+        """Asserts that two dictionaries will have the same effect if passed to ``import_functions.import_data()``"""
         assert_import_equivalent(self, obs, exp)
 
     def test_bad_mapping_type(self):
-        """Tests that passing any other than a `dict` or a `mapping` to `get_mapped_data` raises `TypeError`.
-        """
+        """Tests that passing any other than a `dict` or a `mapping` to `get_mapped_data` raises `TypeError`."""
         input_data = [["object_class"], ["oc1"]]
         data = iter(input_data)
         data_header = next(data)
@@ -1288,8 +1286,8 @@ class TestMappingIntegration(unittest.TestCase):
             "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
             "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
             "relationship_parameter_values": [
-                ("unit__node", ("a", "c"), "e", TimePattern(["a", "b"], [2, 4])),
-                ("unit__node", ("b", "d"), "f", TimePattern(["a", "b"], [3, 5])),
+                ("unit__node", ("a", "c"), "e", Map(["a", "b"], [2, 4])),
+                ("unit__node", ("b", "d"), "f", Map(["a", "b"], [3, 5])),
             ],
         }
 
@@ -1303,7 +1301,7 @@ class TestMappingIntegration(unittest.TestCase):
             "objects": [{"map_type": "row", "reference": i} for i in range(2)],
             "parameters": {
                 "map_type": "parameter",
-                "parameter_type": "time pattern",
+                "parameter_type": "map",
                 "name": {"map_type": "row", "reference": 2},
                 "extra_dimensions": [0],
             },
