@@ -923,9 +923,10 @@ def _check_time_pattern_index(union_str):
         union_str (str): The time pattern index to check. Generally assumed to be a union of interval intersections.
 
     Raises:
-        ParameterValueFormatError: If the given string doesn't comply with time pattenr spec.
+        ParameterValueFormatError: If the given string doesn't comply with time pattern spec.
     """
     if not union_str:
+        # We accept empty strings so we can add empty rows in the parameter value editor UI
         return
     union_dlm = ","
     intersection_dlm = ";"
@@ -936,15 +937,14 @@ def _check_time_pattern_index(union_str):
             m = re.match(regexp, interval_str)
             if m is None:
                 raise ParameterValueFormatError(
-                    f"Intervals must start with either Y, M, D, WD, h, m, or s, not like {interval_str}."
+                    f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
                 )
             key = m.group(0)
             lower_upper_str = interval_str[len(key) :]
             lower_upper = lower_upper_str.split(range_dlm)
             if len(lower_upper) != 2:
                 raise ParameterValueFormatError(
-                    "Interval must specify a lower and an upper bound separated by dash (-), not like"
-                    f" {lower_upper_str}."
+                    f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
                 )
             lower_str, upper_str = lower_upper
             try:
