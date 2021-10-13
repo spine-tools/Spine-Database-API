@@ -1790,6 +1790,7 @@ class DatabaseMappingBase:
             "description": item.get("description"),
             "display_icon": item.get("display_icon"),
             "object_class_id_list": [int(id_) for id_ in item["object_class_id_list"].split(",")],
+            "commit_id": item["commit_id"],
         }
 
     @staticmethod
@@ -1800,6 +1801,7 @@ class DatabaseMappingBase:
             "class_id": item["class_id"],
             "object_class_id_list": [int(id_) for id_ in item["object_class_id_list"].split(",")],
             "object_id_list": [int(id_) for id_ in item["object_id_list"].split(",")],
+            "commit_id": item["commit_id"],
         }
 
     @staticmethod
@@ -1812,6 +1814,7 @@ class DatabaseMappingBase:
             "default_value": item.get("default_value"),
             "default_type": item.get("default_type"),
             "description": item.get("description"),
+            "commit_id": item["commit_id"],
         }
 
     @staticmethod
@@ -1824,6 +1827,7 @@ class DatabaseMappingBase:
             "alternative_id": item["alternative_id"],
             "value": item["value"],
             "type": item["type"],
+            "commit_id": item["commit_id"],
         }
 
     @staticmethod
@@ -1832,6 +1836,7 @@ class DatabaseMappingBase:
             "id": item["id"],
             "name": item["name"],
             "value_list": [bytes(val, "UTF8") for val in item["value_list"].split(";")],
+            "commit_id": item["commit_id"],
         }
 
     @staticmethod
