@@ -34,6 +34,16 @@ class SourceConnection:
 
     # dict with option specification for source.
     OPTIONS = {}
+    BASE_OPTIONS = {
+        "max_rows": {
+            "type": int,
+            "label": "Max rows",
+            "Minimum": -1,
+            "Maximum": 16777215,
+            "SpecialValueText": "unrestricted",
+            "default": -1,
+        }
+    }
 
     # File extensions for modal widget that that returns action (OK, CANCEL) and source object
     FILE_EXTENSIONS = NotImplemented
@@ -53,8 +63,7 @@ class SourceConnection:
         raise NotImplementedError()
 
     def disconnect(self):
-        """Disconnect from connected source.
-        """
+        """Disconnect from connected source."""
         raise NotImplementedError()
 
     def get_tables(self):
@@ -71,11 +80,21 @@ class SourceConnection:
         """
         raise NotImplementedError()
 
+    @staticmethod
+    def _resolve_max_rows(options, max_rows=-1):
+        options_max_rows = options.get("max_rows", -1)
+        if options_max_rows == -1:
+            return max_rows
+        if max_rows == -1:
+            return options_max_rows
+        return min(max_rows, options_max_rows)
+
     def get_data(self, table, options, max_rows=-1, start=0):
         """
         Return data read from data source table in table. If max_rows is
         specified only that number of rows.
         """
+        max_rows = self._resolve_max_rows(options, max_rows)
         data_iter, header = self.get_data_iterator(table, options, max_rows)
         data_iter = islice(data_iter, start, None)
         data = list(data_iter)
@@ -103,7 +122,8 @@ class SourceConnection:
             column_convert_fns = table_column_convert_specs.get(table, {})
             row_convert_fns = table_row_convert_specs.get(table, {})
             options = table_options.get(table, {})
-            data_source, header = self.get_data_iterator(table, options, max_rows)
+            table_max_rows = self._resolve_max_rows(options, max_rows)
+            data_source, header = self.get_data_iterator(table, options, table_max_rows)
             mappings = []
             for named_mapping_spec in named_mapping_specs:
                 _, mapping = parse_named_mapping_spec(named_mapping_spec)

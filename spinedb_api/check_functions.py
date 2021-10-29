@@ -131,7 +131,7 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
         name = item["name"]
     except KeyError:
         raise SpineIntegrityError(
-            "Python KeyError: There is no dictionary key for the object name. Probably a bug, " "please report."
+            "Python KeyError: There is no dictionary key for the object name. Probably a bug, please report."
         )
     if not name:
         raise SpineIntegrityError("Object name is an empty string and therefore not valid")
@@ -338,7 +338,7 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
     if entity_class_id not in entity_class_ids:
         raise SpineIntegrityError(
             f"Entity class id for parameter definition '{name}' not found in the entity class "
-            f"ids of the current database."
+            "ids of the current database."
         )
     if (entity_class_id, name) in current_items:
         raise SpineIntegrityError(

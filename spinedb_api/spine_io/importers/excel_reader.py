@@ -60,8 +60,7 @@ class ExcelConnector(SourceConnection):
             self._wb = load_workbook(in_mem_file, read_only=True, data_only=True)
 
     def disconnect(self):
-        """Disconnect from connected source.
-        """
+        """Disconnect from connected source."""
         if self._wb:
             self._wb.close()
             self._wb = None

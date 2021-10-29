@@ -57,8 +57,7 @@ class CSVConnector(SourceConnection):
         self._filename = source
 
     def disconnect(self):
-        """Disconnect from connected source.
-        """
+        """Disconnect from connected source."""
 
     def get_tables(self):
         """
@@ -178,7 +177,7 @@ class CSVConnector(SourceConnection):
             first_row = next(csv_iter)
         except StopIteration:
             return iter([]), []
-        _, _, has_header, _ = self.parse_options(options)
+        has_header = options.get("has_header", False)
         if has_header:
             # Very good, we already have the first row
             header = first_row
