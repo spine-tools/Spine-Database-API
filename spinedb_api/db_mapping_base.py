@@ -862,9 +862,11 @@ class DatabaseMappingBase:
                     self.object_class_sq.c.name.label("class_name"),
                     self.object_sq.c.name.label("name"),
                     self.object_sq.c.description.label("description"),
+                    self.entity_group_sq.c.entity_id.label("group_id"),
                     self.object_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
+                .outerjoin(self.entity_group_sq, self.entity_group_sq.c.entity_id == self.object_sq.c.id)
                 .subquery()
             )
         return self._ext_object_sq
