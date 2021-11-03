@@ -147,7 +147,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             self.assertTrue(hasattr(self._db_map.parameter_value_list_sq.c, column_name))
 
     def test_ext_object_sq(self):
-        columns = ["id", "class_id", "class_name", "name", "description", "commit_id"]
+        columns = ["id", "class_id", "class_name", "name", "description", "group_id", "commit_id"]
         self.assertEqual(len(self._db_map.ext_object_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_object_sq.c, column_name))
