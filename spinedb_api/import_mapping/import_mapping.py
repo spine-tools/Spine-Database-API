@@ -207,14 +207,31 @@ class ImportMapping(Mapping):
             return 0
         return self.parent.rank + 1
 
+    def _filter_accepts_row(self, source_row):
+        """Whether or not the row passes the filter for this mapping."""
+        if self.position == Position.hidden and self.value is None:
+            return True
+        if self._filter_re is None:
+            return True
+        source_data = self._data(source_row)
+        return self._filter_re.search(str(source_data)) is not None
+
+    def filter_accepts_row(self, source_row):
+        """Whether or not the row passes the filter for all mappings in the hierarchy."""
+        return self._filter_accepts_row(source_row) and (
+            self.child is None or self.child.filter_accepts_row(source_row)
+        )
+
     def import_row(self, source_row, state, mapped_data, errors=None):
+        if not self.filter_accepts_row(source_row):
+            return
         if errors is None:
             errors = []
         if not (self.position == Position.hidden and self.value is None):
             source_data = self._data(source_row)
             if source_data is None:
                 self._skip_row(state)
-            elif self._filter_re is None or self._filter_re.search(str(source_data)) is not None:
+            else:
                 try:
                     self._import_row(source_data, state, mapped_data)
                 except KeyError as err:
@@ -228,9 +245,6 @@ class ImportMapping(Mapping):
                         indexes |= {k for k, err in enumerate(errors) if err.key == key}
                     for k in sorted(indexes, reverse=True):
                         errors.pop(k)
-            else:
-                self._skip_row(state)
-                return
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 

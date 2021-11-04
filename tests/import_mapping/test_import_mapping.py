@@ -1936,7 +1936,7 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         mapping_root = unflatten([ObjectClassMapping(0), ObjectMapping(1, filter_re="q")])
         out, errors = get_mapped_data(data, [mapping_root])
-        expected = {"object_classes": ["A", "B"], "objects": [("A", "q")]}
+        expected = {"object_classes": ["A"], "objects": [("A", "q")]}
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
