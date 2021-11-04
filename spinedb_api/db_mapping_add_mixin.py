@@ -24,8 +24,7 @@ from .helpers import get_relationship_entity_class_items, get_relationship_entit
 
 
 class DatabaseMappingAddMixin:
-    """Provides methods to perform ``INSERT`` operations over a Spine db.
-    """
+    """Provides methods to perform ``INSERT`` operations over a Spine db."""
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""

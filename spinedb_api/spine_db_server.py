@@ -28,6 +28,9 @@ from .import_functions import import_data
 from .helpers import ReceiveAllMixing
 from .exception import SpineDBAPIError
 from .parameter_value import join_value_and_type
+from .filters.scenario_filter import scenario_filter_config
+from .filters.tool_filter import tool_filter_config
+from .filters.tools import append_filter_config
 
 
 def _process_parameter_definition_row(row):
@@ -117,12 +120,12 @@ class DBHandler:
         with self._db_map_context() as (db_map, error):
             if error:
                 return {"error": str(error)}
-            for name in args:
-                sq = getattr(db_map, name, None)
+            for sq_name in args:
+                sq = getattr(db_map, sq_name, None)
                 if sq is None:
                     continue
-                process_row = _get_row_processor(name)
-                data[name] = [process_row(x._asdict()) for x in db_map.query(sq)]
+                process_row = _get_row_processor(sq_name)
+                data[sq_name] = [process_row(x._asdict()) for x in db_map.query(sq)]
         return data
 
     def import_data(self, data, comment):
@@ -189,6 +192,22 @@ class DBHandler:
                 return True
             return result
 
+    def apply_filters(self, filters):
+        for key, value in filters.items():
+            if key == "scenario":
+                self._add_scenario_filter(value)
+            elif key == "tool":
+                self._add_tool_filter(value)
+        return True
+
+    def _add_scenario_filter(self, scenario):
+        config = scenario_filter_config(scenario)
+        self._db_url = append_filter_config(self._db_url, config)
+
+    def _add_tool_filter(self, tool):
+        config = tool_filter_config(tool)
+        self._db_url = append_filter_config(self._db_url, config)
+
 
 class _CustomJSONEncoder(json.JSONEncoder):
     """A JSON encoder that handles all the special types that can come in request responses."""
@@ -216,6 +235,7 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
             "call_method": self.call_method,
             "open_connection": self.open_connection,
             "close_connection": self.close_connection,
+            "apply_filters": self.apply_filters,
         }.get(request)
         if handler is None:
             return
