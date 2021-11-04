@@ -21,21 +21,22 @@ from sqlalchemy.engine.url import URL
 from spinedb_api import DatabaseMapping
 from spinedb_api import import_functions
 
+IN_MEMORY_DB_URL = "sqlite://"
+
 
 class TestDatabaseMappingBase(unittest.TestCase):
     _db_map = None
-    _db_url = "sqlite://"
 
     @classmethod
     def setUpClass(cls):
-        cls._db_map = DatabaseMapping(cls._db_url, create=True)
+        cls._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     @classmethod
     def tearDownClass(cls):
         cls._db_map.connection.close()
 
     def test_construction_with_filters(self):
-        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
+        db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
         with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
@@ -305,35 +306,39 @@ class TestDatabaseMappingBase(unittest.TestCase):
 
 class TestDatabaseMappingBaseQueries(unittest.TestCase):
     def setUp(self):
-        self._db_map = DatabaseMapping(TestDatabaseMappingBase._db_url, create=True)
+        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
         self._db_map.connection.close()
 
     def create_object_classes(self):
-        self.obj_classes = ['class1', 'class2']
-        import_functions.import_object_classes(self._db_map, self.obj_classes)
+        obj_classes = ['class1', 'class2']
+        import_functions.import_object_classes(self._db_map, obj_classes)
+        return obj_classes
 
     def create_objects(self):
-        self.objects = [('class1', 'obj11'), ('class1', 'obj12'), ('class2', 'obj21')]
-        import_functions.import_objects(self._db_map, self.objects)
+        objects = [('class1', 'obj11'), ('class1', 'obj12'), ('class2', 'obj21')]
+        import_functions.import_objects(self._db_map, objects)
+        return objects
 
     def create_relationship_classes(self):
-        self.relationship_classes = [('rel1', ['class1']), ('rel2', ['class1', 'class2'])]
-        import_functions.import_relationship_classes(self._db_map, self.relationship_classes)
+        relationship_classes = [('rel1', ['class1']), ('rel2', ['class1', 'class2'])]
+        import_functions.import_relationship_classes(self._db_map, relationship_classes)
+        return relationship_classes
 
     def create_relationships(self):
-        self.relationships = [('rel1', ['obj11']), ('rel2', ['obj11', 'obj21'])]
-        import_functions.import_relationships(self._db_map, self.relationships)
+        relationships = [('rel1', ['obj11']), ('rel2', ['obj11', 'obj21'])]
+        import_functions.import_relationships(self._db_map, relationships)
+        return relationships
 
     def test_entity_class_sq(self):
-        self.create_object_classes()
-        self.create_relationship_classes()
+        obj_classes = self.create_object_classes()
+        relationship_classes = self.create_relationship_classes()
         results = self._db_map.query(self._db_map.entity_class_sq).all()
         # Check that number of results matches total entities
-        self.assertEqual(len(results), len(self.obj_classes) + len(self.relationship_classes))
+        self.assertEqual(len(results), len(obj_classes) + len(relationship_classes))
         # Check result values
-        for row, class_name in zip(results, self.obj_classes + [rel[0] for rel in self.relationship_classes]):
+        for row, class_name in zip(results, obj_classes + [rel[0] for rel in relationship_classes]):
             self.assertEqual(row.name, class_name)
 
     def test_entity_parameter_definition_sq(self):
