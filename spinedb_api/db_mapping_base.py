@@ -1119,7 +1119,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.description,
                     self.parameter_definition_sq.c.commit_id,
                 )
-                .filter(self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
+                .join(self.entity_class_sq, self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
                 .outerjoin(
                     self.wide_parameter_value_list_sq,
                     self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
