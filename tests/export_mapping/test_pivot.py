@@ -107,6 +107,69 @@ class TestPivot(unittest.TestCase):
         ]
         self.assertEqual(pivot_table, expected)
 
+    def test_pivot_group_mean(self):
+        table = [
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", "2", -6.6],
+            ["B", "b", "2", -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2], "mean"))
+        expected = [
+            ["H", "1", "2", "3"],
+            ["A", (-1.1 - 3.3) / 2.0, (-2.2 - 4.4) / 2.0, -5.5],
+            ["B", numpy.nan, (-6.6 - 7.7) / 2.0, -8.8],
+            ["C", -9.9, numpy.nan, numpy.nan],
+        ]
+        self.assertEqual(pivot_table, expected)
+
+    def test_pivot_group_min(self):
+        table = [
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", "2", -6.6],
+            ["B", "b", "2", -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2], "min"))
+        expected = [
+            ["H", "1", "2", "3"],
+            ["A", -3.3, -4.4, -5.5],
+            ["B", numpy.nan, -7.7, -8.8],
+            ["C", -9.9, numpy.nan, numpy.nan],
+        ]
+        self.assertEqual(pivot_table, expected)
+
+    def test_pivot_group_max(self):
+        table = [
+            ["A", "a", "1", -1.1],
+            ["A", "a", "2", -2.2],
+            ["A", "b", "1", -3.3],
+            ["A", "b", "2", -4.4],
+            ["A", "b", "3", -5.5],
+            ["B", "a", "2", -6.6],
+            ["B", "b", "2", -7.7],
+            ["B", "c", "3", -8.8],
+            ["C", "a", "1", -9.9],
+        ]
+        pivot_table = list(make_pivot(table, ["H", "h", "#", "xx"], 3, [0], [1], [2], "max"))
+        expected = [
+            ["H", "1", "2", "3"],
+            ["A", -1.1, -2.2, -5.5],
+            ["B", numpy.nan, -6.6, -8.8],
+            ["C", -9.9, numpy.nan, numpy.nan],
+        ]
+        self.assertEqual(pivot_table, expected)
+
     def test_pivot_group_one_or_none(self):
         table = [
             ["A", "a", "1", -1.1],

@@ -43,6 +43,39 @@ class GroupSum(GroupFunction):
         return sum(items)
 
 
+class GroupMean(GroupFunction):
+    NAME = "mean"
+    DISPLAY_NAME = "mean"
+
+    def __call__(self, items):
+        if not items:
+            return np.nan
+        try:
+            return np.mean(items)
+        except TypeError:
+            return ""
+
+
+class GroupMin(GroupFunction):
+    NAME = "min"
+    DISPLAY_NAME = "min"
+
+    def __call__(self, items):
+        if not items:
+            return np.nan
+        return min(items)
+
+
+class GroupMax(GroupFunction):
+    NAME = "max"
+    DISPLAY_NAME = "max"
+
+    def __call__(self, items):
+        if not items:
+            return np.nan
+        return max(items)
+
+
 class GroupConcat(GroupFunction):
     NAME = "concat"
     DISPLAY_NAME = "concatenate"
@@ -75,7 +108,7 @@ class NoGroup(GroupFunction):
         return items[0]
 
 
-_classes = (NoGroup, GroupSum, GroupConcat, GroupOneOrNone)
+_classes = (NoGroup, GroupSum, GroupMean, GroupMin, GroupMax, GroupConcat, GroupOneOrNone)
 
 GROUP_FUNCTION_DISPLAY_NAMES = [klass.DISPLAY_NAME for klass in _classes]
 
