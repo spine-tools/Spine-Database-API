@@ -19,22 +19,24 @@ import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import URL
 from spinedb_api import DatabaseMapping
+from spinedb_api import import_functions
+
+IN_MEMORY_DB_URL = "sqlite://"
 
 
 class TestDatabaseMappingBase(unittest.TestCase):
     _db_map = None
-    _db_url = "sqlite://"
 
     @classmethod
     def setUpClass(cls):
-        cls._db_map = DatabaseMapping(cls._db_url, create=True)
+        cls._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     @classmethod
     def tearDownClass(cls):
         cls._db_map.connection.close()
 
     def test_construction_with_filters(self):
-        db_url = self._db_url + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
+        db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
         with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
@@ -300,6 +302,201 @@ class TestDatabaseMappingBase(unittest.TestCase):
         self.assertEqual(len(self._db_map.wide_parameter_value_list_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_parameter_value_list_sq.c, column_name))
+
+
+class TestDatabaseMappingBaseQueries(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def create_object_classes(self):
+        obj_classes = ['class1', 'class2']
+        import_functions.import_object_classes(self._db_map, obj_classes)
+        return obj_classes
+
+    def create_objects(self):
+        objects = [('class1', 'obj11'), ('class1', 'obj12'), ('class2', 'obj21')]
+        import_functions.import_objects(self._db_map, objects)
+        return objects
+
+    def create_relationship_classes(self):
+        relationship_classes = [('rel1', ['class1']), ('rel2', ['class1', 'class2'])]
+        import_functions.import_relationship_classes(self._db_map, relationship_classes)
+        return relationship_classes
+
+    def create_relationships(self):
+        relationships = [('rel1', ['obj11']), ('rel2', ['obj11', 'obj21'])]
+        import_functions.import_relationships(self._db_map, relationships)
+        return relationships
+
+    def test_alternative_sq(self):
+        import_functions.import_alternatives(self._db_map, (("alt1", "test alternative"),))
+        alternative_rows = self._db_map.query(self._db_map.alternative_sq).all()
+        expected_names_and_descriptions = {"Base": "Base alternative", "alt1": "test alternative"}
+        self.assertEqual(len(alternative_rows), len(expected_names_and_descriptions))
+        for row in alternative_rows:
+            self.assertTrue(row.name in expected_names_and_descriptions)
+            self.assertEqual(row.description, expected_names_and_descriptions[row.name])
+            expected_names_and_descriptions.pop(row.name)
+        self.assertEqual(expected_names_and_descriptions, {})
+
+    def test_scenario_sq(self):
+        import_functions.import_scenarios(self._db_map, (("scen1", True, "test scenario"),))
+        scenario_rows = self._db_map.query(self._db_map.scenario_sq).all()
+        self.assertEqual(len(scenario_rows), 1)
+        self.assertEqual(scenario_rows[0].name, "scen1")
+        self.assertEqual(scenario_rows[0].description, "test scenario")
+        self.assertTrue(scenario_rows[0].active)
+
+    def test_ext_linked_scenario_alternative_sq(self):
+        import_functions.import_scenarios(self._db_map, (("scen1", True),))
+        import_functions.import_alternatives(self._db_map, ("alt1", "alt2", "alt3"))
+        import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt2"),))
+        import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt3"),))
+        import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt1"),))
+        scenario_alternative_rows = self._db_map.query(self._db_map.ext_linked_scenario_alternative_sq).all()
+        self.assertEqual(len(scenario_alternative_rows), 3)
+        expected_befores = {"alt2": "alt3", "alt3": "alt1", "alt1": None}
+        expected_ranks = {"alt2": 1, "alt3": 2, "alt1": 3}
+        for row in scenario_alternative_rows:
+            self.assertEqual(row.scenario_name, "scen1")
+            self.assertIn(row.alternative_name, expected_befores)
+            self.assertEqual(row.rank, expected_ranks[row.alternative_name])
+            expected_before_alternative = expected_befores.pop(row.alternative_name)
+            self.assertEqual(row.before_alternative_name, expected_before_alternative)
+            if expected_before_alternative is not None:
+                self.assertIsNotNone(row.before_alternative_id)
+                self.assertEqual(row.before_rank, expected_ranks[row.before_alternative_name])
+            else:
+                self.assertIsNone(row.before_alternative_id)
+                self.assertIsNone(row.before_rank)
+        self.assertEqual(expected_befores, {})
+
+    def test_entity_class_sq(self):
+        obj_classes = self.create_object_classes()
+        relationship_classes = self.create_relationship_classes()
+        results = self._db_map.query(self._db_map.entity_class_sq).all()
+        # Check that number of results matches total entities
+        self.assertEqual(len(results), len(obj_classes) + len(relationship_classes))
+        # Check result values
+        for row, class_name in zip(results, obj_classes + [rel[0] for rel in relationship_classes]):
+            self.assertEqual(row.name, class_name)
+
+    def test_entity_sq(self):
+        self.create_object_classes()
+        objects = self.create_objects()
+        self.create_relationship_classes()
+        relationships = self.create_relationships()
+        entity_rows = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entity_rows), len(objects) + len(relationships))
+        object_names = [o[1] for o in objects]
+        relationship_names = [r[0] + "_" + "__".join(r[1]) for r in relationships]
+        for row, expected_name in zip(entity_rows, object_names + relationship_names):
+            self.assertEqual(row.name, expected_name)
+
+    def test_object_class_sq_picks_object_classes_only(self):
+        obj_classes = self.create_object_classes()
+        self.create_relationship_classes()
+        class_rows = self._db_map.query(self._db_map.object_class_sq).all()
+        self.assertEqual(len(class_rows), len(obj_classes))
+        for row, expected_name in zip(class_rows, obj_classes):
+            self.assertEqual(row.name, expected_name)
+
+    def test_object_sq_picks_objects_only(self):
+        self.create_object_classes()
+        objects = self.create_objects()
+        self.create_relationship_classes()
+        self.create_relationships()
+        object_rows = self._db_map.query(self._db_map.object_sq).all()
+        self.assertEqual(len(object_rows), len(objects))
+        for row, expected_object in zip(object_rows, objects):
+            self.assertEqual(row.name, expected_object[1])
+
+    def test_wide_relationship_class_sq(self):
+        self.create_object_classes()
+        relationship_classes = self.create_relationship_classes()
+        class_rows = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
+        self.assertEqual(len(class_rows), 2)
+        for row, relationship_class in zip(class_rows, relationship_classes):
+            self.assertEqual(row.name, relationship_class[0])
+            self.assertEqual(row.object_class_name_list, ",".join(relationship_class[1]))
+
+    def test_wide_relationship_sq(self):
+        self.create_object_classes()
+        self.create_objects()
+        relationship_classes = self.create_relationship_classes()
+        object_classes = {rel_class[0]: rel_class[1] for rel_class in relationship_classes}
+        relationships = self.create_relationships()
+        relationship_rows = self._db_map.query(self._db_map.wide_relationship_sq).all()
+        self.assertEqual(len(relationship_rows), 2)
+        for row, relationship in zip(relationship_rows, relationships):
+            self.assertEqual(row.name, relationship[0] + "_" + "__".join(relationship[1]))
+            self.assertEqual(row.class_name, relationship[0])
+            self.assertEqual(row.object_class_name_list, ",".join(object_classes[relationship[0]]))
+            self.assertEqual(row.object_name_list, ",".join(relationship[1]))
+
+    def test_parameter_definition_sq_for_object_class(self):
+        self.create_object_classes()
+        import_functions.import_object_parameters(self._db_map, (("class1", "par1"),))
+        definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
+        self.assertEqual(len(definition_rows), 1)
+        self.assertEqual(definition_rows[0].name, "par1")
+        self.assertIsNotNone(definition_rows[0].object_class_id)
+        self.assertIsNone(definition_rows[0].relationship_class_id)
+
+    def test_parameter_definition_sq_for_relationship_class(self):
+        self.create_object_classes()
+        self.create_relationship_classes()
+        import_functions.import_relationship_parameters(self._db_map, (("rel1", "par1"),))
+        definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
+        self.assertEqual(len(definition_rows), 1)
+        self.assertEqual(definition_rows[0].name, "par1")
+        self.assertIsNone(definition_rows[0].object_class_id)
+        self.assertIsNotNone(definition_rows[0].relationship_class_id)
+
+    def test_entity_parameter_definition_sq_for_object_class(self):
+        self.create_object_classes()
+        self.create_relationship_classes()
+        import_functions.import_object_parameters(self._db_map, (("class1", "par1"),))
+        definition_rows = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
+        self.assertEqual(len(definition_rows), 1)
+        self.assertEqual(definition_rows[0].parameter_name, "par1")
+        self.assertEqual(definition_rows[0].entity_class_name, "class1")
+        self.assertEqual(definition_rows[0].object_class_name, "class1")
+        self.assertIsNone(definition_rows[0].relationship_class_id)
+        self.assertIsNone(definition_rows[0].relationship_class_name)
+        self.assertIsNone(definition_rows[0].object_class_id_list)
+        self.assertIsNone(definition_rows[0].object_class_name_list)
+
+    def test_entity_parameter_definition_sq_for_relationship_class(self):
+        object_classes = self.create_object_classes()
+        self.create_relationship_classes()
+        import_functions.import_relationship_parameters(self._db_map, (("rel2", "par1"),))
+        definition_rows = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
+        self.assertEqual(len(definition_rows), 1)
+        self.assertEqual(definition_rows[0].parameter_name, "par1")
+        self.assertEqual(definition_rows[0].entity_class_name, "rel2")
+        self.assertIsNotNone(definition_rows[0].relationship_class_id)
+        self.assertEqual(definition_rows[0].relationship_class_name, "rel2")
+        self.assertIsNotNone(definition_rows[0].object_class_id_list)
+        self.assertEqual(definition_rows[0].object_class_name_list, ",".join(object_classes))
+        self.assertIsNone(definition_rows[0].object_class_name)
+
+    def test_entity_parameter_definition_sq_with_multiple_relationship_classes_but_single_parameter(self):
+        self.create_object_classes()
+        self.create_relationship_classes()
+        obj_parameter_definitions = [('class1', 'par1a'), ('class1', 'par1b')]
+        rel_parameter_definitions = [('rel1', 'rpar1a')]
+        import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
+        import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
+        results = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
+        # Check that number of results matches total entities
+        self.assertEqual(len(results), len(obj_parameter_definitions) + len(rel_parameter_definitions))
+        # Check result values
+        for row, par_def in zip(results, obj_parameter_definitions + rel_parameter_definitions):
+            self.assertTupleEqual((row.entity_class_name, row.parameter_name), par_def)
 
 
 if __name__ == "__main__":
