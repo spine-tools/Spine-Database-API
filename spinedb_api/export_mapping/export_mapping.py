@@ -17,7 +17,6 @@ Contains export mappings for database items such as entities, entity classes and
 
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
-import re
 from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
 from ..parameter_value import (

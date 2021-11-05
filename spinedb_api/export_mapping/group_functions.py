@@ -40,7 +40,10 @@ class GroupSum(GroupFunction):
     def __call__(self, items):
         if not items:
             return np.nan
-        return sum(items)
+        try:
+            return sum(items)
+        except TypeError:
+            return np.nan
 
 
 class GroupMean(GroupFunction):
@@ -53,7 +56,7 @@ class GroupMean(GroupFunction):
         try:
             return np.mean(items)
         except TypeError:
-            return ""
+            return np.nan
 
 
 class GroupMin(GroupFunction):
@@ -63,7 +66,10 @@ class GroupMin(GroupFunction):
     def __call__(self, items):
         if not items:
             return np.nan
-        return min(items)
+        try:
+            return min(items)
+        except TypeError:
+            return np.nan
 
 
 class GroupMax(GroupFunction):
@@ -73,7 +79,10 @@ class GroupMax(GroupFunction):
     def __call__(self, items):
         if not items:
             return np.nan
-        return max(items)
+        try:
+            return max(items)
+        except TypeError:
+            return np.nan
 
 
 class GroupConcat(GroupFunction):

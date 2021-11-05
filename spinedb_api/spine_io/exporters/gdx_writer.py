@@ -95,7 +95,7 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
     first_row = table[0] if table else []
     if first_row:
         if len(first_row) == 1 and isinstance(first_row[0], (float, int)):
-                set_ = GAMSScalar(first_row[0])
+            set_ = GAMSScalar(first_row[0])
         elif is_parameter:
             n_dimensions = len(first_row) - 1
             data = {row[:-1]: row[-1] for row in table}
