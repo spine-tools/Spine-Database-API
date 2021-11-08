@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import URL
 from spinedb_api import DatabaseMapping
-from spinedb_api import import_functions
+from spinedb_api import import_functions, from_database
 
 IN_MEMORY_DB_URL = "sqlite://"
 
@@ -497,6 +497,38 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         # Check result values
         for row, par_def in zip(results, obj_parameter_definitions + rel_parameter_definitions):
             self.assertTupleEqual((row.entity_class_name, row.parameter_name), par_def)
+
+    def test_entity_parameter_values(self):
+        self.create_object_classes()
+        self.create_objects()
+        self.create_relationship_classes()
+        self.create_relationships()
+        obj_parameter_definitions = [('class1', 'par1a'), ('class1', 'par1b'), ('class2', 'par2a')]
+        rel_parameter_definitions = [('rel1', 'rpar1a'), ('rel2', 'rpar2a')]
+        import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
+        import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
+        object_parameter_values = [
+            ('class1', 'obj11', 'par1a', 123),
+            ('class1', 'obj11', 'par1b', 333),
+            ('class2', 'obj21', 'par2a', 'empty'),
+        ]
+        _, errors = import_functions.import_object_parameter_values(self._db_map, object_parameter_values)
+        self.assertFalse(errors)
+        relationship_parameter_values = [('rel1', ['obj11'], 'rpar1a', 1.1), ('rel2', ['obj11', 'obj21'], 'rpar2a', 42)]
+        _, errors = import_functions.import_relationship_parameter_values(self._db_map, relationship_parameter_values)
+        self.assertFalse(errors)
+        results = self._db_map.query(self._db_map.entity_parameter_value_sq).all()
+        # Check that number of results matches total entities
+        self.assertEqual(len(results), len(object_parameter_values) + len(relationship_parameter_values))
+        # Check result values
+        for row, par_val in zip(results, object_parameter_values + relationship_parameter_values):
+            self.assertEqual(row.entity_class_name, par_val[0])
+            if row.object_name:  # This is an object parameter
+                self.assertEqual(row.object_name, par_val[1])
+            else:  # This is a relationship parameter
+                self.assertEqual(row.object_name_list, ','.join(par_val[1]))
+            self.assertEqual(row.parameter_name, par_val[2])
+            self.assertEqual(from_database(row.value, row.type), par_val[3])
 
 
 if __name__ == "__main__":
