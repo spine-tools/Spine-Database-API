@@ -18,9 +18,10 @@ from copy import deepcopy
 from ..mapping import Position
 from .pivot import make_pivot, make_regular
 from .export_mapping import pair_header_buddies
+from .group_functions import NoGroup
 
 
-def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=None):
+def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=None, group_fn=NoGroup.NAME):
     """
     Generates table's rows.
 
@@ -29,6 +30,8 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=N
         db_map (DatabaseMappingBase): a database map
         fixed_state (dict, optional): mapping state that fixes items
         empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
+        limit (int, optional): row count limit
+        group_fn (str): group function name
 
     Yields:
         list: a list of row's cells
@@ -70,7 +73,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=N
             regular_columns,
             hidden_columns,
             pivot_columns,
-            root_mapping.group_fn,
+            group_fn,
             empty_data_header,
         )
     else:

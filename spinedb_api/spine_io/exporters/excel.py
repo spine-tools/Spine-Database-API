@@ -15,6 +15,7 @@ Framework for exporting a database to Excel file.
 :author: P. Vennström (VTT), A. Soininen (VTT), M. Marin (KTH)
 :date:   31.1.2020
 """
+from spinedb_api.export_mapping.group_functions import GroupOneOrNone
 from spinedb_api.export_mapping.export_mapping import (
     Position,
     AlternativeMapping,
@@ -99,7 +100,7 @@ def export_spine_database_to_xlsx(db_map, filepath):
     mappings.extend(_make_object_group_mappings(db_map))
     mappings.extend(_make_parameter_value_mappings(db_map))
     writer = ExcelWriterWithPreamble(filepath)
-    write(db_map, writer, *mappings, empty_data_header=False)
+    write(db_map, writer, *mappings, empty_data_header=False, group_fns=GroupOneOrNone.NAME)
 
 
 def _make_alternative_mapping():
@@ -155,7 +156,7 @@ def _make_indexed_parameter_value_mapping(alt_pos=-2, filter_re="array|time_patt
 
 
 def _make_object_mapping(object_class_name, pivoted=False):
-    root_mapping = ObjectClassMapping(Position.table_name, filter_re=f"^{object_class_name}$", group_fn="one_or_none")
+    root_mapping = ObjectClassMapping(Position.table_name, filter_re=f"^{object_class_name}$")
     pos = 0 if not pivoted else -1
     root_mapping.child = ObjectMapping(pos, header=object_class_name)
     return root_mapping
@@ -184,9 +185,7 @@ def _make_object_map_parameter_value_mapping(object_class_name, dim_count):
 
 
 def _make_relationship_mapping(relationship_class_name, object_class_name_list, pivoted=False):
-    root_mapping = RelationshipClassMapping(
-        Position.table_name, filter_re=f"^{relationship_class_name}$", group_fn="one_or_none"
-    )
+    root_mapping = RelationshipClassMapping(Position.table_name, filter_re=f"^{relationship_class_name}$")
     relationship_mapping = root_mapping.child = RelationshipMapping(Position.hidden)
     parent_mapping = relationship_mapping
     for d, class_name in enumerate(object_class_name_list):

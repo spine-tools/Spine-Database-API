@@ -60,7 +60,7 @@ class ExportMapping(Mapping):
 
     _TITLE_SEP = ","
 
-    def __init__(self, position, value=None, header="", filter_re="", group_fn=None):
+    def __init__(self, position, value=None, header="", filter_re=""):
         """
         Args:
             position (int or Position): column index or Position
@@ -68,15 +68,10 @@ class ExportMapping(Mapping):
             header (str); A string column header that's yielded as 'first row', if not empty.
                 The default is an empty string (so it's not yielded).
             filter_re (str): A regular expression to filter the mapped values by
-            group_fn (str, Optional): Only for topmost mappings. The name of one of our supported group functions,
-                for aggregating values over repeated 'headers' (in tables with hidden elements).
-                If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
         super().__init__(position, value, filter_re)
-        self._group_fn = None
         self._ignorable = False
         self.header = header
-        self.group_fn = group_fn
         self._convert_data = None
 
     def __eq__(self, other):
@@ -84,7 +79,7 @@ class ExportMapping(Mapping):
             return NotImplemented
         if not super().__eq__(other):
             return False
-        return self._group_fn == other._group_fn and self._ignorable == other._ignorable and self.header == other.header
+        return self._ignorable == other._ignorable and self.header == other.header
 
     def check_validity(self):
         """Checks if mapping is valid.
@@ -159,12 +154,10 @@ class ExportMapping(Mapping):
             mapping_dict["ignorable"] = True
         if self.header:
             mapping_dict["header"] = self.header
-        if self.group_fn and self.group_fn != NoGroup.NAME:
-            mapping_dict["group_fn"] = self.group_fn
         return mapping_dict
 
     @classmethod
-    def reconstruct(cls, position, value, header, filter_re, group_fn, ignorable, mapping_dict):
+    def reconstruct(cls, position, value, header, filter_re, ignorable):
         """
         Reconstructs mapping.
 
@@ -173,14 +166,12 @@ class ExportMapping(Mapping):
             value (Any): fixed value
             header (str, optional): column header
             filter_re (str): filter regular expression
-            group_fn (str): grouping function's name
             ignorable (bool): ignorable flag
-            mapping_dict (dict): serialized mapping
 
         Returns:
             Mapping: reconstructed mapping
         """
-        mapping = cls(position, value, header, filter_re, group_fn)
+        mapping = cls(position, value, header, filter_re)
         mapping.set_ignorable(ignorable)
         return mapping
 
@@ -557,7 +548,7 @@ class FixedValueMapping(ExportMapping):
 
     MAP_TYPE = "FixedValue"
 
-    def __init__(self, position, value, header="", filter_re="", group_fn=None):
+    def __init__(self, position, value, header="", filter_re=""):
         """
         Args:
             position (int or Position, optional): mapping's position
@@ -565,11 +556,8 @@ class FixedValueMapping(ExportMapping):
             header (str, optional); A string column header that's yielt as 'first row', if not empty.
                 The default is an empty string (so it's not yielt).
             filter_re (str, optional): A regular expression to filter the mapped values by
-            group_fn (str, Optional): Only for topmost mappings. The name of one of our supported group functions,
-                for aggregating values over repeated 'headers' (in tables with hidden elements).
-                If None (the default), then no such aggregation is performed and 'headers' are just repeated as needed.
         """
-        super().__init__(position, value, header, filter_re, group_fn)
+        super().__init__(position, value, header, filter_re)
 
     @staticmethod
     def name_field():
@@ -1688,7 +1676,7 @@ def from_dict(serialized):
     Deserializes mappings.
 
     Args:
-        serialized (list): serialize mappings
+        serialized (list): serialized mappings
 
     Returns:
         ExportMapping: root mapping
@@ -1746,13 +1734,26 @@ def from_dict(serialized):
         value = mapping_dict.get("value")
         header = mapping_dict.get("header", "")
         filter_re = mapping_dict.get("filter_re", "")
-        group_fn = mapping_dict.get("group_fn")
-        flattened.append(
-            mappings[mapping_dict["map_type"]].reconstruct(
-                position, value, header, filter_re, group_fn, ignorable, mapping_dict
-            )
-        )
+        flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, value, header, filter_re, ignorable))
     return unflatten(flattened)
+
+
+def legacy_group_fn_from_dict(serialized):
+    """Restores legacy group_fn attribute from serialized mappings.
+
+    group_fn has been removed from export mappings but this serves for backwards compatibility.
+
+    Args:
+        serialized (list): serialized mappings
+
+    Returns:
+        str: name of the first group_fn attribute that was found in the serialized mappings or NoGroup if not found
+    """
+    for mapping_dict in serialized:
+        group_fn = mapping_dict.get("group_fn")
+        if group_fn is not None:
+            return group_fn
+    return NoGroup.NAME
 
 
 def _expand_indexed_data(data, mapping):
