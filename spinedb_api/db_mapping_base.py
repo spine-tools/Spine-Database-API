@@ -1303,10 +1303,13 @@ class DatabaseMappingBase:
                     self.parameter_value_sq.c.type,
                     self.parameter_value_sq.c.commit_id,
                 )
-                .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
-                .filter(self.parameter_value_sq.c.entity_id == self.entity_sq.c.id)
-                .filter(self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
-                .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
+                .join(
+                    self.parameter_definition_sq,
+                    self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id,
+                )
+                .join(self.entity_sq, self.parameter_value_sq.c.entity_id == self.entity_sq.c.id)
+                .join(self.entity_class_sq, self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .join(self.alternative_sq, self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .outerjoin(
                     self.wide_relationship_class_sq, self.wide_relationship_class_sq.c.id == self.entity_class_sq.c.id
                 )
