@@ -867,6 +867,7 @@ class DatabaseMappingBase:
                 )
                 .filter(self.object_sq.c.class_id == self.object_class_sq.c.id)
                 .outerjoin(self.entity_group_sq, self.entity_group_sq.c.entity_id == self.object_sq.c.id)
+                .distinct(self.entity_group_sq.c.entity_id)
                 .subquery()
             )
         return self._ext_object_sq
