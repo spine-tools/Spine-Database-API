@@ -1501,6 +1501,19 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
 
+    def test_table_gets_exported_even_without_parameter_values(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        db_map.commit_session("Add test data.")
+        mapping = object_parameter_export(Position.header, Position.table_name, object_position=0, value_position=1)
+        tables = dict()
+        for title, title_key in titles(mapping, db_map):
+            tables[title] = list(rows(mapping, db_map, title_key))
+        expected = {"p": [["oc", ""]]}
+        self.assertEqual(tables, expected)
+        db_map.connection.close()
+
 
 if __name__ == "__main__":
     unittest.main()

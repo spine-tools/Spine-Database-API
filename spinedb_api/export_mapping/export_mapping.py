@@ -249,6 +249,67 @@ class ExportMapping(Mapping):
             qry, lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())
         )
 
+    def _build_title_query(self, db_map):
+        """Builds and returns the query to get titles for this mapping hierarchy.
+
+        Args:
+            db_map (DatabaseMappingBase): database mapping
+
+        Returns:
+            Alias: title query
+        """
+        mappings = self.flatten()
+        for i in range(len(mappings)):
+            if mappings[-1].position == Position.table_name:
+                break
+            mappings.pop(-1)
+        # Start with empty query
+        qry = db_map.query(literal(None))
+        # Add columns
+        for m in mappings:
+            qry = m.add_query_columns(db_map, qry)
+        # Apply filters
+        for m in mappings:
+            qry = m.filter_query(db_map, qry)
+        return qry
+
+    def _build_header_query(self, db_map, title_state, buddies):
+        """Builds the header query for this mapping hierarchy.
+
+        Args:
+            db_map (DatabaseMappingBase): database mapping
+            title_state (dict): title state
+            buddies (list of tuple): pairs of buddy mappings
+
+        Returns:
+            Alias: header query
+        """
+        mappings = self.flatten()
+        flat_buddies = [b for pair in buddies for b in pair]
+        for _ in range(len(mappings)):
+            m = mappings[-1]
+            if m.position == Position.header or m.position == Position.table_name or m in flat_buddies:
+                break
+            mappings.pop(-1)
+        # Start with empty query
+        qry = db_map.query(literal(None))
+        # Add columns
+        for m in mappings:
+            qry = m.add_query_columns(db_map, qry)
+        # Apply filters
+        for m in mappings:
+            qry = m.filter_query(db_map, qry)
+        # Apply special title filters (first, so we clean up the state)
+        for m in mappings:
+            qry = m.filter_query_by_title(qry, title_state)
+        # Apply standard title filters
+        if not title_state:
+            return qry
+        # Use a _FilteredQuery, since building a subquery to query it again leads to parser stack overflow
+        return _FilteredQuery(
+            qry, lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())
+        )
+
     @staticmethod
     def name_field():
         """Returns the 'name' field associated to this mapping within the query.
@@ -450,7 +511,7 @@ class ExportMapping(Mapping):
         Yields:
             tuple(str,dict): title, and associated title state dictionary
         """
-        qry = self._build_query(db_map, dict())
+        qry = self._build_title_query(db_map)
         for db_row in qry.yield_per(1000):
             yield from self.get_titles_recursive(db_row, limit=limit)
 
@@ -517,7 +578,7 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        qry = self._build_query(db_map, title_state)
+        qry = self._build_header_query(db_map, title_state, buddies)
         first_row = qry.first()
         return self.make_header_recursive(first_row, title_state, buddies)
 
@@ -1611,7 +1672,7 @@ class _FilteredQuery:
 
     def first(self):
         first = self._query.first()
-        if self._condition(first):
+        if first is not None and self._condition(first):
             return first
         return None
 
