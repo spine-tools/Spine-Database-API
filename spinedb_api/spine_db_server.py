@@ -253,6 +253,7 @@ class SpineDBServer(socketserver.TCPServer):
 
 
 _servers = {}
+_servers_lock = threading.Lock()
 
 
 def start_spine_db_server(db_url, upgrade=False):
@@ -268,9 +269,10 @@ def start_spine_db_server(db_url, upgrade=False):
     with socketserver.TCPServer((host, 0), None) as s:
         port = s.server_address[1]
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-    server = _servers[server_url] = SpineDBServer(
-        (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs)
-    )
+    with _servers_lock:
+        server = _servers[server_url] = SpineDBServer(
+            (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs)
+        )
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
@@ -278,16 +280,18 @@ def start_spine_db_server(db_url, upgrade=False):
 
 
 def shutdown_spine_db_server(server_url):
-    server = _servers.pop(server_url, None)
+    with _servers_lock:
+        server = _servers.pop(server_url, None)
     if server is not None:
         server.shutdown()
         server.server_close()
 
 
 def _shutdown_servers():
-    for server in _servers.values():
-        server.shutdown()
-        server.server_close()
+    with _servers_lock:
+        for server in _servers.values():
+            server.shutdown()
+            server.server_close()
 
 
 atexit.register(_shutdown_servers)
