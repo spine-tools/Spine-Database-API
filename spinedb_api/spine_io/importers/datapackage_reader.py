@@ -15,7 +15,7 @@ Contains DataPackageConnector class.
 :author: M. Marin (KTH)
 :date:   15.11.2020
 """
-
+import threading
 from datapackage import Package
 from .reader import SourceConnection
 
@@ -35,6 +35,7 @@ class DataPackageConnector(SourceConnection):
         super().__init__(settings)
         self._filename = None
         self._datapackage = None
+        self._resource_name_lock = threading.Lock()
 
     def connect_to_source(self, source):
         """Creates datapackage.
@@ -63,8 +64,9 @@ class DataPackageConnector(SourceConnection):
             return {}
         tables = {}
         for resource in self._datapackage.resources:
-            if resource.name is None:
-                resource.infer()
+            with self._resource_name_lock:
+                if resource.name is None:
+                    resource.infer()
             tables[resource.name] = {"options": {}}  # FIXME?
         return tables
 
@@ -77,8 +79,9 @@ class DataPackageConnector(SourceConnection):
             return iter([]), []
 
         for resource in self._datapackage.resources:
-            if resource.name is None:
-                resource.infer()
+            with self._resource_name_lock:
+                if resource.name is None:
+                    resource.infer()
             if table == resource.name:
                 iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
                 header = resource.schema.field_names
