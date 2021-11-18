@@ -287,6 +287,15 @@ def shutdown_spine_db_server(server_url):
         server.server_close()
 
 
+@contextmanager
+def closing_spine_db_server(db_url):
+    server_url = start_spine_db_server(db_url)
+    try:
+        yield server_url
+    finally:
+        shutdown_spine_db_server(server_url)
+
+
 def _shutdown_servers():
     with _servers_lock:
         for server in _servers.values():
