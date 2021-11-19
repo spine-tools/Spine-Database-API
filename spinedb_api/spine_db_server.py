@@ -67,15 +67,6 @@ def _get_row_processor(sq_name):
 _open_db_maps = {}
 
 
-class _DBAnswer:
-    def __init__(self, result=None, error=None):
-        self._result = result
-        self._error = error
-
-    def to_dict(self):
-        return {"result": self._result, "error": self._error}
-
-
 class DBHandler:
     """
     Helper class to do key interactions with a db, while closing the db_map afterwards.
@@ -125,20 +116,19 @@ class DBHandler:
     def get_data(self, *args):
         """
         Returns:
-            _DBAnswer: where result is a dict from subquery name to a list of items from thay subquery, if successful.
-
+            dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
         result = {}
         with self._db_map_context() as (db_map, error):
             if error:
-                return _DBAnswer(error=str(error))
+                return dict(error=str(error))
             for sq_name in args:
                 sq = getattr(db_map, sq_name, None)
                 if sq is None:
                     continue
                 process_row = _get_row_processor(sq_name)
                 result[sq_name] = [process_row(x._asdict()) for x in db_map.query(sq)]
-        return _DBAnswer(result=result)
+        return dict(result=result)
 
     def import_data(self, data, comment):
         """Imports data and commit.
@@ -147,31 +137,31 @@ class DBHandler:
             data (dict)
             comment (str)
         Returns:
-            _DBAnswer: where result is a list of import errors, if successful.
+            dict: where result is a list of import errors, if successful.
         """
         with self._db_map_context(create=True) as (db_map, error):
             if error:
-                return _DBAnswer(error=str(error))
+                return dict(error=str(error))
             count, errors = import_data(db_map, **data)
             if count:
                 try:
                     db_map.commit_session(comment)
                 except DBAPIError:
                     db_map.rollback_session()
-        return _DBAnswer(result=[err.msg for err in errors])
+        return dict(result=[err.msg for err in errors])
 
     def open_connection(self):
         """Opens a persistent connection to the url by creating and storing a db_map.
         The same db_map will be reused for all further requests until ``close_connection`` is called.
 
         Returns:
-            _DBAnswer: where result is True if the db_map was created successfully.
+            dict: where result is True if the db_map was created successfully.
         """
         db_map, error = self._make_db_map(create=True)
         if error:
-            return _DBAnswer(error=str(error))
+            return dict(error=str(error))
         _open_db_maps[self._db_url] = db_map
-        return _DBAnswer(result=True)
+        return dict(result=True)
 
     def close_connection(self):
         """Closes the connection opened by ``open_connection``.
@@ -185,7 +175,7 @@ class DBHandler:
             result = True
         else:
             result = False
-        return _DBAnswer(result=result)
+        return dict(result=result)
 
     def call_method(self, method_name, *args):
         """Calls a method from the DatabaseMapping class.
@@ -195,14 +185,14 @@ class DBHandler:
             args: positional arguments to call the method with.
 
         Returns:
-            _DBAnswer: where result is the return value of the method
+            dict: where result is the return value of the method
         """
         with self._db_map_context(create=True) as (db_map, error):
             if error:
-                return _DBAnswer(error=str(error))
+                return dict(error=str(error))
             method = getattr(db_map, method_name)
             result = method(*args)
-            return _DBAnswer(result=result)
+            return dict(result=result)
 
     def apply_filters(self, filters):
         for key, value in filters.items():
@@ -210,7 +200,7 @@ class DBHandler:
                 self._add_scenario_filter(value)
             elif key == "tool":
                 self._add_tool_filter(value)
-        return _DBAnswer(result=True)
+        return dict(result=True)
 
     def _add_scenario_filter(self, scenario):
         config = scenario_filter_config(scenario)
@@ -229,8 +219,6 @@ class _CustomJSONEncoder(json.JSONEncoder):
             return list(o)
         if isinstance(o, SpineDBAPIError):
             return str(o)
-        if isinstance(o, _DBAnswer):
-            return o.to_dict()
         return super().default(o)
 
 
@@ -252,7 +240,7 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
         except ValueError:
             client_version = 0
         if client_version < _required_client_version:
-            return _DBAnswer(error="wrong version")  # FIXME
+            return dict(error="wrong version")  # FIXME
         handler = {
             "get_data": self.get_data,
             "import_data": self.import_data,
@@ -262,7 +250,7 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
             "apply_filters": self.apply_filters,
         }.get(request)
         if handler is None:
-            return _DBAnswer(error=f"invalid request '{request}'")
+            return dict(error=f"invalid request '{request}'")
         return handler(*args, **kwargs)
 
     def handle(self):
