@@ -240,7 +240,7 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
         except ValueError:
             client_version = 0
         if client_version < _required_client_version:
-            return dict(error="wrong version")  # FIXME
+            return dict(error=f"invalid client version {client_version} - please upgrade")
         handler = {
             "get_data": self.get_data,
             "import_data": self.import_data,
