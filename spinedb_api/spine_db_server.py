@@ -231,8 +231,8 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
         data = self._recvall()
         request, *extras = json.loads(data)
         if request in ("get_api_version", "get_db_url"):
-            # NOTE: For these two requests we want to be compatible with the legacy server,
-            # because clients version 1 and higher will use them to check if the server needs to be updated.
+            # NOTE: Clients should always send these two requests in a format that is compatible with the legacy server
+            # -- to determine that it needs to be updated.
             # That's why we don't expand the extras so far.
             return spinedb_api_version if request == "get_api_version" else self.get_db_url()
         try:
