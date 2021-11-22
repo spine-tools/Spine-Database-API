@@ -73,10 +73,9 @@ class DBHandler:
     Used by DBRequestHandler and by SpineInterface's legacy PyCall path.
     """
 
-    def __init__(self, db_url, upgrade, *args, logger=None, **kwargs):
+    def __init__(self, db_url, upgrade, *args, **kwargs):
         self._db_url = db_url
         self._upgrade = upgrade
-        self._logger = logger
         super().__init__(*args, **kwargs)
 
     def _make_db_map(self, create=False):
@@ -270,7 +269,7 @@ _servers = {}
 _servers_lock = threading.Lock()
 
 
-def start_spine_db_server(db_url, logger=None, upgrade=False):
+def start_spine_db_server(db_url, upgrade=False):
     """
     Args:
         db_url (str): Spine db url
@@ -286,7 +285,7 @@ def start_spine_db_server(db_url, logger=None, upgrade=False):
     with _servers_lock:
         server = _servers[server_url] = SpineDBServer(
             (host, port),
-            lambda *args, logger=logger, **kwargs: DBRequestHandler(db_url, upgrade, *args, logger=logger, **kwargs),
+            lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs),
         )
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
@@ -303,8 +302,8 @@ def shutdown_spine_db_server(server_url):
 
 
 @contextmanager
-def closing_spine_db_server(db_url, logger=None):
-    server_url = start_spine_db_server(db_url, logger=logger)
+def closing_spine_db_server(db_url):
+    server_url = start_spine_db_server(db_url)
     try:
         yield server_url
     finally:
