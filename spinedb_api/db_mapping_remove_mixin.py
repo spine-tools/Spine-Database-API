@@ -22,8 +22,7 @@ from .exception import SpineDBAPIError
 
 
 class DatabaseMappingRemoveMixin:
-    """Provides the :meth:`remove_items` method to stage ``REMOVE`` operations over a Spine db.
-    """
+    """Provides the :meth:`remove_items` method to stage ``REMOVE`` operations over a Spine db."""
 
     # pylint: disable=redefined-builtin
     def cascade_remove_items(self, cache=None, **kwargs):
@@ -180,8 +179,7 @@ class DatabaseMappingRemoveMixin:
         return {"parameter_value": ids.copy()}
 
     def _parameter_value_list_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
-        """Returns parameter value list cascading ids and adds them to the given dictionaries.
-        """
+        """Returns parameter value list cascading ids and adds them to the given dictionaries."""
         cascading_ids = {"parameter_value_list": ids.copy()}
         features = [x for x in cache.get("feature", {}).values() if x.parameter_value_list_id in ids]
         self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))

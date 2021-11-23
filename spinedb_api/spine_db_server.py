@@ -190,7 +190,7 @@ class DBHandler:
             if error:
                 return dict(error=str(error))
             method = getattr(db_map, method_name)
-            result = method(*args)
+            result = method(*args, **kwargs)
             return dict(result=result)
 
     def apply_filters(self, filters):
