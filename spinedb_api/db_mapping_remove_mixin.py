@@ -21,7 +21,7 @@ from .exception import SpineDBAPIError
 # TODO: improve docstrings
 
 
-class DiffDatabaseMappingRemoveMixin:
+class DatabaseMappingRemoveMixin:
     """Provides the :meth:`remove_items` method to stage ``REMOVE`` operations over a Spine db.
     """
 
@@ -43,18 +43,13 @@ class DiffDatabaseMappingRemoveMixin:
         """
         for tablename, ids in kwargs.items():
             table_id = self.table_ids.get(tablename, "id")
-            diff_table = self._diff_table(tablename)
-            delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
+            table = self._metadata.tables[tablename]
+            delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))
             try:
                 self.connection.execute(delete)
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg)
-        for tablename, ids in kwargs.items():
-            self.added_item_id[tablename].difference_update(ids)
-            self.updated_item_id[tablename].difference_update(ids)
-            self.removed_item_id[tablename].update(ids)
-            self._mark_as_dirty(tablename, ids)
 
     # pylint: disable=redefined-builtin
     def cascading_ids(self, cache=None, **kwargs):

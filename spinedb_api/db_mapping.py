@@ -21,6 +21,7 @@ from .db_mapping_base import DatabaseMappingBase
 from .db_mapping_add_mixin import DatabaseMappingAddMixin
 from .db_mapping_check_mixin import DatabaseMappingCheckMixin
 from .db_mapping_update_mixin import DatabaseMappingUpdateMixin
+from .db_mapping_remove_mixin import DatabaseMappingRemoveMixin
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .filters.tools import apply_filter_stack, load_filters
 
@@ -30,6 +31,7 @@ class DatabaseMapping(
     DatabaseMappingCheckMixin,
     DatabaseMappingAddMixin,
     DatabaseMappingUpdateMixin,
+    DatabaseMappingRemoveMixin,
     DatabaseMappingCommitMixin,
     DatabaseMappingBase,
 ):

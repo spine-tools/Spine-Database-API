@@ -22,7 +22,7 @@ from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .db_mapping_check_mixin import DatabaseMappingCheckMixin
 from .db_mapping_add_mixin import DatabaseMappingAddMixin
 from .db_mapping_update_mixin import DatabaseMappingUpdateMixin
-from .diff_db_mapping_remove_mixin import DiffDatabaseMappingRemoveMixin
+from .db_mapping_remove_mixin import DatabaseMappingRemoveMixin
 from .diff_db_mapping_commit_mixin import DiffDatabaseMappingCommitMixin
 from .diff_db_mapping_base import DiffDatabaseMappingBase
 from .filters.tools import apply_filter_stack, load_filters
@@ -34,7 +34,7 @@ class DiffDatabaseMapping(
     DatabaseMappingCheckMixin,
     DatabaseMappingAddMixin,
     DatabaseMappingUpdateMixin,
-    DiffDatabaseMappingRemoveMixin,
+    DatabaseMappingRemoveMixin,
     DiffDatabaseMappingCommitMixin,
     DiffDatabaseMappingBase,
 ):
@@ -173,3 +173,25 @@ class DiffDatabaseMapping(
         except DBAPIError as e:
             msg = "DBAPIError while updating relationships: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
+
+    def remove_items(self, **kwargs):
+        """Removes items by id, *not in cascade*.
+
+        Args:
+            **kwargs: keyword is table name, argument is list of ids to remove
+        """
+        for tablename, ids in kwargs.items():
+            table_id = self.table_ids.get(tablename, "id")
+            diff_table = self._diff_table(tablename)
+            delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
+            try:
+                self.connection.execute(delete)
+            except DBAPIError as e:
+                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
+                raise SpineDBAPIError(msg)
+        for tablename, ids in kwargs.items():
+            self.added_item_id[tablename].difference_update(ids)
+            self.updated_item_id[tablename].difference_update(ids)
+            self.removed_item_id[tablename].update(ids)
+            self._mark_as_dirty(tablename, ids)
+            
