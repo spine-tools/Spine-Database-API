@@ -323,7 +323,8 @@ class DatabaseMappingBase:
             prefixes=['TEMPORARY'],
         )
         in_value.create(self.connection, checkfirst=True)
-        self._checked_execute(in_value.insert(), [{"value": val} for val in set(values)])
+        python_type = column.type.python_type
+        self._checked_execute(in_value.insert(), [{"value": python_type(val)} for val in set(values)])
         return column.in_(self.query(in_value.c.value))
 
     def _get_table_to_sq_attr(self):
