@@ -181,7 +181,8 @@ class DBHandler:
 
         Args:
             method_name (str): the method name
-            args: positional arguments to call the method with.
+            args: positional arguments passed to the method call
+            kwargs: keyword arguments passed to the method call
 
         Returns:
             dict: where result is the return value of the method
@@ -229,11 +230,12 @@ class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHand
     def _get_response(self):
         data = self._recvall()
         request, *extras = json.loads(data)
-        if request in ("get_api_version", "get_db_url"):
-            # NOTE: Clients should always send these two requests in a format that is compatible with the legacy server
-            # -- to determine that it needs to be updated.
-            # That's why we don't expand the extras so far.
-            return spinedb_api_version if request == "get_api_version" else self.get_db_url()
+        # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
+        # with the legacy server -- to determine that it needs to be updated.
+        # That's why we don't expand the extras so far.
+        response = {"get_api_version": spinedb_api_version, "get_db_url": self.get_db_url()}.get(request)
+        if response is not None:
+            return response
         try:
             args, kwargs, client_version = extras
         except ValueError:
