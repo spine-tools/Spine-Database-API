@@ -142,7 +142,7 @@ class DBHandler:
             if error:
                 return dict(error=str(error))
             count, errors = import_data(db_map, **data)
-            if count:
+            if count and comment:
                 try:
                     db_map.commit_session(comment)
                 except DBAPIError:
