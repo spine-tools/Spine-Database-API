@@ -55,11 +55,11 @@ def _process_parameter_value_list_row(row):
 
 
 def _get_row_processor(sq_name):
-    if sq_name == "parameter_definition_sq":
+    if sq_name.endswith("parameter_definition_sq"):
         return _process_parameter_definition_row
-    if sq_name == "parameter_value_sq":
+    if sq_name.endswith("parameter_value_sq"):
         return _process_parameter_value_row
-    if sq_name == "parameter_value_list_sq":
+    if sq_name.endswith("parameter_value_list_sq"):
         return _process_parameter_value_list_row
     return lambda row: row
 
