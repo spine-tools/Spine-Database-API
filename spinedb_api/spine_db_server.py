@@ -176,7 +176,7 @@ class DBHandler:
             result = False
         return dict(result=result)
 
-    def call_method(self, method_name, *args):
+    def call_method(self, method_name, *args, **kwargs):
         """Calls a method from the DatabaseMapping class.
 
         Args:
