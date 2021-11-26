@@ -66,6 +66,7 @@ class DatabaseMappingBase:
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
         """
         db_url = get_db_url_from_server(db_url)
+        self.db_url = str(db_url)
         if isinstance(db_url, str):
             filter_configs, db_url = pop_filter_configs(db_url)
         elif isinstance(db_url, URL):
@@ -73,8 +74,7 @@ class DatabaseMappingBase:
         else:
             filter_configs = []
         self._filter_configs = filter_configs if apply_filters else None
-        self.db_url = db_url
-        self.sa_url = make_url(self.db_url)
+        self.sa_url = make_url(db_url)
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
         self.engine = self.create_engine(self.sa_url, upgrade=upgrade, create=create)
