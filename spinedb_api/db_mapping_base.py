@@ -1733,22 +1733,6 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def remove_items(self, **kwargs):
-        """Removes items by id, *not in cascade*.
-
-        Args:
-            **kwargs: keyword is table name, argument is list of ids to remove
-        """
-        for tablename, ids in kwargs.items():
-            table_id = self.table_ids.get(tablename, "id")
-            table = self._metadata.tables[tablename]
-            delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))
-            try:
-                self.connection.execute(delete)
-            except DBAPIError as e:
-                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
-                raise SpineDBAPIError(msg)
-
     def make_cache(self, tablenames, only_descendants=False, include_ancestors=False):
         if only_descendants:
             tablenames = {
