@@ -524,7 +524,17 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
         for x in cache.get("tool_feature", {}).values()
     }
     tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
-    parameter_value_lists = cache.get("parameter_value_list", {})
+    parameter_value_lists = {
+        id_: {
+            "name": name,
+            "value_index_list": value_index_list,
+            "value_to_index": dict(zip(value_list, value_index_list)),
+        }
+        for id_, name, value_index_list, value_list in (
+            (x.id, x.name, [int(idx) for idx in x.value_index_list.split(";")], x.value_list.split(";"))
+            for x in cache.get("parameter_value_list", {}).values()
+        )
+    }
     seen = set()
     to_add = []
     error_log = []
@@ -532,32 +542,9 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
         tool_feature_id, parameter_value_list_id = tool_feature_ids.get(
             (tool_name, class_name, parameter_name), (None, None)
         )
-        try:
-            parameter_value_list = parameter_value_lists[parameter_value_list_id]
-        except KeyError:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg=(
-                        f"Could not import tool feature method '{tool_name, class_name, parameter_name, method}':"
-                        " Parameter value list not found."
-                    ),
-                    db_type="tool_feature_method",
-                )
-            )
-            continue
-        try:
-            method_index = parameter_value_list.value_list.index(to_database(method)[0])
-        except ValueError:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg=(
-                        f"Could not import tool feature method '{tool_name, class_name, parameter_name, method}':"
-                        " Method not found in parameter value list."
-                    ),
-                    db_type="tool_feature_method",
-                )
-            )
-            continue
+        parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
+        value_to_index = parameter_value_list.get("value_to_index", {})
+        method_index = value_to_index.get(json.dumps(method))
         if (tool_feature_id, method_index) in seen | tool_feature_method_ids.keys():
             continue
         item = {
@@ -1591,7 +1578,7 @@ def _get_parameters_to_update_with_value_lists(db_map, parameter_value_lists_to_
         parameter_value_list = parameter_value_lists.get(value_list_id)
         if not parameter_value_list:
             continue
-        value_list = parameter_value_list["value_list"]
+        value_list = parameter_value_list["value_list"].split(";")
         new_value_list = new_parameter_value_list["value_list"]
         for parameter_definition in parameter_definitions.get(value_list_id, []):
             for parameter_value in parameter_values.get(parameter_definition["id"], []):
