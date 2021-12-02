@@ -323,7 +323,7 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
         item (dict): A parameter definition item to be checked.
         current_items (dict): A dictionary mapping tuples (entity_class_id, name) to ids of parameter definitions
             already in the database.
-        entity_class_ids (dict): A set of entity class ids in the database.
+        entity_class_ids (Iterable): A set of entity class ids in the database.
         parameter_value_lists (dict): A dictionary of value-lists in the database keyed by id.
 
     Raises:
@@ -391,12 +391,12 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         parameter_value_list_id = parameter_definition["parameter_value_list_id"]
         value_list = parameter_value_lists.get(parameter_value_list_id)
         if value_list is not None:
-            value_list = value_list.split(";")
-            if str(value, "UTF8") not in value_list:
-                valid_values = ", ".join(value_list)
+            value_list = set(map(from_database, value_list))
+            if from_database(value) not in value_list:
+                valid_values = ", ".join(str(from_database(v)) for v in parameter_value_lists[parameter_value_list_id])
                 raise SpineIntegrityError(
                     "The value '{}' is not a valid value for parameter '{}' (valid values are: {})".format(
-                        value, parameter_definition["name"], valid_values
+                        from_database(value), parameter_definition["name"], valid_values
                     )
                 )
     entity_id = item.get("entity_id")
@@ -538,5 +538,5 @@ def check_tool_feature_method(item, current_items, tool_features, parameter_valu
         raise SpineIntegrityError("Tool feature already has the given method.", id=dup_id)
     if parameter_value_list_id != tool_feature["parameter_value_list_id"]:
         raise SpineIntegrityError("Feature and parameter value list don't match.")
-    if method_index not in parameter_value_list["value_index_list"]:
+    if not (0 <= method_index < len(parameter_value_list.value_list)):
         raise SpineIntegrityError("Invalid method for tool feature.")

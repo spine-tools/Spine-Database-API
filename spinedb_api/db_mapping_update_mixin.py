@@ -58,11 +58,11 @@ class DatabaseMappingUpdateMixin:
         return set(ids)
 
     def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None):
-        """Update items.
+        """Updates items.
 
         Args:
-            tablename (str)
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be inserted.
+            tablename (str): Target database table name
+            *items: One or more Python :class:`dict` objects representing the items to be inserted.
             check (bool): Whether or not to check integrity
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
@@ -170,7 +170,6 @@ class DatabaseMappingUpdateMixin:
         return checked_items if return_items else updated_ids, intgr_error_log
 
     def _update_wide_parameter_value_lists(self, *checked_items):
-        checked_items = list(checked_items)
         ids = {item["id"] for item in checked_items}
         try:
             self.remove_items(parameter_value_list=ids)
@@ -184,7 +183,7 @@ class DatabaseMappingUpdateMixin:
         """Returns data to add and remove, in order to set wide scenario alternatives.
 
         Args:
-            items (Iterable): One or more wide scenario_alternative :class:`dict` objects to set.
+            *items: One or more wide scenario_alternative :class:`dict` objects to set.
                 Each item must include the following keys:
 
                 - "id": integer scenario id

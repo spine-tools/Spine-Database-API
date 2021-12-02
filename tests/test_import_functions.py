@@ -521,6 +521,32 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertEqual(count, 0)
         db_map.connection.close()
 
+    def test_valid_object_parameter_value_from_value_list(self):
+        db_map = create_diff_db_map()
+        import_parameter_value_lists(db_map, (("values_1", 5.0),))
+        import_object_classes(db_map, ("object_class",))
+        import_object_parameters(db_map, (("object_class", "parameter", None, "values_1"),))
+        import_objects(db_map, (("object_class", "my_object"),))
+        count, errors = import_object_parameter_values(db_map, (("object_class", "my_object", "parameter", 5.0),))
+        self.assertEqual(count, 1)
+        self.assertEqual(errors, [])
+        values = db_map.query(db_map.object_parameter_value_sq).all()
+        self.assertEqual(len(values), 1)
+        value = values[0]
+        self.assertEqual(from_database(value.value), 5.0)
+        db_map.connection.close()
+
+    def test_non_existent_object_parameter_value_from_value_list_fails_gracefully(self):
+        db_map = create_diff_db_map()
+        import_parameter_value_lists(db_map, (("values_1", 5.0),))
+        import_object_classes(db_map, ("object_class",))
+        import_object_parameters(db_map, (("object_class", "parameter", None, "values_1"),))
+        import_objects(db_map, (("object_class", "my_object"),))
+        count, errors = import_object_parameter_values(db_map, (("object_class", "my_object", "parameter", 2.3),))
+        self.assertEqual(count, 0)
+        self.assertEqual(len(errors), 1)
+        db_map.connection.close()
+
     def test_import_valid_relationship_parameter_value(self):
         db_map = create_diff_db_map()
         self.populate_with_relationship(db_map)
@@ -652,6 +678,59 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertTrue(errors)
         self.assertEqual(count, 0)
         db_map.connection.close()
+
+    def test_valid_relationship_parameter_value_from_value_list(self):
+        db_map = create_diff_db_map()
+        import_parameter_value_lists(db_map, (("values_1", 5.0),))
+        import_object_classes(db_map, ("object_class",))
+        import_objects(db_map, (("object_class", "my_object"),))
+        import_relationship_classes(db_map, (("relationship_class", ("object_class",)),))
+        import_relationship_parameters(db_map, (("relationship_class", "parameter", None, "values_1"),))
+        import_relationships(db_map, (("relationship_class", ("my_object",)),))
+        count, errors = import_relationship_parameter_values(
+            db_map, (("relationship_class", ("my_object",), "parameter", 5.0),)
+        )
+        self.assertEqual(count, 1)
+        self.assertEqual(errors, [])
+        values = db_map.query(db_map.relationship_parameter_value_sq).all()
+        self.assertEqual(len(values), 1)
+        value = values[0]
+        self.assertEqual(from_database(value.value), 5.0)
+        db_map.connection.close()
+
+    def test_non_existent_relationship_parameter_value_from_value_list_fails_gracefully(self):
+        db_map = create_diff_db_map()
+        import_parameter_value_lists(db_map, (("values_1", 5.0),))
+        import_object_classes(db_map, ("object_class",))
+        import_objects(db_map, (("object_class", "my_object"),))
+        import_relationship_classes(db_map, (("relationship_class", ("object_class",)),))
+        import_relationship_parameters(db_map, (("relationship_class", "parameter", None, "values_1"),))
+        import_relationships(db_map, (("relationship_class", ("my_object",)),))
+        count, errors = import_relationship_parameter_values(
+            db_map, (("relationship_class", ("my_object",), "parameter", 2.3),)
+        )
+        self.assertEqual(count, 0)
+        self.assertEqual(len(errors), 1)
+        db_map.connection.close()
+
+
+class TestImportParameterValueList(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping("sqlite://", create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_list_with_single_value(self):
+        count, errors = import_parameter_value_lists(self._db_map, (("list_1", 23.0),))
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        value_list_values = self._db_map.query(self._db_map.parameter_value_list_sq).all()
+        self.assertEqual(len(value_list_values), 1)
+        value = value_list_values[0]
+        self.assertEqual(value.name, "list_1")
+        self.assertEqual(from_database(value.value), 23.0)
+        self.assertEqual(value.value_index, 0)
 
 
 class TestImportAlternative(unittest.TestCase):

@@ -378,10 +378,7 @@ class DatabaseMappingCheckMixin:
             (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
         }
         tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
-        parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
-            for x in cache.get("parameter_value_list", {}).values()
-        }
+        parameter_value_lists = cache.get("parameter_value_list", {})
         for item in items:
             try:
                 check_tool_feature_method(item, tool_feature_method_ids, tool_features, parameter_value_lists)
@@ -415,10 +412,7 @@ class DatabaseMappingCheckMixin:
             (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
         }
         tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
-        parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
-            for x in cache.get("parameter_value_list", {}).values()
-        }
+        parameter_value_lists = cache.get("parameter_value_list", {})
         for item in items:
             try:
                 id_ = item["id"]
@@ -1437,8 +1431,7 @@ class DatabaseMappingCheckMixin:
         intgr_error_log = []
         checked_wide_items = list()
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_list": x.value_list.split(";")}
-            for x in cache.get("parameter_value_list", {}).values()
+            x.id: {"name": x.name, "value_list": x.value_list} for x in cache.get("parameter_value_list", {}).values()
         }
         parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
         for wide_item in wide_items:

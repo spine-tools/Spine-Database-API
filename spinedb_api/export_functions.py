@@ -127,7 +127,7 @@ def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None):
     return sorted(
         (x.name, from_database(value, value_type=None))
         for x in _get_items(db_map, "parameter_value_list", ids, make_cache)
-        for value in x.value_list.split(";")
+        for value in x.value_list
     )
 
 

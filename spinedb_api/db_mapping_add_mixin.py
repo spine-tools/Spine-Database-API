@@ -138,7 +138,7 @@ class DatabaseMappingAddMixin:
             readd (bool): Readds items directly
 
         Returns:
-            set: ids or items succesfully added
+            set: ids or items successfully added
             list(SpineIntegrityError): found violations
         """
         if readd:

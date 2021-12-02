@@ -18,7 +18,7 @@ Unit tests for DatabaseMapping class.
 import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import URL
-from spinedb_api import DatabaseMapping
+from spinedb_api import DatabaseMapping, to_database
 from spinedb_api import import_functions, from_database
 
 IN_MEMORY_DB_URL = "sqlite://"
@@ -298,7 +298,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             self.assertTrue(hasattr(self._db_map.relationship_parameter_value_sq.c, column_name))
 
     def test_wide_parameter_value_list_sq(self):
-        columns = ["id", "name", "value_index_list", "value_list", "commit_id"]
+        columns = ["id", "name", "commit_id"]
         self.assertEqual(len(self._db_map.wide_parameter_value_list_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_parameter_value_list_sq.c, column_name))
@@ -529,6 +529,50 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
                 self.assertEqual(row.object_name_list, ','.join(par_val[1]))
             self.assertEqual(row.parameter_name, par_val[2])
             self.assertEqual(from_database(row.value, row.type), par_val[3])
+
+    def test_wide_parameter_value_sq(self):
+        _, errors = import_functions.import_parameter_value_lists(
+            self._db_map, (("list1", "value1"), ("list1", "value2"), ("list2", "valueA"))
+        )
+        self.assertEqual(errors, [])
+        value_lists = self._db_map.query(self._db_map.wide_parameter_value_list_sq).all()
+        self.assertEqual(len(value_lists), 2)
+        self.assertEqual(value_lists[0].name, "list1")
+        self.assertEqual(value_lists[1].name, "list2")
+
+
+class TestDatabaseMappingUpdateMixin(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_update_method_of_tool_feature_method(self):
+        import_functions.import_object_classes(self._db_map, ("object_class1", "object_class2"))
+        import_functions.import_parameter_value_lists(
+            self._db_map, (("value_list", "value1"), ("value_list", "value2"))
+        )
+        import_functions.import_object_parameters(
+            self._db_map, (("object_class1", "parameter1", "value1", "value_list"), ("object_class1", "parameter2"))
+        )
+        import_functions.import_features(self._db_map, (("object_class1", "parameter1"),))
+        import_functions.import_tools(self._db_map, ("tool1",))
+        import_functions.import_tool_features(self._db_map, (("tool1", "object_class1", "parameter1"),))
+        import_functions.import_tool_feature_methods(
+            self._db_map, (("tool1", "object_class1", "parameter1", "value2"),)
+        )
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_tool_feature_methods(
+            {"id": 1, "method_index": 0, "method": to_database("value1")[0]}
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {1})
+        self._db_map.commit_session("Update data.")
+        tool_feature_methods = self._db_map.query(self._db_map.ext_tool_feature_method_sq).all()
+        self.assertEqual(len(tool_feature_methods), 1)
+        tool_feature_method = tool_feature_methods[0]
+        self.assertEqual(tool_feature_method.method, to_database("value1")[0])
 
 
 if __name__ == "__main__":

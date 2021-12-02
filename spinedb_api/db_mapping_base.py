@@ -20,6 +20,7 @@ import hashlib
 import os
 import logging
 import time
+from collections import namedtuple
 from types import MethodType
 from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func
 from sqlalchemy.sql.expression import label, Alias
@@ -157,7 +158,7 @@ class DatabaseMappingBase:
             "tool": "tool_sq",
             "tool_feature": "ext_tool_feature_sq",
             "tool_feature_method": "ext_tool_feature_method_sq",
-            "parameter_value_list": "wide_parameter_value_list_sq",
+            "parameter_value_list": "parameter_value_list_sq",
             "alternative": "alternative_sq",
             "scenario": "wide_scenario_sq",
             "scenario_alternative": "ext_linked_scenario_alternative_sq",
@@ -1396,13 +1397,12 @@ class DatabaseMappingBase:
             SELECT
                 id,
                 name,
-                GROUP_CONCAT(value) AS value_list
+                commit_id
             FROM (
                 SELECT id, name, value
                 FROM parameter_value_list
-                ORDER BY id, value_index
             )
-            GROUP BY id
+            GROUP BY id, name, commit_id
 
         Returns:
             sqlalchemy.sql.expression.Alias
@@ -1413,12 +1413,6 @@ class DatabaseMappingBase:
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
                     self.parameter_value_list_sq.c.commit_id,
-                    group_concat(
-                        self.parameter_value_list_sq.c.value_index, self.parameter_value_list_sq.c.value_index, ";"
-                    ).label("value_index_list"),
-                    group_concat(
-                        self.parameter_value_list_sq.c.value, self.parameter_value_list_sq.c.value_index, ";"
-                    ).label("value_list"),
                 ).group_by(
                     self.parameter_value_list_sq.c.id,
                     self.parameter_value_list_sq.c.name,
@@ -1742,10 +1736,25 @@ class DatabaseMappingBase:
             tablenames |= {
                 ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
             }
-        return {
+        cache = {
             tablename: {x.id: x for x in self.query(getattr(self, self.cache_sqs[tablename]))}
-            for tablename in tablenames & self.cache_sqs.keys()
+            for tablename in tablenames & self.cache_sqs.keys() - {"parameter_value_list"}
         }
+        if "parameter_value_list" in tablenames:
+            ValueList = namedtuple("ValueList", ["id", "name", "value_list", "commit_id"])
+            value_lists = dict()
+            reduced = dict()
+            for x in self.query(getattr(self, self.cache_sqs["parameter_value_list"])):
+                values = value_lists.setdefault(x.id, [])
+                if x.value_index >= len(values):
+                    values += (x.value_index + 1 - len(values)) * [None]
+                values[x.value_index] = x.value
+                reduced[x.id] = ValueList(x.id, x.name, [], x.commit_id)
+            for id_, value_list in value_lists.items():
+                reduced_value_list = reduced[id_].value_list
+                reduced_value_list += value_list
+            cache["parameter_value_list"] = reduced
+        return cache
 
     @staticmethod
     def cache_to_db(item_type, item):
@@ -1826,7 +1835,7 @@ class DatabaseMappingBase:
         return {
             "id": item["id"],
             "name": item["name"],
-            "value_list": [bytes(val, "UTF8") for val in item["value_list"].split(";")],
+            "value_list": list(item["value_list"]),
             "commit_id": item["commit_id"],
         }
 

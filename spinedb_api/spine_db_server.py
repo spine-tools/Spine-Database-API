@@ -286,8 +286,7 @@ def start_spine_db_server(db_url, upgrade=False):
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
     with _servers_lock:
         server = _servers[server_url] = SpineDBServer(
-            (host, port),
-            lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs),
+            (host, port), lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs)
         )
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
