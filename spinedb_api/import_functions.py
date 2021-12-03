@@ -762,11 +762,11 @@ def _get_scenario_alternatives_for_import(db_map, data, make_cache):
     for scenario_id, new_alt_id_list in scenario_alternative_id_lists.items():
         for k, alt_id in enumerate(new_alt_id_list):
             id_ = scenario_alternative_ids.get((scenario_id, alt_id))
+            item = {"scenario_id": scenario_id, "alternative_id": alt_id, "rank": k + 1}
             if id_ is not None:
-                item = {"id": id_, "scenario_id": scenario_id, "alternative_id": alt_id, "rank": k + 1}
+                item["id"] = id_
                 to_update.append(item)
             else:
-                item = {"scenario_id": scenario_id, "alternative_id": alt_id, "rank": k + 1}
                 to_add.append(item)
     return to_add, to_update, error_log
 
@@ -1353,7 +1353,8 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache):
                 parameter_value_ids[o_id, p_id, alt_id] = pv_id
         checked.add(checked_key)
         if pv_id is not None:
-            to_update.append({"id": pv_id, "value": item["value"]})
+            item["id"] = pv_id
+            to_update.append(item)
         else:
             to_add.append(item)
     return to_add, to_update, error_log
@@ -1478,7 +1479,8 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache):
                 parameter_value_ids[r_id, p_id, alt_id] = pv_id
         checked.add(checked_key)
         if pv_id is not None:
-            to_update.append({"id": pv_id, "value": item["value"]})
+            item["id"] = pv_id
+            to_update.append(item)
         else:
             to_add.append(item)
     return to_add, to_update, error_log
