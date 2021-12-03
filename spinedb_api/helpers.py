@@ -46,7 +46,7 @@ from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
-from sqlalchemy.sql.expression import FunctionElement, bindparam
+from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.migration import MigrationContext
@@ -120,10 +120,11 @@ def compile_group_concat_sqlite(element, compiler, **kw):
 @compiles(group_concat, "mysql")
 def compile_group_concat_mysql(element, compiler, **kw):
     group_concat_column, order_by_column, separator = _parse_group_concat_clauses(element.clauses)
+    str_group_concat_column = cast(group_concat_column, String)
     if order_by_column is not None:
-        group_concat_column = group_concat_column.op("ORDER BY")(order_by_column)
+        str_group_concat_column = str_group_concat_column.op("ORDER BY")(order_by_column)
     return "group_concat(%s separator %s)" % (
-        compiler.process(group_concat_column, **kw),
+        compiler.process(str_group_concat_column, **kw),
         compiler.process(separator, **kw),
     )
 
