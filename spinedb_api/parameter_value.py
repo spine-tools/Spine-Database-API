@@ -239,6 +239,45 @@ def from_dict(value_dict, value_type=None):
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
 
 
+def fix_conflict(new, old, on_conflict="merge"):
+    """Resolves conflicts between parameter values:
+
+    Args:
+        new (any): new parameter value to write
+        old (any): existing parameter value in the db
+        on_conflict (str): conflict resolution strategy:
+            - 'merge': Merge indexes if possible, otherwise replace
+            - 'replace': Replace old with new
+            - 'keep': keep old
+
+    Returns:
+        any: a parameter value with conflicts resolved
+    """
+    funcs = {
+        "keep": lambda new, old: old,
+        "replace": lambda new, old: new,
+        "merge": merge,
+    }
+    func = funcs.get(on_conflict)
+    if func is None:
+        raise RuntimeError(
+            f"Invalid conflict resolution strategy {on_conflict}, valid strategies are {', '.join(funcs)}"
+        )
+    return func(new, old)
+
+
+def merge(value, other):
+    """Merges other into value, return the result."""
+    if value is None:
+        # NOTE: This case is mainly for IndexedValue.merge to work recursively
+        return other
+    if isinstance(value, dict):
+        value = from_dict(value, value["type"])
+    if hasattr(value, "merge"):
+        return value.merge(other)
+    return value
+
+
 def _break_dictionary(data):
     """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
     if not isinstance(data, dict):
@@ -710,6 +749,7 @@ class IndexedValue:
             index_name (str): index name
         """
         self._indexes = None
+        self._values = None
         self.index_name = index_name
 
     def __bool__(self):
@@ -746,7 +786,12 @@ class IndexedValue:
     @property
     def values(self):
         """Returns the data values."""
-        raise NotImplementedError()
+        return self._values
+
+    @values.setter
+    def values(self, values):
+        """Sets the values."""
+        self._values = values
 
     def get_value(self, index):
         """Returns the value at the given index."""
@@ -769,6 +814,16 @@ class IndexedValue:
         """
         raise NotImplementedError()
 
+    def merge(self, other):
+        if not isinstance(other, type(self)):
+            return self
+        new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
+        new_indexes.sort(kind='mergesort')
+        new_values = [merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
+        self.indexes = new_indexes
+        self.values = new_values
+        return self
+
 
 class Array(IndexedValue):
     """A one dimensional array with zero based indexing."""
@@ -790,7 +845,7 @@ class Array(IndexedValue):
         if any(not isinstance(x, value_type) for x in values):
             raise ParameterValueFormatError("Not all array's values are of the same type.")
         self.indexes = range(len(values))
-        self._values = list(values)
+        self.values = list(values)
         self._value_type = value_type
 
     def __eq__(self, other):
@@ -826,11 +881,6 @@ class Array(IndexedValue):
         """Returns the type of array's elements."""
         return self._value_type
 
-    @property
-    def values(self):
-        """See base class."""
-        return self._values
-
 
 class IndexedNumberArray(IndexedValue):
     """
@@ -846,6 +896,11 @@ class IndexedNumberArray(IndexedValue):
             values (Sequence): array's values; index handling should be implemented by subclasses
         """
         super().__init__(index_name)
+        self.values = values
+
+    @IndexedValue.values.setter
+    def values(self, values):
+        """Sets the values."""
         if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
             values = np.array(values, dtype=float)
         self._values = values
@@ -857,11 +912,6 @@ class IndexedNumberArray(IndexedValue):
     def to_dict(self):
         """Return the database representation of the value."""
         raise NotImplementedError()
-
-    @property
-    def values(self):
-        """Returns the data values as numpy.ndarray."""
-        return self._values
 
 
 class TimeSeries(IndexedNumberArray):
@@ -1244,11 +1294,6 @@ class Map(IndexedValue):
         if not isinstance(other, Map):
             return NotImplemented
         return other._indexes == self._indexes and other._values == self._values and self.index_name == other.index_name
-
-    @property
-    def values(self):
-        """Map's values."""
-        return self._values
 
     def is_nested(self):
         """Returns True if any of the values is also a map."""

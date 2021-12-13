@@ -17,7 +17,6 @@ Unit tests for import_functions.py.
 """
 
 import unittest
-
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
@@ -475,6 +474,84 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"new_value"'}
         self.assertEqual(values, expected)
+        db_map.connection.close()
+
+    def test_import_existing_object_parameter_value_on_conflict_keep(self):
+        db_map = create_diff_db_map()
+        self.populate(db_map)
+        initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
+        new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
+        import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+        _, errors = import_object_parameter_values(
+            db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="keep"
+        )
+        self.assertFalse(errors)
+        pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
+        value = from_database(pv.value, pv.type)
+        self.assertEqual(['2000-01-01T01:00:00', '2000-01-01T02:00:00'], [str(x) for x in value.indexes])
+        self.assertEqual([1.0, 2.0], list(value.values))
+        db_map.connection.close()
+
+    def test_import_existing_object_parameter_value_on_conflict_replace(self):
+        db_map = create_diff_db_map()
+        self.populate(db_map)
+        initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
+        new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
+        import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+        _, errors = import_object_parameter_values(
+            db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="replace"
+        )
+        self.assertFalse(errors)
+        pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
+        value = from_database(pv.value, pv.type)
+        self.assertEqual(['2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes])
+        self.assertEqual([3.0, 4.0], list(value.values))
+        db_map.connection.close()
+
+    def test_import_existing_object_parameter_value_on_conflict_merge(self):
+        db_map = create_diff_db_map()
+        self.populate(db_map)
+        initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
+        new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
+        import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+        _, errors = import_object_parameter_values(
+            db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
+        )
+        self.assertFalse(errors)
+        pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
+        value = from_database(pv.value, pv.type)
+        self.assertEqual(
+            ['2000-01-01T01:00:00', '2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes]
+        )
+        self.assertEqual([1.0, 3.0, 4.0], list(value.values))
+        db_map.connection.close()
+
+    def test_import_existing_object_parameter_value_on_conflict_merge_map(self):
+        db_map = create_diff_db_map()
+        self.populate(db_map)
+        initial_value = {
+            "type": "map",
+            "index_type": "str",
+            "data": {"xxx": {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}},
+        }
+        new_value = {
+            "type": "map",
+            "index_type": "str",
+            "data": {"xxx": {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}},
+        }
+        import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+        _, errors = import_object_parameter_values(
+            db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
+        )
+        self.assertFalse(errors)
+        pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
+        map_ = from_database(pv.value, pv.type)
+        self.assertEqual(['xxx'], [str(x) for x in map_.indexes])
+        ts = map_.get_value('xxx')
+        self.assertEqual(
+            ['2000-01-01T01:00:00', '2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in ts.indexes]
+        )
+        self.assertEqual([1.0, 3.0, 4.0], list(ts.values))
         db_map.connection.close()
 
     def test_import_duplicate_object_parameter_value(self):
