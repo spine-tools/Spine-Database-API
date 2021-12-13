@@ -291,9 +291,9 @@ def perfect_split(input_urls, intersection_url, diff_urls):
         intersection_url (str): A url to store the data common to all input urls
         diff_urls (list(str)): List of urls to store the differences of each input with respect to the intersection.
     """
+    diff_url_lookup = dict(zip(input_urls, diff_urls))
     input_data_sets = {}
     db_names = {}
-    diff_url_lookup = dict(zip(input_urls, diff_urls))
     for input_url in diff_url_lookup:
         input_db_map = DatabaseMapping(input_url)
         input_data_sets[input_url] = export_data(input_db_map)
@@ -310,11 +310,10 @@ def perfect_split(input_urls, intersection_url, diff_urls):
             intersection_data[key] = intersection
     diffs_data = {}
     for left_url in input_data_sets:
+        right_urls = [url for url in input_data_sets if url != left_url]
         left_data_set = input_data_sets[left_url]
         for key, left in left_data_set.items():
-            left_diff = [
-                x for x in left if all(x not in input_data_sets[url][key] for url in input_data_sets if url != left_url)
-            ]
+            left_diff = [x for x in left if all(x not in input_data_sets[url][key] for url in right_urls)]
             if left_diff:
                 diff_data = diffs_data.setdefault(left_url, {})
                 diff_data[key] = left_diff
