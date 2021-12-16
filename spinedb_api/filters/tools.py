@@ -165,7 +165,8 @@ def append_filter_config(url, config):
     filters = query.setdefault(FILTER_IDENTIFIER, list())
     if isinstance(config, dict):
         config = config_to_shorthand(config)
-    filters.append(config)
+    if config not in filters:
+        filters.append(config)
     url = url._replace(query=urlencode(query, doseq=True), path="//" + url.path)
     return url.geturl()
 
