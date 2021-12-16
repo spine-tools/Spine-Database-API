@@ -67,17 +67,7 @@ def _get_row_processor(sq_name):
 _open_db_maps = {}
 
 
-class DBHandler:
-    """
-    Helper class to do key interactions with a db, while closing the db_map afterwards.
-    Used by DBRequestHandler and by SpineInterface's legacy PyCall path.
-    """
-
-    def __init__(self, db_url, upgrade, *args, **kwargs):
-        self._db_url = db_url
-        self._upgrade = upgrade
-        super().__init__(*args, **kwargs)
-
+class HandleDBMixin:
     def _make_db_map(self, create=False):
         try:
             return DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create), None
@@ -222,10 +212,33 @@ class _CustomJSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-class DBRequestHandler(ReceiveAllMixing, DBHandler, socketserver.BaseRequestHandler):
+class DBHandler(HandleDBMixin):
+    """
+    Helper class to do key interactions with a db, while closing the db_map afterwards.
+    Used by DBRequestHandler and by SpineInterface's legacy PyCall path.
+    """
+
+    def __init__(self, db_url, upgrade):
+        self._db_url = db_url
+        self._upgrade = upgrade
+
+
+class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
     """
     The request handler class for our server.
     """
+
+    @property
+    def _db_url(self):
+        return self.server.db_url
+
+    @_db_url.setter
+    def _db_url(self, db_url):
+        self.server.db_url = db_url
+
+    @property
+    def _upgrade(self):
+        return self.server.upgrade
 
     def _get_response(self):
         data = self._recvall()
@@ -266,6 +279,11 @@ class SpineDBServer(socketserver.TCPServer):
     # (sqlite objects can only be used in the same thread where they were created)
     allow_reuse_address = True
 
+    def __init__(self, server_address, RequestHandlerClass, db_url, upgrade):
+        super().__init__(server_address, RequestHandlerClass)
+        self.db_url = db_url
+        self.upgrade = upgrade
+
 
 _servers = {}
 _servers_lock = threading.Lock()
@@ -285,10 +303,7 @@ def start_spine_db_server(db_url, upgrade=False):
         port = s.server_address[1]
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
     with _servers_lock:
-        server = _servers[server_url] = SpineDBServer(
-            (host, port),
-            lambda *args, **kwargs: DBRequestHandler(db_url, upgrade, *args, **kwargs),
-        )
+        server = _servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
