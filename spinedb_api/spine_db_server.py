@@ -31,7 +31,7 @@ from .exception import SpineDBAPIError
 from .parameter_value import join_value_and_type
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
-from .filters.tools import append_filter_config
+from .filters.tools import append_filter_config, clear_filter_configs
 
 _required_client_version = 1
 
@@ -200,6 +200,10 @@ class HandleDBMixin:
         config = tool_filter_config(tool)
         self._db_url = append_filter_config(self._db_url, config)
 
+    def clear_filters(self):
+        self._db_url = clear_filter_configs(self._db_url)
+        return dict(result=True)
+
 
 class _CustomJSONEncoder(json.JSONEncoder):
     """A JSON encoder that handles all the special types that can come in request responses."""
@@ -262,6 +266,7 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
             "open_connection": self.open_connection,
             "close_connection": self.close_connection,
             "apply_filters": self.apply_filters,
+            "clear_filters": self.clear_filters,
         }.get(request)
         if handler is None:
             return dict(error=f"invalid request '{request}'")
