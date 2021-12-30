@@ -253,11 +253,7 @@ def fix_conflict(new, old, on_conflict="merge"):
     Returns:
         any: a parameter value with conflicts resolved
     """
-    funcs = {
-        "keep": lambda new, old: old,
-        "replace": lambda new, old: new,
-        "merge": merge,
-    }
+    funcs = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
     func = funcs.get(on_conflict)
     if func is None:
         raise RuntimeError(

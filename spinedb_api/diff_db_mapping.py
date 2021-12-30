@@ -194,4 +194,3 @@ class DiffDatabaseMapping(
             self.updated_item_id[tablename].difference_update(ids)
             self.removed_item_id[tablename].update(ids)
             self._mark_as_dirty(tablename, ids)
-            

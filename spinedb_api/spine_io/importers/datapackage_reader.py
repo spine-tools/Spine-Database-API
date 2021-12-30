@@ -37,6 +37,25 @@ class DataPackageConnector(SourceConnection):
         self._datapackage = None
         self._resource_name_lock = threading.Lock()
 
+    def __getstate__(self):
+        """Builds a state that can be pickled.
+
+        Returns:
+            dict: picklable representation of the connector
+        """
+        state = self.__dict__.copy()
+        del state["_resource_name_lock"]
+        return state
+
+    def __setstate__(self, state):
+        """Restores connector from pickled state.
+
+        Args:
+            state (dict): pickled state
+        """
+        self.__dict__.update(state)
+        self._resource_name_lock = threading.Lock()
+
     def connect_to_source(self, source):
         """Creates datapackage.
 

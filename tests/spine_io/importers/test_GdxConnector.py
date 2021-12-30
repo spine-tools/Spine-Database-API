@@ -17,6 +17,7 @@ Unit tests for GDXConnector class.
 """
 
 import os.path
+import pickle
 from tempfile import TemporaryDirectory
 import unittest
 from gdx2py import GdxFile
@@ -221,6 +222,12 @@ class TestGdxConnector(unittest.TestCase):
         self.assertEqual(next(data_iterator), [2.3])
         with self.assertRaises(StopIteration):
             next(data_iterator)
+
+    @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
+    def test_connector_is_picklable(self):
+        reader = GdxConnector(None)
+        pickled = pickle.dumps(reader)
+        self.assertTrue(pickled)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ Contains unit tests for CSVConnector.
 
 import csv
 import os.path
+import pickle
 from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api.spine_io.importers.csv_reader import CSVConnector
@@ -71,6 +72,11 @@ class TestCSVConnector(unittest.TestCase):
             self.assertEqual(len(data), 2)
             self.assertEqual(data[0], ["1a", "1b", "1c"])
             self.assertEqual(data[1], ["2a", "2b", "2c"])
+
+    def test_connector_is_picklable(self):
+        reader = CSVConnector(None)
+        pickled = pickle.dumps(reader)
+        self.assertTrue(pickled)
 
 
 if __name__ == "__main__":
