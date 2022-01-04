@@ -205,6 +205,12 @@ class TestAppendFilterConfig(unittest.TestCase):
             r"sqlite:///C:\dbs\database.sqlite?spinedbfilter=F%3A%5Cfltr%5Ca.json&spinedbfilter=F%3A%5Cfltr%5Cb.json",
         )
 
+    def test_append_to_remote_database_url(self):
+        url = append_filter_config(r"mysql+pymysql://username:password@remote.fi/database_name", r"F:\fltr\a.json")
+        self.assertEqual(
+            url, r"mysql+pymysql://username:password@remote.fi/database_name?spinedbfilter=F%3A%5Cfltr%5Ca.json"
+        )
+
 
 class TestFilterConfigs(unittest.TestCase):
     def test_empty_query(self):
@@ -243,6 +249,12 @@ class TestPopFilterConfigs(unittest.TestCase):
         filters, popped = pop_filter_configs(url)
         self.assertEqual(filters, [r"F:\fltr\a.json", r"F:\fltr\b.json"])
         self.assertEqual(popped, r"sqlite:///C:\dbs\database.sqlite")
+
+    def test_pop_from_remote_url(self):
+        url = append_filter_config(r"mysql+pymysql://username:password@remote.fi/database_name", r"F:\fltr\a.json")
+        filters, popped = pop_filter_configs(url)
+        self.assertEqual(filters, [r"F:\fltr\a.json"])
+        self.assertEqual(popped, r"mysql+pymysql://username:password@remote.fi/database_name")
 
 
 class TestClearFilterConfigs(unittest.TestCase):

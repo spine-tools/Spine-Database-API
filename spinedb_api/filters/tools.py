@@ -167,7 +167,9 @@ def append_filter_config(url, config):
         config = config_to_shorthand(config)
     if config not in filters:
         filters.append(config)
-    url = url._replace(query=urlencode(query, doseq=True), path="//" + url.path)
+    url = url._replace(query=urlencode(query, doseq=True))
+    if not url.hostname:
+        url = url._replace(path="//" + url.path)
     return url.geturl()
 
 
@@ -218,7 +220,9 @@ def pop_filter_configs(url):
             parsed_filters.append(_parse_shorthand(filter_[len(SHORTHAND_TAG) :]))
         else:
             parsed_filters.append(filter_)
-    parsed = parsed._replace(query=urlencode(query, doseq=True), path="//" + parsed.path)
+    parsed = parsed._replace(query=urlencode(query, doseq=True))
+    if not parsed.hostname:
+        parsed = parsed._replace(path="//" + parsed.path)
     return parsed_filters, urlunparse(parsed)
 
 
