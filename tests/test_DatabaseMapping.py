@@ -575,5 +575,35 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         self.assertEqual(tool_feature_method.method, to_database("value1")[0])
 
 
+class TestDatabaseMappingRemoveMixin(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_remove_object(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        self._db_map.commit_session("Add test data.")
+        my_object = self._db_map.query(self._db_map.object_sq).one_or_none()
+        self.assertIsNotNone(my_object)
+        self._db_map.cascade_remove_items(**{"object": {1}})
+        my_object = self._db_map.query(self._db_map.object_sq).one_or_none()
+        self.assertIsNone(my_object)
+
+    def test_remove_relationship(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        import_functions.import_relationship_classes(self._db_map, (("my_relationship_class", ("my_class",)),))
+        import_functions.import_relationships(self._db_map, (("my_relationship_class", ("my_object",)),))
+        self._db_map.commit_session("Add test data.")
+        my_relationship = self._db_map.query(self._db_map.relationship_sq).one_or_none()
+        self.assertIsNotNone(my_relationship)
+        self._db_map.cascade_remove_items(**{"relationship": {2}})
+        my_relationship = self._db_map.query(self._db_map.relationship_sq).one_or_none()
+        self.assertIsNone(my_relationship)
+
+
 if __name__ == "__main__":
     unittest.main()

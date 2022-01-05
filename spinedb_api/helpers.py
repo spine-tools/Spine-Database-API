@@ -419,7 +419,9 @@ def create_spine_metadata():
         meta,
         Column("entity_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(("entity_id", "type_id"), ("entity.id", "entity.type_id")),
+        ForeignKeyConstraint(
+            ("entity_id", "type_id"), ("entity.id", "entity.type_id"), onupdate="CASCADE", ondelete="CASCADE"
+        ),
         CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object can only have object type
     )
     Table(
@@ -429,7 +431,9 @@ def create_spine_metadata():
         Column("entity_class_id", Integer, nullable=False),
         Column("type_id", Integer, nullable=False),
         UniqueConstraint("entity_id", "entity_class_id"),
-        ForeignKeyConstraint(("entity_id", "type_id"), ("entity.id", "entity.type_id")),
+        ForeignKeyConstraint(
+            ("entity_id", "type_id"), ("entity.id", "entity.type_id"), onupdate="CASCADE", ondelete="CASCADE"
+        ),
         CheckConstraint("`type_id` = 2", name="type_id"),
     )
     Table(
@@ -677,7 +681,7 @@ def create_new_spine_database(db_url):
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('1e4997105288')")
+        engine.execute("INSERT INTO alembic_version VALUES ('738d494a08ac')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
     return engine
