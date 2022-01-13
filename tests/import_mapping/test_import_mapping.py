@@ -992,6 +992,24 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
+    def test_read_empty_pivot(self):
+        input_data = [["object", "parameter_name1", "parameter_name2"]]
+        expected = {}
+
+        data = iter(input_data)
+        data_header = next(data)
+
+        mapping = {
+            "map_type": "ObjectClass",
+            "name": {"map_type": "column_header", "reference": 0},
+            "object": 0,
+            "parameters": {"map_type": "parameter", "name": {"map_type": "row", "reference": -1}},
+        }  # -1 to read pivot from header
+
+        out, errors = get_mapped_data(data, [mapping], data_header)
+        self._assert_equivalent(out, expected)
+        self.assertEqual(errors, [])
+
     def test_read_pivoted_parameters_from_data(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         expected = {

@@ -208,7 +208,7 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     pivoted_rows = [[item for k, item in enumerate(row) if k not in skip_pos] for row in pivoted_rows]
     # Unpivot
     unpivoted_rows = [list(row) for row in zip(*pivoted_rows)]
-    unpivoted_column_pos = [k for k in range(len(rows[0])) if k not in skip_pos]
+    unpivoted_column_pos = [k for k in range(len(rows[0])) if k not in skip_pos] if rows else []
     return unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos
 
 
