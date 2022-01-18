@@ -38,7 +38,9 @@ from .export_mapping import (
     Position,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
+    RelationshipClassObjectHighlightingMapping,
     RelationshipMapping,
+    RelationshipObjectHighlightingMapping,
     RelationshipObjectMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
@@ -258,7 +260,7 @@ def relationship_parameter_default_value_export(
     index_positions=None,
 ):
     """
-    Sets up export mappings for exporting objects classes and default parameter values.
+    Sets up export mappings for exporting relationship classes and default parameter values.
 
     Args:
         relationship_class_position (int or Position): position of relationship classes
@@ -339,6 +341,110 @@ def relationship_parameter_export(
     return relationship_class
 
 
+def relationship_object_parameter_default_value_export(
+    relationship_class_position=Position.hidden,
+    definition_position=Position.hidden,
+    object_class_positions=None,
+    value_type_position=Position.hidden,
+    value_position=Position.hidden,
+    index_name_positions=None,
+    index_positions=None,
+    highlight_dimension=0,
+):
+    """
+    Sets up export mappings for exporting relationship classes but with default object parameter values.
+
+    Args:
+        relationship_class_position (int or Position): position of relationship classes
+        definition_position (int or Position): position of parameter definitions
+        object_class_positions (list of int, optional): positions of object classes
+        value_type_position (int or Position): position of parameter value types
+        value_position (int or Position): position of parameter values
+        index_name_positions (list of int, optional): positions of index names
+        index_positions (list of int, optional): positions of parameter indexes
+        highlight_dimension (int): selected object class' relationship dimension
+
+    Returns:
+        ExportMapping: root mapping
+    """
+    root_mapping = unflatten(
+        [
+            RelationshipClassObjectHighlightingMapping(
+                relationship_class_position, highlight_dimension=highlight_dimension
+            ),
+            ParameterDefinitionMapping(definition_position),
+        ]
+    )
+    _generate_dimensions(root_mapping.tail_mapping(), RelationshipClassObjectClassMapping, object_class_positions)
+    _generate_default_value_mappings(
+        root_mapping.tail_mapping(), value_type_position, value_position, index_name_positions, index_positions
+    )
+    return root_mapping
+
+
+def relationship_object_parameter_export(
+    relationship_class_position=Position.hidden,
+    definition_position=Position.hidden,
+    value_list_position=Position.hidden,
+    relationship_position=Position.hidden,
+    object_class_positions=None,
+    object_positions=None,
+    alternative_position=Position.hidden,
+    value_type_position=Position.hidden,
+    value_position=Position.hidden,
+    index_name_positions=None,
+    index_positions=None,
+    highlight_dimension=0,
+):
+    """
+    Sets up export mappings for exporting relationships and relationship parameters.
+
+    Args:
+        relationship_class_position (int or Position): position of relationship classes
+        definition_position (int or Position): position of parameter definitions
+        value_list_position (int or Position): position of parameter value lists
+        relationship_position (int or Position): position of relationships
+        object_class_positions (list of int, optional): positions of object classes
+        object_positions (list of int, optional): positions of objects
+        alternative_position (int or Position): positions of alternatives
+        value_type_position (int or Position): position of parameter value types
+        value_position (int or Position): position of parameter values
+        index_name_positions (list of int, optional): positions of index names
+        index_positions (list of int, optional): positions of parameter indexes
+        highlight_dimension (int): selected object class' relationship dimension
+
+    Returns:
+        ExportMapping: root mapping
+    """
+    if object_class_positions is None:
+        object_class_positions = list()
+    if object_positions is None:
+        object_positions = list()
+    relationship_class = RelationshipClassObjectHighlightingMapping(
+        relationship_class_position, highlight_dimension=highlight_dimension
+    )
+    object_or_relationship_class = _generate_dimensions(
+        relationship_class, RelationshipClassObjectClassMapping, object_class_positions
+    )
+    value_list = ParameterValueListMapping(value_list_position)
+    value_list.set_ignorable(True)
+    definition = ParameterDefinitionMapping(definition_position)
+    object_or_relationship_class.child = definition
+    relationship = RelationshipObjectHighlightingMapping(relationship_position)
+    definition.child = value_list
+    value_list.child = relationship
+    object_or_relationship = _generate_dimensions(relationship, RelationshipObjectMapping, object_positions)
+    _generate_parameter_value_mappings(
+        object_or_relationship,
+        alternative_position,
+        value_type_position,
+        value_position,
+        index_name_positions,
+        index_positions,
+    )
+    return relationship_class
+
+
 def set_relationship_dimensions(relationship_mapping, dimensions):
     """
     Modifies given relationship mapping's dimensions (number of object classes and objects).
@@ -351,9 +457,10 @@ def set_relationship_dimensions(relationship_mapping, dimensions):
     mapping_list = _change_amount_of_consecutive_mappings(
         mapping_list, RelationshipClassMapping, RelationshipClassObjectClassMapping, dimensions
     )
-    mapping_list = _change_amount_of_consecutive_mappings(
-        mapping_list, RelationshipMapping, RelationshipObjectMapping, dimensions
-    )
+    if any(isinstance(m, RelationshipMapping) for m in mapping_list):
+        mapping_list = _change_amount_of_consecutive_mappings(
+            mapping_list, RelationshipMapping, RelationshipObjectMapping, dimensions
+        )
     unflatten(mapping_list)
 
 

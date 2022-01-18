@@ -120,6 +120,8 @@ class DatabaseMappingBase:
         self._ext_object_sq = None
         self._ext_relationship_class_sq = None
         self._wide_relationship_class_sq = None
+        self._ext_relationship_class_object_parameter_definition_sq = None
+        self._wide_relationship_class_object_parameter_definition_sq = None
         self._ext_relationship_sq = None
         self._wide_relationship_sq = None
         self._ext_entity_group_sq = None

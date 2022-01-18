@@ -133,6 +133,16 @@ class Mapping:
             and self._filter_re == other._filter_re
         )
 
+    def tail_mapping(self):
+        """Returns the last mapping in the chain.
+
+        Returns:
+            Mapping: last child mapping
+        """
+        if self._child is None:
+            return self
+        return self._child.tail_mapping()
+
     def count_mappings(self):
         """
         Counts this and child mappings.
@@ -188,6 +198,19 @@ class Mapping:
         return max(
             [-(m.position + 1) for m in self.flatten() if isinstance(m.position, int) and m.position < 0], default=-1
         )
+
+    def query_parents(self, what):
+        """Queries parent mapping for specific information.
+
+        Args:
+            what (str): query identifier
+
+        Returns:
+            Any: query result or None if no parent recognized the identifier
+        """
+        if self.parent is None:
+            return None
+        return self.parent.query_parents(what)
 
     def to_dict(self):
         """

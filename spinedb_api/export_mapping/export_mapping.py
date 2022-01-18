@@ -17,7 +17,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.sql.expression import literal
 from ..parameter_value import (
     from_database_to_single_value,
@@ -157,7 +157,7 @@ class ExportMapping(Mapping):
         return mapping_dict
 
     @classmethod
-    def reconstruct(cls, position, value, header, filter_re, ignorable):
+    def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
         """
         Reconstructs mapping.
 
@@ -167,6 +167,7 @@ class ExportMapping(Mapping):
             header (str, optional): column header
             filter_re (str): filter regular expression
             ignorable (bool): ignorable flag
+            mapping_dict (dict): mapping dict
 
         Returns:
             Mapping: reconstructed mapping
@@ -761,13 +762,73 @@ class RelationshipClassMapping(ExportMapping):
         # Use the class name here, for the sake of the standard excel export
         return "relationship_class_name"
 
+    def query_parents(self, what):
+        if what != "dimension":
+            return super().query_parents(what)
+        return -1
+
     def _title_state(self, db_row):
         state = super()._title_state(db_row)
         state["object_class_id_list"] = getattr(db_row, "object_class_id_list")
         return state
 
-    def index(self):
-        return -1
+
+class RelationshipClassObjectHighlightingMapping(RelationshipClassMapping):
+    """Maps relationships classes.
+
+    Adds object class dimension chosen by highlight_dimension to the query.
+
+    Can be used as the topmost mapping.
+    """
+
+    MAP_TYPE = "RelationshipClassObjectHighlightingMapping"
+
+    def __init__(self, position, value=None, header="", filter_re="", highlight_dimension=0):
+        super().__init__(position, value, header, filter_re)
+        self._highlight_dimension = highlight_dimension
+
+    @property
+    def highlight_dimension(self):
+        return self._highlight_dimension
+
+    @highlight_dimension.setter
+    def highlight_dimension(self, dimension):
+        self._highlight_dimension = dimension
+
+    def add_query_columns(self, db_map, query):
+        query = super().add_query_columns(db_map, query)
+        return query.add_columns(db_map.object_class_sq.c.id.label("object_class_id"))
+
+    def filter_query(self, db_map, query):
+        highlighted_object_class_qry = db_map.query(db_map.relationship_class_sq).filter(
+            db_map.relationship_class_sq.c.dimension == self._highlight_dimension
+        )
+        conditions = (
+            and_(db_map.wide_relationship_class_sq.c.id == x.id, db_map.object_class_sq.c.id == x.object_class_id)
+            for x in highlighted_object_class_qry
+        )
+        return query.filter(or_(*conditions))
+
+    @staticmethod
+    def id_field():
+        return "relationship_class_id"
+
+    def query_parents(self, what):
+        if what != "highlight_dimension":
+            return super().query_parents(what)
+        return self._highlight_dimension
+
+    def to_dict(self):
+        mapping_dict = super().to_dict()
+        mapping_dict["highlight_dimension"] = self._highlight_dimension
+        return mapping_dict
+
+    @classmethod
+    def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
+        highlight_dimension = mapping_dict["highlight_dimension"]
+        mapping = cls(position, value, header, filter_re, highlight_dimension)
+        mapping.set_ignorable(ignorable)
+        return mapping
 
 
 class RelationshipClassObjectClassMapping(ExportMapping):
@@ -777,6 +838,7 @@ class RelationshipClassObjectClassMapping(ExportMapping):
     """
 
     MAP_TYPE = "RelationshipClassObjectClass"
+    _cached_dimension = None
 
     @staticmethod
     def name_field():
@@ -788,14 +850,17 @@ class RelationshipClassObjectClassMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row).split(",")
-        index = self.index()
+        if self._cached_dimension is None:
+            self._cached_dimension = self.query_parents("dimension")
         try:
-            return data[index]
+            return data[self._cached_dimension]
         except IndexError:
             return ""
 
-    def index(self):
-        return self.parent.index() + 1
+    def query_parents(self, what):
+        if what != "dimension":
+            return super().query_parents(what)
+        return self.parent.query_parents(what) + 1
 
     @staticmethod
     def is_buddy(parent):
@@ -832,6 +897,11 @@ class RelationshipMapping(ExportMapping):
     def id_field():
         return "relationship_id"
 
+    def query_parents(self, what):
+        if what != "dimension":
+            return super().query_parents(what)
+        return -1
+
     def _title_state(self, db_row):
         state = super()._title_state(db_row)
         state["object_id_list"] = getattr(db_row, "object_id_list")
@@ -841,8 +911,35 @@ class RelationshipMapping(ExportMapping):
     def is_buddy(parent):
         return isinstance(parent, RelationshipClassMapping)
 
-    def index(self):
-        return -1
+
+class RelationshipObjectHighlightingMapping(RelationshipMapping):
+    """Maps relationships.
+
+    Adds object dimension chosen by highlight_dimension in relationship class mapping to the query.
+
+    Cannot be used as the topmost mapping;
+    one of the parents must be :class:`RelationshipClassObjectHighlightingMapping`.
+    """
+
+    MAP_TYPE = "RelationshipObjectHighlightingMapping"
+
+    def add_query_columns(self, db_map, query):
+        query = super().add_query_columns(db_map, query)
+        return query.add_columns(db_map.object_sq.c.id.label("object_id"))
+
+    def filter_query(self, db_map, query):
+        highlighted_object_qry = db_map.query(db_map.relationship_sq).filter(
+            db_map.relationship_sq.c.dimension == self.query_parents("highlight_dimension")
+        )
+        conditions = (
+            and_(db_map.wide_relationship_sq.c.id == x.id, db_map.object_sq.c.id == x.object_id)
+            for x in highlighted_object_qry
+        )
+        return query.filter(or_(*conditions))
+
+    @staticmethod
+    def is_buddy(parent):
+        return isinstance(parent, RelationshipClassObjectHighlightingMapping)
 
 
 class RelationshipObjectMapping(ExportMapping):
@@ -853,6 +950,7 @@ class RelationshipObjectMapping(ExportMapping):
     """
 
     MAP_TYPE = "RelationshipObject"
+    _cached_dimension = None
 
     @staticmethod
     def name_field():
@@ -864,14 +962,17 @@ class RelationshipObjectMapping(ExportMapping):
 
     def _data(self, db_row):
         data = super()._data(db_row).split(",")
-        index = self.index()
+        if self._cached_dimension is None:
+            self._cached_dimension = self.query_parents("dimension")
         try:
-            return data[index]
+            return data[self._cached_dimension]
         except IndexError:
             return ""
 
-    def index(self):
-        return self.parent.index() + 1
+    def query_parents(self, what):
+        if what != "dimension":
+            return super().query_parents(what)
+        return self.parent.query_parents(what) + 1
 
     @staticmethod
     def is_buddy(parent):
@@ -893,18 +994,18 @@ class ParameterDefinitionMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        if "object_class_id" in {c["name"] for c in query.column_descriptions}:
+        column_names = {c["name"] for c in query.column_descriptions}
+        if "object_class_id" in column_names:
             return query.outerjoin(
                 db_map.parameter_definition_sq,
                 db_map.parameter_definition_sq.c.object_class_id == db_map.object_class_sq.c.id,
             )
-        if "relationship_class_id" in {c["name"] for c in query.column_descriptions}:
+        if "relationship_class_id" in column_names:
             return query.outerjoin(
                 db_map.parameter_definition_sq,
                 db_map.parameter_definition_sq.c.relationship_class_id == db_map.wide_relationship_class_sq.c.id,
             )
-        # We should never end up here
-        return query
+        raise RuntimeError("Logic error: this code should be unreachable.")
 
     @staticmethod
     def name_field():
@@ -1076,7 +1177,8 @@ class ParameterValueMapping(ExportMapping):
     def filter_query(self, db_map, query):
         if not self._selects_value:
             return query
-        if "object_id" in {c["name"] for c in query.column_descriptions}:
+        column_names = {c["name"] for c in query.column_descriptions}
+        if "object_id" in column_names:
             return query.outerjoin(
                 db_map.parameter_value_sq,
                 and_(
@@ -1084,7 +1186,7 @@ class ParameterValueMapping(ExportMapping):
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
                 ),
             )
-        if "relationship_id" in {c["name"] for c in query.column_descriptions}:
+        if "relationship_id" in column_names:
             return query.outerjoin(
                 db_map.parameter_value_sq,
                 and_(
@@ -1092,8 +1194,7 @@ class ParameterValueMapping(ExportMapping):
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
                 ),
             )
-        # We should never end up here
-        return query
+        raise RuntimeError("Logic error: this code should be unreachable.")
 
     @staticmethod
     def name_field():
@@ -1767,9 +1868,11 @@ def from_dict(serialized):
             ParameterValueListValueMapping,
             ParameterValueMapping,
             ParameterValueTypeMapping,
-            RelationshipMapping,
             RelationshipClassMapping,
             RelationshipClassObjectClassMapping,
+            RelationshipClassObjectHighlightingMapping,
+            RelationshipMapping,
+            RelationshipObjectHighlightingMapping,
             RelationshipObjectMapping,
             ScenarioActiveFlagMapping,
             ScenarioAlternativeMapping,
@@ -1795,7 +1898,9 @@ def from_dict(serialized):
         value = mapping_dict.get("value")
         header = mapping_dict.get("header", "")
         filter_re = mapping_dict.get("filter_re", "")
-        flattened.append(mappings[mapping_dict["map_type"]].reconstruct(position, value, header, filter_re, ignorable))
+        flattened.append(
+            mappings[mapping_dict["map_type"]].reconstruct(position, value, header, filter_re, ignorable, mapping_dict)
+        )
     return unflatten(flattened)
 
 

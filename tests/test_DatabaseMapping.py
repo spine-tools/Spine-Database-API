@@ -530,7 +530,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
             self.assertEqual(row.parameter_name, par_val[2])
             self.assertEqual(from_database(row.value, row.type), par_val[3])
 
-    def test_wide_parameter_value_sq(self):
+    def test_wide_parameter_value_list_sq(self):
         _, errors = import_functions.import_parameter_value_lists(
             self._db_map, (("list1", "value1"), ("list1", "value2"), ("list2", "valueA"))
         )

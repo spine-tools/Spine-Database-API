@@ -26,6 +26,8 @@ from .settings import (
     object_parameter_export,
     parameter_value_list_export,
     relationship_export,
+    relationship_object_parameter_default_value_export,
+    relationship_object_parameter_export,
     relationship_parameter_default_value_export,
     relationship_parameter_export,
     scenario_alternative_export,

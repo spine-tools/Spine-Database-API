@@ -68,7 +68,9 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueTypeMapping,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
+    RelationshipClassObjectHighlightingMapping,
     RelationshipMapping,
+    RelationshipObjectHighlightingMapping,
     RelationshipObjectMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
@@ -1332,13 +1334,16 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(flattened, [object_class_mapping, parameter_definition_mapping, object_mapping])
 
     def test_serialization(self):
+        highlight_dimension = 5
         mappings = [
             ObjectClassMapping(0),
             RelationshipClassMapping(Position.table_name),
+            RelationshipClassObjectHighlightingMapping(Position.header, highlight_dimension=highlight_dimension),
             RelationshipClassObjectClassMapping(2),
             ParameterDefinitionMapping(1),
             ObjectMapping(-1),
             RelationshipMapping(Position.hidden),
+            RelationshipObjectHighlightingMapping(9),
             RelationshipObjectMapping(-1),
             AlternativeMapping(3),
             ParameterValueMapping(4),
@@ -1351,9 +1356,14 @@ class TestExportMapping(unittest.TestCase):
         expected_types = [type(m) for m in mappings]
         root = unflatten(mappings)
         serialized = to_dict(root)
-        deserialized = from_dict(serialized)
-        self.assertEqual([type(m) for m in deserialized.flatten()], expected_types)
-        self.assertEqual([m.position for m in deserialized.flatten()], expected_positions)
+        deserialized = from_dict(serialized).flatten()
+        self.assertEqual([type(m) for m in deserialized], expected_types)
+        self.assertEqual([m.position for m in deserialized], expected_positions)
+        for m in deserialized:
+            if isinstance(m, FixedValueMapping):
+                self.assertEqual(m.value, "gaga")
+            elif isinstance(m, RelationshipClassObjectHighlightingMapping):
+                self.assertEqual(m.highlight_dimension, highlight_dimension)
 
     def test_setting_ignorable_flag(self):
         db_map = DiffDatabaseMapping("sqlite://", create=True)
@@ -1512,6 +1522,91 @@ class TestExportMapping(unittest.TestCase):
             tables[title] = list(rows(mapping, db_map, title_key))
         expected = {"p": [["oc", ""]]}
         self.assertEqual(tables, expected)
+        db_map.connection.close()
+
+    def test_relationship_class_object_classes_parameters(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_relationship_classes(db_map, (("rc", ("oc",)),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassObjectClassMapping(1),
+                ParameterDefinitionMapping(2),
+            ]
+        )
+        expected = [["rc", "oc", "p"]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_relationship_class_object_classes_parameters_multiple_dimensions(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21")))
+        import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassObjectClassMapping(1),
+                RelationshipClassObjectClassMapping(3),
+                ParameterDefinitionMapping(2),
+            ]
+        )
+        expected = [["rc", "oc1", "p11", "oc2"], ["rc", "oc1", "p12", "oc2"]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_highlight_relationship_objects(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
+        import_objects(
+            db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc2", "o22"), ("oc3", "o31"), ("oc3", "o32"))
+        )
+        import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
+        import_relationships(db_map, (("rc", ("o11", "o21")), ("rc", ("o12", "o22"))))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassObjectClassMapping(1),
+                RelationshipClassObjectClassMapping(2),
+                RelationshipObjectHighlightingMapping(3),
+                RelationshipObjectMapping(4),
+                RelationshipObjectMapping(5),
+            ]
+        )
+        expected = [
+            ["rc", "oc1", "oc2", "rc_o11__o21", "o11", "o21"],
+            ["rc", "oc1", "oc2", "rc_o12__o22", "o12", "o22"],
+        ]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_export_object_parameters_while_exporting_relationships(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p"),))
+        import_objects(db_map, (("oc", "o"),))
+        import_object_parameter_values(db_map, (("oc", "o", "p", 23.0),))
+        import_relationship_classes(db_map, (("rc", ("oc",)),))
+        import_relationships(db_map, (("rc", ("o",)),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassObjectClassMapping(1),
+                RelationshipObjectHighlightingMapping(2),
+                RelationshipObjectMapping(3),
+                ParameterDefinitionMapping(4),
+                AlternativeMapping(5),
+                ParameterValueMapping(6),
+            ]
+        )
+        expected = [["rc", "oc", "rc_o", "o", "p", "Base", 23.0]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 
 

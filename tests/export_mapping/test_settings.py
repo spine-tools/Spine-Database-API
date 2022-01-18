@@ -18,11 +18,15 @@ Unit tests for export settings.
 import unittest
 
 from spinedb_api import (
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_object_classes,
     import_object_parameters,
     import_object_parameter_values,
     import_objects,
+    import_relationship_classes,
+    import_relationship_parameter_values,
+    import_relationship_parameters,
+    import_relationships,
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.export_mapping import rows
@@ -36,6 +40,8 @@ from spinedb_api.export_mapping.settings import (
     set_parameter_default_value_dimensions,
     object_parameter_default_value_export,
     relationship_parameter_export,
+    relationship_object_parameter_default_value_export,
+    relationship_object_parameter_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
     Position,
@@ -58,7 +64,7 @@ from spinedb_api.export_mapping.export_mapping import (
 
 class TestObjectGroupParameterExport(unittest.TestCase):
     def test_export_with_parameter_values(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "param"),))
         import_objects(
@@ -73,7 +79,7 @@ class TestObjectGroupParameterExport(unittest.TestCase):
                 ("oc", "no_group", "param", -44.0),
             ),
         )
-        e = import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
+        import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
         db_map.commit_session("Add test data.")
         mapping = object_group_parameter_export(0, 1, 2, 3, 4, 5, 6, 7, None)
         expected = [
@@ -83,6 +89,81 @@ class TestObjectGroupParameterExport(unittest.TestCase):
         ]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
+
+
+class TestRelationshipObjectParameterDefaultValueExport(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping("sqlite://", create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_export_with_two_dimensions(self):
+        import_object_classes(self._db_map, ("oc1", "oc2"))
+        import_object_parameters(
+            self._db_map, (("oc1", "p11", 2.3), ("oc1", "p12", 5.0), ("oc2", "p21", "shouldn't show"))
+        )
+        import_relationship_classes(self._db_map, (("rc", ("oc1", "oc2")),))
+        import_relationship_parameters(self._db_map, (("rc", "rc_p", "dummy"),))
+        self._db_map.commit_session("Add test data.")
+        root_mapping = relationship_object_parameter_default_value_export(
+            relationship_class_position=0,
+            definition_position=1,
+            object_class_positions=[2, 3],
+            value_position=4,
+            value_type_position=5,
+            index_name_positions=None,
+            index_positions=None,
+            highlight_dimension=0,
+        )
+        expected = [["rc", "p11", "oc1", "oc2", 2.3, "single_value"], ["rc", "p12", "oc1", "oc2", 5.0, "single_value"]]
+        self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
+
+
+class TestRelationshipObjectParameterExport(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping("sqlite://", create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_export_with_two_dimensions(self):
+        import_object_classes(self._db_map, ("oc1", "oc2"))
+        import_object_parameters(self._db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21")))
+        import_objects(self._db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
+        import_object_parameter_values(
+            self._db_map,
+            (
+                ("oc1", "o11", "p11", 2.3),
+                ("oc1", "o12", "p11", -2.3),
+                ("oc1", "o12", "p12", -5.0),
+                ("oc2", "o21", "p21", "shouldn't show"),
+            ),
+        )
+        import_relationship_classes(self._db_map, (("rc", ("oc1", "oc2")),))
+        import_relationship_parameters(self._db_map, (("rc", "rc_p"),))
+        import_relationships(self._db_map, (("rc", ("o11", "o21")), ("rc", ("o12", "o21"))))
+        import_relationship_parameter_values(self._db_map, (("rc", ("o11", "o21"), "rc_p", "dummy"),))
+        self._db_map.commit_session("Add test data.")
+        root_mapping = relationship_object_parameter_export(
+            relationship_class_position=0,
+            definition_position=1,
+            value_list_position=Position.hidden,
+            relationship_position=2,
+            object_class_positions=[3, 4],
+            object_positions=[5, 6],
+            alternative_position=7,
+            value_type_position=8,
+            value_position=9,
+            highlight_dimension=0,
+        )
+        set_relationship_dimensions(root_mapping, 2)
+        expected = [
+            ["rc", "p11", "rc_o11__o21", "oc1", "oc2", "o11", "o21", "Base", "single_value", 2.3],
+            ["rc", "p11", "rc_o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -2.3],
+            ["rc", "p12", "rc_o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -5.0],
+        ]
+        self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
 
 
 class TestSetRelationshipDimensions(unittest.TestCase):
