@@ -191,8 +191,21 @@ class Mapping:
         width = self.position + 1 if is_regular(self.position) else 0
         return max(width, self.child.non_pivoted_width(parent_is_pivoted or is_pivoted(self.position)))
 
-    def non_pivoted_columns(self):
-        return [m.position for m in self.flatten() if isinstance(m.position, int) and m.position >= 0]
+    def non_pivoted_columns(self, parent_is_pivoted=False):
+        """Gathers non-pivoted columns from mappings.
+
+        Args:
+            parent_is_pivoted (bool): True if a parent item is pivoted, False otherwise
+
+        Returns:
+            list of int: indexes of non-pivoted columns
+        """
+        if self._child is None:
+            if is_regular(self.position) and not parent_is_pivoted:
+                return [self.position]
+            return []
+        pivoted = is_pivoted(self.position)
+        return ([self.position] if is_regular(self.position) else []) + self._child.non_pivoted_columns(pivoted)
 
     def last_pivot_row(self):
         return max(

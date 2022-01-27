@@ -16,7 +16,7 @@ Unit tests for :mod:`spinedb_api.mapping`.
 :date:   12.5.2021
 """
 import unittest
-from spinedb_api.mapping import Mapping, Position, value_index
+from spinedb_api.mapping import Mapping, Position, value_index, unflatten
 
 
 class TestMapping(unittest.TestCase):
@@ -31,6 +31,14 @@ class TestMapping(unittest.TestCase):
         self.assertEqual(value_index(mapping.flatten()), -1)
         mapping.position = 0
         self.assertEqual(value_index(mapping.flatten()), 0)
+
+    def test_non_pivoted_columns(self):
+        root_mapping = unflatten([Mapping(5), Mapping(Position.hidden)])
+        self.assertEqual(root_mapping.non_pivoted_columns(), [5])
+
+    def test_non_pivoted_columns_when_non_tail_mapping_is_pivoted(self):
+        root_mapping = unflatten([Mapping(5), Mapping(Position.hidden), Mapping(-1), Mapping(23)])
+        self.assertEqual(root_mapping.non_pivoted_columns(), [5])
 
 
 if __name__ == "__main__":
