@@ -205,7 +205,9 @@ class Mapping:
                 return [self.position]
             return []
         pivoted = is_pivoted(self.position)
-        return ([self.position] if is_regular(self.position) else []) + self._child.non_pivoted_columns(pivoted)
+        return ([self.position] if is_regular(self.position) else []) + self._child.non_pivoted_columns(
+            parent_is_pivoted or pivoted
+        )
 
     def last_pivot_row(self):
         return max(

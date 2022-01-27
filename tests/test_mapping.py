@@ -37,8 +37,8 @@ class TestMapping(unittest.TestCase):
         self.assertEqual(root_mapping.non_pivoted_columns(), [5])
 
     def test_non_pivoted_columns_when_non_tail_mapping_is_pivoted(self):
-        root_mapping = unflatten([Mapping(5), Mapping(Position.hidden), Mapping(-1), Mapping(23)])
-        self.assertEqual(root_mapping.non_pivoted_columns(), [5])
+        root_mapping = unflatten([Mapping(5), Mapping(Position.hidden), Mapping(-1), Mapping(13), Mapping(23)])
+        self.assertEqual(root_mapping.non_pivoted_columns(), [5, 13])
 
 
 if __name__ == "__main__":
