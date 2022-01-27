@@ -1037,6 +1037,42 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
+    def test_pivoted_value_has_actual_position(self):
+        """Pivoted mapping works even when last mapping has valid position in columns."""
+        input_data = [
+            ["object", "timestep", "value"],
+            ["obj1", "T1", 11.0],
+            ["obj1", "T2", 12.0],
+            ["obj2", "T1", 21.0],
+            ["obj2", "T2", 22.0],
+        ]
+        expected = {
+            "object_classes": 2 * ["timeline"],
+            "objects": [("timeline", "obj1"), ("timeline", "obj1"), ("timeline", "obj2"), ("timeline", "obj2")],
+            "object_parameters": [("timeline", "value")],
+            "alternatives": ["Base"],
+            "object_parameter_values": [
+                ("timeline", "obj1", "value", Map(["T1", "T2"], [11.0, 12.0], index_name="timestep"), "Base"),
+                ("timeline", "obj2", "value", Map(["T1", "T2"], [21.0, 22.0], index_name="timestep"), "Base"),
+            ],
+        }
+        data = iter(input_data)
+        mapping_dicts = [
+            {"map_type": "ObjectClass", "position": "hidden", "value": "timeline"},
+            {"map_type": "Object", "position": 0},
+            {"map_type": "ObjectMetadata", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": -1},
+            {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+            {"map_type": "ParameterValueMetadata", "position": "hidden"},
+            {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+            {"map_type": "IndexName", "position": "hidden", "value": "timestep"},
+            {"map_type": "ParameterValueIndex", "position": 1},
+            {"map_type": "ExpandedValue", "position": 2},  # This caused import to fail
+        ]
+        out, errors = get_mapped_data(data, [mapping_dicts])
+        self._assert_equivalent(out, expected)
+        self.assertEqual(errors, [])
+
     def test_read_flat_file_with_extra_value_dimensions(self):
         input_data = [["object", "time", "parameter_name1"], ["obj1", "2018-01-01", 1], ["obj1", "2018-01-02", 2]]
 
