@@ -847,7 +847,7 @@ class Array(IndexedValue):
     def __eq__(self, other):
         if not isinstance(other, Array):
             return NotImplemented
-        return self._values == other._values and self.index_name == other.index_name
+        return np.array_equal(self._values, other._values, equal_nan=True) and self.index_name == other.index_name
 
     @staticmethod
     def type_():
@@ -1103,7 +1103,7 @@ class TimeSeriesFixedResolution(TimeSeries):
         return (
             self._start == other._start
             and self._resolution == other._resolution
-            and np.all(self._values == other._values)
+            and np.array_equal(self._values, other._values, equal_nan=True)
             and self._ignore_year == other._ignore_year
             and self._repeat == other._repeat
             and self.index_name == other.index_name
@@ -1240,8 +1240,8 @@ class TimeSeriesVariableResolution(TimeSeries):
         if not isinstance(other, TimeSeriesVariableResolution):
             return NotImplemented
         return (
-            self._indexes == other._indexes
-            and np.all(self._values == other._values)
+            np.array_equal(self._indexes, other._indexes)
+            and np.array_equal(self._values, other._values, equal_nan=True)
             and self._ignore_year == other._ignore_year
             and self._repeat == other._repeat
             and self.index_name == other.index_name

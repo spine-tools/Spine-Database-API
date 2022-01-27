@@ -304,19 +304,19 @@ def perfect_split(input_urls, intersection_url, diff_urls):
     left_url = next(iter(input_data_set_iter))
     right_urls = list(input_data_set_iter)
     left_data_set = input_data_sets[left_url]
-    for key, left in left_data_set.items():
-        intersection = [x for x in left if all(x in input_data_sets[url][key] for url in right_urls)]
+    for tablename, left in left_data_set.items():
+        intersection = [x for x in left if all(x in input_data_sets[url][tablename] for url in right_urls)]
         if intersection:
-            intersection_data[key] = intersection
+            intersection_data[tablename] = intersection
     diffs_data = {}
     for left_url in input_data_sets:
         right_urls = [url for url in input_data_sets if url != left_url]
         left_data_set = input_data_sets[left_url]
-        for key, left in left_data_set.items():
-            left_diff = [x for x in left if all(x not in input_data_sets[url][key] for url in right_urls)]
+        for tablename, left in left_data_set.items():
+            left_diff = [x for x in left if all(x not in input_data_sets[url][tablename] for url in right_urls)]
             if left_diff:
                 diff_data = diffs_data.setdefault(left_url, {})
-                diff_data[key] = left_diff
+                diff_data[tablename] = left_diff
     if intersection_data:
         db_map_intersection = DatabaseMapping(intersection_url)
         import_data(db_map_intersection, **intersection_data)
