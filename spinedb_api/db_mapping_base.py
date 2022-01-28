@@ -21,11 +21,11 @@ import os
 import logging
 import time
 from types import MethodType
-from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func
+from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy.exc import DatabaseError, DBAPIError
+from sqlalchemy.exc import DatabaseError
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
@@ -275,7 +275,7 @@ class DatabaseMappingBase:
                 # Otherwise we either raise or create a new Spine db at the url.
                 ref_engine = _create_first_spine_database("sqlite://")
                 if not compare_schemas(engine, ref_engine):
-                    if not create:
+                    if not create or inspect(engine).get_table_names():
                         raise SpineDBAPIError(
                             "Unable to determine db revision. "
                             f"Please check that\n\n\t{sa_url}\n\nis the URL of a valid Spine db."
