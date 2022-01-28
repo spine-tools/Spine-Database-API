@@ -102,6 +102,7 @@ def get_mapped_data(
         # Reposition mappings:
         # - The last mapping (typically, parameter value) will read from the last position in the row
         # - The pivoted mappings will read from positions to the left of that
+        k = None
         last.position = -1
         for k, m in enumerate(reversed(pivoted)):
             m.position = -(k + 2)
@@ -116,7 +117,7 @@ def get_mapped_data(
             row = _convert_row(row, column_convert_fns, start_pos + i, errors)
             non_pivoted_row = row[:last_non_pivoted_column_pos]
             for column_pos, unpivoted_row in zip(unpivoted_column_pos, unpivoted_rows):
-                if not _is_valid_row(unpivoted_row) or row[column_pos] is None:
+                if not _is_valid_row(unpivoted_row):
                     continue
                 unpivoted_row = _convert_row(unpivoted_row, row_convert_fns, k, errors)
                 full_row = non_pivoted_row + unpivoted_row

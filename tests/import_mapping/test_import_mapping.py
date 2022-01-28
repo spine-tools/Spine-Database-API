@@ -1073,6 +1073,37 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
         self.assertEqual(errors, [])
 
+    def test_import_objects_from_pivoted_data_when_they_lack_parameter_values(self):
+        """Pivoted mapping works even when last mapping has valid position in columns."""
+        input_data = [
+            ["object", "is_skilled", "has_powers"],
+            ["obj1", "yes", "no"],
+            ["obj2", None, None],
+        ]
+        expected = {
+            "object_classes": ["node"],
+            "objects": [("node", "obj1"), ("node", "obj2")],
+            "object_parameters": [("node", "is_skilled"), ("node", "has_powers")],
+            "alternatives": ["Base"],
+            "object_parameter_values": [
+                ("node", "obj1", "is_skilled", "yes", "Base"),
+                ("node", "obj1", "has_powers", "no", "Base"),
+            ],
+        }
+        data = iter(input_data)
+        mapping_dicts = [
+            {"map_type": "ObjectClass", "position": "hidden", "value": "node"},
+            {"map_type": "Object", "position": 0},
+            {"map_type": "ObjectMetadata", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": -1},
+            {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+            {"map_type": "ParameterValueMetadata", "position": "hidden"},
+            {"map_type": "ParameterValue", "position": "hidden"},
+        ]
+        out, errors = get_mapped_data(data, [mapping_dicts])
+        self._assert_equivalent(out, expected)
+        self.assertEqual(errors, [])
+
     def test_read_flat_file_with_extra_value_dimensions(self):
         input_data = [["object", "time", "parameter_name1"], ["obj1", "2018-01-01", 1], ["obj1", "2018-01-02", 2]]
 
