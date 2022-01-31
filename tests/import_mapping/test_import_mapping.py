@@ -1075,11 +1075,7 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_import_objects_from_pivoted_data_when_they_lack_parameter_values(self):
         """Pivoted mapping works even when last mapping has valid position in columns."""
-        input_data = [
-            ["object", "is_skilled", "has_powers"],
-            ["obj1", "yes", "no"],
-            ["obj2", None, None],
-        ]
+        input_data = [["object", "is_skilled", "has_powers"], ["obj1", "yes", "no"], ["obj2", None, None]]
         expected = {
             "object_classes": ["node"],
             "objects": [("node", "obj1"), ("node", "obj2")],
@@ -1099,6 +1095,39 @@ class TestMappingIntegration(unittest.TestCase):
             {"map_type": "Alternative", "position": "hidden", "value": "Base"},
             {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValue", "position": "hidden"},
+        ]
+        out, errors = get_mapped_data(data, [mapping_dicts])
+        self._assert_equivalent(out, expected)
+        self.assertEqual(errors, [])
+
+    def test_import_objects_from_pivoted_data_when_they_lack_map_type_parameter_values(self):
+        """Pivoted mapping works even when last mapping has valid position in columns."""
+        input_data = [
+            ["object", "my_index", "is_skilled", "has_powers"],
+            ["obj1", "yesterday", None, "no"],
+            ["obj1", "today", None, "yes"],
+        ]
+        expected = {
+            "object_classes": ["node"],
+            "objects": [("node", "obj1")],
+            "object_parameters": [("node", "is_skilled"), ("node", "has_powers")],
+            "alternatives": ["Base"],
+            "object_parameter_values": [
+                ("node", "obj1", "has_powers", Map(["yesterday", "today"], ["no", "yes"], index_name="period"), "Base")
+            ],
+        }
+        data = iter(input_data)
+        mapping_dicts = [
+            {"map_type": "ObjectClass", "position": "hidden", "value": "node"},
+            {"map_type": "Object", "position": 0},
+            {"map_type": "ObjectMetadata", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": -1},
+            {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+            {"map_type": "ParameterValueMetadata", "position": "hidden"},
+            {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+            {"map_type": "IndexName", "position": "hidden", "value": "period"},
+            {"map_type": "ParameterValueIndex", "position": 1},
+            {"map_type": "ExpandedValue", "position": "hidden"},
         ]
         out, errors = get_mapped_data(data, [mapping_dicts])
         self._assert_equivalent(out, expected)

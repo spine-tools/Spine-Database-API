@@ -224,18 +224,27 @@ def _make_parameter_values(mapped_data):
         "relationship_parameters": 2,
     }
     for key, value_pos in parameter_value_pos.items():
-        for row in mapped_data.get(key, []):
+        rows = mapped_data.get(key)
+        if rows is None:
+            continue
+        parameter_value_data = []
+        for row in rows:
             try:
                 value = row[value_pos]
             except IndexError:
+                parameter_value_data.append(row)
                 continue
             if isinstance(value, dict):
+                if "data" not in value:
+                    continue
                 row[value_pos] = _parameter_value_from_dict(value)
-            if isinstance(value, str):
+            elif isinstance(value, str):
                 try:
                     row[value_pos] = from_database(*split_value_and_type(value))
                 except ParameterValueFormatError:
                     pass
+            parameter_value_data.append(row)
+        mapped_data[key] = parameter_value_data
 
 
 def _parameter_value_from_dict(d):
