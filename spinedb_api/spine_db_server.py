@@ -68,14 +68,14 @@ _open_db_maps = {}
 
 
 class HandleDBMixin:
-    def _make_db_map(self, create=False):
+    def _make_db_map(self, create=True):
         try:
             return DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create), None
         except Exception as error:  # pylint: disable=broad-except
             return None, error
 
     @contextmanager
-    def _db_map_context(self, create=False):
+    def _db_map_context(self, create=True):
         """Obtains and yields a db_map to fulfil a request.
 
         Yields:
@@ -108,7 +108,7 @@ class HandleDBMixin:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
         result = {}
-        with self._db_map_context() as (db_map, error):
+        with self._db_map_context(create=False) as (db_map, error):
             if error:
                 return dict(error=str(error))
             for sq_name in args:
@@ -128,7 +128,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is a list of import errors, if successful.
         """
-        with self._db_map_context(create=True) as (db_map, error):
+        with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
             count, errors = import_data(db_map, **data)
@@ -146,7 +146,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is True if the db_map was created successfully.
         """
-        db_map, error = self._make_db_map(create=True)
+        db_map, error = self._make_db_map()
         if error:
             return dict(error=str(error))
         _open_db_maps[self._db_url] = db_map
@@ -177,7 +177,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is the return value of the method
         """
-        with self._db_map_context(create=True) as (db_map, error):
+        with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
             method = getattr(db_map, method_name)
@@ -194,11 +194,19 @@ class HandleDBMixin:
 
     def _add_scenario_filter(self, scenario):
         config = scenario_filter_config(scenario)
-        self._db_url = append_filter_config(self._db_url, config)
+        new_db_url = append_filter_config(self._db_url, config)
+        self._update_db_url(new_db_url)
 
     def _add_tool_filter(self, tool):
         config = tool_filter_config(tool)
-        self._db_url = append_filter_config(self._db_url, config)
+        new_db_url = append_filter_config(self._db_url, config)
+        self._update_db_url(new_db_url)
+
+    def _update_db_url(self, new_db_url):
+        db_map = _open_db_maps.pop(self._db_url, None)
+        if db_map is not None:
+            _open_db_maps[new_db_url] = db_map
+        self._db_url = new_db_url
 
     def clear_filters(self):
         self._db_url = clear_filter_configs(self._db_url)
