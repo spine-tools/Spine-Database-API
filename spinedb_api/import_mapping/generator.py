@@ -62,6 +62,8 @@ def get_mapped_data(
     mapped_data = {}
     errors = []
     rows = list(data_source)
+    if not rows:
+        return mapped_data, errors
     for mapping in mappings:
         read_state = {}
         mapping = deepcopy(mapping)
@@ -180,7 +182,7 @@ def _split_mapping(mapping):
 
 
 def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, skip_columns):
-    """Upivots rows.
+    """Unpivots rows.
 
     Args:
         rows (list(list)): Source table rows
