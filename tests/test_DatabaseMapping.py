@@ -330,6 +330,10 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         import_functions.import_relationships(self._db_map, relationships)
         return relationships
 
+    def test_commit_sq_hides_pending_commit(self):
+        commits = self._db_map.query(self._db_map.commit_sq).all()
+        self.assertEqual(len(commits), 1)
+
     def test_alternative_sq(self):
         import_functions.import_alternatives(self._db_map, (("alt1", "test alternative"),))
         alternative_rows = self._db_map.query(self._db_map.alternative_sq).all()
@@ -609,6 +613,13 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_commit_message(self):
+        """Tests that commit comment ends up in the database."""
+        self._db_map.add_object_classes({"name": "testclass"})
+        self._db_map.commit_session("test commit")
+        self.assertEqual(self._db_map.query(self._db_map.commit_sq).all()[-1].comment, "test commit")
         self._db_map.connection.close()
 
     def test_commit_session_raise_with_empty_comment(self):

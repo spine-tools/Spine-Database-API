@@ -730,7 +730,8 @@ class DatabaseMappingBase:
     @property
     def commit_sq(self):
         if self._commit_sq is None:
-            self._commit_sq = self._subquery("commit")
+            commit_sq = self._subquery("commit")
+            self._commit_sq = self.query(commit_sq).filter(commit_sq.c.comment != "").subquery()
         return self._commit_sq
 
     @property
