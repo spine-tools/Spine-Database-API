@@ -950,3 +950,16 @@ class ReceiveAllMixing:
             if chunk.endswith(self._BEOM):
                 break
         return str(b"".join(fragments), self._ENCODING)[:-1]
+
+
+def raise_if_commit_prerequisites_unfilled(db_map, comment):
+    """Raises an exception if session cannot be committed.
+
+    Args:
+        db_map (DatabaseMappingCommitMixin or DiffDatabaseMappingCommitMixin): database mapping
+        comment (str): commit message
+    """
+    if not db_map.has_pending_changes():
+        raise SpineDBAPIError("Nothing to commit.")
+    if not comment:
+        raise SpineDBAPIError("Commit message is empty.")

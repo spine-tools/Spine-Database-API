@@ -24,7 +24,7 @@ from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
-from spinedb_api import import_functions
+from spinedb_api import import_functions, SpineDBAPIError
 
 
 def create_query_wrapper(db_map):
@@ -37,8 +37,11 @@ def create_query_wrapper(db_map):
     return query_wrapper
 
 
+IN_MEMORY_DB_URL = "sqlite://"
+
+
 def create_diff_db_map():
-    return DiffDatabaseMapping("sqlite://", username="UnitTest", create=True)
+    return DiffDatabaseMapping(IN_MEMORY_DB_URL, username="UnitTest", create=True)
 
 
 class TestDiffDatabaseMappingConstruction(unittest.TestCase):
@@ -108,7 +111,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 1)
         db_map.cascade_remove_items(relationship=ids)
         self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
-        db_map.commit_session("")
+        db_map.commit_session("Add test data.")
         self.assertEqual(len(db_map.query(db_map.wide_relationship_sq).all()), 0)
         db_map.connection.close()
 
@@ -132,7 +135,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(db_map.query(db_map.object_sq).all()), 2)
         db_map.remove_items(object=ids)
         self.assertEqual(len(db_map.query(db_map.object_sq).all()), 0)
-        db_map.commit_session("")
+        db_map.commit_session("Add test data.")
         self.assertEqual(len(db_map.query(db_map.object_sq).all()), 0)
         db_map.connection.close()
 
@@ -182,7 +185,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 1)
         db_map.cascade_remove_items(relationship_class=ids)
         self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
-        db_map.commit_session("")
+        db_map.commit_session("Add test data.")
         self.assertEqual(len(db_map.query(db_map.wide_relationship_class_sq).all()), 0)
         db_map.connection.close()
 
@@ -204,7 +207,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 2)
         db_map.remove_items(object_class=ids)
         self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
-        db_map.commit_session("")
+        db_map.commit_session("Add test data.")
         self.assertEqual(len(db_map.query(db_map.object_class_sq).all()), 0)
         db_map.connection.close()
 
@@ -964,13 +967,25 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
 
 
 class TestDiffDatabaseMappingCommit(unittest.TestCase):
+    def setUp(self):
+        self._db_map = create_diff_db_map()
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
     def test_commit_message(self):
         """Tests that commit comment ends up in the database."""
-        db_map = create_diff_db_map()
-        db_map.add_object_classes({"name": "testclass"})
-        db_map.commit_session("test commit")
-        self.assertEqual(db_map.query(db_map.commit_sq).all()[-1].comment, "test commit")
-        db_map.connection.close()
+        self._db_map.add_object_classes({"name": "testclass"})
+        self._db_map.commit_session("test commit")
+        self.assertEqual(self._db_map.query(self._db_map.commit_sq).all()[-1].comment, "test commit")
+        self._db_map.connection.close()
+
+    def test_commit_session_raise_with_empty_comment(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self.assertRaisesRegex(SpineDBAPIError, "Commit message is empty.", self._db_map.commit_session, "")
+
+    def test_commit_session_raise_when_nothing_to_commit(self):
+        self.assertRaisesRegex(SpineDBAPIError, "Nothing to commit.", self._db_map.commit_session, "No changes.")
 
 
 if __name__ == "__main__":

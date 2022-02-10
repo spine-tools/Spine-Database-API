@@ -18,6 +18,7 @@ Provides :class:`.QuickDatabaseMappingBase`.
 
 from datetime import datetime, timezone
 from sqlalchemy import event
+from .helpers import raise_if_commit_prerequisites_unfilled
 from .exception import SpineDBAPIError
 
 
@@ -55,8 +56,12 @@ class DatabaseMappingCommitMixin:
         return self._commit_id
 
     def commit_session(self, comment):
-        if not self.has_pending_changes():
-            raise SpineDBAPIError("Nothing to commit.")
+        """Commits current session to the database.
+
+        Args:
+            comment (str): commit message
+        """
+        raise_if_commit_prerequisites_unfilled(self, comment)
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)

@@ -18,8 +18,7 @@ Unit tests for DatabaseMapping class.
 import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import URL
-from spinedb_api import DatabaseMapping, to_database
-from spinedb_api import import_functions, from_database
+from spinedb_api import DatabaseMapping, to_database, import_functions, from_database, SpineDBAPIError
 
 IN_MEMORY_DB_URL = "sqlite://"
 
@@ -603,6 +602,21 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.cascade_remove_items(**{"relationship": {2}})
         my_relationship = self._db_map.query(self._db_map.relationship_sq).one_or_none()
         self.assertIsNone(my_relationship)
+
+
+class TestDatabaseMappingCommitMixin(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_commit_session_raise_with_empty_comment(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self.assertRaisesRegex(SpineDBAPIError, "Commit message is empty.", self._db_map.commit_session, "")
+
+    def test_commit_session_raise_when_nothing_to_commit(self):
+        self.assertRaisesRegex(SpineDBAPIError, "Nothing to commit.", self._db_map.commit_session, "No changes.")
 
 
 if __name__ == "__main__":

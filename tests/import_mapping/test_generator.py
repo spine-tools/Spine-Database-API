@@ -22,22 +22,24 @@ from spinedb_api.import_mapping.generator import get_mapped_data
 class TestGetMappedData(unittest.TestCase):
     def test_does_not_give_traceback_when_pivoted_mapping_encounters_empty_data(self):
         data_source = iter([])
-        mappings = [[
-            {"map_type": "RelationshipClass", "position": "hidden", "value": "unit__sourceNode"},
-            {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "unit"},
-            {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "node"},
-            {"map_type": "Relationship", "position": "hidden", "value": "relationship"},
-            {"map_type": "RelationshipObject", "position": 1},
-            {"map_type": "RelationshipObject", "position": 2},
-            {"map_type": "RelationshipMetadata", "position": 3},
-            {"map_type": "ParameterDefinition", "position": -2},
-            {"map_type": "Alternative", "position": 0},
-            {"map_type": "ParameterValueMetadata", "position": "hidden"},
-            {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
-            {"map_type": "IndexName", "position": "hidden", "value": "constraint"},
-            {"map_type": "ParameterValueIndex", "position": 4},
-            {"map_type": "ExpandedValue", "position": "hidden"},
-        ]]
+        mappings = [
+            [
+                {"map_type": "RelationshipClass", "position": "hidden", "value": "unit__sourceNode"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "unit"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "node"},
+                {"map_type": "Relationship", "position": "hidden", "value": "relationship"},
+                {"map_type": "RelationshipObject", "position": 1},
+                {"map_type": "RelationshipObject", "position": 2},
+                {"map_type": "RelationshipMetadata", "position": 3},
+                {"map_type": "ParameterDefinition", "position": -2},
+                {"map_type": "Alternative", "position": 0},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden", "value": "constraint"},
+                {"map_type": "ParameterValueIndex", "position": 4},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
         mapped_data, errors = get_mapped_data(data_source, mappings)
         self.assertEqual(errors, [])
         self.assertEqual(mapped_data, {})

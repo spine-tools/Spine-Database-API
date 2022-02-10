@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
 from .exception import SpineDBAPIError
+from .helpers import raise_if_commit_prerequisites_unfilled
 
 
 class DiffDatabaseMappingCommitMixin:
@@ -31,8 +32,7 @@ class DiffDatabaseMappingCommitMixin:
         Args:
             comment (str): An informative comment explaining the nature of the commit.
         """
-        if not self.has_pending_changes():
-            raise SpineDBAPIError("Nothing to commit.")
+        raise_if_commit_prerequisites_unfilled(self, comment)
         transaction = self.connection.begin()
         try:
             user = self.username
@@ -81,7 +81,7 @@ class DiffDatabaseMappingCommitMixin:
             transaction.commit()
             self._reset_diff_dicts()
         except DBAPIError as e:
-            msg = "DBAPIError while commiting changes: {}".format(e.orig.args)
+            msg = "DBAPIError while committing changes: {}".format(e.orig.args)
             raise SpineDBAPIError(msg)
 
     def rollback_session(self):
