@@ -18,7 +18,6 @@ Provides :class:`.QuickDatabaseMappingBase`.
 
 from datetime import datetime, timezone
 from sqlalchemy import event
-from .helpers import raise_if_commit_prerequisites_unfilled
 from .exception import SpineDBAPIError
 
 
@@ -61,7 +60,7 @@ class DatabaseMappingCommitMixin:
         Args:
             comment (str): commit message
         """
-        raise_if_commit_prerequisites_unfilled(self, comment)
+        self._pre_commit(comment)
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)

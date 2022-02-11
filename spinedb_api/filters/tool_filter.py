@@ -27,7 +27,7 @@ TOOL_SHORTHAND_TAG = "tool"
 def apply_tool_filter_to_entity_sq(db_map, tool):
     """
     Replaces entity subquery properties in ``db_map`` such that they return only values of given tool.
-    
+
     Args:
         db_map (DatabaseMappingBase): a database map to alter
         tool (str or int): tool name or id

@@ -23,6 +23,9 @@ from sqlalchemy.engine.url import URL
 from .helpers import ReceiveAllMixing
 
 
+client_version = 1
+
+
 class SpineDBClient(ReceiveAllMixing):
     def __init__(self, server_address):
         """
@@ -32,6 +35,13 @@ class SpineDBClient(ReceiveAllMixing):
         self._server_address = server_address
         self.request = None
 
+    @classmethod
+    def from_server_url(cls, url):
+        parsed = urlparse(url)
+        if parsed.scheme != "http":
+            return url
+        return cls((parsed.hostname, parsed.port))
+
     def get_db_url(self):
         """
         Returns:
@@ -39,7 +49,13 @@ class SpineDBClient(ReceiveAllMixing):
         """
         return self._send("get_db_url")
 
-    def _send(self, request, *args, receive=True):
+    def open_connection(self):
+        return self._send("open_connection")
+
+    def close_connection(self):
+        return self._send("close_connection")
+
+    def _send(self, request, args=None, kwargs=None, receive=True):
         """
         Sends a request to the server with the given arguments.
 
@@ -51,7 +67,9 @@ class SpineDBClient(ReceiveAllMixing):
         Returns:
             str or NoneType: response, or None if receive is False
         """
-        msg = json.dumps((request, args))
+        args = () if args is None else args
+        kwargs = {} if kwargs is None else kwargs
+        msg = json.dumps((request, args, kwargs, client_version))
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.request:
             self.request.connect(self._server_address)
             self.request.sendall(bytes(msg + self._EOM, self._ENCODING))

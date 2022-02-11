@@ -31,7 +31,8 @@ from .exception import SpineDBAPIError
 from .parameter_value import join_value_and_type
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
-from .filters.tools import append_filter_config, clear_filter_configs
+from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
+from .spine_db_client import SpineDBClient
 
 _required_client_version = 1
 
@@ -70,7 +71,7 @@ _open_db_maps = {}
 class HandleDBMixin:
     def _make_db_map(self, create=True):
         try:
-            return DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create), None
+            return DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create, memory=self._memory), None
         except Exception as error:  # pylint: disable=broad-except
             return None, error
 
@@ -146,6 +147,8 @@ class HandleDBMixin:
         Returns:
             dict: where result is True if the db_map was created successfully.
         """
+        if self._db_url in _open_db_maps:
+            return dict(result=True)
         db_map, error = self._make_db_map()
         if error:
             return dict(error=str(error))
@@ -156,15 +159,12 @@ class HandleDBMixin:
         """Closes the connection opened by ``open_connection``.
 
         Returns:
-            bool: True or False, depending on whether or not there was a connection open when calling this.
+            dict: where result is always True
         """
         db_map = _open_db_maps.pop(self._db_url, None)
         if db_map is not None:
             db_map.connection.close()
-            result = True
-        else:
-            result = False
-        return dict(result=result)
+        return dict(result=True)
 
     def call_method(self, method_name, *args, **kwargs):
         """Calls a method from the DatabaseMapping class.
@@ -195,22 +195,31 @@ class HandleDBMixin:
     def _add_scenario_filter(self, scenario):
         config = scenario_filter_config(scenario)
         new_db_url = append_filter_config(self._db_url, config)
-        self._update_db_url(new_db_url)
+        self._update_db_url(new_db_url, config)
 
     def _add_tool_filter(self, tool):
         config = tool_filter_config(tool)
         new_db_url = append_filter_config(self._db_url, config)
-        self._update_db_url(new_db_url)
+        self._update_db_url(new_db_url, config)
 
-    def _update_db_url(self, new_db_url):
+    def clear_filters(self):
+        new_db_url = clear_filter_configs(self._db_url)
+        self._update_db_url(new_db_url)
+        return dict(result=True)
+
+    def _update_db_url(self, new_db_url, config=None):
         db_map = _open_db_maps.pop(self._db_url, None)
         if db_map is not None:
             _open_db_maps[new_db_url] = db_map
+            if config is not None:
+                apply_filter_stack(db_map, [config])
+            else:
+                # clear filters
+                db_map.restore_entity_sq_maker()
+                db_map.restore_entity_class_sq_maker()
+                db_map.restore_parameter_definition_sq_maker()
+                db_map.restore_parameter_value_sq_maker()
         self._db_url = new_db_url
-
-    def clear_filters(self):
-        self._db_url = clear_filter_configs(self._db_url)
-        return dict(result=True)
 
 
 class _CustomJSONEncoder(json.JSONEncoder):
@@ -252,11 +261,15 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     def _upgrade(self):
         return self.server.upgrade
 
+    @property
+    def _memory(self):
+        return self.server.memory
+
     def _get_response(self):
         data = self._recvall()
         request, *extras = json.loads(data)
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
-        # with the legacy server -- to determine that it needs to be updated.
+        # with the legacy server -- to (based on the format of the answer) determine that it needs to be updated.
         # That's why we don't expand the extras so far.
         response = {"get_api_version": spinedb_api_version, "get_db_url": self.get_db_url()}.get(request)
         if response is not None:
@@ -292,17 +305,18 @@ class SpineDBServer(socketserver.TCPServer):
     # (sqlite objects can only be used in the same thread where they were created)
     allow_reuse_address = True
 
-    def __init__(self, server_address, RequestHandlerClass, db_url, upgrade):
+    def __init__(self, server_address, RequestHandlerClass, db_url, upgrade, memory):
         super().__init__(server_address, RequestHandlerClass)
         self.db_url = db_url
         self.upgrade = upgrade
+        self.memory = memory
 
 
 _servers = {}
 _servers_lock = threading.Lock()
 
 
-def start_spine_db_server(db_url, upgrade=False):
+def start_spine_db_server(db_url, upgrade=False, memory=False):
     """
     Args:
         db_url (str): Spine db url
@@ -316,7 +330,7 @@ def start_spine_db_server(db_url, upgrade=False):
         port = s.server_address[1]
     server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
     with _servers_lock:
-        server = _servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade)
+        server = _servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
@@ -327,24 +341,35 @@ def shutdown_spine_db_server(server_url):
     with _servers_lock:
         server = _servers.pop(server_url, None)
     if server is not None:
-        server.shutdown()
-        server.server_close()
+        _teardown_server(server)
+
+
+def _teardown_server(server):
+    server.shutdown()
+    server.server_close()
+    db_map = _open_db_maps.get(server.db_url)
+    if db_map:
+        db_map.connection.close()
 
 
 @contextmanager
-def closing_spine_db_server(db_url):
-    server_url = start_spine_db_server(db_url)
+def closing_spine_db_server(db_url, upgrade=False, memory=False):
+    server_url = start_spine_db_server(db_url, memory=memory)
+    if memory:
+        client = SpineDBClient.from_server_url(server_url)
+        client.open_connection()
     try:
         yield server_url
     finally:
+        if memory:
+            client.close_connection()
         shutdown_spine_db_server(server_url)
 
 
 def _shutdown_servers():
     with _servers_lock:
         for server in _servers.values():
-            server.shutdown()
-            server.server_close()
+            _teardown_server(server)
 
 
 atexit.register(_shutdown_servers)

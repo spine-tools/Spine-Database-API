@@ -26,6 +26,8 @@ from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.event import listen
+from sqlalchemy.pool import NullPool
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
@@ -39,10 +41,10 @@ from .helpers import (
     forward_sweep,
     group_concat,
     model_meta,
+    copy_database_bind,
 )
 from .filters.tools import pop_filter_configs
 from .spine_db_client import get_db_url_from_server
-
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
@@ -55,7 +57,9 @@ class DatabaseMappingBase:
 
     _session_kwargs = {}
 
-    def __init__(self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True):
+    def __init__(
+        self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True, memory=False
+    ):
         """
         Args:
             db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped, or to a DB server.
@@ -64,6 +68,7 @@ class DatabaseMappingBase:
             codename (str, optional): A name that uniquely identifies the class instance within a client application.
             create (bool): Whether or not to create a Spine db at the given URL if it's not already.
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
+            memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
         """
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
@@ -77,8 +82,15 @@ class DatabaseMappingBase:
         self.sa_url = make_url(db_url)
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
-        self.engine = self.create_engine(self.sa_url, upgrade=upgrade, create=create)
+        self._memory = memory
+        self._memory_dirty = False
+        self._original_engine = self.create_engine(self.sa_url, upgrade=upgrade, create=create)
+        # NOTE: The NullPool is needed to receive the event, for some reason
+        self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
         self.connection = self.engine.connect()
+        if self._memory:
+            copy_database_bind(self.connection, self._original_engine)
+        listen(self.engine, 'close', self._receive_close)
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
@@ -224,6 +236,19 @@ class DatabaseMappingBase:
     def make_commit_id(self):
         return None
 
+    def _pre_commit(self, comment):
+        """Performs pre commit tasks.
+
+        Args:
+            comment (str): commit message
+        """
+        if not self.has_pending_changes():
+            raise SpineDBAPIError("Nothing to commit.")
+        if not comment:
+            raise SpineDBAPIError("Commit message is empty.")
+        if self._memory:
+            self._memory_dirty = True
+
     def _make_codename(self, codename):
         if codename:
             return str(codename)
@@ -259,7 +284,7 @@ class DatabaseMappingBase:
             raise SpineDBAPIError(
                 f"Could not connect to '{sa_url}': {str(e)}. "
                 f"Please make sure that '{sa_url}' is a valid sqlalchemy URL."
-            )
+            ) from None
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
         script = ScriptDirectory.from_config(config)
@@ -269,7 +294,7 @@ class DatabaseMappingBase:
             try:
                 current = migration_context.get_current_revision()
             except DatabaseError as error:
-                raise SpineDBAPIError(str(error))
+                raise SpineDBAPIError(str(error)) from None
             if current is None:
                 # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
                 # Otherwise we either raise or create a new Spine db at the url.
@@ -287,7 +312,9 @@ class DatabaseMappingBase:
                         script.get_revision(current)  # Check if current revision is part of alembic rev. history
                     except CommandError:
                         # Can't find 'current' revision
-                        raise SpineDBVersionError(url=sa_url, current=current, expected=head, upgrade_available=False)
+                        raise SpineDBVersionError(
+                            url=sa_url, current=current, expected=head, upgrade_available=False
+                        ) from None
                     raise SpineDBVersionError(url=sa_url, current=current, expected=head)
 
                 # Upgrade function
@@ -307,6 +334,10 @@ class DatabaseMappingBase:
                     with environment_context.begin_transaction():
                         environment_context.run_migrations()
         return engine
+
+    def _receive_close(self, dbapi_con, connection_record):
+        if dbapi_con == self.connection.connection.connection and self._memory_dirty:
+            copy_database_bind(self._original_engine, self.connection)
 
     def reconnect(self):
         self.connection = self.engine.connect()
@@ -1672,6 +1703,11 @@ class DatabaseMappingBase:
         self._make_entity_sq = MethodType(method, self)
         self._clear_subqueries("entity")
 
+    def restore_entity_sq_maker(self):
+        """Restores the original function that creates the ``entity_sq`` property."""
+        self._make_entity_sq = MethodType(DatabaseMappingBase._make_entity_sq, self)
+        self._clear_subqueries("entity")
+
     def override_entity_class_sq_maker(self, method):
         """
         Overrides the function that creates the ``entity_class_sq`` property.
@@ -1681,6 +1717,11 @@ class DatabaseMappingBase:
                 returns entity class subquery as an :class:`Alias` object
         """
         self._make_entity_class_sq = MethodType(method, self)
+        self._clear_subqueries("entity_class")
+
+    def restore_entity_class_sq_maker(self):
+        """Restores the original function that creates the ``entity_class_sq`` property."""
+        self._make_entity_class_sq = MethodType(DatabaseMappingBase._make_entity_class_sq, self)
         self._clear_subqueries("entity_class")
 
     def override_parameter_definition_sq_maker(self, method):
@@ -1694,6 +1735,11 @@ class DatabaseMappingBase:
         self._make_parameter_definition_sq = MethodType(method, self)
         self._clear_subqueries("parameter_definition")
 
+    def restore_parameter_definition_sq_maker(self):
+        """Restores the original function that creates the ``parameter_definition_sq`` property."""
+        self._make_parameter_definition_sq = MethodType(DatabaseMappingBase._make_parameter_definition_sq, self)
+        self._clear_subqueries("parameter_definition")
+
     def override_parameter_value_sq_maker(self, method):
         """
         Overrides the function that creates the ``parameter_value_sq`` property.
@@ -1703,6 +1749,11 @@ class DatabaseMappingBase:
                 returns parameter value subquery as an :class:`Alias` object
         """
         self._make_parameter_value_sq = MethodType(method, self)
+        self._clear_subqueries("parameter_value")
+
+    def restore_parameter_value_sq_maker(self):
+        """Restores the original function that creates the ``parameter_value_sq`` property."""
+        self._make_parameter_value_sq = MethodType(DatabaseMappingBase._make_parameter_value_sq, self)
         self._clear_subqueries("parameter_value")
 
     def override_create_import_alternative(self, method):

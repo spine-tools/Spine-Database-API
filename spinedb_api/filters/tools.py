@@ -330,9 +330,7 @@ def name_from_dict(config):
     Returns:
         str: name or None if ``config`` is not a valid 'name' filter configuration
     """
-    name_from_dict = {SCENARIO_FILTER_TYPE: scenario_name_from_dict, TOOL_FILTER_TYPE: tool_name_from_dict}.get(
-        config["type"]
-    )
-    if name_from_dict is None:
+    func = {SCENARIO_FILTER_TYPE: scenario_name_from_dict, TOOL_FILTER_TYPE: tool_name_from_dict}.get(config["type"])
+    if func is None:
         return None
-    return name_from_dict(config)
+    return func(config)

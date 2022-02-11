@@ -73,7 +73,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2 ** 32 - 1
+LONGTEXT_LENGTH = 2**32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -158,10 +158,10 @@ def is_head(db_url, upgrade=False):
         upgrade (Bool): if True, upgrade db to head
     """
     engine = create_engine(db_url)
-    return is_head_from_engine(engine, upgrade=upgrade)
+    return is_head_engine(engine, upgrade=upgrade)
 
 
-def is_head_from_engine(engine, upgrade=False):
+def is_head_engine(engine, upgrade=False):
     """Check whether or not engine is head.
 
     Args:
@@ -198,41 +198,49 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
         raise SpineDBVersionError(url=source_url)
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
-    insp = inspect(dest_engine)
-    meta = MetaData()
-    meta.reflect(source_engine)
-    if insp.get_table_names():
+    copy_database_bind(
+        dest_engine,
+        source_engine,
+        overwrite=overwrite,
+        upgrade=upgrade,
+        only_tables=only_tables,
+        skip_tables=skip_tables,
+    )
+
+
+def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, only_tables=(), skip_tables=()):
+    source_meta = MetaData(bind=source_bind)
+    source_meta.reflect()
+    if inspect(dest_bind).get_table_names():
         if not overwrite:
             raise SpineDBAPIError(
-                "The database at '{}' is not empty. "
+                f"The database at '{dest_bind}' is not empty. "
                 "If you want to overwrite it, please pass the argument `overwrite=True` "
-                "to the function call.".format(dest_url)
+                "to the function call."
             )
-        meta.drop_all(dest_engine)
-    source_meta = MetaData(bind=source_engine)
-    dest_meta = MetaData(bind=dest_engine)
-    for t in meta.sorted_tables:
+        source_meta.drop_all(dest_bind)
+    dest_meta = MetaData(bind=dest_bind)
+    for source_table in source_meta.sorted_tables:
         # Create table in dest
-        source_table = Table(t, source_meta, autoload=True)
-        source_table.create(dest_engine)
-        if t.name not in ("alembic_version", "next_id"):
+        source_table.create(dest_bind)
+        if source_table.name not in ("alembic_version", "next_id"):
             # Skip tables according to `only_tables` and `skip_tables`
-            if only_tables and t.name not in only_tables:
+            if only_tables and source_table.name not in only_tables:
                 continue
-            if t.name in skip_tables:
+            if source_table.name in skip_tables:
                 continue
         dest_table = Table(source_table, dest_meta, autoload=True)
         sel = select([source_table])
-        result = source_engine.execute(sel)
+        result = source_bind.execute(sel)
         # Insert data from source into destination
         data = result.fetchall()
         if not data:
             continue
         ins = dest_table.insert()
         try:
-            dest_engine.execute(ins, data)
+            dest_bind.execute(ins, data)
         except IntegrityError as e:
-            warnings.warn("Skipping table {0}: {1}".format(t.name, e.orig.args))
+            warnings.warn("Skipping table {0}: {1}".format(source_table.name, e.orig.args))
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
@@ -282,7 +290,7 @@ def is_empty(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
     insp = inspect(engine)
     if insp.get_table_names():
         return False
@@ -664,11 +672,11 @@ def create_new_spine_database(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
     # Drop existing tables. This is a Spine db now...
     meta = MetaData(engine)
     meta.reflect()
-    meta.drop_all(engine)
+    meta.drop_all()
     # Create new tables
     meta = create_spine_metadata()
     try:
@@ -679,7 +687,7 @@ def create_new_spine_database(db_url):
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO alembic_version VALUES ('fd542cebf699')")
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database: {}".format(e))
+        raise SpineDBAPIError("Unable to create Spine database: {}".format(e)) from None
     return engine
 
 
@@ -690,7 +698,7 @@ def _create_first_spine_database(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args))
+        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
     # Drop existing tables. This is a Spine db now...
     meta = MetaData(engine)
     meta.reflect()
@@ -950,16 +958,3 @@ class ReceiveAllMixing:
             if chunk.endswith(self._BEOM):
                 break
         return str(b"".join(fragments), self._ENCODING)[:-1]
-
-
-def raise_if_commit_prerequisites_unfilled(db_map, comment):
-    """Raises an exception if session cannot be committed.
-
-    Args:
-        db_map (DatabaseMappingCommitMixin or DiffDatabaseMappingCommitMixin): database mapping
-        comment (str): commit message
-    """
-    if not db_map.has_pending_changes():
-        raise SpineDBAPIError("Nothing to commit.")
-    if not comment:
-        raise SpineDBAPIError("Commit message is empty.")
