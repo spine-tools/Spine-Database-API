@@ -85,12 +85,12 @@ class DatabaseMappingBase:
         self._memory = memory
         self._memory_dirty = False
         self._original_engine = self.create_engine(self.sa_url, upgrade=upgrade, create=create)
-        # NOTE: The NullPool is needed to receive the event, for some reason
+        # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
         self.connection = self.engine.connect()
         if self._memory:
             copy_database_bind(self.connection, self._original_engine)
-        listen(self.engine, 'close', self._receive_close)
+        listen(self.engine, 'close', self._receive_engine_close)
         self._metadata = MetaData(self.connection)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
@@ -335,7 +335,7 @@ class DatabaseMappingBase:
                         environment_context.run_migrations()
         return engine
 
-    def _receive_close(self, dbapi_con, connection_record):
+    def _receive_engine_close(self, dbapi_con, connection_record):
         if dbapi_con == self.connection.connection.connection and self._memory_dirty:
             copy_database_bind(self._original_engine, self.connection)
 

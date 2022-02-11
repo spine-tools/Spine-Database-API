@@ -23,7 +23,7 @@ from sqlalchemy.engine.url import URL
 from spinedb_api.helpers import (
     create_new_spine_database,
     _create_first_spine_database,
-    is_head_from_engine,
+    is_head_engine,
     schema_dict,
 )
 from spinedb_api import DiffDatabaseMapping
@@ -38,7 +38,7 @@ class TestMigration(unittest.TestCase):
         a Spine db anew.
         """
         left_engine = _create_first_spine_database("sqlite://")
-        is_head_from_engine(left_engine, upgrade=True)
+        is_head_engine(left_engine, upgrade=True)
         left_insp = inspect(left_engine)
         left_dict = schema_dict(left_insp)
         right_engine = create_new_spine_database("sqlite://")
