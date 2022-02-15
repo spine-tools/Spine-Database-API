@@ -585,6 +585,25 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def tearDown(self):
         self._db_map.connection.close()
 
+    def test_remove_object_class(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("Add test data.")
+        my_class = self._db_map.query(self._db_map.object_class_sq).one_or_none()
+        self.assertIsNotNone(my_class)
+        self._db_map.cascade_remove_items(**{"object_class": {1}})
+        my_class = self._db_map.query(self._db_map.object_class_sq).one_or_none()
+        self.assertIsNone(my_class)
+
+    def test_remove_relationship_class(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_relationship_classes(self._db_map, (("my_relationship_class", ("my_class",)),))
+        self._db_map.commit_session("Add test data.")
+        my_class = self._db_map.query(self._db_map.relationship_class_sq).one_or_none()
+        self.assertIsNotNone(my_class)
+        self._db_map.cascade_remove_items(**{"relationship_class": {2}})
+        my_class = self._db_map.query(self._db_map.relationship_class_sq).one_or_none()
+        self.assertIsNone(my_class)
+
     def test_remove_object(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         import_functions.import_objects(self._db_map, (("my_class", "my_object"),))

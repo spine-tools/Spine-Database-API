@@ -73,7 +73,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2**32 - 1
+LONGTEXT_LENGTH = 2 ** 32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -382,7 +382,9 @@ def create_spine_metadata():
         meta,
         Column("entity_class_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id")),
+        ForeignKeyConstraint(
+            ("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id"), ondelete="CASCADE"
+        ),
         CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object class can only have object type
     )
     Table(
@@ -390,7 +392,9 @@ def create_spine_metadata():
         meta,
         Column("entity_class_id", Integer, primary_key=True),
         Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id")),
+        ForeignKeyConstraint(
+            ("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id"), ondelete="CASCADE"
+        ),
         CheckConstraint("`type_id` = 2", name="type_id"),
     )
     Table(
@@ -685,7 +689,7 @@ def create_new_spine_database(db_url):
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
         engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
         engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('fd542cebf699')")
+        engine.execute("INSERT INTO alembic_version VALUES ('7d0b467f2f4e')")
     except DatabaseError as e:
         raise SpineDBAPIError("Unable to create Spine database: {}".format(e)) from None
     return engine
