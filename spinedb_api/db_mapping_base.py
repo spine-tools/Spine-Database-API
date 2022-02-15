@@ -70,6 +70,7 @@ class DatabaseMappingBase:
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
             memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
         """
+        # FIXME: We should also check the server memory property and use it here
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
         if isinstance(db_url, str):

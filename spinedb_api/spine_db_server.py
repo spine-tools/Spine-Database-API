@@ -242,6 +242,7 @@ class DBHandler(HandleDBMixin):
     def __init__(self, db_url, upgrade):
         self._db_url = db_url
         self._upgrade = upgrade
+        self._memory = False
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
