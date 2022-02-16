@@ -172,13 +172,15 @@ class DatabaseMappingAddMixin:
 
     def _get_table_for_insert(self, tablename):
         """
-        Returns the Table object to perform the insertion. Subclasses can override this method to insert
-        to another table instead (e.g., diff...)
+        Returns the table name where to perform insertion.
+
+        Subclasses can override this method to insert to another table instead (e.g., diff...)
 
         Args:
-            tablename (str)
-        Returns:
-            Table
+            tablename (str): target database table name
+
+        Yields:
+            str: database table name
         """
         return self._metadata.tables[tablename]
 
@@ -199,11 +201,11 @@ class DatabaseMappingAddMixin:
         actually need to insert records to more than one table.
 
         Args:
-            tablename (str):
-            items_to_add (list)
+            tablename (str): target database table name
+            items_to_add (list): items to add
 
-        Returns:
-            Generator
+        Yields:
+            tuple: database table name, items to add
         """
         if tablename == "object_class":
             oc_items_to_add = list()

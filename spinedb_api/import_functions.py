@@ -159,13 +159,15 @@ def import_data(db_map, make_cache=None, on_conflict="merge", **kwargs):
         update_items = update_items_by_tablename.get(tablename, lambda *args, **kwargs: ())
         try:
             updated = update_items(*to_update)
-        except SpineDBAPIError:
+        except SpineDBAPIError as error:
             updated = []
+            error_log.append(ImportErrorLogItem(msg=str(error), db_type=tablename))
         add_items = add_items_by_tablename[tablename]
         try:
             added = add_items(*to_add)
-        except SpineDBAPIError:
+        except SpineDBAPIError as error:
             added = []
+            error_log.append(ImportErrorLogItem(msg=str(error), db_type=tablename))
         num_imports += len(added) + len(updated)
         error_log.extend(errors)
     return num_imports, error_log
