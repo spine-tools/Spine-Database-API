@@ -375,12 +375,11 @@ class ExportMapping(Mapping):
             data_iterator = (self._convert_data(x) for x in data_iterator)
         return data_iterator
 
-    def _get_rows(self, db_row, limit=None):
+    def _get_rows(self, db_row):
         """Yields rows issued by this mapping for given database row.
 
         Args:
             db_row (KeyedTuple)
-            limit (int, optional): yield only this many items
 
         Returns:
             generator(dict)
@@ -392,26 +391,23 @@ class ExportMapping(Mapping):
         if data is None and not self._ignorable:
             return ()
         data_iterator = self._get_data_iterator(data)
-        if limit is not None:
-            data_iterator = islice(data_iterator, limit)
         for data in data_iterator:
             yield {self.position: data}
 
-    def get_rows_recursive(self, db_row, limit=None):
+    def get_rows_recursive(self, db_row):
         """Takes a database row and yields rows issued by this mapping and its children combined.
 
         Args:
             db_row (KeyedTuple)
-            limit (int, optional): yield only this many items
 
         Returns:
             generator(dict)
         """
         if self.child is None:
-            yield from self._get_rows(db_row, limit=limit)
+            yield from self._get_rows(db_row)
             return
-        for row in self._get_rows(db_row, limit=limit):
-            for child_row in self.child.get_rows_recursive(db_row, limit=limit):
+        for row in self._get_rows(db_row):
+            for child_row in self.child.get_rows_recursive(db_row):
                 row = row.copy()
                 row.update(child_row)
                 yield row
@@ -428,8 +424,14 @@ class ExportMapping(Mapping):
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
-        for db_row in qry.yield_per(1000):
-            yield from self.get_rows_recursive(db_row, limit=limit)
+        if limit is None:
+            for db_row in qry.yield_per(1000):
+                yield from self.get_rows_recursive(db_row)
+        else:
+            for n, db_row in enumerate(qry.yield_per(min(limit, 1000))):
+                yield from self.get_rows_recursive(db_row)
+                if n == limit - 1:
+                    break
 
     def has_titles(self):
         """Returns True if this mapping or one of its children generates titles.
