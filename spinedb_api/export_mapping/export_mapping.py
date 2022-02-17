@@ -1179,20 +1179,18 @@ class ParameterValueMapping(ExportMapping):
             return query
         column_names = {c["name"] for c in query.column_descriptions}
         if "object_id" in column_names:
-            return query.outerjoin(
-                db_map.parameter_value_sq,
+            return query.filter(
                 and_(
                     db_map.parameter_value_sq.c.object_id == db_map.object_sq.c.id,
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
-                ),
+                )
             )
         if "relationship_id" in column_names:
-            return query.outerjoin(
-                db_map.parameter_value_sq,
+            return query.filter(
                 and_(
                     db_map.parameter_value_sq.c.relationship_id == db_map.wide_relationship_sq.c.id,
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
-                ),
+                )
             )
         raise RuntimeError("Logic error: this code should be unreachable.")
 

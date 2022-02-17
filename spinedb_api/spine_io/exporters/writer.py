@@ -16,6 +16,9 @@ Module contains the :class:`Writer` base class and functions to write tabular da
 """
 from contextlib import contextmanager
 from copy import copy
+from sqlalchemy.exc import OperationalError
+
+from spinedb_api import SpineDBAPIError
 from spinedb_api.export_mapping import rows, titles
 from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail
 from spinedb_api.export_mapping.group_functions import NoGroup
@@ -33,7 +36,7 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
             False to write nothing; a list of booleans applies to each mapping individually
         max_tables (int, optional): maximum number of tables to write
         max_rows (int, optional): maximum number of rows/table to write
-        group_fn (str or Iterable of str): group function names for each mappings
+        group_fns (str or Iterable of str): group function names for each mappings
     """
     if isinstance(empty_data_header, bool):
         empty_data_header = len(mappings) * [empty_data_header]
@@ -46,12 +49,15 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
                 with _new_table(writer, title, title_key) as table_started:
                     if not table_started:
                         break
-                    for row in rows(
-                        mapping, db_map, title_key, header_for_empty_data, limit=max_rows, group_fn=group_fn
-                    ):
-                        write_more = writer.write_row(row)
-                        if not write_more:
-                            break
+                    try:
+                        for row in rows(
+                            mapping, db_map, title_key, header_for_empty_data, limit=max_rows, group_fn=group_fn
+                        ):
+                            write_more = writer.write_row(row)
+                            if not write_more:
+                                break
+                    except OperationalError as error:
+                        raise SpineDBAPIError(str(error))
 
 
 class Writer:
