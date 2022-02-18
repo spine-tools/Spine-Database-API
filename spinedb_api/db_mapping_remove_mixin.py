@@ -49,6 +49,8 @@ class DatabaseMappingRemoveMixin:
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg)
+            else:
+                self.make_commit_id()
 
     # pylint: disable=redefined-builtin
     def cascading_ids(self, cache=None, **kwargs):
