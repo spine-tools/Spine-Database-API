@@ -133,7 +133,7 @@ class DatabaseMappingRemoveMixin:
             if {int(id_) for id_ in x.object_id_list.split(",")}.intersection(ids)
         )
         parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
-        groups = [x for x in cache.get("entity_group", {}).values() if {x.entity_id, x.member_id}.intersection(ids)]
+        groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
         self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}, cache))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
@@ -158,7 +158,7 @@ class DatabaseMappingRemoveMixin:
         """Returns relationship cascading ids."""
         cascading_ids = {"relationship": ids.copy(), "entity": ids.copy(), "relationship_entity": ids.copy()}
         parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
-        groups = [x for x in cache.get("entity_group", {}).values() if {x.entity_id, x.member_id}.intersection(ids)]
+        groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
         return cascading_ids

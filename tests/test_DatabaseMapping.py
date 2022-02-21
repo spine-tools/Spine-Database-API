@@ -585,6 +585,18 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def tearDown(self):
         self._db_map.connection.close()
 
+    def test_remove_works_when_entity_groups_are_present(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        import_functions.import_objects(self._db_map, (("my_class", "my_group"),))
+        import_functions.import_object_groups(self._db_map, (("my_class", "my_group", "my_object"),))
+        self._db_map.commit_session("Add test data.")
+        self._db_map.cascade_remove_items(object={1})  # This shouldn't raise an exception
+        self._db_map.commit_session("Remove object.")
+        objects = self._db_map.query(self._db_map.object_sq).all()
+        self.assertEqual(len(objects), 1)
+        self.assertEqual(objects[0].name, "my_group")
+
     def test_remove_object_class(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("Add test data.")

@@ -985,7 +985,7 @@ def import_object_groups(db_map, data, make_cache=None):
                 ('object_class_name', 'object_group_name', 'member_name'),
                 ('object_class_name', 'object_group_name', 'another_member_name')
             ]
-            import_objects(db_map, data)
+            import_object_groups(db_map, data)
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
