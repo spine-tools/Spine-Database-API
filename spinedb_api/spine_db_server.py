@@ -342,15 +342,13 @@ def shutdown_spine_db_server(server_url):
     with _servers_lock:
         server = _servers.pop(server_url, None)
     if server is not None:
-        _teardown_server(server)
+        _teardown_server(server_url, server)
 
 
-def _teardown_server(server):
+def _teardown_server(server_url, server):
+    SpineDBClient.from_server_url(server_url).close_connection()
     server.shutdown()
     server.server_close()
-    db_map = _open_db_maps.get(server.db_url)
-    if db_map:
-        db_map.connection.close()
 
 
 @contextmanager
@@ -369,8 +367,8 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False):
 
 def _shutdown_servers():
     with _servers_lock:
-        for server in _servers.values():
-            _teardown_server(server)
+        for server_url, server in _servers.items():
+            _teardown_server(server_url, server)
 
 
 atexit.register(_shutdown_servers)
