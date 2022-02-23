@@ -263,7 +263,7 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 
 def merge(value, other):
-    """Merges other into value, return the result."""
+    """Merges other into value, returns the result."""
     if value is None:
         # NOTE: This case is mainly for IndexedValue.merge to work recursively
         return other
