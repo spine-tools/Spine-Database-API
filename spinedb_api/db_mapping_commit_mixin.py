@@ -60,7 +60,7 @@ class DatabaseMappingCommitMixin:
         Args:
             comment (str): commit message
         """
-        self._pre_commit(comment)
+        self._check_commit(comment)
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)
@@ -68,6 +68,8 @@ class DatabaseMappingCommitMixin:
         self._checked_execute(upd, dict(user=user, date=date, comment=comment))
         self._transaction.commit()
         self._commit_id = None
+        if self._memory:
+            self._memory_dirty = True
 
     def rollback_session(self):
         if not self.has_pending_changes():

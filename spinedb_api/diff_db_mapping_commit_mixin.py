@@ -31,7 +31,7 @@ class DiffDatabaseMappingCommitMixin:
         Args:
             comment (str): An informative comment explaining the nature of the commit.
         """
-        self._pre_commit(comment)
+        self._check_commit(comment)
         transaction = self.connection.begin()
         try:
             user = self.username
@@ -79,9 +79,11 @@ class DiffDatabaseMappingCommitMixin:
             self._reset_diff_mapping()
             transaction.commit()
             self._reset_diff_dicts()
+            if self._memory:
+                self._memory_dirty = True
         except DBAPIError as e:
             msg = "DBAPIError while committing changes: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
+            raise SpineDBAPIError(msg) from None
 
     def rollback_session(self):
         """Discard all staged changes."""
@@ -94,7 +96,7 @@ class DiffDatabaseMappingCommitMixin:
             self._reset_diff_dicts()
         except DBAPIError as e:
             msg = "DBAPIError while rolling back changes: {}".format(e.orig.args)
-            raise SpineDBAPIError(msg)
+            raise SpineDBAPIError(msg) from None
 
     def has_pending_changes(self):
         """True if this mapping has any staged changes."""

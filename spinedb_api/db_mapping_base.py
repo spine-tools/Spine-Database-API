@@ -237,8 +237,8 @@ class DatabaseMappingBase:
     def make_commit_id(self):
         return None
 
-    def _pre_commit(self, comment):
-        """Performs pre commit tasks.
+    def _check_commit(self, comment):
+        """Raises if commit not possible.
 
         Args:
             comment (str): commit message
@@ -246,9 +246,7 @@ class DatabaseMappingBase:
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to commit.")
         if not comment:
-            raise SpineDBAPIError("Commit message is empty.")
-        if self._memory:
-            self._memory_dirty = True
+            raise SpineDBAPIError("Commit message cannot be empty.")
 
     def _make_codename(self, codename):
         if codename:
@@ -336,7 +334,7 @@ class DatabaseMappingBase:
                         environment_context.run_migrations()
         return engine
 
-    def _receive_engine_close(self, dbapi_con, connection_record):
+    def _receive_engine_close(self, dbapi_con, _connection_record):
         if dbapi_con == self.connection.connection.connection and self._memory_dirty:
             copy_database_bind(self._original_engine, self.connection)
 
