@@ -982,7 +982,7 @@ class TestDiffDatabaseMappingCommit(unittest.TestCase):
 
     def test_commit_session_raise_with_empty_comment(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
-        self.assertRaisesRegex(SpineDBAPIError, "Commit message is empty.", self._db_map.commit_session, "")
+        self.assertRaisesRegex(SpineDBAPIError, "Commit message cannot be empty.", self._db_map.commit_session, "")
 
     def test_commit_session_raise_when_nothing_to_commit(self):
         self.assertRaisesRegex(SpineDBAPIError, "Nothing to commit.", self._db_map.commit_session, "No changes.")
