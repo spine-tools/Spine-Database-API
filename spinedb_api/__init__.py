@@ -110,7 +110,6 @@ from .parameter_value import (
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    ParameterValueEncoder,
 )
 from .filters.alternative_filter import apply_alternative_filter_to_parameter_value_sq
 from .filters.scenario_filter import apply_scenario_filter_to_parameter_value_sq
@@ -128,4 +127,4 @@ from .filters.tools import (
 )
 
 name = "spinedb_api"
-__version__ = "0.16.3.dev0"
+__version__ = "0.16.4.dev0"

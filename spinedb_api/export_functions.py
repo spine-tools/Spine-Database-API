@@ -16,7 +16,7 @@ Functions for exporting data from a Spine database using entity names as referen
 :date:   1.4.2020
 """
 
-from .parameter_value import from_database
+from .parameter_value import load_db_value
 from .helpers import Asterisk
 
 
@@ -125,7 +125,7 @@ def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
 
 def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.name, from_database(value, value_type=None))
+        (x.name, load_db_value(value, value_type=None))
         for x in _get_items(db_map, "parameter_value_list", ids, make_cache)
         for value in x.value_list.split(";")
     )
@@ -136,7 +136,7 @@ def export_object_parameters(db_map, ids=Asterisk, make_cache=None):
         (
             x.object_class_name,
             x.parameter_name,
-            from_database(x.default_value, x.default_type),
+            load_db_value(x.default_value, x.default_type),
             x.value_list_name,
             x.description,
         )
@@ -150,7 +150,7 @@ def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None):
         (
             x.relationship_class_name,
             x.parameter_name,
-            from_database(x.default_value, x.default_type),
+            load_db_value(x.default_value, x.default_type),
             x.value_list_name,
             x.description,
         )
@@ -176,7 +176,7 @@ def export_object_groups(db_map, ids=Asterisk, make_cache=None):
 def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None):
     return sorted(
         (
-            (x.object_class_name, x.object_name, x.parameter_name, from_database(x.value, x.type), x.alternative_name)
+            (x.object_class_name, x.object_name, x.parameter_name, load_db_value(x.value, x.type), x.alternative_name)
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
             if x.object_id
         ),
@@ -191,7 +191,7 @@ def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None):
                 x.relationship_class_name,
                 x.object_name_list.split(","),
                 x.parameter_name,
-                from_database(x.value, x.type),
+                load_db_value(x.value, x.type),
                 x.alternative_name,
             )
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
@@ -276,6 +276,6 @@ def export_tool_features(db_map, ids=Asterisk, make_cache=None):
 
 def export_tool_feature_methods(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method, value_type=None))
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name, load_db_value(x.method, value_type=None))
         for x in _get_items(db_map, "tool_feature_method", ids, make_cache)
     )

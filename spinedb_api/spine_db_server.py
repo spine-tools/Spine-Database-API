@@ -26,9 +26,10 @@ from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
+from .export_functions import export_data
 from .helpers import ReceiveAllMixing
 from .exception import SpineDBAPIError
-from .parameter_value import join_value_and_type
+from .parameter_value import load_db_value
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
 from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
@@ -39,19 +40,19 @@ _required_client_version = 1
 
 def _process_parameter_definition_row(row):
     value, type_ = row.pop("default_value"), row.pop("default_type")
-    row["default_value"] = join_value_and_type(value, type_)
+    row["default_value"] = load_db_value(value, type_)
     return row
 
 
 def _process_parameter_value_row(row):
     value, type_ = row.pop("value"), row.pop("type")
-    row["value"] = join_value_and_type(value, type_)
+    row["value"] = load_db_value(value, type_)
     return row
 
 
 def _process_parameter_value_list_row(row):
     value = row.pop("value")
-    row["value"] = join_value_and_type(value, None)
+    row["value"] = load_db_value(value, None)
     return row
 
 
@@ -103,8 +104,10 @@ class HandleDBMixin:
         """
         return self._db_url
 
-    def get_data(self, *args):
+    def query(self, *args):
         """
+        Runs queries.
+
         Returns:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
@@ -139,6 +142,19 @@ class HandleDBMixin:
                 except DBAPIError:
                     db_map.rollback_session()
         return dict(result=[err.msg for err in errors])
+
+    def export_data(self, **kwargs):
+        """Exports data.
+
+        Args:
+            data (dict)
+        Returns:
+            dict: where result is the data exported from the db
+        """
+        with self._db_map_context() as (db_map, error):
+            if error:
+                return dict(error=str(error))
+            return dict(result=export_data(db_map, **kwargs))
 
     def open_connection(self):
         """Opens a persistent connection to the url by creating and storing a db_map.
@@ -282,8 +298,9 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
         if client_version < _required_client_version:
             return dict(error=1, result=_required_client_version)
         handler = {
-            "get_data": self.get_data,
+            "query": self.query,
             "import_data": self.import_data,
+            "export_data": self.export_data,
             "call_method": self.call_method,
             "open_connection": self.open_connection,
             "close_connection": self.close_connection,

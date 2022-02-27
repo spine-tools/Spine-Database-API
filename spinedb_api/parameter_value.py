@@ -52,13 +52,6 @@ _TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 
 
-class ParameterValueEncoder(json.JSONEncoder):
-    """A class to serialize Spine parameter values."""
-
-    def default(self, o):
-        return dict(type=o.type_(), **o.to_dict())
-
-
 def duration_to_relativedelta(duration):
     """
     Converts a duration to a relativedelta object.
@@ -128,25 +121,26 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def from_database(database_value, value_type=None):
+def load_db_value(database_value, value_type=None):
     """
-    Converts a parameter value from its database representation to a Python object.
+    Loads a parameter value from the database using JSON.
+    Adds the "type" property in case of dicts resulting from complex types.
 
     Args:
         database_value (bytes, optional): a value in the database
         value_type (str, optional): the type in case of complex ones
 
     Returns:
-        the encoded parameter value
+        Any: the parsed parameter value
     """
     if database_value is None:
         return None
     try:
         parsed = json.loads(database_value)
     except JSONDecodeError as err:
-        raise ParameterValueFormatError(f"Could not decode the value: {err}")
+        raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     if isinstance(parsed, dict):
-        return from_dict(parsed, value_type=value_type)
+        return {"type": value_type, **parsed}
     if isinstance(parsed, bool):
         return parsed
     if isinstance(parsed, Number):
@@ -154,11 +148,28 @@ def from_database(database_value, value_type=None):
     return parsed
 
 
+def from_database(database_value, value_type=None):
+    """
+    Converts a parameter value from its database representation into an encoded Python object.
+
+    Args:
+        database_value (bytes, optional): a value in the database
+        value_type (str, optional): the type in case of complex ones
+
+    Returns:
+        Any: the encoded parameter value
+    """
+    parsed = load_db_value(database_value, value_type)
+    if isinstance(parsed, dict):
+        return from_dict(parsed)
+    return parsed
+
+
 def from_database_to_single_value(database_value, value_type):
     """
-    Converts a value from its database representation to single value.
+    Converts a value from its database representation into a single value.
 
-    Indexed values get converted to strings representing the value's type.
+    Indexed values get converted to their type string.
 
     Args:
         database_value (bytes): a value in the database
@@ -194,10 +205,10 @@ def from_database_to_dimension_count(database_value, value_type):
 
 def to_database(value):
     """
-    Converts a value object into its database representation.
+    Converts a parsed or encoded value into its database representation.
 
     Args:
-        value: a value to convert (can be a dict with a "type" key)
+        value: the value to convert. It can be the result of either ``load_db_value`` or ``from_database```.
 
     Returns:
         bytes: value's database representation as bytes
@@ -210,17 +221,17 @@ def to_database(value):
     return db_value, value_type
 
 
-def from_dict(value_dict, value_type=None):
+def from_dict(value_dict):
     """
     Converts complex a (relationship) parameter value from its dictionary representation to a Python object.
 
     Args:
-        value_dict (dict): value's dictionary; a parsed JSON object
-        value_type (str, optional): value's type
+        value_dict (dict): value's dictionary; a parsed JSON object with the "type" key
 
     Returns:
         the encoded (relationship) parameter value
     """
+    value_type = value_dict["type"]
     try:
         if value_type == "date_time":
             return _datetime_from_database(value_dict["data"])
@@ -268,7 +279,7 @@ def merge(value, other):
         # NOTE: This case is mainly for IndexedValue.merge to work recursively
         return other
     if isinstance(value, dict):
-        value = from_dict(value, value["type"])
+        value = from_dict(value)
     if hasattr(value, "merge"):
         return value.merge(other)
     return value
@@ -550,7 +561,7 @@ def _map_values_from_database(values_in_db):
         return list()
     values = list()
     for value_in_db in values_in_db:
-        value = from_dict(value_in_db, value_in_db["type"]) if isinstance(value_in_db, dict) else value_in_db
+        value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
         if value is not None and not isinstance(value, (float, bool, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
