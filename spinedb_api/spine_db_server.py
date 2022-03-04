@@ -50,19 +50,13 @@ def _process_parameter_value_row(row):
     return row
 
 
-def _process_parameter_value_list_row(row):
-    value = row.pop("value")
-    row["value"] = load_db_value(value, None)
-    return row
-
-
 def _get_row_processor(sq_name):
     if sq_name.endswith("parameter_definition_sq"):
         return _process_parameter_definition_row
     if sq_name.endswith("parameter_value_sq"):
         return _process_parameter_value_row
-    if sq_name.endswith("parameter_value_list_sq"):
-        return _process_parameter_value_list_row
+    if sq_name.endswith("list_value_sq"):
+        return _process_parameter_value_row
     return lambda row: row
 
 
