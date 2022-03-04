@@ -73,7 +73,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2 ** 32 - 1
+LONGTEXT_LENGTH = 2**32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -556,8 +556,16 @@ def create_spine_metadata():
         meta,
         Column("id", Integer, primary_key=True),
         Column("name", String(155), nullable=False),
-        Column("value_index", Integer, primary_key=True, nullable=False),
-        Column("value", LargeBinary(LONGTEXT_LENGTH), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+    )
+    Table(
+        "list_value",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("parameter_value_list_id", Integer, ForeignKey("parameter_value_list.id"), nullable=False),
+        Column("index", Integer, nullable=False),
+        Column("type", String(255)),
+        Column("value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
     )
     Table(
@@ -620,7 +628,7 @@ def create_spine_metadata():
         ),
         ForeignKeyConstraint(
             ("parameter_value_list_id", "method_index"),
-            ("parameter_value_list.id", "parameter_value_list.value_index"),
+            ("list_value.parameter_value_list_id", "list_value.index"),
             onupdate="CASCADE",
             ondelete="CASCADE",
             name="tool_feature_method_parameter_value_list_id",
@@ -903,13 +911,6 @@ def get_relationship_entity_items(item, relationship_entity_type, object_entity_
         for dimension, (object_id, object_class_id) in enumerate(
             zip(item["object_id_list"], item["object_class_id_list"])
         )
-    ]
-
-
-def get_parameter_value_list_items(item):
-    return [
-        {"id": item["id"], "name": item["name"], "value_index": k, "value": value}
-        for k, value in enumerate(item["value_list"])
     ]
 
 

@@ -29,7 +29,7 @@ from .check_functions import (
     check_entity_group,
     check_parameter_definition,
     check_parameter_value,
-    check_wide_parameter_value_list,
+    check_parameter_value_list,
     check_feature,
     check_tool,
     check_tool_feature,
@@ -41,8 +41,7 @@ from .check_functions import (
 # check for an insert of the updated instance,
 # and finally reinsert the instance to the dictionary
 class DatabaseMappingCheckMixin:
-    """Provides methods to check whether insert and update operations violate Spine db integrity constraints.
-    """
+    """Provides methods to check whether insert and update operations violate Spine db integrity constraints."""
 
     def check_items_for_insert(self, tablename, *items, strict=False, cache=None):
         return {
@@ -56,7 +55,8 @@ class DatabaseMappingCheckMixin:
             "entity_group": self.check_entity_groups_for_insert,
             "parameter_definition": self.check_parameter_definitions_for_insert,
             "parameter_value": self.check_parameter_values_for_insert,
-            "parameter_value_list": self.check_wide_parameter_value_lists_for_insert,
+            "parameter_value_list": self.check_parameter_value_lists_for_insert,
+            "list_value": self.check_list_values_for_insert,
             "feature": self.check_features_for_insert,
             "tool": self.check_tools_for_insert,
             "tool_feature": self.check_tool_features_for_insert,
@@ -74,7 +74,8 @@ class DatabaseMappingCheckMixin:
             "relationship": self.check_wide_relationships_for_update,
             "parameter_definition": self.check_parameter_definitions_for_update,
             "parameter_value": self.check_parameter_values_for_update,
-            "parameter_value_list": self.check_wide_parameter_value_lists_for_update,
+            "parameter_value_list": self.check_parameter_value_lists_for_update,
+            "list_value": self.check_list_values_for_update,
             "feature": self.check_features_for_update,
             "tool": self.check_tools_for_update,
             "tool_feature": self.check_tool_features_for_update,
@@ -1390,7 +1391,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
-    def check_wide_parameter_value_lists_for_insert(self, *wide_items, strict=False, cache=None):
+    def check_parameter_value_lists_for_insert(self, *items, strict=False, cache=None):
         """Check whether parameter value-lists passed as argument respect integrity constraints
         for an insert operation.
 
@@ -1406,20 +1407,20 @@ class DatabaseMappingCheckMixin:
         if cache is None:
             cache = self.make_cache({"parameter_value_list"}, include_ancestors=True)
         intgr_error_log = []
-        checked_wide_items = list()
+        checked_items = list()
         parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
-        for wide_item in wide_items:
+        for item in items:
             try:
-                check_wide_parameter_value_list(wide_item, parameter_value_list_ids)
-                checked_wide_items.append(wide_item)
-                parameter_value_list_ids[wide_item["name"]] = None
+                check_parameter_value_list(item, parameter_value_list_ids)
+                checked_items.append(item)
+                parameter_value_list_ids[item["name"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
                 intgr_error_log.append(e)
-        return checked_wide_items, intgr_error_log
+        return checked_items, intgr_error_log
 
-    def check_wide_parameter_value_lists_for_update(self, *wide_items, strict=False, cache=None):
+    def check_parameter_value_lists_for_update(self, *items, strict=False, cache=None):
         """Check whether parameter value-lists passed as argument respect integrity constraints
         for an update operation.
 
@@ -1432,18 +1433,16 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
+        print(items)
         if cache is None:
             cache = self.make_cache({"parameter_value_list"}, include_ancestors=True)
         intgr_error_log = []
-        checked_wide_items = list()
-        parameter_value_lists = {
-            x.id: {"name": x.name, "value_list": x.value_list.split(";")}
-            for x in cache.get("parameter_value_list", {}).values()
-        }
+        checked_items = list()
+        parameter_value_lists = {x.id: {"name": x.name} for x in cache.get("parameter_value_list", {}).values()}
         parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
-        for wide_item in wide_items:
+        for item in items:
             try:
-                id_ = wide_item["id"]
+                id_ = item["id"]
             except KeyError:
                 msg = "Missing parameter value list identifier."
                 if strict:
@@ -1452,8 +1451,8 @@ class DatabaseMappingCheckMixin:
                 continue
             try:
                 # 'Remove' current instance
-                updated_wide_item = parameter_value_lists.pop(id_)
-                del parameter_value_list_ids[updated_wide_item["name"]]
+                updated_item = parameter_value_lists.pop(id_)
+                del parameter_value_list_ids[updated_item["name"]]
             except KeyError:
                 msg = "Parameter value list not found."
                 if strict:
@@ -1462,16 +1461,38 @@ class DatabaseMappingCheckMixin:
                 continue
             # Check for an insert of the updated instance
             try:
-                updated_wide_item.update(wide_item)
-                check_wide_parameter_value_list(updated_wide_item, parameter_value_list_ids)
-                checked_wide_items.append(wide_item)
-                parameter_value_lists[id_] = updated_wide_item
-                parameter_value_list_ids[updated_wide_item["name"]] = id_
+                updated_item.update(item)
+                check_parameter_value_list(updated_item, parameter_value_list_ids)
+                checked_items.append(item)
+                parameter_value_lists[id_] = updated_item
+                parameter_value_list_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
                 if strict:
                     raise e
                 intgr_error_log.append(e)
-        return checked_wide_items, intgr_error_log
+        return checked_items, intgr_error_log
+
+    def check_list_values_for_insert(self, *items, strict=False, cache=None):
+        return items, []
+        # FIXME
+        if cache is None:
+            cache = self.make_cache({"list_value"}, include_ancestors=True)
+        intgr_error_log = []
+        checked_items = list()
+        list_value_ids = {x.name: x.id for x in cache.get("list_value", {}).values()}
+        for item in items:
+            try:
+                check_list_value(item, list_value_ids)
+                checked_items.append(item)
+                list_value_ids[item["name"]] = None
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_list_values_for_update(self, *items, strict=False, cache=None):
+        return items, []
 
 
 def _fix_immutable_fields(current_item, item, immutable_fields):

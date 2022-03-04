@@ -33,7 +33,7 @@ from .check_functions import (
     check_parameter_definition,
     check_parameter_value,
     check_scenario,
-    check_wide_parameter_value_list,
+    check_parameter_value_list,
 )
 from .parameter_value import to_database, from_database, fix_conflict
 from .helpers import _parse_metadata

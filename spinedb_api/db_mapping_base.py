@@ -118,6 +118,7 @@ class DatabaseMappingBase:
         self._parameter_definition_sq = None
         self._parameter_value_sq = None
         self._parameter_value_list_sq = None
+        self._list_value_sq = None
         self._feature_sq = None
         self._tool_sq = None
         self._tool_feature_sq = None
@@ -144,7 +145,6 @@ class DatabaseMappingBase:
         self._entity_parameter_value_sq = None
         self._object_parameter_value_sq = None
         self._relationship_parameter_value_sq = None
-        self._wide_parameter_value_list_sq = None
         self._ext_feature_sq = None
         self._ext_tool_feature_sq = None
         self._ext_tool_feature_method_sq = None
@@ -172,7 +172,8 @@ class DatabaseMappingBase:
             "tool": "tool_sq",
             "tool_feature": "ext_tool_feature_sq",
             "tool_feature_method": "ext_tool_feature_method_sq",
-            "parameter_value_list": "wide_parameter_value_list_sq",
+            "parameter_value_list": "parameter_value_list_sq",
+            "list_value": "list_value_sq",
             "alternative": "alternative_sq",
             "scenario": "wide_scenario_sq",
             "scenario_alternative": "ext_linked_scenario_alternative_sq",
@@ -209,6 +210,7 @@ class DatabaseMappingBase:
             ),
             "entity_metadata": ("metadata",),
             "parameter_value_metadata": ("metadata",),
+            "list_value": ("parameter_value_list",),
         }
         self.descendant_tablenames = {
             tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
@@ -716,6 +718,12 @@ class DatabaseMappingBase:
         return self._parameter_value_list_sq
 
     @property
+    def list_value_sq(self):
+        if self._list_value_sq is None:
+            self._list_value_sq = self._subquery("list_value")
+        return self._list_value_sq
+
+    @property
     def feature_sq(self):
         if self._feature_sq is None:
             self._feature_sq = self._subquery("feature")
@@ -1148,7 +1156,7 @@ class DatabaseMappingBase:
                     label("object_class_name_list", self._object_class_name_list()),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
-                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.parameter_value_list_sq.c.name.label("value_list_name"),
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
@@ -1156,8 +1164,8 @@ class DatabaseMappingBase:
                 )
                 .join(self.entity_class_sq, self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
                 .outerjoin(
-                    self.wide_parameter_value_list_sq,
-                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                    self.parameter_value_list_sq,
+                    self.parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
                 )
                 .outerjoin(
                     self.wide_relationship_class_sq, self.wide_relationship_class_sq.c.id == self.entity_class_sq.c.id
@@ -1210,15 +1218,15 @@ class DatabaseMappingBase:
                     self.object_class_sq.c.name.label("object_class_name"),
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
-                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.parameter_value_list_sq.c.name.label("value_list_name"),
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
                 .outerjoin(
-                    self.wide_parameter_value_list_sq,
-                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                    self.parameter_value_list_sq,
+                    self.parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
                 )
                 .subquery()
             )
@@ -1291,15 +1299,15 @@ class DatabaseMappingBase:
                     self.wide_relationship_class_sq.c.object_class_name_list,
                     self.parameter_definition_sq.c.name.label("parameter_name"),
                     self.parameter_definition_sq.c.parameter_value_list_id.label("value_list_id"),
-                    self.wide_parameter_value_list_sq.c.name.label("value_list_name"),
+                    self.parameter_value_list_sq.c.name.label("value_list_name"),
                     self.parameter_definition_sq.c.default_value,
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
                 .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
                 .outerjoin(
-                    self.wide_parameter_value_list_sq,
-                    self.wide_parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
+                    self.parameter_value_list_sq,
+                    self.parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
                 )
                 .subquery()
             )
@@ -1421,46 +1429,6 @@ class DatabaseMappingBase:
         return self._relationship_parameter_value_sq
 
     @property
-    def wide_parameter_value_list_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                id,
-                name,
-                GROUP_CONCAT(value) AS value_list
-            FROM (
-                SELECT id, name, value
-                FROM parameter_value_list
-                ORDER BY id, value_index
-            )
-            GROUP BY id
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._wide_parameter_value_list_sq is None:
-            self._wide_parameter_value_list_sq = (
-                self.query(
-                    self.parameter_value_list_sq.c.id,
-                    self.parameter_value_list_sq.c.name,
-                    self.parameter_value_list_sq.c.commit_id,
-                    group_concat(
-                        self.parameter_value_list_sq.c.value_index, self.parameter_value_list_sq.c.value_index, ";"
-                    ).label("value_index_list"),
-                    group_concat(
-                        self.parameter_value_list_sq.c.value, self.parameter_value_list_sq.c.value_index, ";"
-                    ).label("value_list"),
-                ).group_by(
-                    self.parameter_value_list_sq.c.id,
-                    self.parameter_value_list_sq.c.name,
-                    self.parameter_value_list_sq.c.commit_id,
-                )
-            ).subquery()
-        return self._wide_parameter_value_list_sq
-
-    @property
     def ext_feature_sq(self):
         """
         Returns:
@@ -1475,12 +1443,12 @@ class DatabaseMappingBase:
                     self.feature_sq.c.parameter_definition_id.label("parameter_definition_id"),
                     self.parameter_definition_sq.c.name.label("parameter_definition_name"),
                     self.feature_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
-                    self.wide_parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+                    self.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
                     self.feature_sq.c.description.label("description"),
                     self.feature_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.feature_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
-                .filter(self.feature_sq.c.parameter_value_list_id == self.wide_parameter_value_list_sq.c.id)
+                .filter(self.feature_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id)
                 .filter(self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
                 .subquery()
             )
@@ -1536,7 +1504,7 @@ class DatabaseMappingBase:
                     self.tool_feature_method_sq.c.parameter_value_list_id,
                     self.ext_tool_feature_sq.c.parameter_value_list_name,
                     self.tool_feature_method_sq.c.method_index,
-                    self.parameter_value_list_sq.c.value.label("method"),
+                    self.list_value_sq.c.value.label("method"),
                     self.tool_feature_method_sq.c.commit_id,
                 )
                 .filter(self.tool_feature_method_sq.c.tool_feature_id == self.ext_tool_feature_sq.c.id)
@@ -1545,7 +1513,8 @@ class DatabaseMappingBase:
                     == self.ext_tool_feature_sq.c.parameter_value_list_id
                 )
                 .filter(self.tool_feature_method_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id)
-                .filter(self.tool_feature_method_sq.c.method_index == self.parameter_value_list_sq.c.value_index)
+                .filter(self.parameter_value_list_sq.c.id == self.list_value_sq.c.parameter_value_list_id)
+                .filter(self.tool_feature_method_sq.c.method_index == self.list_value_sq.c.index)
                 .subquery()
             )
         return self._ext_tool_feature_method_sq
@@ -1820,8 +1789,6 @@ class DatabaseMappingBase:
             return DatabaseMappingBase.cache_parameter_definition_to_db(item)
         if item_type == "parameter_value":
             return DatabaseMappingBase.cache_parameter_value_to_db(item)
-        if item_type == "parameter_value_list":
-            return DatabaseMappingBase.cache_parameter_value_list_to_db(item)
         if item_type == "entity_group":
             return DatabaseMappingBase.cache_entity_group_to_db(item)
         return item.copy()
@@ -1871,15 +1838,6 @@ class DatabaseMappingBase:
             "alternative_id": item["alternative_id"],
             "value": item["value"],
             "type": item["type"],
-            "commit_id": item["commit_id"],
-        }
-
-    @staticmethod
-    def cache_parameter_value_list_to_db(item):
-        return {
-            "id": item["id"],
-            "name": item["name"],
-            "value_list": [bytes(val, "UTF8") for val in item["value_list"].split(";")],
             "commit_id": item["commit_id"],
         }
 

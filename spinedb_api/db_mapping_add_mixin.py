@@ -20,7 +20,7 @@ from datetime import datetime
 from sqlalchemy import func, Table, Column, Integer, String, null
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, get_parameter_value_list_items
+from .helpers import get_relationship_entity_class_items, get_relationship_entity_items
 
 
 class DatabaseMappingAddMixin:
@@ -42,6 +42,7 @@ class DatabaseMappingAddMixin:
                 Column("parameter_definition_id", Integer, server_default=null()),
                 Column("parameter_value_id", Integer, server_default=null()),
                 Column("parameter_value_list_id", Integer, server_default=null()),
+                Column("list_value_id", Integer, server_default=null()),
                 Column("alternative_id", Integer, server_default=null()),
                 Column("scenario_id", Integer, server_default=null()),
                 Column("scenario_alternative_id", Integer, server_default=null()),
@@ -72,6 +73,7 @@ class DatabaseMappingAddMixin:
             "parameter_definition": "parameter_definition_id",
             "parameter_value": "parameter_value_id",
             "parameter_value_list": "parameter_value_list_id",
+            "list_value": "list_value_id",
             "alternative": "alternative_id",
             "scenario": "scenario_id",
             "scenario_alternative": "scenario_alternative_id",
@@ -266,11 +268,6 @@ class DatabaseMappingAddMixin:
                     or item.get("entity_class_id")
                 )
             yield ("parameter_value", items_to_add)
-        elif tablename == "parameter_value_list":
-            items_to_add_ = list()
-            for item in items_to_add:
-                items_to_add_ += get_parameter_value_list_items(item)
-            yield ("parameter_value_list", items_to_add_)
         else:
             yield (tablename, items_to_add)
 
@@ -292,8 +289,11 @@ class DatabaseMappingAddMixin:
     def add_parameter_values(self, *items, **kwargs):
         return self.add_items("parameter_value", *items, **kwargs)
 
-    def add_wide_parameter_value_lists(self, *items, **kwargs):
+    def add_parameter_value_lists(self, *items, **kwargs):
         return self.add_items("parameter_value_list", *items, **kwargs)
+
+    def add_list_values(self, *items, **kwargs):
+        return self.add_items("list_value", *items, **kwargs)
 
     def add_features(self, *items, **kwargs):
         return self.add_items("feature", *items, **kwargs)
@@ -337,8 +337,11 @@ class DatabaseMappingAddMixin:
     def _add_parameter_values(self, *items):
         return self._add_items("parameter_value", *items)
 
-    def _add_wide_parameter_value_lists(self, *items):
+    def _add_parameter_value_lists(self, *items):
         return self._add_items("parameter_value_list", *items)
+
+    def _add_list_values(self, *items):
+        return self._add_items("list_value", *items)
 
     def _add_features(self, *items):
         return self._add_items("feature", *items)

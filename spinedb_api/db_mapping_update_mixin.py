@@ -159,25 +159,17 @@ class DatabaseMappingUpdateMixin:
     def _update_tool_feature_methods(self, *items):
         return self._update_items("tool_feature_method", *items)
 
-    def update_wide_parameter_value_lists(self, *items, check=True, strict=False, return_items=False, cache=None):
-        if check:
-            checked_items, intgr_error_log = self.check_wide_parameter_value_lists_for_update(
-                *items, strict=strict, cache=cache
-            )
-        else:
-            checked_items, intgr_error_log = items, []
-        updated_ids = self._update_wide_parameter_value_lists(*checked_items)
-        return checked_items if return_items else updated_ids, intgr_error_log
+    def update_parameter_value_lists(self, *items, **kwargs):
+        return self.update_items("parameter_value_list", *items, **kwargs)
 
-    def _update_wide_parameter_value_lists(self, *checked_items):
-        ids = {item["id"] for item in checked_items}
-        try:
-            self.remove_items(parameter_value_list=ids)
-            self.add_wide_parameter_value_lists(*checked_items, readd=True)
-            return ids
-        except SpineDBAPIError as e:
-            msg = "DBAPIError while updating parameter value lists: {}".format(e.msg)
-            raise SpineDBAPIError(msg)
+    def _update_parameter_value_lists(self, *items):
+        return self._update_items("parameter_value_list", *items)
+
+    def update_list_values(self, *items, **kwargs):
+        return self.update_items("list_value", *items, **kwargs)
+
+    def _update_list_values(self, *items):
+        return self._update_items("list_value", *items)
 
     def get_data_to_set_scenario_alternatives(self, *items, cache=None):
         """Returns data to add and remove, in order to set wide scenario alternatives.

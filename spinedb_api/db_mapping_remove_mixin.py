@@ -48,7 +48,7 @@ class DatabaseMappingRemoveMixin:
                 self.connection.execute(delete)
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
-                raise SpineDBAPIError(msg)
+                raise SpineDBAPIError(msg) from e
             else:
                 self.make_commit_id()
 
@@ -74,6 +74,7 @@ class DatabaseMappingRemoveMixin:
         self._merge(ids, self._parameter_definition_cascading_ids(kwargs.get("parameter_definition", set()), cache))
         self._merge(ids, self._parameter_value_cascading_ids(kwargs.get("parameter_value", set()), cache))
         self._merge(ids, self._parameter_value_list_cascading_ids(kwargs.get("parameter_value_list", set()), cache))
+        self._merge(ids, self._list_value_cascading_ids(kwargs.get("list_value", set()), cache))
         self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set()), cache))
         self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set()), cache))
         self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set()), cache))
@@ -186,6 +187,10 @@ class DatabaseMappingRemoveMixin:
         features = [x for x in cache.get("feature", {}).values() if x.parameter_value_list_id in ids]
         self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
+
+    def _list_value_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
+        """Returns parameter value list value cascading ids."""
+        return {"list_value": ids.copy()}
 
     def _scenario_alternatives_cascading_ids(self, ids, cache):
         return {"scenario_alternative": ids.copy()}

@@ -43,7 +43,7 @@ from .check_functions import (
     check_wide_relationship,
     check_parameter_definition,
     check_parameter_value,
-    check_wide_parameter_value_list,
+    check_parameter_value_list,
 )
 from .import_functions import (
     import_alternatives,

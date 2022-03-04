@@ -419,7 +419,7 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         )
 
 
-def check_wide_parameter_value_list(wide_item, current_items):
+def check_parameter_value_list(item, current_items):
     """Check whether the insertion of a parameter value-list item
     results in the violation of an integrity constraint.
 
@@ -431,13 +431,15 @@ def check_wide_parameter_value_list(wide_item, current_items):
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
     try:
-        name = wide_item["name"]
+        name = item["name"]
     except KeyError:
         raise SpineIntegrityError("Missing parameter value list name.")
     if name in current_items:
         raise SpineIntegrityError(
             "There can't be more than one parameter value_list called '{}'.".format(name), id=current_items[name]
         )
+    return
+    # FIXME
     try:
         value_list = wide_item["value_list"]
     except KeyError:
