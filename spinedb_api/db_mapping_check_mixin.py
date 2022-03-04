@@ -1433,7 +1433,6 @@ class DatabaseMappingCheckMixin:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
-        print(items)
         if cache is None:
             cache = self.make_cache({"parameter_value_list"}, include_ancestors=True)
         intgr_error_log = []

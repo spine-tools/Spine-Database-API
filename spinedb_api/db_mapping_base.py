@@ -1789,6 +1789,8 @@ class DatabaseMappingBase:
             return DatabaseMappingBase.cache_parameter_definition_to_db(item)
         if item_type == "parameter_value":
             return DatabaseMappingBase.cache_parameter_value_to_db(item)
+        if item_type == "list_value":
+            return DatabaseMappingBase.cache_list_value_to_db(item)
         if item_type == "entity_group":
             return DatabaseMappingBase.cache_entity_group_to_db(item)
         return item.copy()
@@ -1838,6 +1840,17 @@ class DatabaseMappingBase:
             "alternative_id": item["alternative_id"],
             "value": item["value"],
             "type": item["type"],
+            "commit_id": item["commit_id"],
+        }
+
+    @staticmethod
+    def cache_list_value_to_db(item):
+        return {
+            "id": item["id"],
+            "parameter_value_list_id": item["parameter_value_list_id"],
+            "index": item["index"],
+            "type": item["type"],
+            "value": item["value"],
             "commit_id": item["commit_id"],
         }
 
