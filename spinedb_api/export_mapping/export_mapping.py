@@ -1314,22 +1314,17 @@ class ParameterValueListMapping(ExportMapping):
     MAP_TYPE = "ParameterValueList"
 
     def add_query_columns(self, db_map, query):
-        if self.parent is None:
-            return query.add_columns(
-                db_map.parameter_value_list_sq.c.id.label("parameter_value_list_id"),
-                db_map.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
-            )
         return query.add_columns(
-            db_map.wide_parameter_value_list_sq.c.id.label("parameter_value_list_id"),
-            db_map.wide_parameter_value_list_sq.c.name.label("parameter_value_list_name"),
+            db_map.parameter_value_list_sq.c.id.label("parameter_value_list_id"),
+            db_map.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
         )
 
     def filter_query(self, db_map, query):
         if self.parent is None:
             return query
         return query.outerjoin(
-            db_map.wide_parameter_value_list_sq,
-            db_map.wide_parameter_value_list_sq.c.id == db_map.parameter_definition_sq.c.parameter_value_list_id,
+            db_map.parameter_value_list_sq,
+            db_map.parameter_value_list_sq.c.id == db_map.parameter_definition_sq.c.parameter_value_list_id,
         )
 
     @staticmethod
@@ -1351,19 +1346,21 @@ class ParameterValueListValueMapping(ExportMapping):
     MAP_TYPE = "ParameterValueListValue"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.parameter_value_list_sq.c.value)
+        return query.add_columns(db_map.list_value_sq.c.value)
+
+    def filter_query(self, db_map, query):
+        return query.filter(db_map.list_value_sq.c.parameter_value_list_id == db_map.parameter_value_list_sq.c.id)
 
     @staticmethod
     def name_field():
-        return "value"
+        return None
 
     @staticmethod
     def id_field():
-        return "value"
+        return None
 
     def _data(self, db_row):
-        data = super()._data(db_row)
-        return from_database_to_single_value(data, None)
+        return from_database_to_single_value(db_row.value, db_row.type)
 
     @staticmethod
     def is_buddy(parent):

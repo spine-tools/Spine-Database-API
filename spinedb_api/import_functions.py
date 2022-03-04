@@ -537,15 +537,12 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
     }
     tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
     parameter_value_lists = {
-        id_: {
-            "name": name,
-            "value_index_list": value_index_list,
-            "value_to_index": dict(zip(value_list, value_index_list)),
-        }
-        for id_, name, value_index_list, value_list in (
-            (x.id, x.name, [int(idx) for idx in x.value_index_list.split(";")], x.value_list.split(";"))
-            for x in cache.get("parameter_value_list", {}).values()
-        )
+        x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(",")]}
+        for x in cache.get("parameter_value_list", {}).values()
+    }
+    list_values = {
+        (x.parameter_value_list_id, x.index): from_database(x.value, x.type)
+        for x in cache.get("list_value", {}).values()
     }
     seen = set()
     to_add = []
@@ -555,8 +552,11 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
             (tool_name, class_name, parameter_name), (None, None)
         )
         parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
-        value_to_index = parameter_value_list.get("value_to_index", {})
-        method_index = value_to_index.get(json.dumps(method))
+        value_index_list = parameter_value_list.get("value_index_list", [])
+        method_index = next(
+            iter(index for index in value_index_list if list_values.get((parameter_value_list_id, index)) == method),
+            None,
+        )
         if (tool_feature_id, method_index) in seen | tool_feature_method_ids.keys():
             continue
         item = {
@@ -1128,7 +1128,7 @@ def _get_object_parameters_for_import(db_map, data, make_cache):
     parameter_value_lists = {}
     parameter_value_list_ids = {}
     for x in cache.get("parameter_value_list", {}).values():
-        parameter_value_lists[x.id] = x.value_list
+        parameter_value_lists[x.id] = x.name
         parameter_value_list_ids[x.name] = x.id
     checked = set()
     error_log = []
@@ -1209,7 +1209,7 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache):
     parameter_value_lists = {}
     parameter_value_list_ids = {}
     for x in cache.get("parameter_value_list", {}).values():
-        parameter_value_lists[x.id] = x.value_list
+        parameter_value_lists[x.id] = x.name
         parameter_value_list_ids[x.name] = x.id
     error_log = []
     to_add = []
@@ -1296,7 +1296,8 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, on_conflic
         for x in cache.get("parameter_definition", {}).values()
     }
     objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
-    parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+    parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     object_ids = {(o["name"], o["class_id"]): o_id for o_id, o in objects.items()}
     parameter_ids = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameters.items()}
     alternatives = {a.name: a.id for a in cache.get("alternative", {}).values()}
@@ -1352,7 +1353,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, on_conflic
         }
         try:
             check_parameter_value(
-                item, parameter_value_ids, parameters, objects, parameter_value_lists, alternative_ids
+                item, parameter_value_ids, parameters, objects, parameter_value_lists, list_values, alternative_ids
             )
         except SpineIntegrityError as e:
             error_log.append(
@@ -1419,7 +1420,8 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, on_c
         x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": [int(i) for i in x.object_id_list.split(",")]}
         for x in cache.get("relationship", {}).values()
     }
-    parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+    parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     parameter_ids = {(p["entity_class_id"], p["name"]): p_id for p_id, p in parameters.items()}
     relationship_ids = {(r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationships.items()}
     object_ids = {(o.name, o.class_id): o.id for o in cache.get("object", {}).values()}
@@ -1482,7 +1484,13 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, on_c
         }
         try:
             check_parameter_value(
-                item, parameter_value_ids, parameters, relationships, parameter_value_lists, alternative_ids
+                item,
+                parameter_value_ids,
+                parameters,
+                relationships,
+                parameter_value_lists,
+                list_values,
+                alternative_ids,
             )
         except SpineIntegrityError as e:
             error_log.append(
@@ -1555,6 +1563,7 @@ def _get_list_values_for_import(db_map, data, make_cache):
     to_add = []
     to_update = []
     seen_values = set()
+    max_indexes = dict()
     for list_name, value in data:
         try:
             list_id, value_index_list = value_lists_by_name.get(list_name)
@@ -1576,7 +1585,13 @@ def _get_list_values_for_import(db_map, data, make_cache):
                 )
             )
             continue
-        index = int(max(value_index_list.split(","))) + 1
+        max_index = max_indexes.get(list_id)
+        if max_index is not None:
+            index = max_index + 1
+        elif value_index_list is None:
+            index = 0
+        else:
+            index = int(max(value_index_list.split(","))) + 1
         item = {"parameter_value_list_id": list_id, "value": val, "type": type_, "index": index}
         try:
             check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
@@ -1587,6 +1602,7 @@ def _get_list_values_for_import(db_map, data, make_cache):
                 )
             )
             continue
+        max_indexes[list_id] = index
         seen_values.add((list_id, type_, val))
         to_add.append(item)
     return to_add, to_update, error_log

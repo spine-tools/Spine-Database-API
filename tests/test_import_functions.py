@@ -801,13 +801,14 @@ class TestImportParameterValueList(unittest.TestCase):
     def test_list_with_single_value(self):
         count, errors = import_parameter_value_lists(self._db_map, (("list_1", 23.0),))
         self.assertEqual(errors, [])
-        self.assertEqual(count, 1)
-        value_list_values = self._db_map.query(self._db_map.parameter_value_list_sq).all()
-        self.assertEqual(len(value_list_values), 1)
-        value = value_list_values[0]
-        self.assertEqual(value.name, "list_1")
-        self.assertEqual(from_database(value.value), 23.0)
-        self.assertEqual(value.value_index, 0)
+        self.assertEqual(count, 2)
+        value_lists = self._db_map.query(self._db_map.parameter_value_list_sq).all()
+        list_values = self._db_map.query(self._db_map.list_value_sq).all()
+        self.assertEqual(len(value_lists), 1)
+        self.assertEqual(len(list_values), 1)
+        self.assertEqual(value_lists[0].name, "list_1")
+        self.assertEqual(from_database(list_values[0].value, list_values[0].type), 23.0)
+        self.assertEqual(list_values[0].index, 0)
 
 
 class TestImportAlternative(unittest.TestCase):

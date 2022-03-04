@@ -36,6 +36,7 @@ from .check_functions import (
     check_tool_feature,
     check_tool_feature_method,
 )
+from .parameter_value import from_database
 
 
 # NOTE: To check for an update we remove the current instance from our lookup dictionary,
@@ -381,7 +382,7 @@ class DatabaseMappingCheckMixin:
         }
         tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
+            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(",")]}
             for x in cache.get("parameter_value_list", {}).values()
         }
         for item in items:
@@ -418,7 +419,7 @@ class DatabaseMappingCheckMixin:
         }
         tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(";")]}
+            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(",")]}
             for x in cache.get("parameter_value_list", {}).values()
         }
         for item in items:
@@ -1272,7 +1273,8 @@ class DatabaseMappingCheckMixin:
             x.id: {"class_id": x.class_id, "name": x.name}
             for x in chain(cache.get("object", {}).values(), cache.get("relationship", {}).values())
         }
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+        parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+        list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
             checked_item = item.copy()
@@ -1294,6 +1296,7 @@ class DatabaseMappingCheckMixin:
                     parameter_definitions,
                     entities,
                     parameter_value_lists,
+                    list_values,
                     alternatives,
                 )
                 parameter_value_ids[entity_id, checked_item["parameter_definition_id"], alt_id] = None
@@ -1351,7 +1354,8 @@ class DatabaseMappingCheckMixin:
         entities.update(
             {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("relationship", {}).values()}
         )
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+        parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+        list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
             try:
@@ -1379,7 +1383,13 @@ class DatabaseMappingCheckMixin:
                 )
                 updated_item.update(item)
                 check_parameter_value(
-                    updated_item, parameter_values, parameter_definitions, entities, parameter_value_lists, alternatives
+                    updated_item,
+                    parameter_values,
+                    parameter_definitions,
+                    entities,
+                    parameter_value_lists,
+                    list_values,
+                    alternatives,
                 )
                 parameter_values[id_] = updated_item
                 parameter_value_ids[

@@ -356,7 +356,9 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
         raise SpineIntegrityError("Invalid default value '{}': {}".format(default_value, err))
 
 
-def check_parameter_value(item, current_items, parameter_definitions, entities, parameter_value_lists, alternatives):
+def check_parameter_value(
+    item, current_items, parameter_definitions, entities, parameter_value_lists, list_values, alternatives
+):
     """Check whether the insertion of a parameter value item results in the violation of an integrity constraint.
 
     Args:
@@ -366,6 +368,8 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
         parameter_definitions (dict): A dictionary of parameter definition items in the database keyed by id.
         entities (dict): A dictionary of entity items already in the database keyed by id.
         parameter_value_lists (dict): A dictionary of value-lists in the database keyed by id.
+        list_values (dict): A dictionary of list-values in the database keyed by id.
+        alternatives (set)
 
     Raises:
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
@@ -384,19 +388,19 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
     if alt_id not in alternatives:
         raise SpineIntegrityError("Alternative not found.")
     try:
-        _ = from_database(value, value_type)
+        parsed_value = from_database(value, value_type)
     except ParameterValueFormatError as err:
         raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
-    if value is not None:
+    if parsed_value is not None:
         parameter_value_list_id = parameter_definition["parameter_value_list_id"]
-        value_list = parameter_value_lists.get(parameter_value_list_id)
-        if value_list is not None:
-            value_list = value_list.split(";")
-            if str(value, "UTF8") not in value_list:
-                valid_values = ", ".join(value_list)
+        value_id_list = parameter_value_lists.get(parameter_value_list_id)
+        if value_id_list is not None:
+            list_values = [list_values[int(id_)] for id_ in value_id_list.split(",")]
+            if parsed_value not in list_values:
+                valid_values = ", ".join([str(x) for x in list_values])
                 raise SpineIntegrityError(
                     "The value '{}' is not a valid value for parameter '{}' (valid values are: {})".format(
-                        value, parameter_definition["name"], valid_values
+                        parsed_value, parameter_definition["name"], valid_values
                     )
                 )
     entity_id = item.get("entity_id")

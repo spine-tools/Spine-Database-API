@@ -194,7 +194,7 @@ class DatabaseMappingBase:
         self.ancestor_tablenames = {
             "feature": ("parameter_definition",),
             "tool_feature": ("tool", "feature"),
-            "tool_feature_method": ("tool_feature", "parameter_value_list"),
+            "tool_feature_method": ("tool_feature", "parameter_value_list", "list_value"),
             "scenario_alternative": ("scenario", "alternative"),
             "relationship_class": ("object_class",),
             "object": ("object_class",),
@@ -209,6 +209,7 @@ class DatabaseMappingBase:
                 "relationship",
                 "parameter_definition",
                 "parameter_value_list",
+                "list_value",
             ),
             "entity_metadata": ("metadata",),
             "parameter_value_metadata": ("metadata",),
