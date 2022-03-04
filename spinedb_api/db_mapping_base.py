@@ -127,6 +127,8 @@ class DatabaseMappingBase:
         self._parameter_value_metadata_sq = None
         self._entity_metadata_sq = None
         # Special convenience subqueries that join two or more tables
+        self._ext_parameter_value_list_sq = None
+        self._wide_parameter_value_list_sq = None
         self._ext_scenario_sq = None
         self._wide_scenario_sq = None
         self._linked_scenario_alternative_sq = None
@@ -172,7 +174,7 @@ class DatabaseMappingBase:
             "tool": "tool_sq",
             "tool_feature": "ext_tool_feature_sq",
             "tool_feature_method": "ext_tool_feature_method_sq",
-            "parameter_value_list": "parameter_value_list_sq",
+            "parameter_value_list": "wide_parameter_value_list_sq",
             "list_value": "list_value_sq",
             "alternative": "alternative_sq",
             "scenario": "wide_scenario_sq",
@@ -771,6 +773,47 @@ class DatabaseMappingBase:
             commit_sq = self._subquery("commit")
             self._commit_sq = self.query(commit_sq).filter(commit_sq.c.comment != "").subquery()
         return self._commit_sq
+
+    @property
+    def ext_parameter_value_list_sq(self):
+        if self._ext_parameter_value_list_sq is None:
+            self._ext_parameter_value_list_sq = (
+                self.query(
+                    self.parameter_value_list_sq.c.id,
+                    self.parameter_value_list_sq.c.name,
+                    self.parameter_value_list_sq.c.commit_id,
+                    self.list_value_sq.c.id.label("value_id"),
+                    self.list_value_sq.c.index.label("value_index"),
+                ).outerjoin(
+                    self.list_value_sq,
+                    self.list_value_sq.c.parameter_value_list_id == self.parameter_value_list_sq.c.id,
+                )
+            ).subquery()
+        return self._ext_parameter_value_list_sq
+
+    @property
+    def wide_parameter_value_list_sq(self):
+        if self._wide_parameter_value_list_sq is None:
+            self._wide_parameter_value_list_sq = (
+                self.query(
+                    self.ext_parameter_value_list_sq.c.id,
+                    self.ext_parameter_value_list_sq.c.name,
+                    self.ext_parameter_value_list_sq.c.commit_id,
+                    group_concat(
+                        self.ext_parameter_value_list_sq.c.value_id,
+                        self.ext_parameter_value_list_sq.c.value_index,
+                    ).label("value_id_list"),
+                    group_concat(
+                        self.ext_parameter_value_list_sq.c.value_index,
+                        self.ext_parameter_value_list_sq.c.value_index,
+                    ).label("value_index_list"),
+                ).group_by(
+                    self.ext_parameter_value_list_sq.c.id,
+                    self.ext_parameter_value_list_sq.c.name,
+                    self.ext_parameter_value_list_sq.c.commit_id,
+                )
+            ).subquery()
+        return self._wide_parameter_value_list_sq
 
     @property
     def ext_scenario_sq(self):

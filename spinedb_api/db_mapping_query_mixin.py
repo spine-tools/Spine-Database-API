@@ -14,16 +14,13 @@
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
 """
-# TODO: Consider returning lists (by callling `all()` on the resulting query)
-# TODO: Maybe handle errors in queries
-# TODO: Improve docstrings
+# TODO: Deprecate and drop this module
 
-from sqlalchemy import false, distinct, func, or_
+from sqlalchemy import func, or_
 
 
 class DatabaseMappingQueryMixin:
-    """Provides methods to perform standard queries (``SELECT`` statements) on a Spine db.
-    """
+    """Provides methods to perform standard queries (``SELECT`` statements) on a Spine db."""
 
     def object_class_list(self, id_list=None, ordered=True):
         """Return all records from the :meth:`object_class_sq <.DatabaseMappingBase.object_class_sq>` subquery.

@@ -454,7 +454,7 @@ def check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value
     keys = {"parameter_value_list_id", "index", "value", "type"}
     missing_keys = keys - item.keys()
     if missing_keys:
-        raise SpineIntegrityError(f"Missing keys: ', '.join(missing_keys).")
+        raise SpineIntegrityError(f"Missing keys: {', '.join(missing_keys)}.")
     list_id = item["parameter_value_list_id"]
     list_name = list_names_by_id.get(list_id)
     if list_name is None:

@@ -100,6 +100,10 @@ def _get_items(db_map, tablename, ids, make_cache):
     if make_cache is None:
         make_cache = db_map.make_cache
     cache = make_cache({tablename})
+    yield from _get_items_from_cache(cache, tablename, ids)
+
+
+def _get_items_from_cache(cache, tablename, ids):
     items = cache.get(tablename, {})
     if ids is Asterisk:
         yield from items.values()
@@ -124,10 +128,16 @@ def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None):
+    if not ids:
+        return []
+    if make_cache is None:
+        make_cache = db_map.make_cache
+    cache = make_cache({"parameter_value_list", "list_value"})
     return sorted(
-        (x.name, load_db_value(value, value_type=None))
-        for x in _get_items(db_map, "parameter_value_list", ids, make_cache)
-        for value in x.value_list.split(";")
+        (lst.name, load_db_value(val.value, val.type))
+        for lst in _get_items_from_cache(cache, "parameter_value_list", ids)
+        if lst.value_id_list is not None
+        for val in (cache["list_value"][int(value_id)] for value_id in lst.value_id_list.split(","))
     )
 
 

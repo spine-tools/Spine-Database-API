@@ -34,6 +34,7 @@ from .check_functions import (
     check_parameter_value,
     check_scenario,
     check_parameter_value_list,
+    check_list_value,
 )
 from .parameter_value import to_database, from_database, fix_conflict
 from .helpers import _parse_metadata
@@ -123,7 +124,8 @@ def import_data(db_map, make_cache=None, on_conflict="merge", **kwargs):
         "scenario_alternative": db_map._add_scenario_alternatives,
         "object_class": db_map._add_object_classes,
         "relationship_class": db_map._add_wide_relationship_classes,
-        "parameter_value_list": db_map._add_wide_parameter_value_lists,
+        "parameter_value_list": db_map._add_parameter_value_lists,
+        "list_value": db_map._add_list_values,
         "parameter_definition": db_map._add_parameter_definitions,
         "feature": db_map._add_features,
         "tool": db_map._add_tools,
@@ -143,7 +145,8 @@ def import_data(db_map, make_cache=None, on_conflict="merge", **kwargs):
         "scenario_alternative": db_map._update_scenario_alternatives,
         "object_class": db_map._update_object_classes,
         "relationship_class": db_map._update_wide_relationship_classes,
-        "parameter_value_list": db_map._update_wide_parameter_value_lists,
+        "parameter_value_list": db_map._update_parameter_value_lists,
+        "list_value": db_map._update_list_values,
         "parameter_definition": db_map._update_parameter_definitions,
         "feature": db_map._update_features,
         "tool": db_map._update_tools,
@@ -243,11 +246,8 @@ def get_data_for_import(
     if relationship_classes:
         yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes, make_cache))
     if parameter_value_lists:
-        to_add, to_update, error_log = _get_parameter_value_lists_for_import(db_map, parameter_value_lists, make_cache)
-        defs_to_update, vals_to_update = _get_parameters_to_update_with_value_lists(db_map, to_update, make_cache)
-        yield ("parameter_value_list", (to_add, to_update, error_log))
-        yield ("parameter_definition", ([], defs_to_update, []))
-        yield ("parameter_value", ([], vals_to_update, []))
+        yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists, make_cache))
+        yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, make_cache))
     if object_parameters:
         yield ("parameter_definition", _get_object_parameters_for_import(db_map, object_parameters, make_cache))
     if relationship_parameters:
@@ -1531,92 +1531,65 @@ def import_parameter_value_lists(db_map, data, make_cache=None):
 def _get_parameter_value_lists_for_import(db_map, data, make_cache):
     cache = make_cache({"parameter_value_list"}, include_ancestors=True)
     parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
-    seen = set()
+    error_log = []
+    to_add = []
+    for name in set(x[0] for x in data):
+        item = {"name": name}
+        try:
+            check_parameter_value_list(item, parameter_value_list_ids)
+        except SpineIntegrityError:
+            continue
+        to_add.append(item)
+    return to_add, [], error_log
+
+
+def _get_list_values_for_import(db_map, data, make_cache):
+    cache = make_cache({"list_value"}, include_ancestors=True)
+    value_lists_by_name = {x.name: (x.id, x.value_index_list) for x in cache.get("parameter_value_list", {}).values()}
+    list_value_ids_by_index = {(x.parameter_value_list_id, x.index): x.id for x in cache.get("list_value", {}).values()}
+    list_value_ids_by_value = {
+        (x.parameter_value_list_id, x.type, x.value): x.id for x in cache.get("list_value", {}).values()
+    }
+    list_names_by_id = {x.id: x.name for x in cache.get("parameter_value_list", {}).values()}
     error_log = []
     to_add = []
     to_update = []
-    for name, group in groupby(data, lambda x: x[0]):
-        value_list = list({x[1]: None for x in group}.keys())
-        if name in seen:
+    seen_values = set()
+    for list_name, value in data:
+        try:
+            list_id, value_index_list = value_lists_by_name.get(list_name)
+        except TypeError:
+            # cannot unpack non-iterable NoneType object
             error_log.append(
                 ImportErrorLogItem(
-                    msg=(
-                        f"Could not import parameter value list '{name}': Duplicate list, only first will be considered"
-                    ),
-                    db_type="parameter value list",
+                    msg=f"Could not import value for list '{list_name}': list not found", db_type="list value"
                 )
             )
             continue
-        item = {"name": name, "value_list": [to_database(value)[0] for value in value_list]}
-        pvl_id = parameter_value_list_ids.pop(name, None)
+        val, type_ = to_database(value)
+        if (list_id, type_, val) in seen_values:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import value for list '{list_name}': "
+                    "Duplicate value, only first will be considered",
+                    db_type="list value",
+                )
+            )
+            continue
+        index = int(max(value_index_list.split(","))) + 1
+        item = {"parameter_value_list_id": list_id, "value": val, "type": type_, "index": index}
         try:
-            check_wide_parameter_value_list(item, parameter_value_list_ids)
+            check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
-                    msg=f"Could not import parameter value list '{name}' with values {tuple(value_list)}: {e.msg}",
-                    db_type="parameter value list",
+                    msg=f"Could not import value '{value}' for list '{list_name}': {e.msg}", db_type="list value"
                 )
             )
             continue
-        finally:
-            if pvl_id is not None:
-                parameter_value_list_ids[name] = pvl_id
-        seen.add(name)
-        if pvl_id is not None:
-            item["id"] = pvl_id
-            to_update.append(item)
-        else:
-            to_add.append(item)
+        seen_values.add((list_id, type_, val))
+        to_add.append(item)
     return to_add, to_update, error_log
-
-
-def _new_value_from_list(curr_value, curr_value_list, new_value_list):
-    try:
-        value_index = curr_value_list.index(curr_value)
-    except ValueError:
-        return None
-    try:
-        return new_value_list[value_index]
-    except IndexError:
-        return None
-
-
-def _get_parameters_to_update_with_value_lists(db_map, parameter_value_lists_to_upd, make_cache):
-    cache = make_cache({"parameter_definition", "parameter_value", "parameter_value_list"})
-    parameter_definitions = {}
-    for x in cache.get("parameter_definition", {}).values():
-        if not x.value_list_id:
-            continue
-        parameter_definitions.setdefault(x.value_list_id, []).append(x._asdict())
-    parameter_values = {}
-    for x in cache.get("parameter_value", {}).values():
-        parameter_values.setdefault(x.parameter_id, []).append(x._asdict())
-    parameter_value_lists = {x.id: x._asdict() for x in cache.get("parameter_value_list", {}).values()}
-    defs_to_update = []
-    vals_to_update = []
-    for new_parameter_value_list in parameter_value_lists_to_upd:
-        value_list_id = new_parameter_value_list["id"]
-        parameter_value_list = parameter_value_lists.get(value_list_id)
-        if not parameter_value_list:
-            continue
-        value_list = parameter_value_list["value_list"].split(";")
-        new_value_list = new_parameter_value_list["value_list"]
-        for parameter_definition in parameter_definitions.get(value_list_id, []):
-            for parameter_value in parameter_values.get(parameter_definition["id"], []):
-                value = parameter_value["value"]
-                new_value = _new_value_from_list(value, value_list, new_value_list)
-                if new_value is None:
-                    continue
-                item = {"id": parameter_value["id"], "value": new_value}
-                vals_to_update.append(item)
-            default_value = parameter_definition["default_value"]
-            new_default_value = _new_value_from_list(default_value, value_list, new_value_list)
-            if new_default_value is None:
-                continue
-            item = {"id": parameter_definition["id"], "default_value": new_default_value}
-            defs_to_update.append(item)
-    return defs_to_update, vals_to_update
 
 
 def import_metadata(db_map, data, make_cache=None):
