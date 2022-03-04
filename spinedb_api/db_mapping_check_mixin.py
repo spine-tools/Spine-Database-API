@@ -1473,6 +1473,18 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_list_values_for_insert(self, *items, strict=False, cache=None):
+        """Check whether list values passed as argument respect integrity constraints
+        for an insert operation.
+
+        Args:
+            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
         if cache is None:
             cache = self.make_cache({"list_value"}, include_ancestors=True)
         intgr_error_log = []
@@ -1497,6 +1509,18 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_list_values_for_update(self, *items, strict=False, cache=None):
+        """Check whether list values passed as argument respect integrity constraints
+        for an update operation.
+
+        Args:
+            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
         if cache is None:
             cache = self.make_cache({"list_value"}, include_ancestors=True)
         intgr_error_log = []

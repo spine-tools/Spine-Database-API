@@ -420,11 +420,10 @@ def check_parameter_value(item, current_items, parameter_definitions, entities, 
 
 
 def check_parameter_value_list(item, current_items):
-    """Check whether the insertion of a parameter value-list item
-    results in the violation of an integrity constraint.
+    """Check whether the insertion of a parameter value-list item results in the violation of an integrity constraint.
 
     Args:
-        wide_item (dict): A wide parameter value-list item to be checked.
+        item (dict): A parameter value-list item to be checked.
         current_items (dict): A dictionary mapping names to ids of parameter value-lists already in the database.
 
     Raises:
@@ -438,14 +437,24 @@ def check_parameter_value_list(item, current_items):
         raise SpineIntegrityError(
             "There can't be more than one parameter value_list called '{}'.".format(name), id=current_items[name]
         )
-    return
 
 
 def check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value):
+    """Check whether the insertion of a list value item results in the violation of an integrity constraint.
+
+    Args:
+        item (dict): A list value item to be checked.
+        list_names_by_id (dict): Mapping parameter value list ids to names.
+        list_value_ids_by_index (dict): Mapping tuples (list id, index) to ids of existing list values.
+        list_value_ids_by_value (dict): Mapping tuples (list id, type, value) to ids of existing list values.
+
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    """
     keys = {"parameter_value_list_id", "index", "value", "type"}
     missing_keys = keys - item.keys()
     if missing_keys:
-        raise SpineIntegrityError("Missing keys: ', '.join(missing_keys).")
+        raise SpineIntegrityError(f"Missing keys: ', '.join(missing_keys).")
     list_id = item["parameter_value_list_id"]
     list_name = list_names_by_id.get(list_id)
     if list_name is None:
