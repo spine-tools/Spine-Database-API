@@ -165,17 +165,18 @@ def _make_ext_tool_feature_method_sq(db_map, state):
             db_map.ext_tool_feature_sq.c.tool_id,
             db_map.ext_tool_feature_sq.c.parameter_definition_id,
             db_map.ext_tool_feature_sq.c.required,
-            db_map.parameter_value_list_sq.c.value.label("method"),
+            db_map.list_value_sq.c.value.label("method_value"),
+            db_map.list_value_sq.c.type.label("method_type"),
         )
         .outerjoin(
             db_map.tool_feature_method_sq,
             db_map.tool_feature_method_sq.c.tool_feature_id == db_map.ext_tool_feature_sq.c.id,
         )
         .outerjoin(
-            db_map.parameter_value_list_sq,
+            db_map.list_value_sq,
             and_(
-                db_map.ext_tool_feature_sq.c.parameter_value_list_id == db_map.parameter_value_list_sq.c.id,
-                db_map.tool_feature_method_sq.c.method_index == db_map.parameter_value_list_sq.c.value_index,
+                db_map.ext_tool_feature_sq.c.parameter_value_list_id == db_map.list_value_sq.c.parameter_value_list_id,
+                db_map.tool_feature_method_sq.c.method_index == db_map.list_value_sq.c.index,
             ),
         )
         .filter(db_map.ext_tool_feature_sq.c.tool_id == state.tool_id)
@@ -193,11 +194,15 @@ def _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_de
             (
                 or_(
                     tool_feature_method_sq.c.parameter_definition_id.is_(None),
-                    tool_feature_method_sq.c.method.is_(None),
-                    parameter_value_sq.c.value == tool_feature_method_sq.c.method,
+                    tool_feature_method_sq.c.method_value.is_(None),
+                    and_(
+                        parameter_value_sq.c.value == tool_feature_method_sq.c.method_value,
+                        _equal_or_none(parameter_value_sq.c.type, tool_feature_method_sq.c.method_type),
+                    ),
                     and_(
                         parameter_value_sq.c.value.is_(None),
-                        parameter_definition_sq.c.default_value == tool_feature_method_sq.c.method,
+                        parameter_definition_sq.c.default_value == tool_feature_method_sq.c.method_value,
+                        _equal_or_none(parameter_definition_sq.c.default_type, tool_feature_method_sq.c.method_type),
                     ),
                 ),
                 True,
@@ -205,6 +210,11 @@ def _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_de
         ],
         else_=False,
     )
+
+
+def _equal_or_none(left, right):
+    # Needed because NULL != NULL in SQL, remember? Otherwise left == right would have sufficed
+    return or_(left == right, and_(left.is_(None), right.is_(None)))
 
 
 def _make_required_filter(tool_feature_method_sq, parameter_value_sq):

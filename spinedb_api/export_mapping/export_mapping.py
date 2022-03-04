@@ -1346,7 +1346,7 @@ class ParameterValueListValueMapping(ExportMapping):
     MAP_TYPE = "ParameterValueListValue"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.list_value_sq.c.value)
+        return query.add_columns(db_map.list_value_sq.c.value, db_map.list_value_sq.c.type)
 
     def filter_query(self, db_map, query):
         return query.filter(db_map.list_value_sq.c.parameter_value_list_id == db_map.parameter_value_list_sq.c.id)
