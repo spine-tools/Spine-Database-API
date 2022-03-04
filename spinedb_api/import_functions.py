@@ -1541,7 +1541,7 @@ def _get_parameter_value_lists_for_import(db_map, data, make_cache):
     parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
     error_log = []
     to_add = []
-    for name in set(x[0] for x in data):
+    for name in list({x[0]: None for x in data}):
         item = {"name": name}
         try:
             check_parameter_value_list(item, parameter_value_list_ids)

@@ -129,6 +129,7 @@ class DatabaseMappingBase:
         # Special convenience subqueries that join two or more tables
         self._ext_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
+        self._ord_list_value_sq = None
         self._ext_scenario_sq = None
         self._wide_scenario_sq = None
         self._linked_scenario_alternative_sq = None
@@ -815,6 +816,23 @@ class DatabaseMappingBase:
                 )
             ).subquery()
         return self._wide_parameter_value_list_sq
+
+    @property
+    def ord_list_value_sq(self):
+        if self._ord_list_value_sq is None:
+            self._ord_list_value_sq = (
+                self.query(
+                    self.list_value_sq.c.id,
+                    self.list_value_sq.c.parameter_value_list_id,
+                    self.list_value_sq.c.index,
+                    self.list_value_sq.c.value,
+                    self.list_value_sq.c.type,
+                    self.list_value_sq.c.commit_id,
+                )
+                .order_by(self.list_value_sq.c.parameter_value_list_id, self.list_value_sq.c.index)
+                .subquery()
+            )
+        return self._ord_list_value_sq
 
     @property
     def ext_scenario_sq(self):
