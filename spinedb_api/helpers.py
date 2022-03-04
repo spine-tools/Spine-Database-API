@@ -567,6 +567,9 @@ def create_spine_metadata():
         Column("type", String(255)),
         Column("value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("parameter_value_list_id", "index"),
+        UniqueConstraint("parameter_value_list_id", "type", "value"),
+        UniqueConstraint("parameter_value_list_id", "value"),  # When type is NULL and the above doesn't help
     )
     Table(
         "tool",

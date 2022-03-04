@@ -30,6 +30,7 @@ from .check_functions import (
     check_parameter_definition,
     check_parameter_value,
     check_parameter_value_list,
+    check_list_value,
     check_feature,
     check_tool,
     check_tool_feature,
@@ -1472,18 +1473,23 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_list_values_for_insert(self, *items, strict=False, cache=None):
-        return items, []
-        # FIXME
         if cache is None:
             cache = self.make_cache({"list_value"}, include_ancestors=True)
         intgr_error_log = []
         checked_items = list()
-        list_value_ids = {x.name: x.id for x in cache.get("list_value", {}).values()}
+        list_value_ids_by_index = {
+            (x.parameter_value_list_id, x.index): x.id for x in cache.get("list_value", {}).values()
+        }
+        list_value_ids_by_value = {
+            (x.parameter_value_list_id, x.type, x.value): x.id for x in cache.get("list_value", {}).values()
+        }
+        list_names_by_id = {x.id: x.name for x in cache.get("parameter_value_list", {}).values()}
         for item in items:
             try:
-                check_list_value(item, list_value_ids)
+                check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
                 checked_items.append(item)
-                list_value_ids[item["name"]] = None
+                list_value_ids_by_index[item["parameter_value_list_id"], item["index"]] = None
+                list_value_ids_by_value[item["parameter_value_list_id"], item["type"], item["value"]] = None
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1491,7 +1497,53 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     def check_list_values_for_update(self, *items, strict=False, cache=None):
-        return items, []
+        if cache is None:
+            cache = self.make_cache({"list_value"}, include_ancestors=True)
+        intgr_error_log = []
+        checked_items = list()
+        list_values = {x.id: x._asdict() for x in cache.get("list_value", {}).values()}
+        list_value_ids_by_index = {
+            (x.parameter_value_list_id, x.index): x.id for x in cache.get("list_value", {}).values()
+        }
+        list_value_ids_by_value = {
+            (x.parameter_value_list_id, x.type, x.value): x.id for x in cache.get("list_value", {}).values()
+        }
+        list_names_by_id = {x.id: x.name for x in cache.get("parameter_value_list", {}).values()}
+        for item in items:
+            try:
+                id_ = item["id"]
+            except KeyError:
+                msg = "Missing list value identifier."
+                if strict:
+                    raise SpineIntegrityError(msg) from None
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            try:
+                # 'Remove' current instance
+                updated_item = list_values.pop(id_)
+                index_key = (updated_item["parameter_value_list_id"], updated_item["index"])
+                value_key = (updated_item["parameter_value_list_id"], updated_item["type"], updated_item["value"])
+                del list_value_ids_by_index[index_key]
+                del list_value_ids_by_value[value_key]
+            except KeyError:
+                msg = "List value not found."
+                if strict:
+                    raise SpineIntegrityError(msg) from None
+                intgr_error_log.append(SpineIntegrityError(msg))
+                continue
+            # Check for an insert of the updated instance
+            try:
+                updated_item.update(item)
+                check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
+                checked_items.append(item)
+                list_values[id_] = updated_item
+                list_value_ids_by_index[index_key] = id_
+                list_value_ids_by_value[value_key] = id_
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
 
 
 def _fix_immutable_fields(current_item, item, immutable_fields):

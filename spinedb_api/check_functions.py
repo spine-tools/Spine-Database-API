@@ -439,18 +439,26 @@ def check_parameter_value_list(item, current_items):
             "There can't be more than one parameter value_list called '{}'.".format(name), id=current_items[name]
         )
     return
-    # FIXME
-    try:
-        value_list = wide_item["value_list"]
-    except KeyError:
-        raise SpineIntegrityError("Missing list of values.")
-    if len(value_list) != len(set(value_list)):
-        raise SpineIntegrityError("Values must be unique.")
-    for value in value_list:
-        try:
-            _ = from_database(value, value_type=None)
-        except ParameterValueFormatError as err:
-            raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
+
+
+def check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value):
+    keys = {"parameter_value_list_id", "index", "value", "type"}
+    missing_keys = keys - item.keys()
+    if missing_keys:
+        raise SpineIntegrityError("Missing keys: ', '.join(missing_keys).")
+    list_id = item["parameter_value_list_id"]
+    list_name = list_names_by_id.get(list_id)
+    if list_name is None:
+        raise SpineIntegrityError("Unknown parameter value list identifier.")
+    index = item["index"]
+    type_ = item["type"]
+    value = item["value"]
+    dup_id = list_value_ids_by_index.get((list_id, index))
+    if dup_id is not None:
+        raise SpineIntegrityError(f"'{list_name}' already has the index '{index}'.", id=dup_id)
+    dup_id = list_value_ids_by_value.get((list_id, type_, value))
+    if dup_id is not None:
+        raise SpineIntegrityError(f"'{list_name}' already has the value '{from_database(value, type_)}'.", id=dup_id)
 
 
 def check_tool(item, current_items):
