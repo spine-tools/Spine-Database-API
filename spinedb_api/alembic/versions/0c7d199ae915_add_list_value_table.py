@@ -41,11 +41,12 @@ def upgrade():
         sa.Column('commit_id', sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint('parameter_value_list_id', 'index'),
     )
+    with op.batch_alter_table("tool_feature_method", naming_convention=naming_convention) as batch_op:
+        batch_op.drop_constraint('tool_feature_method_parameter_value_list_id', type_='foreignkey')
     with op.batch_alter_table("parameter_value_list", naming_convention=naming_convention) as batch_op:
         batch_op.drop_column('value_index')
         batch_op.drop_column('value')
     with op.batch_alter_table("tool_feature_method", naming_convention=naming_convention) as batch_op:
-        batch_op.drop_constraint('tool_feature_method_parameter_value_list_id', type_='foreignkey')
         batch_op.create_foreign_key(
             None,
             'list_value',
