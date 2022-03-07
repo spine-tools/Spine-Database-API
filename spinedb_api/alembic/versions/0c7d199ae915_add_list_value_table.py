@@ -41,8 +41,6 @@ def upgrade():
         sa.Column('commit_id', sa.Integer, sa.ForeignKey("commit.id")),
         sa.ForeignKeyConstraint(['commit_id'], ['commit.id'], name=op.f('fk_list_value_commit_id_commit')),
         sa.UniqueConstraint('parameter_value_list_id', 'index'),
-        sa.UniqueConstraint('parameter_value_list_id', 'type', 'value'),
-        sa.UniqueConstraint('parameter_value_list_id', 'value'),
     )
     with op.batch_alter_table("parameter_value_list", naming_convention=naming_convention) as batch_op:
         batch_op.drop_column('value_index')
