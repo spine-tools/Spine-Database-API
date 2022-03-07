@@ -39,7 +39,6 @@ def upgrade():
         sa.Column('type', sa.String(255)),
         sa.Column('value', sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()),
         sa.Column('commit_id', sa.Integer, sa.ForeignKey("commit.id")),
-        sa.ForeignKeyConstraint(['commit_id'], ['commit.id'], name=op.f('fk_list_value_commit_id_commit')),
         sa.UniqueConstraint('parameter_value_list_id', 'index'),
     )
     with op.batch_alter_table("parameter_value_list", naming_convention=naming_convention) as batch_op:
