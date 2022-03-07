@@ -58,9 +58,10 @@ def upgrade():
     # Add
     pvl_items = list({x.id: {"id": x.id, "name": x.name, "commit_id": x.commit_id} for x in pvl}.values())
     lv_items = [{"parameter_value_list_id": x.id, "index": x.value_index, "value": x.value, "type": None} for x in pvl]
-    session.bulk_insert_mappings(Base.classes.parameter_value_list, pvl_items)
-    Base.prepare(conn, reflect=True)
-    session.bulk_insert_mappings(Base.classes.list_value, lv_items)
+    NewBase = automap_base()
+    NewBase.prepare(conn, reflect=True)
+    session.bulk_insert_mappings(NewBase.classes.parameter_value_list, pvl_items)
+    session.bulk_insert_mappings(NewBase.classes.list_value, lv_items)
 
 
 def downgrade():
