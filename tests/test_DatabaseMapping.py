@@ -577,6 +577,55 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         tool_feature_method = tool_feature_methods[0]
         self.assertEqual(tool_feature_method.method, to_database("value1")[0])
 
+    def test_update_wide_relationship_class(self):
+        a = import_functions.import_object_classes(self._db_map, ("object_class_1",))
+        b = import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
+        self._db_map.commit_session("Add test data")
+        updated_ids, errors = self._db_map.update_wide_relationship_classes({"id": 2, "name": "renamed"})
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {2})
+        self._db_map.commit_session("Update data.")
+        classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
+        self.assertEqual(len(classes), 1)
+        self.assertEqual(classes[0].name, "renamed")
+
+    def test_update_wide_relationship_class_does_not_update_member_class_id(self):
+        import_functions.import_object_classes(self._db_map, ("object_class_1", "object_class_2"))
+        import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
+        self._db_map.commit_session("Add test data")
+        updated_ids, errors = self._db_map.update_wide_relationship_classes(
+            {"id": 3, "name": "renamed", "object_class_id_list": [2]}
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {3})
+        self._db_map.commit_session("Update data.")
+        classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
+        self.assertEqual(len(classes), 1)
+        self.assertEqual(classes[0].name, "renamed")
+        self.assertEqual(classes[0].object_class_name_list, "object_class_1")
+
+    def test_update_wide_relationship(self):
+        import_functions.import_object_classes(self._db_map, ("object_class_1", "object_class_2"))
+        import_functions.import_objects(
+            self._db_map,
+            (("object_class_1", "object_11"), ("object_class_1", "object_12"), ("object_class_2", "object_21")),
+        )
+        import_functions.import_relationship_classes(
+            self._db_map, (("my_class", ("object_class_1", "object_class_2")),)
+        )
+        import_functions.import_relationships(self._db_map, (("my_class", ("object_11", "object_21")),))
+        self._db_map.commit_session("Add test data")
+        updated_ids, errors = self._db_map.update_wide_relationships(
+            {"id": 4, "name": "renamed", "object_id_list": [2, 3]}
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {4})
+        self._db_map.commit_session("Update data.")
+        relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
+        self.assertEqual(len(relationships), 1)
+        self.assertEqual(relationships[0].name, "renamed")
+        self.assertEqual(relationships[0].object_name_list, "object_12,object_21")
+
 
 class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def setUp(self):

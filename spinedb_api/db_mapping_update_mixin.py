@@ -117,11 +117,45 @@ class DatabaseMappingUpdateMixin:
     def _update_wide_relationship_classes(self, *items):
         return self._update_items("relationship_class", *items)
 
-    def update_wide_relationships(self, *items, **kwargs):
-        return self.update_items("relationship", *items, **kwargs)
+    def update_wide_relationships(self, *items, check=True, strict=False, return_items=False, cache=None):
+        if check:
+            checked_items, intgr_error_log = self.check_wide_relationships_for_update(
+                *items, strict=strict, cache=cache
+            )
+        else:
+            checked_items, intgr_error_log = items, []
+        updated_ids = self._update_wide_relationships(*checked_items)
+        return checked_items if return_items else updated_ids, intgr_error_log
 
-    def _update_wide_relationships(self, *items):
-        return self._update_items("relationship", *items)
+    def _update_wide_relationships(self, *items, check=True, strict=False, return_items=False, cache=None):
+        items = self._items_with_type_id("relationship", *items)
+        entity_items = []
+        relationship_entity_items = []
+        for item in items:
+            entity_id = item["id"]
+            class_id = item["class_id"]
+            ent_item = {
+                "id": entity_id,
+                "class_id": class_id,
+                "name": item["name"],
+                "description": item.get("description"),
+            }
+            object_class_id_list = item["object_class_id_list"]
+            object_id_list = item["object_id_list"]
+            entity_items.append(ent_item)
+            for dimension, (member_class_id, member_id) in enumerate(zip(object_class_id_list, object_id_list)):
+                rel_ent_item = {
+                    "id": None,  # Need to have an "id" field to make _update_items() happy.
+                    "entity_class_id": class_id,
+                    "entity_id": entity_id,
+                    "dimension": dimension,
+                    "member_class_id": member_class_id,
+                    "member_id": member_id,
+                }
+                relationship_entity_items.append(rel_ent_item)
+        entity_ids = self._update_items("entity", *entity_items)
+        self._update_items("relationship_entity", *relationship_entity_items)
+        return (entity_items + relationship_entity_items) if return_items else entity_ids
 
     def update_parameter_definitions(self, *items, **kwargs):
         return self.update_items("parameter_definition", *items, **kwargs)
