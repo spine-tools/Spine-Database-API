@@ -26,7 +26,9 @@ def upgrade():
     Base = automap_base()
     Base.prepare(conn, reflect=True)
     pvl = session.query(Base.classes.parameter_value_list).all()
+    tfm = session.query(Base.classes.tool_feature_method).all()
     session.query(Base.classes.parameter_value_list).delete()
+    session.query(Base.classes.tool_feature_method).delete()
     m = sa.MetaData(op.get_bind())
     m.reflect()
     # Change schema
@@ -73,10 +75,15 @@ def upgrade():
     # Add rescued data
     pvl_items = list({x.id: {"id": x.id, "name": x.name, "commit_id": x.commit_id} for x in pvl}.values())
     lv_items = [{"parameter_value_list_id": x.id, "index": x.value_index, "value": x.value, "type": None} for x in pvl]
+    tfm_items = [
+        {c: getattr(x, c) for c in ("id", "tool_feature_id", "parameter_value_list_id", "method_index", "commit_id")}
+        for x in tfm
+    ]
     NewBase = automap_base()
     NewBase.prepare(conn, reflect=True)
     session.bulk_insert_mappings(NewBase.classes.parameter_value_list, pvl_items)
     session.bulk_insert_mappings(NewBase.classes.list_value, lv_items)
+    session.bulk_insert_mappings(NewBase.classes.tool_feature_method, tfm_items)
 
 
 def downgrade():
