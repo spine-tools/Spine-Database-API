@@ -632,7 +632,6 @@ def create_spine_metadata():
             ("list_value.parameter_value_list_id", "list_value.index"),
             onupdate="CASCADE",
             ondelete="CASCADE",
-            name="tool_feature_method_parameter_value_list_id",
         ),
     )
     Table(
