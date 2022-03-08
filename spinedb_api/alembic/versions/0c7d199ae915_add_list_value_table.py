@@ -25,6 +25,7 @@ def upgrade():
     Base = automap_base()
     Base.prepare(conn, reflect=True)
     pvl = session.query(Base.classes.parameter_value_list).all()
+    tfm = session.query(Base.classes.tool_feature_method).all()
     session.query(Base.classes.parameter_value_list).delete()
     m = sa.MetaData(op.get_bind())
     m.reflect()
@@ -41,27 +42,44 @@ def upgrade():
         sa.Column('commit_id', sa.Integer, sa.ForeignKey("commit.id")),
         sa.UniqueConstraint('parameter_value_list_id', 'index'),
     )
-    with op.batch_alter_table("tool_feature_method", naming_convention=naming_convention) as batch_op:
-        batch_op.drop_constraint('tool_feature_method_parameter_value_list_id', type_='foreignkey')
+    op.drop_table("tool_feature_method")
+    op.create_table(
+        "tool_feature_method",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("tool_feature_id", sa.Integer, nullable=False),
+        sa.Column("parameter_value_list_id", sa.Integer, nullable=False),
+        sa.Column("method_index", sa.Integer),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
+        sa.UniqueConstraint("tool_feature_id", "method_index"),
+        sa.ForeignKeyConstraint(
+            ("tool_feature_id", "parameter_value_list_id"),
+            ("tool_feature.id", "tool_feature.parameter_value_list_id"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ("parameter_value_list_id", "method_index"),
+            ("list_value.parameter_value_list_id", "list_value.index"),
+            onupdate="CASCADE",
+            ondelete="CASCADE",
+            name="tool_feature_method_parameter_value_list_id",
+        ),
+    )
     with op.batch_alter_table("parameter_value_list", naming_convention=naming_convention) as batch_op:
         batch_op.drop_column('value_index')
         batch_op.drop_column('value')
-    with op.batch_alter_table("tool_feature_method", naming_convention=naming_convention) as batch_op:
-        batch_op.create_foreign_key(
-            None,
-            'list_value',
-            ['parameter_value_list_id', 'method_index'],
-            ['parameter_value_list_id', 'index'],
-            onupdate='CASCADE',
-            ondelete='CASCADE',
-        )
     # Add
     pvl_items = list({x.id: {"id": x.id, "name": x.name, "commit_id": x.commit_id} for x in pvl}.values())
     lv_items = [{"parameter_value_list_id": x.id, "index": x.value_index, "value": x.value, "type": None} for x in pvl]
+    tfm_items = [
+        {c: getattr(x, c) for c in ("id", "tool_feature_id", "parameter_value_list_id", "method_index", "commit_id")}
+        for x in tfm
+    ]
     NewBase = automap_base()
     NewBase.prepare(conn, reflect=True)
     session.bulk_insert_mappings(NewBase.classes.parameter_value_list, pvl_items)
     session.bulk_insert_mappings(NewBase.classes.list_value, lv_items)
+    session.bulk_insert_mappings(NewBase.classes.tool_feature_method, tfm_items)
 
 
 def downgrade():
