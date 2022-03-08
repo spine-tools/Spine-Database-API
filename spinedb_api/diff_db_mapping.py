@@ -91,28 +91,20 @@ class DiffDatabaseMapping(
                 dirty_ids.add(id_)
         return items_for_update, items_for_insert, dirty_ids, updated_ids
 
-    def _update_items(self, tablename, *items):
-        """Update items without checking integrity."""
-        real_tablename = {
-            "object_class": "entity_class",
-            "relationship_class": "entity_class",
-            "object": "entity",
-            "relationship": "entity",
-        }.get(tablename, tablename)
-        items = self._items_with_type_id(tablename, *items)
+    def _do_update_items(self, tablename, *items):
         try:
             items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
-                real_tablename, items
+                tablename, items
             )
-            self._do_update_items(real_tablename, items_for_update, items_for_insert)
-            self._mark_as_dirty(real_tablename, dirty_ids)
-            self.updated_item_id[real_tablename].update(dirty_ids)
+            self._update_and_insert_items(tablename, items_for_update, items_for_insert)
+            self._mark_as_dirty(tablename, dirty_ids)
+            self.updated_item_id[tablename].update(dirty_ids)
             return updated_ids
         except DBAPIError as e:
             msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg)
 
-    def _do_update_items(self, tablename, items_for_update, items_for_insert):
+    def _update_and_insert_items(self, tablename, items_for_update, items_for_insert):
         diff_table = self._diff_table(tablename)
         if items_for_update:
             upd = diff_table.update()
@@ -151,10 +143,10 @@ class DiffDatabaseMapping(
                 dirty_rel_ent_ids,
                 updated_rel_ent_ids,
             ) = self._get_items_for_update_and_insert("relationship_entity", rel_ent_items)
-            self._do_update_items("entity", ents_for_update, ents_for_insert)
+            self._update_and_insert_items("entity", ents_for_update, ents_for_insert)
             self._mark_as_dirty("entity", dirty_ent_ids)
             self.updated_item_id["entity"].update(dirty_ent_ids)
-            self._do_update_items("relationship_entity", rel_ents_for_update, rel_ents_for_insert)
+            self._update_and_insert_items("relationship_entity", rel_ents_for_update, rel_ents_for_insert)
             self._mark_as_dirty("relationship_entity", dirty_rel_ent_ids)
             self.updated_item_id["relationship_entity"].update(dirty_rel_ent_ids)
             return updated_ent_ids.union(updated_rel_ent_ids)

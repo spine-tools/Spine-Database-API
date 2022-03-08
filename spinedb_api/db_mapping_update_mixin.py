@@ -37,17 +37,23 @@ class DatabaseMappingUpdateMixin:
     def _update_items(self, tablename, *items):
         if not items:
             return set()
+        # Special cases
+        if tablename == "relationship":
+            return self._update_wide_relationships(*items)
         real_tablename = {
             "object_class": "entity_class",
             "relationship_class": "entity_class",
             "object": "entity",
             "relationship": "entity",
         }.get(tablename, tablename)
-        table = self._metadata.tables[real_tablename]
         items = self._items_with_type_id(tablename, *items)
+        return self._do_update_items(real_tablename, *items)
+
+    def _do_update_items(self, tablename, *items):
+        table = self._metadata.tables[tablename]
         items, ids = self._items_to_update_and_ids(*items)
         upd = table.update()
-        for k in self._get_primary_key(real_tablename):
+        for k in self._get_primary_key(tablename):
             upd = upd.where(getattr(table.c, k) == bindparam(k))
         upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
         try:
@@ -117,17 +123,10 @@ class DatabaseMappingUpdateMixin:
     def _update_wide_relationship_classes(self, *items):
         return self._update_items("relationship_class", *items)
 
-    def update_wide_relationships(self, *items, check=True, strict=False, return_items=False, cache=None):
-        if check:
-            checked_items, intgr_error_log = self.check_wide_relationships_for_update(
-                *items, strict=strict, cache=cache
-            )
-        else:
-            checked_items, intgr_error_log = items, []
-        updated_ids = self._update_wide_relationships(*checked_items)
-        return checked_items if return_items else updated_ids, intgr_error_log
+    def update_wide_relationships(self, *items, **kwargs):
+        return self.update_items("relationship", *items, **kwargs)
 
-    def _update_wide_relationships(self, *items, check=True, strict=False, return_items=False, cache=None):
+    def _update_wide_relationships(self, *items):
         items = self._items_with_type_id("relationship", *items)
         entity_items = []
         relationship_entity_items = []
@@ -155,7 +154,7 @@ class DatabaseMappingUpdateMixin:
                 relationship_entity_items.append(rel_ent_item)
         entity_ids = self._update_items("entity", *entity_items)
         self._update_items("relationship_entity", *relationship_entity_items)
-        return (entity_items + relationship_entity_items) if return_items else entity_ids
+        return entity_ids
 
     def update_parameter_definitions(self, *items, **kwargs):
         return self.update_items("parameter_definition", *items, **kwargs)
