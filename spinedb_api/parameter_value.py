@@ -275,9 +275,6 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 def merge(value, other):
     """Merges other into value, returns the result."""
-    if value is None:
-        # NOTE: This case is mainly for IndexedValue.merge to work recursively
-        return other
     if isinstance(value, dict):
         value = from_dict(value)
     if hasattr(value, "merge"):
@@ -826,7 +823,8 @@ class IndexedValue:
             return self
         new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
         new_indexes.sort(kind='mergesort')
-        new_values = [merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
+        _merge = lambda value, other: other if value is None else merge(value, other)
+        new_values = [_merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
         self.indexes = new_indexes
         self.values = new_values
         return self
