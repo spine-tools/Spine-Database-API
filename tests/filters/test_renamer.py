@@ -166,7 +166,7 @@ class TestParameterRenamer(unittest.TestCase):
         classes = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
         self.assertEqual(classes, [])
 
-    def test_renaming_singe_parameter(self):
+    def test_renaming_single_parameter(self):
         import_object_classes(self._out_map, ("object_class",))
         import_object_parameters(self._out_map, (("object_class", "old_name"),))
         self._out_map.commit_session("Add test data")
@@ -184,6 +184,7 @@ class TestParameterRenamer(unittest.TestCase):
             "relationship_class_id",
             "default_value",
             "default_type",
+            "list_value_id",
             "commit_id",
             "parameter_value_list_id",
         )
@@ -231,6 +232,7 @@ class TestParameterRenamer(unittest.TestCase):
             "relationship_class_id",
             "default_value",
             "default_type",
+            "list_value_id",
             "commit_id",
             "parameter_value_list_id",
         )

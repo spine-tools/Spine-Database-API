@@ -188,9 +188,7 @@ def _make_parameter_value_transforming_sq(db_map, state):
     ]
     statements += [select([literal(i), literal(v), literal(t)]) for i, v, t in transformed_rows[1:]]
     temp_sq = union_all(*statements).alias("transformed_values")
-    new_parameter_value = case(
-        [(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value
-    )
+    new_value = case([(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value)
     new_type = case([(temp_sq.c.transformed_type != None, temp_sq.c.transformed_type)], else_=subquery.c.type)
     object_class_case = case(
         [(db_map.entity_class_sq.c.type_id == db_map.object_class_type, subquery.c.entity_class_id)], else_=None
@@ -214,10 +212,11 @@ def _make_parameter_value_transforming_sq(db_map, state):
             label("relationship_class_id", rel_class_case),
             label("object_id", object_entity_case),
             label("relationship_id", rel_entity_case),
-            new_parameter_value.label("value"),
-            subquery.c.commit_id.label("commit_id"),
-            subquery.c.alternative_id,
+            new_value.label("value"),
             new_type.label("type"),
+            subquery.c.list_value_id,
+            subquery.c.alternative_id,
+            subquery.c.commit_id.label("commit_id"),
         )
         .join(temp_sq, subquery.c.id == temp_sq.c.id, isouter=True)
         .join(db_map.entity_sq, db_map.entity_sq.c.id == subquery.c.entity_id)
