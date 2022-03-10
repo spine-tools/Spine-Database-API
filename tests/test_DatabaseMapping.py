@@ -115,6 +115,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "relationship_class_id",
             "default_value",
             "default_type",
+            "list_value_id",
             "commit_id",
             "parameter_value_list_id",
         ]
@@ -134,6 +135,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "relationship_id",
             "value",
             "type",
+            "list_value_id",
             "commit_id",
             "alternative_id",
         ]
@@ -578,8 +580,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         self.assertEqual(tool_feature_method.method, to_database("value1")[0])
 
     def test_update_wide_relationship_class(self):
-        a = import_functions.import_object_classes(self._db_map, ("object_class_1",))
-        b = import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
+        _ = import_functions.import_object_classes(self._db_map, ("object_class_1",))
+        _ = import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
         self._db_map.commit_session("Add test data")
         updated_ids, errors = self._db_map.update_wide_relationship_classes({"id": 2, "name": "renamed"})
         self.assertEqual(errors, [])
@@ -596,7 +598,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         updated_ids, errors = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "renamed", "object_class_id_list": [2]}
         )
-        self.assertEqual(errors, [])
+        self.assertEqual([str(err) for err in errors], ["Can't update fields 'object_class_id_list'"])
         self.assertEqual(updated_ids, {3})
         self._db_map.commit_session("Update data.")
         classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()

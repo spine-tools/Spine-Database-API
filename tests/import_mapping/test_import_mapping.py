@@ -41,7 +41,7 @@ from spinedb_api.import_mapping.import_mapping_compat import (
 )
 from spinedb_api.import_mapping.type_conversion import BooleanConvertSpec, StringConvertSpec, FloatConvertSpec
 from spinedb_api.import_mapping.generator import get_mapped_data
-from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, TimePattern, Map
+from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, Map
 from ..test_import_functions import assert_import_equivalent
 
 

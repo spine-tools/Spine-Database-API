@@ -23,16 +23,9 @@ from .exception import SpineDBAPIError
 class DatabaseMappingUpdateMixin:
     """Provides methods to perform ``UPDATE`` operations over a Spine db."""
 
-    def _items_to_update_and_ids(self, *items):
-        items_to_update = []
-        ids = []
-        append_item = items_to_update.append
-        append_id = ids.append
+    def _add_commit_id(self, *items):
         for item in items:
             item["commit_id"] = self.make_commit_id()
-            append_item(item)
-            append_id(item["id"])
-        return items_to_update, ids
 
     def _update_items(self, tablename, *items):
         if not items:
@@ -51,7 +44,7 @@ class DatabaseMappingUpdateMixin:
 
     def _do_update_items(self, tablename, *items):
         table = self._metadata.tables[tablename]
-        items, ids = self._items_to_update_and_ids(*items)
+        self._add_commit_id(*items)
         upd = table.update()
         for k in self._get_primary_key(tablename):
             upd = upd.where(getattr(table.c, k) == bindparam(k))
@@ -61,7 +54,7 @@ class DatabaseMappingUpdateMixin:
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
             raise SpineDBAPIError(msg)
-        return set(ids)
+        return {x["id"] for x in items}
 
     def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None):
         """Updates items.
@@ -85,7 +78,9 @@ class DatabaseMappingUpdateMixin:
         else:
             checked_items, intgr_error_log = items, []
         updated_ids = self._update_items(tablename, *checked_items)
-        return checked_items if return_items else updated_ids, intgr_error_log
+        if return_items:
+            return [item for item in items if item["id"] in updated_ids], intgr_error_log
+        return updated_ids, intgr_error_log
 
     def update_alternatives(self, *items, **kwargs):
         return self.update_items("alternative", *items, **kwargs)

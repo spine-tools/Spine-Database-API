@@ -16,8 +16,6 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
-import json
-from itertools import groupby
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
     check_tool,
@@ -1128,8 +1126,9 @@ def _get_object_parameters_for_import(db_map, data, make_cache):
     parameter_value_lists = {}
     parameter_value_list_ids = {}
     for x in cache.get("parameter_value_list", {}).values():
-        parameter_value_lists[x.id] = x.name
+        parameter_value_lists[x.id] = x.value_id_list
         parameter_value_list_ids[x.name] = x.id
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     checked = set()
     error_log = []
     to_add = []
@@ -1156,7 +1155,9 @@ def _get_object_parameters_for_import(db_map, data, make_cache):
         optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
         item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
         try:
-            check_parameter_definition(item, parameter_ids, object_class_names.keys(), parameter_value_lists)
+            check_parameter_definition(
+                item, parameter_ids, object_class_names.keys(), parameter_value_lists, list_values
+            )
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -1209,8 +1210,9 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache):
     parameter_value_lists = {}
     parameter_value_list_ids = {}
     for x in cache.get("parameter_value_list", {}).values():
-        parameter_value_lists[x.id] = x.name
+        parameter_value_lists[x.id] = x.value_id_list
         parameter_value_list_ids[x.name] = x.id
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     error_log = []
     to_add = []
     to_update = []
@@ -1237,7 +1239,9 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache):
         optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
         item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
         try:
-            check_parameter_definition(item, parameter_ids, relationship_class_names.keys(), parameter_value_lists)
+            check_parameter_definition(
+                item, parameter_ids, relationship_class_names.keys(), parameter_value_lists, list_values
+            )
         except SpineIntegrityError as e:
             # Relationship class doesn't exists
             error_log.append(

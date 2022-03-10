@@ -165,8 +165,7 @@ def _make_ext_tool_feature_method_sq(db_map, state):
             db_map.ext_tool_feature_sq.c.tool_id,
             db_map.ext_tool_feature_sq.c.parameter_definition_id,
             db_map.ext_tool_feature_sq.c.required,
-            db_map.list_value_sq.c.value.label("method_value"),
-            db_map.list_value_sq.c.type.label("method_type"),
+            db_map.list_value_sq.c.id.label("method_list_value_id"),
         )
         .outerjoin(
             db_map.tool_feature_method_sq,
@@ -194,15 +193,11 @@ def _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_de
             (
                 or_(
                     tool_feature_method_sq.c.parameter_definition_id.is_(None),
-                    tool_feature_method_sq.c.method_value.is_(None),
-                    and_(
-                        parameter_value_sq.c.value == tool_feature_method_sq.c.method_value,
-                        _equal_or_none(parameter_value_sq.c.type, tool_feature_method_sq.c.method_type),
-                    ),
+                    tool_feature_method_sq.c.method_list_value_id.is_(None),
+                    parameter_value_sq.c.list_value_id == tool_feature_method_sq.c.method_list_value_id,
                     and_(
                         parameter_value_sq.c.value.is_(None),
-                        parameter_definition_sq.c.default_value == tool_feature_method_sq.c.method_value,
-                        _equal_or_none(parameter_definition_sq.c.default_type, tool_feature_method_sq.c.method_type),
+                        parameter_definition_sq.c.list_value_id == tool_feature_method_sq.c.method_list_value_id,
                     ),
                 ),
                 True,

@@ -61,7 +61,7 @@ class DatabaseMappingAddMixin:
                 next_id = Table("next_id", self._metadata, autoload=True)
         self._next_id = next_id
 
-    def _items_and_ids(self, tablename, *items):
+    def _add_commit_id_and_ids(self, tablename, *items):
         if not items:
             return [], set()
         fieldname = {
@@ -101,13 +101,9 @@ class DatabaseMappingAddMixin:
             new_next_id = next_id + len(items)
             self._checked_execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
         ids = list(range(next_id, new_next_id))
-        items_to_add = list()
-        append_item = items_to_add.append
         for id_, item in zip(ids, items):
             item["commit_id"] = self.make_commit_id()
             item["id"] = id_
-            append_item(item)
-        return items_to_add, set(ids)
 
     def _readd_items(self, tablename, *items):
         """Add known items to database."""
@@ -146,16 +142,19 @@ class DatabaseMappingAddMixin:
         if readd:
             self._readd_items(tablename, *items)
             return
+        self._add_commit_id_and_ids(tablename, *items)
         if check:
             checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict, cache=cache)
         else:
             checked_items, intgr_error_log = items, []
-        result = self._add_items(tablename, *checked_items, return_items=return_items)
-        if return_dups and not return_items:
-            result.update(set(x.id for x in intgr_error_log if x.id))
-        return result, intgr_error_log
+        ids = self._add_items(tablename, *checked_items, finalize_items=False)
+        if return_items:
+            return [item for item in items if item["id"] in ids], intgr_error_log
+        if return_dups:
+            ids.update(set(x.id for x in intgr_error_log if x.id))
+        return ids, intgr_error_log
 
-    def _add_items(self, tablename, *items, return_items=False):
+    def _add_items(self, tablename, *items, finalize_items=True):
         """Add items to database without checking integrity.
 
         Args:
@@ -167,10 +166,11 @@ class DatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        items_to_add, ids = self._items_and_ids(tablename, *items)
-        for _ in self._do_add_items(tablename, *items_to_add):
+        if finalize_items:
+            self._add_commit_id_and_ids(tablename, *items)
+        for _ in self._do_add_items(tablename, *items):
             pass
-        return items_to_add if return_items else ids
+        return {item["id"] for item in items}
 
     def _get_table_for_insert(self, tablename):
         """

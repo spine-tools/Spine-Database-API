@@ -171,7 +171,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_feature(updated_item, feature_ids, parameter_definitions)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 features[id_] = updated_item
                 feature_ids[updated_item["parameter_definition_id"]] = id_
@@ -253,7 +253,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_tool(updated_item, tool_ids)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tools[id_] = updated_item
                 tool_ids[updated_item["name"]] = id_
@@ -350,7 +350,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_tool_feature(updated_item, tool_feature_ids, tools, features)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tool_features[id_] = updated_item
                 tool_feature_ids[updated_item["tool_id"], updated_item["feature_id"]] = id_
@@ -445,7 +445,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_tool_feature_method(updated_item, tool_feature_method_ids, tool_features, parameter_value_lists)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tool_feature_methods[id_] = updated_item
                 tool_feature_method_ids[updated_item["tool_feature_id"], updated_item["method_index"]] = id_
@@ -527,7 +527,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_alternative(updated_item, alternative_ids)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 alternatives[id_] = updated_item
                 alternative_ids[updated_item["name"]] = id_
@@ -608,7 +608,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_scenario(updated_item, scenario_ids)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 scenarios[id_] = updated_item
                 scenario_ids[updated_item["name"]] = id_
@@ -701,7 +701,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_scenario_alternative(updated_item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]] = id_
                 ids_by_rank[updated_item["scenario_id"], updated_item["rank"]] = id_
                 scenario_alternatives[id_] = updated_item
@@ -783,7 +783,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_object_class(updated_item, object_class_ids, self.object_class_type)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 # If the check passes, reinject the updated instance for next iteration.
                 object_classes[id_] = updated_item
                 object_class_ids[updated_item["name"]] = id_
@@ -862,10 +862,10 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                _fix_immutable_fields(updated_item, item, ("class_id",))
+                intgr_error_log += _fix_immutable_fields(updated_item, item, ("class_id",))
                 updated_item.update(item)
                 check_object(updated_item, object_ids, object_class_ids, self.object_entity_type)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 objects[id_] = updated_item
                 object_ids[updated_item["class_id"], updated_item["name"]] = id_
             except SpineIntegrityError as e:
@@ -948,7 +948,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                _fix_immutable_fields(updated_wide_item, wide_item, ("object_class_id_list",))
+                intgr_error_log += _fix_immutable_fields(updated_wide_item, wide_item, ("object_class_id_list",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship_class(
                     updated_wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
@@ -1064,7 +1064,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                _fix_immutable_fields(updated_wide_item, wide_item, ("class_id",))
+                intgr_error_log += _fix_immutable_fields(updated_wide_item, wide_item, ("class_id",))
                 updated_wide_item.update(wide_item)
                 check_wide_relationship(
                     updated_wide_item,
@@ -1141,11 +1141,11 @@ class DatabaseMappingCheckMixin:
         object_class_ids = {x.id for x in cache.get("object_class", {}).values()}
         relationship_class_ids = {x.id for x in cache.get("relationship_class", {}).values()}
         entity_class_ids = object_class_ids | relationship_class_ids
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+        parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+        list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         for item in items:
-            checked_item = item.copy()
-            object_class_id = checked_item.pop("object_class_id", None)
-            relationship_class_id = checked_item.pop("relationship_class_id", None)
+            object_class_id = item.get("object_class_id")
+            relationship_class_id = item.get("relationship_class_id")
             if object_class_id and relationship_class_id:
                 e = SpineIntegrityError("Can't associate a parameter to both an object and a relationship class.")
                 if strict:
@@ -1158,12 +1158,15 @@ class DatabaseMappingCheckMixin:
                 class_ids = relationship_class_ids
             else:
                 class_ids = entity_class_ids
-            entity_class_id = checked_item["entity_class_id"] = (
-                object_class_id or relationship_class_id or checked_item.get("entity_class_id")
+            entity_class_id = item["entity_class_id"] = (
+                object_class_id or relationship_class_id or item.get("entity_class_id")
             )
             try:
-                check_parameter_definition(checked_item, parameter_definition_ids, class_ids, parameter_value_lists)
-                parameter_definition_ids[entity_class_id, checked_item["name"]] = None
+                checked_item = item.copy()
+                check_parameter_definition(
+                    checked_item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
+                )
+                parameter_definition_ids[entity_class_id, item["name"]] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -1205,7 +1208,8 @@ class DatabaseMappingCheckMixin:
         entity_class_ids = {
             x.id for x in chain(cache.get("object_class", {}).values(), cache.get("relationship_class", {}).values())
         }
-        parameter_value_lists = {x.id: x.value_list for x in cache.get("parameter_value_list", {}).values()}
+        parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+        list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         for item in items:
             try:
                 id_ = item["id"]
@@ -1225,16 +1229,18 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                _fix_immutable_fields(
-                    updated_item, item, ("entity_class_id", "object_class_id", "relationship_class_id")
+                intgr_error_log += _fix_immutable_fields(
+                    updated_item,
+                    item,
+                    ("entity_class_id", "object_class_id", "relationship_class_id", "parameter_value_list_id"),
                 )
                 updated_item.update(item)
                 check_parameter_definition(
-                    updated_item, parameter_definition_ids, entity_class_ids, parameter_value_lists
+                    updated_item, parameter_definition_ids, entity_class_ids, parameter_value_lists, list_values
                 )
                 parameter_definition_ids[updated_item["entity_class_id"], updated_item["name"]] = id_
                 parameter_definitions[id_] = updated_item
-                checked_items.append(item)
+                checked_items.append(updated_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1277,19 +1283,15 @@ class DatabaseMappingCheckMixin:
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
-            checked_item = item.copy()
-            checked_item["entity_class_id"] = (
-                checked_item.pop("object_class_id", None)
-                or checked_item.pop("relationship_class_id", None)
-                or checked_item.get("entity_class_id")
+            item["entity_class_id"] = (
+                item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
             )
-            entity_id = checked_item["entity_id"] = (
-                checked_item.pop("object_id", None)
-                or checked_item.pop("relationship_id", None)
-                or checked_item.get("entity_id")
+            entity_id = item["entity_id"] = (
+                item.get("object_id") or item.get("relationship_id") or item.get("entity_id")
             )
-            alt_id = checked_item.get("alternative_id", None)
+            alt_id = item.get("alternative_id")
             try:
+                checked_item = item.copy()
                 check_parameter_value(
                     checked_item,
                     parameter_value_ids,
@@ -1299,7 +1301,7 @@ class DatabaseMappingCheckMixin:
                     list_values,
                     alternatives,
                 )
-                parameter_value_ids[entity_id, checked_item["parameter_definition_id"], alt_id] = None
+                parameter_value_ids[entity_id, item["parameter_definition_id"], alt_id] = None
                 checked_items.append(checked_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -1378,7 +1380,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(SpineIntegrityError(msg))
                 continue
             try:
-                _fix_immutable_fields(
+                intgr_error_log += _fix_immutable_fields(
                     updated_item, item, ("entity_class_id", "object_class_id", "relationship_class_id")
                 )
                 updated_item.update(item)
@@ -1395,7 +1397,7 @@ class DatabaseMappingCheckMixin:
                 parameter_value_ids[
                     updated_item["entity_id"], updated_item["parameter_definition_id"], updated_item["alternative_id"]
                 ] = id_
-                checked_items.append(item)
+                checked_items.append(updated_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1473,7 +1475,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_parameter_value_list(updated_item, parameter_value_list_ids)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 parameter_value_lists[id_] = updated_item
                 parameter_value_list_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
@@ -1569,7 +1571,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
-                checked_items.append(item)
+                checked_items.append(updated_item)
                 list_values[id_] = updated_item
                 list_value_ids_by_index[index_key] = id_
                 list_value_ids_by_value[value_key] = id_
@@ -1581,5 +1583,14 @@ class DatabaseMappingCheckMixin:
 
 
 def _fix_immutable_fields(current_item, item, immutable_fields):
+    fixed = []
     for field in immutable_fields:
+        if current_item[field] is None:
+            continue
+        if field in item and item[field] != current_item[field]:
+            fixed.append(field)
         item[field] = current_item[field]
+    if fixed:
+        fixed = ', '.join([f"'{field}'" for field in fixed])
+        return [SpineIntegrityError(f"Can't update fields {fixed}")]
+    return []

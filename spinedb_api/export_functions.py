@@ -16,6 +16,7 @@ Functions for exporting data from a Spine database using entity names as referen
 :date:   1.4.2020
 """
 
+from sqlalchemy.util import KeyedTuple
 from .parameter_value import load_db_value
 from .helpers import Asterisk
 
@@ -100,7 +101,9 @@ def _get_items(db_map, tablename, ids, make_cache):
     if make_cache is None:
         make_cache = db_map.make_cache
     cache = make_cache({tablename})
-    yield from _get_items_from_cache(cache, tablename, ids)
+    _process_item = _make_item_processor(tablename, make_cache)
+    for item in _get_items_from_cache(cache, tablename, ids):
+        yield from _process_item(item)
 
 
 def _get_items_from_cache(cache, tablename, ids):
@@ -110,6 +113,26 @@ def _get_items_from_cache(cache, tablename, ids):
         return
     for id_ in ids:
         yield items[id_]
+
+
+def _make_item_processor(tablename, make_cache):
+    if tablename == "parameter_value_list":
+        return _ParameterValueListProcessor(make_cache)
+    return lambda item: (item,)
+
+
+class _ParameterValueListProcessor:
+    def __init__(self, make_cache):
+        self._list_value_cache = make_cache({"list_value"})["list_value"]
+
+    def __call__(self, item):
+        fields = ["name", "value", "type"]
+        if item.value_id_list is None:
+            yield KeyedTuple([item.name, None, None], fields)
+            return
+        for value_id in item.value_id_list.split(","):
+            val = self._list_value_cache[int(value_id)]
+            yield KeyedTuple([item.name, val.value, val.type], fields)
 
 
 def export_object_classes(db_map, ids=Asterisk, make_cache=None):
@@ -128,16 +151,9 @@ def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None):
-    if not ids:
-        return []
-    if make_cache is None:
-        make_cache = db_map.make_cache
-    cache = make_cache({"parameter_value_list", "list_value"})
     return sorted(
-        (lst.name, load_db_value(val.value, val.type))
-        for lst in _get_items_from_cache(cache, "parameter_value_list", ids)
-        if lst.value_id_list is not None
-        for val in (cache["list_value"][int(value_id)] for value_id in lst.value_id_list.split(","))
+        ((x.name, load_db_value(x.value, x.type)) for x in _get_items(db_map, "parameter_value_list", ids, make_cache)),
+        key=lambda x: x[0],
     )
 
 

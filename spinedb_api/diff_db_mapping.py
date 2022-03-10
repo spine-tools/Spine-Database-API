@@ -56,12 +56,14 @@ class DiffDatabaseMapping(
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
 
-    def _add_items(self, tablename, *items, return_items=False):
-        items_to_add, ids = self._items_and_ids(tablename, *items)
-        for tablename_ in self._do_add_items(tablename, *items_to_add):
+    def _add_items(self, tablename, *items, finalize_items=True):
+        if finalize_items:
+            self._add_commit_id_and_ids(tablename, *items)
+        ids = {x["id"] for x in items}
+        for tablename_ in self._do_add_items(tablename, *items):
             self.added_item_id[tablename_].update(ids)
             self._clear_subqueries(tablename_)
-        return items_to_add if return_items else ids
+        return ids
 
     def _readd_items(self, tablename, *items):
         ids = set(x["id"] for x in items)

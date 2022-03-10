@@ -315,7 +315,7 @@ def check_entity_group(item, current_items, entities):
         )
 
 
-def check_parameter_definition(item, current_items, entity_class_ids, parameter_value_lists):
+def check_parameter_definition(item, current_items, entity_class_ids, parameter_value_lists, list_values):
     """Check whether the insertion of a parameter definition item
     results in the violation of an integrity constraint.
 
@@ -345,15 +345,7 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
             "There's already a parameter called {0} in entity class with id {1}.".format(name, entity_class_id),
             id=current_items[entity_class_id, name],
         )
-    parameter_value_list_id = item.get("parameter_value_list_id")
-    if parameter_value_list_id is not None and parameter_value_list_id not in parameter_value_lists:
-        raise SpineIntegrityError("Invalid parameter value list.")
-    default_value = item.get("default_value")
-    default_type = item.get("default_type")
-    try:
-        _ = from_database(default_value, default_type)
-    except ParameterValueFormatError as err:
-        raise SpineIntegrityError("Invalid default value '{}': {}".format(default_value, err))
+    _resolve_list_value_ref_for_parameter_definition(item, parameter_value_lists, list_values)
 
 
 def check_parameter_value(
@@ -382,27 +374,9 @@ def check_parameter_value(
         parameter_definition = parameter_definitions[parameter_definition_id]
     except KeyError:
         raise SpineIntegrityError("Parameter not found.")
-    value = item.get("value")
-    value_type = item.get("type")
     alt_id = item.get("alternative_id")
     if alt_id not in alternatives:
         raise SpineIntegrityError("Alternative not found.")
-    try:
-        parsed_value = from_database(value, value_type)
-    except ParameterValueFormatError as err:
-        raise SpineIntegrityError("Invalid value '{}': {}".format(value, err))
-    if parsed_value is not None:
-        parameter_value_list_id = parameter_definition["parameter_value_list_id"]
-        value_id_list = parameter_value_lists.get(parameter_value_list_id)
-        if value_id_list is not None:
-            list_values = [list_values[int(id_)] for id_ in value_id_list.split(",")]
-            if parsed_value not in list_values:
-                valid_values = ", ".join([str(x) for x in list_values])
-                raise SpineIntegrityError(
-                    "The value '{}' is not a valid value for parameter '{}' (valid values are: {})".format(
-                        parsed_value, parameter_definition["name"], valid_values
-                    )
-                )
     entity_id = item.get("entity_id")
     if not entity_id:
         raise SpineIntegrityError("Missing object or relationship identifier.")
@@ -421,6 +395,50 @@ def check_parameter_value(
             "The value of parameter '{}' for entity '{}' is already specified.".format(parameter_name, entity_name),
             id=current_items[entity_id, parameter_definition_id, alt_id],
         )
+    _resolve_list_value_ref_for_parameter_value(item, parameter_definitions, parameter_value_lists, list_values)
+
+
+def _resolve_list_value_ref_for_parameter_definition(item, parameter_value_lists, list_values):
+    parameter_value_list_id = item.get("parameter_value_list_id")
+    _resolve_list_value_ref("parameter_definition", item, parameter_value_list_id, parameter_value_lists, list_values)
+
+
+def _resolve_list_value_ref_for_parameter_value(item, parameter_definitions, parameter_value_lists, list_values):
+    parameter_definition_id = item["parameter_definition_id"]
+    parameter_definition = parameter_definitions[parameter_definition_id]
+    parameter_value_list_id = parameter_definition["parameter_value_list_id"]
+    _resolve_list_value_ref("parameter_value", item, parameter_value_list_id, parameter_value_lists, list_values)
+
+
+def _resolve_list_value_ref(item_type, item, parameter_value_list_id, parameter_value_lists, list_values):
+    if parameter_value_list_id is None:
+        return
+    if parameter_value_list_id not in parameter_value_lists:
+        raise SpineIntegrityError("Parameter value list not found.")
+    value_id_list = parameter_value_lists[parameter_value_list_id]
+    if value_id_list is None:
+        raise SpineIntegrityError("Parameter value list is empty!")
+    value_key, type_key = {
+        "parameter_value": ("value", "type"),
+        "parameter_definition": ("default_value", "default_type"),
+    }[item_type]
+    value = item.get(value_key)
+    value_type = item.get(type_key)
+    try:
+        parsed_value = from_database(value, value_type)
+    except ParameterValueFormatError as err:
+        raise SpineIntegrityError(f"Invalid value '{value}': {err}") from None
+    if parsed_value is None:
+        return
+    value_id_list = [int(id_) for id_ in value_id_list.split(",")]
+    list_value_id = next((id_ for id_ in value_id_list if list_values.get(id_) == parsed_value), None)
+    if list_value_id is None:
+        valid_values = ", ".join([f"'{list_values.get(id_)}'" for id_ in value_id_list])
+        raise SpineIntegrityError(
+            f"Invalid value '{parsed_value}' - it should be one from the parameter value list: {valid_values}."
+        )
+    item[value_key] = str(list_value_id).encode("UTF8")
+    item[type_key] = "list_value_ref"
 
 
 def check_parameter_value_list(item, current_items):

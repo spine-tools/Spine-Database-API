@@ -245,6 +245,8 @@ def from_dict(value_dict):
             return _time_series_from_database(value_dict)
         if value_type == "array":
             return _array_from_database(value_dict)
+        if value_type == "list_value_ref":
+            return _list_value_ref_from_database(value_dict)
         raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
     except KeyError as error:
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
@@ -1483,7 +1485,7 @@ SUPPORTED_TYPES = (Duration, DateTime, float, str)
 
 def join_value_and_type(db_value, db_type):
     """Joins database value and type into a string.
-    The resulting string is JSON string.
+    The resulting string is a JSON string.
     In case of complex types (duration, date_time, time_series, time_pattern, array, map),
     the type is just added as top-level key.
 
