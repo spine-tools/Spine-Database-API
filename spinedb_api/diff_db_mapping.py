@@ -56,9 +56,8 @@ class DiffDatabaseMapping(
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
 
-    def _add_items(self, tablename, *items, finalize_items=True):
-        if finalize_items:
-            self._add_commit_id_and_ids(tablename, *items)
+    def _add_items(self, tablename, *items):
+        self._add_commit_id_and_ids(tablename, *items)
         ids = {x["id"] for x in items}
         for tablename_ in self._do_add_items(tablename, *items):
             self.added_item_id[tablename_].update(ids)

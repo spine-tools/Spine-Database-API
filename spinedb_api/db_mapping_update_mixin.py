@@ -79,7 +79,7 @@ class DatabaseMappingUpdateMixin:
             checked_items, intgr_error_log = items, []
         updated_ids = self._update_items(tablename, *checked_items)
         if return_items:
-            return [item for item in items if item["id"] in updated_ids], intgr_error_log
+            return checked_items, intgr_error_log
         return updated_ids, intgr_error_log
 
     def update_alternatives(self, *items, **kwargs):

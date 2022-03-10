@@ -142,19 +142,18 @@ class DatabaseMappingAddMixin:
         if readd:
             self._readd_items(tablename, *items)
             return
-        self._add_commit_id_and_ids(tablename, *items)
         if check:
             checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict, cache=cache)
         else:
             checked_items, intgr_error_log = items, []
-        ids = self._add_items(tablename, *checked_items, finalize_items=False)
+        ids = self._add_items(tablename, *checked_items)
         if return_items:
-            return [item for item in items if item["id"] in ids], intgr_error_log
+            return checked_items, intgr_error_log
         if return_dups:
             ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
-    def _add_items(self, tablename, *items, finalize_items=True):
+    def _add_items(self, tablename, *items):
         """Add items to database without checking integrity.
 
         Args:
@@ -166,8 +165,7 @@ class DatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        if finalize_items:
-            self._add_commit_id_and_ids(tablename, *items)
+        self._add_commit_id_and_ids(tablename, *items)
         for _ in self._do_add_items(tablename, *items):
             pass
         return {item["id"] for item in items}

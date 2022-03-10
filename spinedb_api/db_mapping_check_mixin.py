@@ -171,7 +171,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_feature(updated_item, feature_ids, parameter_definitions)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 features[id_] = updated_item
                 feature_ids[updated_item["parameter_definition_id"]] = id_
@@ -253,7 +253,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_tool(updated_item, tool_ids)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tools[id_] = updated_item
                 tool_ids[updated_item["name"]] = id_
@@ -350,7 +350,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_tool_feature(updated_item, tool_feature_ids, tools, features)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tool_features[id_] = updated_item
                 tool_feature_ids[updated_item["tool_id"], updated_item["feature_id"]] = id_
@@ -445,7 +445,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_tool_feature_method(updated_item, tool_feature_method_ids, tool_features, parameter_value_lists)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 tool_feature_methods[id_] = updated_item
                 tool_feature_method_ids[updated_item["tool_feature_id"], updated_item["method_index"]] = id_
@@ -527,7 +527,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_alternative(updated_item, alternative_ids)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 alternatives[id_] = updated_item
                 alternative_ids[updated_item["name"]] = id_
@@ -608,7 +608,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_scenario(updated_item, scenario_ids)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 scenarios[id_] = updated_item
                 scenario_ids[updated_item["name"]] = id_
@@ -701,7 +701,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_scenario_alternative(updated_item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 ids_by_alt_id[updated_item["scenario_id"], updated_item["alternative_id"]] = id_
                 ids_by_rank[updated_item["scenario_id"], updated_item["rank"]] = id_
                 scenario_alternatives[id_] = updated_item
@@ -783,7 +783,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_object_class(updated_item, object_class_ids, self.object_class_type)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 # If the check passes, reinject the updated instance for next iteration.
                 object_classes[id_] = updated_item
                 object_class_ids[updated_item["name"]] = id_
@@ -865,7 +865,7 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log += _fix_immutable_fields(updated_item, item, ("class_id",))
                 updated_item.update(item)
                 check_object(updated_item, object_ids, object_class_ids, self.object_entity_type)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 objects[id_] = updated_item
                 object_ids[updated_item["class_id"], updated_item["name"]] = id_
             except SpineIntegrityError as e:
@@ -1162,12 +1162,11 @@ class DatabaseMappingCheckMixin:
                 object_class_id or relationship_class_id or item.get("entity_class_id")
             )
             try:
-                checked_item = item.copy()
                 check_parameter_definition(
-                    checked_item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
+                    item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
                 )
                 parameter_definition_ids[entity_class_id, item["name"]] = None
-                checked_items.append(checked_item)
+                checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1238,9 +1237,9 @@ class DatabaseMappingCheckMixin:
                 check_parameter_definition(
                     updated_item, parameter_definition_ids, entity_class_ids, parameter_value_lists, list_values
                 )
+                checked_items.append(item)
                 parameter_definition_ids[updated_item["entity_class_id"], updated_item["name"]] = id_
                 parameter_definitions[id_] = updated_item
-                checked_items.append(updated_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1291,9 +1290,8 @@ class DatabaseMappingCheckMixin:
             )
             alt_id = item.get("alternative_id")
             try:
-                checked_item = item.copy()
                 check_parameter_value(
-                    checked_item,
+                    item,
                     parameter_value_ids,
                     parameter_definitions,
                     entities,
@@ -1302,7 +1300,7 @@ class DatabaseMappingCheckMixin:
                     alternatives,
                 )
                 parameter_value_ids[entity_id, item["parameter_definition_id"], alt_id] = None
-                checked_items.append(checked_item)
+                checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1393,11 +1391,11 @@ class DatabaseMappingCheckMixin:
                     list_values,
                     alternatives,
                 )
+                checked_items.append(item)
                 parameter_values[id_] = updated_item
                 parameter_value_ids[
                     updated_item["entity_id"], updated_item["parameter_definition_id"], updated_item["alternative_id"]
                 ] = id_
-                checked_items.append(updated_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -1475,7 +1473,7 @@ class DatabaseMappingCheckMixin:
             try:
                 updated_item.update(item)
                 check_parameter_value_list(updated_item, parameter_value_list_ids)
-                checked_items.append(updated_item)
+                checked_items.append(item)
                 parameter_value_lists[id_] = updated_item
                 parameter_value_list_ids[updated_item["name"]] = id_
             except SpineIntegrityError as e:
@@ -1570,8 +1568,8 @@ class DatabaseMappingCheckMixin:
             # Check for an insert of the updated instance
             try:
                 updated_item.update(item)
-                check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
-                checked_items.append(updated_item)
+                check_list_value(updated_item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
+                checked_items.append(item)
                 list_values[id_] = updated_item
                 list_value_ids_by_index[index_key] = id_
                 list_value_ids_by_value[value_key] = id_
