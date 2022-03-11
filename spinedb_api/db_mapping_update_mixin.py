@@ -74,7 +74,9 @@ class DatabaseMappingUpdateMixin:
             list(SpineIntegrityError): found violations
         """
         if check:
-            checked_items, intgr_error_log = self.check_items_for_update(tablename, *items, strict=strict, cache=cache)
+            checked_items, intgr_error_log = self.check_items(
+                tablename, *items, for_update=True, strict=strict, cache=cache
+            )
         else:
             checked_items, intgr_error_log = items, []
         updated_ids = self._update_items(tablename, *checked_items)

@@ -143,7 +143,9 @@ class DatabaseMappingAddMixin:
             self._readd_items(tablename, *items)
             return
         if check:
-            checked_items, intgr_error_log = self.check_items_for_insert(tablename, *items, strict=strict, cache=cache)
+            checked_items, intgr_error_log = self.check_items(
+                tablename, *items, for_update=False, strict=strict, cache=cache
+            )
         else:
             checked_items, intgr_error_log = items, []
         ids = self._add_items(tablename, *checked_items)
