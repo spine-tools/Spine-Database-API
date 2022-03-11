@@ -963,3 +963,18 @@ class ReceiveAllMixing:
             if chunk.endswith(self._BEOM):
                 break
         return str(b"".join(fragments), self._ENCODING)[:-1]
+
+
+class CacheItem(dict):
+    """A dictionary that behaves kinda like a row from a query result.
+
+    It is used to store items in a cache, so we can access them as if they were rows from a query result.
+    This is mainly because we want to use the cache as a replacement for db queries in some methods.
+    """
+
+    def __getattr__(self, name):
+        """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
+        return self.get(name)
+
+    def _asdict(self):
+        return dict(**self)

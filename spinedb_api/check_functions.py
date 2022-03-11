@@ -179,7 +179,7 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         )
     if not given_object_class_id_list:
         raise SpineIntegrityError(f"At least one object class is needed for the relationship class '{name}'.")
-    if not all([id_ in object_class_ids for id_ in given_object_class_id_list]):
+    if not all(id_ in object_class_ids for id_ in given_object_class_id_list):
         raise SpineIntegrityError(
             f"At least one of the object class ids of the relationship class '{name}' is not in the database."
         )
