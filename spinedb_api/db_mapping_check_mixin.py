@@ -698,13 +698,13 @@ def _manage_stocks(item, existing_ids_by_key_fields, item_type, for_update, cach
             cache_item = cache.get(item_type, {})[id_]
         except KeyError:
             raise SpineIntegrityError(f"{item_type} not found.") from None
-        item_to_check = cache_item._asdict()
+        full_item = cache_item._asdict()
     else:
         id_ = None
-        item_to_check = item
+        full_item = item
     try:
         existing_ids_by_key = {
-            _get_key(item_to_check, key_fields): existing_ids
+            _get_key(full_item, key_fields): existing_ids
             for key_fields, existing_ids in existing_ids_by_key_fields.items()
         }
     except KeyError as e:
@@ -716,9 +716,9 @@ def _manage_stocks(item, existing_ids_by_key_fields, item_type, for_update, cach
                 del existing_ids[key]
         except KeyError:
             raise SpineIntegrityError(f"{item_type} not found.") from None
-        item_to_check.update(item)
+        full_item.update(item)
     try:
-        yield item_to_check
+        yield full_item
         # Check is performed at this point
     except SpineIntegrityError:  # pylint: disable=try-except-raise
         # Check didn't pass, so reraise
@@ -728,7 +728,7 @@ def _manage_stocks(item, existing_ids_by_key_fields, item_type, for_update, cach
         for key, existing_ids in existing_ids_by_key.items():
             existing_ids[key] = id_
         if for_update:
-            cache.get(item_type, {})[id_] = CacheItem(**item_to_check)
+            cache.get(item_type, {})[id_] = CacheItem(**full_item)
 
 
 def _get_key(item, key_fields):
