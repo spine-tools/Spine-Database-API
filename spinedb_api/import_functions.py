@@ -1051,7 +1051,9 @@ def _get_relationships_for_import(db_map, data, make_cache):
     cache = make_cache({"relationship"}, include_ancestors=True)
     relationships = {x.name: x for x in cache.get("relationship", {}).values()}
     relationship_ids_per_name = {(x.class_id, x.name): x.id for x in relationships.values()}
-    relationship_ids_per_obj_lst = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
+    relationship_ids_per_obj_lst = {
+        (x.class_id, tuple(int(id_) for id_ in x.object_id_list.split(","))): x.id for x in relationships.values()
+    }
     relationship_classes = {
         x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
         for x in cache.get("relationship_class", {}).values()
@@ -1067,7 +1069,7 @@ def _get_relationships_for_import(db_map, data, make_cache):
         rc_id = relationship_class_ids.get(class_name, None)
         oc_ids = object_class_id_lists.get(rc_id, [])
         o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
-        if (rc_id, o_ids) in seen or (rc_id, ",".join(str(o) for o in o_ids)) in relationship_ids_per_obj_lst:
+        if (rc_id, o_ids) in seen or (rc_id, o_ids) in relationship_ids_per_obj_lst:
             continue
         object_names = [str(obj) for obj in object_names]
         item = {

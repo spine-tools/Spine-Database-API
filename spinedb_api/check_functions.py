@@ -240,7 +240,7 @@ def check_wide_relationship(
     except KeyError:
         raise SpineIntegrityError(f"There is no object class id list for relationship '{name}'")
     try:
-        object_id_list = wide_item["object_id_list"]
+        object_id_list = tuple(wide_item["object_id_list"])
     except KeyError:
         raise SpineIntegrityError(f"There is no object id list for relationship '{name}'")
     try:
@@ -253,15 +253,14 @@ def check_wide_relationship(
         raise SpineIntegrityError(
             f"Incorrect objects '{object_name_list}' for relationship class '{relationship_class_name}'."
         )
-    join_object_id_list = ",".join([str(x) for x in object_id_list])
-    if (class_id, join_object_id_list) in current_items_by_obj_lst:
+    if (class_id, object_id_list) in current_items_by_obj_lst:
         object_name_list = [objects[id]["name"] for id in object_id_list]
         relationship_class_name = relationship_classes[class_id]["name"]
         raise SpineIntegrityError(
             "There's already a relationship between objects {} in class {}.".format(
                 object_name_list, relationship_class_name
             ),
-            id=current_items_by_obj_lst[class_id, join_object_id_list],
+            id=current_items_by_obj_lst[class_id, object_id_list],
         )
 
 
