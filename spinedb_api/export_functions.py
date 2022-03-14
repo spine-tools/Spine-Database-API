@@ -205,7 +205,7 @@ def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None):
                 x.alternative_name,
             )
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
-            if x.relationship_id and x.object_name_list
+            if x.relationship_id
         ),
         key=lambda x: x[:3] + (x[-1],),
     )
