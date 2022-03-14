@@ -791,7 +791,7 @@ def _fix_immutable_fields(item_type, current_item, item):
     }.get(item_type, ())
     fixed = []
     for field in immutable_fields:
-        if current_item[field] is None:
+        if current_item.get(field) is None:
             continue
         if field in item and item[field] != current_item[field]:
             fixed.append(field)
