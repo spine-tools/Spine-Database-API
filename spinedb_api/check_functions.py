@@ -344,7 +344,7 @@ def check_parameter_definition(item, current_items, entity_class_ids, parameter_
             "There's already a parameter called {0} in entity class with id {1}.".format(name, entity_class_id),
             id=current_items[entity_class_id, name],
         )
-    _resolve_list_value_ref_for_parameter_definition(item, parameter_value_lists, list_values)
+    replace_default_values_with_list_references(item, parameter_value_lists, list_values)
 
 
 def check_parameter_value(
@@ -394,24 +394,28 @@ def check_parameter_value(
             "The value of parameter '{}' for entity '{}' is already specified.".format(parameter_name, entity_name),
             id=current_items[entity_id, parameter_definition_id, alt_id],
         )
-    _resolve_list_value_ref_for_parameter_value(item, parameter_definitions, parameter_value_lists, list_values)
+    replace_parameter_values_with_list_references(item, parameter_definitions, parameter_value_lists, list_values)
 
 
-def _resolve_list_value_ref_for_parameter_definition(item, parameter_value_lists, list_values):
+def replace_default_values_with_list_references(item, parameter_value_lists, list_values):
     parameter_value_list_id = item.get("parameter_value_list_id")
-    _resolve_list_value_ref("parameter_definition", item, parameter_value_list_id, parameter_value_lists, list_values)
+    return _replace_values_with_list_references(
+        "parameter_definition", item, parameter_value_list_id, parameter_value_lists, list_values
+    )
 
 
-def _resolve_list_value_ref_for_parameter_value(item, parameter_definitions, parameter_value_lists, list_values):
+def replace_parameter_values_with_list_references(item, parameter_definitions, parameter_value_lists, list_values):
     parameter_definition_id = item["parameter_definition_id"]
     parameter_definition = parameter_definitions[parameter_definition_id]
     parameter_value_list_id = parameter_definition["parameter_value_list_id"]
-    _resolve_list_value_ref("parameter_value", item, parameter_value_list_id, parameter_value_lists, list_values)
+    return _replace_values_with_list_references(
+        "parameter_value", item, parameter_value_list_id, parameter_value_lists, list_values
+    )
 
 
-def _resolve_list_value_ref(item_type, item, parameter_value_list_id, parameter_value_lists, list_values):
+def _replace_values_with_list_references(item_type, item, parameter_value_list_id, parameter_value_lists, list_values):
     if parameter_value_list_id is None:
-        return
+        return False
     if parameter_value_list_id not in parameter_value_lists:
         raise SpineIntegrityError("Parameter value list not found.")
     value_id_list = parameter_value_lists[parameter_value_list_id]
@@ -428,7 +432,7 @@ def _resolve_list_value_ref(item_type, item, parameter_value_list_id, parameter_
     except ParameterValueFormatError as err:
         raise SpineIntegrityError(f"Invalid value '{value}': {err}") from None
     if parsed_value is None:
-        return
+        return False
     value_id_list = [int(id_) for id_ in value_id_list.split(",")]
     list_value_id = next((id_ for id_ in value_id_list if list_values.get(id_) == parsed_value), None)
     if list_value_id is None:
@@ -438,6 +442,7 @@ def _resolve_list_value_ref(item_type, item, parameter_value_list_id, parameter_
         )
     item[value_key] = str(list_value_id).encode("UTF8")
     item[type_key] = "list_value_ref"
+    return True
 
 
 def check_parameter_value_list(item, current_items):
