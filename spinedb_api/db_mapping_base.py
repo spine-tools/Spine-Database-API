@@ -1164,6 +1164,7 @@ class DatabaseMappingBase:
                     self.ext_relationship_sq.c.class_name,
                     self.ext_relationship_sq.c.commit_id,
                 )
+                # dimension count might be higher than object count when objects have been filtered out
                 .having(
                     func.count(self.ext_relationship_sq.c.dimension) == func.count(self.ext_relationship_sq.c.object_id)
                 )
@@ -1423,6 +1424,8 @@ class DatabaseMappingBase:
                     self.wide_relationship_class_sq, self.wide_relationship_class_sq.c.id == self.entity_class_sq.c.id
                 )
                 .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.entity_sq.c.id)
+                # object_id_list might be None when objects have been filtered out
+                .filter(self.wide_relationship_sq.c.object_id_list != None)  # pylint: disable=singleton-comparison
                 .subquery()
             )
         return self._entity_parameter_value_sq
