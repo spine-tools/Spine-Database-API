@@ -978,3 +978,10 @@ class CacheItem(dict):
 
     def _asdict(self):
         return dict(**self)
+
+
+def vacuum(url):
+    engine = create_engine(url)
+    if not engine.url.drivername.startswith("sqlite"):
+        return
+    engine.execute("vacuum")
