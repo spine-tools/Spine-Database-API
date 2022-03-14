@@ -95,7 +95,7 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 with self._manage_stocks(
-                    "feature", item, {("parameter_definition_id",): feature_ids}, for_update, cache
+                    "feature", item, {("parameter_definition_id",): feature_ids}, for_update, cache, intgr_error_log
                 ) as item:
                     check_feature(item, feature_ids, parameter_definitions)
                     checked_items.append(item)
@@ -124,7 +124,9 @@ class DatabaseMappingCheckMixin:
         tool_ids = {x.name: x.id for x in cache.get("tool", {}).values()}
         for item in items:
             try:
-                with self._manage_stocks("tool", item, {("name",): tool_ids}, for_update, cache) as item:
+                with self._manage_stocks(
+                    "tool", item, {("name",): tool_ids}, for_update, cache, intgr_error_log
+                ) as item:
                     check_tool(item, tool_ids)
                     checked_items.append(item)
             except SpineIntegrityError as e:
@@ -161,7 +163,12 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 with self._manage_stocks(
-                    "tool_feature", item, {("tool_id", "feature_id"): tool_feature_ids}, for_update, cache
+                    "tool_feature",
+                    item,
+                    {("tool_id", "feature_id"): tool_feature_ids},
+                    for_update,
+                    cache,
+                    intgr_error_log,
                 ) as item:
                     check_tool_feature(item, tool_feature_ids, tools, features)
                     checked_items.append(item)
@@ -203,6 +210,7 @@ class DatabaseMappingCheckMixin:
                     {("tool_feature_id", "method_index"): tool_feature_method_ids},
                     for_update,
                     cache,
+                    intgr_error_log,
                 ) as item:
                     check_tool_feature_method(item, tool_feature_method_ids, tool_features, parameter_value_lists)
                     checked_items.append(item)
@@ -231,7 +239,9 @@ class DatabaseMappingCheckMixin:
         alternative_ids = {x.name: x.id for x in cache.get("alternative", {}).values()}
         for item in items:
             try:
-                with self._manage_stocks("alternative", item, {("name",): alternative_ids}, for_update, cache) as item:
+                with self._manage_stocks(
+                    "alternative", item, {("name",): alternative_ids}, for_update, cache, intgr_error_log
+                ) as item:
                     check_alternative(item, alternative_ids)
                     checked_items.append(item)
             except SpineIntegrityError as e:
@@ -259,7 +269,9 @@ class DatabaseMappingCheckMixin:
         scenario_ids = {x.name: x.id for x in cache.get("scenario", {}).values()}
         for item in items:
             try:
-                with self._manage_stocks("scenario", item, {("name",): scenario_ids}, for_update, cache) as item:
+                with self._manage_stocks(
+                    "scenario", item, {("name",): scenario_ids}, for_update, cache, intgr_error_log
+                ) as item:
                     check_scenario(item, scenario_ids)
                     checked_items.append(item)
             except SpineIntegrityError as e:
@@ -302,6 +314,7 @@ class DatabaseMappingCheckMixin:
                     },
                     for_update,
                     cache,
+                    intgr_error_log,
                 ) as item:
                     check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names, alternative_names)
                     checked_items.append(item)
@@ -331,7 +344,7 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 with self._manage_stocks(
-                    "object_class", item, {("name",): object_class_ids}, for_update, cache
+                    "object_class", item, {("name",): object_class_ids}, for_update, cache, intgr_error_log
                 ) as item:
                     check_object_class(item, object_class_ids, self.object_class_type)
                     checked_items.append(item)
@@ -360,7 +373,9 @@ class DatabaseMappingCheckMixin:
         object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
         for item in items:
             try:
-                with self._manage_stocks("object", item, {("class_id", "name"): object_ids}, for_update, cache) as item:
+                with self._manage_stocks(
+                    "object", item, {("class_id", "name"): object_ids}, for_update, cache, intgr_error_log
+                ) as item:
                     check_object(item, object_ids, object_class_ids, self.object_entity_type)
                     checked_items.append(item)
             except SpineIntegrityError as e:
@@ -390,7 +405,12 @@ class DatabaseMappingCheckMixin:
         for wide_item in wide_items:
             try:
                 with self._manage_stocks(
-                    "relationship_class", wide_item, {("name",): relationship_class_ids}, for_update, cache
+                    "relationship_class",
+                    wide_item,
+                    {("name",): relationship_class_ids},
+                    for_update,
+                    cache,
+                    intgr_error_log,
                 ) as wide_item:
                     check_wide_relationship_class(
                         wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
@@ -439,6 +459,7 @@ class DatabaseMappingCheckMixin:
                     },
                     for_update,
                     cache,
+                    intgr_error_log,
                 ) as wide_item:
                     check_wide_relationship(
                         wide_item,
@@ -478,7 +499,7 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 with self._manage_stocks(
-                    "entity_group", item, {("entity_id", "member_id"): current_ids}, for_update, cache
+                    "entity_group", item, {("entity_id", "member_id"): current_ids}, for_update, cache, intgr_error_log
                 ) as item:
                     check_entity_group(item, current_ids, entities)
                     checked_items.append(item)
@@ -535,6 +556,7 @@ class DatabaseMappingCheckMixin:
                     {("entity_class_id", "name"): parameter_definition_ids},
                     for_update,
                     cache,
+                    intgr_error_log,
                 ) as item:
                     check_parameter_definition(
                         item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
@@ -593,6 +615,7 @@ class DatabaseMappingCheckMixin:
                     {("entity_id", "parameter_definition_id", "alternative_id"): parameter_value_ids},
                     for_update,
                     cache,
+                    intgr_error_log,
                 ) as item:
                     check_parameter_value(
                         item,
@@ -630,7 +653,12 @@ class DatabaseMappingCheckMixin:
         for item in items:
             try:
                 with self._manage_stocks(
-                    "parameter_value_list", item, {("name",): parameter_value_list_ids}, for_update, cache
+                    "parameter_value_list",
+                    item,
+                    {("name",): parameter_value_list_ids},
+                    for_update,
+                    cache,
+                    intgr_error_log,
                 ) as item:
                     check_parameter_value_list(item, parameter_value_list_ids)
                     checked_items.append(item)
@@ -674,6 +702,7 @@ class DatabaseMappingCheckMixin:
                     },
                     for_update,
                     cache,
+                    intgr_error_log,
                 ) as item:
                     check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
                     checked_items.append(item)
@@ -684,7 +713,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     @contextmanager
-    def _manage_stocks(self, item_type, item, existing_ids_by_key_fields, for_update, cache):
+    def _manage_stocks(self, item_type, item, existing_ids_by_key_fields, for_update, cache, intgr_error_log):
         if for_update:
             try:
                 id_ = item["id"]
@@ -712,6 +741,11 @@ class DatabaseMappingCheckMixin:
                     del existing_ids[key]
             except KeyError:
                 raise SpineIntegrityError(f"{item_type} not found.") from None
+            intgr_error_log += _fix_immutable_fields(
+                item_type,
+                full_item,
+                item,
+            )
             full_item.update(item)
         try:
             yield full_item
@@ -742,7 +776,19 @@ def _get_key(item, key_fields):
     return key[0]
 
 
-def _fix_immutable_fields(current_item, item, immutable_fields):
+def _fix_immutable_fields(item_type, current_item, item):
+    immutable_fields = {
+        "object": ("class_id",),
+        "relationship_class": ("object_class_id_list",),
+        "relationship": ("class_id",),
+        "parameter_definition": (
+            "entity_class_id",
+            "object_class_id",
+            "relationship_class_id",
+            "parameter_value_list_id",
+        ),
+        "parameter_value": ("entity_class_id", "object_class_id", "relationship_class_id"),
+    }.get(item_type, ())
     fixed = []
     for field in immutable_fields:
         if current_item[field] is None:
