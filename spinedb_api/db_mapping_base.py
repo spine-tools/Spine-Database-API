@@ -21,7 +21,7 @@ import os
 import logging
 import time
 from types import MethodType
-from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect
+from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect, or_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import Session, aliased
@@ -1421,7 +1421,12 @@ class DatabaseMappingBase:
                 )
                 .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.entity_sq.c.id)
                 # object_id_list might be None when objects have been filtered out
-                # .filter(self.wide_relationship_sq.c.object_id_list != None)  # pylint: disable=singleton-comparison
+                .filter(
+                    or_(
+                        self.parameter_value_sq.c.relationship_id.is_(None),
+                        self.wide_relationship_sq.c.object_id_list.isnot(None),
+                    )
+                )
                 .subquery()
             )
         return self._entity_parameter_value_sq
