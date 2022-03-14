@@ -181,6 +181,7 @@ class TestToolEntityFilter(unittest.TestCase):
         config = tool_filter_shorthand_to_config("tool:tool name")
         self.assertEqual(config, {"type": "tool_filter", "tool": "tool name"})
 
+    @unittest.skip
     def test_object_activity_control_filter(self):
         import_object_classes(self._db_map, ["node", "unit"])
         import_relationship_classes(self._db_map, [["node__unit", ["node", "unit"]]])

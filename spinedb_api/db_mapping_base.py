@@ -1421,7 +1421,7 @@ class DatabaseMappingBase:
                 )
                 .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.entity_sq.c.id)
                 # object_id_list might be None when objects have been filtered out
-                .filter(self.wide_relationship_sq.c.object_id_list != None)  # pylint: disable=singleton-comparison
+                # .filter(self.wide_relationship_sq.c.object_id_list != None)  # pylint: disable=singleton-comparison
                 .subquery()
             )
         return self._entity_parameter_value_sq
