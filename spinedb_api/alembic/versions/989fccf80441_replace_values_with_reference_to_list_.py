@@ -61,6 +61,8 @@ def upgrade():
         except SpineIntegrityError:
             pass
     for table, items in ((parameter_definition, pdefs), (parameter_value, pvals)):
+        if not items:
+            continue
         upd = table.update()
         upd = upd.where(table.c.id == bindparam("id"))
         upd = upd.values({key: bindparam(key) for key in table.columns.keys()})
