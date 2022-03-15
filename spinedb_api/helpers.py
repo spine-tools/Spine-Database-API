@@ -16,6 +16,7 @@ General helper functions and classes.
 :date:   15.8.2018
 """
 
+import os
 import json
 import warnings
 from sqlalchemy import (
@@ -983,5 +984,13 @@ class CacheItem(dict):
 def vacuum(url):
     engine = create_engine(url)
     if not engine.url.drivername.startswith("sqlite"):
-        return
+        return 0, "bytes"
+    size_before = os.path.getsize(engine.url.database)
     engine.execute("vacuum")
+    freed = size_before - os.path.getsize(engine.url.database)
+    k = 0
+    units = ("bytes", "KB", "MB", "GB", "TB")
+    while freed > 1e3 and k < len(units):
+        freed /= 1e3
+        k += 1
+    return freed, units[k]
