@@ -804,12 +804,10 @@ class DatabaseMappingBase:
                     self.ext_parameter_value_list_sq.c.name,
                     self.ext_parameter_value_list_sq.c.commit_id,
                     group_concat(
-                        self.ext_parameter_value_list_sq.c.value_id,
-                        self.ext_parameter_value_list_sq.c.value_index,
+                        self.ext_parameter_value_list_sq.c.value_id, self.ext_parameter_value_list_sq.c.value_index
                     ).label("value_id_list"),
                     group_concat(
-                        self.ext_parameter_value_list_sq.c.value_index,
-                        self.ext_parameter_value_list_sq.c.value_index,
+                        self.ext_parameter_value_list_sq.c.value_index, self.ext_parameter_value_list_sq.c.value_index
                     ).label("value_index_list"),
                 ).group_by(
                     self.ext_parameter_value_list_sq.c.id,

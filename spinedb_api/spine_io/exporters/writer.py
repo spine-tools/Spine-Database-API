@@ -50,12 +50,18 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
                     if not table_started:
                         break
                     try:
-                        for row in rows(
-                            mapping, db_map, title_key, header_for_empty_data, limit=max_rows, group_fn=group_fn
-                        ):
-                            write_more = writer.write_row(row)
-                            if not write_more:
-                                break
+                        if max_rows is None:
+                            for row in rows(mapping, db_map, title_key, header_for_empty_data, group_fn=group_fn):
+                                write_more = writer.write_row(row)
+                                if not write_more:
+                                    break
+                        else:
+                            for n, row in enumerate(
+                                rows(mapping, db_map, title_key, header_for_empty_data, group_fn=group_fn)
+                            ):
+                                write_more = writer.write_row(row)
+                                if not write_more or n + 1 == max_rows:
+                                    break
                     except OperationalError as error:
                         raise SpineDBAPIError(str(error))
 
