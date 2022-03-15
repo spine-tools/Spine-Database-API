@@ -45,16 +45,17 @@ class SqlAlchemyConnector(SourceConnection):
         """saves filepath
 
         Args:
-            source (str): url
+            source (str): filepath
         """
         self._connection_string = source
-        self._engine = create_engine(source)
+        self._engine = create_engine("sqlite:///" + source)
         self._connection = self._engine.connect()
         self._session = Session(self._engine)
         self._metadata.reflect(bind=self._engine)
 
     def disconnect(self):
-        """Disconnect from connected source."""
+        """Disconnect from connected source.
+        """
         self._connection.close()
         self._connection_string = None
         self._engine = None
