@@ -548,7 +548,9 @@ class DatabaseMappingCheckMixin:
                 class_ids = relationship_class_ids
             else:
                 class_ids = entity_class_ids
-            item["entity_class_id"] = object_class_id or relationship_class_id or item.get("entity_class_id")
+            entity_class_id = object_class_id or relationship_class_id
+            if entity_class_id is not None:
+                item["entity_class_id"] = entity_class_id
             try:
                 with self._manage_stocks(
                     "parameter_definition",
@@ -603,11 +605,9 @@ class DatabaseMappingCheckMixin:
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
-            item["entity_class_id"] = (
-                item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
-            )
-            item["entity_id"] = item.get("object_id") or item.get("relationship_id") or item.get("entity_id")
-            item["alternative_id"] = item.get("alternative_id")
+            entity_id = item.get("object_id") or item.get("relationship_id")
+            if entity_id is not None:
+                item["entity_id"] = entity_id
             try:
                 with self._manage_stocks(
                     "parameter_value",
