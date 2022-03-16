@@ -65,8 +65,27 @@ class TestWrite(unittest.TestCase):
         writer = _TableWriter()
         root_mapping = object_export(0, 1)
         write(self._db_map, writer, root_mapping, max_rows=2)
-        expected = {}
         self.assertEqual(writer.tables, {None: [["class1", "obj1"], ["class1", "obj2"]]})
+
+    def test_max_rows_with_filter(self):
+        import_object_classes(self._db_map, ("class1", "class2"))
+        import_objects(
+            self._db_map,
+            (
+                ("class1", "obj1"),
+                ("class1", "obj2"),
+                ("class1", "obj3"),
+                ("class2", "obj4"),
+                ("class2", "obj5"),
+                ("class2", "obj6"),
+            ),
+        )
+        self._db_map.commit_session("Add test data.")
+        writer = _TableWriter()
+        root_mapping = object_export(0, 1)
+        root_mapping.child.filter_re = "obj6"
+        write(self._db_map, writer, root_mapping, max_rows=1)
+        self.assertEqual(writer.tables, {None: [["class2", "obj6"]]})
 
 
 if __name__ == '__main__':

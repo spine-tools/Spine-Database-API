@@ -412,26 +412,19 @@ class ExportMapping(Mapping):
                 row.update(child_row)
                 yield row
 
-    def rows(self, db_map, title_state, limit=None):
+    def rows(self, db_map, title_state):
         """Yields rows issued by this mapping and its children combined.
 
         Args:
             db_map (DatabaseMappingBase)
             title_state (dict)
-            limit (int, optional): yield only this many items
 
         Returns:
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
-        if limit is None:
-            for db_row in qry.yield_per(1000):
-                yield from self.get_rows_recursive(db_row)
-        else:
-            for n, db_row in enumerate(qry.yield_per(min(limit, 1000))):
-                yield from self.get_rows_recursive(db_row)
-                if n == limit - 1:
-                    break
+        for db_row in qry.yield_per(1000):
+            yield from self.get_rows_recursive(db_row)
 
     def has_titles(self):
         """Returns True if this mapping or one of its children generates titles.

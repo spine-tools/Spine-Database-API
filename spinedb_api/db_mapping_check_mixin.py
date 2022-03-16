@@ -308,10 +308,7 @@ class DatabaseMappingCheckMixin:
                 with self._manage_stocks(
                     "scenario_alternative",
                     item,
-                    {
-                        ("scenario_id", "alternative_id"): ids_by_alt_id,
-                        ("scenario_id", "rank"): ids_by_rank,
-                    },
+                    {("scenario_id", "alternative_id"): ids_by_alt_id, ("scenario_id", "rank"): ids_by_rank},
                     for_update,
                     cache,
                     intgr_error_log,
@@ -741,11 +738,7 @@ class DatabaseMappingCheckMixin:
                     del existing_ids[key]
             except KeyError:
                 raise SpineIntegrityError(f"{item_type} not found.") from None
-            intgr_error_log += _fix_immutable_fields(
-                item_type,
-                full_item,
-                item,
-            )
+            intgr_error_log += _fix_immutable_fields(item_type, full_item, item)
             full_item.update(item)
         try:
             yield full_item

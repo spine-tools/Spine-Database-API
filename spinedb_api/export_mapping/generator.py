@@ -21,7 +21,7 @@ from .export_mapping import pair_header_buddies
 from .group_functions import NoGroup
 
 
-def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=None, group_fn=NoGroup.NAME):
+def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_fn=NoGroup.NAME):
     """
     Generates table's rows.
 
@@ -30,7 +30,6 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=N
         db_map (DatabaseMappingBase): a database map
         fixed_state (dict, optional): mapping state that fixes items
         empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
-        limit (int, optional): row count limit
         group_fn (str): group function name
 
     Yields:
@@ -64,7 +63,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=N
             header = listify_row(header_root.make_header(db_map, fixed_state, buddies))
         else:
             header = None
-        mapping_rows = root_mapping.rows(db_map, fixed_state, limit=limit)
+        mapping_rows = root_mapping.rows(db_map, fixed_state)
         regularized = list(map(listify_row, mapping_rows))
         yield from make_pivot(
             regularized,
@@ -77,7 +76,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, limit=N
             empty_data_header,
         )
     else:
-        mapping_rows = root_mapping.rows(db_map, fixed_state, limit=limit)
+        mapping_rows = root_mapping.rows(db_map, fixed_state)
         row_iter = iter(map(listify_row, mapping_rows))
         try:
             peeked_row = next(row_iter)
