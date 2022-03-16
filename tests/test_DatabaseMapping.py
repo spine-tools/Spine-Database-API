@@ -628,6 +628,35 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         self.assertEqual(relationships[0].name, "renamed")
         self.assertEqual(relationships[0].object_name_list, "object_12,object_21")
 
+    def test_update_parameter_value_by_id_only(self):
+        import_functions.import_object_classes(self._db_map, ("object_class1",))
+        import_functions.import_object_parameters(self._db_map, (("object_class1", "parameter1"),))
+        import_functions.import_objects(self._db_map, (("object_class1", "object1"),))
+        import_functions.import_object_parameter_values(
+            self._db_map, (("object_class1", "object1", "parameter1", "something"),)
+        )
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_parameter_values({"id": 1, "value": b"something else"})
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {1})
+        self._db_map.commit_session("Update data.")
+        pvals = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(pvals), 1)
+        pval = pvals[0]
+        self.assertEqual(pval.value, b"something else")
+
+    def test_update_parameter_definition_by_id_only(self):
+        import_functions.import_object_classes(self._db_map, ("object_class1",))
+        import_functions.import_object_parameters(self._db_map, (("object_class1", "parameter1"),))
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_parameter_definitions({"id": 1, "name": "parameter2"})
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {1})
+        self._db_map.commit_session("Update data.")
+        pdefs = self._db_map.query(self._db_map.parameter_definition_sq).all()
+        self.assertEqual(len(pdefs), 1)
+        self.assertEqual(pdefs[0].name, "parameter2")
+
 
 class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def setUp(self):
