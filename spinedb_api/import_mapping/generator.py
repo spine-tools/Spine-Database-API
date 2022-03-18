@@ -57,6 +57,7 @@ def get_mapped_data(
             raise TypeError(f"mapping must be a dict or ImportMapping subclass, instead got: {type(mapping).__name__}")
     if column_convert_fns is None:
         column_convert_fns = {}
+    default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else lambda x: x
     if row_convert_fns is None:
         row_convert_fns = {}
     mapped_data = {}
@@ -121,7 +122,7 @@ def get_mapped_data(
                 continue
             if not _is_valid_row(row[:last_non_pivoted_column_pos]):
                 continue
-            row = _convert_row(row, column_convert_fns, start_pos + i, errors)
+            row = _convert_row(row, column_convert_fns, start_pos + i, errors, default_column_convert_fn)
             non_pivoted_row = row[:last_non_pivoted_column_pos]
             for column_pos, unpivoted_row in zip(unpivoted_column_pos, unpivoted_rows):
                 if not _is_valid_row(unpivoted_row):
@@ -138,13 +139,13 @@ def _is_valid_row(row):
     return row is not None and not all(i is None for i in row)
 
 
-def _convert_row(row, convert_fns, row_number, errors):
+def _convert_row(row, convert_fns, row_number, errors, default_convert_fn=lambda x: x):
     new_row = []
     for j, item in enumerate(row):
         if item is None:
             new_row.append(item)
             continue
-        convert_fn = convert_fns.get(j, lambda x: x)
+        convert_fn = convert_fns.get(j, default_convert_fn)
         try:
             item = convert_fn(item)
         except (ValueError, ParameterValueFormatError):

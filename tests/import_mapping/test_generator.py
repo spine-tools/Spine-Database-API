@@ -48,7 +48,7 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(mapped_data, {})
 
     def test_returns_appropriate_error_if_last_row_is_empty(self):
-        data_source = iter([["", "T1", "T2"], ["Parameter", "5.0", "99.0"], [""]])
+        data_source = iter([["", "T1", "T2"], ["Parameter", "5.0", "99.0"], [" "]])
         mappings = [
             [
                 {"map_type": "ObjectClass", "position": "hidden", "value": "Object"},
@@ -68,6 +68,38 @@ class TestGetMappedData(unittest.TestCase):
 
         mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
         self.assertEqual(errors, ["Could not process incomplete row 2"])
+        self.assertEqual(
+            mapped_data,
+            {
+                'alternatives': ['Base', 'Base'],
+                'object_classes': ['Object', 'Object'],
+                'object_parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
+                'object_parameters': [['Object', 'Parameter'], ['Object', 'Parameter']],
+                'objects': [('Object', 'data'), ('Object', 'data')],
+            },
+        )
+
+    def test_convert_functions_get_expanded_over_last_defined_column_in_pivoted_data(self):
+        data_source = iter([["", "T1", "T2"], ["Parameter", "5.0", "99.0"]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Object", "position": "hidden", "value": "data"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": 0},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": -1},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
         self.assertEqual(
             mapped_data,
             {
