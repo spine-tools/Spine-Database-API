@@ -17,9 +17,9 @@ Contains unit tests for the generator module.
 """
 import unittest
 
-from import_mapping.type_conversion import value_to_convert_spec
 from spinedb_api import Map
 from spinedb_api.import_mapping.generator import get_mapped_data
+from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
 
 
 class TestGetMappedData(unittest.TestCase):
