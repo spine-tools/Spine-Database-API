@@ -113,7 +113,12 @@ def get_mapped_data(
         last_pivoted_row_pos = max(pivoted_pos, default=0) + 1
         last_non_pivoted_column_pos = max(non_pivoted_pos, default=0) + 1
         start_pos = max(mapping.read_start_row, last_pivoted_row_pos)
+        min_row_length = max(unpivoted_column_pos)
         for i, row in enumerate(rows[start_pos:]):
+            if len(row) < min_row_length + 1:
+                error = f"Could not process incomplete row {i + 1}"
+                errors.append(error)
+                continue
             if not _is_valid_row(row[:last_non_pivoted_column_pos]):
                 continue
             row = _convert_row(row, column_convert_fns, start_pos + i, errors)

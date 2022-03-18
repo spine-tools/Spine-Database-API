@@ -863,6 +863,46 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         )
         db_map.connection.close()
 
+    def test_add_alternative(self):
+        db_map = create_diff_db_map()
+        ids, errors = db_map.add_alternatives({"name": "my_alternative"})
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {2})
+        alternatives = db_map.query(db_map.alternative_sq).all()
+        self.assertEqual(len(alternatives), 2)
+        self.assertEqual(
+            alternatives[0]._asdict(), {"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}
+        )
+        self.assertEqual(
+            alternatives[1]._asdict(), {"id": 2, "name": "my_alternative", "description": None, "commit_id": None}
+        )
+
+    def test_add_scenario(self):
+        db_map = create_diff_db_map()
+        ids, errors = db_map.add_scenarios({"name": "my_scenario"})
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        scenarios = db_map.query(db_map.scenario_sq).all()
+        self.assertEqual(len(scenarios), 1)
+        self.assertEqual(
+            scenarios[0]._asdict(),
+            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": None},
+        )
+
+    def test_add_scenario_alternative(self):
+        db_map = create_diff_db_map()
+        import_functions.import_scenarios(db_map, ("my_scenario",))
+        db_map.commit_session("Add test data.")
+        ids, errors = db_map.add_scenario_alternatives({"scenario_id": 1, "alternative_id": 1, "rank": 0})
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
+        self.assertEqual(len(scenario_alternatives), 1)
+        self.assertEqual(
+            scenario_alternatives[0]._asdict(),
+            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": None},
+        )
+
 
 class TestDiffDatabaseMappingUpdate(unittest.TestCase):
     def test_update_object_classes(self):
