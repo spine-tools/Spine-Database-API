@@ -430,7 +430,7 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
     try:
         parsed_value = from_database(value, value_type)
     except ParameterValueFormatError as err:
-        raise SpineIntegrityError(f"Invalid value '{value}': {err}") from None
+        raise SpineIntegrityError(f"Invalid {value_key} '{value}': {err}") from None
     if parsed_value is None:
         return False
     value_id_list = [int(id_) for id_ in value_id_list.split(",")]
@@ -438,7 +438,7 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
     if list_value_id is None:
         valid_values = ", ".join([f"'{list_values.get(id_)}'" for id_ in value_id_list])
         raise SpineIntegrityError(
-            f"Invalid value '{parsed_value}' - it should be one from the parameter value list: {valid_values}."
+            f"Invalid {value_key} '{parsed_value}' - it should be one from the parameter value list: {valid_values}."
         )
     item[value_key] = str(list_value_id).encode("UTF8")
     item[type_key] = "list_value_ref"
