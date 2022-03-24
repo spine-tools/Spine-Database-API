@@ -20,6 +20,7 @@ import hashlib
 import os
 import logging
 import time
+from collections import Counter
 from types import MethodType
 from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect, cast, Integer, or_
 from sqlalchemy.sql.expression import label, Alias
@@ -173,6 +174,7 @@ class DatabaseMappingBase:
         }
         # Subqueries used to populate cache
         self.cache_sqs = {
+            "entity": "entity_sq",
             "feature": "ext_feature_sq",
             "tool": "tool_sq",
             "tool_feature": "ext_tool_feature_sq",
@@ -214,8 +216,17 @@ class DatabaseMappingBase:
                 "parameter_value_list",
                 "list_value",
             ),
-            "entity_metadata": ("metadata",),
-            "parameter_value_metadata": ("metadata",),
+            "entity_metadata": ("metadata", "object", "object_class", "relationship", "relationship_class"),
+            "parameter_value_metadata": (
+                "metadata",
+                "parameter_value",
+                "parameter_definition",
+                "object",
+                "object_class",
+                "relationship",
+                "relationship_class",
+                "alternative",
+            ),
             "list_value": ("parameter_value_list",),
         }
         self.descendant_tablenames = {
@@ -227,14 +238,17 @@ class DatabaseMappingBase:
             "alternative": ("parameter_value", "scenario_alternative"),
             "scenario": ("scenario_alternative",),
             "object_class": ("object", "relationship_class", "parameter_definition"),
-            "object": ("relationship", "parameter_value", "entity_group"),
+            "object": ("relationship", "parameter_value", "entity_group", "entity_metadata"),
             "relationship_class": ("relationship", "parameter_definition"),
-            "relationship": ("parameter_value", "entity_group"),
+            "relationship": ("parameter_value", "entity_group", "entity_metadata"),
             "parameter_definition": ("parameter_value", "feature"),
             "parameter_value_list": ("feature",),
+            "parameter_value": ("parameter_value_metadata", "entity_metadata"),
             "feature": ("tool_feature",),
             "tool": ("tool_feature",),
             "tool_feature": ("tool_feature_method",),
+            "entity_metadata": ("metadata",),
+            "parameter_value_metadata": ("metadata",),
         }
         for parent, children in child_tablenames.items():
             if tablename == parent:
@@ -1840,7 +1854,7 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False):
+    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, forced_table_names=None):
         if only_descendants:
             tablenames = {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
@@ -1849,6 +1863,8 @@ class DatabaseMappingBase:
             tablenames |= {
                 ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
             }
+        if forced_table_names:
+            tablenames |= forced_table_names
         return {
             tablename: {x.id: CacheItem(**x._asdict()) for x in self.query(getattr(self, self.cache_sqs[tablename]))}
             for tablename in tablenames & self.cache_sqs.keys()
@@ -2175,6 +2191,23 @@ class DatabaseMappingBase:
             [(self.entity_sq.c.type_id == self.relationship_entity_type, self.wide_relationship_sq.c.object_name_list)],
             else_=None,
         )
+
+    @staticmethod
+    def _metadata_usage_counts(cache):
+        """Counts references to metadata name, value pairs in entity_metadata and parameter_value_metadata tables.
+
+        Args:
+            cache (dict): database cache
+
+        Returns:
+            Counter: usage counts keyed by metadata id
+        """
+        usage_counts = Counter()
+        for entry in cache["entity_metadata"].values():
+            usage_counts[entry.metadata_id] += 1
+        for entry in cache.get("parameter_value_metadata", {}).values():
+            usage_counts[entry.metadata_id] += 1
+        return usage_counts
 
     def __del__(self):
         try:

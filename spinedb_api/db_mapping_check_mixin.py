@@ -36,6 +36,9 @@ from .check_functions import (
     check_tool,
     check_tool_feature,
     check_tool_feature_method,
+    check_entity_metadata,
+    check_metadata,
+    check_parameter_value_metadata,
 )
 from .parameter_value import from_database
 from .helpers import CacheItem
@@ -65,6 +68,9 @@ class DatabaseMappingCheckMixin:
             "tool": self.check_tools,
             "tool_feature": self.check_tool_features,
             "tool_feature_method": self.check_tool_feature_methods,
+            "metadata": self.check_metadata,
+            "entity_metadata": self.check_entity_metadata,
+            "parameter_value_metadata": self.check_parameter_value_metadata,
         }[tablename](*items, for_update=for_update, strict=strict, cache=cache)
 
     def check_features(self, *items, for_update=False, strict=False, cache=None):
@@ -702,6 +708,101 @@ class DatabaseMappingCheckMixin:
                     intgr_error_log,
                 ) as item:
                     check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
+                    checked_items.append(item)
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_metadata(self, *items, for_update=False, strict=False, cache=None):
+        """Checks whether metadata respects integrity constraints.
+
+        Args:
+            *items: One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+            cache (dict, optional): Database cache
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
+        if cache is None:
+            cache = self.make_cache({"metadata"})
+        intgr_error_log = []
+        checked_items = list()
+        metadata = {(x.name, x.value): x.id for x in cache.get("metadata", {}).values()}
+        for item in items:
+            try:
+                with self._manage_stocks(
+                    "metadata", item, {("name", "value"): metadata}, for_update, cache, intgr_error_log
+                ) as item:
+                    check_metadata(item, metadata)
+                    if (item["name"], item["value"]) not in metadata:
+                        checked_items.append(item)
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_entity_metadata(self, *items, for_update=False, strict=False, cache=None):
+        """Checks whether entity metadata respects integrity constraints.
+
+        Args:
+            *items: One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+            cache (dict, optional): Database cache
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
+        if cache is None:
+            cache = self.make_cache({"entity_metadata"}, include_ancestors=True)
+        intgr_error_log = []
+        checked_items = list()
+        entities = {x.id for x in cache.get("object", {}).values()}
+        entities |= {x.id for x in cache.get("relationship", {}).values()}
+        metadata = {x.id for x in cache.get("metadata", {}).values()}
+        for item in items:
+            try:
+                with self._manage_stocks("entity_metadata", item, {}, for_update, cache, intgr_error_log) as item:
+                    check_entity_metadata(item, entities, metadata)
+                    checked_items.append(item)
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_parameter_value_metadata(self, *items, for_update=False, strict=False, cache=None):
+        """Checks whether parameter value metadata respects integrity constraints.
+
+        Args:
+            *items: One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+            cache (dict, optional): Database cache
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
+        if cache is None:
+            cache = self.make_cache({"parameter_value_metadata"}, include_ancestors=True)
+        intgr_error_log = []
+        checked_items = list()
+        values = {x.id for x in cache.get("parameter_value", {}).values()}
+        metadata = {x.id for x in cache.get("metadata", {}).values()}
+        for item in items:
+            try:
+                with self._manage_stocks(
+                    "parameter_value_metadata", item, {}, for_update, cache, intgr_error_log
+                ) as item:
+                    check_parameter_value_metadata(item, values, metadata)
                     checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:

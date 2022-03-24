@@ -201,6 +201,64 @@ class DatabaseMappingUpdateMixin:
     def _update_list_values(self, *items):
         return self._update_items("list_value", *items)
 
+    def update_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+        return self._update_ext_item_metadata(
+            "entity_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+        )
+
+    def update_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+        return self._update_ext_item_metadata(
+            "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+        )
+
+    def _update_ext_item_metadata(
+        self, metadata_table, *items, check=True, strict=False, return_items=False, cache=None
+    ):
+        if cache is None:
+            cache = self.make_cache({"entity_metadata", "parameter_value_metadata", "metadata"})
+        metadata_ids = {}
+        for entry in cache.get("metadata", {}).values():
+            metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
+        metadata_usage_counts = self._metadata_usage_counts(cache)
+        item_metadata_to_update = []
+        metadata_to_add = []
+        item_metadata_ids_missing_metadata_ids = {}
+        item_metadata = cache[metadata_table]
+        for item in items:
+            id_ = item["id"]
+            previous_metadata_id = item_metadata[id_].metadata_id
+            metadata_usage_counts[previous_metadata_id] -= 1
+            metadata_name = item["metadata_name"]
+            metadata_value = item["metadata_value"]
+            possible_metadata_ids = metadata_ids.get(metadata_name)
+            using_existing = False
+            if possible_metadata_ids is not None:
+                existing_metadata_id = possible_metadata_ids.get(metadata_value)
+                if existing_metadata_id is not None:
+                    using_existing = True
+                    item_metadata_to_update.append({"id": id_, "metadata_id": existing_metadata_id})
+                    metadata_usage_counts[existing_metadata_id] += 1
+            if not using_existing:
+                metadata_to_add.append({"name": metadata_name, "value": metadata_value})
+                item_metadata_ids_missing_metadata_ids.setdefault(metadata_name, {})[metadata_value] = id_
+        if metadata_to_add:
+            added_metadata_items, errors = self.add_metadata(*metadata_to_add, return_items=True)
+            if errors:
+                return [], errors
+            for added in added_metadata_items:
+                item_metadata_to_update.append(
+                    {
+                        "id": item_metadata_ids_missing_metadata_ids[added["name"]][added["value"]],
+                        "metadata_id": added["id"],
+                    }
+                )
+        metadata_ids_to_remove = {id_ for id_, count in metadata_usage_counts.items() if count == 0}
+        if metadata_ids_to_remove:
+            self.remove_items(**{"metadata": metadata_ids_to_remove})
+        return self.update_items(
+            metadata_table, *item_metadata_to_update, check=check, strict=strict, return_items=return_items
+        )
+
     def get_data_to_set_scenario_alternatives(self, *items, cache=None):
         """Returns data to add and remove, in order to set wide scenario alternatives.
 

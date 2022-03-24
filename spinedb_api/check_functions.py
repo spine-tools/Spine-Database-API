@@ -585,3 +585,61 @@ def check_tool_feature_method(item, current_items, tool_features, parameter_valu
         raise SpineIntegrityError("Feature and parameter value list don't match.")
     if method_index not in parameter_value_list["value_index_list"]:
         raise SpineIntegrityError("Invalid method for tool feature.")
+
+
+def check_metadata(item, metadata):
+    """Check whether the entity metadata item violates an integrity constraint.
+
+    Args:
+        item (dict): An entity metadata item to be checked.
+        metadata (dict): Mapping from metadata name and value to metadata id.
+
+    Raises:
+        SpineIntegrityError: if the item violates an integrity constraint.
+    """
+    keys = {"name", "value"}
+    missing_keys = keys - item.keys()
+    if missing_keys:
+        raise SpineIntegrityError(f"Missing keys: {', '.join(missing_keys)}.")
+
+
+def check_entity_metadata(item, entities, metadata):
+    """Check whether the entity metadata item violates an integrity constraint.
+
+    Args:
+        item (dict): An entity metadata item to be checked.
+        entities (set of int): Available entity ids.
+        metadata (set of int): Available metadata ids.
+
+    Raises:
+        SpineIntegrityError: if the item violates an integrity constraint.
+    """
+    keys = {"entity_id", "metadata_id"}
+    missing_keys = keys - item.keys()
+    if missing_keys:
+        raise SpineIntegrityError(f"Missing keys: {', '.join(missing_keys)}.")
+    if item["entity_id"] not in entities:
+        raise SpineIntegrityError("Unknown entity identifier.")
+    if item["metadata_id"] not in metadata:
+        raise SpineIntegrityError("Unknown metadata identifier.")
+
+
+def check_parameter_value_metadata(item, values, metadata):
+    """Check whether the parameter value metadata item violates an integrity constraint.
+
+    Args:
+        item (dict): An entity metadata item to be checked.
+        values (set of int): Available parameter value ids.
+        metadata (set of int): Available metadata ids.
+
+    Raises:
+        SpineIntegrityError: if the item violates an integrity constraint.
+    """
+    keys = {"parameter_value_id", "metadata_id"}
+    missing_keys = keys - item.keys()
+    if missing_keys:
+        raise SpineIntegrityError(f"Missing keys: {', '.join(missing_keys)}.")
+    if item["parameter_value_id"] not in values:
+        raise SpineIntegrityError("Unknown parameter value identifier.")
+    if item["metadata_id"] not in metadata:
+        raise SpineIntegrityError("Unknown metadata identifier.")

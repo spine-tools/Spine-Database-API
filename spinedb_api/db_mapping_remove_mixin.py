@@ -58,13 +58,16 @@ class DatabaseMappingRemoveMixin:
 
         Keyword args:
             cache (dict, optional)
-            <tablename> (set): set of ids to be removed for table
+            **kwargs: set of ids keyed by table name to be removed
 
         Returns:
             cascading_ids (dict): cascading ids keyed by table name
         """
         if cache is None:
-            cache = self.make_cache(set(kwargs), only_descendants=True)
+            forced_table_names = None
+            if "entity_metadata" in kwargs or "parameter_value_metadata" in kwargs or "metadata" in kwargs:
+                forced_table_names = {"entity_metadata", "parameter_value_metadata"}
+            cache = self.make_cache(set(kwargs), only_descendants=True, forced_table_names=forced_table_names)
         ids = {}
         self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))
         self._merge(ids, self._object_cascading_ids(kwargs.get("object", set()), cache))
@@ -82,6 +85,11 @@ class DatabaseMappingRemoveMixin:
         self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set()), cache))
         self._merge(ids, self._tool_feature_cascading_ids(kwargs.get("tool_feature", set()), cache))
         self._merge(ids, self._tool_feature_method_cascading_ids(kwargs.get("tool_feature_method", set()), cache))
+        self._merge(ids, self._metadata_cascading_ids(kwargs.get("metadata", set()), cache))
+        self._merge(ids, self._entity_metadata_cascading_ids(kwargs.get("entity_metadata", set()), cache))
+        self._merge(
+            ids, self._parameter_value_metadata_cascading_ids(kwargs.get("parameter_value_metadata", set()), cache)
+        )
         return {key: value for key, value in ids.items() if value}
 
     @staticmethod
@@ -135,9 +143,11 @@ class DatabaseMappingRemoveMixin:
         )
         parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
         groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
+        entity_metadata_ids = {x.id for x in cache.get("entity_metadata", {}).values() if x.entity_id in ids}
         self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}, cache))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
+        self._merge(cascading_ids, self._entity_metadata_cascading_ids(entity_metadata_ids, cache))
         return cascading_ids
 
     def _relationship_class_cascading_ids(self, ids, cache):
@@ -160,8 +170,10 @@ class DatabaseMappingRemoveMixin:
         cascading_ids = {"relationship": ids.copy(), "entity": ids.copy(), "relationship_entity": ids.copy()}
         parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
         groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
+        entity_metadata_ids = {x.id for x in cache.get("entity_metadata", {}).values() if x.entity_id in ids}
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
+        self._merge(cascading_ids, self._entity_metadata_cascading_ids(entity_metadata_ids, cache))
         return cascading_ids
 
     def _entity_group_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
@@ -179,7 +191,12 @@ class DatabaseMappingRemoveMixin:
 
     def _parameter_value_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns parameter value cascading ids."""
-        return {"parameter_value": ids.copy()}
+        cascading_ids = {"parameter_value": ids.copy()}
+        value_metadata_ids = {
+            x.id for x in cache.get("parameter_value_metadata", {}).values() if x.parameter_value_id in ids
+        }
+        self._merge(cascading_ids, self._parameter_value_metadata_cascading_ids(value_metadata_ids, cache))
+        return cascading_ids
 
     def _parameter_value_list_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries."""
@@ -215,3 +232,37 @@ class DatabaseMappingRemoveMixin:
 
     def _tool_feature_method_cascading_ids(self, ids, cache):
         return {"tool_feature_method": ids.copy()}
+
+    def _metadata_cascading_ids(self, ids, cache):
+        cascading_ids = {"metadata": ids.copy()}
+        entity_metadata = {
+            "entity_metadata": {x.id for x in cache.get("entity_metadata", {}).values() if x.metadata_id in ids}
+        }
+        self._merge(cascading_ids, entity_metadata)
+        value_metadata = {
+            "parameter_value_metadata": {
+                x.id for x in cache.get("parameter_value_metadata", {}).values() if x.metadata_id in ids
+            }
+        }
+        self._merge(cascading_ids, value_metadata)
+        return cascading_ids
+
+    def _non_referenced_metadata_ids(self, ids, metadata_table_name, cache):
+        metadata_id_counts = self._metadata_usage_counts(cache)
+        cascading_ids = {}
+        metadata = cache.get(metadata_table_name, {})
+        for id_ in ids:
+            metadata_id_counts[metadata[id_].metadata_id] -= 1
+        zero_count_metadata_ids = {id_ for id_, count in metadata_id_counts.items() if count == 0}
+        self._merge(cascading_ids, {"metadata": zero_count_metadata_ids})
+        return cascading_ids
+
+    def _entity_metadata_cascading_ids(self, ids, cache):
+        cascading_ids = {"entity_metadata": ids.copy()}
+        cascading_ids.update(self._non_referenced_metadata_ids(ids, "entity_metadata", cache))
+        return cascading_ids
+
+    def _parameter_value_metadata_cascading_ids(self, ids, cache):
+        cascading_ids = {"parameter_value_metadata": ids.copy()}
+        cascading_ids.update(self._non_referenced_metadata_ids(ids, "parameter_value_metadata", cache))
+        return cascading_ids

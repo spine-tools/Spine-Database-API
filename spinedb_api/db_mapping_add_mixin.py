@@ -319,6 +319,62 @@ class DatabaseMappingAddMixin:
     def add_entity_groups(self, *items, **kwargs):
         return self.add_items("entity_group", *items, **kwargs)
 
+    def add_metadata(self, *items, **kwargs):
+        return self.add_items("metadata", *items, **kwargs)
+
+    def add_entity_metadata(self, *items, **kwargs):
+        return self.add_items("entity_metadata", *items, **kwargs)
+
+    def _get_or_add_metadata_ids_for_items(self, *items, check, strict, cache):
+        metadata_ids = {}
+        for entry in cache.get("metadata", {}).values():
+            metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
+        metadata_to_add = []
+        items_missing_metadata_ids = {}
+        for item in items:
+            existing_values = metadata_ids.get(item["metadata_name"])
+            existing_id = existing_values.get(item["metadata_value"]) if existing_values is not None else None
+            if existing_values is None or existing_id is None:
+                metadata_to_add.append({"name": item["metadata_name"], "value": item["metadata_value"]})
+                items_missing_metadata_ids.setdefault(item["metadata_name"], {})[item["metadata_value"]] = item
+            else:
+                item["metadata_id"] = existing_id
+        added_metadata, errors = self.add_items(
+            "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, cache=cache
+        )
+        if errors:
+            return errors
+        new_metadata_ids = {}
+        for added in added_metadata:
+            new_metadata_ids.setdefault(added["name"], {})[added["value"]] = added["id"]
+        for metadata_name, value_to_item in items_missing_metadata_ids.items():
+            for metadata_value, item in value_to_item.items():
+                item["metadata_id"] = new_metadata_ids[metadata_name][metadata_value]
+        return []
+
+    def add_ext_entity_metadata(self, *items, check=True, strict=False, cache=None):
+        if cache is None:
+            cache = self.make_cache({"entity_metadata"}, include_ancestors=True)
+        errors = self._get_or_add_metadata_ids_for_items(*items, check=check, strict=strict, cache=cache)
+        if errors:
+            return set(), errors
+        # We want to invalidate cache just in case because it might be missing metadata
+        # records that may have been added above.
+        return self.add_items("entity_metadata", *items, check=check, strict=strict, cache=None)
+
+    def add_parameter_value_metadata(self, *items, **kwargs):
+        return self.add_items("parameter_value_metadata", *items, **kwargs)
+
+    def add_ext_parameter_value_metadata(self, *items, check=True, strict=False, cache=None):
+        if cache is None:
+            cache = self.make_cache({"parameter_value_metadata"}, include_ancestors=True)
+        errors = self._get_or_add_metadata_ids_for_items(*items, check=check, strict=strict, cache=cache)
+        if errors:
+            return set(), errors
+        # We want to invalidate cache just in case because it might be missing metadata
+        # records that may have been added above.
+        return self.add_items("parameter_value_metadata", *items, check=check, strict=strict, cache=None)
+
     def _add_object_classes(self, *items):
         return self._add_items("object_class", *items)
 
@@ -382,7 +438,7 @@ class DatabaseMappingAddMixin:
         :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
 
         :returns:
-            - **new_item** -- The item succesfully staged for insertion.
+            - **new_item** -- The item successfully staged for insertion.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -396,7 +452,7 @@ class DatabaseMappingAddMixin:
         :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
 
         :returns:
-            - **new_item** -- The item succesfully staged for insertion.
+            - **new_item** -- The item successfully staged for insertion.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -410,7 +466,7 @@ class DatabaseMappingAddMixin:
         :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
 
         :returns:
-            - **new_item** -- The item succesfully staged for insertion.
+            - **new_item** -- The item successfully staged for insertion.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -424,7 +480,7 @@ class DatabaseMappingAddMixin:
         :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
 
         :returns:
-            - **new_item** -- The item succesfully staged for insertion.
+            - **new_item** -- The item successfully staged for insertion.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -438,7 +494,7 @@ class DatabaseMappingAddMixin:
         :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
 
         :returns:
-            - **new_item** -- The item succesfully staged for insertion.
+            - **new_item** -- The item successfully staged for insertion.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -452,7 +508,7 @@ class DatabaseMappingAddMixin:
         :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
 
         :returns:
-            - **new_item** -- The item succesfully staged for insertion.
+            - **new_item** -- The item successfully staged for insertion.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -464,7 +520,7 @@ class DatabaseMappingAddMixin:
         """Stage an object class item for insertion if it doesn't already exists in the db.
 
         :returns:
-            - **item** -- The item succesfully staged for insertion or already existing.
+            - **item** -- The item successfully staged for insertion or already existing.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -476,7 +532,7 @@ class DatabaseMappingAddMixin:
         """Stage an object item for insertion if it doesn't already exists in the db.
 
         :returns:
-            - **item** -- The item succesfully staged for insertion or already existing.
+            - **item** -- The item successfully staged for insertion or already existing.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """
@@ -488,7 +544,7 @@ class DatabaseMappingAddMixin:
         """Stage a parameter definition item for insertion if it doesn't already exists in the db.
 
         :returns:
-            - **item** -- The item succesfully staged for insertion or already existing.
+            - **item** -- The item successfully staged for insertion or already existing.
 
         :rtype: :class:`~sqlalchemy.util.KeyedTuple`
         """

@@ -657,6 +657,150 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         self.assertEqual(len(pdefs), 1)
         self.assertEqual(pdefs[0].name, "parameter2")
 
+    def test_update_object_metadata(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
+        import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+        self._db_map.commit_session("Add test data")
+        ids, errors = self._db_map.update_ext_entity_metadata(
+            *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
+        self.assertEqual(len(metadata_entries), 1)
+        self.assertEqual(
+            metadata_entries[0]._asdict(), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3}
+        )
+        entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
+        self.assertEqual(len(entity_metadata_entries), 1)
+        self.assertEqual(
+            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3}
+        )
+
+    def test_update_object_metadata_reuses_existing_metadata(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
+        import_functions.import_metadata(self._db_map, ('{"key 2": "metadata value 2"}',))
+        import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+        self._db_map.commit_session("Add test data")
+        ids, errors = self._db_map.update_ext_entity_metadata(
+            *[{"id": 1, "metadata_name": "key 2", "metadata_value": "metadata value 2"}]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
+        self.assertEqual(len(metadata_entries), 1)
+        self.assertEqual(
+            metadata_entries[0]._asdict(), {"id": 2, "name": "key 2", "value": "metadata value 2", "commit_id": 2}
+        )
+        entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
+        self.assertEqual(len(entity_metadata_entries), 1)
+        self.assertEqual(
+            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3}
+        )
+
+    def test_update_object_metadata_keeps_metadata_still_in_use(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "object_1"), ("my_class", "object_2")))
+        import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
+        import_functions.import_object_metadata(
+            self._db_map,
+            (
+                ("my_class", "object_1", '{"title": "My metadata."}'),
+                ("my_class", "object_2", '{"title": "My metadata."}'),
+            ),
+        )
+        self._db_map.commit_session("Add test data")
+        ids, errors = self._db_map.update_ext_entity_metadata(
+            *[{"id": 1, "metadata_name": "new key", "metadata_value": "new value"}]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
+        self.assertEqual(len(metadata_entries), 2)
+        self.assertEqual(
+            metadata_entries[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2}
+        )
+        self.assertEqual(
+            metadata_entries[1]._asdict(), {"id": 2, "name": "new key", "value": "new value", "commit_id": 3}
+        )
+        entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
+        self.assertEqual(len(entity_metadata_entries), 2)
+        self.assertEqual(
+            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3}
+        )
+        self.assertEqual(
+            entity_metadata_entries[1]._asdict(), {"id": 2, "entity_id": 2, "metadata_id": 1, "commit_id": 2}
+        )
+
+    def test_update_parameter_value_metadata(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_object_parameters(self._db_map, (("my_class", "my_parameter"),))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        import_functions.import_object_parameter_values(
+            self._db_map, (("my_class", "my_object", "my_parameter", 99.0),)
+        )
+        import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
+        import_functions.import_object_parameter_value_metadata(
+            self._db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+        )
+        self._db_map.commit_session("Add test data")
+        ids, errors = self._db_map.update_ext_parameter_value_metadata(
+            *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
+        self.assertEqual(len(metadata_entries), 1)
+        self.assertEqual(
+            metadata_entries[0]._asdict(), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3}
+        )
+        value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
+        self.assertEqual(len(value_metadata_entries), 1)
+        self.assertEqual(
+            value_metadata_entries[0]._asdict(), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": 3}
+        )
+
+    def test_update_parameter_value_metadata_will_not_delete_shared_entity_metadata(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_object_parameters(self._db_map, (("my_class", "my_parameter"),))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        import_functions.import_object_parameter_values(
+            self._db_map, (("my_class", "my_object", "my_parameter", 99.0),)
+        )
+        import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
+        import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+        import_functions.import_object_parameter_value_metadata(
+            self._db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+        )
+        self._db_map.commit_session("Add test data")
+        ids, errors = self._db_map.update_ext_parameter_value_metadata(
+            *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
+        self.assertEqual(len(metadata_entries), 2)
+        self.assertEqual(
+            metadata_entries[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2}
+        )
+        self.assertEqual(
+            metadata_entries[1]._asdict(), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3}
+        )
+        value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
+        self.assertEqual(len(value_metadata_entries), 1)
+        self.assertEqual(
+            value_metadata_entries[0]._asdict(), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": 3}
+        )
+        entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
+        self.assertEqual(len(entity_metadata_entries), 1)
+        self.assertEqual(
+            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": 2}
+        )
+
 
 class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def setUp(self):
