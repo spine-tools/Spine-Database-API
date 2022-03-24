@@ -620,6 +620,11 @@ class DateTime:
             return NotImplemented
         return self._value == other._value
 
+    def __lt__(self, other):
+        if not isinstance(other, DateTime):
+            return NotImplemented
+        return self._value < other._value
+
     def __hash__(self):
         return hash(self._value)
 
