@@ -13,6 +13,8 @@ Welcome to Spine Database API's documentation!
    front_matter
    tutorial
    parameter_value_format
+   metadata_description
+   results_metadata_description
    autoapi/index
 
 Indices and tables
