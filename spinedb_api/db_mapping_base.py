@@ -2203,7 +2203,7 @@ class DatabaseMappingBase:
             Counter: usage counts keyed by metadata id
         """
         usage_counts = Counter()
-        for entry in cache["entity_metadata"].values():
+        for entry in cache.get("entity_metadata", {}).values():
             usage_counts[entry.metadata_id] += 1
         for entry in cache.get("parameter_value_metadata", {}).values():
             usage_counts[entry.metadata_id] += 1
