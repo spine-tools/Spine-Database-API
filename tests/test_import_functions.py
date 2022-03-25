@@ -875,82 +875,61 @@ class TestImportScenario(unittest.TestCase):
 
 
 class TestImportScenarioAlternative(unittest.TestCase):
+    def setUp(self):
+        self._db_map = create_diff_db_map()
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
     def test_single_scenario_alternative_import(self):
-        db_map = create_diff_db_map()
-        import_alternatives(db_map, ["alternative"])
-        import_scenarios(db_map, ["scenario"])
-        count, errors = import_scenario_alternatives(db_map, [["scenario", "alternative"]])
-        self.assertEqual(count, 1)
+        count, errors = import_scenario_alternatives(self._db_map, [["scenario", "alternative"]])
         self.assertFalse(errors)
-        scenario_alternatives = self.scenario_alternatives(db_map)
+        self.assertEqual(count, 3)
+        scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 1}})
-        db_map.connection.close()
+
+    def test_scenario_alternative_import_imports_missing_scenarios_and_alternatives(self):
+        count, errors = import_scenario_alternatives(self._db_map, [["scenario", "alternative"]])
+        self.assertFalse(errors)
+        self.assertEqual(count, 3)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 1}})
 
     def test_scenario_alternative_import_multiple_without_before_alternatives(self):
-        db_map = create_diff_db_map()
-        import_alternatives(db_map, ["alternative1"])
-        import_alternatives(db_map, ["alternative2"])
-        import_scenarios(db_map, ["scenario"])
         count, errors = import_scenario_alternatives(
-            db_map, [["scenario", "alternative1"], ["scenario", "alternative2"]]
+            self._db_map, [["scenario", "alternative1"], ["scenario", "alternative2"]]
         )
-        self.assertEqual(count, 2)
         self.assertFalse(errors)
-        scenario_alternatives = self.scenario_alternatives(db_map)
+        self.assertEqual(count, 5)
+        scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2}})
-        db_map.connection.close()
 
     def test_scenario_alternative_import_multiple_with_before_alternatives(self):
-        db_map = create_diff_db_map()
-        import_alternatives(db_map, ["alternative1"])
-        import_alternatives(db_map, ["alternative2"])
-        import_alternatives(db_map, ["alternative3"])
-        import_scenarios(db_map, ["scenario"])
         count, errors = import_scenario_alternatives(
-            db_map,
+            self._db_map,
             [["scenario", "alternative1"], ["scenario", "alternative3"], ["scenario", "alternative2", "alternative3"]],
         )
-        self.assertEqual(count, 3)
         self.assertFalse(errors)
-        scenario_alternatives = self.scenario_alternatives(db_map)
+        self.assertEqual(count, 7)
+        scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2, "alternative3": 3}})
-        db_map.connection.close()
-
-    def test_fails_with_nonexistent_scenario(self):
-        db_map = create_diff_db_map()
-        import_alternatives(db_map, ["alternative"])
-        count, errors = import_scenario_alternatives(db_map, [["nonexistent_scenario", "alternative"]])
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_fails_with_nonexistent_alternative(self):
-        db_map = create_diff_db_map()
-        import_scenarios(db_map, ["scenario"])
-        count, errors = import_scenario_alternatives(db_map, [["scenario", "nonexistent_alternative"]])
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
 
     def test_fails_with_nonexistent_before_alternative(self):
-        db_map = create_diff_db_map()
-        import_alternatives(db_map, ["alternative"])
-        import_scenarios(db_map, ["scenario"])
-        count, errors = import_scenario_alternatives(db_map, [["scenario", "alternative", "nonexistent_alternative"]])
-        self.assertEqual(count, 0)
+        count, errors = import_scenario_alternatives(
+            self._db_map, [["scenario", "alternative", "nonexistent_alternative"]]
+        )
         self.assertTrue(errors)
-        db_map.connection.close()
+        self.assertEqual(count, 2)
 
-    @staticmethod
-    def scenario_alternatives(db_map):
+    def scenario_alternatives(self):
         scenario_alternative_qry = (
-            db_map.query(
-                db_map.scenario_sq.c.name.label("scenario_name"),
-                db_map.alternative_sq.c.name.label("alternative_name"),
-                db_map.scenario_alternative_sq.c.rank,
+            self._db_map.query(
+                self._db_map.scenario_sq.c.name.label("scenario_name"),
+                self._db_map.alternative_sq.c.name.label("alternative_name"),
+                self._db_map.scenario_alternative_sq.c.rank,
             )
-            .filter(db_map.scenario_alternative_sq.c.scenario_id == db_map.scenario_sq.c.id)
-            .filter(db_map.scenario_alternative_sq.c.alternative_id == db_map.alternative_sq.c.id)
+            .filter(self._db_map.scenario_alternative_sq.c.scenario_id == self._db_map.scenario_sq.c.id)
+            .filter(self._db_map.scenario_alternative_sq.c.alternative_id == self._db_map.alternative_sq.c.id)
         )
         scenario_alternatives = dict()
         for scenario_alternative in scenario_alternative_qry:

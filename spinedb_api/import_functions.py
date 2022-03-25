@@ -234,11 +234,17 @@ def get_data_for_import(
         make_cache = db_map.make_cache
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
-        yield ("alternative", _get_alternatives_for_import(db_map, alternatives, make_cache))
+        yield ("alternative", _get_alternatives_for_import(alternatives, make_cache))
     if scenarios:
-        yield ("scenario", _get_scenarios_for_import(db_map, scenarios, make_cache))
+        yield ("scenario", _get_scenarios_for_import(scenarios, make_cache))
     if scenario_alternatives:
-        yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives, make_cache))
+        if not scenarios:
+            scenarios = (item[0] for item in scenario_alternatives)
+            yield ("scenario", _get_scenarios_for_import(scenarios, make_cache))
+        if not alternatives:
+            alternatives = (item[1] for item in scenario_alternatives)
+            yield ("alternative", _get_alternatives_for_import(alternatives, make_cache))
+        yield ("scenario_alternative", _get_scenario_alternatives_for_import(scenario_alternatives, make_cache))
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes, make_cache))
     if relationship_classes:
@@ -599,7 +605,7 @@ def import_alternatives(db_map, data, make_cache=None):
     return import_data(db_map, alternatives=data, make_cache=make_cache)
 
 
-def _get_alternatives_for_import(db_map, data, make_cache):
+def _get_alternatives_for_import(data, make_cache):
     cache = make_cache({"alternative"}, include_ancestors=True)
     alternative_ids = {alternative.name: alternative.id for alternative in cache.get("alternative", {}).values()}
     checked = set()
@@ -660,7 +666,7 @@ def import_scenarios(db_map, data, make_cache=None):
     return import_data(db_map, scenarios=data, make_cache=make_cache)
 
 
-def _get_scenarios_for_import(db_map, data, make_cache):
+def _get_scenarios_for_import(data, make_cache):
     cache = make_cache({"scenario"}, include_ancestors=True)
     scenario_ids = {scenario.name: scenario.id for scenario in cache.get("scenario", {}).values()}
     checked = set()
@@ -719,7 +725,7 @@ def import_scenario_alternatives(db_map, data, make_cache=None):
     return import_data(db_map, scenario_alternatives=data, make_cache=make_cache)
 
 
-def _get_scenario_alternatives_for_import(db_map, data, make_cache):
+def _get_scenario_alternatives_for_import(data, make_cache):
     cache = make_cache({"scenario_alternative"}, include_ancestors=True)
     scenario_alternative_id_lists = {
         x.id: [int(id_) for id_ in x.alternative_id_list.split(",")] if x.alternative_id_list else []
