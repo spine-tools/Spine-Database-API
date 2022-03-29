@@ -871,8 +871,10 @@ class ScenarioAlternativeMapping(ImportMapping):
     MAP_TYPE = "ScenarioAlternative"
 
     def _import_row(self, source_data, state, mapped_data):
-        scenario = state[ImportKey.SCENARIO_NAME]
         alternative = str(source_data)
+        if not alternative:
+            return
+        scenario = state[ImportKey.SCENARIO_NAME]
         scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE] = [scenario, alternative]
         mapped_data.setdefault("scenario_alternatives", list()).append(scen_alt)
 

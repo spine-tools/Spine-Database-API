@@ -1703,6 +1703,20 @@ class TestMappingIntegration(unittest.TestCase):
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
+    def test_pivoted_scenario_alternative(self):
+        input_data = [["scenario_A", "scenario_B"], ["first_alternative", "Base"], ["second_alternative", ""]]
+        data = iter(input_data)
+        mappings = [{"map_type": "Scenario", "position": -1}, {"map_type": "ScenarioAlternative", "position": "hidden"}]
+        out, errors = get_mapped_data(data, [mappings])
+        expected = dict()
+        expected["scenario_alternatives"] = [
+            ("scenario_A", "first_alternative"),
+            ("scenario_A", "second_alternative"),
+            ("scenario_B", "Base"),
+        ]
+        self._assert_equivalent(out, expected)
+        self.assertFalse(errors)
+
     def test_read_tool(self):
         input_data = [["Tools"], ["tool1"], ["second_tool"], ["last_one"]]
         data = iter(input_data)

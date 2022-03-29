@@ -93,6 +93,7 @@ def get_mapped_data(
         # If there are only pivoted mappings, we can just feed the unpivoted rows
         if not non_pivoted:
             # Reposition pivoted mappings:
+            last.position = -1
             for k, m in enumerate(pivoted):
                 m.position = k
             for k, row in enumerate(unpivoted_rows):
@@ -207,7 +208,7 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     pivoted_pos = [-(m.position + 1) for m in pivoted]  # (-1) -> (0), (-2) -> (1), (-3) -> (2), etc.
     non_pivoted_pos = [m.position for m in non_pivoted]
     # Collect pivoted rows
-    pivoted_rows = [rows[pos] for pos in pivoted_pos]
+    pivoted_rows = [rows[pos] for pos in pivoted_pos] if non_pivoted_pos else rows
     # Prepend as many headers as needed
     for m in pivoted_from_header:
         pivoted.insert(0, m)
@@ -220,6 +221,14 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     pivoted_rows = [[item for k, item in enumerate(row) if k not in skip_pos] for row in pivoted_rows]
     # Unpivot
     unpivoted_rows = [list(row) for row in zip(*pivoted_rows)]
+    if not non_pivoted_pos:
+        last_pivoted_position = max(pivoted_pos)
+        expanded_pivoted_rows = []
+        for row in unpivoted_rows:
+            head = row[: last_pivoted_position + 1]
+            for data in row[last_pivoted_position + 1 :]:
+                expanded_pivoted_rows.append(head + [data])
+        unpivoted_rows = expanded_pivoted_rows
     unpivoted_column_pos = [k for k in range(len(rows[0])) if k not in skip_pos] if rows else []
     return unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos
 
