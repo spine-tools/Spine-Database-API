@@ -201,6 +201,12 @@ class DatabaseMappingUpdateMixin:
     def _update_list_values(self, *items):
         return self._update_items("list_value", *items)
 
+    def update_metadata(self, *items, **kwargs):
+        return self.update_items("metadata", *items, **kwargs)
+
+    def _update_metadata(self, *items):
+        return self._update_items("metadata", *items)
+
     def update_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
         return self._update_ext_item_metadata(
             "entity_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache

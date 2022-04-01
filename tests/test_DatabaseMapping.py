@@ -801,6 +801,18 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": 2}
         )
 
+    def test_update_metadata(self):
+        import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
+        self._db_map.commit_session("Add test data.")
+        ids, errors = self._db_map.update_metadata(*({"id": 1, "name": "author", "value": "Prof. T. Est"},))
+        self.assertEqual(errors, [])
+        self.assertEqual(ids, {1})
+        metadata_records = self._db_map.query(self._db_map.metadata_sq).all()
+        self.assertEqual(len(metadata_records), 1)
+        self.assertEqual(
+            metadata_records[0]._asdict(), {"id": 1, "name": "author", "value": "Prof. T. Est", "commit_id": 3}
+        )
+
 
 class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def setUp(self):
