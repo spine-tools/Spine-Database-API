@@ -35,7 +35,7 @@ from .filters.tool_filter import tool_filter_config
 from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
 from .spine_db_client import SpineDBClient
 
-_required_client_version = 1
+_required_client_version = 2
 
 
 def _process_parameter_definition_row(row):

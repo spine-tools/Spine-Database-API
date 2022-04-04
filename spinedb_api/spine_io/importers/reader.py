@@ -138,5 +138,4 @@ class SourceConnection:
             for key, value in data.items():
                 mapped_data.setdefault(key, []).extend(value)
             errors.extend([(table, err) for err in t_errors])
-
         return mapped_data, errors
