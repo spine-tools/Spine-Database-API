@@ -41,6 +41,7 @@ def export_data(
     tool_feature_ids=Asterisk,
     tool_feature_method_ids=Asterisk,
     make_cache=None,
+    join_value_and_type=load_db_value,
 ):
     """
     Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
@@ -70,19 +71,23 @@ def export_data(
     data = {
         "object_classes": export_object_classes(db_map, object_class_ids, make_cache=make_cache),
         "relationship_classes": export_relationship_classes(db_map, relationship_class_ids, make_cache=make_cache),
-        "parameter_value_lists": export_parameter_value_lists(db_map, parameter_value_list_ids, make_cache=make_cache),
-        "object_parameters": export_object_parameters(db_map, object_parameter_ids, make_cache=make_cache),
+        "parameter_value_lists": export_parameter_value_lists(
+            db_map, parameter_value_list_ids, make_cache=make_cache, join_value_and_type=join_value_and_type
+        ),
+        "object_parameters": export_object_parameters(
+            db_map, object_parameter_ids, make_cache=make_cache, join_value_and_type=join_value_and_type
+        ),
         "relationship_parameters": export_relationship_parameters(
-            db_map, relationship_parameter_ids, make_cache=make_cache
+            db_map, relationship_parameter_ids, make_cache=make_cache, join_value_and_type=join_value_and_type
         ),
         "objects": export_objects(db_map, object_ids, make_cache=make_cache),
         "relationships": export_relationships(db_map, relationship_ids, make_cache=make_cache),
         "object_groups": export_object_groups(db_map, object_group_ids, make_cache=make_cache),
         "object_parameter_values": export_object_parameter_values(
-            db_map, object_parameter_value_ids, make_cache=make_cache
+            db_map, object_parameter_value_ids, make_cache=make_cache, join_value_and_type=join_value_and_type
         ),
         "relationship_parameter_values": export_relationship_parameter_values(
-            db_map, relationship_parameter_value_ids, make_cache=make_cache
+            db_map, relationship_parameter_value_ids, make_cache=make_cache, join_value_and_type=join_value_and_type
         ),
         "alternatives": export_alternatives(db_map, alternative_ids, make_cache=make_cache),
         "scenarios": export_scenarios(db_map, scenario_ids, make_cache=make_cache),
@@ -90,7 +95,9 @@ def export_data(
         "tools": export_tools(db_map, tool_ids, make_cache=make_cache),
         "features": export_features(db_map, feature_ids, make_cache=make_cache),
         "tool_features": export_tool_features(db_map, tool_feature_ids, make_cache=make_cache),
-        "tool_feature_methods": export_tool_feature_methods(db_map, tool_feature_method_ids, make_cache=make_cache),
+        "tool_feature_methods": export_tool_feature_methods(
+            db_map, tool_feature_method_ids, make_cache=make_cache, join_value_and_type=join_value_and_type
+        ),
     }
     return {key: value for key, value in data.items() if value}
 
@@ -150,19 +157,23 @@ def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
     )
 
 
-def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None):
+def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
+
     return sorted(
-        ((x.name, load_db_value(x.value, x.type)) for x in _get_items(db_map, "parameter_value_list", ids, make_cache)),
+        (
+            (x.name, join_value_and_type(x.value, x.type))
+            for x in _get_items(db_map, "parameter_value_list", ids, make_cache)
+        ),
         key=lambda x: x[0],
     )
 
 
-def export_object_parameters(db_map, ids=Asterisk, make_cache=None):
+def export_object_parameters(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
     return sorted(
         (
             x.object_class_name,
             x.parameter_name,
-            load_db_value(x.default_value, x.default_type),
+            join_value_and_type(x.default_value, x.default_type),
             x.value_list_name,
             x.description,
         )
@@ -171,12 +182,12 @@ def export_object_parameters(db_map, ids=Asterisk, make_cache=None):
     )
 
 
-def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None):
+def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
     return sorted(
         (
             x.relationship_class_name,
             x.parameter_name,
-            load_db_value(x.default_value, x.default_type),
+            join_value_and_type(x.default_value, x.default_type),
             x.value_list_name,
             x.description,
         )
@@ -199,10 +210,16 @@ def export_object_groups(db_map, ids=Asterisk, make_cache=None):
     )
 
 
-def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None):
+def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
     return sorted(
         (
-            (x.object_class_name, x.object_name, x.parameter_name, load_db_value(x.value, x.type), x.alternative_name)
+            (
+                x.object_class_name,
+                x.object_name,
+                x.parameter_name,
+                join_value_and_type(x.value, x.type),
+                x.alternative_name,
+            )
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
             if x.object_id
         ),
@@ -210,14 +227,14 @@ def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None):
     )
 
 
-def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None):
+def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
     return sorted(
         (
             (
                 x.relationship_class_name,
                 x.object_name_list.split(","),
                 x.parameter_name,
-                load_db_value(x.value, x.type),
+                join_value_and_type(x.value, x.type),
                 x.alternative_name,
             )
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
@@ -300,8 +317,8 @@ def export_tool_features(db_map, ids=Asterisk, make_cache=None):
     )
 
 
-def export_tool_feature_methods(db_map, ids=Asterisk, make_cache=None):
+def export_tool_feature_methods(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
     return sorted(
-        (x.tool_name, x.entity_class_name, x.parameter_definition_name, load_db_value(x.method, value_type=None))
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name, join_value_and_type(x.method, value_type=None))
         for x in _get_items(db_map, "tool_feature_method", ids, make_cache)
     )

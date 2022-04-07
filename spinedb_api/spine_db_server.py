@@ -148,7 +148,9 @@ class HandleDBMixin:
         with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
-            return dict(result=export_data(db_map, **kwargs))
+            return dict(
+                result=export_data(db_map, join_value_and_type=lambda v, value_type=None: (v, value_type), **kwargs)
+            )
 
     def open_connection(self):
         """Opens a persistent connection to the url by creating and storing a db_map.
@@ -231,24 +233,77 @@ class HandleDBMixin:
                 db_map.restore_parameter_value_sq_maker()
         self._db_url = new_db_url
 
+    def _get_response(self, data):
+        request, *extras = json.loads(data, cls=_CustomJSONDecoder)
+        # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
+        # with the legacy server -- to (based on the format of the answer) determine that it needs to be updated.
+        # That's why we don't expand the extras so far.
+        response = {"get_api_version": spinedb_api_version, "get_db_url": self.get_db_url()}.get(request)
+        if response is not None:
+            return response
+        try:
+            args, kwargs, client_version = extras
+        except ValueError:
+            client_version = 0
+        if client_version < _required_client_version:
+            return dict(error=1, result=_required_client_version)
+        handler = {
+            "query": self.query,
+            "import_data": self.import_data,
+            "export_data": self.export_data,
+            "call_method": self.call_method,
+            "open_connection": self.open_connection,
+            "close_connection": self.close_connection,
+            "apply_filters": self.apply_filters,
+            "clear_filters": self.clear_filters,
+        }.get(request)
+        if handler is None:
+            return dict(error=f"invalid request '{request}'")
+        return handler(*args, **kwargs)
+
+    def handle_data(self, data):
+        response = self._get_response(data)
+        return json.dumps(response, cls=_CustomJSONEncoder)
+
+
+_MARKER_TAG = "@"
+_TAIL_TAG = b"#"
+
 
 class _CustomJSONEncoder(json.JSONEncoder):
     """A JSON encoder that handles all the special types that can come in request responses."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._tail = []
+        self._tip = 0
+
     def default(self, o):
+        if isinstance(o, bytes):
+            self._tail.append(o)
+            new_tip = self._tip + len(o)
+            marker = f"{_MARKER_TAG}{self._tip}:{new_tip}{_MARKER_TAG}"
+            self._tip = new_tip
+            return marker
         if isinstance(o, set):
             return list(o)
         if isinstance(o, SpineDBAPIError):
             return str(o)
         return super().default(o)
 
+    def encode(self, o):
+        return super().encode(o).encode() + _TAIL_TAG + b"".join(self._tail)
+
+
+class _CustomJSONDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(object_hook=self.object_hook, *args, **kwargs)
+
+    def object_hook(self, obj):
+        return obj
+
 
 class DBHandler(HandleDBMixin):
-    """
-    Helper class to do key interactions with a db, while closing the db_map afterwards.
-    Used by DBRequestHandler and by SpineInterface's legacy PyCall path.
-    """
-
     def __init__(self, db_url, upgrade):
         self._db_url = db_url
         self._upgrade = upgrade
@@ -276,38 +331,10 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     def _memory(self):
         return self.server.memory
 
-    def _get_response(self):
-        data = self._recvall()
-        request, *extras = json.loads(data)
-        # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
-        # with the legacy server -- to (based on the format of the answer) determine that it needs to be updated.
-        # That's why we don't expand the extras so far.
-        response = {"get_api_version": spinedb_api_version, "get_db_url": self.get_db_url()}.get(request)
-        if response is not None:
-            return response
-        try:
-            args, kwargs, client_version = extras
-        except ValueError:
-            client_version = 0
-        if client_version < _required_client_version:
-            return dict(error=1, result=_required_client_version)
-        handler = {
-            "query": self.query,
-            "import_data": self.import_data,
-            "export_data": self.export_data,
-            "call_method": self.call_method,
-            "open_connection": self.open_connection,
-            "close_connection": self.close_connection,
-            "apply_filters": self.apply_filters,
-            "clear_filters": self.clear_filters,
-        }.get(request)
-        if handler is None:
-            return dict(error=f"invalid request '{request}'")
-        return handler(*args, **kwargs)
-
     def handle(self):
-        response = self._get_response()
-        self.request.sendall(bytes(json.dumps(response, cls=_CustomJSONEncoder) + self._EOM, self._ENCODING))
+        data = self._recvall()
+        response = self.handle_data(data)
+        self.request.sendall(response + bytes(self._EOM, self._ENCODING))
 
 
 class SpineDBServer(socketserver.TCPServer):
