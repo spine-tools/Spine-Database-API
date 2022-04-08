@@ -29,7 +29,6 @@ from .import_functions import import_data
 from .export_functions import export_data
 from .helpers import ReceiveAllMixing
 from .exception import SpineDBAPIError
-from .parameter_value import load_db_value
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
 from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
@@ -38,29 +37,64 @@ from .spine_db_client import SpineDBClient
 _required_client_version = 2
 
 
-def _process_parameter_definition_row(row):
-    value, type_ = row.pop("default_value"), row.pop("default_type")
-    row["default_value"] = load_db_value(value, type_)
-    return row
-
-
-def _process_parameter_value_row(row):
-    value, type_ = row.pop("value"), row.pop("type")
-    row["value"] = load_db_value(value, type_)
-    return row
-
-
-def _get_row_processor(sq_name):
-    if sq_name.endswith("parameter_definition_sq"):
-        return _process_parameter_definition_row
-    if sq_name.endswith("parameter_value_sq"):
-        return _process_parameter_value_row
-    if sq_name.endswith("list_value_sq"):
-        return _process_parameter_value_row
-    return lambda row: row
-
-
 _open_db_maps = {}
+
+_TAIL_BEGIN = '#'
+_MARKER_BEGIN = '@'
+_MARKER_SEP = ':'
+
+
+def _join_value_and_type(v, value_type=None):
+    return (v, value_type)
+
+
+class _CustomJSONEncoder(json.JSONEncoder):
+    def __init__(self):
+        super().__init__()
+        self.tail = []
+        self._tip = 0
+
+    def default(self, o):
+        if isinstance(o, bytes):
+            self.tail.append(o)
+            new_tip = self._tip + len(o)
+            marker = f"{_MARKER_BEGIN}{self._tip}{_MARKER_SEP}{new_tip - 1}"
+            self._tip = new_tip
+            return marker
+        if isinstance(o, set):
+            return list(o)
+        if isinstance(o, SpineDBAPIError):
+            return str(o)
+        return super().default(o)
+
+
+def _encode(o):
+    encoder = _CustomJSONEncoder()
+    s = encoder.encode(o)
+    return s.encode() + _TAIL_BEGIN.encode() + b"".join(encoder.tail)
+
+
+def _decode(b):
+    body, tail = b.split(_TAIL_BEGIN.encode())
+    o = json.loads(body)
+    return _replace_markers_in_place(o, tail)
+
+
+def _replace_markers_in_place(o, tail):
+    if isinstance(o, dict):
+        for k, v in o.items():
+            o[k] = _replace_markers_in_place(v, tail)
+        return o
+    if isinstance(o, list):
+        for k, e in enumerate(o):
+            o[k] = _replace_markers_in_place(e, tail)
+        return o
+    if isinstance(o, str):
+        if not o.startswith(_MARKER_BEGIN):
+            return o
+        fr, to = (int(x) for x in o[1:].split(_MARKER_SEP))
+        return tail[fr : to + 1]
+    return o
 
 
 class HandleDBMixin:
@@ -113,8 +147,7 @@ class HandleDBMixin:
                 sq = getattr(db_map, sq_name, None)
                 if sq is None:
                     continue
-                process_row = _get_row_processor(sq_name)
-                result[sq_name] = [process_row(x._asdict()) for x in db_map.query(sq)]
+                result[sq_name] = [x._asdict() for x in db_map.query(sq)]
         return dict(result=result)
 
     def import_data(self, data, comment):
@@ -148,9 +181,7 @@ class HandleDBMixin:
         with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
-            return dict(
-                result=export_data(db_map, join_value_and_type=lambda v, value_type=None: (v, value_type), **kwargs)
-            )
+            return dict(result=export_data(db_map, join_value_and_type=_join_value_and_type, **kwargs))
 
     def open_connection(self):
         """Opens a persistent connection to the url by creating and storing a db_map.
@@ -233,8 +264,8 @@ class HandleDBMixin:
                 db_map.restore_parameter_value_sq_maker()
         self._db_url = new_db_url
 
-    def _get_response(self, data):
-        request, *extras = json.loads(data, cls=_CustomJSONDecoder)
+    def _get_response(self, request):
+        request, *extras = _decode(request)
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
         # with the legacy server -- to (based on the format of the answer) determine that it needs to be updated.
         # That's why we don't expand the extras so far.
@@ -261,46 +292,9 @@ class HandleDBMixin:
             return dict(error=f"invalid request '{request}'")
         return handler(*args, **kwargs)
 
-    def handle_data(self, data):
-        response = self._get_response(data)
-        return json.dumps(response, cls=_CustomJSONEncoder)
-
-
-_MARKER_TAG = "@"
-_TAIL_TAG = b"#"
-
-
-class _CustomJSONEncoder(json.JSONEncoder):
-    """A JSON encoder that handles all the special types that can come in request responses."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._tail = []
-        self._tip = 0
-
-    def default(self, o):
-        if isinstance(o, bytes):
-            self._tail.append(o)
-            new_tip = self._tip + len(o)
-            marker = f"{_MARKER_TAG}{self._tip}:{new_tip}{_MARKER_TAG}"
-            self._tip = new_tip
-            return marker
-        if isinstance(o, set):
-            return list(o)
-        if isinstance(o, SpineDBAPIError):
-            return str(o)
-        return super().default(o)
-
-    def encode(self, o):
-        return super().encode(o).encode() + _TAIL_TAG + b"".join(self._tail)
-
-
-class _CustomJSONDecoder(json.JSONDecoder):
-    def __init__(self, *args, **kwargs):
-        super().__init__(object_hook=self.object_hook, *args, **kwargs)
-
-    def object_hook(self, obj):
-        return obj
+    def handle_request(self, request):
+        response = self._get_response(request)
+        return _encode(response)
 
 
 class DBHandler(HandleDBMixin):
@@ -332,8 +326,8 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
         return self.server.memory
 
     def handle(self):
-        data = self._recvall()
-        response = self.handle_data(data)
+        request = self._recvall()
+        response = self.handle_request(request)
         self.request.sendall(response + bytes(self._EOM, self._ENCODING))
 
 

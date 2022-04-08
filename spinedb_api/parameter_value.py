@@ -121,27 +121,44 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def load_db_value(database_value, value_type=None):
+def load_db_value(db_value, value_type=None):
     """
-    Loads a parameter value from the database using JSON.
+    Converts a database parameter value (JSON) into a Python object.
     Adds the "type" property in case of dicts resulting from complex types.
 
     Args:
-        database_value (bytes, optional): a value in the database
+        db_value (bytes, optional): a value in the database
         value_type (str, optional): the type in case of complex ones
 
     Returns:
         Any: the parsed parameter value
     """
-    if database_value is None:
+    if db_value is None:
         return None
     try:
-        parsed = json.loads(database_value)
+        parsed = json.loads(db_value)
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     if isinstance(parsed, dict):
         return {"type": value_type, **parsed}
     return parsed
+
+
+def unload_db_value(parsed_value):
+    """
+    Converts a Python object into a database parameter value (JSON).
+    Adds the "type" property in case of dicts resulting from complex types.
+
+    Args:
+        parsed_value (Any): the Python object
+
+    Returns:
+        str: the database parameter value
+        str: the type
+    """
+    value_type = parsed_value.pop("type") if isinstance(parsed_value, dict) else None
+    db_value = json.dumps(parsed_value).encode("UTF8")
+    return db_value, value_type
 
 
 def from_database(database_value, value_type=None):
@@ -216,14 +233,12 @@ def to_database(value):
     """
     if hasattr(value, "to_database"):
         return value.to_database()
-    value_type = value.get("type") if isinstance(value, dict) else None
-    db_value = json.dumps(value).encode("UTF8")
-    return db_value, value_type
+    return unload_db_value(value)
 
 
 def from_dict(value_dict):
     """
-    Converts complex a (relationship) parameter value from its dictionary representation to a Python object.
+    Converts a complex (relationship) parameter value from its dictionary representation to a Python object.
 
     Args:
         value_dict (dict): value's dictionary; a parsed JSON object with the "type" key
@@ -1502,11 +1517,10 @@ def join_value_and_type(db_value, db_type):
         str: parameter value as JSON with an additional `type` field.
     """
     try:
-        value = json.loads(db_value)
-    except (TypeError, json.JSONDecodeError):
-        value = None
-    value = {"type": db_type, **value} if isinstance(value, dict) else value
-    return json.dumps(value)
+        parsed = load_db_value(db_value)
+    except ParameterValueFormatError:
+        parsed = None
+    return json.dumps(parsed)
 
 
 def split_value_and_type(value_and_type):
@@ -1521,8 +1535,8 @@ def split_value_and_type(value_and_type):
         str or NoneType
     """
     try:
-        value = json.loads(value_and_type)
+        parsed = json.loads(value_and_type)
     except (TypeError, json.JSONDecodeError):
-        value = value_and_type
-    type_ = value.pop("type") if isinstance(value, dict) else None
-    return bytes(json.dumps(value), "UTF8"), type_
+        parsed = value_and_type
+    db_value, value_type = unload_db_value(parsed)
+    return bytes(db_value, "UTF8"), value_type

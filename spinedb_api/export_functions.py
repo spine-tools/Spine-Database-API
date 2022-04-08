@@ -319,6 +319,6 @@ def export_tool_features(db_map, ids=Asterisk, make_cache=None):
 
 def export_tool_feature_methods(db_map, ids=Asterisk, make_cache=None, join_value_and_type=load_db_value):
     return sorted(
-        (x.tool_name, x.entity_class_name, x.parameter_definition_name, join_value_and_type(x.method, value_type=None))
+        (x.tool_name, x.entity_class_name, x.parameter_definition_name, join_value_and_type(x.method, None))
         for x in _get_items(db_map, "tool_feature_method", ids, make_cache)
     )
