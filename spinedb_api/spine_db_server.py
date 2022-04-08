@@ -42,8 +42,12 @@ _START_OF_ADDRESS = '\u0091'  # Private Use 1
 _ADDRESS_SEP = ':'
 
 
-def _make_value(v, value_type=None):
+def _parse_value(v, value_type=None):
     return (v, value_type)
+
+
+def _unparse_value(value_and_type):
+    return value_and_type[0], value_and_type[1]
 
 
 class _TailJSONEncoder(json.JSONEncoder):
@@ -201,7 +205,7 @@ class HandleDBMixin:
         with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
-            count, errors = import_data(db_map, **data)
+            count, errors = import_data(db_map, parse_value=_parse_value, unparse_value=_unparse_value, **data)
             if count and comment:
                 try:
                     db_map.commit_session(comment)
@@ -220,7 +224,7 @@ class HandleDBMixin:
         with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
-            return dict(result=export_data(db_map, make_value=_make_value, **kwargs))
+            return dict(result=export_data(db_map, parse_value=_parse_value, **kwargs))
 
     def open_connection(self):
         """Opens a persistent connection to the url by creating and storing a db_map.
