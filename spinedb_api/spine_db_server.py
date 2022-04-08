@@ -35,32 +35,31 @@ from .filters.tools import append_filter_config, clear_filter_configs, apply_fil
 from .spine_db_client import SpineDBClient
 
 _required_client_version = 2
-
-
 _open_db_maps = {}
 
-_TAIL_BEGIN = '#'
-_MARKER_BEGIN = '@'
-_MARKER_SEP = ':'
+_START_OF_TAIL = '\u001f'  # Unit separator
+_START_OF_ADDRESS = '\u0091'  # Private Use 1
+_ADDRESS_SEP = ':'
 
 
-def _join_value_and_type(v, value_type=None):
+def _make_value(v, value_type=None):
     return (v, value_type)
 
 
 class _CustomJSONEncoder(json.JSONEncoder):
     def __init__(self):
         super().__init__()
-        self.tail = []
+        self.tail_parts = []
         self._tip = 0
 
     def default(self, o):
         if isinstance(o, bytes):
-            self.tail.append(o)
+            self.tail_parts.append(o)
             new_tip = self._tip + len(o)
-            marker = f"{_MARKER_BEGIN}{self._tip}{_MARKER_SEP}{new_tip - 1}"
+            fr, to = self._tip, new_tip - 1
+            address = f"{_START_OF_ADDRESS}{fr}{_ADDRESS_SEP}{to}"
             self._tip = new_tip
-            return marker
+            return address
         if isinstance(o, set):
             return list(o)
         if isinstance(o, SpineDBAPIError):
@@ -71,28 +70,29 @@ class _CustomJSONEncoder(json.JSONEncoder):
 def _encode(o):
     encoder = _CustomJSONEncoder()
     s = encoder.encode(o)
-    return s.encode() + _TAIL_BEGIN.encode() + b"".join(encoder.tail)
+    return s.encode() + _START_OF_TAIL.encode() + b"".join(encoder.tail_parts)
 
 
 def _decode(b):
-    body, tail = b.split(_TAIL_BEGIN.encode())
+    body, tail = b.split(_START_OF_TAIL.encode())
     o = json.loads(body)
-    return _replace_markers_in_place(o, tail)
+    return _expand_addresses_in_place(o, tail)
 
 
-def _replace_markers_in_place(o, tail):
+def _expand_addresses_in_place(o, tail):
     if isinstance(o, dict):
         for k, v in o.items():
-            o[k] = _replace_markers_in_place(v, tail)
+            o[k] = _expand_addresses_in_place(v, tail)
         return o
     if isinstance(o, list):
         for k, e in enumerate(o):
-            o[k] = _replace_markers_in_place(e, tail)
+            o[k] = _expand_addresses_in_place(e, tail)
         return o
     if isinstance(o, str):
-        if not o.startswith(_MARKER_BEGIN):
+        if not o.startswith(_START_OF_ADDRESS):
             return o
-        fr, to = (int(x) for x in o[1:].split(_MARKER_SEP))
+        address = o.lstrip(_START_OF_ADDRESS)
+        fr, to = (int(x) for x in address.split(_ADDRESS_SEP))
         return tail[fr : to + 1]
     return o
 
@@ -181,7 +181,7 @@ class HandleDBMixin:
         with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
-            return dict(result=export_data(db_map, join_value_and_type=_join_value_and_type, **kwargs))
+            return dict(result=export_data(db_map, make_value=_make_value, **kwargs))
 
     def open_connection(self):
         """Opens a persistent connection to the url by creating and storing a db_map.
@@ -328,7 +328,7 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     def handle(self):
         request = self._recvall()
         response = self.handle_request(request)
-        self.request.sendall(response + bytes(self._EOM, self._ENCODING))
+        self.request.sendall(response + bytes(self._EOT, self._ENCODING))
 
 
 class SpineDBServer(socketserver.TCPServer):

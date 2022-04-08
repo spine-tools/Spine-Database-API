@@ -1538,5 +1538,4 @@ def split_value_and_type(value_and_type):
         parsed = json.loads(value_and_type)
     except (TypeError, json.JSONDecodeError):
         parsed = value_and_type
-    db_value, value_type = unload_db_value(parsed)
-    return bytes(db_value, "UTF8"), value_type
+    return unload_db_value(parsed)

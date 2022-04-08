@@ -72,7 +72,7 @@ class SpineDBClient(ReceiveAllMixing):
         msg = json.dumps((request, args, kwargs, client_version))
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.request:
             self.request.connect(self._server_address)
-            self.request.sendall(bytes(msg + self._EOM, self._ENCODING))
+            self.request.sendall(bytes(msg + self._EOT, self._ENCODING))
             if receive:
                 response = self._recvall()
                 return json.loads(response)

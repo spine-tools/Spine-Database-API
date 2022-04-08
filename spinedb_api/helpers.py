@@ -74,7 +74,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2 ** 32 - 1
+LONGTEXT_LENGTH = 2**32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -942,12 +942,12 @@ def fix_name_ambiguity(input_list, offset=0, prefix=""):
 
 
 class ReceiveAllMixing:
-    """Provides _recvall, to read everything from a socket until the _EOM character is found."""
+    """Provides _recvall, to read everything from a socket until the _EOT character is found."""
 
     _ENCODING = "utf-8"
     _BUFF_SIZE = 4096
-    _EOM = u'\0'
-    _BEOM = b'\0'
+    _EOT = '\u0004'  # End of transmission
+    _BEOT = _EOT.encode(_ENCODING)
     """End of message character"""
 
     def _recvall(self):
@@ -961,7 +961,7 @@ class ReceiveAllMixing:
         while True:
             chunk = self.request.recv(self._BUFF_SIZE)
             fragments.append(chunk)
-            if chunk.endswith(self._BEOM):
+            if chunk.endswith(self._BEOT):
                 break
         return str(b"".join(fragments), self._ENCODING)[:-1]
 
