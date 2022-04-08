@@ -46,15 +46,20 @@ def _make_value(v, value_type=None):
     return (v, value_type)
 
 
-class _CustomJSONEncoder(json.JSONEncoder):
+class _TailJSONEncoder(json.JSONEncoder):
+    """
+    A custom JSON encoder that accummulates bytes objects into a tail.
+    The bytes object are encoded as a string pointing to the address in the tail.
+    """
+
     def __init__(self):
         super().__init__()
-        self.tail_parts = []
+        self._tail_parts = []
         self._tip = 0
 
     def default(self, o):
         if isinstance(o, bytes):
-            self.tail_parts.append(o)
+            self._tail_parts.append(o)
             new_tip = self._tip + len(o)
             fr, to = self._tip, new_tip - 1
             address = f"{_START_OF_ADDRESS}{fr}{_ADDRESS_SEP}{to}"
@@ -66,14 +71,48 @@ class _CustomJSONEncoder(json.JSONEncoder):
             return str(o)
         return super().default(o)
 
+    @property
+    def tail(self):
+        return b"".join(self._tail_parts)
+
 
 def _encode(o):
-    encoder = _CustomJSONEncoder()
+    """
+    Encodes given object (representing a server response) into a message with the following structure:
+
+        body | start of tail character | tail
+
+    The body is obtained by JSON-encoding the argument, while replacing all `bytes` objects by addresses in the tail.
+    The tail is computed by concatenating all `bytes` objects in the argument.
+    See class:`_TailJSONEncoder`.
+
+    Args:
+        o (any): A Python object representing a server response.
+
+    Returns:
+        bytes: A message to the client.
+    """
+    encoder = _TailJSONEncoder()
     s = encoder.encode(o)
-    return s.encode() + _START_OF_TAIL.encode() + b"".join(encoder.tail_parts)
+    return s.encode() + _START_OF_TAIL.encode() + encoder.tail
 
 
 def _decode(b):
+    """
+    Decodes given message (representing a client request) into a Python object.
+    The message must have the following structure:
+
+        body | start of tail character | tail
+
+    The result is obtained by JSON-decoding the body, and then replacing all the addresses with the referred `bytes`
+    from the tail.
+
+    Args:
+        b (bytes): A message from the client.
+
+    Returns:
+        any: A Python object representing a client request.
+    """
     body, tail = b.split(_START_OF_TAIL.encode())
     o = json.loads(body)
     return _expand_addresses_in_place(o, tail)
