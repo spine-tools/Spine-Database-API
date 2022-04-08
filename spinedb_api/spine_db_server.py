@@ -34,7 +34,7 @@ from .filters.tool_filter import tool_filter_config
 from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
 from .spine_db_client import SpineDBClient
 
-_required_client_version = 2
+_required_client_version = 3
 _open_db_maps = {}
 
 _START_OF_TAIL = '\u001f'  # Unit separator
