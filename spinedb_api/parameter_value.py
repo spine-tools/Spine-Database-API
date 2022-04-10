@@ -293,9 +293,11 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 def merge(value, other):
     """Merges other into value, returns the result."""
-    if hasattr(value, "merge"):
-        return value.merge(other)
-    return value
+    parsed_value = from_database(*value)
+    if not hasattr(parsed_value, "merge"):
+        return value
+    parsed_other = from_database(*other)
+    return to_database(parsed_value.merge(parsed_other))
 
 
 def _break_dictionary(data):

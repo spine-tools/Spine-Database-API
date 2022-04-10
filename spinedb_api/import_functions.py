@@ -1377,10 +1377,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_va
         value, type_ = unparse_value(value)
         if pv_id is not None:
             current_pv = cache["parameter_value"][pv_id]
-            parsed_value = from_database(value, type_)
-            parsed_current = from_database(current_pv.value, current_pv.type)
-            parsed_fixed = fix_conflict(parsed_value, parsed_current, on_conflict)
-            value, type_ = to_database(parsed_fixed)
+            value, type_ = fix_conflict((value, type_), (current_pv.value, current_pv.type), on_conflict)
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": oc_id,
@@ -1516,10 +1513,7 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
         value, type_ = unparse_value(value)
         if pv_id is not None:
             current_pv = cache["parameter_value"][pv_id]
-            parsed_value = from_database(value, type_)
-            parsed_current = from_database(current_pv.value, current_pv.type)
-            parsed_fixed = fix_conflict(parsed_value, parsed_current, on_conflict)
-            value, type_ = to_database(parsed_fixed)
+            value, type_ = fix_conflict((value, type_), (current_pv.value, current_pv.type), on_conflict)
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": rc_id,
