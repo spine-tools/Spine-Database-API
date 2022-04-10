@@ -27,6 +27,7 @@ from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .export_functions import export_data
+from .parameter_value import dump_db_value
 from .helpers import ReceiveAllMixing
 from .exception import SpineDBAPIError
 from .filters.scenario_filter import scenario_filter_config
@@ -47,7 +48,13 @@ def _parse_value(v, value_type=None):
 
 
 def _unparse_value(value_and_type):
-    return value_and_type[0], value_and_type[1]
+    if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
+        value, type_ = value_and_type
+        if isinstance(value, bytes) and (isinstance(type_, str) or type_ is None):
+            # Tuple of value and type ready to go
+            return value, type_
+    # JSON object
+    return dump_db_value(value_and_type)
 
 
 class _TailJSONEncoder(json.JSONEncoder):
@@ -205,7 +212,7 @@ class HandleDBMixin:
         with self._db_map_context() as (db_map, error):
             if error:
                 return dict(error=str(error))
-            count, errors = import_data(db_map, parse_value=_parse_value, unparse_value=_unparse_value, **data)
+            count, errors = import_data(db_map, unparse_value=_unparse_value, **data)
             if count and comment:
                 try:
                     db_map.commit_session(comment)

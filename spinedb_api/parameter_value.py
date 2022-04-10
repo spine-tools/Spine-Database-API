@@ -123,8 +123,8 @@ def relativedelta_to_duration(delta):
 
 def load_db_value(db_value, value_type=None):
     """
-    Converts a database parameter value (JSON) into a Python object.
-    Adds the "type" property in case of dicts resulting from complex types.
+    Loads a database parameter value into a Python object using JSON.
+    Adds the "type" property to dicts representing complex types.
 
     Args:
         db_value (bytes, optional): a value in the database
@@ -144,10 +144,10 @@ def load_db_value(db_value, value_type=None):
     return parsed
 
 
-def unload_db_value(parsed_value):
+def dump_db_value(parsed_value):
     """
-    Converts a Python object into a database parameter value (JSON).
-    Adds the "type" property in case of dicts resulting from complex types.
+    Dumps a Python object into a database parameter value using JSON.
+    Extracts the "type" property from dicts representing complex types.
 
     Args:
         parsed_value (Any): the Python object
@@ -158,6 +158,8 @@ def unload_db_value(parsed_value):
     """
     value_type = parsed_value.pop("type") if isinstance(parsed_value, dict) else None
     db_value = json.dumps(parsed_value).encode("UTF8")
+    if isinstance(parsed_value, dict) and value_type is not None:
+        parsed_value["type"] = value_type
     return db_value, value_type
 
 
@@ -220,9 +222,9 @@ def from_database_to_dimension_count(database_value, value_type):
     return 0
 
 
-def to_database(value):
+def to_database(parsed_value):
     """
-    Converts a parsed or encoded value into its database representation.
+    Converts an encoded Python object into its database representation.
 
     Args:
         value: the value to convert. It can be the result of either ``load_db_value`` or ``from_database```.
@@ -231,9 +233,10 @@ def to_database(value):
         bytes: value's database representation as bytes
         str: the value type
     """
-    if hasattr(value, "to_database"):
-        return value.to_database()
-    return unload_db_value(value)
+    if hasattr(parsed_value, "to_database"):
+        return parsed_value.to_database()
+    db_value = json.dumps(parsed_value).encode("UTF8")
+    return db_value, None
 
 
 def from_dict(value_dict):
@@ -260,8 +263,6 @@ def from_dict(value_dict):
             return _time_series_from_database(value_dict)
         if value_type == "array":
             return _array_from_database(value_dict)
-        if value_type == "list_value_ref":
-            return _list_value_ref_from_database(value_dict)
         raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
     except KeyError as error:
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
@@ -292,8 +293,6 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 def merge(value, other):
     """Merges other into value, returns the result."""
-    if isinstance(value, dict):
-        value = from_dict(value)
     if hasattr(value, "merge"):
         return value.merge(other)
     return value
@@ -1538,4 +1537,4 @@ def split_value_and_type(value_and_type):
         parsed = json.loads(value_and_type)
     except (TypeError, json.JSONDecodeError):
         parsed = value_and_type
-    return unload_db_value(parsed)
+    return dump_db_value(parsed)

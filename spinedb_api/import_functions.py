@@ -53,9 +53,7 @@ class ImportErrorLogItem:
         return self.msg
 
 
-def import_data(
-    db_map, make_cache=None, parse_value=from_database, unparse_value=to_database, on_conflict="merge", **kwargs
-):
+def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict="merge", **kwargs):
     """Imports data into a Spine database using name references (rather than id references).
 
     Example::
@@ -159,7 +157,6 @@ def import_data(
     for tablename, (to_add, to_update, errors) in get_data_for_import(
         db_map,
         make_cache=make_cache,
-        parse_value=parse_value,
         unparse_value=unparse_value,
         on_conflict=on_conflict,
         **kwargs,
@@ -184,7 +181,6 @@ def import_data(
 def get_data_for_import(
     db_map,
     make_cache=None,
-    parse_value=from_database,
     unparse_value=to_database,
     on_conflict="merge",
     object_classes=(),
@@ -264,14 +260,12 @@ def get_data_for_import(
     if object_parameters:
         yield (
             "parameter_definition",
-            _get_object_parameters_for_import(db_map, object_parameters, make_cache, parse_value, unparse_value),
+            _get_object_parameters_for_import(db_map, object_parameters, make_cache, unparse_value),
         )
     if relationship_parameters:
         yield (
             "parameter_definition",
-            _get_relationship_parameters_for_import(
-                db_map, relationship_parameters, make_cache, parse_value, unparse_value
-            ),
+            _get_relationship_parameters_for_import(db_map, relationship_parameters, make_cache, unparse_value),
         )
     if features:
         yield ("feature", _get_features_for_import(db_map, features, make_cache))
@@ -282,7 +276,7 @@ def get_data_for_import(
     if tool_feature_methods:
         yield (
             "tool_feature_method",
-            _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache, parse_value),
+            _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache),
         )
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects, make_cache))
@@ -294,14 +288,14 @@ def get_data_for_import(
         yield (
             "parameter_value",
             _get_object_parameter_values_for_import(
-                db_map, object_parameter_values, make_cache, parse_value, unparse_value, on_conflict
+                db_map, object_parameter_values, make_cache, unparse_value, on_conflict
             ),
         )
     if relationship_parameter_values:
         yield (
             "parameter_value",
             _get_relationship_parameter_values_for_import(
-                db_map, relationship_parameter_values, make_cache, parse_value, unparse_value, on_conflict
+                db_map, relationship_parameter_values, make_cache, unparse_value, on_conflict
             ),
         )
     if metadata:
@@ -530,7 +524,7 @@ def _get_tool_features_for_import(db_map, data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_tool_feature_methods(db_map, data, make_cache=None, parse_value=from_database):
+def import_tool_feature_methods(db_map, data, make_cache=None):
     """
     Imports tool feature methods.
 
@@ -546,10 +540,10 @@ def import_tool_feature_methods(db_map, data, make_cache=None, parse_value=from_
     Returns:
         tuple of int and list: Number of successfully inserted tool features, list of errors
     """
-    return import_data(db_map, tool_feature_methods=data, make_cache=make_cache, parse_value=parse_value)
+    return import_data(db_map, tool_feature_methods=data, make_cache=make_cache)
 
 
-def _get_tool_feature_methods_for_import(db_map, data, make_cache, parse_value):
+def _get_tool_feature_methods_for_import(db_map, data, make_cache):
     cache = make_cache({"tool_feature_method"}, include_ancestors=True)
     tool_feature_method_ids = {
         (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
@@ -564,7 +558,8 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache, parse_value):
         for x in cache.get("parameter_value_list", {}).values()
     }
     list_values = {
-        (x.parameter_value_list_id, x.index): parse_value(x.value, x.type) for x in cache.get("list_value", {}).values()
+        (x.parameter_value_list_id, x.index): from_database(x.value, x.type)
+        for x in cache.get("list_value", {}).values()
     }
     seen = set()
     to_add = []
@@ -1120,7 +1115,7 @@ def _get_relationships_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def import_object_parameters(db_map, data, make_cache=None, parse_value=from_database, unparse_value=to_database):
+def import_object_parameters(db_map, data, make_cache=None, unparse_value=to_database):
     """Imports list of object class parameters:
 
     Example::
@@ -1139,12 +1134,10 @@ def import_object_parameters(db_map, data, make_cache=None, parse_value=from_dat
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(
-        db_map, object_parameters=data, make_cache=make_cache, parse_value=parse_value, unparse_value=unparse_value
-    )
+    return import_data(db_map, object_parameters=data, make_cache=make_cache, unparse_value=unparse_value)
 
 
-def _get_object_parameters_for_import(db_map, data, make_cache, parse_value, unparse_value):
+def _get_object_parameters_for_import(db_map, data, make_cache, unparse_value):
     cache = make_cache({"parameter_definition"}, include_ancestors=True)
     parameter_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
@@ -1156,7 +1149,7 @@ def _get_object_parameters_for_import(db_map, data, make_cache, parse_value, unp
     for x in cache.get("parameter_value_list", {}).values():
         parameter_value_lists[x.id] = x.value_id_list
         parameter_value_list_ids[x.name] = x.id
-    list_values = {x.id: parse_value(x.value, x.type) for x in cache.get("list_value", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     checked = set()
     error_log = []
     to_add = []
@@ -1206,7 +1199,7 @@ def _get_object_parameters_for_import(db_map, data, make_cache, parse_value, unp
     return to_add, to_update, error_log
 
 
-def import_relationship_parameters(db_map, data, make_cache=None, parse_value=from_database, unparse_value=to_database):
+def import_relationship_parameters(db_map, data, make_cache=None, unparse_value=to_database):
     """Imports list of relationship class parameters:
 
     Example::
@@ -1229,12 +1222,11 @@ def import_relationship_parameters(db_map, data, make_cache=None, parse_value=fr
         db_map,
         relationship_parameters=data,
         make_cache=make_cache,
-        parse_value=parse_value,
         unparse_value=unparse_value,
     )
 
 
-def _get_relationship_parameters_for_import(db_map, data, make_cache, parse_value, unparse_value):
+def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_value):
     cache = make_cache({"parameter_definition"}, include_ancestors=True)
     parameter_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
@@ -1246,7 +1238,7 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache, parse_valu
     for x in cache.get("parameter_value_list", {}).values():
         parameter_value_lists[x.id] = x.value_id_list
         parameter_value_list_ids[x.name] = x.id
-    list_values = {x.id: parse_value(x.value, x.type) for x in cache.get("list_value", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     error_log = []
     to_add = []
     to_update = []
@@ -1297,9 +1289,7 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache, parse_valu
     return to_add, to_update, error_log
 
 
-def import_object_parameter_values(
-    db_map, data, make_cache=None, parse_value=from_database, unparse_value=to_database, on_conflict="merge"
-):
+def import_object_parameter_values(db_map, data, make_cache=None, unparse_value=to_database, on_conflict="merge"):
     """Imports object parameter values:
 
     Example::
@@ -1322,13 +1312,12 @@ def import_object_parameter_values(
         db_map,
         object_parameter_values=data,
         make_cache=make_cache,
-        parse_value=parse_value,
         unparse_value=unparse_value,
         on_conflict=on_conflict,
     )
 
 
-def _get_object_parameter_values_for_import(db_map, data, make_cache, parse_value, unparse_value, on_conflict):
+def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
     cache = make_cache({"parameter_value"}, include_ancestors=True)
     object_class_ids = {x.name: x.id for x in cache.get("object_class", {}).values()}
     parameter_value_ids = {
@@ -1344,7 +1333,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, parse_valu
     }
     objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
     parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
-    list_values = {x.id: parse_value(x.value, x.type) for x in cache.get("list_value", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     object_ids = {(o["name"], o["class_id"]): o_id for o_id, o in objects.items()}
     parameter_ids = {(p["name"], p["entity_class_id"]): p_id for p_id, p in parameters.items()}
     alternatives = {a.name: a.id for a in cache.get("alternative", {}).values()}
@@ -1385,11 +1374,13 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, parse_valu
             error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value"))
             continue
         pv_id = parameter_value_ids.pop((o_id, p_id, alt_id), None)
+        value, type_ = unparse_value(value)
         if pv_id is not None:
             current_pv = cache["parameter_value"][pv_id]
-            current_value = parse_value(current_pv.value, current_pv.type)
-            value = fix_conflict(value, current_value, on_conflict)
-        value, type_ = unparse_value(value)
+            parsed_value = from_database(value, type_)
+            parsed_current = from_database(current_pv.value, current_pv.type)
+            parsed_fixed = fix_conflict(parsed_value, parsed_current, on_conflict)
+            value, type_ = to_database(parsed_fixed)
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": oc_id,
@@ -1424,9 +1415,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, parse_valu
     return to_add, to_update, error_log
 
 
-def import_relationship_parameter_values(
-    db_map, data, make_cache=None, parse_value=from_database, unparse_value=to_database, on_conflict="merge"
-):
+def import_relationship_parameter_values(db_map, data, make_cache=None, unparse_value=to_database, on_conflict="merge"):
     """Imports relationship parameter values:
 
     Example::
@@ -1449,13 +1438,12 @@ def import_relationship_parameter_values(
         db_map,
         relationship_parameter_values=data,
         make_cache=make_cache,
-        parse_value=parse_value,
         unparse_value=unparse_value,
         on_conflict=on_conflict,
     )
 
 
-def _get_relationship_parameter_values_for_import(db_map, data, make_cache, parse_value, unparse_value, on_conflict):
+def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
     cache = make_cache({"parameter_value"}, include_ancestors=True)
     object_class_id_lists = {
         x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
@@ -1477,7 +1465,7 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, pars
         for x in cache.get("relationship", {}).values()
     }
     parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
-    list_values = {x.id: parse_value(x.value, x.type) for x in cache.get("list_value", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     parameter_ids = {(p["entity_class_id"], p["name"]): p_id for p_id, p in parameters.items()}
     relationship_ids = {(r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationships.items()}
     object_ids = {(o.name, o.class_id): o.id for o in cache.get("object", {}).values()}
@@ -1525,11 +1513,13 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, pars
             error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter value"))
             continue
         pv_id = parameter_value_ids.pop((r_id, p_id, alt_id), None)
+        value, type_ = unparse_value(value)
         if pv_id is not None:
             current_pv = cache["parameter_value"][pv_id]
-            current_value = parse_value(current_pv.value, current_pv.type)
-            value = fix_conflict(value, current_value, on_conflict)
-        value, type_ = unparse_value(value)
+            parsed_value = from_database(value, type_)
+            parsed_current = from_database(current_pv.value, current_pv.type)
+            parsed_fixed = fix_conflict(parsed_value, parsed_current, on_conflict)
+            value, type_ = to_database(parsed_fixed)
         item = {
             "parameter_definition_id": p_id,
             "entity_class_id": rc_id,
