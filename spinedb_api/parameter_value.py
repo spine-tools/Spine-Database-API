@@ -292,12 +292,25 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 
 def merge(value, other):
-    """Merges other into value, returns the result."""
+    """Merges other into value, returns the result.
+    Args:
+        value (tuple): recipient value and type
+        other (tuple): other value and type
+
+    Returns:
+        tuple: value and type of merged value
+    """
     parsed_value = from_database(*value)
     if not hasattr(parsed_value, "merge"):
         return value
     parsed_other = from_database(*other)
     return to_database(parsed_value.merge(parsed_other))
+
+
+def merge_parsed(parsed_value, parsed_other):
+    if not hasattr(parsed_value, "merge"):
+        return parsed_value
+    return parsed_value.merge(parsed_other)
 
 
 def _break_dictionary(data):
@@ -846,7 +859,7 @@ class IndexedValue:
             return self
         new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
         new_indexes.sort(kind='mergesort')
-        _merge = lambda value, other: other if value is None else merge(value, other)
+        _merge = lambda value, other: other if value is None else merge_parsed(value, other)
         new_values = [_merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
         self.indexes = new_indexes
         self.values = new_values
