@@ -1531,7 +1531,7 @@ def join_value_and_type(db_value, db_type):
         str: parameter value as JSON with an additional `type` field.
     """
     try:
-        parsed = load_db_value(db_value)
+        parsed = load_db_value(db_value, db_type)
     except ParameterValueFormatError:
         parsed = None
     return json.dumps(parsed)
