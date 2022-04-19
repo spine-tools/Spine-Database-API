@@ -210,13 +210,7 @@ def export_object_groups(db_map, ids=Asterisk, make_cache=None):
 def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
     return sorted(
         (
-            (
-                x.object_class_name,
-                x.object_name,
-                x.parameter_name,
-                parse_value(x.value, x.type),
-                x.alternative_name,
-            )
+            (x.object_class_name, x.object_name, x.parameter_name, parse_value(x.value, x.type), x.alternative_name)
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
             if x.object_id
         ),

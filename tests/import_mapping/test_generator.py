@@ -111,6 +111,37 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_read_start_row_skips_rows_in_pivoted_data(self):
+        data_source = iter([["", "T1", "T2"], ["Parameter_1", "5.0", "99.0"], ["Parameter_2", "2.3", "23.0"]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "klass", "read_start_row": 2},
+                {"map_type": "Object", "position": "hidden", "value": "kloss"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": 0},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": -1},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "float", 2: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                'object_classes': ['klass', 'klass'],
+                'object_parameter_values': [['klass', 'kloss', 'Parameter_2', Map(["T1", "T2"], [2.3, 23.0])]],
+                'object_parameters': [['klass', 'Parameter_2'], ['klass', 'Parameter_2']],
+                'objects': [('klass', 'kloss'), ('klass', 'kloss')],
+            },
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

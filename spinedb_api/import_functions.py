@@ -155,11 +155,7 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
     error_log = []
     num_imports = 0
     for tablename, (to_add, to_update, errors) in get_data_for_import(
-        db_map,
-        make_cache=make_cache,
-        unparse_value=unparse_value,
-        on_conflict=on_conflict,
-        **kwargs,
+        db_map, make_cache=make_cache, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs
     ):
         update_items = update_items_by_tablename.get(tablename, lambda *args, **kwargs: ())
         try:
@@ -274,10 +270,7 @@ def get_data_for_import(
     if tool_features:
         yield ("tool_feature", _get_tool_features_for_import(db_map, tool_features, make_cache))
     if tool_feature_methods:
-        yield (
-            "tool_feature_method",
-            _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache),
-        )
+        yield ("tool_feature_method", _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects, make_cache))
     if relationships:
@@ -1218,12 +1211,7 @@ def import_relationship_parameters(db_map, data, make_cache=None, unparse_value=
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(
-        db_map,
-        relationship_parameters=data,
-        make_cache=make_cache,
-        unparse_value=unparse_value,
-    )
+    return import_data(db_map, relationship_parameters=data, make_cache=make_cache, unparse_value=unparse_value)
 
 
 def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_value):
