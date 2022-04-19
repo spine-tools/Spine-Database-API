@@ -244,7 +244,10 @@ class HandleDBMixin:
         }.get(request)
         if handler is None:
             return dict(error=f"invalid request '{request}'")
-        return handler(*args, **kwargs)
+        try:
+            return handler(*args, **kwargs)
+        except Exception as e:
+            return dict(error=str(e))
 
     def handle_request(self, request):
         response = self._get_response(request)
