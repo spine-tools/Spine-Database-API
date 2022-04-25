@@ -131,7 +131,7 @@ class DatabaseMappingAddMixin:
                 if the insertion of one of the items violates an integrity constraint.
             return_dups (bool): Whether or not already existing and duplicated entries should also be returned.
             return_items (bool): Return full items rather than just ids
-            cache (dict): A dict mapping table names to a list of dictionary items, to use as db replacement
+            cache (dict, optional): A dict mapping table names to a list of dictionary items, to use as db replacement
                 for queries
             readd (bool): Readds items directly
 
@@ -147,7 +147,7 @@ class DatabaseMappingAddMixin:
                 tablename, *items, for_update=False, strict=strict, cache=cache
             )
         else:
-            checked_items, intgr_error_log = items, []
+            checked_items, intgr_error_log = list(items), []
         ids = self._add_items(tablename, *checked_items)
         if return_items:
             return checked_items, intgr_error_log
@@ -343,37 +343,49 @@ class DatabaseMappingAddMixin:
             "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, cache=cache
         )
         if errors:
-            return errors
+            return added_metadata, errors
         new_metadata_ids = {}
         for added in added_metadata:
             new_metadata_ids.setdefault(added["name"], {})[added["value"]] = added["id"]
         for metadata_name, value_to_item in items_missing_metadata_ids.items():
             for metadata_value, item in value_to_item.items():
                 item["metadata_id"] = new_metadata_ids[metadata_name][metadata_value]
-        return []
+        return added_metadata, errors
 
-    def add_ext_entity_metadata(self, *items, check=True, strict=False, cache=None):
+    def _add_ext_item_metadata(self, table_name, *items, check=True, strict=False, return_items=False, cache=None):
+        # Note, that even though return_items can be False, it doesn't make much sense here because we'll be mixing
+        # metadata and entity metadata ids.
         if cache is None:
-            cache = self.make_cache({"entity_metadata"}, include_ancestors=True)
-        errors = self._get_or_add_metadata_ids_for_items(*items, check=check, strict=strict, cache=cache)
-        if errors:
-            return set(), errors
+            cache = self.make_cache({table_name}, include_ancestors=True)
+        added_metadata, metadata_errors = self._get_or_add_metadata_ids_for_items(
+            *items, check=check, strict=strict, cache=cache
+        )
+        if metadata_errors:
+            if not return_items:
+                return added_metadata, metadata_errors
+            return {i["id"] for i in added_metadata}, metadata_errors
         # We want to invalidate cache just in case because it might be missing metadata
         # records that may have been added above.
-        return self.add_items("entity_metadata", *items, check=check, strict=strict, cache=None)
+        added_item_metadata, item_errors = self.add_items(
+            table_name, *items, check=check, strict=strict, return_items=True, cache=None
+        )
+        errors = metadata_errors + item_errors
+        if not return_items:
+            return {i["id"] for i in added_metadata + added_item_metadata}, errors
+        return added_metadata + added_item_metadata, errors
+
+    def add_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+        return self._add_ext_item_metadata(
+            "entity_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+        )
 
     def add_parameter_value_metadata(self, *items, **kwargs):
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def add_ext_parameter_value_metadata(self, *items, check=True, strict=False, cache=None):
-        if cache is None:
-            cache = self.make_cache({"parameter_value_metadata"}, include_ancestors=True)
-        errors = self._get_or_add_metadata_ids_for_items(*items, check=check, strict=strict, cache=cache)
-        if errors:
-            return set(), errors
-        # We want to invalidate cache just in case because it might be missing metadata
-        # records that may have been added above.
-        return self.add_items("parameter_value_metadata", *items, check=check, strict=strict, cache=None)
+    def add_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+        return self._add_ext_item_metadata(
+            "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+        )
 
     def _add_object_classes(self, *items):
         return self._add_items("object_class", *items)

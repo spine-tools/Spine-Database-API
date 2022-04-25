@@ -995,6 +995,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "entity_name": "leviathan",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
+                "metadata_id": 1,
                 "id": 1,
             },
         )
@@ -1019,6 +1020,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "entity_name": "my_relationship_class_my_object",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
+                "metadata_id": 1,
                 "id": 1,
             },
         )
@@ -1047,6 +1049,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "entity_name": "leviathan",
                 "metadata_name": "key",
                 "metadata_value": "object metadata",
+                "metadata_id": 1,
                 "id": 1,
             },
         )
@@ -1074,6 +1077,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "entity_name": "leviathan",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
+                "metadata_id": 1,
                 "id": 1,
             },
         )

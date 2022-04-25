@@ -1637,6 +1637,7 @@ class DatabaseMappingBase:
                 self.query(
                     self.entity_metadata_sq.c.id,
                     self.entity_metadata_sq.c.entity_id,
+                    self.metadata_sq.c.id.label("metadata_id"),
                     self.entity_sq.c.name.label("entity_name"),
                     self.metadata_sq.c.name.label("metadata_name"),
                     self.metadata_sq.c.value.label("metadata_value"),

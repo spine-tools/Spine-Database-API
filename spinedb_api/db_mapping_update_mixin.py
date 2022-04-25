@@ -14,7 +14,7 @@
 :author: Manuel Marin (KTH)
 :date:   11.8.2018
 """
-
+from collections import Counter
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
 from .exception import SpineDBAPIError
@@ -78,7 +78,7 @@ class DatabaseMappingUpdateMixin:
                 tablename, *items, for_update=True, strict=strict, cache=cache
             )
         else:
-            checked_items, intgr_error_log = items, []
+            checked_items, intgr_error_log = list(items), []
         updated_ids = self._update_items(tablename, *checked_items)
         if return_items:
             return checked_items, intgr_error_log
@@ -208,62 +208,113 @@ class DatabaseMappingUpdateMixin:
         return self._update_items("metadata", *items)
 
     def update_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
-        return self._update_ext_item_metadata(
-            "entity_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+        updated_items, errors = self._update_ext_item_metadata(
+            "entity_metadata", *items, check=check, strict=strict, cache=cache
         )
+        if return_items:
+            return updated_items, errors
+        return {i["id"] for i in updated_items}, errors
 
     def update_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
-        return self._update_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+        updated_items, errors = self._update_ext_item_metadata(
+            "parameter_value_metadata", *items, check=check, strict=strict, cache=cache
         )
+        if return_items:
+            return updated_items, errors
+        return {i["id"] for i in updated_items}, errors
 
-    def _update_ext_item_metadata(
-        self, metadata_table, *items, check=True, strict=False, return_items=False, cache=None
-    ):
+    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False, cache=None):
         if cache is None:
             cache = self.make_cache({"entity_metadata", "parameter_value_metadata", "metadata"})
         metadata_ids = {}
         for entry in cache.get("metadata", {}).values():
             metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
+        item_metadata_cache = cache[metadata_table]
         metadata_usage_counts = self._metadata_usage_counts(cache)
-        item_metadata_to_update = []
-        metadata_to_add = []
-        item_metadata_ids_missing_metadata_ids = {}
-        item_metadata = cache[metadata_table]
+        updatable_items = []
+        homeless_items = []
         for item in items:
-            id_ = item["id"]
-            previous_metadata_id = item_metadata[id_].metadata_id
-            metadata_usage_counts[previous_metadata_id] -= 1
             metadata_name = item["metadata_name"]
             metadata_value = item["metadata_value"]
-            possible_metadata_ids = metadata_ids.get(metadata_name)
-            using_existing = False
-            if possible_metadata_ids is not None:
-                existing_metadata_id = possible_metadata_ids.get(metadata_value)
-                if existing_metadata_id is not None:
-                    using_existing = True
-                    item_metadata_to_update.append({"id": id_, "metadata_id": existing_metadata_id})
-                    metadata_usage_counts[existing_metadata_id] += 1
-            if not using_existing:
-                metadata_to_add.append({"name": metadata_name, "value": metadata_value})
-                item_metadata_ids_missing_metadata_ids.setdefault(metadata_name, {})[metadata_value] = id_
-        if metadata_to_add:
-            added_metadata_items, errors = self.add_metadata(*metadata_to_add, return_items=True)
+            metadata_id = metadata_ids.get(metadata_name, {}).get(metadata_value)
+            if metadata_id is None:
+                homeless_items.append(item)
+                continue
+            item["metadata_id"] = metadata_id
+            previous_metadata_id = item_metadata_cache[item["id"]]["metadata_id"]
+            metadata_usage_counts[previous_metadata_id] -= 1
+            metadata_usage_counts[metadata_id] += 1
+            updatable_items.append(item)
+        homeless_item_metadata_usage_counts = Counter()
+        for item in homeless_items:
+            homeless_item_metadata_usage_counts[item_metadata_cache[item["id"]].metadata_id] += 1
+        updatable_metadata_items = []
+        future_metadata_ids = {}
+        for metadata_id, count in homeless_item_metadata_usage_counts.items():
+            if count == metadata_usage_counts[metadata_id]:
+                for cached_item in item_metadata_cache.values():
+                    if cached_item["metadata_id"] == metadata_id:
+                        found = False
+                        for item in homeless_items:
+                            if item["id"] == cached_item["id"]:
+                                metadata_name = item["metadata_name"]
+                                metadata_value = item["metadata_value"]
+                                updatable_metadata_items.append(
+                                    {"id": metadata_id, "name": metadata_name, "value": metadata_value}
+                                )
+                                future_metadata_ids.setdefault(metadata_name, {})[metadata_value] = metadata_id
+                                metadata_usage_counts[metadata_id] = 0
+                                found = True
+                                break
+                        if found:
+                            break
+        items_needing_new_metadata = []
+        for item in homeless_items:
+            metadata_name = item["metadata_name"]
+            metadata_value = item["metadata_value"]
+            metadata_id = future_metadata_ids.get(metadata_name, {}).get(metadata_value)
+            if metadata_id is None:
+                items_needing_new_metadata.append(item)
+                continue
+            if item_metadata_cache[item["id"]]["metadata_id"] == metadata_id:
+                continue
+            item["metadata_id"] = metadata_id
+            updatable_items.append(item)
+        all_items = []
+        errors = []
+        if updatable_metadata_items:
+            updated_metadata, errors = self.update_metadata(
+                *updatable_metadata_items, check=False, strict=strict, return_items=True, cache=cache
+            )
+            all_items += updated_metadata
             if errors:
-                return [], errors
-            for added in added_metadata_items:
-                item_metadata_to_update.append(
-                    {
-                        "id": item_metadata_ids_missing_metadata_ids[added["name"]][added["value"]],
-                        "metadata_id": added["id"],
-                    }
-                )
-        metadata_ids_to_remove = {id_ for id_, count in metadata_usage_counts.items() if count == 0}
-        if metadata_ids_to_remove:
-            self.remove_items(**{"metadata": metadata_ids_to_remove})
-        return self.update_items(
-            metadata_table, *item_metadata_to_update, check=check, strict=strict, return_items=return_items
-        )
+                return all_items, errors
+        addable_metadata = [
+            {"name": i["metadata_name"], "value": i["metadata_value"]} for i in items_needing_new_metadata
+        ]
+        added_metadata = []
+        if addable_metadata:
+            added_metadata, metadata_add_errors = self.add_metadata(
+                *addable_metadata, check=False, strict=strict, return_items=True, cache=cache
+            )
+            all_items += added_metadata
+            errors += metadata_add_errors
+            if errors:
+                return all_items, errors
+        added_metadata_ids = {}
+        for item in added_metadata:
+            added_metadata_ids.setdefault(item["name"], {})[item["value"]] = item["id"]
+        for item in items_needing_new_metadata:
+            item["metadata_id"] = added_metadata_ids[item["metadata_name"]][item["metadata_value"]]
+            updatable_items.append(item)
+        if updatable_items:
+            # Force-clear cache before updating item metadata to ensure that added/updated metadata is found.
+            updated_item_metadata, item_metadata_errors = self.update_items(
+                metadata_table, *updatable_items, check=check, strict=strict, return_items=True
+            )
+            all_items += updated_item_metadata
+            errors += item_metadata_errors
+        return all_items, errors
 
     def get_data_to_set_scenario_alternatives(self, *items, cache=None):
         """Returns data to add and remove, in order to set wide scenario alternatives.
