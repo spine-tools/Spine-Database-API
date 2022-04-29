@@ -1283,5 +1283,94 @@ class TestImportEntityMetadata(unittest.TestCase):
         db_map.connection.close()
 
 
+class TestImportParameterValueMetadata(unittest.TestCase):
+    def setUp(self):
+        self._db_map = create_diff_db_map()
+        import_metadata(self._db_map, ['{"co-author": "John", "age": 17}'])
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_import_object_parameter_value_metadata(self):
+        import_object_classes(self._db_map, ["object_class"])
+        import_object_parameters(self._db_map, [("object_class", "param")])
+        import_objects(self._db_map, [("object_class", "object")])
+        import_object_parameter_values(self._db_map, [("object_class", "object", "param", "value")])
+        count, errors = import_object_parameter_value_metadata(
+            self._db_map, [("object_class", "object", "param", '{"co-author": "John", "age": 17}')]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 2)
+        metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
+        self.assertEqual(len(metadata), 2)
+        self.assertEqual(
+            metadata[0]._asdict(),
+            {
+                "alternative_name": "Base",
+                "entity_name": "object",
+                "id": 1,
+                "metadata_id": 1,
+                "metadata_name": "co-author",
+                "metadata_value": "John",
+                "parameter_name": "param",
+                "parameter_value_id": 1,
+            },
+        )
+        self.assertEqual(
+            metadata[1]._asdict(),
+            {
+                "alternative_name": "Base",
+                "entity_name": "object",
+                "id": 2,
+                "metadata_id": 2,
+                "metadata_name": "age",
+                "metadata_value": "17",
+                "parameter_name": "param",
+                "parameter_value_id": 1,
+            },
+        )
+
+    def test_import_relationship_parameter_value_metadata(self):
+        import_object_classes(self._db_map, ["object_class"])
+        import_objects(self._db_map, [("object_class", "object")])
+        import_relationship_classes(self._db_map, (("relationship_class", ("object_class",)),))
+        import_relationships(self._db_map, (("relationship_class", ("object",)),))
+        import_relationship_parameters(self._db_map, (("relationship_class", "param"),))
+        import_relationship_parameter_values(self._db_map, (("relationship_class", ("object",), "param", "value"),))
+        count, errors = import_relationship_parameter_value_metadata(
+            self._db_map, (("relationship_class", ("object",), "param", '{"co-author": "John", "age": 17}'),)
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 2)
+        metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
+        self.assertEqual(len(metadata), 2)
+        self.assertEqual(
+            metadata[0]._asdict(),
+            {
+                "alternative_name": "Base",
+                "entity_name": "relationship_class_object",
+                "id": 1,
+                "metadata_id": 1,
+                "metadata_name": "co-author",
+                "metadata_value": "John",
+                "parameter_name": "param",
+                "parameter_value_id": 1,
+            },
+        )
+        self.assertEqual(
+            metadata[1]._asdict(),
+            {
+                "alternative_name": "Base",
+                "entity_name": "relationship_class_object",
+                "id": 2,
+                "metadata_id": 2,
+                "metadata_name": "age",
+                "metadata_value": "17",
+                "parameter_name": "param",
+                "parameter_value_id": 1,
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
