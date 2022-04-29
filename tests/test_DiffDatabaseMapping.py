@@ -1106,6 +1106,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "parameter_name": "paranormality",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
+                "metadata_id": 1,
                 "id": 1,
             },
         )
@@ -1146,6 +1147,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "parameter_name": "paranormality",
                 "metadata_name": "key",
                 "metadata_value": "parameter metadata",
+                "metadata_id": 1,
                 "id": 1,
             },
         )
@@ -1178,6 +1180,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "parameter_name": "paranormality",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
+                "metadata_id": 1,
                 "id": 1,
             },
         )
