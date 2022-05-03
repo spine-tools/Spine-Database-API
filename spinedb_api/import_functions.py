@@ -1633,11 +1633,12 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
         try:
             check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
         except SpineIntegrityError as e:
-            error_log.append(
-                ImportErrorLogItem(
-                    msg=f"Could not import value '{value}' for list '{list_name}': {e.msg}", db_type="list value"
+            if e.id is None:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=f"Could not import value '{value}' for list '{list_name}': {e.msg}", db_type="list value"
+                    )
                 )
-            )
             continue
         max_indexes[list_id] = index
         seen_values.add((list_id, type_, val))
