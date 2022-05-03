@@ -16,6 +16,7 @@ Functions for importing data into a Spine database using entity names as referen
 :date:   17.12.2018
 """
 
+import uuid
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
     check_tool,
@@ -1059,6 +1060,14 @@ def import_relationships(db_map, data, make_cache=None):
     return import_data(db_map, relationships=data, make_cache=make_cache)
 
 
+def _make_unique_relationship_name(class_id, class_name, object_names, class_id_name_tuples):
+    base_name = class_name + "_" + "__".join(object_names)
+    name = base_name
+    while (class_id, name) in class_id_name_tuples:
+        name = base_name + uuid.uuid4().hex
+    return name
+
+
 def _get_relationships_for_import(db_map, data, make_cache):
     cache = make_cache({"relationship"}, include_ancestors=True)
     relationships = {x.name: x for x in cache.get("relationship", {}).values()}
@@ -1085,7 +1094,7 @@ def _get_relationships_for_import(db_map, data, make_cache):
             continue
         object_names = [str(obj) for obj in object_names]
         item = {
-            "name": class_name + "_" + "__".join(object_names),
+            "name": _make_unique_relationship_name(rc_id, class_name, object_names, relationship_ids_per_name),
             "class_id": rc_id,
             "object_id_list": list(o_ids),
             "object_class_id_list": oc_ids,
