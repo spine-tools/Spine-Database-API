@@ -21,6 +21,7 @@ from contextlib import contextmanager
 import socketserver
 import threading
 import atexit
+import traceback
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
@@ -247,7 +248,7 @@ class HandleDBMixin:
         try:
             return handler(*args, **kwargs)
         except Exception as e:
-            return dict(error=str(e))
+            return dict(error=traceback.format_exc())
 
     def handle_request(self, request):
         response = self._get_response(request)
