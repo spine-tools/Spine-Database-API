@@ -115,5 +115,5 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
         raise e
     except ValueError as e:
         if isinstance(set_, GAMSParameter):
-            raise WriterException(f"Failed to create GAMS parameter: {e}")
+            raise WriterException(f"Failed to create GAMS parameter in table '{table_name}': {e}")
         raise e
