@@ -31,6 +31,7 @@ from .parameter_value import dump_db_value
 from .helpers import ReceiveAllMixing, encode, decode
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
+from .filters.alternative_filter import alternative_filter_config
 from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
 from .spine_db_client import SpineDBClient
 
@@ -188,6 +189,8 @@ class HandleDBMixin:
                 self._add_scenario_filter(value)
             elif key == "tool":
                 self._add_tool_filter(value)
+            elif key == "alternatives":
+                self._add_alternatives_filter(value)
         return dict(result=True)
 
     def _add_scenario_filter(self, scenario):
@@ -197,6 +200,11 @@ class HandleDBMixin:
 
     def _add_tool_filter(self, tool):
         config = tool_filter_config(tool)
+        new_db_url = append_filter_config(self._db_url, config)
+        self._update_db_url(new_db_url, config)
+
+    def _add_alternatives_filter(self, alternatives):
+        config = alternative_filter_config(alternatives)
         new_db_url = append_filter_config(self._db_url, config)
         self._update_db_url(new_db_url, config)
 
