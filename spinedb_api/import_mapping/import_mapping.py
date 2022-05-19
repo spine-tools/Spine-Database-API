@@ -706,7 +706,8 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
             )
         else:
             raise KeyError(ImportKey.CLASS_NAME)
-        key = (class_name, entity_name, parameter_name)
+        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+        key = (class_name, entity_name, parameter_name, alternative_name)
         if key in values:
             return
         value_type = str(source_data)
@@ -716,7 +717,6 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         if self.options and value_type == "time_series":
             value["options"] = self.options
         parameter_value = [class_name, entity_name, parameter_name, value]
-        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
         if alternative_name is not None:
             parameter_value.append(alternative_name)
         mapped_data.setdefault(map_key, list()).append(parameter_value)
@@ -1116,7 +1116,8 @@ def _parameter_value_key(state):
             raise KeyError(ImportKey.OBJECT_NAMES)
         class_name, entity_name = relationship_class_name, tuple(object_names)
     parameter_name = state[ImportKey.PARAMETER_NAME]
-    return class_name, entity_name, parameter_name
+    alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+    return class_name, entity_name, parameter_name, alternative_name
 
 
 def _default_value_key(state):

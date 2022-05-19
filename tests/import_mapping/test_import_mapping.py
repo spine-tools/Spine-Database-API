@@ -33,6 +33,7 @@ from spinedb_api.import_mapping.import_mapping import (
     DefaultValueIndexNameMapping,
     ParameterDefaultValueIndexMapping,
     ExpandedParameterDefaultValueMapping,
+    AlternativeMapping,
 )
 from spinedb_api.import_mapping.import_mapping_compat import (
     import_mapping_from_dict,
@@ -2065,6 +2066,33 @@ class TestMappingIntegration(unittest.TestCase):
         mapping_root = unflatten([ObjectClassMapping(0), ObjectMapping(1, filter_re="q")])
         out, errors = get_mapped_data(data, [mapping_root])
         expected = {"object_classes": ["A"], "objects": [("A", "q")]}
+        self.assertFalse(errors)
+        self._assert_equivalent(out, expected)
+
+    def test_arrays_get_imported_to_correct_alternatives(self):
+        input_data = [["Base", "y", "p1"], ["alternative", "y", "p1"]]
+        data = iter(input_data)
+        mapping_root = unflatten(
+            [
+                ObjectClassMapping(Position.hidden, value="class"),
+                ObjectMapping(1),
+                ParameterDefinitionMapping(Position.hidden, value="parameter"),
+                AlternativeMapping(0),
+                ParameterValueTypeMapping(Position.hidden, value="array"),
+                ExpandedParameterValueMapping(2),
+            ]
+        )
+        out, errors = get_mapped_data(data, [mapping_root])
+        expected = {
+            "object_classes": ["class", "class"],
+            "objects": [("class", "y"), ("class", "y")],
+            "object_parameters": [["class", "parameter"], ["class", "parameter"]],
+            "alternatives": ["Base", "alternative"],
+            "object_parameter_values": [
+                ["class", "y", "parameter", Array(["p1"]), "Base"],
+                ["class", "y", "parameter", Array(["p1"]), "alternative"],
+            ],
+        }
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
