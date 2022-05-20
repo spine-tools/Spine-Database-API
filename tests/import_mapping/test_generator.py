@@ -142,6 +142,29 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_empty_pivoted_data_is_skipped(self):
+        data_header = ["period", "time"]
+        data_source = iter([["p2020", "t0"], ["p2020", "t1"]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "unit"},
+                {"map_type": "Object", "position": "header"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "price"},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden", "value": "period"},
+                {"map_type": "ParameterValueIndex", "position": 0},
+                {"map_type": "IndexName", "position": "hidden", "value": "time"},
+                {"map_type": "ParameterValueIndex", "position": 1},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings, data_header)
+        self.assertEqual(errors, [])
+        self.assertEqual(mapped_data, {})
+
 
 if __name__ == '__main__':
     unittest.main()

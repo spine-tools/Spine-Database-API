@@ -88,6 +88,8 @@ def get_mapped_data(
         unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos = _unpivot_rows(
             rows, data_header, pivoted, non_pivoted, pivoted_from_header, mapping.skip_columns
         )
+        if not unpivoted_column_pos:
+            continue
         # Reposition row convert functions
         row_convert_fns = {k: row_convert_fns[pos] for k, pos in enumerate(pivoted_pos) if pos in row_convert_fns}
         # If there are only pivoted mappings, we can just feed the unpivoted rows
