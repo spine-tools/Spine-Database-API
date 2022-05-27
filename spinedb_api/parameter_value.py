@@ -883,6 +883,12 @@ class Array(IndexedValue):
         super().__init__(index_name if index_name else Array.DEFAULT_INDEX_NAME)
         if value_type is None:
             value_type = type(values[0]) if values else float
+            if value_type == int:
+                try:
+                    values = [float(x) for x in values]
+                except ValueError:
+                    raise ParameterValueFormatError("Cannot convert array's values to float.")
+                value_type = float
         if any(not isinstance(x, value_type) for x in values):
             raise ParameterValueFormatError("Not all array's values are of the same type.")
         self.indexes = range(len(values))
