@@ -130,7 +130,7 @@ def _make_item_processor(tablename, make_cache):
 
 class _ParameterValueListProcessor:
     def __init__(self, make_cache):
-        self._list_value_cache = make_cache({"list_value"})["list_value"]
+        self._cache = make_cache({"list_value"})
 
     def __call__(self, item):
         fields = ["name", "value", "type"]
@@ -138,7 +138,7 @@ class _ParameterValueListProcessor:
             yield KeyedTuple([item.name, None, None], fields)
             return
         for value_id in item.value_id_list.split(","):
-            val = self._list_value_cache[int(value_id)]
+            val = self._cache["list_value"][int(value_id)]
             yield KeyedTuple([item.name, val.value, val.type], fields)
 
 
