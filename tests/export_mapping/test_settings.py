@@ -16,7 +16,7 @@ Unit tests for export settings.
 """
 
 import unittest
-
+import numpy
 from spinedb_api import (
     DatabaseMapping,
     import_object_classes,
@@ -27,6 +27,7 @@ from spinedb_api import (
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
+    TimeSeriesFixedResolution,
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.export_mapping import rows
@@ -60,6 +61,45 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterDefaultValueTypeMapping,
     ParameterDefaultValueMapping,
 )
+
+
+class TestRelationshipParameterExport(unittest.TestCase):
+    def test_export_with_parameter_values(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2"))
+        import_objects(db_map, (("oc1", "o1"), ("oc2", "o2"), ("oc2", "o3")))
+        import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
+        import_relationship_parameters(db_map, (("rc", "p"),))
+        import_relationships(db_map, (("rc", ("o1", "o2")), ("rc", ("o1", "o3"))))
+        import_relationship_parameter_values(
+            db_map,
+            (
+                (
+                    "rc",
+                    ("o1", "o2"),
+                    "p",
+                    TimeSeriesFixedResolution("2022-06-22T11:00", "1h", [-1.1, -2.2], False, False),
+                ),
+                (
+                    "rc",
+                    ("o1", "o3"),
+                    "p",
+                    TimeSeriesFixedResolution("2022-06-22T11:00", "1h", [-3.3, -4.4], False, False),
+                ),
+            ),
+        )
+        db_map.commit_session("Add test data.")
+        root_mapping = relationship_parameter_export(
+            object_positions=[-1, -2], value_position=-3, index_name_positions=[Position.hidden], index_positions=[0]
+        )
+        expected = [
+            [None, "o1", "o1"],
+            [None, "o2", "o3"],
+            [numpy.datetime64("2022-06-22T11:00:00"), -1.1, -3.3],
+            [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
+        ]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
 
 
 class TestObjectGroupParameterExport(unittest.TestCase):

@@ -15,6 +15,8 @@ Contains functions and methods to turn a regular export table into a pivot table
 :date:   1.2.2021
 """
 from copy import deepcopy
+
+from .export_mapping import RelationshipMapping
 from ..mapping import is_regular, is_pivoted, Position, unflatten, value_index
 from .group_functions import from_str as group_function_from_str, NoGroup
 
@@ -57,7 +59,7 @@ def make_pivot(
             return leaf(v, keys[1:])
         return v
 
-    def regular_rows():
+    def make_regular_rows():
         """Creates pivot table's 'left' side rows and non pivoted keys.
 
         Returns:
@@ -162,7 +164,7 @@ def make_pivot(
             last_pivot_row += list(k[-1] for k in pivot_keys)
             yield last_pivot_row
         # Yield regular rows
-        regular_rows = regular_rows()
+        regular_rows = make_regular_rows()
         values = value_tree()
         if not any(regular_rows.values()) and pivot_header and table:
             # Need a padding column for pivot header.
@@ -221,7 +223,7 @@ def make_regular(root_mapping):
         if is_pivoted(position):
             mapping.position = pivot_column_base + pivot_position_to_row[mapping.position]
             pivot_columns.append(mapping.position)
-        elif position == Position.hidden:
+        elif position == Position.hidden and _is_unhiddable(mapping):
             column = hidden_column_base + current_hidden_column
             mapping.position = column
             hidden_columns.append(column)
@@ -231,3 +233,8 @@ def make_regular(root_mapping):
         mapping.position = value_column + i + 1
     mappings[value_i].position = value_column
     return unflatten(mappings), value_column, regular_columns, hidden_columns, sorted(pivot_columns)
+
+
+def _is_unhiddable(mapping):
+    """Returns True if mapping uhiddable for pivoting purposes."""
+    return not isinstance(mapping, RelationshipMapping)

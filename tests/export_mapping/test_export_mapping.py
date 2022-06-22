@@ -34,6 +34,7 @@ from spinedb_api import (
     import_tool_feature_methods,
     import_tools,
     Map,
+    TimeSeriesFixedResolution,
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.mapping import Position, to_dict
@@ -468,19 +469,19 @@ class TestExportMapping(unittest.TestCase):
         parameter_definition_mapping.child = alternative_mapping
         object_mapping = ObjectMapping(-1)
         alternative_mapping.child = object_mapping
-        index_mapping_1 = ParameterValueIndexMapping(1)
-        index_mapping_2 = ParameterValueIndexMapping(2)
+        index_mapping_1 = ParameterValueIndexMapping(2)
+        index_mapping_2 = ParameterValueIndexMapping(3)
         value_mapping = ExpandedParameterValueMapping(-2)
         index_mapping_2.child = value_mapping
         index_mapping_1.child = index_mapping_2
         object_mapping.child = index_mapping_1
         object_class_mapping.child = parameter_definition_mapping
         expected = [
-            [None, None, None, "o1", "o2"],
-            ["oc", "A", "a", -1.1, -5.5],
-            ["oc", "A", "b", -2.2, -6.6],
-            ["oc", "B", "a", -3.3, -7.7],
-            ["oc", "B", "b", -4.4, -8.8],
+            [None, None, None, None, "o1", "o2"],
+            ["oc", "p", "A", "a", -1.1, -5.5],
+            ["oc", "p", "A", "b", -2.2, -6.6],
+            ["oc", "p", "B", "a", -3.3, -7.7],
+            ["oc", "p", "B", "b", -4.4, -8.8],
         ]
         self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
         db_map.connection.close()
