@@ -2216,3 +2216,18 @@ class DatabaseMappingBase:
             self.connection.close()
         except AttributeError:
             pass
+
+    def make_temporary_table(self, table_name, *columns):
+        """Creates a temporary table.
+
+        Args:
+            table_name (str): table name
+            *columns: table's columns
+
+        Returns:
+            Table: created table
+        """
+        table = Table(table_name, self._metadata, *columns, prefixes=["TEMPORARY"])
+        table.drop(self.connection, checkfirst=True)
+        table.create(self.connection)
+        return table

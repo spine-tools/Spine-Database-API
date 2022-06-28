@@ -16,7 +16,8 @@ Provides functions to apply filtering based on tools to entity subqueries.
 :date:   23.9.2020
 """
 from functools import partial
-from sqlalchemy import and_, or_, case, func
+from uuid import uuid4
+from sqlalchemy import and_, or_, case, func, Table, Column, ForeignKey
 from ..exception import SpineDBAPIError
 
 
@@ -109,7 +110,7 @@ class _ToolFilterState:
 
     Attributes:
         original_entity_sq (Alias): previous ``entity_sq``
-        tool_id (int): id of selected tool
+        table (Table): temporary table containing cached entity ids that passed the filter
     """
 
     def __init__(self, db_map, tool):
@@ -119,9 +120,12 @@ class _ToolFilterState:
             tool (str or int): tool name or id
         """
         self.original_entity_sq = db_map.entity_sq
-        self.original_parameter_value_sq = db_map.parameter_value_sq
-        self.original_parameter_definition_sq = db_map.parameter_definition_sq
-        self.tool_id = self._tool_id(db_map, tool)
+        tool_id = self._tool_id(db_map, tool)
+        table_name = "tool_filter_cache_" + uuid4().hex
+        column = Column("entity_id", ForeignKey("entity.id"))
+        self.table = db_map.make_temporary_table(table_name, column)
+        statement = self.table.insert().from_select(["entity_id"], self.active_entity_id_sq(db_map, tool_id))
+        db_map.connection.execute(statement)
 
     @staticmethod
     def _tool_id(db_map, tool):
@@ -147,15 +151,55 @@ class _ToolFilterState:
             raise SpineDBAPIError(f"Tool id {tool_id} not found.")
         return tool_id
 
+    @staticmethod
+    def active_entity_id_sq(db_map, tool_id):
+        """
+        Creates a subquery that returns entity ids that pass the tool filter.
 
-def _make_ext_tool_feature_method_sq(db_map, state):
+        Args:
+            db_map (DatabaseMappingBase): database mapping
+            tool_id (int): tool identifier
+
+        Returns:
+            Alias: subquery
+        """
+        tool_feature_method_sq = _make_ext_tool_feature_method_sq(db_map, tool_id)
+
+        method_filter = _make_method_filter(
+            tool_feature_method_sq, db_map.parameter_value_sq, db_map.parameter_definition_sq
+        )
+        required_filter = _make_required_filter(tool_feature_method_sq, db_map.parameter_value_sq)
+
+        return (
+            db_map.query(db_map.entity_sq.c.id)
+            .outerjoin(
+                db_map.parameter_definition_sq,
+                db_map.parameter_definition_sq.c.entity_class_id == db_map.entity_sq.c.class_id,
+            )
+            .outerjoin(
+                db_map.parameter_value_sq,
+                and_(
+                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                    db_map.parameter_value_sq.c.entity_id == db_map.entity_sq.c.id,
+                ),
+            )
+            .outerjoin(
+                tool_feature_method_sq,
+                tool_feature_method_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+            )
+            .group_by(db_map.entity_sq.c.id)
+            .having(and_(func.min(method_filter).is_(True), func.min(required_filter).is_(True)))
+        ).subquery()
+
+
+def _make_ext_tool_feature_method_sq(db_map, tool_id):
     """
     Returns an extended tool_feature_method subquery that has ``None`` whenever no method is specified.
     Used by ``_make_tool_filtered_entity_sq``
 
     Args:
         db_map (DatabaseMappingBase): a database map
-        state (_ScenarioFilterState): a state bound to ``db_map``
+        tool_id (int): tool id
 
     Returns:
         Alias: a subquery for tool_feature_method
@@ -178,7 +222,7 @@ def _make_ext_tool_feature_method_sq(db_map, state):
                 db_map.tool_feature_method_sq.c.method_index == db_map.list_value_sq.c.index,
             ),
         )
-        .filter(db_map.ext_tool_feature_sq.c.tool_id == state.tool_id)
+        .filter(db_map.ext_tool_feature_sq.c.tool_id == tool_id)
     ).subquery()
 
 
@@ -205,11 +249,6 @@ def _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_de
         ],
         else_=False,
     )
-
-
-def _equal_or_none(left, right):
-    # Needed because NULL != NULL in SQL, remember? Otherwise left == right would have sufficed
-    return or_(left == right, and_(left.is_(None), right.is_(None)))
 
 
 def _make_required_filter(tool_feature_method_sq, parameter_value_sq):
@@ -245,34 +284,8 @@ def _make_tool_filtered_entity_sq(db_map, state):
     Returns:
         Alias: a subquery for entity filtered by selected tool
     """
-    tool_feature_method_sq = _make_ext_tool_feature_method_sq(db_map, state)
-    original_entity_sq = state.original_entity_sq
-    parameter_value_sq = state.original_parameter_value_sq
-    parameter_definition_sq = state.original_parameter_definition_sq
-
-    method_filter = _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_definition_sq)
-    required_filter = _make_required_filter(tool_feature_method_sq, parameter_value_sq)
-
     return (
-        db_map.query(
-            original_entity_sq.c.id,
-            original_entity_sq.c.type_id,
-            original_entity_sq.c.class_id,
-            original_entity_sq.c.name,
-            original_entity_sq.c.description,
-            original_entity_sq.c.commit_id,
-        )
-        .outerjoin(parameter_definition_sq, parameter_definition_sq.c.entity_class_id == original_entity_sq.c.class_id)
-        .outerjoin(
-            parameter_value_sq,
-            and_(
-                parameter_value_sq.c.parameter_definition_id == parameter_definition_sq.c.id,
-                parameter_value_sq.c.entity_id == original_entity_sq.c.id,
-            ),
-        )
-        .outerjoin(
-            tool_feature_method_sq, tool_feature_method_sq.c.parameter_definition_id == parameter_definition_sq.c.id
-        )
-        .group_by(original_entity_sq.c.id)
-        .having(and_(func.min(method_filter).is_(True), func.min(required_filter).is_(True)))
-    ).subquery()
+        db_map.query(state.original_entity_sq)
+        .join(state.table, state.original_entity_sq.c.id == state.table.c.entity_id)
+        .subquery()
+    )

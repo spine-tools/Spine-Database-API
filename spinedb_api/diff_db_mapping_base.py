@@ -17,7 +17,7 @@ Provides :class:`.DiffDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Table, select
+from sqlalchemy import select
 from sqlalchemy.sql.expression import literal, union_all
 from .db_mapping_base import DatabaseMappingBase
 from .helpers import labelled_columns
@@ -69,9 +69,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
         for tablename in self._tablenames:
             table = self._metadata.tables[tablename]
             diff_columns = [c.copy() for c in table.columns]
-            diff_table = Table(self.diff_prefix + tablename, self._metadata, *diff_columns, prefixes=["TEMPORARY"])
-            diff_table.drop(self.connection, checkfirst=True)
-            diff_table.create(self.connection)
+            self.make_temporary_table(self.diff_prefix + tablename, *diff_columns)
 
     def _mark_as_dirty(self, tablename, ids):
         """Mark items as dirty, which means the corresponding records from the original tables
