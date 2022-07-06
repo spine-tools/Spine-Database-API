@@ -1061,7 +1061,7 @@ def import_relationships(db_map, data, make_cache=None):
 
 
 def _make_unique_relationship_name(class_id, class_name, object_names, class_id_name_tuples):
-    base_name = class_name + "_" + "__".join(object_names)
+    base_name = class_name + "_" + "__".join([obj if obj is not None else "None" for obj in object_names])
     name = base_name
     while (class_id, name) in class_id_name_tuples:
         name = base_name + uuid.uuid4().hex
@@ -1085,21 +1085,30 @@ def _get_relationships_for_import(db_map, data, make_cache):
     object_class_id_lists = {rc_id: rc["object_class_id_list"] for rc_id, rc in relationship_classes.items()}
     error_log = []
     to_add = []
-    seen = set()
-    for class_name, object_names in data:
+    to_update = []
+    checked = set()
+    for class_name, object_names, *optionals in data:
         rc_id = relationship_class_ids.get(class_name, None)
         oc_ids = object_class_id_lists.get(rc_id, [])
         o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
-        if (rc_id, o_ids) in seen or (rc_id, o_ids) in relationship_ids_per_obj_lst:
+        if (rc_id, o_ids) in checked:
             continue
-        object_names = [str(obj) for obj in object_names]
-        item = {
-            "name": _make_unique_relationship_name(rc_id, class_name, object_names, relationship_ids_per_name),
-            "class_id": rc_id,
-            "object_id_list": list(o_ids),
-            "object_class_id_list": oc_ids,
-            "type_id": db_map.relationship_entity_type,
-        }
+        r_id = relationship_ids_per_obj_lst.pop((rc_id, o_ids), None)
+        if r_id is not None:
+            r_name = cache["relationship"][r_id].name
+            relationship_ids_per_name.pop((rc_id, r_name))
+        item = (
+            db_map.cache_relationship_to_db(cache["relationship"][r_id]._asdict())
+            if r_id is not None
+            else {
+                "name": _make_unique_relationship_name(rc_id, class_name, object_names, relationship_ids_per_name),
+                "class_id": rc_id,
+                "object_id_list": list(o_ids),
+                "object_class_id_list": oc_ids,
+                "type_id": db_map.relationship_entity_type,
+            }
+        )
+        item.update(dict(zip(("description",), optionals)))
         try:
             check_wide_relationship(
                 item,
@@ -1109,12 +1118,20 @@ def _get_relationships_for_import(db_map, data, make_cache):
                 objects,
                 db_map.relationship_entity_type,
             )
-            to_add.append(item)
-            seen.add((rc_id, o_ids))
         except SpineIntegrityError as e:
             msg = f"Could not import relationship with objects {tuple(object_names)} into '{class_name}': {e.msg}"
             error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship"))
-    return to_add, [], error_log
+        finally:
+            if r_id is not None:
+                relationship_ids_per_obj_lst[rc_id, o_ids] = r_id
+                relationship_ids_per_name[rc_id, r_name] = r_id
+        checked.add((rc_id, o_ids))
+        if r_id is not None:
+            item["id"] = r_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
 
 
 def import_object_parameters(db_map, data, make_cache=None, unparse_value=to_database):
