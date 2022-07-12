@@ -1121,6 +1121,7 @@ def _get_relationships_for_import(db_map, data, make_cache):
         except SpineIntegrityError as e:
             msg = f"Could not import relationship with objects {tuple(object_names)} into '{class_name}': {e.msg}"
             error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship"))
+            continue
         finally:
             if r_id is not None:
                 relationship_ids_per_obj_lst[rc_id, o_ids] = r_id
