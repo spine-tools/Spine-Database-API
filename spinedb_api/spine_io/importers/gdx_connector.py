@@ -17,6 +17,8 @@ Contains GDXConnector class and a help function.
 """
 
 from gdx2py import GdxFile, GAMSParameter, GAMSScalar, GAMSSet
+
+from spinedb_api import SpineDBAPIError
 from .reader import SourceConnection
 from ..gdx_utils import find_gams_directory
 
@@ -101,6 +103,8 @@ class GdxConnector(SourceConnection):
         if table not in self._gdx_file:
             return iter([]), []
         symbol = self._gdx_file[table]
+        if symbol is None:
+            raise SpineDBAPIError(f"the type of '{table}' is not supported.")
         if isinstance(symbol, GAMSScalar):
             return iter([[float(symbol)]]), ["Value"]
         domains = symbol.domain if symbol.domain is not None else symbol.dimension * [None]
@@ -113,6 +117,6 @@ class GdxConnector(SourceConnection):
             header.append("Value")
             symbol_keys = list(symbol.keys())
             if symbol_keys and isinstance(symbol_keys[0], str):
-                return (iter([keys] + [value] for keys, value in zip(symbol_keys, symbol.values())), header)
-            return (iter(list(keys) + [value] for keys, value in zip(symbol_keys, symbol.values())), header)
+                return iter([keys] + [value] for keys, value in zip(symbol_keys, symbol.values())), header
+            return iter(list(keys) + [value] for keys, value in zip(symbol_keys, symbol.values())), header
         raise RuntimeError("Unknown GAMS symbol type.")
