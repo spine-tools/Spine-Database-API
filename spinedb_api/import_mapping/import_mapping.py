@@ -521,13 +521,16 @@ class ParameterDefinitionMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
         if object_class_name is not None:
-            class_name, map_key = object_class_name, "object_parameters"
-        elif relationship_class_name is not None:
-            class_name, map_key = relationship_class_name, "relationship_parameters"
+            class_name = object_class_name
+            map_key = "object_parameters"
         else:
-            raise KeyError(ImportKey.CLASS_NAME)
+            relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
+            if relationship_class_name is not None:
+                class_name = relationship_class_name
+                map_key = "relationship_parameters"
+            else:
+                raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME] = str(source_data)
         definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS] = []
         parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = class_name, parameter_name
@@ -704,18 +707,19 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
             # Don't catch errors here, this one's invisible
             return
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
         if object_class_name is not None:
             class_name = object_class_name
             entity_name = state[ImportKey.OBJECT_NAME]
             map_key = "object_parameter_values"
-        elif relationship_class_name is not None:
-            class_name = relationship_class_name
-            entity_name = tuple(state[ImportKey.OBJECT_NAMES])
-            map_key = "relationship_parameter_values"
         else:
-            raise KeyError(ImportKey.CLASS_NAME)
+            relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
+            if relationship_class_name is not None:
+                class_name = relationship_class_name
+                entity_name = tuple(state[ImportKey.OBJECT_NAMES])
+                map_key = "relationship_parameter_values"
+            else:
+                raise KeyError(ImportKey.CLASS_NAME)
         alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
         key = (class_name, entity_name, parameter_name, alternative_name)
         if key in values:
@@ -788,13 +792,12 @@ class ExpandedParameterValueMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
         value = values[_parameter_value_key(state)]
-        val = source_data
         data = value.setdefault("data", [])
         if value["type"] == "array":
-            data.append(val)
+            data.append(source_data)
             return
         indexes = state.pop(ImportKey.PARAMETER_VALUE_INDEXES)
-        data.append(indexes + [val])
+        data.append(indexes + [source_data])
 
     def _skip_row(self, state):
         state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
@@ -1116,7 +1119,8 @@ def _parameter_value_key(state):
     """
     object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
     if object_class_name is not None:
-        class_name, entity_name = object_class_name, state[ImportKey.OBJECT_NAME]
+        class_name = object_class_name
+        entity_name = state[ImportKey.OBJECT_NAME]
     else:
         relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
         if relationship_class_name is None:
@@ -1124,7 +1128,8 @@ def _parameter_value_key(state):
         object_names = state[ImportKey.OBJECT_NAMES]
         if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
             raise KeyError(ImportKey.OBJECT_NAMES)
-        class_name, entity_name = relationship_class_name, tuple(object_names)
+        class_name = relationship_class_name
+        entity_name = tuple(object_names)
     parameter_name = state[ImportKey.PARAMETER_NAME]
     alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
     return class_name, entity_name, parameter_name, alternative_name
