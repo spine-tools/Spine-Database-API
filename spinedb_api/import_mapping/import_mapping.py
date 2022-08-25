@@ -108,6 +108,7 @@ class ImportMapping(Mapping):
         self._read_start_row = None
         self.skip_columns = skip_columns
         self.read_start_row = read_start_row
+        self._has_filter_cached = None
 
     @property
     def skip_columns(self):
@@ -217,6 +218,18 @@ class ImportMapping(Mapping):
         source_data = self._data(source_row)
         return self._filter_re.search(str(source_data)) is not None
 
+    def has_filter(self):
+        """Whether mapping or one of its children has filter configured.
+
+        Returns:
+            bool: True if mapping or one of its children has filter configured , False otherwise
+        """
+        if self._has_filter_cached is None:
+            child_has_filter = self._child.has_filter() if self._child is not None else False
+            has_filter = (self.position != Position.hidden or self.value is not None) and self._filter_re is not None
+            self._has_filter_cached = child_has_filter or has_filter
+        return self._has_filter_cached
+
     def filter_accepts_row(self, source_row):
         """Whether or not the row passes the filter for all mappings in the hierarchy."""
         return self._filter_accepts_row(source_row) and (
@@ -224,7 +237,7 @@ class ImportMapping(Mapping):
         )
 
     def import_row(self, source_row, state, mapped_data, errors=None):
-        if not self.filter_accepts_row(source_row):
+        if self.has_filter() and not self.filter_accepts_row(source_row):
             return
         if errors is None:
             errors = []

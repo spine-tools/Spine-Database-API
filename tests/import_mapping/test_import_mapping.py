@@ -43,7 +43,6 @@ from spinedb_api.import_mapping.import_mapping_compat import (
 from spinedb_api.import_mapping.type_conversion import BooleanConvertSpec, StringConvertSpec, FloatConvertSpec
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, Map
-from ..test_import_functions import assert_import_equivalent
 
 
 class TestConvertFunctions(unittest.TestCase):
@@ -2094,6 +2093,38 @@ class TestMappingIntegration(unittest.TestCase):
         }
         self.assertFalse(errors)
         self.assertEqual(out, expected)
+
+
+class TestHasFilter(unittest.TestCase):
+    def test_mapping_without_filter_doesnt_have_filter(self):
+        mapping = ObjectClassMapping(0)
+        self.assertFalse(mapping.has_filter())
+
+    def test_hidden_mapping_without_value_doesnt_have_filter(self):
+        mapping = ObjectClassMapping(Position.hidden, filter_re="a")
+        self.assertFalse(mapping.has_filter())
+
+    def test_hidden_mapping_with_value_has_filter(self):
+        mapping = ObjectClassMapping(0, value="a", filter_re="b")
+        self.assertTrue(mapping.has_filter())
+
+    def test_mapping_without_value_has_filter(self):
+        mapping = ObjectClassMapping(Position.hidden, value="a", filter_re="b")
+        self.assertTrue(mapping.has_filter())
+
+    def test_mapping_with_value_but_without_filter_doesnt_have_filter(self):
+        mapping = ObjectClassMapping(0, value="a")
+        self.assertFalse(mapping.has_filter())
+
+    def test_child_mapping_with_filter_has_filter(self):
+        mapping = ObjectClassMapping(0)
+        mapping.child = ObjectMapping(1, filter_re="a")
+        self.assertTrue(mapping.has_filter())
+
+    def test_child_mapping_without_filter_doesnt_have_filter(self):
+        mapping = ObjectClassMapping(0)
+        mapping.child = ObjectMapping(1)
+        self.assertFalse(mapping.has_filter())
 
 
 if __name__ == "__main__":
