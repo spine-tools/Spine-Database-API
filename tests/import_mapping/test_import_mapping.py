@@ -59,7 +59,7 @@ class TestConvertFunctions(unittest.TestCase):
         param_def_mapping.value = "param"
         param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
-        expected = {'object_classes': ['a'], 'objects': [('a', 'obj')], 'object_parameters': [['a', 'param', 1.2]]}
+        expected = {'object_classes': {'a'}, 'objects': {('a', 'obj')}, 'object_parameters': [('a', 'param', 1.2)]}
         self.assertEqual(mapped_data, expected)
 
     def test_convert_functions_str(self):
@@ -75,9 +75,9 @@ class TestConvertFunctions(unittest.TestCase):
         param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
         expected = {
-            'object_classes': ['a'],
-            'objects': [('a', 'obj')],
-            'object_parameters': [['a', 'param', '1111.2222']],
+            'object_classes': {'a'},
+            'objects': {('a', 'obj')},
+            'object_parameters': [('a', 'param', '1111.2222')],
         }
         self.assertEqual(mapped_data, expected)
 
@@ -93,7 +93,7 @@ class TestConvertFunctions(unittest.TestCase):
         param_def_mapping.value = "param"
         param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
-        expected = {'object_classes': ['a'], 'objects': [('a', 'obj')], 'object_parameters': [['a', 'param', False]]}
+        expected = {'object_classes': {'a'}, 'objects': {('a', 'obj')}, 'object_parameters': [('a', 'param', False)]}
         self.assertEqual(mapped_data, expected)
 
     def test_convert_functions_with_error(self):
@@ -829,8 +829,8 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc2", "obj2", "parameter_name2", 2],
         ]
         expected = {
-            "object_classes": ["oc1", "oc2"],
-            "objects": [("oc1", "obj1"), ("oc2", "obj2")],
+            "object_classes": {"oc1", "oc2"},
+            "objects": {("oc1", "obj1"), ("oc2", "obj2")},
             "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
             "object_parameter_values": [("oc1", "obj1", "parameter_name1", 1), ("oc2", "obj2", "parameter_name2", 2)],
         }
@@ -911,7 +911,7 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_flat_file_with_column_name_reference(self):
         input_data = [["object", "parameter", "value"], ["obj1", "parameter_name1", 1], ["obj2", "parameter_name2", 2]]
-        expected = {"object_classes": ["object"], "objects": [("object", "obj1"), ("object", "obj2")]}
+        expected = {"object_classes": {"object"}, "objects": {("object", "obj1"), ("object", "obj2")}}
 
         data = iter(input_data)
         data_header = next(data)
@@ -924,7 +924,7 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_object_class_from_header_using_string_as_integral_index(self):
         input_data = [["object_class"], ["obj1"], ["obj2"]]
-        expected = {"object_classes": ["object_class"], "objects": [("object_class", "obj1"), ("object_class", "obj2")]}
+        expected = {"object_classes": {"object_class"}, "objects": {("object_class", "obj1"), ("object_class", "obj2")}}
 
         data = iter(input_data)
         data_header = next(data)
@@ -937,7 +937,7 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_object_class_from_header_using_string_as_column_header_name(self):
         input_data = [["object_class"], ["obj1"], ["obj2"]]
-        expected = {"object_classes": ["object_class"], "objects": [("object_class", "obj1"), ("object_class", "obj2")]}
+        expected = {"object_classes": {"object_class"}, "objects": {("object_class", "obj1"), ("object_class", "obj2")}}
 
         data = iter(input_data)
         data_header = next(data)
@@ -954,7 +954,7 @@ class TestMappingIntegration(unittest.TestCase):
 
     def test_read_with_list_of_mappings(self):
         input_data = [["object", "parameter", "value"], ["obj1", "parameter_name1", 1], ["obj2", "parameter_name2", 2]]
-        expected = {"object_classes": ["object"], "objects": [("object", "obj1"), ("object", "obj2")]}
+        expected = {"object_classes": {"object"}, "objects": {("object", "obj1"), ("object", "obj2")}}
 
         data = iter(input_data)
         data_header = next(data)
@@ -968,8 +968,8 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_pivoted_parameters_from_header(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         expected = {
-            "object_classes": ["object"],
-            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_classes": {"object"},
+            "objects": {("object", "obj1"), ("object", "obj2")},
             "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
             "object_parameter_values": [
                 ("object", "obj1", "parameter_name1", 0),
@@ -1014,8 +1014,8 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_pivoted_parameters_from_data(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         expected = {
-            "object_classes": ["object"],
-            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_classes": {"object"},
+            "objects": {("object", "obj1"), ("object", "obj2")},
             "object_parameters": [("object", "parameter_name1"), ("object", "parameter_name2")],
             "object_parameter_values": [
                 ("object", "obj1", "parameter_name1", 0),
@@ -1048,10 +1048,10 @@ class TestMappingIntegration(unittest.TestCase):
             ["obj2", "T2", 22.0],
         ]
         expected = {
-            "object_classes": 2 * ["timeline"],
-            "objects": [("timeline", "obj1"), ("timeline", "obj1"), ("timeline", "obj2"), ("timeline", "obj2")],
-            "object_parameters": [("timeline", "value")],
-            "alternatives": ["Base"],
+            "object_classes": {"timeline"},
+            "objects": {("timeline", "obj1"), ("timeline", "obj2")},
+            "object_parameters": {("timeline", "value"): []},
+            "alternatives": {"Base"},
             "object_parameter_values": [
                 ("timeline", "obj1", "value", Map(["T1", "T2"], [11.0, 12.0], index_name="timestep"), "Base"),
                 ("timeline", "obj2", "value", Map(["T1", "T2"], [21.0, 22.0], index_name="timestep"), "Base"),
@@ -1078,13 +1078,13 @@ class TestMappingIntegration(unittest.TestCase):
         """Pivoted mapping works even when last mapping has valid position in columns."""
         input_data = [["object", "is_skilled", "has_powers"], ["obj1", "yes", "no"], ["obj2", None, None]]
         expected = {
-            "object_classes": ["node"],
-            "objects": [("node", "obj1"), ("node", "obj2")],
+            "object_classes": {"node"},
+            "objects": {("node", "obj1"), ("node", "obj2")},
             "object_parameters": [("node", "is_skilled"), ("node", "has_powers")],
-            "alternatives": ["Base"],
+            "alternatives": {"Base"},
             "object_parameter_values": [
-                ("node", "obj1", "is_skilled", "yes", "Base"),
-                ("node", "obj1", "has_powers", "no", "Base"),
+                ["node", "obj1", "is_skilled", "yes", "Base"],
+                ["node", "obj1", "has_powers", "no", "Base"],
             ],
         }
         data = iter(input_data)
@@ -1109,12 +1109,12 @@ class TestMappingIntegration(unittest.TestCase):
             ["obj1", "today", None, "yes"],
         ]
         expected = {
-            "object_classes": ["node"],
-            "objects": [("node", "obj1")],
+            "object_classes": {"node"},
+            "objects": {("node", "obj1")},
             "object_parameters": [("node", "is_skilled"), ("node", "has_powers")],
-            "alternatives": ["Base"],
+            "alternatives": {"Base"},
             "object_parameter_values": [
-                ("node", "obj1", "has_powers", Map(["yesterday", "today"], ["no", "yes"], index_name="period"), "Base")
+                ["node", "obj1", "has_powers", Map(["yesterday", "today"], ["no", "yes"], index_name="period"), "Base"]
             ],
         }
         data = iter(input_data)
@@ -1203,7 +1203,7 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["unit", "node"], ["u1", "n1"], ["u1", "n2"]]
         expected = {
             "relationship_classes": [("node_group", ["node"])],
-            "relationships": [("node_group", ["n1"]), ("node_group", ["n2"])],
+            "relationships": {("node_group", ("n1",)), ("node_group", ("n2",))},
         }
 
         data = iter(input_data)
@@ -1224,7 +1224,7 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["unit", "node"], ["u1", "n1"], ["u1", "n2"]]
         expected = {
             "relationship_classes": [("unit__node", ("unit", "node"))],
-            "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
+            "relationships": {("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))},
         }
 
         data = iter(input_data)
@@ -1248,7 +1248,7 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["unit", "node", "rel_parameter"], ["u1", "n1", 0], ["u1", "n2", 1]]
         expected = {
             "relationship_classes": [("unit__node", ("unit", "node"))],
-            "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))],
+            "relationships": {("unit__node", ("u1", "n1")), ("unit__node", ("u1", "n2"))},
             "relationship_parameters": [("unit__node", "rel_parameter")],
             "relationship_parameter_values": [
                 ("unit__node", ("u1", "n1"), "rel_parameter", 0),
@@ -1277,10 +1277,10 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_relationships_with_parameters2(self):
         input_data = [["nuts2", "Capacity", "Fueltype"], ["BE23", 268.0, "Bioenergy"], ["DE11", 14.0, "Bioenergy"]]
         expected = {
-            "object_classes": ["nuts2", "fueltype"],
-            "objects": [("nuts2", "BE23"), ("fueltype", "Bioenergy"), ("nuts2", "DE11"), ("fueltype", "Bioenergy")],
+            "object_classes": {"nuts2", "fueltype"},
+            "objects": {("nuts2", "BE23"), ("fueltype", "Bioenergy"), ("nuts2", "DE11"), ("fueltype", "Bioenergy")},
             "relationship_classes": [("nuts2__fueltype", ("nuts2", "fueltype"))],
-            "relationships": [("nuts2__fueltype", ("BE23", "Bioenergy")), ("nuts2__fueltype", ("DE11", "Bioenergy"))],
+            "relationships": {("nuts2__fueltype", ("BE23", "Bioenergy")), ("nuts2__fueltype", ("DE11", "Bioenergy"))},
             "relationship_parameters": [("nuts2__fueltype", "capacity")],
             "relationship_parameter_values": [
                 ("nuts2__fueltype", ("BE23", "Bioenergy"), "capacity", 268.0),
@@ -1317,8 +1317,8 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_parameter_header_with_only_one_parameter(self):
         input_data = [["object", "parameter_name1"], ["obj1", 0], ["obj2", 2]]
         expected = {
-            "object_classes": ["object"],
-            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_classes": {"object"},
+            "objects": {("object", "obj1"), ("object", "obj2")},
             "object_parameters": [("object", "parameter_name1")],
             "object_parameter_values": [
                 ("object", "obj1", "parameter_name1", 0),
@@ -1343,8 +1343,8 @@ class TestMappingIntegration(unittest.TestCase):
     def test_read_pivoted_parameters_from_data_with_skipped_column(self):
         input_data = [["object", "parameter_name1", "parameter_name2"], ["obj1", 0, 1], ["obj2", 2, 3]]
         expected = {
-            "object_classes": ["object"],
-            "objects": [("object", "obj1"), ("object", "obj2")],
+            "object_classes": {"object"},
+            "objects": {("object", "obj1"), ("object", "obj2")},
             "object_parameters": [("object", "parameter_name1")],
             "object_parameter_values": [
                 ("object", "obj1", "parameter_name1", 0),
@@ -1370,9 +1370,9 @@ class TestMappingIntegration(unittest.TestCase):
         input_data = [["unit", "node"], ["u1", "n1"], ["u2", "n2"]]
         expected = {
             "relationship_classes": [("unit__node", ("unit", "node"))],
-            "relationships": [("unit__node", ("u1", "n1")), ("unit__node", ("u2", "n2"))],
-            "object_classes": ["unit", "node"],
-            "objects": [("unit", "u1"), ("node", "n1"), ("unit", "u2"), ("node", "n2")],
+            "relationships": {("unit__node", ("u1", "n1")), ("unit__node", ("u2", "n2"))},
+            "object_classes": {"unit", "node"},
+            "objects": {("unit", "u1"), ("node", "n1"), ("unit", "u2"), ("node", "n2")},
         }
 
         data = iter(input_data)
@@ -1399,7 +1399,7 @@ class TestMappingIntegration(unittest.TestCase):
         expected = {
             "relationship_classes": [("unit__node", ("unit", "node"))],
             "relationship_parameters": [("unit__node", "e"), ("unit__node", "f")],
-            "relationships": [("unit__node", ("a", "c")), ("unit__node", ("b", "d"))],
+            "relationships": {("unit__node", ("a", "c")), ("unit__node", ("b", "d"))},
             "relationship_parameter_values": [
                 ("unit__node", ("a", "c"), "e", Map(["a", "b"], [2, 4])),
                 ("unit__node", ("b", "d"), "f", Map(["a", "b"], [3, 5])),
@@ -1434,8 +1434,8 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc2", "obj2", "parameter_name2", 2],
         ]
         expected = {
-            "object_classes": ["oc1", "oc2"],
-            "objects": [("oc1", "obj1"), ("oc2", "obj2")],
+            "object_classes": {"oc1", "oc2"},
+            "objects": {("oc1", "obj1"), ("oc2", "obj2")},
             "object_parameters": [("oc1", "parameter_name1"), ("oc2", "parameter_name2")],
             "object_parameter_values": [("oc1", "obj1", "parameter_name1", 1), ("oc2", "obj2", "parameter_name2", 2)],
         }
@@ -1463,8 +1463,8 @@ class TestMappingIntegration(unittest.TestCase):
             ["oc1_obj2", "oc2_obj2", 2, 4],
         ]
         expected = {
-            "object_classes": ["oc1", "oc2"],
-            "objects": [("oc1", "oc1_obj1"), ("oc1", "oc1_obj2"), ("oc2", "oc2_obj2")],
+            "object_classes": {"oc1", "oc2"},
+            "objects": {("oc1", "oc1_obj1"), ("oc1", "oc1_obj2"), ("oc2", "oc2_obj2")},
             "object_parameters": [("oc1", "parameter_class1"), ("oc2", "parameter_class2")],
             "object_parameter_values": [
                 ("oc1", "oc1_obj1", "parameter_class1", 1),
@@ -1505,9 +1505,10 @@ class TestMappingIntegration(unittest.TestCase):
             "object": 0,
         }
         out, errors = get_mapped_data(data, [mapping], data_header, "class name")
-        expected = dict()
-        expected["object_classes"] = ["class name"]
-        expected["objects"] = [("class name", "object 1"), ("class name", "object 2")]
+        expected = {
+            "object_classes": {"class name"},
+            "objects": {("class name", "object 1"), ("class name", "object 2")},
+        }
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
@@ -1653,7 +1654,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Alternative", "name": 0}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"alternatives": ["alternative1", "second_alternative", "last_one"]}
+        expected = {"alternatives": {"alternative1", "second_alternative", "last_one"}}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1663,8 +1664,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Scenario", "name": 0}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["scenarios"] = [("scenario1", False), ("second_scenario", False), ("last_one", False)]
+        expected = {"scenarios": {("scenario1", False), ("second_scenario", False), ("last_one", False)}}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1674,8 +1674,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Scenario", "name": 0, "active": 1}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["scenarios"] = [("scenario1", True), ("second_scenario", False), ("last_one", True)]
+        expected = {"scenarios": {("scenario1", True), ("second_scenario", False), ("last_one", True)}}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1724,8 +1723,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Tool", "name": 0}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["tools"] = ["tool1", "second_tool", "last_one"]
+        expected = {"tools": {"tool1", "second_tool", "last_one"}}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1735,7 +1733,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"features": [("class1", "param1"), ("class2", "param2")]}
+        expected = {"features": {("class1", "param1"), ("class2", "param2")}}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1745,8 +1743,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["tool_features"] = [("tool1", "class1", "param1", False), ("tool2", "class2", "param2", False)]
+        expected = {"tool_features": [("tool1", "class1", "param1", False), ("tool2", "class2", "param2", False)]}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1766,8 +1763,7 @@ class TestMappingIntegration(unittest.TestCase):
             "required": 3,
         }
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["tool_features"] = [("tool1", "class1", "param1", False), ("tool2", "class2", "param2", True)]
+        expected = {"tool_features": [("tool1", "class1", "param1", False), ("tool2", "class2", "param2", True)]}
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1807,12 +1803,12 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {"map_type": "ObjectGroup", "name": 0, "groups": 1, "members": 2}
         out, errors = get_mapped_data(data, [mapping], data_header)
         expected = dict()
-        expected["object_classes"] = ["class_A", "class_A", "class_A"]
-        expected["object_groups"] = [
+        expected["object_classes"] = {"class_A", "class_A", "class_A"}
+        expected["object_groups"] = {
             ("class_A", "group1", "object1"),
             ("class_A", "group1", "object2"),
             ("class_A", "group2", "object3"),
-        ]
+        }
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1828,20 +1824,20 @@ class TestMappingIntegration(unittest.TestCase):
         mapping = {"map_type": "ObjectGroup", "name": 0, "groups": 1, "members": 2, "import_objects": True}
         out, errors = get_mapped_data(data, [mapping], data_header)
         expected = dict()
-        expected["object_groups"] = [
+        expected["object_groups"] = {
             ("class_A", "group1", "object1"),
             ("class_A", "group1", "object2"),
             ("class_A", "group2", "object3"),
-        ]
-        expected["object_classes"] = ["class_A", "class_A", "class_A"]
-        expected["objects"] = [
+        }
+        expected["object_classes"] = {"class_A"}
+        expected["objects"] = {
             ("class_A", "group1"),
             ("class_A", "object1"),
             ("class_A", "group1"),
             ("class_A", "object2"),
             ("class_A", "group2"),
             ("class_A", "object3"),
-        ]
+        }
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
 
@@ -1863,17 +1859,17 @@ class TestMappingIntegration(unittest.TestCase):
         }
         out, errors = get_mapped_data(data, [mapping], data_header)
         expected = dict()
-        expected["object_groups"] = [
+        expected["object_groups"] = {
             ("class_A", "group1", "object1"),
             ("class_A", "group1", "object2"),
             ("class_A", "group2", "object3"),
-        ]
-        expected["object_classes"] = ["class_A", "class_A", "class_A"]
-        expected["object_parameters"] = [("class_A", "speed"), ("class_A", "speed"), ("class_A", "speed")]
+        }
+        expected["object_classes"] = {"class_A", "class_A", "class_A"}
+        expected["object_parameters"] = {("class_A", "speed"), ("class_A", "speed"), ("class_A", "speed")}
         expected["object_parameter_values"] = [
-            ("class_A", "group1", "speed", 23.0),
-            ("class_A", "group1", "speed", 42.0),
-            ("class_A", "group2", "speed", 5.0),
+            ["class_A", "group1", "speed", 23.0],
+            ["class_A", "group1", "speed", 42.0],
+            ["class_A", "group2", "speed", 5.0],
         ]
         self._assert_equivalent(out, expected)
         self.assertFalse(errors)
@@ -1899,7 +1895,7 @@ class TestMappingIntegration(unittest.TestCase):
         }
         out, errors = get_mapped_data(data, [mapping], data_header)
         expected = dict()
-        expected["object_classes"] = ["class_A", "class_A", "class_B"]
+        expected["object_classes"] = {"class_A", "class_A", "class_B"}
         expected["object_parameters"] = [
             ("class_A", "param1", 23.0, "listA"),
             ("class_A", "param2", 42.0, "listB"),
@@ -1921,10 +1917,11 @@ class TestMappingIntegration(unittest.TestCase):
             },
         }
         out, errors = get_mapped_data(data, [mapping])
-        expected = dict()
-        expected["object_classes"] = ["object_class"]
         expected_map = Map(["key1", "key2", "key3"], [-2.3, 5.5, 3.2])
-        expected["object_parameters"] = [("object_class", "parameter", expected_map)]
+        expected = {
+            "object_classes": {"object_class"},
+            "object_parameters": [("object_class", "parameter", expected_map)],
+        }
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
@@ -1973,8 +1970,8 @@ class TestMappingIntegration(unittest.TestCase):
             index_name="Index 1",
         )
         expected = {
-            "object_classes": ["object_class"],
-            "objects": [("object_class", "object")],
+            "object_classes": {"object_class"},
+            "objects": {("object_class", "object")},
             "object_parameter_values": [("object_class", "object", "parameter", expected_map)],
             "object_parameters": [("object_class", "parameter")],
         }
@@ -2005,8 +2002,8 @@ class TestMappingIntegration(unittest.TestCase):
             index_name="",
         )
         expected = {
-            "object_classes": ["object_class"],
-            "objects": [("object_class", "object")],
+            "object_classes": {"object_class"},
+            "objects": {("object_class", "object")},
             "object_parameter_values": [("object_class", "object", "parameter", expected_map)],
             "object_parameters": [("object_class", "parameter")],
         }
@@ -2036,7 +2033,7 @@ class TestMappingIntegration(unittest.TestCase):
             index_name="Index 1",
         )
         expected = {
-            "object_classes": ["object_class"],
+            "object_classes": {"object_class"},
             "object_parameters": [("object_class", "parameter", expected_map)],
         }
         self.assertFalse(errors)
@@ -2047,7 +2044,7 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         mapping_root = unflatten([ObjectClassMapping(0, filter_re="B"), ObjectMapping(1)])
         out, errors = get_mapped_data(data, [mapping_root])
-        expected = {"object_classes": ["B"], "objects": [("B", "r")]}
+        expected = {"object_classes": {"B"}, "objects": {("B", "r")}}
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
@@ -2056,7 +2053,7 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         mapping_root = unflatten([ObjectClassMapping(0), ObjectMapping(1, filter_re="q|r")])
         out, errors = get_mapped_data(data, [mapping_root])
-        expected = {"object_classes": ["A", "B"], "objects": [("A", "q"), ("B", "r")]}
+        expected = {"object_classes": {"A", "B"}, "objects": {("A", "q"), ("B", "r")}}
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
@@ -2065,7 +2062,7 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         mapping_root = unflatten([ObjectClassMapping(0), ObjectMapping(1, filter_re="q")])
         out, errors = get_mapped_data(data, [mapping_root])
-        expected = {"object_classes": ["A"], "objects": [("A", "q")]}
+        expected = {"object_classes": {"A"}, "objects": {("A", "q")}}
         self.assertFalse(errors)
         self._assert_equivalent(out, expected)
 
@@ -2084,10 +2081,10 @@ class TestMappingIntegration(unittest.TestCase):
         )
         out, errors = get_mapped_data(data, [mapping_root])
         expected = {
-            "object_classes": ["class", "class"],
-            "objects": [("class", "y"), ("class", "y")],
-            "object_parameters": [["class", "parameter"], ["class", "parameter"]],
-            "alternatives": ["Base", "alternative"],
+            "object_classes": {"class"},
+            "objects": {("class", "y")},
+            "object_parameters": [("class", "parameter")],
+            "alternatives": {"Base", "alternative"},
             "object_parameter_values": [
                 ["class", "y", "parameter", Array(["p1"]), "Base"],
                 ["class", "y", "parameter", Array(["p1"]), "alternative"],

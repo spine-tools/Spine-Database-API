@@ -31,6 +31,7 @@ class ImportKey(Enum):
     MEMBER_NAME = auto()
     PARAMETER_NAME = auto()
     PARAMETER_DEFINITION = auto()
+    PARAMETER_DEFINITION_EXTRAS = auto()
     PARAMETER_DEFAULT_VALUES = auto()
     PARAMETER_DEFAULT_VALUE_INDEXES = auto()
     PARAMETER_VALUES = auto()
@@ -353,8 +354,8 @@ class ObjectClassMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         object_class_name = state[ImportKey.OBJECT_CLASS_NAME] = str(source_data)
-        object_classes = mapped_data.setdefault("object_classes", list())
-        object_classes.append(object_class_name)
+        object_classes = mapped_data.setdefault("object_classes", set())
+        object_classes.add(object_class_name)
 
 
 class ObjectMapping(ImportMapping):
@@ -370,7 +371,7 @@ class ObjectMapping(ImportMapping):
         object_name = state[ImportKey.OBJECT_NAME] = str(source_data)
         if isinstance(self.child, ObjectGroupMapping):
             raise KeyError(ImportKey.MEMBER_NAME)
-        mapped_data.setdefault("objects", list()).append((object_class_name, object_name))
+        mapped_data.setdefault("objects", set()).add((object_class_name, object_name))
 
 
 class ObjectMetadataMapping(ImportMapping):
@@ -399,10 +400,10 @@ class ObjectGroupMapping(ImportObjectsMixin, ImportMapping):
         if group_name is None:
             raise KeyError(ImportKey.GROUP_NAME)
         member_name = str(source_data)
-        mapped_data.setdefault("object_groups", list()).append((object_class_name, group_name, member_name))
+        mapped_data.setdefault("object_groups", set()).add((object_class_name, group_name, member_name))
         if self.import_objects:
-            objects = [(object_class_name, group_name), (object_class_name, member_name)]
-            mapped_data.setdefault("objects", list()).extend(objects)
+            objects = (object_class_name, group_name), (object_class_name, member_name)
+            mapped_data.setdefault("objects", set()).update(objects)
         raise KeyFix(ImportKey.MEMBER_NAME)
 
 
@@ -419,8 +420,8 @@ class RelationshipClassMapping(ImportMapping):
         state[ImportKey.RELATIONSHIP_DIMENSION_COUNT] = dim_count
         relationship_class_name = state[ImportKey.RELATIONSHIP_CLASS_NAME] = str(source_data)
         object_class_names = state[ImportKey.OBJECT_CLASS_NAMES] = []
-        relationship_classes = mapped_data.setdefault("relationship_classes", list())
-        relationship_classes.append((relationship_class_name, object_class_names))
+        relationship_classes = mapped_data.setdefault("relationship_classes", dict())
+        relationship_classes[relationship_class_name] = object_class_names
         raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
 
 
@@ -470,17 +471,16 @@ class RelationshipObjectMapping(ImportObjectsMixin, ImportMapping):
         if len(object_class_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
             raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
         object_names = state[ImportKey.OBJECT_NAMES]
-        if not object_names:
-            relationships = mapped_data.setdefault("relationships", list())
-            relationships.append((relationship_class_name, object_names))
         object_name = str(source_data)
         object_names.append(object_name)
         if self.import_objects:
             k = len(object_names) - 1
             object_class_name = object_class_names[k]
-            mapped_data.setdefault("object_classes", list()).append(object_class_name)
-            mapped_data.setdefault("objects", list()).append([object_class_name, object_name])
+            mapped_data.setdefault("object_classes", set()).add(object_class_name)
+            mapped_data.setdefault("objects", set()).add((object_class_name, object_name))
         if len(object_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
+            relationships = mapped_data.setdefault("relationships", set())
+            relationships.add((relationship_class_name, tuple(object_names)))
             raise KeyFix(ImportKey.OBJECT_NAMES)
         raise KeyError(ImportKey.OBJECT_NAMES)
 
@@ -516,10 +516,11 @@ class ParameterDefinitionMapping(ImportMapping):
         else:
             raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME] = str(source_data)
-        parameter_definition = state[ImportKey.PARAMETER_DEFINITION] = [class_name, parameter_name]
+        definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS] = []
+        parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = class_name, parameter_name
         default_values = state.get(ImportKey.PARAMETER_DEFAULT_VALUES)
-        if default_values is None or tuple(parameter_definition) not in default_values:
-            mapped_data.setdefault(map_key, list()).append(parameter_definition)
+        if default_values is None or parameter_definition_key not in default_values:
+            mapped_data.setdefault(map_key, dict())[parameter_definition_key] = definition_extras
 
 
 class ParameterDefaultValueMapping(ImportMapping):
@@ -534,11 +535,11 @@ class ParameterDefaultValueMapping(ImportMapping):
         default_value = source_data
         if default_value == "":
             return
-        parameter_definition = state[ImportKey.PARAMETER_DEFINITION]
-        parameter_definition.append(default_value)
+        parameter_definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS]
+        parameter_definition_extras.append(default_value)
         value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
         if value_list_name is not None:
-            parameter_definition.append(value_list_name)
+            parameter_definition_extras.append(value_list_name)
 
 
 class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
@@ -550,19 +551,19 @@ class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
             # Don't catch errors here, this one's invisible
             return
         default_values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
-        key = tuple(parameter_definition)
-        if key in default_values:
+        if parameter_definition in default_values:
             return
         value_type = str(source_data)
-        default_value = default_values[key] = {"type": value_type}
+        default_value = default_values[parameter_definition] = {"type": value_type}
         if self.compress and value_type == "map":
             default_value["compress"] = self.compress
         if self.options and value_type == "time_series":
             default_value["options"] = self.options
-        parameter_definition.append(default_value)
+        parameter_definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS]
+        parameter_definition_extras.append(default_value)
         value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
         if value_list_name is not None:
-            parameter_definition.append(value_list_name)
+            parameter_definition_extras.append(value_list_name)
 
 
 class IndexNameMappingBase(ImportMapping):
@@ -661,16 +662,16 @@ class ParameterValueMapping(ImportMapping):
         object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
         relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
         if object_class_name is not None:
-            class_name, entity_name, map_key = (
-                object_class_name,
-                state[ImportKey.OBJECT_NAME],
-                "object_parameter_values",
-            )
+            class_name = object_class_name
+            entity_name = state[ImportKey.OBJECT_NAME]
+            map_key = "object_parameter_values"
         elif relationship_class_name is not None:
             object_names = state[ImportKey.OBJECT_NAMES]
             if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
                 raise KeyError(ImportKey.OBJECT_NAMES)
-            class_name, entity_name, map_key = (relationship_class_name, object_names, "relationship_parameter_values")
+            class_name = relationship_class_name
+            entity_name = object_names
+            map_key = "relationship_parameter_values"
         else:
             raise KeyError(ImportKey.CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME]
@@ -693,17 +694,13 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
         if object_class_name is not None:
-            class_name, entity_name, map_key = (
-                object_class_name,
-                state[ImportKey.OBJECT_NAME],
-                "object_parameter_values",
-            )
+            class_name = object_class_name
+            entity_name = state[ImportKey.OBJECT_NAME]
+            map_key = "object_parameter_values"
         elif relationship_class_name is not None:
-            class_name, entity_name, map_key = (
-                relationship_class_name,
-                tuple(state[ImportKey.OBJECT_NAMES]),
-                "relationship_parameter_values",
-            )
+            class_name = relationship_class_name
+            entity_name = tuple(state[ImportKey.OBJECT_NAMES])
+            map_key = "relationship_parameter_values"
         else:
             raise KeyError(ImportKey.CLASS_NAME)
         alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
@@ -833,7 +830,7 @@ class AlternativeMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         alternative = state[ImportKey.ALTERNATIVE_NAME] = str(source_data)
-        mapped_data.setdefault("alternatives", list()).append(alternative)
+        mapped_data.setdefault("alternatives", set()).add(alternative)
 
 
 class ScenarioMapping(ImportMapping):
@@ -859,7 +856,7 @@ class ScenarioActiveFlagMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         scenario = state[ImportKey.SCENARIO_NAME]
         active = bool(strtobool(str(source_data)))
-        mapped_data.setdefault("scenarios", list()).append([scenario, active])
+        mapped_data.setdefault("scenarios", set()).add((scenario, active))
 
 
 class ScenarioAlternativeMapping(ImportMapping):
@@ -904,7 +901,7 @@ class ToolMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         tool = state[ImportKey.TOOL_NAME] = str(source_data)
         if self.child is None:
-            mapped_data.setdefault("tools", list()).append(tool)
+            mapped_data.setdefault("tools", set()).add(tool)
 
 
 class FeatureEntityClassMapping(ImportMapping):
@@ -932,7 +929,7 @@ class FeatureParameterDefinitionMapping(ImportMapping):
         feature = state[ImportKey.FEATURE]
         parameter = str(source_data)
         feature.append(parameter)
-        mapped_data.setdefault("features", list()).append(feature)
+        mapped_data.setdefault("features", set()).add(tuple(feature))
 
 
 class ToolFeatureEntityClassMapping(ImportMapping):

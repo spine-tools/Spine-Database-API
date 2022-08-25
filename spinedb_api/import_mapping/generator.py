@@ -134,6 +134,7 @@ def get_mapped_data(
                 full_row = non_pivoted_row + unpivoted_row
                 full_row.append(row[column_pos])
                 mapping.import_row(full_row, read_state, mapped_data)
+    _make_relationship_classes(mapped_data)
     _make_parameter_values(mapped_data)
     return mapped_data, errors
 
@@ -235,35 +236,61 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     return unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos
 
 
+def _make_relationship_classes(mapped_data):
+    rows = mapped_data.get("relationship_classes")
+    if rows is None:
+        return
+    full_rows = []
+    for class_name, object_classes in rows.items():
+        full_rows.append((class_name, object_classes))
+    mapped_data["relationship_classes"] = full_rows
+
+
 def _make_parameter_values(mapped_data):
-    parameter_value_pos = {
-        "object_parameter_values": 3,
-        "relationship_parameter_values": 3,
-        "object_parameters": 2,
-        "relationship_parameters": 2,
-    }
-    for key, value_pos in parameter_value_pos.items():
+    value_pos = 3
+    for key in ("object_parameter_values", "relationship_parameter_values"):
         rows = mapped_data.get(key)
         if rows is None:
             continue
-        parameter_value_data = []
+        valued_rows = []
         for row in rows:
-            try:
-                value = row[value_pos]
-            except IndexError:
-                parameter_value_data.append(row)
-                continue
-            if isinstance(value, dict):
-                if "data" not in value:
-                    continue
-                row[value_pos] = _parameter_value_from_dict(value)
-            elif isinstance(value, str):
-                try:
-                    row[value_pos] = from_database(*split_value_and_type(value))
-                except ParameterValueFormatError:
-                    pass
-            parameter_value_data.append(row)
-        mapped_data[key] = parameter_value_data
+            value = _make_values(row, value_pos)
+            if value is not None:
+                row[value_pos] = value
+                valued_rows.append(row)
+        mapped_data[key] = valued_rows
+    value_pos = 0
+    for key in ("object_parameters", "relationship_parameters"):
+        rows = mapped_data.get(key)
+        if rows is None:
+            continue
+        full_rows = []
+        for entity_definition, extras in rows.items():
+            if extras:
+                value = _make_values(extras, value_pos)
+                if value is not None:
+                    extras[value_pos] = value
+                    full_rows.append(entity_definition + tuple(extras))
+            else:
+                full_rows.append(entity_definition)
+        mapped_data[key] = full_rows
+
+
+def _make_values(row, value_pos):
+    try:
+        value = row[value_pos]
+    except IndexError:
+        return None
+    if isinstance(value, dict):
+        if "data" not in value:
+            return None
+        return _parameter_value_from_dict(value)
+    elif isinstance(value, str):
+        try:
+            return from_database(*split_value_and_type(value))
+        except ParameterValueFormatError:
+            pass
+    return value
 
 
 def _parameter_value_from_dict(d):

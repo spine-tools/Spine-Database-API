@@ -71,11 +71,11 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'alternatives': ['Base', 'Base'],
-                'object_classes': ['Object', 'Object'],
+                'alternatives': {'Base'},
+                'object_classes': {'Object'},
                 'object_parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
-                'object_parameters': [['Object', 'Parameter'], ['Object', 'Parameter']],
-                'objects': [('Object', 'data'), ('Object', 'data')],
+                'object_parameters': [('Object', 'Parameter')],
+                'objects': {('Object', 'data')},
             },
         )
 
@@ -103,11 +103,11 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'alternatives': ['Base', 'Base'],
-                'object_classes': ['Object', 'Object'],
+                'alternatives': {'Base'},
+                'object_classes': {'Object'},
                 'object_parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
-                'object_parameters': [['Object', 'Parameter'], ['Object', 'Parameter']],
-                'objects': [('Object', 'data'), ('Object', 'data')],
+                'object_parameters': [('Object', 'Parameter')],
+                'objects': {('Object', 'data')},
             },
         )
 
@@ -135,10 +135,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'object_classes': ['klass', 'klass'],
+                'object_classes': {'klass'},
                 'object_parameter_values': [['klass', 'kloss', 'Parameter_2', Map(["T1", "T2"], [2.3, 23.0])]],
-                'object_parameters': [['klass', 'Parameter_2'], ['klass', 'Parameter_2']],
-                'objects': [('klass', 'kloss'), ('klass', 'kloss')],
+                'object_parameters': [('klass', 'Parameter_2')],
+                'objects': {('klass', 'kloss')},
             },
         )
 
