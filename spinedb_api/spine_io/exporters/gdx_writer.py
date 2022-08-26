@@ -14,9 +14,14 @@ Module contains a .gdx writer implementation.
 :author: A. Soininen (VTT)
 :date:   9.12.2020
 """
-
+import math
 from gdx2py import GAMSSet, GAMSScalar, GAMSParameter, GdxFile
+from gdx2py.gdxfile import EPS_VALUE
+import gdxcc
 from .writer import Writer, WriterException
+
+
+SPECIAL_CONVERSIONS = {EPS_VALUE: gdxcc.GMS_SV_EPS, math.inf: gdxcc.GMS_SV_PINF, -math.inf: gdxcc.GMS_SV_MINF}
 
 
 class GdxWriter(Writer):
@@ -98,7 +103,7 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
             set_ = GAMSScalar(first_row[0])
         elif is_parameter:
             n_dimensions = len(first_row) - 1
-            data = {row[:-1]: row[-1] for row in table}
+            data = {row[:-1]: _convert_to_gams(row[-1]) for row in table}
             set_ = GAMSParameter(data, dimensions[:n_dimensions])
         else:
             try:
@@ -117,3 +122,17 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
         if isinstance(set_, GAMSParameter):
             raise WriterException(f"Failed to create GAMS parameter in table '{table_name}': {e}")
         raise e
+
+
+def _convert_to_gams(x):
+    """Converts special float values to corresponding GAMS constants, otherwise returns x as is.
+
+    Args:
+        x (float): value to convert
+
+    Returns:
+        float: converted value
+    """
+    if math.isnan(x):
+        return gdxcc.GMS_SV_UNDEF
+    return SPECIAL_CONVERSIONS.get(x, x)
