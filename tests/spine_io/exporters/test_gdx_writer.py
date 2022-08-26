@@ -14,7 +14,9 @@ Unit tests for gdx writer.
 :author: A. Soininen (VTT)
 :date:   10.12.2020
 """
+import math
 from pathlib import Path
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 from gdx2py import GdxFile, GAMSParameter
@@ -23,7 +25,7 @@ from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from spinedb_api.spine_io.exporters.gdx_writer import GdxWriter
 from spinedb_api.spine_io.exporters.writer import write, WriterException
 from spinedb_api import (
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_object_classes,
     import_object_parameters,
     import_object_parameter_values,
@@ -42,7 +44,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_empty_database(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root_mapping = object_export(class_position=Position.table_name, object_position=0)
         root_mapping.child.header = "*"
         with TemporaryDirectory() as temp_dir:
@@ -55,7 +57,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_single_object_class_and_object(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -74,7 +76,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_2D_relationship(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
         import_relationship_classes(db_map, (("rel", ("oc1", "oc2")),))
@@ -96,7 +98,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_parameters(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
@@ -118,7 +120,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_non_numerical_parameter_value_raises_writer_expection(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
@@ -135,7 +137,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_empty_parameter(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
@@ -158,7 +160,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_scalars(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
@@ -177,7 +179,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_two_tables(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o"), ("oc2", "p")))
         db_map.commit_session("Add test data.")
@@ -199,7 +201,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_append_to_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o"), ("oc2", "p")))
         db_map.commit_session("Add test data.")
@@ -226,7 +228,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_parameter_value_non_convertible_to_float_raises_WriterException(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "param"),))
         import_objects(db_map, (("oc", "o"), ("oc", "p")))
@@ -244,7 +246,7 @@ class TestGdxWriter(unittest.TestCase):
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_non_string_set_element_raises_WriterException(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "param"),))
         import_objects(db_map, (("oc", "o"), ("oc", "p")))
@@ -258,6 +260,43 @@ class TestGdxWriter(unittest.TestCase):
             file_path = Path(temp_dir, "test_two_tables.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
             self.assertRaises(WriterException, write, db_map, writer, root_mapping)
+        db_map.connection.close()
+
+    @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
+    def test_special_value_conversions(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(
+            db_map, (("oc", "epsilon"), ("oc", "infinity"), ("oc", "negative_infinity"), ("oc", "nan"))
+        )
+        import_objects(db_map, (("oc", "o1"),))
+        import_object_parameter_values(
+            db_map,
+            (
+                ("oc", "o1", "epsilon", sys.float_info.min),
+                ("oc", "o1", "infinity", math.inf),
+                ("oc", "o1", "negative_infinity", -math.inf),
+                ("oc", "o1", "nan", math.nan),
+            ),
+        )
+        db_map.commit_session("Add test data.")
+        root_mapping = object_parameter_export(
+            class_position=Position.table_name, object_position=0, definition_position=1, value_position=2
+        )
+        mappings = root_mapping.flatten()
+        mappings[1].header = mappings[3].header = "*"
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir, "test_special_value_conversions.gdx")
+            writer = GdxWriter(str(file_path), self._gams_dir)
+            write(db_map, writer, root_mapping)
+            with GdxFile(str(file_path), "r", self._gams_dir) as gdx_file:
+                self.assertEqual(len(gdx_file), 1)
+                gams_parameter = gdx_file["oc"]
+                self.assertEqual(len(gams_parameter), 4)
+                self.assertEqual(gams_parameter[("o1", "epsilon")], sys.float_info.min)
+                self.assertEqual(gams_parameter[("o1", "infinity")], math.inf)
+                self.assertEqual(gams_parameter[("o1", "negative_infinity")], -math.inf)
+                self.assertTrue(math.isnan(gams_parameter[("o1", "nan")]))
         db_map.connection.close()
 
 

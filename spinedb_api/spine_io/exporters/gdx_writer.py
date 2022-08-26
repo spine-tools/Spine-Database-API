@@ -133,6 +133,8 @@ def _convert_to_gams(x):
     Returns:
         float: converted value
     """
+    if not isinstance(x, float):
+        return x
     if math.isnan(x):
         return gdxcc.GMS_SV_UNDEF
     return SPECIAL_CONVERSIONS.get(x, x)
