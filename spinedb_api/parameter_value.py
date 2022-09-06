@@ -342,7 +342,7 @@ def _duration_from_database(value):
         # Set default unit to minutes if value is a plain number.
         if not isinstance(value, str):
             value = f"{value}m"
-    elif isinstance(value, Sequence):  # It is a deprecate list of durations.
+    elif isinstance(value, Sequence):
         # This type of 'variable duration' is deprecated. We make an Array instead.
         # Set default unit to minutes for plain numbers in value.
         value = [v if isinstance(v, str) else f"{v}m" for v in value]
@@ -590,7 +590,9 @@ def _map_values_from_database(values_in_db):
     values = list()
     for value_in_db in values_in_db:
         value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
-        if value is not None and not isinstance(value, (float, bool, Duration, IndexedValue, str, DateTime)):
+        if isinstance(value, int):
+            value = float(value)
+        elif value is not None and not isinstance(value, (float, bool, Duration, IndexedValue, str, DateTime)):
             raise ParameterValueFormatError(f'Unsupported value type for Map: "{type(value).__name__}".')
         values.append(value)
     return values
