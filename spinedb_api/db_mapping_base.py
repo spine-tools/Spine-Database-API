@@ -58,6 +58,26 @@ class DatabaseMappingBase:
     """
 
     _session_kwargs = {}
+    ITEM_TYPES = (
+        "object_class",
+        "relationship_class",
+        "parameter_value_list",
+        "parameter_definition",
+        "object",
+        "relationship",
+        "entity_group",
+        "parameter_value",
+        "alternative",
+        "scenario",
+        "scenario_alternative",
+        "feature",
+        "tool",
+        "tool_feature",
+        "tool_feature_method",
+        "metadata",
+        "entity_metadata",
+        "parameter_value_metadata",
+    )
 
     def __init__(
         self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True, memory=False
