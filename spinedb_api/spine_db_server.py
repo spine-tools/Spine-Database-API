@@ -147,7 +147,7 @@ class HandleDBMixin:
             dict: where result is True if the db_map was created successfully.
         """
         if self._db_url in _open_db_maps:
-            return dict(result=True)
+            return dict(result=False)
         db_map, error = self._make_db_map()
         if error:
             return dict(error=str(error))
@@ -161,8 +161,9 @@ class HandleDBMixin:
             dict: where result is always True
         """
         db_map = _open_db_maps.pop(self._db_url, None)
-        if db_map is not None:
-            db_map.connection.close()
+        if db_map is None:
+            return dict(result=False)
+        db_map.connection.close()
         return dict(result=True)
 
     def call_method(self, method_name, *args, **kwargs):
@@ -354,11 +355,11 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False):
     server_url = start_spine_db_server(db_url, memory=memory)
     if memory:
         client = SpineDBClient.from_server_url(server_url)
-        client.open_connection()
+        opened = client.open_connection()
     try:
         yield server_url
     finally:
-        if memory:
+        if memory and opened:
             client.close_connection()
         shutdown_spine_db_server(server_url)
 

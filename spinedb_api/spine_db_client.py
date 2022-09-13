@@ -21,7 +21,6 @@ import socket
 from sqlalchemy.engine.url import URL
 from .helpers import ReceiveAllMixing, encode, decode
 
-
 client_version = 4
 
 
