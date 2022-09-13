@@ -18,12 +18,11 @@ Contains the SpineDBClient class.
 
 from urllib.parse import urlparse
 import socket
-import json
 from sqlalchemy.engine.url import URL
 from .helpers import ReceiveAllMixing, encode, decode
 
 
-client_version = 1
+client_version = 4
 
 
 class SpineDBClient(ReceiveAllMixing):
