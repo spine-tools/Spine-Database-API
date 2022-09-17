@@ -19,9 +19,9 @@ Contains the SpineDBClient class.
 from urllib.parse import urlparse
 import socket
 from sqlalchemy.engine.url import URL
-from .helpers import ReceiveAllMixing, encode, decode
+from .server_client_helpers import ReceiveAllMixing, encode, decode
 
-client_version = 4
+client_version = 5
 
 
 class SpineDBClient(ReceiveAllMixing):
@@ -52,6 +52,15 @@ class SpineDBClient(ReceiveAllMixing):
 
     def close_connection(self):
         return self._send("close_connection")
+
+    def import_data(self, data, comment):
+        return self._send("import_data", args=(data, comment))
+
+    def export_data(self, **kwargs):
+        return self._send("export_data", kwargs=kwargs)
+
+    def call_method(self, method_name, *args, **kwargs):
+        return self._send("call_method", args=(method_name, *args), kwargs=kwargs)
 
     def _send(self, request, args=None, kwargs=None, receive=True):
         """

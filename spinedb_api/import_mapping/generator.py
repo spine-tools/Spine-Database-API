@@ -285,7 +285,7 @@ def _make_values(row, value_pos):
         if "data" not in value:
             return None
         return _parameter_value_from_dict(value)
-    elif isinstance(value, str):
+    if isinstance(value, str):
         try:
             return from_database(*split_value_and_type(value))
         except ParameterValueFormatError:

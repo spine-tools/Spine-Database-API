@@ -22,20 +22,22 @@ import socketserver
 import threading
 import atexit
 import traceback
+import time
+from concurrent.futures import ProcessPoolExecutor
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
 from .import_functions import import_data
 from .export_functions import export_data
 from .parameter_value import dump_db_value
-from .helpers import ReceiveAllMixing, encode, decode
+from .server_client_helpers import ReceiveAllMixing, encode, decode
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
 from .filters.alternative_filter import alternative_filter_config
 from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
 from .spine_db_client import SpineDBClient
 
-_required_client_version = 4
+_required_client_version = 5
 _open_db_maps = {}
 
 
@@ -124,13 +126,11 @@ class HandleDBMixin:
                     db_map.commit_session(comment)
                 except DBAPIError:
                     db_map.rollback_session()
-        return dict(result=[err.msg for err in errors])
+        return dict(result=(count, errors))
 
     def export_data(self, **kwargs):
         """Exports data.
 
-        Args:
-            data (dict)
         Returns:
             dict: where result is the data exported from the db
         """
@@ -314,6 +314,7 @@ class SpineDBServer(socketserver.TCPServer):
 
 _servers = {}
 _servers_lock = threading.Lock()
+_executor = ProcessPoolExecutor(1)
 
 
 def start_spine_db_server(db_url, upgrade=False, memory=False):
@@ -321,20 +322,33 @@ def start_spine_db_server(db_url, upgrade=False, memory=False):
     Args:
         db_url (str): Spine db url
         upgrade (bool): Whether to upgrade db or not
+        memory (bool): Whether to use an in-memory database together with a persistent connection to it
 
     Returns:
         str: server url (e.g. http://127.0.0.1:54321)
     """
-    host = "127.0.0.1"
-    with socketserver.TCPServer((host, 0), None) as s:
-        port = s.server_address[1]
-    server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-    with _servers_lock:
-        server = _servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
-    server_thread = threading.Thread(target=server.serve_forever)
-    server_thread.daemon = True
-    server_thread.start()
-    return server_url
+    future = _executor.submit(_start_spine_db_server, db_url, upgrade=upgrade, memory=memory)
+    while not future.done():
+        time.sleep(0.02)
+    return future.result()
+
+
+def _start_spine_db_server(db_url, upgrade=False, memory=False):
+    while True:
+        try:
+            host = "127.0.0.1"
+            with socketserver.TCPServer((host, 0), None) as s:
+                port = s.server_address[1]
+            server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
+            with _servers_lock:
+                server = _servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
+            server_thread = threading.Thread(target=server.serve_forever)
+            server_thread.daemon = True
+            server_thread.start()
+            return server_url
+        except OSError:
+            # Address already in use, happens when creating servers from different processes
+            time.sleep(0.02)
 
 
 def shutdown_spine_db_server(server_url):
