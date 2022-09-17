@@ -327,10 +327,7 @@ def start_spine_db_server(db_url, upgrade=False, memory=False):
     Returns:
         str: server url (e.g. http://127.0.0.1:54321)
     """
-    future = _executor.submit(_start_spine_db_server, db_url, upgrade=upgrade, memory=memory)
-    while not future.done():
-        time.sleep(0.02)
-    return future.result()
+    return start_spine_db_server(db_url, upgrade=upgrade, memory=memory)
 
 
 def _start_spine_db_server(db_url, upgrade=False, memory=False):
