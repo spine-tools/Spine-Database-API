@@ -23,7 +23,6 @@ import multiprocessing as mp
 import threading
 import atexit
 import traceback
-import time
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping

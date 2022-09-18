@@ -101,7 +101,13 @@ class SourceConnection:
         return data, header
 
     def get_mapped_data(
-        self, tables_mappings, table_options, table_column_convert_specs, table_row_convert_specs, max_rows=-1
+        self,
+        tables_mappings,
+        table_options,
+        table_column_convert_specs,
+        table_row_convert_specs,
+        unparse_value=lambda x: x,
+        max_rows=-1,
     ):
         """
         Reads all mappings in dict tables_mappings, where key is name of table
@@ -130,7 +136,7 @@ class SourceConnection:
                 mappings.append(mapping)
             try:
                 data, t_errors = get_mapped_data(
-                    data_source, mappings, header, table, column_convert_fns, row_convert_fns
+                    data_source, mappings, header, table, column_convert_fns, row_convert_fns, unparse_value
                 )
             except ParameterValueFormatError as error:
                 errors.append(str(error))

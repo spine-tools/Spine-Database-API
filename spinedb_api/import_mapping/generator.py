@@ -34,7 +34,13 @@ from ..exception import ParameterValueFormatError
 
 
 def get_mapped_data(
-    data_source, mappings, data_header=None, table_name="", column_convert_fns=None, row_convert_fns=None
+    data_source,
+    mappings,
+    data_header=None,
+    table_name="",
+    column_convert_fns=None,
+    row_convert_fns=None,
+    unparse_value=lambda x: x,
 ):
     """
     Args:
@@ -135,7 +141,7 @@ def get_mapped_data(
                 full_row.append(row[column_pos])
                 mapping.import_row(full_row, read_state, mapped_data)
     _make_relationship_classes(mapped_data)
-    _make_parameter_values(mapped_data)
+    _make_parameter_values(mapped_data, unparse_value)
     return mapped_data, errors
 
 
@@ -246,7 +252,7 @@ def _make_relationship_classes(mapped_data):
     mapped_data["relationship_classes"] = full_rows
 
 
-def _make_parameter_values(mapped_data):
+def _make_parameter_values(mapped_data, unparse_value):
     value_pos = 3
     for key in ("object_parameter_values", "relationship_parameter_values"):
         rows = mapped_data.get(key)
@@ -254,7 +260,7 @@ def _make_parameter_values(mapped_data):
             continue
         valued_rows = []
         for row in rows:
-            value = _make_values(row, value_pos)
+            value = unparse_value(_make_value(row, value_pos))
             if value is not None:
                 row[value_pos] = value
                 valued_rows.append(row)
@@ -267,7 +273,7 @@ def _make_parameter_values(mapped_data):
         full_rows = []
         for entity_definition, extras in rows.items():
             if extras:
-                value = _make_values(extras, value_pos)
+                value = unparse_value(_make_value(extras, value_pos))
                 if value is not None:
                     extras[value_pos] = value
                     full_rows.append(entity_definition + tuple(extras))
@@ -276,7 +282,7 @@ def _make_parameter_values(mapped_data):
         mapped_data[key] = full_rows
 
 
-def _make_values(row, value_pos):
+def _make_value(row, value_pos):
     try:
         value = row[value_pos]
     except IndexError:
