@@ -318,7 +318,6 @@ class SpineDBServer(socketserver.TCPServer):
 class _ServerManager:
     def __init__(self):
         self._servers = {}
-        self._servers_lock = mp.Lock()
         self._in_queue = mp.Queue()
         self._out_queue = mp.Queue()
         self._process = mp.Process(target=self._do_work)
@@ -332,10 +331,7 @@ class _ServerManager:
             with socketserver.TCPServer((host, 0), None) as s:
                 port = s.server_address[1]
             server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-            with self._servers_lock:
-                server = self._servers[server_url] = SpineDBServer(
-                    (host, port), DBRequestHandler, db_url, upgrade, memory
-                )
+            server = self._servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
             server_thread = threading.Thread(target=server.serve_forever)
             server_thread.daemon = True
             server_thread.start()
@@ -346,8 +342,7 @@ class _ServerManager:
         return self._out_queue.get()
 
     def shutdown_server(self, server_url):
-        with self._servers_lock:
-            server = self._servers.pop(server_url, None)
+        server = self._servers.pop(server_url, None)
         if server is not None:
             _teardown_server(server_url, server)
 
