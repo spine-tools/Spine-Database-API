@@ -327,7 +327,7 @@ def start_spine_db_server(db_url, upgrade=False, memory=False):
     Returns:
         str: server url (e.g. http://127.0.0.1:54321)
     """
-    return start_spine_db_server(db_url, upgrade=upgrade, memory=memory)
+    return _start_spine_db_server(db_url, upgrade=upgrade, memory=memory)
 
 
 def _start_spine_db_server(db_url, upgrade=False, memory=False):
