@@ -19,11 +19,11 @@ Contains the SpineDBServer class.
 from urllib.parse import urlunsplit
 from contextlib import contextmanager
 import socketserver
+import multiprocessing as mp
 import threading
 import atexit
 import traceback
 import time
-from concurrent.futures import ProcessPoolExecutor
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
@@ -147,10 +147,12 @@ class HandleDBMixin:
             dict: where result is True if the db_map was created successfully.
         """
         if self._db_url in _open_db_maps:
-            return dict(result=False)
+            self.server.connection_count += 1
+            return dict(result=True)
         db_map, error = self._make_db_map()
         if error:
             return dict(error=str(error))
+        self.server.connection_count += 1
         _open_db_maps[self._db_url] = db_map
         return dict(result=True)
 
@@ -160,10 +162,11 @@ class HandleDBMixin:
         Returns:
             dict: where result is always True
         """
-        db_map = _open_db_maps.pop(self._db_url, None)
-        if db_map is None:
-            return dict(result=False)
-        db_map.connection.close()
+        self.server.connection_count -= 1
+        if self.server.connection_count == 0:
+            db_map = _open_db_maps.pop(self._db_url, None)
+            if db_map is not None:
+                db_map.connection.close()
         return dict(result=True)
 
     def call_method(self, method_name, *args, **kwargs):
@@ -301,8 +304,7 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
 class SpineDBServer(socketserver.TCPServer):
     # NOTE:
     # We can't use the socketserver.ThreadingMixIn because it processes each request in a different thread,
-    # and we want to reuse db_maps sometimes.
-    # (sqlite objects can only be used in the same thread where they were created)
+    # and sqlite objects can only be used in the same thread where they were created.
     allow_reuse_address = True
 
     def __init__(self, server_address, RequestHandlerClass, db_url, upgrade, memory):
@@ -310,11 +312,53 @@ class SpineDBServer(socketserver.TCPServer):
         self.db_url = db_url
         self.upgrade = upgrade
         self.memory = memory
+        self.connection_count = 0
 
 
-_servers = {}
-_servers_lock = threading.Lock()
-_executor = ProcessPoolExecutor(1)
+class _ServerManager:
+    def __init__(self):
+        self._servers = {}
+        self._servers_lock = mp.Lock()
+        self._in_queue = mp.Queue()
+        self._out_queue = mp.Queue()
+        self._process = mp.Process(target=self._do_work)
+        self._process.daemon = True
+        self._process.start()
+
+    def _do_work(self):
+        while True:
+            db_url, upgrade, memory = self._in_queue.get()
+            host = "127.0.0.1"
+            with socketserver.TCPServer((host, 0), None) as s:
+                port = s.server_address[1]
+            server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
+            with self._servers_lock:
+                server = self._servers[server_url] = SpineDBServer(
+                    (host, port), DBRequestHandler, db_url, upgrade, memory
+                )
+            server_thread = threading.Thread(target=server.serve_forever)
+            server_thread.daemon = True
+            server_thread.start()
+            self._out_queue.put(server_url)
+
+    def start_server(self, db_url, upgrade, memory):
+        self._in_queue.put((db_url, upgrade, memory))
+        return self._out_queue.get()
+
+    def shutdown_server(self, server_url):
+        with self._servers_lock:
+            server = self._servers.pop(server_url, None)
+        if server is not None:
+            _teardown_server(server_url, server)
+
+    def tear_down(self):
+        for server_url in self._servers:
+            self.shutdown_server(server_url)
+        self._process.terminate()
+        self._process.join()
+
+
+_server_manager = _ServerManager()
 
 
 def start_spine_db_server(db_url, upgrade=False, memory=False):
@@ -327,32 +371,11 @@ def start_spine_db_server(db_url, upgrade=False, memory=False):
     Returns:
         str: server url (e.g. http://127.0.0.1:54321)
     """
-    return _start_spine_db_server(db_url, upgrade=upgrade, memory=memory)
-
-
-def _start_spine_db_server(db_url, upgrade=False, memory=False):
-    while True:
-        try:
-            host = "127.0.0.1"
-            with socketserver.TCPServer((host, 0), None) as s:
-                port = s.server_address[1]
-            server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-            with _servers_lock:
-                server = _servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
-            server_thread = threading.Thread(target=server.serve_forever)
-            server_thread.daemon = True
-            server_thread.start()
-            return server_url
-        except OSError:
-            # Address already in use, happens when creating servers from different processes
-            time.sleep(0.02)
+    return _server_manager.start_server(db_url, upgrade, memory)
 
 
 def shutdown_spine_db_server(server_url):
-    with _servers_lock:
-        server = _servers.pop(server_url, None)
-    if server is not None:
-        _teardown_server(server_url, server)
+    _server_manager.shutdown_server(server_url)
 
 
 def _teardown_server(server_url, server):
@@ -366,19 +389,13 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False):
     server_url = start_spine_db_server(db_url, memory=memory)
     if memory:
         client = SpineDBClient.from_server_url(server_url)
-        opened = client.open_connection()
+        client.open_connection()
     try:
         yield server_url
     finally:
-        if memory and opened:
+        if memory:
             client.close_connection()
         shutdown_spine_db_server(server_url)
 
 
-def _shutdown_servers():
-    with _servers_lock:
-        for server_url, server in _servers.items():
-            _teardown_server(server_url, server)
-
-
-atexit.register(_shutdown_servers)
+atexit.register(_server_manager.tear_down)
