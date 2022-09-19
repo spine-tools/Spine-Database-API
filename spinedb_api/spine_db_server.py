@@ -321,7 +321,7 @@ class _ServerManager:
         self._out_queue = mp.Queue()
         self._process = mp.Process(target=self._do_work)
         self._process.daemon = True
-        self._process.start()
+        self._started = False
 
     def _do_work(self):
         while True:
@@ -337,6 +337,9 @@ class _ServerManager:
             self._out_queue.put(server_url)
 
     def start_server(self, db_url, upgrade, memory):
+        if not self._started:
+            self._process.start()
+            self._started = True
         self._in_queue.put((db_url, upgrade, memory))
         return self._out_queue.get()
 
