@@ -315,6 +315,8 @@ class SpineDBServer(socketserver.TCPServer):
 
 
 class _ServerManager:
+    _started_lock = threading.Lock()
+
     def __init__(self):
         self._servers = {}
         self._in_queue = mp.Queue()
@@ -337,9 +339,10 @@ class _ServerManager:
             self._out_queue.put(server_url)
 
     def start_server(self, db_url, upgrade, memory):
-        if not self._started:
-            self._process.start()
-            self._started = True
+        with self._started_lock:
+            if not self._started:
+                self._started = True
+                self._process.start()
         self._in_queue.put((db_url, upgrade, memory))
         return self._out_queue.get()
 
