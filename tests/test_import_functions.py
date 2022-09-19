@@ -1188,7 +1188,7 @@ class TestImportToolFeatureMethod(unittest.TestCase):
         self.populate(db_map)
         db_map.commit_session("Add test data.")
         count, errors = import_tool_feature_methods(
-            db_map, [["tool1", "object_class1", "parameter1", [b'"value1"', None]]]
+            db_map, [["tool1", "object_class1", "parameter1", [b'"value1"', None]]], unparse_value=_unparse_value
         )
         self.assertEqual(errors, [])
         self.assertEqual(count, 1)

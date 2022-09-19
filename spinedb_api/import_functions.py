@@ -271,7 +271,10 @@ def get_data_for_import(
     if tool_features:
         yield ("tool_feature", _get_tool_features_for_import(db_map, tool_features, make_cache))
     if tool_feature_methods:
-        yield ("tool_feature_method", _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache))
+        yield (
+            "tool_feature_method",
+            _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache, unparse_value),
+        )
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects, make_cache))
     if relationships:
@@ -518,7 +521,7 @@ def _get_tool_features_for_import(db_map, data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_tool_feature_methods(db_map, data, make_cache=None):
+def import_tool_feature_methods(db_map, data, make_cache=None, unparse_value=to_database):
     """
     Imports tool feature methods.
 
@@ -534,10 +537,10 @@ def import_tool_feature_methods(db_map, data, make_cache=None):
     Returns:
         tuple of int and list: Number of successfully inserted tool features, list of errors
     """
-    return import_data(db_map, tool_feature_methods=data, make_cache=make_cache)
+    return import_data(db_map, tool_feature_methods=data, make_cache=make_cache, unparse_value=unparse_value)
 
 
-def _get_tool_feature_methods_for_import(db_map, data, make_cache):
+def _get_tool_feature_methods_for_import(db_map, data, make_cache, unparse_value):
     cache = make_cache({"tool_feature_method"}, include_ancestors=True)
     tool_feature_method_ids = {
         (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
@@ -564,9 +567,7 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
         )
         parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
         value_index_list = parameter_value_list.get("value_index_list", [])
-        if isinstance(method, list) and len(method) == 2:
-            # Method is probably coming through DB server.
-            method = from_database(*method)
+        method = from_database(*unparse_value(method))
         method_index = next(
             iter(index for index in value_index_list if list_values.get((parameter_value_list_id, index)) == method),
             None,
