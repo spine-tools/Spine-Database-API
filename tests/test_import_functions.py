@@ -17,6 +17,8 @@ Unit tests for import_functions.py.
 """
 
 import unittest
+
+from spinedb_api.spine_db_server import _unparse_value
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
@@ -256,6 +258,20 @@ class TestImportObjectClassParameter(unittest.TestCase):
         _, errors = import_object_parameters(db_map, [["object_class", "parameter"]])
         self.assertIn("parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
         self.assertFalse(errors)
+        db_map.connection.close()
+
+    def test_import_object_class_parameter_with_null_default_value_and_db_server_unparsing(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ["object_class"])
+        _, errors = import_object_parameters(
+            db_map, [["object_class", "parameter", [None, None]]], unparse_value=_unparse_value
+        )
+        self.assertEqual(errors, [])
+        db_map.commit_session("Add test data.")
+        parameters = db_map.query(db_map.object_parameter_definition_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertIsNone(parameters[0].default_value)
+        self.assertIsNone(parameters[0].default_type)
         db_map.connection.close()
 
 

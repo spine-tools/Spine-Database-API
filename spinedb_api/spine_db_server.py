@@ -47,7 +47,7 @@ def _parse_value(v, value_type=None):
 def _unparse_value(value_and_type):
     if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
         value, type_ = value_and_type
-        if isinstance(value, bytes) and (isinstance(type_, str) or type_ is None):
+        if value is None or (isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)):
             # Tuple of value and type ready to go
             return value, type_
     # JSON object
@@ -351,8 +351,9 @@ class _ServerManager:
     def tear_down(self):
         for server_url in self._servers:
             self.shutdown_server(server_url)
-        self._process.terminate()
-        self._process.join()
+        if self._started:
+            self._process.terminate()
+            self._process.join()
 
 
 _server_manager = _ServerManager()
