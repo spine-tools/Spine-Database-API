@@ -564,6 +564,9 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache):
         )
         parameter_value_list = parameter_value_lists.get(parameter_value_list_id, {})
         value_index_list = parameter_value_list.get("value_index_list", [])
+        if isinstance(method, list) and len(method) == 2:
+            # Method is probably coming through DB server.
+            method = from_database(*method)
         method_index = next(
             iter(index for index in value_index_list if list_values.get((parameter_value_list_id, index)) == method),
             None,

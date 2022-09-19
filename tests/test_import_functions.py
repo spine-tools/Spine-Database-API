@@ -1183,6 +1183,24 @@ class TestImportToolFeatureMethod(unittest.TestCase):
         self.assertTrue(errors)
         db_map.connection.close()
 
+    def test_tool_feature_method_with_db_server_style_method(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        self.populate(db_map)
+        db_map.commit_session("Add test data.")
+        count, errors = import_tool_feature_methods(
+            db_map, [["tool1", "object_class1", "parameter1", [b'"value1"', None]]]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        tool_feature_methods = db_map.query(db_map.ext_tool_feature_method_sq).all()
+        self.assertEqual(len(tool_feature_methods), 1)
+        self.assertEqual(tool_feature_methods[0].entity_class_name, "object_class1")
+        self.assertEqual(from_database(tool_feature_methods[0].method), "value1")
+        self.assertEqual(tool_feature_methods[0].parameter_definition_name, "parameter1")
+        self.assertEqual(tool_feature_methods[0].parameter_value_list_name, "value_list")
+        self.assertEqual(tool_feature_methods[0].tool_name, "tool1")
+        db_map.connection.close()
+
 
 class TestImportMetadata(unittest.TestCase):
     def test_import_metadata(self):
