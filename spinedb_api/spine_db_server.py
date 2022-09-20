@@ -299,6 +299,10 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     def _connection_count(self):
         return self.server.connection_count
 
+    @_connection_count.setter
+    def _connection_count(self, connection_count):
+        self.server.connection_count = connection_count
+
     def handle(self):
         request = self._recvall()
         response = self.handle_request(request)
