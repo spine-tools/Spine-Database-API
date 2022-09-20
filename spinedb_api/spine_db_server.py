@@ -324,35 +324,62 @@ class _ServerManager:
         self._process = mp.Process(target=self._do_work)
         self._process.daemon = True
         self._started = False
+        self._server_urls = []
 
     def _do_work(self):
+        handlers = {"start_server": self._do_start_server, "shutdown_server": self._do_shutdown_server}
         while True:
-            db_url, upgrade, memory = self._in_queue.get()
-            host = "127.0.0.1"
-            with socketserver.TCPServer((host, 0), None) as s:
-                port = s.server_address[1]
-            server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-            server = self._servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
-            server_thread = threading.Thread(target=server.serve_forever)
-            server_thread.daemon = True
-            server_thread.start()
-            self._out_queue.put(server_url)
+            request, args = self._in_queue.get()
+            handler = handlers.get(request)
+            result = None if handler is None else handler(*args)
+            self._out_queue.put(result)
 
-    def start_server(self, db_url, upgrade, memory):
+    def _do_start_server(self, db_url, upgrade, memory):
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
+            port = s.server_address[1]
+        server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
+        server = self._servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
+        server_thread = threading.Thread(target=server.serve_forever)
+        server_thread.daemon = True
+        server_thread.start()
+        return server_url
+
+    def _do_shutdown_server(self, server_url):
+        server = self._servers.pop(server_url, None)
+        if server is None:
+            return False
+        _teardown_server(server_url, server)
+        return True
+
+    def _start_process(self):
         with self._started_lock:
             if not self._started:
                 self._started = True
                 self._process.start()
-        self._in_queue.put((db_url, upgrade, memory))
-        return self._out_queue.get()
 
-    def shutdown_server(self, server_url):
-        server = self._servers.pop(server_url, None)
-        if server is not None:
-            _teardown_server(server_url, server)
+    def start_server(self, db_url, upgrade, memory, use_process=False):
+        if use_process:
+            self._start_process()
+            self._in_queue.put(("start_server", (db_url, upgrade, memory)))
+            server_url = self._out_queue.get()
+        else:
+            server_url = self._do_start_server(db_url, upgrade, memory)
+        self._server_urls.append(server_url)
+        return server_url
+
+    def shutdown_server(self, server_url, use_process=False):
+        if use_process:
+            self._start_process()
+            self._in_queue.put(("shutdown_server", (server_url,)))
+            success = self._out_queue.get()
+        else:
+            success = self._do_shutdown_server(server_url)
+        if success:
+            self._server_urls.remove(server_url)
 
     def tear_down(self):
-        for server_url in self._servers:
+        for server_url in list(self._server_urls):
             self.shutdown_server(server_url)
         if self._started:
             self._process.terminate()
