@@ -146,12 +146,12 @@ class HandleDBMixin:
             dict: where result is True if the db_map was created successfully.
         """
         if self._db_url in _open_db_maps:
-            self.server.connection_count += 1
+            self._connection_count += 1
             return dict(result=True)
         db_map, error = self._make_db_map()
         if error:
             return dict(error=str(error))
-        self.server.connection_count += 1
+        self._connection_count += 1
         _open_db_maps[self._db_url] = db_map
         return dict(result=True)
 
@@ -161,8 +161,8 @@ class HandleDBMixin:
         Returns:
             dict: where result is always True
         """
-        self.server.connection_count -= 1
-        if self.server.connection_count == 0:
+        self._connection_count -= 1
+        if self._connection_count <= 0:
             db_map = _open_db_maps.pop(self._db_url, None)
             if db_map is not None:
                 db_map.connection.close()
@@ -271,6 +271,7 @@ class DBHandler(HandleDBMixin):
         self._db_url = db_url
         self._upgrade = upgrade
         self._memory = False
+        self._connection_count = 0
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
@@ -293,6 +294,10 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     @property
     def _memory(self):
         return self.server.memory
+
+    @property
+    def _connection_count(self):
+        return self.server.connection_count
 
     def handle(self):
         request = self._recvall()
