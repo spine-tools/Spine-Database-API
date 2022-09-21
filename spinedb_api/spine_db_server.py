@@ -324,8 +324,9 @@ class SpineDBServer(socketserver.TCPServer):
 
 
 class _ServerManager:
+    _lock = threading.Lock()
+
     def __init__(self):
-        self._lock = threading.Lock()
         self._servers = {}
         self._in_queue = mp.Queue()
         self._out_queue = mp.Queue()
