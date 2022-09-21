@@ -324,19 +324,21 @@ class SpineDBServer(socketserver.TCPServer):
 
 
 class _ServerManager:
-    _started_lock = threading.Lock()
-
     def __init__(self):
+        self._lock = threading.Lock()
         self._servers = {}
         self._in_queue = mp.Queue()
         self._out_queue = mp.Queue()
         self._process = mp.Process(target=self._do_work)
         self._process.daemon = True
-        self._started = False
-        self._server_urls = []
+        self._process.start()
 
     def _do_work(self):
-        handlers = {"start_server": self._do_start_server, "shutdown_server": self._do_shutdown_server}
+        handlers = {
+            "start_server": self._do_start_server,
+            "shutdown_server": self._do_shutdown_server,
+            "shutdown_servers": self._do_shutdown_servers,
+        }
         while True:
             request, args = self._in_queue.get()
             handler = handlers.get(request)
@@ -358,44 +360,36 @@ class _ServerManager:
         server = self._servers.pop(server_url, None)
         if server is None:
             return False
-        _teardown_server(server_url, server)
+        SpineDBClient.from_server_url(server_url).close_connection()
+        server.shutdown()
+        server.server_close()
         return True
 
-    def _start_process(self):
-        with self._started_lock:
-            if not self._started:
-                self._started = True
-                self._process.start()
+    def _do_shutdown_servers(self):
+        return all(self._do_shutdown_server(server_url) for server_url in list(self._servers))
 
-    def start_server(self, db_url, upgrade, memory, use_process=False):
-        if use_process:
-            self._start_process()
+    def start_server(self, db_url, upgrade, memory):
+        with self._lock:
             self._in_queue.put(("start_server", (db_url, upgrade, memory)))
-            server_url = self._out_queue.get()
-        else:
-            server_url = self._do_start_server(db_url, upgrade, memory)
-        self._server_urls.append(server_url)
-        return server_url
+            return self._out_queue.get()
 
-    def shutdown_server(self, server_url, use_process=False):
-        if use_process:
-            self._start_process()
-            self._in_queue.put(("shutdown_server", (server_url,)))
-            success = self._out_queue.get()
-        else:
-            success = self._do_shutdown_server(server_url)
-        if success:
-            self._server_urls.remove(server_url)
+    def shutdown_server(self, server_url):
+        self._in_queue.put(("shutdown_server", (server_url,)))
+        return self._out_queue.get()
+
+    def shutdown_servers(self):
+        self._in_queue.put(("shutdown_servers", ()))
+        return self._out_queue.get()
 
     def tear_down(self):
-        for server_url in list(self._server_urls):
-            self.shutdown_server(server_url)
-        if self._started:
-            self._process.terminate()
-            self._process.join()
+        self.shutdown_servers()
+        self._process.terminate()
+        self._process.join()
 
 
-_server_manager = _ServerManager()
+if mp.current_process().name == 'MainProcess':
+    _server_manager = _ServerManager()
+    atexit.register(_server_manager.tear_down)
 
 
 def start_spine_db_server(db_url, upgrade=False, memory=False):
@@ -415,12 +409,6 @@ def shutdown_spine_db_server(server_url):
     _server_manager.shutdown_server(server_url)
 
 
-def _teardown_server(server_url, server):
-    SpineDBClient.from_server_url(server_url).close_connection()
-    server.shutdown()
-    server.server_close()
-
-
 @contextmanager
 def closing_spine_db_server(db_url, upgrade=False, memory=False):
     server_url = start_spine_db_server(db_url, memory=memory)
@@ -433,6 +421,3 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False):
         if memory:
             client.close_connection()
         shutdown_spine_db_server(server_url)
-
-
-atexit.register(_server_manager.tear_down)
