@@ -102,7 +102,6 @@ class _OrderingManager(_Executor):
             return
         queue = self._manager.Queue()
         self._waiters.setdefault(ordering["id"], {})[queue] = precursors
-        print("WAITING", ordering)
         return queue
 
     def _do_db_checkout(self, server_url):
@@ -111,7 +110,6 @@ class _OrderingManager(_Executor):
             return
         checkouts = self._checkouts.setdefault(ordering["id"], set())
         checkouts.add(ordering["consumer"])
-        print("CHECKOUT", ordering)
         waiters = self._waiters.get(ordering["id"], dict())
         done = [q for q, precursors in waiters.items() if all(p in checkouts for p in precursors)]
         for queue in done:
