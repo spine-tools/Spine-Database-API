@@ -37,7 +37,7 @@ class SpineDBClient(ReceiveAllMixing):
     def from_server_url(cls, url):
         parsed = urlparse(url)
         if parsed.scheme != "http":
-            return url
+            raise ValueError(f"unable to create client, invalid server url {url}")
         return cls((parsed.hostname, parsed.port))
 
     def get_db_url(self):
@@ -46,6 +46,12 @@ class SpineDBClient(ReceiveAllMixing):
             str: The underlying db url from the server
         """
         return self._send("get_db_url")
+
+    def db_checkin(self):
+        return self._send("db_checkin")
+
+    def db_checkout(self):
+        return self._send("db_checkout")
 
     def open_connection(self):
         return self._send("open_connection")

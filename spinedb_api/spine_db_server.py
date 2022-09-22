@@ -1,9 +1,9 @@
 ######################################################################################################################
 # Copyright (C) 2017-2021 Spine project consortium
-# This file is part of Spine Engine.
-# Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
-# Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
-# any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# This file is part of Spine Database API.
+# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
+# General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
@@ -38,6 +38,102 @@ from .spine_db_client import SpineDBClient
 
 _required_client_version = 5
 _open_db_maps = {}
+
+
+class _Executor:
+    _lock = mp.Lock()
+
+    def __init__(self):
+        self._in_queue = mp.Queue()
+        self._out_queue = mp.Queue()
+        self._process = mp.Process(target=self._do_work)
+        self._process.daemon = True
+
+    def set_up(self):
+        self._process.start()
+
+    def tear_down(self):
+        self._process.terminate()
+        self._process.join()
+
+    @property
+    def _handlers(self):
+        raise NotImplementedError
+
+    def _run_request(self, request, *args):
+        with self._lock:
+            self._in_queue.put((request, args))
+            return self._out_queue.get()
+
+    def _do_work(self):
+        while True:
+            request, args = self._in_queue.get()
+            handler = self._handlers.get(request)
+            result = None if handler is None else handler(*args)
+            self._out_queue.put(result)
+
+
+class _OrderingManager(_Executor):
+    def __init__(self):
+        super().__init__()
+        self._manager = mp.Manager()
+        self._orderings = {}
+        self._checkouts = {}
+        self._waiters = {}
+
+    @property
+    def _handlers(self):
+        return {
+            "register_ordering": self._do_register_ordering,
+            "db_checkin": self._do_db_checkin,
+            "db_checkout": self._do_db_checkout,
+        }
+
+    def _do_register_ordering(self, server_url, ordering):
+        self._orderings[server_url] = ordering
+
+    def _do_db_checkin(self, server_url):
+        ordering = self._orderings.get(server_url)
+        if not ordering:
+            return
+        checkouts = self._checkouts.get(ordering["id"], set())
+        precursors = ordering["precursors"]
+        if all(p in checkouts for p in precursors):
+            return
+        queue = self._manager.Queue()
+        self._waiters.setdefault(ordering["id"], {})[queue] = precursors
+        print("WAITING", ordering)
+        return queue
+
+    def _do_db_checkout(self, server_url):
+        ordering = self._orderings.get(server_url)
+        if not ordering:
+            return
+        checkouts = self._checkouts.setdefault(ordering["id"], set())
+        checkouts.add(ordering["consumer"])
+        print("CHECKOUT", ordering)
+        waiters = self._waiters.get(ordering["id"], dict())
+        done = [q for q, precursors in waiters.items() if all(p in checkouts for p in precursors)]
+        for queue in done:
+            del waiters[queue]
+            queue.put(None)
+
+    def register_ordering(self, server_url, ordering):
+        return self._run_request("register_ordering", server_url, ordering)
+
+    def db_checkin(self, server_url):
+        waiting_queue = self._run_request("db_checkin", server_url)
+        if waiting_queue:
+            waiting_queue.get()
+
+    def db_checkout(self, server_url):
+        return self._run_request("db_checkout", server_url)
+
+
+if mp.current_process().name == 'MainProcess':
+    _ordering_manager = _OrderingManager()
+    _ordering_manager.set_up()
+    atexit.register(_ordering_manager.tear_down)
 
 
 def _parse_value(v, value_type=None):
@@ -216,6 +312,14 @@ class HandleDBMixin:
         self._update_db_url(new_db_url)
         return dict(result=True)
 
+    def db_checkin(self):
+        _ordering_manager.db_checkin(self._server_url)
+        return dict(result=True)
+
+    def db_checkout(self):
+        _ordering_manager.db_checkout(self._server_url)
+        return dict(result=True)
+
     def _update_db_url(self, new_db_url, config=None):
         db_map = _open_db_maps.pop(self._db_url, None)
         if db_map is not None:
@@ -253,6 +357,8 @@ class HandleDBMixin:
             "close_connection": self.close_connection,
             "apply_filters": self.apply_filters,
             "clear_filters": self.clear_filters,
+            "db_checkin": self.db_checkin,
+            "db_checkout": self.db_checkout,
         }.get(request)
         if handler is None:
             return dict(error=f"invalid request '{request}'")
@@ -272,6 +378,7 @@ class DBHandler(HandleDBMixin):
         self._upgrade = upgrade
         self._memory = False
         self._connection_count = 0
+        self._server_url = None
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
@@ -303,6 +410,10 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     def _connection_count(self, connection_count):
         self.server.connection_count = connection_count
 
+    @property
+    def _server_url(self):
+        return self.server.server_url
+
     def handle(self):
         request = self._recvall()
         response = self.handle_request(request)
@@ -315,43 +426,36 @@ class SpineDBServer(socketserver.TCPServer):
     # and sqlite objects can only be used in the same thread where they were created.
     allow_reuse_address = True
 
-    def __init__(self, server_address, RequestHandlerClass, db_url, upgrade, memory):
+    def __init__(self, server_address, RequestHandlerClass, db_url, upgrade, memory, server_url):
         super().__init__(server_address, RequestHandlerClass)
         self.db_url = db_url
         self.upgrade = upgrade
         self.memory = memory
         self.connection_count = 0
+        self.server_url = server_url
 
 
-class _ServerManager:
-    _lock = threading.Lock()
-
+class _ServerManager(_Executor):
     def __init__(self):
+        super().__init__()
         self._servers = {}
-        self._in_queue = mp.Queue()
-        self._out_queue = mp.Queue()
-        self._process = mp.Process(target=self._do_work)
-        self._process.daemon = True
-        self._process.start()
 
-    def _do_work(self):
-        handlers = {
+    @property
+    def _handlers(self):
+        return {
             "start_server": self._do_start_server,
             "shutdown_server": self._do_shutdown_server,
             "shutdown_servers": self._do_shutdown_servers,
         }
-        while True:
-            request, args = self._in_queue.get()
-            handler = handlers.get(request)
-            result = None if handler is None else handler(*args)
-            self._out_queue.put(result)
 
     def _do_start_server(self, db_url, upgrade, memory):
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
             port = s.server_address[1]
         server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-        server = self._servers[server_url] = SpineDBServer((host, port), DBRequestHandler, db_url, upgrade, memory)
+        server = self._servers[server_url] = SpineDBServer(
+            (host, port), DBRequestHandler, db_url, upgrade, memory, server_url
+        )
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
@@ -370,30 +474,26 @@ class _ServerManager:
         return all(self._do_shutdown_server(server_url) for server_url in list(self._servers))
 
     def start_server(self, db_url, upgrade, memory):
-        with self._lock:
-            self._in_queue.put(("start_server", (db_url, upgrade, memory)))
-            return self._out_queue.get()
+        return self._run_request("start_server", db_url, upgrade, memory)
 
     def shutdown_server(self, server_url):
-        self._in_queue.put(("shutdown_server", (server_url,)))
-        return self._out_queue.get()
+        return self._run_request("shutdown_server", server_url)
 
     def shutdown_servers(self):
-        self._in_queue.put(("shutdown_servers", ()))
-        return self._out_queue.get()
+        return self._run_request("shutdown_servers")
 
     def tear_down(self):
         self.shutdown_servers()
-        self._process.terminate()
-        self._process.join()
+        super().tear_down()
 
 
 if mp.current_process().name == 'MainProcess':
     _server_manager = _ServerManager()
+    _server_manager.set_up()
     atexit.register(_server_manager.tear_down)
 
 
-def start_spine_db_server(db_url, upgrade=False, memory=False):
+def start_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
     """
     Args:
         db_url (str): Spine db url
@@ -403,7 +503,9 @@ def start_spine_db_server(db_url, upgrade=False, memory=False):
     Returns:
         str: server url (e.g. http://127.0.0.1:54321)
     """
-    return _server_manager.start_server(db_url, upgrade, memory)
+    server_url = _server_manager.start_server(db_url, upgrade, memory)
+    _ordering_manager.register_ordering(server_url, ordering)
+    return server_url
 
 
 def shutdown_spine_db_server(server_url):
@@ -411,8 +513,8 @@ def shutdown_spine_db_server(server_url):
 
 
 @contextmanager
-def closing_spine_db_server(db_url, upgrade=False, memory=False):
-    server_url = start_spine_db_server(db_url, memory=memory)
+def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
+    server_url = start_spine_db_server(db_url, memory=memory, ordering=ordering)
     if memory:
         client = SpineDBClient.from_server_url(server_url)
         client.open_connection()
@@ -422,3 +524,11 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False):
         if memory:
             client.close_connection()
         shutdown_spine_db_server(server_url)
+
+
+def db_checkin(server_url):
+    _server_manager.db_checkin(server_url)
+
+
+def db_checkout(server_url):
+    _server_manager.db_checkout(server_url)
