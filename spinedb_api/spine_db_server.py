@@ -47,7 +47,6 @@ class _Executor:
         self._in_queue = mp.Queue()
         self._out_queue = mp.Queue()
         self._process = mp.Process(target=self._do_work)
-        self._process.daemon = True
 
     def set_up(self):
         self._process.start()
