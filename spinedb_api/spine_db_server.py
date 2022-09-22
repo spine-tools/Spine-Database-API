@@ -76,7 +76,6 @@ class _Executor:
 class _OrderingManager(_Executor):
     def __init__(self):
         super().__init__()
-        self._manager = mp.Manager()
         self._orderings = {}
         self._checkouts = {}
         self._waiters = {}
@@ -100,7 +99,7 @@ class _OrderingManager(_Executor):
         precursors = ordering["precursors"]
         if all(p in checkouts for p in precursors):
             return
-        queue = self._manager.Queue()
+        queue = mp.Manager().Queue()
         self._waiters.setdefault(ordering["id"], {})[queue] = precursors
         return queue
 
