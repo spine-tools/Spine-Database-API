@@ -36,19 +36,20 @@ def _ids_for_item_type(db_map, item_type):
     return {row.id for row in db_map.query(getattr(db_map, sq_attr))}
 
 
-def purge_url(url, purge_settings, logger):
+def purge_url(url, purge_settings, logger=None):
     try:
         db_map = DatabaseMapping(url)
     except (SpineDBAPIError, SpineDBVersionError) as err:
         sanitized_url = clear_filter_configs(remove_credentials_from_url(url))
-        logger.msg_warning.emit(f"Failed to purge url <b>{sanitized_url}</b>: {err}")
+        if logger:
+            logger.msg_warning.emit(f"Failed to purge url <b>{sanitized_url}</b>: {err}")
         return False
-    success = purge(db_map, purge_settings, logger)
+    success = purge(db_map, purge_settings, logger=logger)
     db_map.connection.close()
     return success
 
 
-def purge(db_map, purge_settings, logger):
+def purge(db_map, purge_settings, logger=None):
     """Removes items from database.
 
     Args:
@@ -68,11 +69,14 @@ def purge(db_map, purge_settings, logger):
     removable_db_map_data = {item_type: ids for item_type, ids in removable_db_map_data.items() if ids}
     if removable_db_map_data:
         try:
-            logger.msg.emit("Purging database...")
+            if logger:
+                logger.msg.emit("Purging database...")
             db_map.cascade_remove_items(**removable_db_map_data)
             db_map.commit_session("Purge database")
-            logger.msg.emit("Database purged")
+            if logger:
+                logger.msg.emit("Database purged")
         except SpineDBAPIError:
-            logger.msg_error.emit("Failed to purge database.")
+            if logger:
+                logger.msg_error.emit("Failed to purge database.")
             return False
     return True
