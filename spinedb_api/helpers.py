@@ -19,6 +19,7 @@ General helper functions and classes.
 import os
 import json
 import warnings
+from urllib.parse import urlparse, urlunparse
 from sqlalchemy import (
     Boolean,
     BigInteger,
@@ -74,7 +75,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2 ** 32 - 1
+LONGTEXT_LENGTH = 2**32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -969,3 +970,18 @@ def vacuum(url):
         freed /= 1e3
         k += 1
     return freed, units[k]
+
+
+def remove_credentials_from_url(url):
+    """Removes username and password information from URLs.
+
+    Args:
+        url (str): URL
+
+    Returns:
+        str: sanitized URL
+    """
+    parsed = urlparse(url)
+    if parsed.username is None:
+        return url
+    return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
