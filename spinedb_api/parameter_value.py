@@ -43,7 +43,7 @@ from .exception import ParameterValueFormatError
 
 # Defaulting to seconds precision in numpy.
 _NUMPY_DATETIME_DTYPE = "datetime64[s]"
-_NUMPY_DATETIME64_UNIT = "s"
+NUMPY_DATETIME64_UNIT = "s"
 # Default start time guess, actual value not currently given in the JSON specification.
 _TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
 # Default resolution if it is omitted from the index entry.
@@ -403,7 +403,7 @@ def _time_series_from_dictionary(value_dict):
     values = np.empty(len(data))
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
-            stamp = np.datetime64(stamp, _NUMPY_DATETIME64_UNIT)
+            stamp = np.datetime64(stamp, NUMPY_DATETIME64_UNIT)
         except ValueError:
             raise ParameterValueFormatError(f'Could not decode time stamp "{stamp}"')
         stamps.append(stamp)
@@ -479,7 +479,7 @@ def _time_series_from_two_columns(value_dict):
         if not isinstance(element, Sequence) or len(element) != 2:
             raise ParameterValueFormatError("Invalid value in time series array")
         try:
-            stamp = np.datetime64(element[0], _NUMPY_DATETIME64_UNIT)
+            stamp = np.datetime64(element[0], NUMPY_DATETIME64_UNIT)
         except ValueError:
             raise ParameterValueFormatError(f'Could not decode time stamp "{element[0]}"')
         stamps.append(stamp)
@@ -1277,10 +1277,10 @@ class TimeSeriesVariableResolution(TimeSeries):
             date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
             for i, index in enumerate(indexes):
                 if isinstance(index, DateTime):
-                    date_times[i] = np.datetime64(index.value, _NUMPY_DATETIME64_UNIT)
+                    date_times[i] = np.datetime64(index.value, NUMPY_DATETIME64_UNIT)
                 else:
                     try:
-                        date_times[i] = np.datetime64(index, _NUMPY_DATETIME64_UNIT)
+                        date_times[i] = np.datetime64(index, NUMPY_DATETIME64_UNIT)
                     except ValueError:
                         raise ParameterValueFormatError(
                             f'Cannot convert "{index}" of type {type(index).__name__} to time stamp.'
