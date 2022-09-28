@@ -139,7 +139,7 @@ class _ExecutionFilterState:
             scenarios = execution["scenarios"]
             timestamp = execution["timestamp"]
         except KeyError as e:
-            raise SpineDBAPIError(f"Key '{e}' not found in execution filter descriptor.")
+            raise SpineDBAPIError(f"Key '{e}' not found in execution filter descriptor.") from e
         if not isinstance(scenarios, list):
             raise SpineDBAPIError("Key 'scenarios' should contain a list.")
         return execution_item, scenarios, timestamp

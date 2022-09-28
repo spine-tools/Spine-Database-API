@@ -2251,3 +2251,6 @@ class DatabaseMappingBase:
         table.drop(self.connection, checkfirst=True)
         table.create(self.connection)
         return table
+
+    def get_filter_configs(self):
+        return self._filter_configs
