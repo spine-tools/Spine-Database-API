@@ -33,6 +33,9 @@ from ..parameter_value import (
 from ..exception import ParameterValueFormatError
 
 
+_NO_VALUE = object()
+
+
 def get_mapped_data(
     data_source,
     mappings,
@@ -260,7 +263,10 @@ def _make_parameter_values(mapped_data, unparse_value):
             continue
         valued_rows = []
         for row in rows:
-            value = unparse_value(_make_value(row, value_pos))
+            raw_value = _make_value(row, value_pos)
+            if raw_value is _NO_VALUE:
+                continue
+            value = unparse_value(raw_value)
             if value is not None:
                 row[value_pos] = value
                 valued_rows.append(row)
@@ -289,7 +295,7 @@ def _make_value(row, value_pos):
         return None
     if isinstance(value, dict):
         if "data" not in value:
-            return None
+            return _NO_VALUE
         return _parameter_value_from_dict(value)
     if isinstance(value, str):
         try:

@@ -165,6 +165,37 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(mapped_data, {})
 
+    def test_map_without_values_is_ignored_and_not_interpreted_as_null(self):
+        data_source = iter([["map index", "parameter_name"], ["t1", None]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "o"},
+                {"map_type": "Object", "position": "hidden", "value": "o1"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": -1},
+                {"map_type": "Alternative", "position": "hidden", "value": "base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": 0},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"base"},
+                "object_classes": {"o"},
+                "object_parameters": [("o", "parameter_name")],
+                "object_parameter_values": [],
+                "objects": {("o", "o1")},
+            },
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
