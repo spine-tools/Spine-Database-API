@@ -96,31 +96,33 @@ class _OrderingManager(_Executor):
             return
         checkouts = self._checkouts.get(ordering["id"], set())
         precursors = ordering["precursors"]
-        if all(p in checkouts for p in precursors):
+        if precursors <= checkouts:
             return
-        queue = mp.Manager().Queue()
-        self._waiters.setdefault(ordering["id"], {})[queue] = precursors
-        return queue
+        event = mp.Manager().Event()
+        self._waiters.setdefault(ordering["id"], {})[event] = precursors
+        return event
 
     def _do_db_checkout(self, server_url):
         ordering = self._orderings.get(server_url)
         if not ordering:
             return
         checkouts = self._checkouts.setdefault(ordering["id"], set())
-        checkouts.add(ordering["consumer"])
+        checkouts.add(ordering["current"])
         waiters = self._waiters.get(ordering["id"], dict())
-        done = [q for q, precursors in waiters.items() if all(p in checkouts for p in precursors)]
-        for queue in done:
-            del waiters[queue]
-            queue.put(None)
+        done = [q for q, precursors in waiters.items() if precursors <= checkouts]
+        for event in done:
+            del waiters[event]
+            event.set()
+        if checkouts == ordering["all"]:
+            del self._checkouts[ordering["id"]]
 
     def register_ordering(self, server_url, ordering):
         return self._run_request("register_ordering", server_url, ordering)
 
     def db_checkin(self, server_url):
-        waiting_queue = self._run_request("db_checkin", server_url)
-        if waiting_queue:
-            waiting_queue.get()
+        event = self._run_request("db_checkin", server_url)
+        if event:
+            event.wait()
 
     def db_checkout(self, server_url):
         return self._run_request("db_checkout", server_url)
