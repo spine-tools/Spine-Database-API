@@ -522,11 +522,3 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
         if memory:
             client.close_connection()
         shutdown_spine_db_server(server_url)
-
-
-def db_checkin(server_url):
-    _server_manager.db_checkin(server_url)
-
-
-def db_checkout(server_url):
-    _server_manager.db_checkout(server_url)
