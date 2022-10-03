@@ -94,9 +94,10 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_url)
         if not ordering:
             return
-        checkouts = self._checkouts.get(ordering["id"], set())
+        checkouts = self._checkouts.get(ordering["id"], dict())
+        full_checkouts = set(x for x, count in checkouts.items() if count == ordering["part_count"])
         precursors = ordering["precursors"]
-        if precursors <= checkouts:
+        if precursors <= full_checkouts:
             return
         event = mp.Manager().Event()
         self._waiters.setdefault(ordering["id"], {})[event] = precursors
@@ -106,10 +107,14 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_url)
         if not ordering:
             return
-        checkouts = self._checkouts.setdefault(ordering["id"], set())
-        checkouts.add(ordering["current"])
+        checkouts = self._checkouts.setdefault(ordering["id"], dict())
+        if ordering["current"] not in checkouts:
+            checkouts[ordering["current"]] = 1
+        else:
+            checkouts[ordering["current"]] += 1
+        full_checkouts = set(x for x, count in checkouts.items() if count == ordering["part_count"])
         waiters = self._waiters.get(ordering["id"], dict())
-        done = [q for q, precursors in waiters.items() if precursors <= checkouts]
+        done = [q for q, precursors in waiters.items() if precursors <= full_checkouts]
         for event in done:
             del waiters[event]
             event.set()
