@@ -53,6 +53,9 @@ class SpineDBClient(ReceiveAllMixing):
     def db_checkout(self):
         return self._send("db_checkout")
 
+    def cancel_db_checkout(self):
+        return self._send("cancel_db_checkout")
+
     def open_connection(self):
         return self._send("open_connection")
 

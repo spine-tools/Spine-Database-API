@@ -85,6 +85,7 @@ class _OrderingManager(_Executor):
             "register_ordering": self._do_register_ordering,
             "db_checkin": self._do_db_checkin,
             "db_checkout": self._do_db_checkout,
+            "cancel_db_checkout": self._do_cancel_db_checkout,
         }
 
     def _do_register_ordering(self, server_url, ordering):
@@ -114,12 +115,17 @@ class _OrderingManager(_Executor):
             checkouts[ordering["current"]] += 1
         full_checkouts = set(x for x, count in checkouts.items() if count == ordering["part_count"])
         waiters = self._waiters.get(ordering["id"], dict())
-        done = [q for q, precursors in waiters.items() if precursors <= full_checkouts]
+        done = [event for event, precursors in waiters.items() if precursors <= full_checkouts]
         for event in done:
             del waiters[event]
             event.set()
-        if checkouts == ordering["all"]:
-            del self._checkouts[ordering["id"]]
+
+    def _do_cancel_db_checkout(self, server_url):
+        ordering = self._orderings.get(server_url)
+        if not ordering:
+            return
+        checkouts = self._checkouts.get(ordering["id"], dict())
+        checkouts.pop(ordering["current"], None)
 
     def register_ordering(self, server_url, ordering):
         return self._run_request("register_ordering", server_url, ordering)
@@ -131,6 +137,9 @@ class _OrderingManager(_Executor):
 
     def db_checkout(self, server_url):
         return self._run_request("db_checkout", server_url)
+
+    def cancel_db_checkout(self, server_url):
+        return self._run_request("cancel_db_checkout", server_url)
 
 
 if mp.current_process().name == 'MainProcess':
@@ -323,6 +332,10 @@ class HandleDBMixin:
         _ordering_manager.db_checkout(self._server_url)
         return dict(result=True)
 
+    def cancel_db_checkout(self):
+        _ordering_manager.cancel_db_checkout(self._server_url)
+        return dict(result=True)
+
     def _update_db_url(self, new_db_url, config=None):
         db_map = _open_db_maps.pop(self._db_url, None)
         if db_map is not None:
@@ -362,6 +375,7 @@ class HandleDBMixin:
             "clear_filters": self.clear_filters,
             "db_checkin": self.db_checkin,
             "db_checkout": self.db_checkout,
+            "cancel_db_checkout": self.cancel_db_checkout,
         }.get(request)
         if handler is None:
             return dict(error=f"invalid request '{request}'")
