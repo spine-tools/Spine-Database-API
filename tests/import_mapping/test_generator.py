@@ -196,6 +196,48 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_everything_gets_imported(self):
+        header = ["time", "relationship 1", "relationship 2", "relationship 3"]
+        data_source = iter([[None, "o1", "o2", "o1"], [None, "q1", "q2", "q2"], ["t1", 11, 33, 55], ["t2", 22, 44, 66]])
+        mappings = [
+            [
+                {"map_type": "RelationshipClass", "position": "hidden", "value": "o_to_q"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "o"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "q"},
+                {"map_type": "Relationship", "position": "hidden", "value": "relationship"},
+                {"map_type": "RelationshipObject", "position": -1, "import_objects": True},
+                {"map_type": "RelationshipObject", "position": -2, "import_objects": True},
+                {"map_type": "RelationshipMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "param"},
+                {"map_type": "Alternative", "position": "hidden", "value": "base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden", "value": "time"},
+                {"map_type": "ParameterValueIndex", "position": 0},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "float", 2: "float", 3: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"base"},
+                "object_classes": {"o", "q"},
+                "objects": {("o", "o1"), ("o", "o2"), ("q", "q1"), ("q", "q2")},
+                "relationship_classes": [("o_to_q", ["o", "q"])],
+                "relationships": {("o_to_q", ("o1", "q1")), ("o_to_q", ("o1", "q2")), ("o_to_q", ("o2", "q2"))},
+                "relationship_parameters": [("o_to_q", "param")],
+                "relationship_parameter_values": [
+                    ["o_to_q", ("o1", "q1"), "param", Map(["t1", "t2"], [11, 22], index_name="time"), "base"],
+                    ["o_to_q", ("o2", "q2"), "param", Map(["t1", "t2"], [33, 44], index_name="time"), "base"],
+                    ["o_to_q", ("o1", "q2"), "param", Map(["t1", "t2"], [55, 66], index_name="time"), "base"],
+                ],
+            },
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
