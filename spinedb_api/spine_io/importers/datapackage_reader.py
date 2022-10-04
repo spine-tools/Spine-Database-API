@@ -106,9 +106,9 @@ class DataPackageConnector(SourceConnection):
                     resource.infer()
             if table == resource.name:
                 iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
-                header = resource.schema.field_names
                 if has_header:
+                    header = resource.schema.field_names
                     return iterator, header
-                return chain([header], iterator), None
+                return chain([resource.headers], iterator), None
         # table not found
         return iter([]), []
