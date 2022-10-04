@@ -16,6 +16,8 @@ Contains DataPackageConnector class.
 :date:   15.11.2020
 """
 import threading
+from itertools import chain
+
 from datapackage import Package
 from .reader import SourceConnection
 
@@ -27,7 +29,7 @@ class DataPackageConnector(SourceConnection):
     DISPLAY_NAME = "Datapackage"
 
     # dict with option specification for source.
-    OPTIONS = {}  # FIXME?
+    OPTIONS = {"has_header": {"type": bool, "label": "Has header", "default": True}}
 
     FILE_EXTENSIONS = "*.json"
 
@@ -97,6 +99,7 @@ class DataPackageConnector(SourceConnection):
         if not self._datapackage:
             return iter([]), []
 
+        has_header = options.get("has_header", True)
         for resource in self._datapackage.resources:
             with self._resource_name_lock:
                 if resource.name is None:
@@ -104,6 +107,8 @@ class DataPackageConnector(SourceConnection):
             if table == resource.name:
                 iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
                 header = resource.schema.field_names
-                return iterator, header
+                if has_header:
+                    return iterator, header
+                return chain([header], iterator), None
         # table not found
         return iter([]), []
