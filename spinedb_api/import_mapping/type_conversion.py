@@ -46,8 +46,7 @@ class ConvertSpec:
     RETURN_TYPE = str
 
     def __call__(self, value):
-        constructor = self.RETURN_TYPE
-        return constructor(value)
+        return self.RETURN_TYPE(value)
 
     def to_json_value(self):
         return self.DISPLAY_NAME
@@ -78,8 +77,7 @@ class BooleanConvertSpec(ConvertSpec):
     RETURN_TYPE = bool
 
     def __call__(self, value):
-        constructor = self.RETURN_TYPE
-        return constructor(strtobool(str(value)))
+        return self.RETURN_TYPE(strtobool(str(value)))
 
 
 class IntegerSequenceDateTimeConvertSpec(ConvertSpec):

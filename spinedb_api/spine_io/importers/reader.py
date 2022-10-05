@@ -17,7 +17,7 @@ Contains a class template for a data source connector used in import ui.
 """
 
 from itertools import islice
-from spinedb_api.import_mapping.generator import get_mapped_data
+from spinedb_api.import_mapping.generator import get_mapped_data, identity
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
 
@@ -105,8 +105,9 @@ class SourceConnection:
         tables_mappings,
         table_options,
         table_column_convert_specs,
+        table_default_column_convert_fns,
         table_row_convert_specs,
-        unparse_value=lambda x: x,
+        unparse_value=identity,
         max_rows=-1,
     ):
         """
@@ -117,7 +118,11 @@ class SourceConnection:
             tables_mappings (dict): mapping from table name to list of import mappings
             table_options (dict): mapping from table name to table-specific import options
             table_column_convert_specs (dict): mapping from table name to column data type conversion settings
+            table_default_column_convert_fns (dict): mapping from table name to
+                default column data type converter
             table_row_convert_specs (dict): mapping from table name to row data type conversion settings
+            unparse_value (Callable): callable that converts imported values to database representation
+            max_rows (int): maximum number of source rows to map
 
         Returns:
             tuple: mapped data and a list of errors, if any
@@ -126,6 +131,7 @@ class SourceConnection:
         errors = []
         for table, named_mapping_specs in tables_mappings.items():
             column_convert_fns = table_column_convert_specs.get(table, {})
+            default_column_convert_fn = table_default_column_convert_fns.get(table)
             row_convert_fns = table_row_convert_specs.get(table, {})
             options = table_options.get(table, {})
             table_max_rows = self._resolve_max_rows(options, max_rows)
@@ -136,7 +142,14 @@ class SourceConnection:
                 mappings.append(mapping)
             try:
                 data, t_errors = get_mapped_data(
-                    data_source, mappings, header, table, column_convert_fns, row_convert_fns, unparse_value
+                    data_source,
+                    mappings,
+                    header,
+                    table,
+                    column_convert_fns,
+                    default_column_convert_fn,
+                    row_convert_fns,
+                    unparse_value,
                 )
             except ParameterValueFormatError as error:
                 errors.append(str(error))

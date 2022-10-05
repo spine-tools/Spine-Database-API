@@ -36,14 +36,27 @@ from ..exception import ParameterValueFormatError
 _NO_VALUE = object()
 
 
+def identity(x):
+    """Returns argument unchanged.
+
+    Args:
+        x (Any): value to return
+
+    Returns:
+        Any: x
+    """
+    return x
+
+
 def get_mapped_data(
     data_source,
     mappings,
     data_header=None,
     table_name="",
     column_convert_fns=None,
+    default_column_convert_fn=None,
     row_convert_fns=None,
-    unparse_value=lambda x: x,
+    unparse_value=identity,
 ):
     """
     Args:
@@ -52,7 +65,9 @@ def get_mapped_data(
         data_header (list, optional): table header
         table_name (str, optional): table name
         column_convert_fns (dict(int,function), optional): mapping from column number to convert function
+        default_column_convert_fn (Callable, optional): default convert function for surplus columns
         row_convert_fns (dict(int,function), optional): mapping from row number to convert function
+        unparse_value (Callable): a callable that converts values to database format
 
     Returns:
         dict: Mapped data, ready for ``import_data()``
@@ -64,16 +79,17 @@ def get_mapped_data(
             mappings[k] = import_mapping_from_dict(mapping)
         elif not isinstance(mapping, ImportMapping):
             raise TypeError(f"mapping must be a dict or ImportMapping subclass, instead got: {type(mapping).__name__}")
-    if column_convert_fns is None:
-        column_convert_fns = {}
-    default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else lambda x: x
-    if row_convert_fns is None:
-        row_convert_fns = {}
     mapped_data = {}
     errors = []
     rows = list(data_source)
     if not rows:
         return mapped_data, errors
+    if column_convert_fns is None:
+        column_convert_fns = {}
+    if row_convert_fns is None:
+        row_convert_fns = {}
+    if default_column_convert_fn is None:
+        default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else identity
     for mapping in mappings:
         read_state = {}
         mapping = deepcopy(mapping)

@@ -196,7 +196,7 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
-    def test_everything_gets_imported(self):
+    def test_import_object_works_with_multiple_relationship_object_imports(self):
         header = ["time", "relationship 1", "relationship 2", "relationship 3"]
         data_source = iter([[None, "o1", "o2", "o1"], [None, "q1", "q2", "q2"], ["t1", 11, 33, 55], ["t2", 22, 44, 66]])
         mappings = [
@@ -235,6 +235,96 @@ class TestGetMappedData(unittest.TestCase):
                     ["o_to_q", ("o2", "q2"), "param", Map(["t1", "t2"], [33, 44], index_name="time"), "base"],
                     ["o_to_q", ("o1", "q2"), "param", Map(["t1", "t2"], [55, 66], index_name="time"), "base"],
                 ],
+            },
+        )
+
+    def test_default_convert_function_in_column_convert_functions(self):
+        data_source = iter([["", "T1", "T2"], ["Parameter_1", "5.0", "99.0"], ["Parameter_2", "2.3", "23.0"]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "klass", "read_start_row": 2},
+                {"map_type": "Object", "position": "hidden", "value": "kloss"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": 0},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": -1},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(
+            data_source, mappings, column_convert_fns=convert_functions, default_column_convert_fn=float
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "object_classes": {"klass"},
+                "object_parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
+                "object_parameters": [("klass", "Parameter_2")],
+                "objects": {("klass", "kloss")},
+            },
+        )
+
+    def test_identity_function_is_used_as_convert_function_when_no_convert_functions_given(self):
+        data_source = iter([["", "T1", "T2"], ["Parameter_1", "5.0", "99.0"], ["Parameter_2", "2.3", "23.0"]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "klass", "read_start_row": 2},
+                {"map_type": "Object", "position": "hidden", "value": "kloss"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": 0},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": -1},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "object_classes": {"klass"},
+                "object_parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], ["2.3", "23.0"])]],
+                "object_parameters": [("klass", "Parameter_2")],
+                "objects": {("klass", "kloss")},
+            },
+        )
+
+    def test_last_convert_function_gets_used_as_default_convert_function_when_no_default_is_set(self):
+        data_source = iter([["", "T1", "T2"], ["Parameter_1", "5.0", "99.0"], ["Parameter_2", "2.3", "23.0"]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "klass", "read_start_row": 2},
+                {"map_type": "Object", "position": "hidden", "value": "kloss"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": 0},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": -1},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "object_classes": {"klass"},
+                "object_parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
+                "object_parameters": [("klass", "Parameter_2")],
+                "objects": {("klass", "kloss")},
             },
         )
 

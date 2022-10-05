@@ -160,7 +160,7 @@ def get_mapped_data_from_xlsx(filepath):
     }
     table_types = table_row_types = dict.fromkeys(mapping["selected_tables"], {})
     mapped_data, errors = connector.get_mapped_data(
-        table_mappings, table_options, table_types, table_row_types, max_rows=-1
+        table_mappings, table_options, table_types, {}, table_row_types, max_rows=-1
     )
     connector.disconnect()
     return mapped_data, errors
