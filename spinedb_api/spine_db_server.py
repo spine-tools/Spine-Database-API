@@ -23,6 +23,9 @@ import multiprocessing as mp
 import threading
 import atexit
 import traceback
+import time
+import uuid
+from queue import Queue
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
@@ -33,17 +36,28 @@ from .server_client_helpers import ReceiveAllMixing, encode, decode
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
 from .filters.alternative_filter import alternative_filter_config
-from .filters.tools import append_filter_config, clear_filter_configs, apply_filter_stack
-from .spine_db_client import SpineDBClient
+from .filters.tools import apply_filter_stack
 
-_required_client_version = 5
-_open_db_maps = {}
+_required_client_version = 6
+
+
+def _parse_value(v, value_type=None):
+    return (v, value_type)
+
+
+def _unparse_value(value_and_type):
+    if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
+        value, type_ = value_and_type
+        if value is None or (isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)):
+            # Tuple of value and type ready to go
+            return value, type_
+    # JSON object
+    return dump_db_value(value_and_type)
 
 
 class _Executor:
-    _lock = mp.Lock()
-
     def __init__(self):
+        self._lock = mp.Lock()
         self._in_queue = mp.Queue()
         self._out_queue = mp.Queue()
         self._process = mp.Process(target=self._do_work)
@@ -52,23 +66,25 @@ class _Executor:
         self._process.start()
 
     def tear_down(self):
-        self._process.terminate()
+        self._process.kill()
         self._process.join()
 
     @property
     def _handlers(self):
         raise NotImplementedError
 
-    def _run_request(self, request, *args):
+    def _run_request(self, request, *args, **kwargs):
         with self._lock:
-            self._in_queue.put((request, args))
+            self._in_queue.put((request, args, kwargs))
             return self._out_queue.get()
 
     def _do_work(self):
         while True:
-            request, args = self._in_queue.get()
+            request, args, kwargs = self._in_queue.get()
             handler = self._handlers.get(request)
-            result = None if handler is None else handler(*args)
+            if handler is None:
+                raise RuntimeError(f"Invalid request {request} - valid are {list(self._handlers)}")
+            result = handler(*args, **kwargs)
             self._out_queue.put(result)
 
 
@@ -90,11 +106,11 @@ class _OrderingManager(_Executor):
             "cancel_db_checkout": self._do_cancel_db_checkout,
         }
 
-    def _do_register_ordering(self, server_url, ordering):
-        self._orderings[server_url] = ordering
+    def _do_register_ordering(self, server_address, ordering):
+        self._orderings[server_address] = ordering
 
-    def _do_db_checkin(self, server_url):
-        ordering = self._orderings.get(server_url)
+    def _do_db_checkin(self, server_address):
+        ordering = self._orderings.get(server_address)
         if not ordering:
             return
         checkouts = self._checkouts.get(ordering["id"], dict())
@@ -106,15 +122,15 @@ class _OrderingManager(_Executor):
         self._waiters.setdefault(ordering["id"], {})[event] = precursors
         return event
 
-    def _do_db_checkout(self, server_url):
-        ordering = self._orderings.get(server_url)
+    def _do_db_checkout(self, server_address):
+        ordering = self._orderings.get(server_address)
         if not ordering:
             return
         current = ordering["current"]
         checkouts = self._checkouts.setdefault(ordering["id"], dict())
         if current not in checkouts:
             checkouts[current] = 1
-        else:
+        elif checkouts[current] != self._CHECKOUT_COMPLETE:
             checkouts[current] += 1
         if checkouts[current] == ordering["part_count"]:
             checkouts[current] = self._CHECKOUT_COMPLETE
@@ -125,26 +141,26 @@ class _OrderingManager(_Executor):
             del waiters[event]
             event.set()
 
-    def _do_cancel_db_checkout(self, server_url):
-        ordering = self._orderings.get(server_url)
+    def _do_cancel_db_checkout(self, server_address):
+        ordering = self._orderings.get(server_address)
         if not ordering:
             return
         checkouts = self._checkouts.get(ordering["id"], dict())
         checkouts.pop(ordering["current"], None)
 
-    def register_ordering(self, server_url, ordering):
-        return self._run_request("register_ordering", server_url, ordering)
+    def register_ordering(self, server_address, ordering):
+        return self._run_request("register_ordering", server_address, ordering)
 
-    def db_checkin(self, server_url):
-        event = self._run_request("db_checkin", server_url)
+    def db_checkin(self, server_address):
+        event = self._run_request("db_checkin", server_address)
         if event:
             event.wait()
 
-    def db_checkout(self, server_url):
-        return self._run_request("db_checkout", server_url)
+    def db_checkout(self, server_address):
+        return self._run_request("db_checkout", server_address)
 
-    def cancel_db_checkout(self, server_url):
-        return self._run_request("cancel_db_checkout", server_url)
+    def cancel_db_checkout(self, server_address):
+        return self._run_request("cancel_db_checkout", server_address)
 
 
 if mp.current_process().name == 'MainProcess':
@@ -153,54 +169,163 @@ if mp.current_process().name == 'MainProcess':
     atexit.register(_ordering_manager.tear_down)
 
 
-def _parse_value(v, value_type=None):
-    return (v, value_type)
+class _DBWorker:
+    _CLOSE = "close"
+
+    def __init__(self, db_url, upgrade, memory, create=True):
+        self._db_url = db_url
+        self._upgrade = upgrade
+        self._memory = memory
+        self._create = create
+        self._db_map = None
+        self._lock = threading.Lock()
+        self._in_queue = Queue()
+        self._out_queue = Queue()
+        self._thread = threading.Thread(target=self._do_work)
+        self._thread.start()
+        error = self._out_queue.get()
+        if isinstance(error, Exception):
+            raise error
+
+    @property
+    def db_url(self):
+        return str(self._db_map.db_url)
+
+    def tear_down(self):
+        self._in_queue.put(self._CLOSE)
+        self._thread.join()
+
+    def _do_work(self):
+        try:
+            self._db_map = DatabaseMapping(
+                self._db_url, upgrade=self._upgrade, memory=self._memory, create=self._create
+            )
+            self._out_queue.put(None)
+        except Exception as error:  # pylint: disable=broad-except
+            self._out_queue.put(error)
+            return
+        while True:
+            input_ = self._in_queue.get()
+            if input_ == self._CLOSE:
+                self._db_map.connection.close()
+                break
+            request, args, kwargs = input_
+            handler = {
+                "query": self._do_query,
+                "import_data": self._do_import_data,
+                "export_data": self._do_export_data,
+                "call_method": self._do_call_method,
+                "apply_filters": self._do_apply_filters,
+                "clear_filters": self._do_clear_filters,
+            }[request]
+            result = handler(*args, **kwargs)
+            self._out_queue.put(result)
+
+    def run(self, request, args, kwargs):
+        with self._lock:
+            self._in_queue.put((request, args, kwargs))
+            return self._out_queue.get()
+
+    def _do_query(self, *args):
+        result = {}
+        for sq_name in args:
+            sq = getattr(self._db_map, sq_name, None)
+            if sq is None:
+                continue
+            result[sq_name] = [x._asdict() for x in self._db_map.query(sq)]
+        return dict(result=result)
+
+    def _do_import_data(self, data, comment):
+        count, errors = import_data(self._db_map, unparse_value=_unparse_value, **data)
+        if count and comment:
+            try:
+                self._db_map.commit_session(comment)
+            except DBAPIError:
+                self._db_map.rollback_session()
+        return dict(result=(count, errors))
+
+    def _do_export_data(self, **kwargs):
+        return dict(result=export_data(self._db_map, parse_value=_parse_value, **kwargs))
+
+    def _do_call_method(self, method_name, *args, **kwargs):
+        method = getattr(self._db_map, method_name)
+        result = method(*args, **kwargs)
+        return dict(result=result)
+
+    def _do_clear_filters(self):
+        self._db_map.restore_entity_sq_maker()
+        self._db_map.restore_entity_class_sq_maker()
+        self._db_map.restore_parameter_definition_sq_maker()
+        self._db_map.restore_parameter_value_sq_maker()
+        return dict(result=True)
+
+    def _do_apply_filters(self, configs):
+        apply_filter_stack(self._db_map, configs)
+        return dict(result=True)
 
 
-def _unparse_value(value_and_type):
-    if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
-        value, type_ = value_and_type
-        if value is None or (isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)):
-            # Tuple of value and type ready to go
-            return value, type_
-    # JSON object
-    return dump_db_value(value_and_type)
+class _DBManager:
+    def __init__(self):
+        self._workers = {}
+
+    def open_db_map(self, server_address, db_url, upgrade, memory):
+        worker = self._workers.get(server_address)
+        if worker is None:
+            try:
+                worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
+            except Exception as error:  # pylint: disable=broad-except
+                return dict(error=str(error))
+        return dict(result=True)
+
+    def close_db_map(self, server_address):
+        worker = self._workers.pop(server_address, None)
+        if worker is None:
+            return dict(result=False)
+        worker.tear_down()
+        return dict(result=True)
+
+    def get_db_url(self, server_address):
+        worker = self._workers.get(server_address)
+        if worker is not None:
+            return worker.db_url
+
+    def _run_request(self, server_address, request, args=(), kwargs=None, create=True):
+        if kwargs is None:
+            kwargs = {}
+        worker = self._workers.get(server_address)
+        if worker is not None:
+            return worker.run(request, args, kwargs)
+
+    def query(self, server_address, *args):
+        return self._run_request(server_address, "query", args=args)
+
+    def import_data(self, server_address, data, comment):
+        return self._run_request(server_address, "import_data", args=(data, comment))
+
+    def export_data(self, server_address, **kwargs):
+        return self._run_request(server_address, "export_data", kwargs=kwargs)
+
+    def call_method(self, server_address, method_name, *args, **kwargs):
+        return self._run_request(server_address, "call_method", args=(method_name, *args), kwargs=kwargs)
+
+    def apply_filters(self, server_address, configs):
+        return self._run_request(server_address, "apply_filters", args=(configs,))
+
+    def clear_filters(self, server_address):
+        return self._run_request(server_address, "clear_filters")
+
+
+if mp.current_process().name == 'MainProcess':
+    _db_manager = _DBManager()
 
 
 class HandleDBMixin:
-    def _make_db_map(self, create=True):
-        try:
-            return DatabaseMapping(self._db_url, upgrade=self._upgrade, create=create, memory=self._memory), None
-        except Exception as error:  # pylint: disable=broad-except
-            return None, error
-
-    @contextmanager
-    def _db_map_context(self, create=True):
-        """Obtains and yields a db_map to fulfil a request.
-
-        Yields:
-            DatabaseMapping: A db_map or None if unable to obtain a db_map
-            Exception: the error, or None if all good
-        """
-        db_map = _open_db_maps.get(self._db_url)
-        if db_map is not None:
-            # Persistent case
-            yield db_map, None
-        else:
-            # Non-persistent case, we create a new db_map and close it when done
-            db_map, error = self._make_db_map(create=create)
-            try:
-                yield db_map, error
-            finally:
-                if db_map is not None:
-                    db_map.connection.close()
-
     def get_db_url(self):
         """
         Returns:
             str: The underlying db url
         """
-        return self._db_url
+        return _db_manager.get_db_url(self.server_address)
 
     def query(self, *args):
         """
@@ -209,16 +334,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
-        result = {}
-        with self._db_map_context(create=False) as (db_map, error):
-            if error:
-                return dict(error=str(error))
-            for sq_name in args:
-                sq = getattr(db_map, sq_name, None)
-                if sq is None:
-                    continue
-                result[sq_name] = [x._asdict() for x in db_map.query(sq)]
-        return dict(result=result)
+        return _db_manager.query(self.server_address, *args)
 
     def import_data(self, data, comment):
         """Imports data and commit.
@@ -229,16 +345,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is a list of import errors, if successful.
         """
-        with self._db_map_context() as (db_map, error):
-            if error:
-                return dict(error=str(error))
-            count, errors = import_data(db_map, unparse_value=_unparse_value, **data)
-            if count and comment:
-                try:
-                    db_map.commit_session(comment)
-                except DBAPIError:
-                    db_map.rollback_session()
-        return dict(result=(count, errors))
+        return _db_manager.import_data(self.server_address, data, comment)
 
     def export_data(self, **kwargs):
         """Exports data.
@@ -246,40 +353,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is the data exported from the db
         """
-        with self._db_map_context() as (db_map, error):
-            if error:
-                return dict(error=str(error))
-            return dict(result=export_data(db_map, parse_value=_parse_value, **kwargs))
-
-    def open_connection(self):
-        """Opens a persistent connection to the url by creating and storing a db_map.
-        The same db_map will be reused for all further requests until ``close_connection`` is called.
-
-        Returns:
-            dict: where result is True if the db_map was created successfully.
-        """
-        if self._db_url in _open_db_maps:
-            self._connection_count += 1
-            return dict(result=True)
-        db_map, error = self._make_db_map()
-        if error:
-            return dict(error=str(error))
-        self._connection_count += 1
-        _open_db_maps[self._db_url] = db_map
-        return dict(result=True)
-
-    def close_connection(self):
-        """Closes the connection opened by ``open_connection``.
-
-        Returns:
-            dict: where result is always True
-        """
-        self._connection_count -= 1
-        if self._connection_count <= 0:
-            db_map = _open_db_maps.pop(self._db_url, None)
-            if db_map is not None:
-                db_map.connection.close()
-        return dict(result=True)
+        return _db_manager.export_data(self.server_address, **kwargs)
 
     def call_method(self, method_name, *args, **kwargs):
         """Calls a method from the DatabaseMapping class.
@@ -292,68 +366,33 @@ class HandleDBMixin:
         Returns:
             dict: where result is the return value of the method
         """
-        with self._db_map_context() as (db_map, error):
-            if error:
-                return dict(error=str(error))
-            method = getattr(db_map, method_name)
-            result = method(*args, **kwargs)
-            return dict(result=result)
+        return _db_manager.call_method(self.server_address, method_name, *args, **kwargs)
 
     def apply_filters(self, filters):
-        for key, value in filters.items():
-            if key == "scenario":
-                self._add_scenario_filter(value)
-            elif key == "tool":
-                self._add_tool_filter(value)
-            elif key == "alternatives":
-                self._add_alternatives_filter(value)
-        return dict(result=True)
-
-    def _add_scenario_filter(self, scenario):
-        config = scenario_filter_config(scenario)
-        new_db_url = append_filter_config(self._db_url, config)
-        self._update_db_url(new_db_url, config)
-
-    def _add_tool_filter(self, tool):
-        config = tool_filter_config(tool)
-        new_db_url = append_filter_config(self._db_url, config)
-        self._update_db_url(new_db_url, config)
-
-    def _add_alternatives_filter(self, alternatives):
-        config = alternative_filter_config(alternatives)
-        new_db_url = append_filter_config(self._db_url, config)
-        self._update_db_url(new_db_url, config)
+        configs = [
+            {
+                "scenario": scenario_filter_config,
+                "tool": tool_filter_config,
+                "alternatives": alternative_filter_config,
+            }[key](value)
+            for key, value in filters.items()
+        ]
+        return _db_manager.apply_filters(self.server_address, configs)
 
     def clear_filters(self):
-        new_db_url = clear_filter_configs(self._db_url)
-        self._update_db_url(new_db_url)
-        return dict(result=True)
+        return _db_manager.clear_filters(self.server_address)
 
     def db_checkin(self):
-        _ordering_manager.db_checkin(self._server_url)
+        _ordering_manager.db_checkin(self.server_address)
         return dict(result=True)
 
     def db_checkout(self):
-        _ordering_manager.db_checkout(self._server_url)
+        _ordering_manager.db_checkout(self.server_address)
         return dict(result=True)
 
     def cancel_db_checkout(self):
-        _ordering_manager.cancel_db_checkout(self._server_url)
+        _ordering_manager.cancel_db_checkout(self.server_address)
         return dict(result=True)
-
-    def _update_db_url(self, new_db_url, config=None):
-        db_map = _open_db_maps.pop(self._db_url, None)
-        if db_map is not None:
-            _open_db_maps[new_db_url] = db_map
-            if config is not None:
-                apply_filter_stack(db_map, [config])
-            else:
-                # clear filters
-                db_map.restore_entity_sq_maker()
-                db_map.restore_entity_class_sq_maker()
-                db_map.restore_parameter_definition_sq_maker()
-                db_map.restore_parameter_value_sq_maker()
-        self._db_url = new_db_url
 
     def _get_response(self, request):
         request, *extras = decode(request)
@@ -374,8 +413,6 @@ class HandleDBMixin:
             "import_data": self.import_data,
             "export_data": self.export_data,
             "call_method": self.call_method,
-            "open_connection": self.open_connection,
-            "close_connection": self.close_connection,
             "apply_filters": self.apply_filters,
             "clear_filters": self.clear_filters,
             "db_checkin": self.db_checkin,
@@ -386,7 +423,7 @@ class HandleDBMixin:
             return dict(error=f"invalid request '{request}'")
         try:
             return handler(*args, **kwargs)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             return dict(error=traceback.format_exc())
 
     def handle_request(self, request):
@@ -395,12 +432,13 @@ class HandleDBMixin:
 
 
 class DBHandler(HandleDBMixin):
-    def __init__(self, db_url, upgrade):
-        self._db_url = db_url
-        self._upgrade = upgrade
-        self._memory = False
-        self._connection_count = 0
-        self._server_url = None
+    def __init__(self, db_url, upgrade=False, memory=False):
+        self.server_address = uuid.uuid4().hex
+        _db_manager.open_db_map(self.server_address, db_url, upgrade, memory)
+        atexit.register(self.close)
+
+    def close(self):
+        _db_manager.close_db_map(self.server_address)
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
@@ -409,52 +447,13 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     """
 
     @property
-    def _db_url(self):
-        return self.server.db_url
-
-    @_db_url.setter
-    def _db_url(self, db_url):
-        self.server.db_url = db_url
-
-    @property
-    def _upgrade(self):
-        return self.server.upgrade
-
-    @property
-    def _memory(self):
-        return self.server.memory
-
-    @property
-    def _connection_count(self):
-        return self.server.connection_count
-
-    @_connection_count.setter
-    def _connection_count(self, connection_count):
-        self.server.connection_count = connection_count
-
-    @property
-    def _server_url(self):
-        return self.server.server_url
+    def server_address(self):
+        return self.server.server_address
 
     def handle(self):
         request = self._recvall()
         response = self.handle_request(request)
         self.request.sendall(response + bytes(self._EOT, self._ENCODING))
-
-
-class SpineDBServer(socketserver.TCPServer):
-    # NOTE:
-    # We can't use the socketserver.ThreadingMixIn because it processes each request in a different thread,
-    # and sqlite objects can only be used in the same thread where they were created.
-    allow_reuse_address = True
-
-    def __init__(self, server_address, RequestHandlerClass, db_url, upgrade, memory, server_url):
-        super().__init__(server_address, RequestHandlerClass)
-        self.db_url = db_url
-        self.upgrade = upgrade
-        self.memory = memory
-        self.connection_count = 0
-        self.server_url = server_url
 
 
 class _ServerManager(_Executor):
@@ -472,34 +471,39 @@ class _ServerManager(_Executor):
 
     def _do_start_server(self, db_url, upgrade, memory):
         host = "127.0.0.1"
-        with socketserver.TCPServer((host, 0), None) as s:
-            port = s.server_address[1]
-        server_url = urlunsplit(('http', f'{host}:{port}', '', '', ''))
-        server = self._servers[server_url] = SpineDBServer(
-            (host, port), DBRequestHandler, db_url, upgrade, memory, server_url
-        )
+        while True:
+            with socketserver.TCPServer((host, 0), None) as s:
+                port = s.server_address[1]
+            try:
+                server = socketserver.TCPServer((host, port), DBRequestHandler)
+                break
+            except OSError:
+                # [Errno 98] Address already in use
+                time.sleep(0.02)
+        self._servers[server.server_address] = server
+        _db_manager.open_db_map(server.server_address, db_url, upgrade, memory)
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
-        return server_url
+        return server.server_address
 
-    def _do_shutdown_server(self, server_url):
-        server = self._servers.pop(server_url, None)
+    def _do_shutdown_server(self, server_address):
+        server = self._servers.pop(server_address, None)
         if server is None:
             return False
-        SpineDBClient.from_server_url(server_url).close_connection()
+        _db_manager.close_db_map(server_address)
         server.shutdown()
         server.server_close()
         return True
 
     def _do_shutdown_servers(self):
-        return all(self._do_shutdown_server(server_url) for server_url in list(self._servers))
+        return all(self._do_shutdown_server(server_address) for server_address in list(self._servers))
 
     def start_server(self, db_url, upgrade, memory):
         return self._run_request("start_server", db_url, upgrade, memory)
 
-    def shutdown_server(self, server_url):
-        return self._run_request("shutdown_server", server_url)
+    def shutdown_server(self, server_address):
+        return self._run_request("shutdown_server", server_address)
 
     def shutdown_servers(self):
         return self._run_request("shutdown_servers")
@@ -523,26 +527,22 @@ def start_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
         memory (bool): Whether to use an in-memory database together with a persistent connection to it
 
     Returns:
-        str: server url (e.g. http://127.0.0.1:54321)
+        tuple: server address (e.g. (127.0.0.1, 54321))
     """
-    server_url = _server_manager.start_server(db_url, upgrade, memory)
-    _ordering_manager.register_ordering(server_url, ordering)
-    return server_url
+    server_address = _server_manager.start_server(db_url, upgrade, memory)
+    _ordering_manager.register_ordering(server_address, ordering)
+    return server_address
 
 
-def shutdown_spine_db_server(server_url):
-    _server_manager.shutdown_server(server_url)
+def shutdown_spine_db_server(server_address):
+    _server_manager.shutdown_server(server_address)
 
 
 @contextmanager
 def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
-    server_url = start_spine_db_server(db_url, memory=memory, ordering=ordering)
-    if memory:
-        client = SpineDBClient.from_server_url(server_url)
-        client.open_connection()
+    server_address = start_spine_db_server(db_url, memory=memory, ordering=ordering)
+    host, port = server_address
     try:
-        yield server_url
+        yield urlunsplit(('http', f'{host}:{port}', '', '', ''))
     finally:
-        if memory:
-            client.close_connection()
-        shutdown_spine_db_server(server_url)
+        shutdown_spine_db_server(server_address)

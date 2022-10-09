@@ -17,7 +17,6 @@ Provides :class:`.QuickDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import event
 from .exception import SpineDBAPIError
 
 
@@ -31,21 +30,13 @@ class DatabaseMappingCommitMixin:
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
-        self._transaction = None
         self._commit_id = None
-        event.listen(self.session, 'after_begin', self._receive_after_begin)
-
-    def _receive_after_begin(self, session, transaction, connection):
-        if self._commit_id is None:
-            session.commit()
-            self.make_commit_id()
 
     def has_pending_changes(self):
         return self._commit_id is not None
 
     def make_commit_id(self):
         if self._commit_id is None:
-            self._transaction = self.connection.begin()
             user = self.username
             date = datetime.now(timezone.utc)
             ins = self._metadata.tables["commit"].insert()
@@ -66,7 +57,7 @@ class DatabaseMappingCommitMixin:
         date = datetime.now(timezone.utc)
         upd = commit.update().where(commit.c.id == self.make_commit_id())
         self._checked_execute(upd, dict(user=user, date=date, comment=comment))
-        self._transaction.commit()
+        self.session.commit()
         self._commit_id = None
         if self._memory:
             self._memory_dirty = True
@@ -74,5 +65,5 @@ class DatabaseMappingCommitMixin:
     def rollback_session(self):
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
-        self._transaction.rollback()
+        self.session.rollback()
         self._commit_id = None

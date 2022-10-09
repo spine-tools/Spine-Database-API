@@ -21,7 +21,7 @@ import socket
 from sqlalchemy.engine.url import URL
 from .server_client_helpers import ReceiveAllMixing, encode, decode
 
-client_version = 5
+client_version = 6
 
 
 class SpineDBClient(ReceiveAllMixing):
@@ -55,12 +55,6 @@ class SpineDBClient(ReceiveAllMixing):
 
     def cancel_db_checkout(self):
         return self._send("cancel_db_checkout")
-
-    def open_connection(self):
-        return self._send("open_connection")
-
-    def close_connection(self):
-        return self._send("close_connection")
 
     def import_data(self, data, comment):
         return self._send("import_data", args=(data, comment))
