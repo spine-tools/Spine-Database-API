@@ -85,24 +85,24 @@ class DatabaseMappingAddMixin:
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
         }[tablename]
-        with self.connection.begin():
-            next_id_row = self.query(self._next_id).one_or_none()
-            if next_id_row is None:
-                next_id = None
-                stmt = self._next_id.insert()
-            else:
-                next_id = getattr(next_id_row, fieldname)
-                stmt = self._next_id.update()
-            if next_id is None:
-                table = self._metadata.tables[tablename]
-                id_col = self.table_ids.get(tablename, "id")
-                max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
-                next_id = max_id + 1 if max_id else 1
-            new_next_id = next_id + len(items)
-            self._checked_execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
+        commit_id = self.make_commit_id()  # This locks the SQLite DB file
+        next_id_row = self.query(self._next_id).one_or_none()
+        if next_id_row is None:
+            next_id = None
+            stmt = self._next_id.insert()
+        else:
+            next_id = getattr(next_id_row, fieldname)
+            stmt = self._next_id.update()
+        if next_id is None:
+            table = self._metadata.tables[tablename]
+            id_col = self.table_ids.get(tablename, "id")
+            max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
+            next_id = max_id + 1 if max_id else 1
+        new_next_id = next_id + len(items)
+        self._checked_execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
         ids = list(range(next_id, new_next_id))
         for id_, item in zip(ids, items):
-            item["commit_id"] = self.make_commit_id()
+            item["commit_id"] = commit_id
             item["id"] = id_
 
     def _readd_items(self, tablename, *items):
