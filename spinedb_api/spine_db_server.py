@@ -37,6 +37,7 @@ from .filters.scenario_filter import scenario_filter_config
 from .filters.tool_filter import tool_filter_config
 from .filters.alternative_filter import alternative_filter_config
 from .filters.tools import apply_filter_stack
+from .spine_db_client import SpineDBClient
 
 _required_client_version = 6
 
@@ -394,6 +395,12 @@ class HandleDBMixin:
         _ordering_manager.cancel_db_checkout(self.server_address)
         return dict(result=True)
 
+    def open_db_map(self, db_url, upgrade, memory):
+        return _db_manager.open_db_map(self.server_address, db_url, upgrade, memory)
+
+    def close_db_map(self):
+        return _db_manager.close_db_map(self.server_address)
+
     def _get_response(self, request):
         request, *extras = decode(request)
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
@@ -418,6 +425,8 @@ class HandleDBMixin:
             "db_checkin": self.db_checkin,
             "db_checkout": self.db_checkout,
             "cancel_db_checkout": self.cancel_db_checkout,
+            "open_db_map": self.open_db_map,
+            "close_db_map": self.close_db_map,
         }.get(request)
         if handler is None:
             return dict(error=f"invalid request '{request}'")
@@ -481,17 +490,17 @@ class _ServerManager(_Executor):
                 # [Errno 98] Address already in use
                 time.sleep(0.02)
         self._servers[server.server_address] = server
-        _db_manager.open_db_map(server.server_address, db_url, upgrade, memory)
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
+        SpineDBClient(server.server_address).open_db_map(db_url, upgrade, memory)
         return server.server_address
 
     def _do_shutdown_server(self, server_address):
         server = self._servers.pop(server_address, None)
         if server is None:
             return False
-        _db_manager.close_db_map(server_address)
+        SpineDBClient(server.server_address).close_db_map()
         server.shutdown()
         server.server_close()
         return True
