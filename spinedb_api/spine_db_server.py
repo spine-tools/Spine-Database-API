@@ -316,8 +316,7 @@ class _DBManager:
         return self._run_request(server_address, "clear_filters")
 
 
-if mp.current_process().name == 'MainProcess':
-    _db_manager = _DBManager()
+_db_manager = _DBManager()
 
 
 class HandleDBMixin:
