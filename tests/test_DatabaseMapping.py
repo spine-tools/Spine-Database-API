@@ -18,7 +18,14 @@ Unit tests for DatabaseMapping class.
 import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import URL
-from spinedb_api import DatabaseMapping, to_database, import_functions, from_database, SpineDBAPIError
+from spinedb_api import (
+    DatabaseMapping,
+    to_database,
+    import_functions,
+    from_database,
+    SpineDBAPIError,
+    SpineIntegrityError,
+)
 
 IN_MEMORY_DB_URL = "sqlite://"
 
@@ -598,7 +605,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         updated_ids, errors = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "renamed", "object_class_id_list": [2]}
         )
-        self.assertEqual([str(err) for err in errors], ["Can't update fields 'object_class_id_list'"])
+        self.assertEqual([str(err) for err in errors], ["Can't update fixed fields 'object_class_id_list'"])
         self.assertEqual(updated_ids, {3})
         self._db_map.commit_session("Update data.")
         classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
@@ -656,6 +663,84 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         pdefs = self._db_map.query(self._db_map.parameter_definition_sq).all()
         self.assertEqual(len(pdefs), 1)
         self.assertEqual(pdefs[0].name, "parameter2")
+
+    def test_update_parameter_definition_value_list(self):
+        import_functions.import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        import_functions.import_object_classes(self._db_map, ("object_class",))
+        import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter"),))
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_parameter_definitions(
+            {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(updated_ids, {1})
+        self._db_map.commit_session("Update data.")
+        pdefs = self._db_map.query(self._db_map.parameter_definition_sq).all()
+        self.assertEqual(len(pdefs), 1)
+        self.assertEqual(
+            pdefs[0]._asdict(),
+            {
+                "commit_id": 3,
+                "default_type": None,
+                "default_value": None,
+                "description": None,
+                "entity_class_id": 1,
+                "id": 1,
+                "list_value_id": None,
+                "name": "my_parameter",
+                "object_class_id": 1,
+                "parameter_value_list_id": 1,
+                "relationship_class_id": None,
+            },
+        )
+
+    def test_update_parameter_definition_value_list_when_values_exist_gives_error(self):
+        import_functions.import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        import_functions.import_object_classes(self._db_map, ("object_class",))
+        import_functions.import_objects(self._db_map, (("object_class", "my_object"),))
+        import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter"),))
+        import_functions.import_object_parameter_values(
+            self._db_map, (("object_class", "my_object", "my_parameter", 23.0),)
+        )
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_parameter_definitions(
+            {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
+        )
+        self.assertEqual(
+            list(map(str, errors)),
+            ["Can't change value list on parameter my_parameter because it has parameter values."],
+        )
+        self.assertEqual(updated_ids, set())
+
+    def test_update_parameter_definitions_default_value_that_is_not_on_value_list_gives_error(self):
+        import_functions.import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        import_functions.import_object_classes(self._db_map, ("object_class",))
+        import_functions.import_objects(self._db_map, (("object_class", "my_object"),))
+        import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter", None, "my_list"),))
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_parameter_definitions(
+            {"id": 1, "name": "my_parameter", "default_value": to_database(23.0)[0]}
+        )
+        self.assertEqual(
+            list(map(str, errors)),
+            ["Invalid default_value '23.0' - it should be one from the parameter value " "list: '99.0'."],
+        )
+        self.assertEqual(updated_ids, set())
+
+    def test_update_parameter_definition_value_list_when_default_value_not_on_the_list_exists_gives_error(self):
+        import_functions.import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        import_functions.import_object_classes(self._db_map, ("object_class",))
+        import_functions.import_objects(self._db_map, (("object_class", "my_object"),))
+        import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter", 23.0),))
+        self._db_map.commit_session("Populate with initial data.")
+        updated_ids, errors = self._db_map.update_parameter_definitions(
+            {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
+        )
+        self.assertEqual(
+            list(map(str, errors)),
+            ["Invalid default_value '23.0' - it should be one from the parameter value " "list: '99.0'."],
+        )
+        self.assertEqual(updated_ids, set())
 
     def test_update_object_metadata(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))

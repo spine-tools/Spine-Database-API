@@ -517,15 +517,29 @@ class DatabaseMappingCheckMixin:
 
         Args:
             items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if one of the items violates an integrity constraint.
 
-        Returns
+        Returns:
             list: items that passed the check.
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
             cache = self.make_cache({"parameter_definition"}, include_ancestors=True)
+        parameter_definition_ids_with_values = set()
+        parameter_values = cache.get("parameter_value")
+        if for_update:
+            if parameter_values is None:
+                for item in items:
+                    value = (
+                        self.query(self.parameter_value_sq)
+                        .filter(self.parameter_value_sq.c.parameter_definition_id == item["id"])
+                        .first()
+                    )
+                    if value is not None:
+                        parameter_definition_ids_with_values.add(item["id"])
+            else:
+                parameter_definition_ids_with_values = {value.parameter_id for value in parameter_values.values()}
         intgr_error_log = []
         checked_items = list()
         parameter_definition_ids = {
@@ -555,6 +569,14 @@ class DatabaseMappingCheckMixin:
             if entity_class_id is not None:
                 item["entity_class_id"] = entity_class_id
             try:
+                if (
+                    for_update
+                    and item["id"] in parameter_definition_ids_with_values
+                    and item["parameter_value_list_id"] != cache["parameter_definition"][item["id"]].value_list_id
+                ):
+                    raise SpineIntegrityError(
+                        f"Can't change value list on parameter {item['name']} because it has parameter values."
+                    )
                 with self._manage_stocks(
                     "parameter_definition",
                     item,
@@ -562,11 +584,11 @@ class DatabaseMappingCheckMixin:
                     for_update,
                     cache,
                     intgr_error_log,
-                ) as item:
+                ) as full_item:
                     check_parameter_definition(
-                        item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
+                        full_item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
                     )
-                    checked_items.append(item)
+                    checked_items.append(full_item)
             except SpineIntegrityError as e:
                 if strict:
                     raise e
@@ -875,12 +897,7 @@ def _fix_immutable_fields(item_type, current_item, item):
         "object": ("class_id",),
         "relationship_class": ("object_class_id_list",),
         "relationship": ("class_id",),
-        "parameter_definition": (
-            "entity_class_id",
-            "object_class_id",
-            "relationship_class_id",
-            "parameter_value_list_id",
-        ),
+        "parameter_definition": ("entity_class_id", "object_class_id", "relationship_class_id"),
         "parameter_value": ("entity_class_id", "object_class_id", "relationship_class_id"),
     }.get(item_type, ())
     fixed = []
@@ -892,5 +909,5 @@ def _fix_immutable_fields(item_type, current_item, item):
         item[field] = current_item[field]
     if fixed:
         fixed = ', '.join([f"'{field}'" for field in fixed])
-        return [SpineIntegrityError(f"Can't update fields {fixed}")]
+        return [SpineIntegrityError(f"Can't update fixed fields {fixed}")]
     return []

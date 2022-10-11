@@ -370,11 +370,9 @@ class HandleDBMixin:
 
     def apply_filters(self, filters):
         configs = [
-            {
-                "scenario": scenario_filter_config,
-                "tool": tool_filter_config,
-                "alternatives": alternative_filter_config,
-            }[key](value)
+            {"scenario": scenario_filter_config, "tool": tool_filter_config, "alternatives": alternative_filter_config}[
+                key
+            ](value)
             for key, value in filters.items()
         ]
         return _db_manager.apply_filters(self.server_address, configs)

@@ -407,6 +407,113 @@ class TestImportRelationship(unittest.TestCase):
         db_map.connection.close()
 
 
+class TestImportParameterDefinition(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping("sqlite://", create=True)
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_import_object_parameter_definition(self):
+        import_object_classes(self._db_map, ["my_object_class"])
+        count, errors = import_object_parameters(self._db_map, (("my_object_class", "my_parameter"),))
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        self._db_map.commit_session("Add test data.")
+        parameter_definitions = [
+            row._asdict() for row in self._db_map.query(self._db_map.object_parameter_definition_sq)
+        ]
+        self.assertEqual(
+            parameter_definitions,
+            [
+                {
+                    "default_type": None,
+                    "default_value": None,
+                    "description": None,
+                    "entity_class_id": 1,
+                    "entity_class_name": "my_object_class",
+                    "id": 1,
+                    "object_class_id": 1,
+                    "object_class_name": "my_object_class",
+                    "parameter_name": "my_parameter",
+                    "value_list_id": None,
+                    "value_list_name": None,
+                }
+            ],
+        )
+
+    def test_import_object_parameter_definition_with_value_list(self):
+        import_object_classes(self._db_map, ["my_object_class"])
+        import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        count, errors = import_object_parameters(self._db_map, (("my_object_class", "my_parameter", None, "my_list"),))
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        self._db_map.commit_session("Add test data.")
+        parameter_definitions = [
+            row._asdict() for row in self._db_map.query(self._db_map.object_parameter_definition_sq)
+        ]
+        self.assertEqual(
+            parameter_definitions,
+            [
+                {
+                    "default_type": None,
+                    "default_value": b"null",
+                    "description": None,
+                    "entity_class_id": 1,
+                    "entity_class_name": "my_object_class",
+                    "id": 1,
+                    "object_class_id": 1,
+                    "object_class_name": "my_object_class",
+                    "parameter_name": "my_parameter",
+                    "value_list_id": 1,
+                    "value_list_name": "my_list",
+                }
+            ],
+        )
+
+    def test_import_object_parameter_definition_with_default_value_from_value_list(self):
+        import_object_classes(self._db_map, ["my_object_class"])
+        import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        count, errors = import_object_parameters(self._db_map, (("my_object_class", "my_parameter", 99.0, "my_list"),))
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        self._db_map.commit_session("Add test data.")
+        parameter_definitions = [
+            row._asdict() for row in self._db_map.query(self._db_map.object_parameter_definition_sq)
+        ]
+        self.assertEqual(
+            parameter_definitions,
+            [
+                {
+                    "default_type": None,
+                    "default_value": b"99.0",
+                    "description": None,
+                    "entity_class_id": 1,
+                    "entity_class_name": "my_object_class",
+                    "id": 1,
+                    "object_class_id": 1,
+                    "object_class_name": "my_object_class",
+                    "parameter_name": "my_parameter",
+                    "value_list_id": 1,
+                    "value_list_name": "my_list",
+                }
+            ],
+        )
+
+    def test_import_object_parameter_definition_with_default_value_from_value_list_fails_gracefully(self):
+        import_object_classes(self._db_map, ["my_object_class"])
+        import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
+        count, errors = import_object_parameters(self._db_map, (("my_object_class", "my_parameter", 23.0, "my_list"),))
+        self.assertEqual(
+            [error.msg for error in errors],
+            [
+                "Could not import parameter 'my_parameter' with class 'my_object_class': "
+                "Invalid default_value '23.0' - it should be one from the parameter value list: '99.0'."
+            ],
+        )
+        self.assertEqual(count, 0)
+
+
 class TestImportParameterValue(unittest.TestCase):
     @staticmethod
     def populate(db_map):
