@@ -35,8 +35,15 @@ class DatabaseMappingCommitMixin:
     def has_pending_changes(self):
         return self._commit_id is not None
 
+    def _get_sqlite_lock(self):
+        """Commits the session's natural transaction and begins a new locking one."""
+        if self.sa_url.drivername == "sqlite":
+            self.session.commit()
+            self.session.execute("BEGIN IMMEDIATE")
+
     def make_commit_id(self):
         if self._commit_id is None:
+            self._get_sqlite_lock()
             user = self.username
             date = datetime.now(timezone.utc)
             ins = self._metadata.tables["commit"].insert()
