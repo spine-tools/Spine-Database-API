@@ -104,6 +104,7 @@ class _OrderingManager(_Executor):
             "register_ordering": self._do_register_ordering,
             "db_checkin": self._do_db_checkin,
             "db_checkout": self._do_db_checkout,
+            "quick_db_checkout": self._do_quick_db_checkout,
             "cancel_db_checkout": self._do_cancel_db_checkout,
         }
 
@@ -127,6 +128,9 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_address)
         if not ordering:
             return
+        self._do_quick_db_checkout(ordering)
+
+    def _do_quick_db_checkout(self, ordering):
         current = ordering["current"]
         checkouts = self._checkouts.setdefault(ordering["id"], dict())
         if current not in checkouts:
@@ -160,6 +164,9 @@ class _OrderingManager(_Executor):
     def db_checkout(self, server_address):
         return self._run_request("db_checkout", server_address)
 
+    def quick_db_checkout(self, ordering):
+        return self._run_request("quick_db_checkout", ordering)
+
     def cancel_db_checkout(self, server_address):
         return self._run_request("cancel_db_checkout", server_address)
 
@@ -168,6 +175,10 @@ if mp.current_process().name == 'MainProcess':
     _ordering_manager = _OrderingManager()
     _ordering_manager.set_up()
     atexit.register(_ordering_manager.tear_down)
+
+
+def quick_db_checkout(ordering):
+    _ordering_manager.quick_db_checkout(ordering)
 
 
 class _DBWorker:
