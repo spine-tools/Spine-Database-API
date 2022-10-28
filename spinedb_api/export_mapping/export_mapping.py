@@ -538,7 +538,7 @@ class ExportMapping(Mapping):
             return False
         return self.child.has_header()
 
-    def make_header_recursive(self, build_header_query, db_map, title_state, buddies):
+    def make_header_recursive(self, query, buddies):
         """Builds the header recursively.
 
         Args:
@@ -554,13 +554,13 @@ class ExportMapping(Mapping):
             if not is_regular(self.position):
                 return {}
             return {self.position: self.header}
-        header = self.child.make_header_recursive(build_header_query, db_map, title_state, buddies)
+        header = self.child.make_header_recursive(query, buddies)
         if self.position == Position.header:
             buddy = find_my_buddy(self, buddies)
             if buddy is not None:
-                qry = build_header_query(db_map, title_state, buddies)
+                query.rewind()
                 header[buddy.position] = next(
-                    (x for db_row in qry.yield_per(1000) for x in self._get_data_iterator(self._data(db_row))), ""
+                    (x for db_row in query for x in self._get_data_iterator(self._data(db_row))), ""
                 )
         else:
             header[self.position] = self.header
@@ -577,7 +577,8 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        return self.make_header_recursive(self._build_header_query, db_map, title_state, buddies)
+        query = _Rewindable(self._build_header_query(db_map, title_state, buddies).yield_per(1000))
+        return self.make_header_recursive(query, buddies)
 
 
 def drop_non_positioned_tail(root_mapping):
@@ -1772,6 +1773,28 @@ class _FilteredQuery:
         for db_row in self._query:
             if self._condition(db_row):
                 yield db_row
+
+
+class _Rewindable:
+    def __init__(self, it):
+        self._it = iter(it)
+        self._seen = []
+        self._seen_it = iter(self._seen)
+
+    def rewind(self):
+        self._seen_it = iter(self._seen)
+
+    def __next__(self):
+        try:
+            return next(self._seen_it)
+        except StopIteration:
+            pass
+        item = next(self._it)
+        self._seen.append(item)
+        return item
+
+    def __iter__(self):
+        return self
 
 
 def pair_header_buddies(root_mapping):
