@@ -260,7 +260,7 @@ class ExportMapping(Mapping):
             Alias: title query
         """
         mappings = self.flatten()
-        for i in range(len(mappings)):
+        for _ in range(len(mappings)):
             if mappings[-1].position == Position.table_name:
                 break
             mappings.pop(-1)
@@ -538,11 +538,12 @@ class ExportMapping(Mapping):
             return False
         return self.child.has_header()
 
-    def make_header_recursive(self, first_row, title_state, buddies):
+    def make_header_recursive(self, build_header_query, db_map, title_state, buddies):
         """Builds the header recursively.
 
         Args:
-            first_row (KeyedTuple): first row in the mapping query
+            build_header_query (callable): a function that any mapping in the hierarchy can call to get the query
+            db_map (DatabaseMappingBase): database map
             title_state (dict): title state
             buddies (list of tuple): buddy mappings
 
@@ -553,12 +554,14 @@ class ExportMapping(Mapping):
             if not is_regular(self.position):
                 return {}
             return {self.position: self.header}
-        header = self.child.make_header_recursive(first_row, title_state, buddies)
+        header = self.child.make_header_recursive(build_header_query, db_map, title_state, buddies)
         if self.position == Position.header:
             buddy = find_my_buddy(self, buddies)
             if buddy is not None:
-                data = next(iter(self._expand_data(self._data(first_row)))) if first_row is not None else ""
-                header[buddy.position] = data
+                qry = build_header_query(db_map, title_state, buddies)
+                header[buddy.position] = next(
+                    (x for db_row in qry.yield_per(1000) for x in self._get_data_iterator(self._data(db_row))), ""
+                )
         else:
             header[self.position] = self.header
         return header
@@ -574,9 +577,7 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        qry = self._build_header_query(db_map, title_state, buddies)
-        first_row = qry.first()
-        return self.make_header_recursive(first_row, title_state, buddies)
+        return self.make_header_recursive(self._build_header_query, db_map, title_state, buddies)
 
 
 def drop_non_positioned_tail(root_mapping):
@@ -1760,12 +1761,6 @@ class _FilteredQuery:
         """
         self._query = query
         self._condition = condition
-
-    def first(self):
-        first = self._query.first()
-        if first is not None and self._condition(first):
-            return first
-        return None
 
     def yield_per(self, count):
         return _FilteredQuery(self._query.yield_per(count), self._condition)
