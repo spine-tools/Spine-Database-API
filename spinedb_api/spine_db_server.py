@@ -122,7 +122,6 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_address)
         if not ordering:
             return
-        print("CHECKIN", ordering)
         checkouts = self._checkouts.get(ordering["id"], dict())
         full_checkouts = set(x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE)
         precursors = ordering["precursors"]
@@ -136,7 +135,6 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_address)
         if not ordering:
             return
-        print("CHECKOUT", ordering)
         self._do_quick_db_checkout(ordering)
 
     def _do_quick_db_checkout(self, ordering):
@@ -168,7 +166,6 @@ class _OrderingManager(_Executor):
     def db_checkin(self, server_address):
         event = self._run_request("db_checkin", server_address)
         if event:
-            print("WAITING")
             event.wait()
 
     def db_checkout(self, server_address):
