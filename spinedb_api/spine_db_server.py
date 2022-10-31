@@ -20,6 +20,7 @@ from urllib.parse import urlunsplit
 from contextlib import contextmanager
 import socketserver
 import multiprocessing as mp
+from multiprocessing.connection import Listener, Client
 import threading
 import atexit
 import traceback
@@ -49,7 +50,9 @@ def _parse_value(v, value_type=None):
 def _unparse_value(value_and_type):
     if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
         value, type_ = value_and_type
-        if value is None or (isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)):
+        if value is None or (
+            isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)
+        ):
             # Tuple of value and type ready to go
             return value, type_
     # JSON object
@@ -58,12 +61,10 @@ def _unparse_value(value_and_type):
 
 class _Executor:
     def __init__(self):
-        self._lock = mp.Lock()
-        self._in_queue = mp.Queue()
-        self._out_queue = mp.Queue()
-        self._process = mp.Process(target=self._do_work)
+        self._process = None
 
     def set_up(self):
+        self._process = mp.Process(target=self._do_work)
         self._process.start()
 
     def tear_down(self):
@@ -75,22 +76,28 @@ class _Executor:
         raise NotImplementedError
 
     def _run_request(self, request, *args, **kwargs):
-        with self._lock:
-            self._in_queue.put((request, args, kwargs))
-            return self._out_queue.get()
+        with Client(self._address) as conn:
+            conn.send((request, args, kwargs))
+            return conn.recv()
 
     def _do_work(self):
-        while True:
-            request, args, kwargs = self._in_queue.get()
-            handler = self._handlers.get(request)
-            if handler is None:
-                raise RuntimeError(f"Invalid request {request} - valid are {list(self._handlers)}")
-            result = handler(*args, **kwargs)
-            self._out_queue.put(result)
+        with Listener(self._address) as listener:
+            while True:
+                with listener.accept() as conn:
+                    request, args, kwargs = conn.recv()
+                    handler = self._handlers.get(request)
+                    if handler is None:
+                        raise RuntimeError(
+                            f"Invalid request {request} - valid are {list(self._handlers)}"
+                        )
+                    result = handler(*args, **kwargs)
+                    conn.send(result)
 
 
 class _OrderingManager(_Executor):
-    _CHECKOUT_COMPLETE = "done"
+    _CHECKOUT_COMPLETE = object()
+    # _address = ("localhost", 6000)
+    _address = r"\\.\pipe\_OrderingManager"
 
     def __init__(self):
         super().__init__()
@@ -115,8 +122,11 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_address)
         if not ordering:
             return
+        print("CHECKIN", ordering)
         checkouts = self._checkouts.get(ordering["id"], dict())
-        full_checkouts = set(x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE)
+        full_checkouts = set(
+            x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE
+        )
         precursors = ordering["precursors"]
         if precursors <= full_checkouts:
             return
@@ -128,6 +138,7 @@ class _OrderingManager(_Executor):
         ordering = self._orderings.get(server_address)
         if not ordering:
             return
+        print("CHECKOUT", ordering)
         self._do_quick_db_checkout(ordering)
 
     def _do_quick_db_checkout(self, ordering):
@@ -139,9 +150,15 @@ class _OrderingManager(_Executor):
             checkouts[current] += 1
         if checkouts[current] == ordering["part_count"]:
             checkouts[current] = self._CHECKOUT_COMPLETE
-        full_checkouts = set(x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE)
+        full_checkouts = set(
+            x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE
+        )
         waiters = self._waiters.get(ordering["id"], dict())
-        done = [event for event, precursors in waiters.items() if precursors <= full_checkouts]
+        done = [
+            event
+            for event, precursors in waiters.items()
+            if precursors <= full_checkouts
+        ]
         for event in done:
             del waiters[event]
             event.set()
@@ -159,6 +176,7 @@ class _OrderingManager(_Executor):
     def db_checkin(self, server_address):
         event = self._run_request("db_checkin", server_address)
         if event:
+            print("WAITING")
             event.wait()
 
     def db_checkout(self, server_address):
@@ -171,8 +189,8 @@ class _OrderingManager(_Executor):
         return self._run_request("cancel_db_checkout", server_address)
 
 
-if mp.current_process().name == 'MainProcess':
-    _ordering_manager = _OrderingManager()
+_ordering_manager = _OrderingManager()
+if mp.current_process().name == "MainProcess":
     _ordering_manager.set_up()
     atexit.register(_ordering_manager.tear_down)
 
@@ -210,7 +228,10 @@ class _DBWorker:
     def _do_work(self):
         try:
             self._db_map = DatabaseMapping(
-                self._db_url, upgrade=self._upgrade, memory=self._memory, create=self._create
+                self._db_url,
+                upgrade=self._upgrade,
+                memory=self._memory,
+                create=self._create,
             )
             self._out_queue.put(None)
         except Exception as error:  # pylint: disable=broad-except
@@ -257,7 +278,9 @@ class _DBWorker:
         return dict(result=(count, errors))
 
     def _do_export_data(self, **kwargs):
-        return dict(result=export_data(self._db_map, parse_value=_parse_value, **kwargs))
+        return dict(
+            result=export_data(self._db_map, parse_value=_parse_value, **kwargs)
+        )
 
     def _do_call_method(self, method_name, *args, **kwargs):
         method = getattr(self._db_map, method_name)
@@ -284,7 +307,9 @@ class _DBManager:
         worker = self._workers.get(server_address)
         if worker is None:
             try:
-                worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
+                worker = self._workers[server_address] = _DBWorker(
+                    db_url, upgrade, memory
+                )
             except Exception as error:  # pylint: disable=broad-except
                 return dict(error=str(error))
         return dict(result=True)
@@ -318,7 +343,9 @@ class _DBManager:
         return self._run_request(server_address, "export_data", kwargs=kwargs)
 
     def call_method(self, server_address, method_name, *args, **kwargs):
-        return self._run_request(server_address, "call_method", args=(method_name, *args), kwargs=kwargs)
+        return self._run_request(
+            server_address, "call_method", args=(method_name, *args), kwargs=kwargs
+        )
 
     def apply_filters(self, server_address, configs):
         return self._run_request(server_address, "apply_filters", args=(configs,))
@@ -377,13 +404,17 @@ class HandleDBMixin:
         Returns:
             dict: where result is the return value of the method
         """
-        return _db_manager.call_method(self.server_address, method_name, *args, **kwargs)
+        return _db_manager.call_method(
+            self.server_address, method_name, *args, **kwargs
+        )
 
     def apply_filters(self, filters):
         configs = [
-            {"scenario": scenario_filter_config, "tool": tool_filter_config, "alternatives": alternative_filter_config}[
-                key
-            ](value)
+            {
+                "scenario": scenario_filter_config,
+                "tool": tool_filter_config,
+                "alternatives": alternative_filter_config,
+            }[key](value)
             for key, value in filters.items()
         ]
         return _db_manager.apply_filters(self.server_address, configs)
@@ -414,7 +445,10 @@ class HandleDBMixin:
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
         # with the legacy server -- to (based on the format of the answer) determine that it needs to be updated.
         # That's why we don't expand the extras so far.
-        response = {"get_api_version": spinedb_api_version, "get_db_url": self.get_db_url()}.get(request)
+        response = {
+            "get_api_version": spinedb_api_version,
+            "get_db_url": self.get_db_url(),
+        }.get(request)
         if response is not None:
             return response
         try:
@@ -458,7 +492,9 @@ class DBHandler(HandleDBMixin):
         _db_manager.close_db_map(self.server_address)
 
 
-class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
+class DBRequestHandler(
+    ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler
+):
     """
     The request handler class for our server.
     """
@@ -474,6 +510,8 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
 
 
 class _ServerManager(_Executor):
+    _address = ("localhost", 6001)
+
     def __init__(self):
         super().__init__()
         self._servers = {}
@@ -514,7 +552,10 @@ class _ServerManager(_Executor):
         return True
 
     def _do_shutdown_servers(self):
-        return all(self._do_shutdown_server(server_address) for server_address in list(self._servers))
+        return all(
+            self._do_shutdown_server(server_address)
+            for server_address in list(self._servers)
+        )
 
     def start_server(self, db_url, upgrade, memory):
         return self._run_request("start_server", db_url, upgrade, memory)
@@ -530,8 +571,8 @@ class _ServerManager(_Executor):
         super().tear_down()
 
 
-if mp.current_process().name == 'MainProcess':
-    _server_manager = _ServerManager()
+_server_manager = _ServerManager()
+if mp.current_process().name == "MainProcess":
     _server_manager.set_up()
     atexit.register(_server_manager.tear_down)
 
@@ -560,6 +601,6 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
     server_address = start_spine_db_server(db_url, memory=memory, ordering=ordering)
     host, port = server_address
     try:
-        yield urlunsplit(('http', f'{host}:{port}', '', '', ''))
+        yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
     finally:
         shutdown_spine_db_server(server_address)
