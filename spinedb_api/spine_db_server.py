@@ -67,6 +67,7 @@ class _Executor:
     def set_up(self):
         self._process = mp.Process(target=self._do_work)
         self._process.start()
+        atexit.register(self.tear_down)
 
     def tear_down(self):
         with Client(self._address) as conn:
@@ -181,7 +182,6 @@ class _OrderingManager(_Executor):
 _ordering_manager = _OrderingManager()
 if mp.current_process().name == "MainProcess":
     _ordering_manager.set_up()
-    atexit.register(_ordering_manager.tear_down)
 
 
 def quick_db_checkout(ordering):
@@ -550,7 +550,6 @@ class _ServerManager(_Executor):
 _server_manager = _ServerManager()
 if mp.current_process().name == "MainProcess":
     _server_manager.set_up()
-    atexit.register(_server_manager.tear_down)
 
 
 def start_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
