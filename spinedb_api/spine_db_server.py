@@ -17,6 +17,7 @@ Contains the SpineDBServer class.
 """
 
 import os
+from tempfile import gettempdir
 from urllib.parse import urlunsplit
 from contextlib import contextmanager
 import socketserver
@@ -75,6 +76,13 @@ class _Executor:
         self._process.join()
 
     @property
+    def _address(self):
+        cls_name = type(self).__name__
+        if os.name == "nt":
+            return rf"\\.\pipe\{cls_name}"
+        return os.path.join(gettempdir(), f"{cls_name}.s")
+
+    @property
     def _handlers(self):
         raise NotImplementedError
 
@@ -84,6 +92,8 @@ class _Executor:
             return conn.recv()
 
     def _do_work(self):
+        if os.name != "nt" and os.path.exists(self._address):
+            os.remove(self._address)
         with Listener(self._address) as listener:
             while True:
                 with listener.accept() as conn:
@@ -98,7 +108,6 @@ class _Executor:
 
 class _OrderingManager(_Executor):
     _CHECKOUT_COMPLETE = object()
-    _address = r"\\.\pipe\SpineOrderingManager" if os.name == "nt" else "SpineOrderingManager"
 
     def __init__(self):
         super().__init__()
@@ -489,8 +498,6 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
 
 
 class _ServerManager(_Executor):
-    _address = r"\\.\pipe\SpineServerManager" if os.name == "nt" else "SpineServerManager"
-
     def __init__(self):
         super().__init__()
         self._servers = {}
