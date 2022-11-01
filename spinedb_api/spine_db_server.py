@@ -98,7 +98,7 @@ class _Executor:
 
 class _OrderingManager(_Executor):
     _CHECKOUT_COMPLETE = object()
-    _address = r"\\.\pipe\_OrderingManager" if os.name == "nt" else "_OrderingManager"
+    _address = r"\\.\pipe\SpineOrderingManager" if os.name == "nt" else "SpineOrderingManager"
 
     def __init__(self):
         super().__init__()
@@ -489,7 +489,7 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
 
 
 class _ServerManager(_Executor):
-    _address = r"\\.\pipe\_ServerManager" if os.name == "nt" else "_ServerManager"
+    _address = r"\\.\pipe\SpineServerManager" if os.name == "nt" else "SpineServerManager"
 
     def __init__(self):
         super().__init__()
