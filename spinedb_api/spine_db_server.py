@@ -43,6 +43,7 @@ from .filters.tools import apply_filter_stack
 from .spine_db_client import SpineDBClient
 
 _required_client_version = 6
+_listening = mp.current_process().name == "MainProcess"
 
 
 def _parse_value(v, value_type=None):
@@ -64,8 +65,12 @@ class _Executor:
 
     def __init__(self):
         self._process = None
+        self._address = None
 
-    def set_up(self):
+    def _setup(self):
+        self._address = self._make_address()
+        if not _listening:
+            return
         self._process = mp.Process(target=self._do_work)
         self._process.start()
         atexit.register(self.tear_down)
@@ -75,12 +80,15 @@ class _Executor:
             conn.send(self._CLOSE)
         self._process.join()
 
-    @property
-    def _address(self):
+    def _make_address(self):
         cls_name = type(self).__name__
+        pid = os.getpid() if _listening else os.getppid()
         if os.name == "nt":
-            return rf"\\.\pipe\{cls_name}"
-        return os.path.join(gettempdir(), f"{cls_name}.s")
+            return rf"\\.\pipe\{cls_name}{pid}"
+        address = os.path.join(gettempdir(), f"{cls_name}{pid}.s")
+        if _listening and os.path.exists(address):
+            os.remove(address)
+        return address
 
     @property
     def _handlers(self):
@@ -92,8 +100,6 @@ class _Executor:
             return conn.recv()
 
     def _do_work(self):
-        if os.name != "nt" and os.path.exists(self._address):
-            os.remove(self._address)
         with Listener(self._address) as listener:
             while True:
                 with listener.accept() as conn:
@@ -114,6 +120,7 @@ class _OrderingManager(_Executor):
         self._orderings = {}
         self._checkouts = {}
         self._waiters = {}
+        self._setup()
 
     @property
     def _handlers(self):
@@ -189,8 +196,6 @@ class _OrderingManager(_Executor):
 
 
 _ordering_manager = _OrderingManager()
-if mp.current_process().name == "MainProcess":
-    _ordering_manager.set_up()
 
 
 def quick_db_checkout(ordering):
@@ -501,6 +506,7 @@ class _ServerManager(_Executor):
     def __init__(self):
         super().__init__()
         self._servers = {}
+        self._setup()
 
     @property
     def _handlers(self):
@@ -555,8 +561,6 @@ class _ServerManager(_Executor):
 
 
 _server_manager = _ServerManager()
-if mp.current_process().name == "MainProcess":
-    _server_manager.set_up()
 
 
 def start_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
