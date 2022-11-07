@@ -141,7 +141,7 @@ class DatabaseMappingAddMixin:
         """
         if readd:
             self._readd_items(tablename, *items)
-            return
+            return items if return_items else {x["id"] for x in items}, []
         if check:
             checked_items, intgr_error_log = self.check_items(
                 tablename, *items, for_update=False, strict=strict, cache=cache

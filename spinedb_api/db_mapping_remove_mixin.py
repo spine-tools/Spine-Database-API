@@ -90,7 +90,16 @@ class DatabaseMappingRemoveMixin:
         self._merge(
             ids, self._parameter_value_metadata_cascading_ids(kwargs.get("parameter_value_metadata", set()), cache)
         )
-        return {key: value for key, value in ids.items() if value}
+        sorted_ids = {}
+        tablenames = list(ids)
+        while tablenames:
+            tablename = tablenames.pop(0)
+            ancestors = self.ancestor_tablenames.get(tablename)
+            if ancestors is None or all(x in sorted_ids for x in ancestors):
+                sorted_ids[tablename] = ids.pop(tablename)
+            else:
+                tablenames.append(tablename)
+        return sorted_ids
 
     @staticmethod
     def _merge(left, right):
