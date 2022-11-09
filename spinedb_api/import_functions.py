@@ -1650,7 +1650,7 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
         elif value_index_list is None:
             index = 0
         else:
-            index = int(max(value_index_list.split(","))) + 1
+            index = max(map(int, value_index_list.split(","))) + 1
         item = {"parameter_value_list_id": list_id, "value": val, "type": type_, "index": index}
         try:
             check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
