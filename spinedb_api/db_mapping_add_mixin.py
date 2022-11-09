@@ -325,6 +325,9 @@ class DatabaseMappingAddMixin:
     def add_entity_metadata(self, *items, **kwargs):
         return self.add_items("entity_metadata", *items, **kwargs)
 
+    def add_parameter_value_metadata(self, *items, **kwargs):
+        return self.add_items("parameter_value_metadata", *items, **kwargs)
+
     def _get_or_add_metadata_ids_for_items(self, *items, check, strict, cache):
         metadata_ids = {}
         for entry in cache.get("metadata", {}).values():
@@ -374,15 +377,14 @@ class DatabaseMappingAddMixin:
             return {i["id"] for i in added_metadata + added_item_metadata}, errors
         return added_metadata + added_item_metadata, errors
 
-    def add_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+    def add_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None, readd=False):
         return self._add_ext_item_metadata(
             "entity_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
         )
 
-    def add_parameter_value_metadata(self, *items, **kwargs):
-        return self.add_items("parameter_value_metadata", *items, **kwargs)
-
-    def add_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+    def add_ext_parameter_value_metadata(
+        self, *items, check=True, strict=False, return_items=False, cache=None, readd=False
+    ):
         return self._add_ext_item_metadata(
             "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
         )

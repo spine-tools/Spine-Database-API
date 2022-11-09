@@ -213,8 +213,8 @@ class DatabaseMappingBase:
             "parameter_definition": "entity_parameter_definition_sq",
             "parameter_value": "entity_parameter_value_sq",
             "metadata": "metadata_sq",
-            "entity_metadata": "entity_metadata_sq",
-            "parameter_value_metadata": "parameter_value_metadata_sq",
+            "entity_metadata": "ext_entity_metadata_sq",
+            "parameter_value_metadata": "ext_parameter_value_metadata_sq",
             "commit": "commit_sq",
         }
         self.ancestor_tablenames = {
@@ -1638,6 +1638,7 @@ class DatabaseMappingBase:
                     self.alternative_sq.c.name.label("alternative_name"),
                     self.metadata_sq.c.name.label("metadata_name"),
                     self.metadata_sq.c.value.label("metadata_value"),
+                    self.parameter_value_metadata_sq.c.commit_id,
                 )
                 .filter(self.parameter_value_metadata_sq.c.parameter_value_id == self.parameter_value_sq.c.id)
                 .filter(self.parameter_value_sq.c.parameter_definition_id == self.parameter_definition_sq.c.id)
@@ -1663,6 +1664,7 @@ class DatabaseMappingBase:
                     self.entity_sq.c.name.label("entity_name"),
                     self.metadata_sq.c.name.label("metadata_name"),
                     self.metadata_sq.c.value.label("metadata_value"),
+                    self.entity_metadata_sq.c.commit_id,
                 )
                 .filter(self.entity_metadata_sq.c.entity_id == self.entity_sq.c.id)
                 .filter(self.entity_metadata_sq.c.metadata_id == self.metadata_sq.c.id)
@@ -2056,8 +2058,8 @@ class DatabaseMappingBase:
     def _db_object_to_cache(self, cache, tablename, item, fetch=True):
         item = item.copy()
         item["class_name"] = self._get_item(cache, "object_class", item["class_id"], fetch=fetch).get("name")
-        item["group_id"] = self._get_item_by_field(cache, "entity_group", "entity_id", item["id"], fetch=fetch).get(
-            "entity_id"
+        item["group_id"] = self._get_item_by_field(cache, "entity_group", "group_id", item["id"], fetch=fetch).get(
+            "group_id"
         )
         return item
 
@@ -2141,8 +2143,8 @@ class DatabaseMappingBase:
 
     def _db_entity_group_to_cache(self, cache, tablename, item, fetch=True):
         item = item.copy()
-        item["class_id"] = item["entity_class_id"]
-        item["group_id"] = item["entity_id"]
+        item["class_id"] = item.pop("entity_class_id")
+        item["group_id"] = item.pop("entity_id")
         item["class_name"] = (
             self._get_item(cache, "object_class", item["class_id"], fetch=fetch)
             or self._get_item(cache, "relationship_class", item["class_id"], fetch=fetch)
@@ -2155,6 +2157,10 @@ class DatabaseMappingBase:
             self._get_item(cache, "object", item["member_id"], fetch=fetch)
             or self._get_item(cache, "relationship", item["member_id"], fetch=fetch)
         ).get("name")
+        item["object_class_id"] = self._get_item(cache, "object_class", item["class_id"], fetch=fetch).get("name")
+        item["relationship_class_id"] = self._get_item(cache, "relationship_class", item["class_id"], fetch=fetch).get(
+            "name"
+        )
         return item
 
     def _db_scenario_to_cache(self, cache, tablename, item, fetch=True):
