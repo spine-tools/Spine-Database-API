@@ -1647,7 +1647,7 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
         max_index = max_indexes.get(list_id)
         if max_index is not None:
             index = max_index + 1
-        elif value_index_list is None:
+        elif not value_index_list:
             index = 0
         else:
             index = max(map(int, value_index_list.split(","))) + 1
