@@ -231,10 +231,7 @@ class _DBWorker:
     def _do_work(self):
         try:
             self._db_map = DatabaseMapping(
-                self._db_url,
-                upgrade=self._upgrade,
-                memory=self._memory,
-                create=self._create,
+                self._db_url, upgrade=self._upgrade, memory=self._memory, create=self._create
             )
             self._out_queue.put(None)
         except Exception as error:  # pylint: disable=broad-except
@@ -405,11 +402,9 @@ class HandleDBMixin:
 
     def apply_filters(self, filters):
         configs = [
-            {
-                "scenario": scenario_filter_config,
-                "tool": tool_filter_config,
-                "alternatives": alternative_filter_config,
-            }[key](value)
+            {"scenario": scenario_filter_config, "tool": tool_filter_config, "alternatives": alternative_filter_config}[
+                key
+            ](value)
             for key, value in filters.items()
         ]
         return _db_manager.apply_filters(self.server_address, configs)
@@ -440,10 +435,7 @@ class HandleDBMixin:
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
         # with the legacy server -- to (based on the format of the answer) determine that it needs to be updated.
         # That's why we don't expand the extras so far.
-        response = {
-            "get_api_version": spinedb_api_version,
-            "get_db_url": self.get_db_url(),
-        }.get(request)
+        response = {"get_api_version": spinedb_api_version, "get_db_url": self.get_db_url()}.get(request)
         if response is not None:
             return response
         try:

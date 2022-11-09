@@ -933,6 +933,25 @@ class TestImportParameterValueList(unittest.TestCase):
         self.assertEqual(from_database(list_values[0].value, list_values[0].type), 23.0)
         self.assertEqual(list_values[0].index, 0)
 
+    def test_import_twelfth_value(self):
+        n_values = 11
+        initial_list = tuple(("list_1", 1.1 * i) for i in range(1, n_values + 1))
+        count, errors = import_parameter_value_lists(self._db_map, initial_list)
+        self.assertEqual(errors, [])
+        self.assertEqual(count, n_values + 1)
+        count, errors = import_parameter_value_lists(self._db_map, (("list_1", 23.0),))
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        value_lists = self._db_map.query(self._db_map.parameter_value_list_sq).all()
+        self.assertEqual(len(value_lists), 1)
+        self.assertEqual(value_lists[0].name, "list_1")
+        list_values = self._db_map.query(self._db_map.list_value_sq).all()
+        self.assertEqual(len(list_values), n_values + 1)
+        expected = {i: 1.1 * (i + 1) for i in range(n_values)}
+        expected[len(expected)] = 23.0
+        for row in list_values:
+            self.assertEqual(from_database(row.value, row.type), expected[row.index])
+
 
 class TestImportAlternative(unittest.TestCase):
     def test_single_alternative(self):
