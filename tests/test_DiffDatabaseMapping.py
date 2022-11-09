@@ -997,6 +997,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
@@ -1022,6 +1023,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
@@ -1051,6 +1053,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "object metadata",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
@@ -1079,6 +1082,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
@@ -1108,6 +1112,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
@@ -1149,6 +1154,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "parameter metadata",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
@@ -1182,6 +1188,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
+                "commit_id": 3,
             },
         )
 
