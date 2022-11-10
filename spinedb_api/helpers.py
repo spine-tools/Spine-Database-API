@@ -19,6 +19,7 @@ General helper functions and classes.
 import os
 import json
 import warnings
+from operator import itemgetter
 from urllib.parse import urlparse, urlunparse
 from sqlalchemy import (
     Boolean,
@@ -279,7 +280,7 @@ def compare_schemas(left_engine, right_engine):
 def schema_dict(insp):
     return {
         table_name: {
-            "columns": sorted(insp.get_columns(table_name), key=lambda x: x["name"]),
+            "columns": sorted(insp.get_columns(table_name), key=itemgetter("name")),
             "pk_constraint": insp.get_pk_constraint(table_name),
             "foreign_keys": sorted(insp.get_foreign_keys(table_name), key=lambda x: x["name"] or ""),
             "check_constraints": insp.get_check_constraints(table_name),

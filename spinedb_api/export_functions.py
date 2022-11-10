@@ -15,6 +15,7 @@ Functions for exporting data from a Spine database using entity names as referen
 :author: M. Marin (KTH)
 :date:   1.4.2020
 """
+from operator import itemgetter
 
 from sqlalchemy.util import KeyedTuple
 from .parameter_value import from_database
@@ -161,7 +162,7 @@ def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, parse_va
 
     return sorted(
         ((x.name, parse_value(x.value, x.type)) for x in _get_items(db_map, "parameter_value_list", ids, make_cache)),
-        key=lambda x: x[0],
+        key=itemgetter(0),
     )
 
 
@@ -286,7 +287,7 @@ def export_scenario_alternatives(db_map, ids=Asterisk, make_cache=None):
             (x.scenario_name, x.alternative_name, x.before_alternative_name)
             for x in _get_items(db_map, "scenario_alternative", ids, make_cache)
         ),
-        key=lambda x: x[0],
+        key=itemgetter(0),
     )
 
 

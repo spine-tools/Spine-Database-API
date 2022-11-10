@@ -21,6 +21,7 @@ import os
 import logging
 import time
 from collections import Counter
+from operator import itemgetter
 from types import MethodType
 from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect, cast, Integer, or_
 from sqlalchemy.sql.expression import label, Alias
@@ -2168,7 +2169,7 @@ class DatabaseMappingBase:
         item["active"] = item.get("active", False)
         sorted_scen_alts = sorted(
             (x for x in cache.get("scenario_alternative", {}).values() if x["scenario_id"] == item["id"]),
-            key=lambda x: x["rank"],
+            key=itemgetter("rank"),
         )
         item["alternative_id_list"] = ",".join(str(x.get("alternative_id")) for x in sorted_scen_alts)
         item["alternative_name_list"] = ",".join(x.get("alternative_name") for x in sorted_scen_alts)
@@ -2216,7 +2217,7 @@ class DatabaseMappingBase:
         item = item.copy()
         sorted_list_values = sorted(
             (x for x in cache.get("list_value", {}).values() if x["parameter_value_list_id"] == item["id"]),
-            key=lambda x: x["index"],
+            key=itemgetter("index"),
         )
         item["value_index_list"] = ",".join(str(x["index"]) for x in sorted_list_values)
         item["value_id_list"] = ",".join(str(x["id"]) for x in sorted_list_values)
