@@ -2100,9 +2100,8 @@ class DatabaseMappingBase:
         item["object_class_name_list"] = relationship_class.get("object_class_name_list")
         item["value_list_id"] = value_list_id = item.pop("parameter_value_list_id", item.get("value_list_id"))
         item["value_list_name"] = self._get_item(cache, "parameter_value_list", value_list_id, fetch=fetch).get("name")
-        if item.get("default_type") == "list_value_ref":
-            item["list_value_id"] = int(item["default_value"])
-        if item.get("list_value_id") is not None:
+        item["list_value_id"] = int(item["default_value"]) if item.get("default_type") == "list_value_ref" else None
+        if item["list_value_id"] is not None:
             list_value_item = self._get_item(cache, "list_value", item["list_value_id"], fetch=fetch)
             item["default_value"] = list_value_item.get("value")
             item["default_type"] = list_value_item.get("type")
@@ -2133,9 +2132,8 @@ class DatabaseMappingBase:
         item["object_id_list"] = relationship.get("object_id_list")
         item["object_name_list"] = relationship.get("object_name_list")
         item["alternative_name"] = self._get_item(cache, "alternative", item["alternative_id"], fetch=fetch).get("name")
-        if item["type"] == "list_value_ref":
-            item["list_value_id"] = int(item["value"])
-        if item.get("list_value_id") is not None:
+        item["list_value_id"] = int(item["value"]) if item["type"] == "list_value_ref" else None
+        if item["list_value_id"] is not None:
             list_value_item = self._get_item(cache, "list_value", item["list_value_id"], fetch=fetch)
             item["value"] = list_value_item.get("value")
             item["type"] = list_value_item.get("type")
