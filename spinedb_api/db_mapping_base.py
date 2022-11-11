@@ -255,6 +255,12 @@ class DatabaseMappingBase:
             tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
         }
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
+        self.connection.close()
+
     def _descendant_tablenames(self, tablename):
         child_tablenames = {
             "alternative": ("parameter_value", "scenario_alternative"),
