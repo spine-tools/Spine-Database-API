@@ -65,8 +65,12 @@ class _Executor:
     def __init__(self):
         self._process = None
         self._address = None
+        self._started = False
 
     def start(self):
+        if self._started:
+            return
+        self._started = True
         process_name = mp.current_process().name
         if process_name != "MainProcess":
             class_name = type(self).__name__
