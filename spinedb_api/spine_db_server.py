@@ -43,7 +43,6 @@ from .filters.tools import apply_filter_stack
 from .spine_db_client import SpineDBClient
 
 _required_client_version = 6
-_listening = mp.current_process().name == "MainProcess"
 
 
 def _parse_value(v, value_type=None):
@@ -67,26 +66,32 @@ class _Executor:
         self._process = None
         self._address = None
 
-    def _setup(self):
-        self._address = self._make_address()
-        if not _listening:
-            return
-        self._process = mp.Process(target=self._do_work)
+    def start(self):
+        process_name = mp.current_process().name
+        if process_name != "MainProcess":
+            class_name = type(self).__name__
+            raise RuntimeError(
+                f"{class_name} should by only started from the main process - this is process {process_name}"
+            )
+        address = self._make_address(listening=True)
+        event = mp.Manager().Event()
+        self._process = mp.Process(target=self._do_work, args=(address, event))
         self._process.start()
-        atexit.register(self.tear_down)
+        event.wait()
 
-    def tear_down(self):
-        with Client(self._address) as conn:
+    def shutdown(self):
+        address = self._make_address()
+        with Client(address) as conn:
             conn.send(self._CLOSE)
         self._process.join()
 
-    def _make_address(self):
+    def _make_address(self, listening=False):
         cls_name = type(self).__name__
-        pid = os.getpid() if _listening else os.getppid()
+        pid = os.getpid() if mp.current_process().name == "MainProcess" else os.getppid()
         if os.name == "nt":
             return rf"\\.\pipe\{cls_name}{pid}"
         address = os.path.join(gettempdir(), f"{cls_name}{pid}.s")
-        if _listening and os.path.exists(address):
+        if listening and os.path.exists(address):
             os.remove(address)
         return address
 
@@ -95,12 +100,15 @@ class _Executor:
         raise NotImplementedError
 
     def _run_request(self, request, *args, **kwargs):
+        if self._address is None:
+            self._address = self._make_address()
         with Client(self._address) as conn:
             conn.send((request, args, kwargs))
             return conn.recv()
 
-    def _do_work(self):
-        with Listener(self._address) as listener:
+    def _do_work(self, address, event):
+        with Listener(address) as listener:
+            event.set()
             while True:
                 with listener.accept() as conn:
                     msg = conn.recv()
@@ -120,7 +128,6 @@ class _OrderingManager(_Executor):
         self._orderings = {}
         self._checkouts = {}
         self._waiters = {}
-        self._setup()
 
     @property
     def _handlers(self):
@@ -224,7 +231,7 @@ class _DBWorker:
     def db_url(self):
         return str(self._db_map.db_url)
 
-    def tear_down(self):
+    def shutdown(self):
         self._in_queue.put(self._CLOSE)
         self._thread.join()
 
@@ -314,7 +321,7 @@ class _DBManager:
         worker = self._workers.pop(server_address, None)
         if worker is None:
             return dict(result=False)
-        worker.tear_down()
+        worker.shutdown()
         return dict(result=True)
 
     def get_db_url(self, server_address):
@@ -498,7 +505,6 @@ class _ServerManager(_Executor):
     def __init__(self):
         super().__init__()
         self._servers = {}
-        self._setup()
 
     @property
     def _handlers(self):
@@ -547,9 +553,9 @@ class _ServerManager(_Executor):
     def shutdown_servers(self):
         return self._run_request("shutdown_servers")
 
-    def tear_down(self):
+    def shutdown(self):
         self.shutdown_servers()
-        super().tear_down()
+        super().shutdown()
 
 
 _server_manager = _ServerManager()
@@ -582,3 +588,13 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
         yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
     finally:
         shutdown_spine_db_server(server_address)
+
+
+def start_managers():
+    _ordering_manager.start()
+    _server_manager.start()
+
+
+def shutdown_managers():
+    _ordering_manager.shutdown()
+    _server_manager.shutdown()
