@@ -75,7 +75,7 @@ class _Executor:
         if process_name != "MainProcess":
             class_name = type(self).__name__
             raise RuntimeError(
-                f"{class_name} should by only started from the main process - this is process {process_name}"
+                f"{class_name} should only be started from the main process - this is process {process_name}"
             )
         address = self._make_address(listening=True)
         event = mp.Manager().Event()
