@@ -88,6 +88,7 @@ class _Executor:
         with Client(address) as conn:
             conn.send(self._CLOSE)
         self._process.join()
+        self._started = False
 
     def _make_address(self, listening=False):
         cls_name = type(self).__name__
