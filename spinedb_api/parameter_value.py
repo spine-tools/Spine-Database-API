@@ -622,6 +622,19 @@ def _array_from_database(value_dict):
         return Array(data, value_type, index_name)
 
 
+class ListValueRef:
+    def __init__(self, list_value_id):
+        self._list_value_id = list_value_id
+
+    @staticmethod
+    def type_():
+        return "list_value_ref"
+
+    def to_database(self):
+        """Returns the database representation of this object as JSON."""
+        return json.dumps(self._list_value_id).encode("UTF8"), self.type_()
+
+
 class DateTime:
     """A single datetime value."""
 
