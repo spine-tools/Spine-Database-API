@@ -569,9 +569,10 @@ def closing_spine_db_server(server_manager_address, db_url, upgrade=False, memor
         shutdown_spine_db_server(server_manager_address, server_address)
 
 
-def start_db_server_manager():
-    return _ServerManager()
-
-
-def shutdown_db_server_manager(mngr):
-    mngr.shutdown()
+@contextmanager
+def db_server_manager():
+    mngr = _ServerManager()
+    try:
+        yield mngr.address
+    finally:
+        mngr.shutdown()
