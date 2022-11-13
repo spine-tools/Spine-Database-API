@@ -16,8 +16,6 @@ Contains the SpineDBServer class.
 :date:   2.2.2020
 """
 
-import os
-from tempfile import gettempdir
 from urllib.parse import urlunsplit
 from contextlib import contextmanager
 import socketserver
@@ -59,98 +57,108 @@ def _unparse_value(value_and_type):
     return dump_db_value(value_and_type)
 
 
-class _Executor:
-    _CLOSE = "close"
+class SpineDBServer(socketserver.TCPServer):
+    def __init__(self, manager_address, ordering, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.manager_address = manager_address
+        self.ordering = ordering
+
+
+_SHUTDOWN = "shutdown"
+
+
+class _ServerManager:
+    _CHECKOUT_COMPLETE = "checkout_complete"
 
     def __init__(self):
-        self._process = None
-        self._address = None
-        self._started = False
+        super().__init__()
+        self._servers = {}
+        self._checkouts = {}
+        self._waiters = {}
+        queue = mp.Queue()
+        process = mp.Process(target=self._listen, args=(queue,))
+        process.start()
+        self._address = queue.get()
 
-    def start(self):
-        if self._started:
-            return
-        self._started = True
-        process_name = mp.current_process().name
-        if process_name != "MainProcess":
-            class_name = type(self).__name__
-            raise RuntimeError(
-                f"{class_name} should only be started from the main process - this is process {process_name}"
-            )
-        address = self._make_address(listening=True)
-        event = mp.Manager().Event()
-        self._process = mp.Process(target=self._do_work, args=(address, event))
-        self._process.start()
-        event.wait()
-
-    def shutdown(self):
-        address = self._make_address()
-        with Client(address) as conn:
-            conn.send(self._CLOSE)
-        self._process.join()
-        self._started = False
-
-    def _make_address(self, listening=False):
-        cls_name = type(self).__name__
-        pid = os.getpid() if mp.current_process().name == "MainProcess" else os.getppid()
-        if os.name == "nt":
-            return rf"\\.\pipe\{cls_name}{pid}"
-        address = os.path.join(gettempdir(), f"{cls_name}{pid}.s")
-        if listening and os.path.exists(address):
-            os.remove(address)
-        return address
+    @property
+    def address(self):
+        return self._address
 
     @property
     def _handlers(self):
-        raise NotImplementedError
+        return {
+            "start_server": self._start_server,
+            "shutdown_server": self._shutdown_server,
+            "shutdown_servers": self._shutdown_servers,
+            "db_checkin": self._db_checkin,
+            "db_checkout": self._db_checkout,
+            "quick_db_checkout": self._quick_db_checkout,
+            "cancel_db_checkout": self._cancel_db_checkout,
+        }
 
-    def _run_request(self, request, *args, **kwargs):
-        if self._address is None:
-            self._address = self._make_address()
-        with Client(self._address) as conn:
-            conn.send((request, args, kwargs))
-            return conn.recv()
+    def _listen(self, queue):
+        host = "127.0.0.1"
+        while True:
+            with socketserver.TCPServer((host, 0), None) as s:
+                port = s.server_address[1]
+            address = ("127.0.0.1", port)
+            try:
+                self._do_listen(queue, address)
+                break
+            except OSError:
+                # [Errno 98] Address already in use
+                time.sleep(0.02)
 
-    def _do_work(self, address, event):
+    def _do_listen(self, queue, address):
         with Listener(address) as listener:
-            event.set()
+            self._address = address
+            queue.put(self._address)
             while True:
                 with listener.accept() as conn:
                     msg = conn.recv()
-                    if msg == self._CLOSE:
+                    if msg == _SHUTDOWN:
+                        conn.send(_SHUTDOWN)
                         break
                     request, args, kwargs = msg
                     handler = self._handlers[request]
                     result = handler(*args, **kwargs)
                     conn.send(result)
 
+    def _start_server(self, db_url, upgrade, memory, ordering):
+        host = "127.0.0.1"
+        while True:
+            with socketserver.TCPServer((host, 0), None) as s:
+                port = s.server_address[1]
+            try:
+                server = SpineDBServer(self._address, ordering, (host, port), DBRequestHandler)
+                break
+            except OSError:
+                # [Errno 98] Address already in use
+                time.sleep(0.02)
+        self._servers[server.server_address] = server
+        server_thread = threading.Thread(target=server.serve_forever)
+        server_thread.daemon = True
+        server_thread.start()
+        SpineDBClient(server.server_address).open_db_map(db_url, upgrade, memory)
+        return server.server_address
 
-class _OrderingManager(_Executor):
-    _CHECKOUT_COMPLETE = object()
+    def _shutdown_server(self, server_address):
+        server = self._servers.pop(server_address, None)
+        if server is None:
+            return False
+        SpineDBClient(server.server_address).close_db_map()
+        server.shutdown()
+        server.server_close()
+        return True
 
-    def __init__(self):
-        super().__init__()
-        self._orderings = {}
-        self._checkouts = {}
-        self._waiters = {}
+    def _shutdown_servers(self):
+        return all(self._shutdown_server(server_address) for server_address in list(self._servers))
 
-    @property
-    def _handlers(self):
-        return {
-            "register_ordering": self._do_register_ordering,
-            "db_checkin": self._do_db_checkin,
-            "db_checkout": self._do_db_checkout,
-            "quick_db_checkout": self._do_quick_db_checkout,
-            "cancel_db_checkout": self._do_cancel_db_checkout,
-        }
-
-    def _do_register_ordering(self, server_address, ordering):
-        self._orderings[server_address] = ordering
-
-    def _do_db_checkin(self, server_address):
-        ordering = self._orderings.get(server_address)
-        if not ordering:
+    def _db_checkin(self, server_address):
+        server = self._servers.get(server_address)
+        if not server:
             return
+        ordering = server.ordering
         checkouts = self._checkouts.get(ordering["id"], dict())
         full_checkouts = set(x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE)
         precursors = ordering["precursors"]
@@ -160,13 +168,14 @@ class _OrderingManager(_Executor):
         self._waiters.setdefault(ordering["id"], {})[event] = precursors
         return event
 
-    def _do_db_checkout(self, server_address):
-        ordering = self._orderings.get(server_address)
-        if not ordering:
+    def _db_checkout(self, server_address):
+        server = self._servers.get(server_address)
+        if not server:
             return
-        self._do_quick_db_checkout(ordering)
+        ordering = server.ordering
+        self._quick_db_checkout(ordering)
 
-    def _do_quick_db_checkout(self, ordering):
+    def _quick_db_checkout(self, ordering):
         current = ordering["current"]
         checkouts = self._checkouts.setdefault(ordering["id"], dict())
         if current not in checkouts:
@@ -182,12 +191,32 @@ class _OrderingManager(_Executor):
             del waiters[event]
             event.set()
 
-    def _do_cancel_db_checkout(self, server_address):
-        ordering = self._orderings.get(server_address)
-        if not ordering:
+    def _cancel_db_checkout(self, server_address):
+        server = self._servers.get(server_address)
+        if not server:
             return
+        ordering = server.ordering
         checkouts = self._checkouts.get(ordering["id"], dict())
         checkouts.pop(ordering["current"], None)
+
+
+class _ServerClient:
+    def __init__(self, address):
+        self._address = address
+
+    def _run_request(self, request, *args, **kwargs):
+        with Client(self._address) as conn:
+            conn.send((request, args, kwargs))
+            return conn.recv()
+
+    def start_server(self, db_url, upgrade, memory, ordering):
+        return self._run_request("start_server", db_url, upgrade, memory, ordering)
+
+    def shutdown_server(self, server_address):
+        return self._run_request("shutdown_server", server_address)
+
+    def shutdown_servers(self):
+        return self._run_request("shutdown_servers")
 
     def register_ordering(self, server_address, ordering):
         return self._run_request("register_ordering", server_address, ordering)
@@ -206,12 +235,11 @@ class _OrderingManager(_Executor):
     def cancel_db_checkout(self, server_address):
         return self._run_request("cancel_db_checkout", server_address)
 
-
-_ordering_manager = _OrderingManager()
-
-
-def quick_db_checkout(ordering):
-    _ordering_manager.quick_db_checkout(ordering)
+    def shutdown_manager(self):
+        self.shutdown_servers()
+        with Client(self._address) as conn:
+            conn.send(_SHUTDOWN)
+            _ = conn.recv()
 
 
 class _DBWorker:
@@ -425,15 +453,15 @@ class HandleDBMixin:
         return _db_manager.clear_filters(self.server_address)
 
     def db_checkin(self):
-        _ordering_manager.db_checkin(self.server_address)
+        _ServerClient(self.server_manager_address).db_checkin(self.server_address)
         return dict(result=True)
 
     def db_checkout(self):
-        _ordering_manager.db_checkout(self.server_address)
+        _ServerClient(self.server_manager_address).db_checkout(self.server_address)
         return dict(result=True)
 
     def cancel_db_checkout(self):
-        _ordering_manager.cancel_db_checkout(self.server_address)
+        _ServerClient(self.server_manager_address).cancel_db_checkout(self.server_address)
         return dict(result=True)
 
     def open_db_map(self, db_url, upgrade, memory):
@@ -473,7 +501,7 @@ class HandleDBMixin:
             return dict(error=f"invalid request '{request}'")
         try:
             return handler(*args, **kwargs)
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             return dict(error=traceback.format_exc())
 
     def handle_request(self, request):
@@ -500,73 +528,21 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
     def server_address(self):
         return self.server.server_address
 
+    @property
+    def server_manager_address(self):
+        return self.server.manager_address
+
     def handle(self):
         request = self._recvall()
         response = self.handle_request(request)
         self.request.sendall(response + bytes(self._EOT, self._ENCODING))
 
 
-class _ServerManager(_Executor):
-    def __init__(self):
-        super().__init__()
-        self._servers = {}
-
-    @property
-    def _handlers(self):
-        return {
-            "start_server": self._do_start_server,
-            "shutdown_server": self._do_shutdown_server,
-            "shutdown_servers": self._do_shutdown_servers,
-        }
-
-    def _do_start_server(self, db_url, upgrade, memory):
-        host = "127.0.0.1"
-        while True:
-            with socketserver.TCPServer((host, 0), None) as s:
-                port = s.server_address[1]
-            try:
-                server = socketserver.TCPServer((host, port), DBRequestHandler)
-                break
-            except OSError:
-                # [Errno 98] Address already in use
-                time.sleep(0.02)
-        self._servers[server.server_address] = server
-        server_thread = threading.Thread(target=server.serve_forever)
-        server_thread.daemon = True
-        server_thread.start()
-        SpineDBClient(server.server_address).open_db_map(db_url, upgrade, memory)
-        return server.server_address
-
-    def _do_shutdown_server(self, server_address):
-        server = self._servers.pop(server_address, None)
-        if server is None:
-            return False
-        SpineDBClient(server.server_address).close_db_map()
-        server.shutdown()
-        server.server_close()
-        return True
-
-    def _do_shutdown_servers(self):
-        return all(self._do_shutdown_server(server_address) for server_address in list(self._servers))
-
-    def start_server(self, db_url, upgrade, memory):
-        return self._run_request("start_server", db_url, upgrade, memory)
-
-    def shutdown_server(self, server_address):
-        return self._run_request("shutdown_server", server_address)
-
-    def shutdown_servers(self):
-        return self._run_request("shutdown_servers")
-
-    def shutdown(self):
-        self.shutdown_servers()
-        super().shutdown()
+def quick_db_checkout(server_manager_address, ordering):
+    _ServerClient(server_manager_address).quick_db_checkout(ordering)
 
 
-_server_manager = _ServerManager()
-
-
-def start_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
+def start_spine_db_server(server_manager_address, db_url, upgrade=False, memory=False, ordering=None):
     """
     Args:
         db_url (str): Spine db url
@@ -576,30 +552,31 @@ def start_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
     Returns:
         tuple: server address (e.g. (127.0.0.1, 54321))
     """
-    server_address = _server_manager.start_server(db_url, upgrade, memory)
-    _ordering_manager.register_ordering(server_address, ordering)
+    mngr = _ServerClient(server_manager_address)
+    server_address = mngr.start_server(db_url, upgrade, memory, ordering)
     return server_address
 
 
-def shutdown_spine_db_server(server_address):
-    _server_manager.shutdown_server(server_address)
+def shutdown_spine_db_server(server_manager_address, server_address):
+    mngr = _ServerClient(server_manager_address)
+    mngr.shutdown_server(server_address)
 
 
 @contextmanager
-def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None):
-    server_address = start_spine_db_server(db_url, memory=memory, ordering=ordering)
+def closing_spine_db_server(server_manager_address, db_url, upgrade=False, memory=False, ordering=None):
+    server_address = start_spine_db_server(server_manager_address, db_url, memory=memory, ordering=ordering)
     host, port = server_address
     try:
         yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
     finally:
-        shutdown_spine_db_server(server_address)
+        shutdown_spine_db_server(server_manager_address, server_address)
 
 
-def start_managers():
-    _ordering_manager.start()
-    _server_manager.start()
+def start_db_server_manager():
+    mngr = _ServerManager()
+    return mngr.address
 
 
-def shutdown_managers():
-    _ordering_manager.shutdown()
-    _server_manager.shutdown()
+def shutdown_db_server_manager(address):
+    client = _ServerClient(address)
+    client.shutdown_manager()
