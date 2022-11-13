@@ -64,10 +64,8 @@ class SpineDBServer(socketserver.TCPServer):
         self.ordering = ordering
 
 
-_SHUTDOWN = "shutdown"
-
-
 class _ServerManager:
+    _SHUTDOWN = "shutdown"
     _CHECKOUT_COMPLETE = "checkout_complete"
 
     def __init__(self):
@@ -76,9 +74,16 @@ class _ServerManager:
         self._checkouts = {}
         self._waiters = {}
         queue = mp.Queue()
-        process = mp.Process(target=self._listen, args=(queue,))
-        process.start()
+        self._process = mp.Process(target=self._listen, args=(queue,))
+        self._process.start()
         self._address = queue.get()
+
+    def shutdown(self):
+        with Client(self._address) as conn:
+            conn.send(("shutdown_servers", (), {}))
+        with Client(self._address) as conn:
+            conn.send(self._SHUTDOWN)
+        self._process.join()
 
     @property
     def address(self):
@@ -101,9 +106,8 @@ class _ServerManager:
         while True:
             with socketserver.TCPServer((host, 0), None) as s:
                 port = s.server_address[1]
-            address = ("127.0.0.1", port)
             try:
-                self._do_listen(queue, address)
+                self._do_listen(queue, (host, port))
                 break
             except OSError:
                 # [Errno 98] Address already in use
@@ -116,8 +120,7 @@ class _ServerManager:
             while True:
                 with listener.accept() as conn:
                     msg = conn.recv()
-                    if msg == _SHUTDOWN:
-                        conn.send(_SHUTDOWN)
+                    if msg == self._SHUTDOWN:
                         break
                     request, args, kwargs = msg
                     handler = self._handlers[request]
@@ -234,12 +237,6 @@ class _ServerClient:
 
     def cancel_db_checkout(self, server_address):
         return self._run_request("cancel_db_checkout", server_address)
-
-    def shutdown_manager(self):
-        self.shutdown_servers()
-        with Client(self._address) as conn:
-            conn.send(_SHUTDOWN)
-            _ = conn.recv()
 
 
 class _DBWorker:
@@ -573,10 +570,8 @@ def closing_spine_db_server(server_manager_address, db_url, upgrade=False, memor
 
 
 def start_db_server_manager():
-    mngr = _ServerManager()
-    return mngr.address
+    return _ServerManager()
 
 
-def shutdown_db_server_manager(address):
-    client = _ServerClient(address)
-    client.shutdown_manager()
+def shutdown_db_server_manager(mngr):
+    mngr.shutdown()
