@@ -552,14 +552,14 @@ def start_spine_db_server(server_manager_address, db_url, upgrade=False, memory=
     Returns:
         tuple: server address (e.g. (127.0.0.1, 54321))
     """
-    mngr = _ServerClient(server_manager_address)
-    server_address = mngr.start_server(db_url, upgrade, memory, ordering)
+    client = _ServerClient(server_manager_address)
+    server_address = client.start_server(db_url, upgrade, memory, ordering)
     return server_address
 
 
 def shutdown_spine_db_server(server_manager_address, server_address):
-    mngr = _ServerClient(server_manager_address)
-    mngr.shutdown_server(server_address)
+    client = _ServerClient(server_manager_address)
+    client.shutdown_server(server_address)
 
 
 @contextmanager
