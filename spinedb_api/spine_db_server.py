@@ -20,7 +20,7 @@ from urllib.parse import urlunsplit
 from contextlib import contextmanager
 import socketserver
 import multiprocessing as mp
-from multiprocessing.connection import Listener, Client
+from multiprocessing.queues import Queue as MPQueue
 import threading
 import atexit
 import traceback
@@ -58,13 +58,22 @@ def _unparse_value(value_and_type):
 
 
 class SpineDBServer(socketserver.TCPServer):
-    def __init__(self, manager_address, ordering, *args, **kwargs):
+    def __init__(self, manager_queue, ordering, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.manager_address = manager_address
+        self.manager_queue = manager_queue
         self.ordering = ordering
 
 
-class _ServerManager:
+class _DeepCopyableQueue(MPQueue):
+    def __init__(self, *args, **kwargs):
+        ctx = mp.get_context()
+        super().__init__(*args, **kwargs, ctx=ctx)
+
+    def __deepcopy__(self, _memo):
+        return self
+
+
+class _DBServerManager:
     _SHUTDOWN = "shutdown"
     _CHECKOUT_COMPLETE = "checkout_complete"
 
@@ -73,21 +82,17 @@ class _ServerManager:
         self._servers = {}
         self._checkouts = {}
         self._waiters = {}
-        queue = mp.Queue()
-        self._process = mp.Process(target=self._listen, args=(queue,))
+        self._queue = _DeepCopyableQueue()
+        self._process = mp.Process(target=self._do_work)
         self._process.start()
-        self._address = queue.get()
 
     def shutdown(self):
-        with Client(self._address) as conn:
-            conn.send(("shutdown_servers", (), {}))
-        with Client(self._address) as conn:
-            conn.send(self._SHUTDOWN)
+        self._queue.put(self._SHUTDOWN)
         self._process.join()
 
     @property
-    def address(self):
-        return self._address
+    def queue(self):
+        return self._queue
 
     @property
     def _handlers(self):
@@ -101,31 +106,17 @@ class _ServerManager:
             "cancel_db_checkout": self._cancel_db_checkout,
         }
 
-    def _listen(self, queue):
-        host = "127.0.0.1"
+    def _do_work(self):
         while True:
-            with socketserver.TCPServer((host, 0), None) as s:
-                port = s.server_address[1]
-            try:
-                self._do_listen(queue, (host, port))
+            msg = self._queue.get()
+            if msg == self._SHUTDOWN:
                 break
-            except OSError:
-                # [Errno 98] Address already in use
-                time.sleep(0.02)
-
-    def _do_listen(self, queue, address):
-        with Listener(address) as listener:
-            self._address = address
-            queue.put(self._address)
-            while True:
-                with listener.accept() as conn:
-                    msg = conn.recv()
-                    if msg == self._SHUTDOWN:
-                        break
-                    request, args, kwargs = msg
-                    handler = self._handlers[request]
-                    result = handler(*args, **kwargs)
-                    conn.send(result)
+            output_queue, request, args, kwargs = msg
+            handler = self._handlers[request]
+            result = handler(*args, **kwargs)
+            output_queue.put(result)
+        for server_address in list(self._servers):
+            self._shutdown_server(server_address)
 
     def _start_server(self, db_url, upgrade, memory, ordering):
         host = "127.0.0.1"
@@ -133,7 +124,7 @@ class _ServerManager:
             with socketserver.TCPServer((host, 0), None) as s:
                 port = s.server_address[1]
             try:
-                server = SpineDBServer(self._address, ordering, (host, port), DBRequestHandler)
+                server = SpineDBServer(self._queue, ordering, (host, port), DBRequestHandler)
                 break
             except OSError:
                 # [Errno 98] Address already in use
@@ -203,14 +194,14 @@ class _ServerManager:
         checkouts.pop(ordering["current"], None)
 
 
-class _ServerClient:
-    def __init__(self, address):
-        self._address = address
+class _ManagerRequestHandler:
+    def __init__(self, mngr_queue):
+        self._mngr_queue = mngr_queue
 
     def _run_request(self, request, *args, **kwargs):
-        with Client(self._address) as conn:
-            conn.send((request, args, kwargs))
-            return conn.recv()
+        output_queue = mp.Manager().Queue()
+        self._mngr_queue.put((output_queue, request, args, kwargs))
+        return output_queue.get()
 
     def start_server(self, db_url, upgrade, memory, ordering):
         return self._run_request("start_server", db_url, upgrade, memory, ordering)
@@ -450,15 +441,15 @@ class HandleDBMixin:
         return _db_manager.clear_filters(self.server_address)
 
     def db_checkin(self):
-        _ServerClient(self.server_manager_address).db_checkin(self.server_address)
+        _ManagerRequestHandler(self.server_manager_queue).db_checkin(self.server_address)
         return dict(result=True)
 
     def db_checkout(self):
-        _ServerClient(self.server_manager_address).db_checkout(self.server_address)
+        _ManagerRequestHandler(self.server_manager_queue).db_checkout(self.server_address)
         return dict(result=True)
 
     def cancel_db_checkout(self):
-        _ServerClient(self.server_manager_address).cancel_db_checkout(self.server_address)
+        _ManagerRequestHandler(self.server_manager_queue).cancel_db_checkout(self.server_address)
         return dict(result=True)
 
     def open_db_map(self, db_url, upgrade, memory):
@@ -526,8 +517,8 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
         return self.server.server_address
 
     @property
-    def server_manager_address(self):
-        return self.server.manager_address
+    def server_manager_queue(self):
+        return self.server.manager_queue
 
     def handle(self):
         request = self._recvall()
@@ -535,11 +526,11 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
         self.request.sendall(response + bytes(self._EOT, self._ENCODING))
 
 
-def quick_db_checkout(server_manager_address, ordering):
-    _ServerClient(server_manager_address).quick_db_checkout(ordering)
+def quick_db_checkout(server_manager_queue, ordering):
+    _ManagerRequestHandler(server_manager_queue).quick_db_checkout(ordering)
 
 
-def start_spine_db_server(server_manager_address, db_url, upgrade=False, memory=False, ordering=None):
+def start_spine_db_server(server_manager_queue, db_url, upgrade=False, memory=False, ordering=None):
     """
     Args:
         db_url (str): Spine db url
@@ -549,30 +540,30 @@ def start_spine_db_server(server_manager_address, db_url, upgrade=False, memory=
     Returns:
         tuple: server address (e.g. (127.0.0.1, 54321))
     """
-    client = _ServerClient(server_manager_address)
-    server_address = client.start_server(db_url, upgrade, memory, ordering)
+    handler = _ManagerRequestHandler(server_manager_queue)
+    server_address = handler.start_server(db_url, upgrade, memory, ordering)
     return server_address
 
 
-def shutdown_spine_db_server(server_manager_address, server_address):
-    client = _ServerClient(server_manager_address)
-    client.shutdown_server(server_address)
+def shutdown_spine_db_server(server_manager_queue, server_address):
+    handler = _ManagerRequestHandler(server_manager_queue)
+    handler.shutdown_server(server_address)
 
 
 @contextmanager
-def closing_spine_db_server(server_manager_address, db_url, upgrade=False, memory=False, ordering=None):
-    server_address = start_spine_db_server(server_manager_address, db_url, memory=memory, ordering=ordering)
+def closing_spine_db_server(server_manager_queue, db_url, upgrade=False, memory=False, ordering=None):
+    server_address = start_spine_db_server(server_manager_queue, db_url, memory=memory, ordering=ordering)
     host, port = server_address
     try:
         yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
     finally:
-        shutdown_spine_db_server(server_manager_address, server_address)
+        shutdown_spine_db_server(server_manager_queue, server_address)
 
 
 @contextmanager
 def db_server_manager():
-    mngr = _ServerManager()
+    mngr = _DBServerManager()
     try:
-        yield mngr.address
+        yield mngr.queue
     finally:
         mngr.shutdown()
