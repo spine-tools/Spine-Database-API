@@ -82,7 +82,15 @@ class DatabaseMappingBase:
     )
 
     def __init__(
-        self, db_url, username=None, upgrade=False, codename=None, create=False, apply_filters=True, memory=False
+        self,
+        db_url,
+        username=None,
+        upgrade=False,
+        codename=None,
+        create=False,
+        apply_filters=True,
+        memory=False,
+        sqlite_timeout=1800,
     ):
         """
         Args:
@@ -109,7 +117,9 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
-        self._original_engine = self.create_engine(self.sa_url, upgrade=upgrade, create=create)
+        self._original_engine = self.create_engine(
+            self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
+        )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
         self.connection = self.engine.connect()
@@ -310,7 +320,7 @@ class DatabaseMappingBase:
         return hashing.hexdigest()
 
     @staticmethod
-    def create_engine(sa_url, upgrade=False, create=False):
+    def create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
         """Create engine.
 
         Args
@@ -322,7 +332,7 @@ class DatabaseMappingBase:
             Engine
         """
         if sa_url.drivername == "sqlite":
-            connect_args = {'timeout': 1800}
+            connect_args = {'timeout': sqlite_timeout}
         else:
             connect_args = {}
         try:
