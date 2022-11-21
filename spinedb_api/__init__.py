@@ -128,4 +128,4 @@ from .filters.tools import (
 )
 
 name = "spinedb_api"
-__version__ = "0.24.0.dev0"
+__version__ = "0.26.0.dev0"
