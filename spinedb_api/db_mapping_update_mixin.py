@@ -25,7 +25,7 @@ class DatabaseMappingUpdateMixin:
 
     def _add_commit_id(self, *items):
         for item in items:
-            item["commit_id"] = self.make_commit_id()
+            item["commit_id"] = self._make_commit_id()
 
     def _update_items(self, tablename, *items):
         if not items:
@@ -43,17 +43,18 @@ class DatabaseMappingUpdateMixin:
         return self._do_update_items(real_tablename, *items)
 
     def _do_update_items(self, tablename, *items):
-        table = self._metadata.tables[tablename]
-        self._add_commit_id(*items)
-        upd = table.update()
-        for k in self._get_primary_key(tablename):
-            upd = upd.where(getattr(table.c, k) == bindparam(k))
-        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
-        try:
-            self._checked_execute(upd, items)
-        except DBAPIError as e:
-            msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
-            raise SpineDBAPIError(msg)
+        if self.committing:
+            self._add_commit_id(*items)
+            table = self._metadata.tables[tablename]
+            upd = table.update()
+            for k in self._get_primary_key(tablename):
+                upd = upd.where(getattr(table.c, k) == bindparam(k))
+            upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
+            try:
+                self._checked_execute(upd, items)
+            except DBAPIError as e:
+                msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
+                raise SpineDBAPIError(msg)
         return {x["id"] for x in items}
 
     def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None):

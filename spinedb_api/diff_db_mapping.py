@@ -93,17 +93,18 @@ class DiffDatabaseMapping(
         return items_for_update, items_for_insert, dirty_ids, updated_ids
 
     def _do_update_items(self, tablename, *items):
-        try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
-                tablename, items
-            )
-            self._update_and_insert_items(tablename, items_for_update, items_for_insert)
-            self._mark_as_dirty(tablename, dirty_ids)
-            self.updated_item_id[tablename].update(dirty_ids)
-            return updated_ids
-        except DBAPIError as e:
-            msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
-            raise SpineDBAPIError(msg)
+        items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+            tablename, items
+        )
+        if self.committing:
+            try:
+                self._update_and_insert_items(tablename, items_for_update, items_for_insert)
+                self._mark_as_dirty(tablename, dirty_ids)
+                self.updated_item_id[tablename].update(dirty_ids)
+            except DBAPIError as e:
+                msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
+                raise SpineDBAPIError(msg)
+        return updated_ids
 
     def _update_and_insert_items(self, tablename, items_for_update, items_for_insert):
         diff_table = self._diff_table(tablename)
@@ -161,15 +162,16 @@ class DiffDatabaseMapping(
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
-        for tablename, ids in kwargs.items():
-            table_id = self.table_ids.get(tablename, "id")
-            diff_table = self._diff_table(tablename)
-            delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
-            try:
-                self.connection.execute(delete)
-            except DBAPIError as e:
-                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
-                raise SpineDBAPIError(msg)
+        if self.committing:
+            for tablename, ids in kwargs.items():
+                table_id = self.table_ids.get(tablename, "id")
+                diff_table = self._diff_table(tablename)
+                delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
+                try:
+                    self.connection.execute(delete)
+                except DBAPIError as e:
+                    msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
+                    raise SpineDBAPIError(msg)
         for tablename, ids in kwargs.items():
             self.added_item_id[tablename].difference_update(ids)
             self.updated_item_id[tablename].difference_update(ids)

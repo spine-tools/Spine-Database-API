@@ -833,7 +833,7 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     @contextmanager
-    def _manage_stocks(self, item_type, item, existing_ids_by_key_fields, for_update, cache, intgr_error_log):
+    def _manage_stocks(self, item_type, item, existing_ids_by_pk, for_update, cache, intgr_error_log):
         if for_update:
             try:
                 id_ = item["id"]
@@ -849,8 +849,7 @@ class DatabaseMappingCheckMixin:
             full_item = self.db_to_db(cache, item_type, item)
         try:
             existing_ids_by_key = {
-                _get_key(full_item, key_fields): existing_ids
-                for key_fields, existing_ids in existing_ids_by_key_fields.items()
+                _get_key(full_item, pk): existing_ids for pk, existing_ids in existing_ids_by_pk.items()
             }
         except KeyError as e:
             raise SpineIntegrityError(f"Missing key field {e} for {item_type}.") from None
@@ -877,16 +876,16 @@ class DatabaseMappingCheckMixin:
                 cache.get(item_type, {})[id_] = CacheItem(**self.db_to_cache(cache, item_type, full_item))
 
 
-def _get_key_values(item, key_fields):
-    for field in key_fields:
+def _get_key_values(item, pk):
+    for field in pk:
         value = item[field]
         if isinstance(value, list):
             value = tuple(value)
         yield value
 
 
-def _get_key(item, key_fields):
-    key = tuple(_get_key_values(item, key_fields))
+def _get_key(item, pk):
+    key = tuple(_get_key_values(item, pk))
     if len(key) > 1:
         return key
     return key[0]

@@ -41,16 +41,21 @@ class DatabaseMappingCommitMixin:
             self.session.commit()
             self.session.execute("BEGIN IMMEDIATE")
 
-    def make_commit_id(self):
+    def _make_commit_id(self):
         if self._commit_id is None:
-            self._get_sqlite_lock()
-            user = self.username
-            date = datetime.now(timezone.utc)
-            ins = self._metadata.tables["commit"].insert()
-            self._commit_id = self._checked_execute(
-                ins, {"user": user, "date": date, "comment": ""}
-            ).inserted_primary_key[0]
+            if self.committing:
+                self._get_sqlite_lock()
+                self._commit_id = self._do_make_commit_id(self.connection)
+            else:
+                with self.engine.begin() as connection:
+                    self._commit_id = self._do_make_commit_id(connection)
         return self._commit_id
+
+    def _do_make_commit_id(self, connection):
+        user = self.username
+        date = datetime.now(timezone.utc)
+        ins = self._metadata.tables["commit"].insert()
+        return connection.execute(ins, {"user": user, "date": date, "comment": "uncomplete"}).inserted_primary_key[0]
 
     def commit_session(self, comment):
         """Commits current session to the database.
@@ -62,7 +67,7 @@ class DatabaseMappingCommitMixin:
         commit = self._metadata.tables["commit"]
         user = self.username
         date = datetime.now(timezone.utc)
-        upd = commit.update().where(commit.c.id == self.make_commit_id())
+        upd = commit.update().where(commit.c.id == self._make_commit_id())
         self._checked_execute(upd, dict(user=user, date=date, comment=comment))
         self.session.commit()
         self._commit_id = None
@@ -72,5 +77,8 @@ class DatabaseMappingCommitMixin:
     def rollback_session(self):
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
+        self.reset_session()
+
+    def reset_session(self):
         self.session.rollback()
         self._commit_id = None

@@ -17,10 +17,10 @@
 # TODO: improve docstrings
 
 from datetime import datetime
-from sqlalchemy import func, Table, Column, Integer, String, null
+from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import get_relationship_entity_class_items, get_relationship_entity_items
+from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, CacheItem
 
 
 class DatabaseMappingAddMixin:
@@ -29,9 +29,9 @@ class DatabaseMappingAddMixin:
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
-        next_id = self._metadata.tables.get("next_id")
-        if next_id is None:
-            next_id = Table(
+        self._next_id = self._metadata.tables.get("next_id")
+        if self._next_id is None:
+            self._next_id = Table(
                 "next_id",
                 self._metadata,
                 Column("user", String(155), primary_key=True),
@@ -55,15 +55,27 @@ class DatabaseMappingAddMixin:
                 Column("entity_metadata_id", Integer, server_default=null()),
             )
             try:
-                next_id.create(self.connection)
+                self._next_id.create(self.connection)
             except DBAPIError:
                 # Some other concurrent process must have beaten us to create the table
-                next_id = Table("next_id", self._metadata, autoload=True)
-        self._next_id = next_id
+                self._next_id = Table("next_id", self._metadata, autoload=True)
 
     def _add_commit_id_and_ids(self, tablename, *items):
         if not items:
             return [], set()
+        ids = self._reserve_ids(tablename, len(items))
+        commit_id = self._make_commit_id()
+        for id_, item in zip(ids, items):
+            item["commit_id"] = commit_id
+            item["id"] = id_
+
+    def _reserve_ids(self, tablename, count):
+        if self.committing:
+            return self._do_reserve_ids(self.connection, tablename, count)
+        with self.engine.begin() as connection:
+            return self._do_reserve_ids(connection, tablename, count)
+
+    def _do_reserve_ids(self, connection, tablename, count):
         fieldname = {
             "object_class": "entity_class_id",
             "object": "entity_id",
@@ -85,8 +97,8 @@ class DatabaseMappingAddMixin:
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
         }[tablename]
-        commit_id = self.make_commit_id()  # This locks the SQLite DB file
-        next_id_row = self.query(self._next_id).one_or_none()
+        select_next_id = select([self._next_id])
+        next_id_row = connection.execute(select_next_id).first()
         if next_id_row is None:
             next_id = None
             stmt = self._next_id.insert()
@@ -96,14 +108,12 @@ class DatabaseMappingAddMixin:
         if next_id is None:
             table = self._metadata.tables[tablename]
             id_col = self.table_ids.get(tablename, "id")
-            max_id = self.query(func.max(getattr(table.c, id_col))).scalar()
+            select_max_id = select([func.max(getattr(table.c, id_col))])
+            max_id = connection.execute(select_max_id).scalar()
             next_id = max_id + 1 if max_id else 1
-        new_next_id = next_id + len(items)
-        self._checked_execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
-        ids = list(range(next_id, new_next_id))
-        for id_, item in zip(ids, items):
-            item["commit_id"] = commit_id
-            item["id"] = id_
+        new_next_id = next_id + count
+        connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
+        return range(next_id, new_next_id)
 
     def _readd_items(self, tablename, *items):
         """Add known items to database."""
@@ -187,6 +197,8 @@ class DatabaseMappingAddMixin:
         return self._metadata.tables[tablename]
 
     def _do_add_items(self, tablename, *items_to_add):
+        if not self.committing:
+            return
         items_to_add = tuple(self._items_with_type_id(tablename, *items_to_add))
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
@@ -195,7 +207,7 @@ class DatabaseMappingAddMixin:
                 yield tablename_
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
-            raise SpineDBAPIError(msg)
+            raise SpineDBAPIError(msg) from e
 
     def _items_to_add_per_table(self, tablename, items_to_add):
         """
@@ -345,6 +357,8 @@ class DatabaseMappingAddMixin:
         added_metadata, errors = self.add_items(
             "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, cache=cache
         )
+        for x in added_metadata:
+            cache.setdefault("metadata", {})[x["id"]] = CacheItem(**x)
         if errors:
             return added_metadata, errors
         new_metadata_ids = {}
@@ -370,7 +384,7 @@ class DatabaseMappingAddMixin:
         # We want to invalidate cache just in case because it might be missing metadata
         # records that may have been added above.
         added_item_metadata, item_errors = self.add_items(
-            table_name, *items, check=check, strict=strict, return_items=True, cache=None
+            table_name, *items, check=check, strict=strict, return_items=True, cache=cache
         )
         errors = metadata_errors + item_errors
         if not return_items:
