@@ -108,7 +108,7 @@ def _get_items(db_map, tablename, ids, make_cache):
         return ()
     if make_cache is None:
         make_cache = db_map.make_cache
-    cache = make_cache({tablename})
+    cache = make_cache({tablename}, include_ancestors=True)
     _process_item = _make_item_processor(tablename, make_cache)
     for item in _get_items_from_cache(cache, tablename, ids):
         yield from _process_item(item)
@@ -138,8 +138,8 @@ class _ParameterValueListProcessor:
         if item.value_id_list is None:
             yield KeyedTuple([item.name, None, None], fields)
             return
-        for value_id in item.value_id_list.split(","):
-            val = self._cache["list_value"][int(value_id)]
+        for value_id in item.value_id_list:
+            val = self._cache["list_value"][value_id]
             yield KeyedTuple([item.name, val.value, val.type], fields)
 
 
@@ -153,7 +153,7 @@ def export_objects(db_map, ids=Asterisk, make_cache=None):
 
 def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.name, x.object_class_name_list.split(","), x.description, x.display_icon)
+        (x.name, x.object_class_name_list, x.description, x.display_icon)
         for x in _get_items(db_map, "relationship_class", ids, make_cache)
     )
 
@@ -195,9 +195,7 @@ def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None, parse_
 
 
 def export_relationships(db_map, ids=Asterisk, make_cache=None):
-    return sorted(
-        (x.class_name, x.object_name_list.split(",")) for x in _get_items(db_map, "relationship", ids, make_cache)
-    )
+    return sorted((x.class_name, x.object_name_list) for x in _get_items(db_map, "relationship", ids, make_cache))
 
 
 def export_object_groups(db_map, ids=Asterisk, make_cache=None):
@@ -224,7 +222,7 @@ def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None, 
         (
             (
                 x.relationship_class_name,
-                x.object_name_list.split(","),
+                x.object_name_list,
                 x.parameter_name,
                 parse_value(x.value, x.type),
                 x.alternative_name,

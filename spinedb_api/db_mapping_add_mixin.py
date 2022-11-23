@@ -20,7 +20,7 @@ from datetime import datetime
 from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import get_relationship_entity_class_items, get_relationship_entity_items, CacheItem
+from .helpers import get_relationship_entity_class_items, get_relationship_entity_items
 
 
 class DatabaseMappingAddMixin:
@@ -358,7 +358,7 @@ class DatabaseMappingAddMixin:
             "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, cache=cache
         )
         for x in added_metadata:
-            cache.setdefault("metadata", {})[x["id"]] = CacheItem(**x)
+            cache.setdefault("metadata", {})[x["id"]] = x
         if errors:
             return added_metadata, errors
         new_metadata_ids = {}

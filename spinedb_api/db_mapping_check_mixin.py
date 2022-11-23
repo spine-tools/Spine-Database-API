@@ -41,7 +41,6 @@ from .check_functions import (
     check_parameter_value_metadata,
 )
 from .parameter_value import from_database
-from .helpers import CacheItem
 
 
 # NOTE: To check for an update we remove the current instance from our lookup dictionary,
@@ -205,7 +204,7 @@ class DatabaseMappingCheckMixin:
         }
         tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(",")]}
+            x.id: {"name": x.name, "value_index_list": x.value_index_list}
             for x in cache.get("parameter_value_list", {}).values()
         }
         for item in items:
@@ -443,11 +442,10 @@ class DatabaseMappingCheckMixin:
         checked_wide_items = list()
         relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", {}).values()}
         relationship_ids_by_obj_lst = {
-            (x.class_id, tuple(int(id_) for id_ in x.object_id_list.split(","))): x.id
-            for x in cache.get("relationship", {}).values()
+            (x.class_id, x.object_id_list): x.id for x in cache.get("relationship", {}).values()
         }
         relationship_classes = {
-            x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
+            x.id: {"object_class_id_list": x.object_class_id_list, "name": x.name}
             for x in cache.get("relationship_class", {}).values()
         }
         objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
@@ -840,13 +838,12 @@ class DatabaseMappingCheckMixin:
             except KeyError:
                 raise SpineIntegrityError(f"Missing {item_type} identifier.") from None
             try:
-                cache_item = cache.get(item_type, {})[id_]
+                full_item = cache.get(item_type, {})[id_]._asdict()
             except KeyError:
                 raise SpineIntegrityError(f"{item_type} not found.") from None
-            full_item = self.cache_to_db(item_type, cache_item._asdict())
         else:
             id_ = None
-            full_item = self.db_to_db(cache, item_type, item)
+            full_item = item
         try:
             existing_ids_by_key = {
                 _get_key(full_item, pk): existing_ids for pk, existing_ids in existing_ids_by_pk.items()
@@ -873,7 +870,7 @@ class DatabaseMappingCheckMixin:
             for key, existing_ids in existing_ids_by_key.items():
                 existing_ids[key] = id_
             if for_update:
-                cache.get(item_type, {})[id_] = CacheItem(**self.db_to_cache(cache, item_type, full_item))
+                cache.get(item_type, {})[id_] = full_item
 
 
 def _get_key_values(item, pk):

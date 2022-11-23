@@ -244,7 +244,7 @@ def check_wide_relationship(
     except KeyError:
         raise SpineIntegrityError(f"There is no object id list for relationship '{name}'")
     try:
-        given_object_class_id_list = [objects[id]["class_id"] for id in object_id_list]
+        given_object_class_id_list = tuple(objects[id]["class_id"] for id in object_id_list)
     except KeyError:
         raise SpineIntegrityError(f"Some of the objects in relationship '{name}' are invalid.")
     if given_object_class_id_list != object_class_id_list:
@@ -433,7 +433,6 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
         raise SpineIntegrityError(f"Invalid {value_key} '{value}': {err}") from None
     if parsed_value is None:
         return False
-    value_id_list = [int(id_) for id_ in value_id_list.split(",")]
     list_value_id = next((id_ for id_ in value_id_list if list_values.get(id_) == parsed_value), None)
     if list_value_id is None:
         valid_values = ", ".join([f"'{list_values.get(id_)}'" for id_ in value_id_list])

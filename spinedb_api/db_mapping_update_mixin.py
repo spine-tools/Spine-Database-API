@@ -321,11 +321,11 @@ class DatabaseMappingUpdateMixin:
         """Returns data to add and remove, in order to set wide scenario alternatives.
 
         Args:
-            *items: One or more wide scenario_alternative :class:`dict` objects to set.
+            *items: One or more wide scenario :class:`dict` objects to set.
                 Each item must include the following keys:
 
                 - "id": integer scenario id
-                - "alternative_id_list": string comma separated list of alternative ids for that scenario
+                - "alternative_id_list": list of alternative ids for that scenario
 
         Returns
             list: narrow scenario_alternative :class:`dict` objects to add.
@@ -342,19 +342,9 @@ class DatabaseMappingUpdateMixin:
         for item in items:
             scenario_id = item["id"]
             alternative_id_list = item["alternative_id_list"]
-            alternative_id_list = [int(x) for x in alternative_id_list.split(",")] if alternative_id_list else []
             current_alternative_id_list = current_alternative_id_lists[scenario_id]
-            current_alternative_id_list = (
-                [int(x) for x in current_alternative_id_list.split(",")] if current_alternative_id_list else []
-            )
             for k, alternative_id in enumerate(alternative_id_list):
-                item_to_add = {
-                    "scenario_id": scenario_id,
-                    "alternative_id": alternative_id,
-                    "rank": k + 1,
-                    "before_alternative_id": alternative_id_list[k],
-                    "before_rank": k,
-                }
+                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
                 items_to_add.append(item_to_add)
             for alternative_id in current_alternative_id_list:
                 ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])

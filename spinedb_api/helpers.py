@@ -76,7 +76,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2 ** 32 - 1
+LONGTEXT_LENGTH = 2**32 - 1
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
@@ -941,21 +941,6 @@ def fix_name_ambiguity(input_list, offset=0, prefix=""):
             item += prefix + str(offset + ocurrence)
         result.append(item)
     return result
-
-
-class CacheItem(dict):
-    """A dictionary that behaves kinda like a row from a query result.
-
-    It is used to store items in a cache, so we can access them as if they were rows from a query result.
-    This is mainly because we want to use the cache as a replacement for db queries in some methods.
-    """
-
-    def __getattr__(self, name):
-        """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
-        return self.get(name)
-
-    def _asdict(self):
-        return dict(**self)
 
 
 def vacuum(url):
