@@ -523,21 +523,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self.make_cache({"parameter_definition"}, include_ancestors=True)
-        parameter_definition_ids_with_values = set()
-        parameter_values = cache.get("parameter_value")
-        if for_update:
-            if parameter_values is None:
-                for item in items:
-                    value = (
-                        self.query(self.parameter_value_sq)
-                        .filter(self.parameter_value_sq.c.parameter_definition_id == item["id"])
-                        .first()
-                    )
-                    if value is not None:
-                        parameter_definition_ids_with_values.add(item["id"])
-            else:
-                parameter_definition_ids_with_values = {value.parameter_id for value in parameter_values.values()}
+            cache = self.make_cache({"parameter_definition", "parameter_value"}, include_ancestors=True)
+        parameter_definition_ids_with_values = {
+            value.parameter_id for value in cache.get("parameter_value", {}).values()
+        }
         intgr_error_log = []
         checked_items = list()
         parameter_definition_ids = {
@@ -838,12 +827,15 @@ class DatabaseMappingCheckMixin:
             except KeyError:
                 raise SpineIntegrityError(f"Missing {item_type} identifier.") from None
             try:
-                full_item = cache.get(item_type, {})[id_]._asdict()
+                full_item = cache.get(item_type, {})[id_]
             except KeyError:
                 raise SpineIntegrityError(f"{item_type} not found.") from None
         else:
             id_ = None
-            full_item = item
+            try:
+                full_item = cache.make_item(item_type, item)
+            except (KeyError, TypeError):
+                full_item = item
         try:
             existing_ids_by_key = {
                 _get_key(full_item, pk): existing_ids for pk, existing_ids in existing_ids_by_pk.items()

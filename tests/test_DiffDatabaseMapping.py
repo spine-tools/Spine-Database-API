@@ -24,6 +24,7 @@ from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
 from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
+from spinedb_api.db_cache import DBCache
 from spinedb_api import import_functions, SpineDBAPIError
 
 
@@ -1028,7 +1029,9 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         )
 
     def test_add_entity_metadata_doesnt_raise_with_empty_cache(self):
-        items, errors = self._db_map.add_entity_metadata({"entity_id": 1, "metadata_id": 1}, cache={}, strict=False)
+        items, errors = self._db_map.add_entity_metadata(
+            {"entity_id": 1, "metadata_id": 1}, cache=DBCache(lambda tablename: None), strict=False
+        )
         self.assertEqual(items, set())
         self.assertEqual(len(errors), 1)
 
@@ -1118,7 +1121,9 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_parameter_value_metadata_doesnt_raise_with_empty_cache(self):
         items, errors = self._db_map.add_parameter_value_metadata(
-            {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1}, cache={}, strict=False
+            {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1},
+            cache=DBCache(lambda tablename: None),
+            strict=False,
         )
         self.assertEqual(items, set())
         self.assertEqual(len(errors), 1)

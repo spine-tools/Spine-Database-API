@@ -47,3 +47,4 @@ class DatabaseMapping(
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
+        self._init_type_attributes()

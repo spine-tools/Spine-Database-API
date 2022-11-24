@@ -55,6 +55,7 @@ class DiffDatabaseMapping(
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
+        self._init_type_attributes()
 
     def _add_items(self, tablename, *items):
         self._add_commit_id_and_ids(tablename, *items)
@@ -113,9 +114,9 @@ class DiffDatabaseMapping(
             for k in self._get_primary_key(tablename):
                 upd = upd.where(getattr(diff_table.c, k) == bindparam(k))
             upd = upd.values({key: bindparam(key) for key in diff_table.columns.keys() & items_for_update[0].keys()})
-            self._checked_execute(upd, items_for_update)
+            self._checked_execute(upd, [{**item} for item in items_for_update])
         ins = diff_table.insert()
-        self._checked_execute(ins, items_for_insert)
+        self._checked_execute(ins, [{**item} for item in items_for_insert])
 
     def _update_wide_relationships(self, *items):
         """Update relationships without checking integrity."""

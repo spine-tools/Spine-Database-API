@@ -1933,7 +1933,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cac
         rc_id = relationship_class_ids.get(class_name, None)
         oc_ids = object_class_id_lists.get(rc_id, [])
         o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
-        r_id = relationship_ids.get((",".join(map(str, o_ids)), rc_id), None)
+        r_id = relationship_ids.get((o_ids, rc_id), None)
         p_id = parameter_ids.get((parameter_name, rc_id), None)
         if optionals:
             alternative_name = optionals[0]

@@ -22,9 +22,16 @@ from operator import itemgetter
 
 
 class DBCache(dict):
-    def __init__(self, worker, *args, **kwargs):
+    def __init__(self, advance_query, *args, **kwargs):
+        """
+        A dictionary that maps table names to ids to items. Used to store and retreive database contents.
+
+        Args:
+            advance_query (function): A function to call when references aren't found.
+                It receives a table name (a.k.a item type) and should bring more items of that type into this cache.
+        """
         super().__init__(*args, **kwargs)
-        self._worker = worker
+        self._advance_query = advance_query
 
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
@@ -36,25 +43,29 @@ class DBCache(dict):
         table_cache = self._get_table_cache(item_type)
         item = next((x for x in table_cache.values() if x.get(key) == value), None)
         if item is None:
-            self._worker.do_advance_query(item_type)
+            self._advance_query(item_type)
             return {}
         return item
 
     def get_item(self, item_type, id_):
         table_cache = self._get_table_cache(item_type)
         item = table_cache.get(id_)
-        if item is None and self._worker is not None:
-            self._worker.do_advance_query(item_type)
+        if item is None:
+            self._advance_query(item_type)
             return {}
         return item
 
+    def make_item(self, item_type, item):
+        """Returns a cache item.
 
-class TableCache(dict):
-    def __init__(self, db_cache, item_type, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._db_cache = db_cache
-        self._item_type = item_type
-        self._make_item = {
+        Args:
+            item_type (str): the item type, equal to a table name
+            item (dict): the 'db item' to use as base
+
+        Returns:
+            CacheItem
+        """
+        factory = {
             "object_class": ObjectClassItem,
             "object": ObjectItem,
             "relationship_class": RelationshipClassItem,
@@ -66,12 +77,27 @@ class TableCache(dict):
             "scenario_alternative": ScenarioAlternativeItem,
             "feature": FeatureItem,
             "tool_feature": ToolFeatureItem,
+            "tool_feature_method": ToolFeatureMethodItem,
             "parameter_value_list": ParameterValueListItem,
-        }.get(self._item_type, CacheItem)
+        }.get(item_type, CacheItem)
+        return factory(self, **item)
 
-    def __setitem__(self, id_, item):
-        new_item = self._make_item(self._db_cache, **item)
-        super().__setitem__(id_, new_item)
+
+class TableCache(dict):
+    def __init__(self, db_cache, item_type, *args, **kwargs):
+        """
+        Args:
+            db_cache (DBCache): the DB cache where this table cache belongs.
+            item_type (str): the item type, equal to a table name
+        """
+        super().__init__(*args, **kwargs)
+        self._db_cache = db_cache
+        self._item_type = item_type
+
+    def add_item(self, item):
+        new_item = self._db_cache.make_item(self._item_type, item)
+        self[item["id"]] = new_item
+        return new_item
 
 
 class CacheItem(dict):
@@ -81,10 +107,14 @@ class CacheItem(dict):
     This is mainly because we want to use the cache as a replacement for db queries in some methods.
     """
 
-    def __init__(self, cache, *args, **kwargs):
+    def __init__(self, db_cache, *args, **kwargs):
+        """
+        Args:
+            db_cache (DBCache): the DB cache where this item belongs.
+        """
         kwargs.pop("parsed_value", None)
         super().__init__(*args, **kwargs)
-        self._cache = cache
+        self._db_cache = db_cache
 
     def __getattr__(self, name):
         """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
@@ -100,36 +130,43 @@ class CacheItem(dict):
         return dict(**self)
 
     def _get_item(self, item_type, id_):
-        return self._cache.get_item(item_type, id_)
+        return self._db_cache.get_item(item_type, id_)
 
 
-class ClassItem(CacheItem):
+class DisplayIconMixin:
     def __getitem__(self, key):
         if key == "display_icon":
             return dict.get(self, "display_icon")
         return super().__getitem__(key)
 
 
-class ObjectClassItem(ClassItem):
+class DescriptionMixin:
+    def __getitem__(self, key):
+        if key == "description":
+            return dict.get(self, "description")
+        return super().__getitem__(key)
+
+
+class ObjectClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
     pass
 
 
-class ObjectItem(CacheItem):
+class ObjectItem(DescriptionMixin, CacheItem):
     def __getitem__(self, key):
         if key == "class_name":
             return self._get_item("object_class", self["class_id"]).get("name")
         if key == "group_id":
-            return self._cache.get_item_by_key_value("entity_group", "entity_id", self["id"]).get("entity_id")
+            return self._db_cache.get_item_by_key_value("entity_group", "entity_id", self["id"]).get("entity_id")
         return super().__getitem__(key)
 
 
-class ObjectClassIdListItem(CacheItem):
-    def __init__(self, cache, *args, **kwargs):
+class ObjectClassIdListMixin:
+    def __init__(self, db_cache, *args, **kwargs):
         object_class_id_list = kwargs["object_class_id_list"]
         if isinstance(object_class_id_list, str):
             object_class_id_list = (int(id_) for id_ in object_class_id_list.split(","))
         kwargs["object_class_id_list"] = tuple(object_class_id_list)
-        super().__init__(cache, *args, **kwargs)
+        super().__init__(db_cache, *args, **kwargs)
 
     def __getitem__(self, key):
         if key == "object_class_name_list":
@@ -137,21 +174,21 @@ class ObjectClassIdListItem(CacheItem):
         return super().__getitem__(key)
 
 
-class RelationshipClassItem(ObjectClassIdListItem, ClassItem):
+class RelationshipClassItem(DisplayIconMixin, ObjectClassIdListMixin, DescriptionMixin, CacheItem):
     pass
 
 
-class RelationshipItem(ObjectClassIdListItem):
-    def __init__(self, cache, *args, **kwargs):
+class RelationshipItem(ObjectClassIdListMixin, CacheItem):
+    def __init__(self, db_cache, *args, **kwargs):
         if "object_class_id_list" not in kwargs:
-            kwargs["object_class_id_list"] = cache.get_item("relationship_class", kwargs["class_id"]).get(
+            kwargs["object_class_id_list"] = db_cache.get_item("relationship_class", kwargs["class_id"]).get(
                 "object_class_id_list"
             )
         object_id_list = kwargs["object_id_list"]
         if isinstance(object_id_list, str):
             object_id_list = (int(id_) for id_ in object_id_list.split(","))
         kwargs["object_id_list"] = tuple(object_id_list)
-        super().__init__(cache, *args, **kwargs)
+        super().__init__(db_cache, *args, **kwargs)
 
     def __getitem__(self, key):
         if key == "class_name":
@@ -161,10 +198,17 @@ class RelationshipItem(ObjectClassIdListItem):
         return super().__getitem__(key)
 
 
-class ParameterItem(CacheItem):
+class ParameterMixin:
+    def __init__(self, *args, **kwargs):
+        if "entity_class_id" not in kwargs:
+            kwargs["entity_class_id"] = kwargs.get("object_class_id") or kwargs.get("relationship_class_id")
+        super().__init__(*args, **kwargs)
+
     def __getitem__(self, key):
-        if key in ("object_class_id", "relationship_class_id"):
-            return dict.get(self, key)
+        if key == "object_class_id":
+            return self._get_item("object_class", self["entity_class_id"]).get("id")
+        if key == "relationship_class_id":
+            return self._get_item("relationship_class", self["entity_class_id"]).get("id")
         if key == "object_class_name":
             if self["object_class_id"] is None:
                 return None
@@ -179,15 +223,17 @@ class ParameterItem(CacheItem):
             return self._get_item("relationship_class", self["relationship_class_id"]).get(key)
         if key == "entity_class_name":
             return self["relationship_class_name"] if self["object_class_id"] is None else self["object_class_name"]
+        if key == "parameter_value_list_id":
+            return dict.get(self, key)
         return super().__getitem__(key)
 
 
-class ParameterDefinitionItem(ParameterItem):
-    def __init__(self, cache, *args, **kwargs):
+class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
+    def __init__(self, db_cache, *args, **kwargs):
         kwargs["list_value_id"] = (
             int(kwargs["default_value"]) if kwargs.get("default_type") == "list_value_ref" else None
         )
-        super().__init__(cache, *args, **kwargs)
+        super().__init__(db_cache, *args, **kwargs)
 
     def __getitem__(self, key):
         if key == "parameter_name":
@@ -203,22 +249,28 @@ class ParameterDefinitionItem(ParameterItem):
         return super().__getitem__(key)
 
 
-class ParameterValueItem(ParameterItem):
-    def __init__(self, cache, *args, **kwargs):
+class ParameterValueItem(ParameterMixin, CacheItem):
+    def __init__(self, db_cache, *args, **kwargs):
+        if "entity_id" not in kwargs:
+            kwargs["entity_id"] = kwargs.get("object_id") or kwargs.get("relationship_id")
         kwargs["list_value_id"] = int(kwargs["value"]) if kwargs["type"] == "list_value_ref" else None
-        super().__init__(cache, *args, **kwargs)
+        super().__init__(db_cache, *args, **kwargs)
 
     def __getitem__(self, key):
+        if key == "object_id":
+            return self._get_item("object", self["entity_id"]).get("id")
+        if key == "relationship_id":
+            return self._get_item("relationship", self["entity_id"]).get("id")
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
         if key == "parameter_name":
             return self._get_item("parameter_definition", self["parameter_definition_id"]).get("name")
         if key == "object_name":
-            if self["object_id"] is None:
+            if dict.get(self, "object_id") is None:
                 return None
             return self._get_item("object", self["object_id"]).get("name")
         if key in ("object_id_list", "object_name_list"):
-            if self["relationship_id"] is None:
+            if dict.get(self, "relationship_id") is None:
                 return None
             return self._get_item("relationship", self["relationship_id"]).get(key)
         if key == "alternative_name":
@@ -258,7 +310,7 @@ class ScenarioItem(CacheItem):
     @property
     def _sorted_scen_alts(self):
         return sorted(
-            (x for x in self._cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
+            (x for x in self._db_cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
             key=itemgetter("rank"),
         )
 
@@ -278,7 +330,16 @@ class ScenarioAlternativeItem(CacheItem):
             return self._get_item("scenario", self["scenario_id"]).get("name")
         if key == "alternative_name":
             return self._get_item("alternative", self["alternative_id"]).get("name")
-        # TODO: before alternative...
+        scen_key = {
+            "before_alternative_id": "alternative_id_list",
+            "before_alternative_name": "alternative_name_list",
+        }.get(key)
+        if scen_key is not None:
+            scenario = self._get_item("scenario", self["scenario_id"])
+            try:
+                return scenario[scen_key][self["rank"]]
+            except IndexError:
+                return None
         return super().__getitem__(key)
 
 
@@ -306,11 +367,34 @@ class ToolFeatureItem(CacheItem):
         return super().__getitem__(key)
 
 
+class ToolFeatureMethodItem(CacheItem):
+    def __getitem__(self, key):
+        if key in (
+            "tool_id",
+            "tool_name",
+            "feature_id",
+            "entity_class_id",
+            "entity_class_name",
+            "parameter_definition_id",
+            "parameter_definition_name",
+            "parameter_value_list_id",
+            "parameter_value_list_name",
+        ):
+            return self._get_item("tool_feature", self["tool_feature_id"]).get(key)
+        if key == "method":
+            value_list = self._get_item("parameter_value_list", self["parameter_value_list_id"])
+            if not value_list:
+                return None
+            list_value_id = value_list["value_id_list"][self["method_index"]]
+            return self._get_item("list_value", list_value_id).get("value")
+        return super().__getitem__(key)
+
+
 class ParameterValueListItem(CacheItem):
     @property
     def _sorted_list_values(self):
         return sorted(
-            (x for x in self._cache.get("list_value", {}).values() if x["parameter_value_list_id"] == self["id"]),
+            (x for x in self._db_cache.get("list_value", {}).values() if x["parameter_value_list_id"] == self["id"]),
             key=itemgetter("index"),
         )
 

@@ -52,16 +52,6 @@ from .db_cache import DBCache
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 
-class _Worker:
-    def __init__(self, db_map):
-        self._db_map = db_map
-
-    def do_avance_query(self, tablename):
-        for x in self._db_map.query(getattr(self._db_map, self._db_map.cache_sqs[tablename])):
-            table_cache = self._db_map.cache.table_cache(tablename)
-            table_cache[x.id] = x._asdict()
-
-
 class DatabaseMappingBase:
     """Base class for all database mappings.
 
@@ -141,8 +131,7 @@ class DatabaseMappingBase:
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.session = Session(self.connection, **self._session_kwargs)
-        # self._worker = _Worker(self)
-        self.cache = DBCache(None)
+        self.cache = DBCache(self._advance_cache_query)
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -277,6 +266,24 @@ class DatabaseMappingBase:
         self.descendant_tablenames = {
             tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
         }
+        self.object_class_type = None
+        self.relationship_class_type = None
+        self.object_entity_type = None
+        self.relationship_entity_type = None
+
+    def _init_type_attributes(self):
+        self.object_class_type = (
+            self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "object").first().id
+        )
+        self.relationship_class_type = (
+            self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "relationship").first().id
+        )
+        self.object_entity_type = (
+            self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "object").first().id
+        )
+        self.relationship_entity_type = (
+            self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "relationship").first().id
+        )
 
     def __enter__(self):
         return self
@@ -535,36 +542,6 @@ class DatabaseMappingBase:
         if self._scenario_alternative_sq is None:
             self._scenario_alternative_sq = self._subquery("scenario_alternative")
         return self._scenario_alternative_sq
-
-    @property
-    def object_class_type(self):
-        if self._object_class_type is None:
-            result = self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "object").first()
-            self._object_class_type = result.id
-        return self._object_class_type
-
-    @property
-    def relationship_class_type(self):
-        if self._relationship_class_type is None:
-            result = (
-                self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "relationship").first()
-            )
-            self._relationship_class_type = result.id
-        return self._relationship_class_type
-
-    @property
-    def object_entity_type(self):
-        if self._object_entity_type is None:
-            result = self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "object").first()
-            self._object_entity_type = result.id
-        return self._object_entity_type
-
-    @property
-    def relationship_entity_type(self):
-        if self._relationship_entity_type is None:
-            result = self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "relationship").first()
-            self._relationship_entity_type = result.id
-        return self._relationship_entity_type
 
     @property
     def entity_class_type_sq(self):
@@ -1812,7 +1789,7 @@ class DatabaseMappingBase:
 
     def _create_import_alternative(self, cache=None):
         """Creates the alternative to be used as default for all import operations."""
-        if cache is None:
+        if "alternative" not in cache:
             cache = self.make_cache({"alternative"})
         self._import_alternative_name = "Base"
         self._import_alternative_id = next(
@@ -1930,10 +1907,13 @@ class DatabaseMappingBase:
         if forced_table_names:
             tablenames |= forced_table_names
         for tablename in tablenames & self.cache_sqs.keys():
-            table_cache = self.cache.table_cache(tablename)
-            for x in self.query(getattr(self, self.cache_sqs[tablename])):
-                table_cache[x.id] = x._asdict()
+            self._advance_cache_query(tablename)
         return self.cache
+
+    def _advance_cache_query(self, tablename):
+        table_cache = self.cache.table_cache(tablename)
+        for x in self.query(getattr(self, self.cache_sqs[tablename])):
+            table_cache.add_item(x._asdict())
 
     def _items_with_type_id(self, tablename, *items):
         type_id = {

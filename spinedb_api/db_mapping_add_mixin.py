@@ -203,7 +203,7 @@ class DatabaseMappingAddMixin:
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
                 table = self._get_table_for_insert(tablename_)
-                self._checked_execute(table.insert(), items_to_add_)
+                self._checked_execute(table.insert(), [{**item} for item in items_to_add_])
                 yield tablename_
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
@@ -358,7 +358,7 @@ class DatabaseMappingAddMixin:
             "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, cache=cache
         )
         for x in added_metadata:
-            cache.setdefault("metadata", {})[x["id"]] = x
+            cache.table_cache("metadata").add_item(x)
         if errors:
             return added_metadata, errors
         new_metadata_ids = {}
@@ -381,8 +381,6 @@ class DatabaseMappingAddMixin:
             if not return_items:
                 return added_metadata, metadata_errors
             return {i["id"] for i in added_metadata}, metadata_errors
-        # We want to invalidate cache just in case because it might be missing metadata
-        # records that may have been added above.
         added_item_metadata, item_errors = self.add_items(
             table_name, *items, check=check, strict=strict, return_items=True, cache=cache
         )

@@ -44,6 +44,8 @@ class DatabaseMappingRemoveMixin:
             return
         self._make_commit_id()
         for tablename, ids in kwargs.items():
+            if not ids:
+                continue
             table_id = self.table_ids.get(tablename, "id")
             table = self._metadata.tables[tablename]
             delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))

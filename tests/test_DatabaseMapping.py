@@ -723,7 +723,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         )
         self.assertEqual(
             list(map(str, errors)),
-            ["Invalid default_value '23.0' - it should be one from the parameter value " "list: '99.0'."],
+            ["Invalid default_value '23.0' - it should be one from the parameter value list: '99.0'."],
         )
         self.assertEqual(updated_ids, set())
 
@@ -738,7 +738,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         )
         self.assertEqual(
             list(map(str, errors)),
-            ["Invalid default_value '23.0' - it should be one from the parameter value " "list: '99.0'."],
+            ["Invalid default_value '23.0' - it should be one from the parameter value list: '99.0'."],
         )
         self.assertEqual(updated_ids, set())
 
