@@ -1907,10 +1907,14 @@ class DatabaseMappingBase:
         if forced_table_names:
             tablenames |= forced_table_names
         for tablename in tablenames & self.cache_sqs.keys():
-            self._advance_cache_query(tablename)
+            self._do_advance_cache_query(tablename)
         return self.cache
 
     def _advance_cache_query(self, tablename):
+        if tablename not in self.cache:
+            self._do_advance_cache_query(tablename)
+
+    def _do_advance_cache_query(self, tablename):
         table_cache = self.cache.table_cache(tablename)
         for x in self.query(getattr(self, self.cache_sqs[tablename])):
             table_cache.add_item(x._asdict())
