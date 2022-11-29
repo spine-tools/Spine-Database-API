@@ -55,8 +55,6 @@ class DBCache(dict):
             return {}
         if referrer is not None:
             item.add_referrer(referrer)
-        if item.is_removed():
-            return {}
         return item
 
     def make_item(self, item_type, item):
@@ -141,24 +139,23 @@ class CacheItem(dict):
         self.update_callbacks = set()
         self.remove_callbacks = set()
         self._item_type = item_type
+        self._to_remove = False
         self._removed = False
 
-    def check_removed(self):
+    def is_valid(self):
         if self._removed:
-            return True
-        if any(_is_null(self[key]) for key in self._reference_keys()) or any(
-            all(_is_null(self[key]) for key in keys) for keys in self._complementary_reference_keys()
-        ):
-            self.remove()
-        return self._removed
+            return False
+        for key in self._reference_keys():
+            _ = self[key]
+            if self._to_remove:
+                self.remove()
+                break
+        return not self._removed
 
     def is_removed(self):
         return self._removed
 
     def _reference_keys(self):
-        return ()
-
-    def _complementary_reference_keys(self):
         return ()
 
     @property
@@ -170,14 +167,10 @@ class CacheItem(dict):
         return self.get(name)
 
     def __repr__(self):
-        return f"{type(self).__name__}{repr(self.extended)}"
+        return f"{type(self).__name__}{self.extended()}"
 
     def extended(self):
-        return {
-            **self,
-            **{key: self[key] for key in self._reference_keys()},
-            **{key: self[key] for keys in self._complementary_reference_keys() for key in keys},
-        }
+        return {**self, **{key: self[key] for key in self._reference_keys()}}
 
     def get(self, key, default=None):
         try:
@@ -189,7 +182,10 @@ class CacheItem(dict):
         return dict(**self)
 
     def _get_item(self, item_type, id_):
-        return self._db_cache.get_item(item_type, id_, self)
+        item = self._db_cache.get_item(item_type, id_, self)
+        if item and item.is_removed():
+            self._to_remove = True
+        return item
 
     def add_referrer(self, referrer):
         self._referrers[referrer.key] = referrer
@@ -201,13 +197,11 @@ class CacheItem(dict):
         self._db_cache[self._item_type].add_item(self)
 
     def remove(self):
-        print(self)
         if self._removed:
-            for referrer in self._referrers.values():
-                referrer.remove()
             return
         self._removed = True
         self._db_cache[self._item_type].remove_item(self["id"])
+        self._to_remove = False
 
     def cascade_readd(self):
         for referrer in self._referrers.values():
@@ -331,8 +325,8 @@ class ParameterMixin:
             return dict.get(self, key)
         return super().__getitem__(key)
 
-    def _complementary_reference_keys(self):
-        return super()._complementary_reference_keys() + (("object_class_name", "relationship_class_name"),)
+    def _reference_keys(self):
+        return super()._reference_keys() + ("object_class_name", "relationship_class_name")
 
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
@@ -387,10 +381,7 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("parameter_name", "alternative_name")
-
-    def _complementary_reference_keys(self):
-        return super()._complementary_reference_keys() + (("object_name", "object_name_list"),)
+        return super()._reference_keys() + ("parameter_name", "alternative_name", "object_name", "object_name_list")
 
 
 class EntityGroupItem(CacheItem):
