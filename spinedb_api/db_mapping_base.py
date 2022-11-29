@@ -323,6 +323,21 @@ class DatabaseMappingBase:
                     yield child
                     yield from self._descendant_tablenames(child)
 
+    def sorted_tablenames(self):
+        tablenames = list(self.ITEM_TYPES)
+        sorted_tablenames = []
+        while tablenames:
+            tablename = tablenames.pop(0)
+            ancestors = self.ancestor_tablenames.get(tablename)
+            if ancestors is None or all(x in sorted_tablenames for x in ancestors):
+                sorted_tablenames.append(tablename)
+            else:
+                tablenames.append(tablename)
+        return sorted_tablenames
+
+    def commit_id(self):
+        return self._commit_id
+
     def _make_commit_id(self):
         return None
 

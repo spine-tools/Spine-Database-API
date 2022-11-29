@@ -47,11 +47,15 @@ class DBCache(dict):
             return {}
         return item
 
-    def get_item(self, item_type, id_):
+    def get_item(self, item_type, id_, referrer=None):
         table_cache = self._get_table_cache(item_type)
         item = table_cache.get(id_)
         if item is None:
             self._advance_query(item_type)
+            return {}
+        if referrer is not None:
+            item.add_referrer(referrer)
+        if item.is_removed():
             return {}
         return item
 
@@ -80,7 +84,7 @@ class DBCache(dict):
             "tool_feature_method": ToolFeatureMethodItem,
             "parameter_value_list": ParameterValueListItem,
         }.get(item_type, CacheItem)
-        return factory(self, **item)
+        return factory(self, item_type, **item)
 
 
 class TableCache(dict):
@@ -95,9 +99,27 @@ class TableCache(dict):
         self._item_type = item_type
 
     def add_item(self, item):
-        new_item = self._db_cache.make_item(self._item_type, item)
-        self[item["id"]] = new_item
-        return new_item
+        if isinstance(item, CacheItem) and item["id"] in self:
+            item.cascade_readd()
+            return
+        self[item["id"]] = self._db_cache.make_item(self._item_type, item)
+
+    def update_item(self, item):
+        current_item = self[item["id"]]
+        current_item.update(item)
+        current_item.cascade_update()
+
+    def remove_item(self, id_):
+        current_item = self.get(id_)
+        if current_item:
+            current_item.cascade_remove()
+        return current_item
+
+
+def _is_null(value):
+    if isinstance(value, tuple):
+        return None in value
+    return value is None
 
 
 class CacheItem(dict):
@@ -107,18 +129,55 @@ class CacheItem(dict):
     This is mainly because we want to use the cache as a replacement for db queries in some methods.
     """
 
-    def __init__(self, db_cache, *args, **kwargs):
+    def __init__(self, db_cache, item_type, *args, **kwargs):
         """
         Args:
             db_cache (DBCache): the DB cache where this item belongs.
         """
-        kwargs.pop("parsed_value", None)
         super().__init__(*args, **kwargs)
         self._db_cache = db_cache
+        self._referrers = {}
+        self.readd_callbacks = set()
+        self.update_callbacks = set()
+        self.remove_callbacks = set()
+        self._item_type = item_type
+        self._removed = False
+
+    def check_removed(self):
+        if self._removed:
+            return True
+        if any(_is_null(self[key]) for key in self._reference_keys()) or any(
+            all(_is_null(self[key]) for key in keys) for keys in self._complementary_reference_keys()
+        ):
+            self.remove()
+        return self._removed
+
+    def is_removed(self):
+        return self._removed
+
+    def _reference_keys(self):
+        return ()
+
+    def _complementary_reference_keys(self):
+        return ()
+
+    @property
+    def key(self):
+        return (self._item_type, self["id"])
 
     def __getattr__(self, name):
         """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
         return self.get(name)
+
+    def __repr__(self):
+        return f"{type(self).__name__}{repr(self.extended)}"
+
+    def extended(self):
+        return {
+            **self,
+            **{key: self[key] for key in self._reference_keys()},
+            **{key: self[key] for keys in self._complementary_reference_keys() for key in keys},
+        }
 
     def get(self, key, default=None):
         try:
@@ -130,7 +189,43 @@ class CacheItem(dict):
         return dict(**self)
 
     def _get_item(self, item_type, id_):
-        return self._db_cache.get_item(item_type, id_)
+        return self._db_cache.get_item(item_type, id_, self)
+
+    def add_referrer(self, referrer):
+        self._referrers[referrer.key] = referrer
+
+    def readd(self):
+        if not self._removed:
+            return
+        self._removed = False
+        self._db_cache[self._item_type].add_item(self)
+
+    def remove(self):
+        print(self)
+        if self._removed:
+            for referrer in self._referrers.values():
+                referrer.remove()
+            return
+        self._removed = True
+        self._db_cache[self._item_type].remove_item(self["id"])
+
+    def cascade_readd(self):
+        for referrer in self._referrers.values():
+            referrer.readd()
+        for callback in self.readd_callbacks:
+            callback()
+
+    def cascade_remove(self):
+        for referrer in self._referrers.values():
+            referrer.remove()
+        for callback in self.remove_callbacks:
+            callback()
+
+    def cascade_update(self):
+        for referrer in self._referrers.values():
+            referrer.cascade_update()
+        for callback in self.update_callbacks:
+            callback()
 
 
 class DisplayIconMixin:
@@ -159,6 +254,9 @@ class ObjectItem(DescriptionMixin, CacheItem):
             return self._db_cache.get_item_by_key_value("entity_group", "entity_id", self["id"]).get("entity_id")
         return super().__getitem__(key)
 
+    def _reference_keys(self):
+        return super()._reference_keys() + ("class_name",)
+
 
 class ObjectClassIdListMixin:
     def __init__(self, db_cache, *args, **kwargs):
@@ -172,6 +270,9 @@ class ObjectClassIdListMixin:
         if key == "object_class_name_list":
             return tuple(self._get_item("object_class", id_).get("name") for id_ in self["object_class_id_list"])
         return super().__getitem__(key)
+
+    def _reference_keys(self):
+        return super()._reference_keys() + ("object_class_name_list",)
 
 
 class RelationshipClassItem(DisplayIconMixin, ObjectClassIdListMixin, DescriptionMixin, CacheItem):
@@ -196,6 +297,9 @@ class RelationshipItem(ObjectClassIdListMixin, CacheItem):
         if key == "object_name_list":
             return tuple(self._get_item("object", id_).get("name") for id_ in self["object_id_list"])
         return super().__getitem__(key)
+
+    def _reference_keys(self):
+        return super()._reference_keys() + ("class_name", "object_name_list")
 
 
 class ParameterMixin:
@@ -226,6 +330,9 @@ class ParameterMixin:
         if key == "parameter_value_list_id":
             return dict.get(self, key)
         return super().__getitem__(key)
+
+    def _complementary_reference_keys(self):
+        return super()._complementary_reference_keys() + (("object_class_name", "relationship_class_name"),)
 
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
@@ -278,6 +385,12 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         if key in ("value", "type") and self["list_value_id"] is not None:
             return self._get_item("list_value", self["list_value_id"]).get(key)
         return super().__getitem__(key)
+
+    def _reference_keys(self):
+        return super()._reference_keys() + ("parameter_name", "alternative_name")
+
+    def _complementary_reference_keys(self):
+        return super()._complementary_reference_keys() + (("object_name", "object_name_list"),)
 
 
 class EntityGroupItem(CacheItem):
