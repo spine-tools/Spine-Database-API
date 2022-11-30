@@ -98,9 +98,6 @@ class TableCache(dict):
         return (x for x in super().values() if not x.is_removed())
 
     def add_item(self, item):
-        if self.get(item["id"]) is item:
-            item.cascade_readd()
-            return
         self[item["id"]] = self._db_cache.make_item(self._item_type, item)
 
     def update_item(self, item):
@@ -172,7 +169,7 @@ class CacheItem(dict):
         return self.get(name)
 
     def __repr__(self):
-        return f"{type(self).__name__}{self._extended()}"
+        return f"{self._item_type}{self._extended()}"
 
     def _extended(self):
         return {**self, **{key: self[key] for key in self._reference_keys()}}
@@ -195,11 +192,12 @@ class CacheItem(dict):
                     self._to_remove = True
             else:
                 ref.add_weak_referrer(self)
+                if ref.is_removed():
+                    return {}
         return ref
 
     def add_referrer(self, referrer):
-        self._weak_referrers.pop(referrer.key, None)
-        self._referrers[referrer.key] = referrer
+        self._referrers[referrer.key] = self._weak_referrers.pop(referrer.key, referrer)
 
     def add_weak_referrer(self, referrer):
         if referrer.key not in self._referrers:
@@ -345,7 +343,14 @@ class ParameterMixin:
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("object_class_name", "relationship_class_name")
+        return super()._reference_keys() + (
+            "object_class_id",
+            "object_class_name",
+            "relationship_class_id",
+            "relationship_class_name",
+            "object_class_id_list",
+            "object_class_name_list",
+        )
 
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
@@ -402,7 +407,15 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("parameter_name", "alternative_name", "object_name", "object_name_list")
+        return super()._reference_keys() + (
+            "parameter_name",
+            "alternative_name",
+            "object_id",
+            "object_name",
+            "relationship_id",
+            "object_id_list",
+            "object_name_list",
+        )
 
 
 class EntityGroupItem(CacheItem):
