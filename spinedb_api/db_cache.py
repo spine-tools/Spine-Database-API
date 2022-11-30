@@ -47,14 +47,12 @@ class DBCache(dict):
             return {}
         return item
 
-    def get_item(self, item_type, id_, referrer=None):
+    def get_item(self, item_type, id_):
         table_cache = self._get_table_cache(item_type)
         item = table_cache.get(id_)
         if item is None:
             self._advance_query(item_type)
             return {}
-        if referrer is not None:
-            item.add_referrer(referrer)
         return item
 
     def make_item(self, item_type, item):
@@ -96,8 +94,11 @@ class TableCache(dict):
         self._db_cache = db_cache
         self._item_type = item_type
 
+    def values(self):
+        return (x for x in super().values() if not x.is_removed())
+
     def add_item(self, item):
-        if isinstance(item, CacheItem) and item["id"] in self:
+        if self.get(item["id"]) is item:
             item.cascade_readd()
             return
         self[item["id"]] = self._db_cache.make_item(self._item_type, item)
@@ -135,21 +136,25 @@ class CacheItem(dict):
         super().__init__(*args, **kwargs)
         self._db_cache = db_cache
         self._referrers = {}
+        self._weak_referrers = {}
         self.readd_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
         self._item_type = item_type
+        self._checking_validity = False
         self._to_remove = False
         self._removed = False
 
     def is_valid(self):
         if self._removed:
             return False
+        self._checking_validity = True
         for key in self._reference_keys():
             _ = self[key]
             if self._to_remove:
-                self.remove()
+                self.cascade_remove()
                 break
+        self._checking_validity = False
         return not self._removed
 
     def is_removed(self):
@@ -167,9 +172,9 @@ class CacheItem(dict):
         return self.get(name)
 
     def __repr__(self):
-        return f"{type(self).__name__}{self.extended()}"
+        return f"{type(self).__name__}{self._extended()}"
 
-    def extended(self):
+    def _extended(self):
         return {**self, **{key: self[key] for key in self._reference_keys()}}
 
     def get(self, key, default=None):
@@ -181,45 +186,59 @@ class CacheItem(dict):
     def _asdict(self):
         return dict(**self)
 
-    def _get_item(self, item_type, id_):
-        item = self._db_cache.get_item(item_type, id_, self)
-        if item and item.is_removed():
-            self._to_remove = True
-        return item
+    def _get_ref(self, ref_type, ref_id, source_key):
+        ref = self._db_cache.get_item(ref_type, ref_id)
+        if ref:
+            if source_key in self._reference_keys():
+                ref.add_referrer(self)
+                if self._checking_validity and ref.is_removed():
+                    self._to_remove = True
+            else:
+                ref.add_weak_referrer(self)
+        return ref
 
     def add_referrer(self, referrer):
+        self._weak_referrers.pop(referrer.key, None)
         self._referrers[referrer.key] = referrer
 
-    def readd(self):
+    def add_weak_referrer(self, referrer):
+        if referrer.key not in self._referrers:
+            self._weak_referrers[referrer.key] = referrer
+
+    def cascade_readd(self):
         if not self._removed:
             return
         self._removed = False
-        self._db_cache[self._item_type].add_item(self)
+        for referrer in self._referrers.values():
+            referrer.cascade_readd()
+        for weak_referrer in self._weak_referrers.values():
+            weak_referrer.call_update_callbacks()
+        for callback in self.readd_callbacks:
+            callback(self)
 
-    def remove(self):
+    def cascade_remove(self):
         if self._removed:
             return
         self._removed = True
-        self._db_cache[self._item_type].remove_item(self["id"])
         self._to_remove = False
-
-    def cascade_readd(self):
         for referrer in self._referrers.values():
-            referrer.readd()
-        for callback in self.readd_callbacks:
-            callback()
-
-    def cascade_remove(self):
-        for referrer in self._referrers.values():
-            referrer.remove()
+            referrer.cascade_remove()
+        for weak_referrer in self._weak_referrers.values():
+            weak_referrer.call_update_callbacks()
         for callback in self.remove_callbacks:
-            callback()
+            callback(self)
 
     def cascade_update(self):
         for referrer in self._referrers.values():
             referrer.cascade_update()
+        for weak_referrer in self._weak_referrers.values():
+            weak_referrer.call_update_callbacks()
+        self.call_update_callbacks()
+
+    def call_update_callbacks(self):
+        self.pop("parsed_value", None)
         for callback in self.update_callbacks:
-            callback()
+            callback(self)
 
 
 class DisplayIconMixin:
@@ -243,7 +262,7 @@ class ObjectClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
 class ObjectItem(DescriptionMixin, CacheItem):
     def __getitem__(self, key):
         if key == "class_name":
-            return self._get_item("object_class", self["class_id"]).get("name")
+            return self._get_ref("object_class", self["class_id"], key).get("name")
         if key == "group_id":
             return self._db_cache.get_item_by_key_value("entity_group", "entity_id", self["id"]).get("entity_id")
         return super().__getitem__(key)
@@ -262,7 +281,7 @@ class ObjectClassIdListMixin:
 
     def __getitem__(self, key):
         if key == "object_class_name_list":
-            return tuple(self._get_item("object_class", id_).get("name") for id_ in self["object_class_id_list"])
+            return tuple(self._get_ref("object_class", id_, key).get("name") for id_ in self["object_class_id_list"])
         return super().__getitem__(key)
 
     def _reference_keys(self):
@@ -287,9 +306,9 @@ class RelationshipItem(ObjectClassIdListMixin, CacheItem):
 
     def __getitem__(self, key):
         if key == "class_name":
-            return self._get_item("relationship_class", self["class_id"]).get("name")
+            return self._get_ref("relationship_class", self["class_id"], key).get("name")
         if key == "object_name_list":
-            return tuple(self._get_item("object", id_).get("name") for id_ in self["object_id_list"])
+            return tuple(self._get_ref("object", id_, key).get("name") for id_ in self["object_id_list"])
         return super().__getitem__(key)
 
     def _reference_keys(self):
@@ -304,21 +323,21 @@ class ParameterMixin:
 
     def __getitem__(self, key):
         if key == "object_class_id":
-            return self._get_item("object_class", self["entity_class_id"]).get("id")
+            return self._get_ref("object_class", self["entity_class_id"], key).get("id")
         if key == "relationship_class_id":
-            return self._get_item("relationship_class", self["entity_class_id"]).get("id")
+            return self._get_ref("relationship_class", self["entity_class_id"], key).get("id")
         if key == "object_class_name":
             if self["object_class_id"] is None:
                 return None
-            return self._get_item("object_class", self["object_class_id"]).get("name")
+            return self._get_ref("object_class", self["object_class_id"], key).get("name")
         if key == "relationship_class_name":
             if self["relationship_class_id"] is None:
                 return None
-            return self._get_item("relationship_class", self["relationship_class_id"]).get("name")
+            return self._get_ref("relationship_class", self["relationship_class_id"], key).get("name")
         if key in ("object_class_id_list", "object_class_name_list"):
             if self["relationship_class_id"] is None:
                 return None
-            return self._get_item("relationship_class", self["relationship_class_id"]).get(key)
+            return self._get_ref("relationship_class", self["relationship_class_id"], key).get(key)
         if key == "entity_class_name":
             return self["relationship_class_name"] if self["object_class_id"] is None else self["object_class_name"]
         if key == "parameter_value_list_id":
@@ -331,9 +350,10 @@ class ParameterMixin:
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
     def __init__(self, db_cache, *args, **kwargs):
-        kwargs["list_value_id"] = (
-            int(kwargs["default_value"]) if kwargs.get("default_type") == "list_value_ref" else None
-        )
+        if "list_value_id" not in kwargs:
+            kwargs["list_value_id"] = (
+                int(kwargs["default_value"]) if kwargs.get("default_type") == "list_value_ref" else None
+            )
         super().__init__(db_cache, *args, **kwargs)
 
     def __getitem__(self, key):
@@ -342,10 +362,10 @@ class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
         if key == "value_list_id":
             return super().__getitem__("parameter_value_list_id")
         if key == "value_list_name":
-            return self._get_item("parameter_value_list", self["value_list_id"]).get("name")
+            return self._get_ref("parameter_value_list", self["value_list_id"], key).get("name")
         if key in ("default_value", "default_type"):
             if self["list_value_id"] is not None:
-                return self._get_item("list_value", self["list_value_id"]).get(key.split("_")[1])
+                return self._get_ref("list_value", self["list_value_id"], key).get(key.split("_")[1])
             return dict.get(self, key)
         return super().__getitem__(key)
 
@@ -354,30 +374,31 @@ class ParameterValueItem(ParameterMixin, CacheItem):
     def __init__(self, db_cache, *args, **kwargs):
         if "entity_id" not in kwargs:
             kwargs["entity_id"] = kwargs.get("object_id") or kwargs.get("relationship_id")
-        kwargs["list_value_id"] = int(kwargs["value"]) if kwargs["type"] == "list_value_ref" else None
+        if "list_value_id" not in kwargs:
+            kwargs["list_value_id"] = int(kwargs["value"]) if kwargs["type"] == "list_value_ref" else None
         super().__init__(db_cache, *args, **kwargs)
 
     def __getitem__(self, key):
         if key == "object_id":
-            return self._get_item("object", self["entity_id"]).get("id")
+            return self._get_ref("object", self["entity_id"], key).get("id")
         if key == "relationship_id":
-            return self._get_item("relationship", self["entity_id"]).get("id")
+            return self._get_ref("relationship", self["entity_id"], key).get("id")
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
         if key == "parameter_name":
-            return self._get_item("parameter_definition", self["parameter_definition_id"]).get("name")
+            return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get("name")
         if key == "object_name":
             if dict.get(self, "object_id") is None:
                 return None
-            return self._get_item("object", self["object_id"]).get("name")
+            return self._get_ref("object", self["object_id"], key).get("name")
         if key in ("object_id_list", "object_name_list"):
             if dict.get(self, "relationship_id") is None:
                 return None
-            return self._get_item("relationship", self["relationship_id"]).get(key)
+            return self._get_ref("relationship", self["relationship_id"], key).get(key)
         if key == "alternative_name":
-            return self._get_item("alternative", self["alternative_id"]).get("name")
+            return self._get_ref("alternative", self["alternative_id"], key).get("name")
         if key in ("value", "type") and self["list_value_id"] is not None:
-            return self._get_item("list_value", self["list_value_id"]).get(key)
+            return self._get_ref("list_value", self["list_value_id"], key).get(key)
         return super().__getitem__(key)
 
     def _reference_keys(self):
@@ -392,21 +413,21 @@ class EntityGroupItem(CacheItem):
             return self["entity_id"]
         if key == "class_name":
             return (
-                self._get_item("object_class", self["entity_class_id"])
-                or self._get_item("relationship_class", self["entity_class_id"])
+                self._get_ref("object_class", self["entity_class_id"], key)
+                or self._get_ref("relationship_class", self["entity_class_id"], key)
             ).get("name")
         if key == "group_name":
             return (
-                self._get_item("object", self["entity_id"]) or self._get_item("relationship", self["entity_id"])
+                self._get_ref("object", self["entity_id"], key) or self._get_ref("relationship", self["entity_id"], key)
             ).get("name")
         if key == "member_name":
             return (
-                self._get_item("object", self["member_id"]) or self._get_item("relationship", self["member_id"])
+                self._get_ref("object", self["member_id"], key) or self._get_ref("relationship", self["member_id"], key)
             ).get("name")
         if key == "object_class_id":
-            return self._get_item("object_class", self["entity_class_id"]).get("id")
+            return self._get_ref("object_class", self["entity_class_id"], key).get("id")
         if key == "relationship_class_id":
-            return self._get_item("relationship_class", self["entity_class_id"]).get("id")
+            return self._get_ref("relationship_class", self["entity_class_id"], key).get("id")
         return super().__getitem__(key)
 
 
@@ -431,41 +452,44 @@ class ScenarioItem(CacheItem):
 class ScenarioAlternativeItem(CacheItem):
     def __getitem__(self, key):
         if key == "scenario_name":
-            return self._get_item("scenario", self["scenario_id"]).get("name")
+            return self._get_ref("scenario", self["scenario_id"], key).get("name")
         if key == "alternative_name":
-            return self._get_item("alternative", self["alternative_id"]).get("name")
+            return self._get_ref("alternative", self["alternative_id"], key).get("name")
         scen_key = {
             "before_alternative_id": "alternative_id_list",
             "before_alternative_name": "alternative_name_list",
         }.get(key)
         if scen_key is not None:
-            scenario = self._get_item("scenario", self["scenario_id"])
+            scenario = self._get_ref("scenario", self["scenario_id"], key)
             try:
                 return scenario[scen_key][self["rank"]]
             except IndexError:
                 return None
         return super().__getitem__(key)
 
+    def _reference_keys(self):
+        return super()._reference_keys() + ("scenario_name", "alternative_name")
+
 
 class FeatureItem(CacheItem):
     def __getitem__(self, key):
         if key == "parameter_definition_name":
-            return self._get_item("parameter_definition", self["parameter_definition_id"]).get("name")
+            return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get("name")
         if key in ("entity_class_id", "entity_class_name"):
-            return self._get_item("parameter_definition", self["parameter_definition_id"]).get(key)
+            return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get(key)
         if key == "parameter_value_list_name":
-            return self._get_item("parameter_value_list", self["parameter_value_list_id"]).get("name")
+            return self._get_ref("parameter_value_list", self["parameter_value_list_id"], key).get("name")
         return super().__getitem__(key)
 
 
 class ToolFeatureItem(CacheItem):
     def __getitem__(self, key):
         if key in ("entity_class_id", "entity_class_name", "parameter_definition_id", "parameter_definition_name"):
-            return self._get_item("feature", self["feature_id"]).get(key)
+            return self._get_ref("feature", self["feature_id"], key).get(key)
         if key == "tool_name":
-            return self._get_item("tool", self["tool_id"]).get("name")
+            return self._get_ref("tool", self["tool_id"], key).get("name")
         if key == "parameter_value_list_name":
-            return self._get_item("parameter_value_list", self["parameter_value_list_id"]).get("name")
+            return self._get_ref("parameter_value_list", self["parameter_value_list_id"], key).get("name")
         if key == "required":
             return dict.get(self, "required", False)
         return super().__getitem__(key)
@@ -484,27 +508,30 @@ class ToolFeatureMethodItem(CacheItem):
             "parameter_value_list_id",
             "parameter_value_list_name",
         ):
-            return self._get_item("tool_feature", self["tool_feature_id"]).get(key)
+            return self._get_ref("tool_feature", self["tool_feature_id"], key).get(key)
         if key == "method":
-            value_list = self._get_item("parameter_value_list", self["parameter_value_list_id"])
+            value_list = self._get_ref("parameter_value_list", self["parameter_value_list_id"], key)
             if not value_list:
                 return None
             list_value_id = value_list["value_id_list"][self["method_index"]]
-            return self._get_item("list_value", list_value_id).get("value")
+            return self._get_ref("list_value", list_value_id, key).get("value")
         return super().__getitem__(key)
 
 
 class ParameterValueListItem(CacheItem):
-    @property
-    def _sorted_list_values(self):
+    def _sorted_list_values(self, key):
         return sorted(
-            (x for x in self._db_cache.get("list_value", {}).values() if x["parameter_value_list_id"] == self["id"]),
+            (
+                self._get_ref("list_value", x["id"], key)
+                for x in self._db_cache.get("list_value", {}).values()
+                if x["parameter_value_list_id"] == self["id"]
+            ),
             key=itemgetter("index"),
         )
 
     def __getitem__(self, key):
         if key == "value_index_list":
-            return tuple(x.get("index") for x in self._sorted_list_values)
+            return tuple(x.get("index") for x in self._sorted_list_values(key))
         if key == "value_id_list":
-            return tuple(x.get("id") for x in self._sorted_list_values)
+            return tuple(x.get("id") for x in self._sorted_list_values(key))
         return super().__getitem__(key)
