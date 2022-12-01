@@ -98,7 +98,8 @@ class TableCache(dict):
         return (x for x in super().values() if not x.is_removed())
 
     def add_item(self, item):
-        self[item["id"]] = self._db_cache.make_item(self._item_type, item)
+        self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
+        return new_item
 
     def update_item(self, item):
         current_item = self[item["id"]]
@@ -355,7 +356,7 @@ class ParameterMixin:
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
     def __init__(self, db_cache, *args, **kwargs):
-        if "list_value_id" not in kwargs:
+        if kwargs.get("list_value_id") is None:
             kwargs["list_value_id"] = (
                 int(kwargs["default_value"]) if kwargs.get("default_type") == "list_value_ref" else None
             )
@@ -379,7 +380,7 @@ class ParameterValueItem(ParameterMixin, CacheItem):
     def __init__(self, db_cache, *args, **kwargs):
         if "entity_id" not in kwargs:
             kwargs["entity_id"] = kwargs.get("object_id") or kwargs.get("relationship_id")
-        if "list_value_id" not in kwargs:
+        if kwargs.get("list_value_id") is None:
             kwargs["list_value_id"] = int(kwargs["value"]) if kwargs["type"] == "list_value_ref" else None
         super().__init__(db_cache, *args, **kwargs)
 
