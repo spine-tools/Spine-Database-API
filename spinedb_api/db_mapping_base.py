@@ -1910,7 +1910,7 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, forced_table_names=None):
+    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, force_tablenames=None):
         if only_descendants:
             tablenames = {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
@@ -1919,8 +1919,8 @@ class DatabaseMappingBase:
             tablenames |= {
                 ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
             }
-        if forced_table_names:
-            tablenames |= forced_table_names
+        if force_tablenames:
+            tablenames |= force_tablenames
         for tablename in tablenames & self.cache_sqs.keys():
             self._do_advance_cache_query(tablename)
         return self.cache

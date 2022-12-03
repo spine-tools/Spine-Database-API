@@ -67,10 +67,13 @@ class DatabaseMappingRemoveMixin:
             cascading_ids (dict): cascading ids keyed by table name
         """
         if cache is None:
-            forced_table_names = None
-            if "entity_metadata" in kwargs or "parameter_value_metadata" in kwargs or "metadata" in kwargs:
-                forced_table_names = {"entity_metadata", "parameter_value_metadata"}
-            cache = self.make_cache(set(kwargs), only_descendants=True, forced_table_names=forced_table_names)
+            cache = self.make_cache(
+                set(kwargs),
+                only_descendants=True,
+                force_tablenames={"entity_metadata", "parameter_value_metadata"}
+                if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
+                else None,
+            )
         ids = {}
         self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))
         self._merge(ids, self._object_cascading_ids(kwargs.get("object", set()), cache))

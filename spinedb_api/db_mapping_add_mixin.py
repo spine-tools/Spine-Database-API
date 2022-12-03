@@ -117,6 +117,7 @@ class DatabaseMappingAddMixin:
 
     def _readd_items(self, tablename, *items):
         """Add known items to database."""
+        self._make_commit_id()
         for _ in self._do_add_items(tablename, *items):
             pass
 

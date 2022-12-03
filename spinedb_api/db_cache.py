@@ -32,6 +32,7 @@ class DBCache(dict):
         """
         super().__init__(*args, **kwargs)
         self._advance_query = advance_query
+        self._waiters = {}
 
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
@@ -54,6 +55,14 @@ class DBCache(dict):
             self._advance_query(item_type)
             return {}
         return item
+
+    def register_waiter(self, item_type, id_, waiter):
+        self._waiters.setdefault((item_type, id_), []).append(waiter)
+
+    def notify_waiters(self, item_type, id_):
+        waiters = self._waiters.pop((item_type, id_), ())
+        for waiter in waiters:
+            waiter.call_update_callbacks()
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -99,6 +108,7 @@ class TableCache(dict):
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
+        self._db_cache.notify_waiters(self._item_type, item["id"])
         return new_item
 
     def update_item(self, item):
@@ -163,6 +173,8 @@ class CacheItem(dict):
 
     @property
     def key(self):
+        if self.get("id") is None:
+            return None
         return (self._item_type, self["id"])
 
     def __getattr__(self, name):
@@ -184,7 +196,7 @@ class CacheItem(dict):
     def _asdict(self):
         return dict(**self)
 
-    def _get_ref(self, ref_type, ref_id, source_key):
+    def _do_get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
         if ref:
             if source_key in self._reference_keys():
@@ -197,10 +209,20 @@ class CacheItem(dict):
                     return {}
         return ref
 
+    def _get_ref(self, ref_type, ref_id, source_key):
+        ref = self._do_get_ref(ref_type, ref_id, source_key)
+        if not ref:
+            self._db_cache.register_waiter(ref_type, ref_id, self)
+        return ref
+
     def add_referrer(self, referrer):
+        if referrer.key is None:
+            return
         self._referrers[referrer.key] = self._weak_referrers.pop(referrer.key, referrer)
 
     def add_weak_referrer(self, referrer):
+        if referrer.key is None:
+            return
         if referrer.key not in self._referrers:
             self._weak_referrers[referrer.key] = referrer
 
