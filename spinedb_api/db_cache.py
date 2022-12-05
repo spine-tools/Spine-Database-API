@@ -234,8 +234,11 @@ class CacheItem(dict):
             referrer.cascade_readd()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+        obsolete = set()
         for callback in self.readd_callbacks:
-            callback(self)
+            if not callback(self):
+                obsolete.add(callback)
+        self.readd_callbacks -= obsolete
 
     def cascade_remove(self):
         if self._removed:
@@ -246,8 +249,11 @@ class CacheItem(dict):
             referrer.cascade_remove()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+        obsolete = set()
         for callback in self.remove_callbacks:
-            callback(self)
+            if not callback(self):
+                obsolete.add(callback)
+        self.remove_callbacks -= obsolete
 
     def cascade_update(self):
         for referrer in self._referrers.values():
@@ -258,8 +264,11 @@ class CacheItem(dict):
 
     def call_update_callbacks(self):
         self.pop("parsed_value", None)
+        obsolete = set()
         for callback in self.update_callbacks:
-            callback(self)
+            if not callback(self):
+                obsolete.add(callback)
+        self.update_callbacks -= obsolete
 
 
 class DisplayIconMixin:
