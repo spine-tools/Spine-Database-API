@@ -32,7 +32,7 @@ class DBCache(dict):
         """
         super().__init__(*args, **kwargs)
         self._advance_query = advance_query
-        self._waiters = {}
+        self._uncomplete_referrers = {}
 
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
@@ -52,17 +52,21 @@ class DBCache(dict):
         table_cache = self._get_table_cache(item_type)
         item = table_cache.get(id_)
         if item is None:
-            self._advance_query(item_type)
             return {}
         return item
 
-    def register_waiter(self, item_type, id_, waiter):
-        self._waiters.setdefault((item_type, id_), []).append(waiter)
+    def add_uncomplete_referrer(self, item_type, id_, referrer):
+        if referrer.key is None:
+            return False
+        if not self._advance_query(item_type):
+            return False
+        self._uncomplete_referrers.setdefault((item_type, id_), {})[referrer.key] = referrer
+        return True
 
-    def notify_waiters(self, item_type, id_):
-        waiters = self._waiters.pop((item_type, id_), ())
-        for waiter in waiters:
-            waiter.call_update_callbacks()
+    def notify_uncomplete_referrers(self, item_type, id_):
+        referrers = self._uncomplete_referrers.pop((item_type, id_), {})
+        for referrer in referrers.values():
+            referrer.call_complete_callbacks()
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -108,7 +112,7 @@ class TableCache(dict):
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
-        self._db_cache.notify_waiters(self._item_type, item["id"])
+        self._db_cache.notify_uncomplete_referrers(self._item_type, item["id"])
         return new_item
 
     def update_item(self, item):
@@ -145,24 +149,32 @@ class CacheItem(dict):
         self._db_cache = db_cache
         self._referrers = {}
         self._weak_referrers = {}
+        self.complete_callbacks = set()
         self.readd_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
         self._item_type = item_type
-        self._checking_validity = False
+        self._complete = False
         self._to_remove = False
         self._removed = False
+
+    def is_complete(self):
+        self._complete = True
+        for key in self._reference_keys():
+            _ = self[key]
+            if not self._complete:
+                break
+        return self._complete
 
     def is_valid(self):
         if self._removed:
             return False
-        self._checking_validity = True
+        self._to_remove = False
         for key in self._reference_keys():
             _ = self[key]
             if self._to_remove:
                 self.cascade_remove()
                 break
-        self._checking_validity = False
         return not self._removed
 
     def is_removed(self):
@@ -196,23 +208,20 @@ class CacheItem(dict):
     def _asdict(self):
         return dict(**self)
 
-    def _do_get_ref(self, ref_type, ref_id, source_key):
+    def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
-        if ref:
+        if not ref:
+            if self._db_cache.add_uncomplete_referrer(ref_type, ref_id, self):
+                self._complete = False
+        else:
             if source_key in self._reference_keys():
                 ref.add_referrer(self)
-                if self._checking_validity and ref.is_removed():
+                if ref.is_removed():
                     self._to_remove = True
             else:
                 ref.add_weak_referrer(self)
                 if ref.is_removed():
                     return {}
-        return ref
-
-    def _get_ref(self, ref_type, ref_id, source_key):
-        ref = self._do_get_ref(ref_type, ref_id, source_key)
-        if not ref:
-            self._db_cache.register_waiter(ref_type, ref_id, self)
         return ref
 
     def add_referrer(self, referrer):
@@ -269,6 +278,13 @@ class CacheItem(dict):
             if not callback(self):
                 obsolete.add(callback)
         self.update_callbacks -= obsolete
+
+    def call_complete_callbacks(self):
+        if not self.is_complete():
+            return
+        for callback in self.complete_callbacks:
+            callback(self)
+        self.complete_callbacks.clear()
 
 
 class DisplayIconMixin:
@@ -327,7 +343,7 @@ class RelationshipItem(ObjectClassIdListMixin, CacheItem):
         if "object_class_id_list" not in kwargs:
             kwargs["object_class_id_list"] = db_cache.get_item("relationship_class", kwargs["class_id"]).get(
                 "object_class_id_list"
-            )
+            )  # FIXME?
         object_id_list = kwargs["object_id_list"]
         if isinstance(object_id_list, str):
             object_id_list = (int(id_) for id_ in object_id_list.split(","))
