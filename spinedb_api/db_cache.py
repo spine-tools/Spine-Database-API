@@ -58,15 +58,15 @@ class DBCache(dict):
     def add_uncomplete_referrer(self, item_type, id_, referrer):
         if referrer.key is None:
             return False
-        if not self._advance_query(item_type):
-            return False
         self._uncomplete_referrers.setdefault((item_type, id_), {})[referrer.key] = referrer
-        return True
+        self._advance_query(item_type)
 
     def notify_uncomplete_referrers(self, item_type, id_):
         referrers = self._uncomplete_referrers.pop((item_type, id_), {})
-        for referrer in referrers.values():
-            referrer.call_complete_callbacks()
+        for key, referrer in referrers.items():
+            if referrer.is_complete():
+                referrer.call_complete_callbacks()
+                self.notify_uncomplete_referrers(*key)
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -112,12 +112,16 @@ class TableCache(dict):
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
-        self._db_cache.notify_uncomplete_referrers(self._item_type, item["id"])
+        self._db_cache.notify_uncomplete_referrers(*new_item.key)
         return new_item
 
     def update_item(self, item):
         current_item = self[item["id"]]
+        print(current_item)
+        print(item)
         current_item.update(item)
+        print(current_item)
+        print()
         current_item.cascade_update()
 
     def remove_item(self, id_):
@@ -125,12 +129,6 @@ class TableCache(dict):
         if current_item:
             current_item.cascade_remove()
         return current_item
-
-
-def _is_null(value):
-    if isinstance(value, tuple):
-        return None in value
-    return value is None
 
 
 class CacheItem(dict):
@@ -185,7 +183,7 @@ class CacheItem(dict):
 
     @property
     def key(self):
-        if self.get("id") is None:
+        if dict.get(self, "id") is None:
             return None
         return (self._item_type, self["id"])
 
@@ -210,9 +208,9 @@ class CacheItem(dict):
 
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
-        if not ref:
-            if self._db_cache.add_uncomplete_referrer(ref_type, ref_id, self):
-                self._complete = False
+        if not ref or not ref.is_complete():
+            self._db_cache.add_uncomplete_referrer(ref_type, ref_id, self)
+            self._complete = False
         else:
             if source_key in self._reference_keys():
                 ref.add_referrer(self)
@@ -280,8 +278,6 @@ class CacheItem(dict):
         self.update_callbacks -= obsolete
 
     def call_complete_callbacks(self):
-        if not self.is_complete():
-            return
         for callback in self.complete_callbacks:
             callback(self)
         self.complete_callbacks.clear()
@@ -318,12 +314,12 @@ class ObjectItem(DescriptionMixin, CacheItem):
 
 
 class ObjectClassIdListMixin:
-    def __init__(self, db_cache, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         object_class_id_list = kwargs["object_class_id_list"]
         if isinstance(object_class_id_list, str):
             object_class_id_list = (int(id_) for id_ in object_class_id_list.split(","))
         kwargs["object_class_id_list"] = tuple(object_class_id_list)
-        super().__init__(db_cache, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
         if key == "object_class_name_list":
@@ -368,10 +364,8 @@ class ParameterMixin:
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        if key == "object_class_id":
-            return self._get_ref("object_class", self["entity_class_id"], key).get("id")
-        if key == "relationship_class_id":
-            return self._get_ref("relationship_class", self["entity_class_id"], key).get("id")
+        if key in ("object_class_id", "relationship_class_id"):
+            return dict.get(self, key)
         if key == "object_class_name":
             if self["object_class_id"] is None:
                 return None
@@ -391,23 +385,21 @@ class ParameterMixin:
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + (
-            "object_class_id",
-            "object_class_name",
-            "relationship_class_id",
-            "relationship_class_name",
-            "object_class_id_list",
-            "object_class_name_list",
-        )
+        keys = super()._reference_keys()
+        if self["object_class_id"]:
+            keys += ("object_class_name",)
+        elif self["relationship_class_id"]:
+            keys += ("relationship_class_name", "object_class_id_list", "object_class_name_list")
+        return keys
 
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
-    def __init__(self, db_cache, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         if kwargs.get("list_value_id") is None:
             kwargs["list_value_id"] = (
                 int(kwargs["default_value"]) if kwargs.get("default_type") == "list_value_ref" else None
             )
-        super().__init__(db_cache, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
         if key == "parameter_name":
@@ -424,28 +416,26 @@ class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
 
 
 class ParameterValueItem(ParameterMixin, CacheItem):
-    def __init__(self, db_cache, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         if "entity_id" not in kwargs:
             kwargs["entity_id"] = kwargs.get("object_id") or kwargs.get("relationship_id")
         if kwargs.get("list_value_id") is None:
             kwargs["list_value_id"] = int(kwargs["value"]) if kwargs["type"] == "list_value_ref" else None
-        super().__init__(db_cache, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        if key == "object_id":
-            return self._get_ref("object", self["entity_id"], key).get("id")
-        if key == "relationship_id":
-            return self._get_ref("relationship", self["entity_id"], key).get("id")
+        if key in ("object_id", "relationship_id"):
+            return dict.get(self, key)
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
         if key == "parameter_name":
             return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get("name")
         if key == "object_name":
-            if dict.get(self, "object_id") is None:
+            if self["object_id"] is None:
                 return None
             return self._get_ref("object", self["object_id"], key).get("name")
         if key in ("object_id_list", "object_name_list"):
-            if dict.get(self, "relationship_id") is None:
+            if self["relationship_id"] is None:
                 return None
             return self._get_ref("relationship", self["relationship_id"], key).get(key)
         if key == "alternative_name":
@@ -455,15 +445,12 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + (
-            "parameter_name",
-            "alternative_name",
-            "object_id",
-            "object_name",
-            "relationship_id",
-            "object_id_list",
-            "object_name_list",
-        )
+        keys = super()._reference_keys() + ("parameter_name", "alternative_name")
+        if self["object_id"]:
+            keys += ("object_name",)
+        elif self["relationship_id"]:
+            keys += ("object_id_list", "object_name_list")
+        return keys
 
 
 class EntityGroupItem(CacheItem):
@@ -542,6 +529,14 @@ class FeatureItem(CacheItem):
             return self._get_ref("parameter_value_list", self["parameter_value_list_id"], key).get("name")
         return super().__getitem__(key)
 
+    def _reference_keys(self):
+        return super()._reference_keys() + (
+            "entity_class_id",
+            "entity_class_name",
+            "parameter_definition_name",
+            "parameter_value_list_name",
+        )
+
 
 class ToolFeatureItem(CacheItem):
     def __getitem__(self, key):
@@ -554,6 +549,16 @@ class ToolFeatureItem(CacheItem):
         if key == "required":
             return dict.get(self, "required", False)
         return super().__getitem__(key)
+
+    def _reference_keys(self):
+        return super()._reference_keys() + (
+            "tool_name",
+            "entity_class_id",
+            "entity_class_name",
+            "parameter_definition_id",
+            "parameter_definition_name",
+            "parameter_value_list_name",
+        )
 
 
 class ToolFeatureMethodItem(CacheItem):
@@ -577,6 +582,20 @@ class ToolFeatureMethodItem(CacheItem):
             list_value_id = value_list["value_id_list"][self["method_index"]]
             return self._get_ref("list_value", list_value_id, key).get("value")
         return super().__getitem__(key)
+
+    def _reference_keys(self):
+        return super()._reference_keys() + (
+            "tool_id",
+            "tool_name",
+            "feature_id",
+            "entity_class_id",
+            "entity_class_name",
+            "parameter_definition_id",
+            "parameter_definition_name",
+            "parameter_value_list_id",
+            "parameter_value_list_name",
+            "method",
+        )
 
 
 class ParameterValueListItem(CacheItem):
