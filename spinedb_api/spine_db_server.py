@@ -332,18 +332,12 @@ class _DBManager:
     def open_db_map(self, server_address, db_url, upgrade, memory):
         worker = self._workers.get(server_address)
         if worker is None:
-            try:
-                worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
-            except Exception as error:  # pylint: disable=broad-except
-                return dict(error=str(error))
-        return dict(result=True)
+            worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
 
     def close_db_map(self, server_address):
         worker = self._workers.pop(server_address, None)
-        if worker is None:
-            return dict(result=False)
-        worker.shutdown()
-        return dict(result=True)
+        if worker is not None:
+            worker.shutdown()
 
     def get_db_url(self, server_address):
         worker = self._workers.get(server_address)
@@ -452,12 +446,6 @@ class HandleDBMixin:
         _ManagerRequestHandler(self.server_manager_queue).cancel_db_checkout(self.server_address)
         return dict(result=True)
 
-    def open_db_map(self, db_url, upgrade, memory):
-        return _db_manager.open_db_map(self.server_address, db_url, upgrade, memory)
-
-    def close_db_map(self):
-        return _db_manager.close_db_map(self.server_address)
-
     def _get_response(self, request):
         request, *extras = decode(request)
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
@@ -482,8 +470,6 @@ class HandleDBMixin:
             "db_checkin": self.db_checkin,
             "db_checkout": self.db_checkout,
             "cancel_db_checkout": self.cancel_db_checkout,
-            "open_db_map": self.open_db_map,
-            "close_db_map": self.close_db_map,
         }.get(request)
         if handler is None:
             return dict(error=f"invalid request '{request}'")
