@@ -425,8 +425,8 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
         "parameter_value": ("value", "type"),
         "parameter_definition": ("default_value", "default_type"),
     }[item_type]
-    value = item.get(value_key)
-    value_type = item.get(type_key)
+    value = dict.get(item, value_key)
+    value_type = dict.get(item, type_key)
     try:
         parsed_value = from_database(value, value_type)
     except ParameterValueFormatError as err:
@@ -441,6 +441,7 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
         )
     item[value_key] = str(list_value_id).encode("UTF8")
     item[type_key] = "list_value_ref"
+    item["list_value_id"] = list_value_id
     return True
 
 

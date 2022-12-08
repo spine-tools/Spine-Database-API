@@ -832,10 +832,7 @@ class DatabaseMappingCheckMixin:
                 raise SpineIntegrityError(f"{item_type} not found.") from None
         else:
             id_ = None
-            try:
-                full_item = cache.make_item(item_type, item)
-            except (KeyError, TypeError):
-                full_item = item
+            full_item = cache.make_item(item_type, item)
         try:
             existing_ids_by_key = {
                 _get_key(full_item, pk): existing_ids for pk, existing_ids in existing_ids_by_pk.items()

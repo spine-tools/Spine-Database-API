@@ -117,11 +117,7 @@ class TableCache(dict):
 
     def update_item(self, item):
         current_item = self[item["id"]]
-        print(current_item)
-        print(item)
         current_item.update(item)
-        print(current_item)
-        print()
         current_item.cascade_update()
 
     def remove_item(self, id_):
@@ -338,8 +334,8 @@ class RelationshipItem(ObjectClassIdListMixin, CacheItem):
     def __init__(self, db_cache, *args, **kwargs):
         if "object_class_id_list" not in kwargs:
             kwargs["object_class_id_list"] = db_cache.get_item("relationship_class", kwargs["class_id"]).get(
-                "object_class_id_list"
-            )  # FIXME?
+                "object_class_id_list", ()
+            )
         object_id_list = kwargs["object_id_list"]
         if isinstance(object_id_list, str):
             object_id_list = (int(id_) for id_ in object_id_list.split(","))
@@ -420,7 +416,7 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         if "entity_id" not in kwargs:
             kwargs["entity_id"] = kwargs.get("object_id") or kwargs.get("relationship_id")
         if kwargs.get("list_value_id") is None:
-            kwargs["list_value_id"] = int(kwargs["value"]) if kwargs["type"] == "list_value_ref" else None
+            kwargs["list_value_id"] = int(kwargs["value"]) if kwargs.get("type") == "list_value_ref" else None
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
