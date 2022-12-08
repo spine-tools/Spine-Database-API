@@ -55,18 +55,22 @@ class DBCache(dict):
             return {}
         return item
 
-    def add_uncomplete_referrer(self, item_type, id_, referrer):
+    def add_uncomplete_referrer(self, item_type, referrer):
         if referrer.key is None:
             return False
-        self._uncomplete_referrers.setdefault((item_type, id_), {})[referrer.key] = referrer
+        self._uncomplete_referrers.setdefault(item_type, {})[referrer.key] = referrer
         self._advance_query(item_type)
 
-    def notify_uncomplete_referrers(self, item_type, id_):
-        referrers = self._uncomplete_referrers.pop((item_type, id_), {})
+    def notify_uncomplete_referrers(self, item_type):
+        referrers = self._uncomplete_referrers.get(item_type, {})
+        keys_to_remove = set()
         for key, referrer in referrers.items():
             if referrer.is_complete():
                 referrer.call_complete_callbacks()
-                self.notify_uncomplete_referrers(*key)
+                self.notify_uncomplete_referrers(referrer.item_type)
+                keys_to_remove.add(key)
+        for key in keys_to_remove:
+            del referrers[key]
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -112,7 +116,7 @@ class TableCache(dict):
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
-        self._db_cache.notify_uncomplete_referrers(*new_item.key)
+        self._db_cache.notify_uncomplete_referrers(self._item_type)
         return new_item
 
     def update_item(self, item):
@@ -152,6 +156,16 @@ class CacheItem(dict):
         self._to_remove = False
         self._removed = False
 
+    @property
+    def item_type(self):
+        return self._item_type
+
+    @property
+    def key(self):
+        if dict.get(self, "id") is None:
+            return None
+        return (self._item_type, self["id"])
+
     def is_complete(self):
         self._complete = True
         for key in self._reference_keys():
@@ -177,12 +191,6 @@ class CacheItem(dict):
     def _reference_keys(self):
         return ()
 
-    @property
-    def key(self):
-        if dict.get(self, "id") is None:
-            return None
-        return (self._item_type, self["id"])
-
     def __getattr__(self, name):
         """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
         return self.get(name)
@@ -205,7 +213,7 @@ class CacheItem(dict):
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
         if not ref or not ref.is_complete():
-            self._db_cache.add_uncomplete_referrer(ref_type, ref_id, self)
+            self._db_cache.add_uncomplete_referrer(ref_type, self)
             self._complete = False
         else:
             if source_key in self._reference_keys():
