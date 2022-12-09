@@ -16,10 +16,6 @@ DB cache utility.
 """
 from operator import itemgetter
 
-# TODO:
-# - description
-# - when to pop parsed_value?
-
 
 class DBCache(dict):
     def __init__(self, advance_query, *args, **kwargs):
@@ -32,7 +28,7 @@ class DBCache(dict):
         """
         super().__init__(*args, **kwargs)
         self._advance_query = advance_query
-        self._uncomplete_referrers = {}
+        self._incomplete_referrers = {}
 
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
@@ -55,22 +51,28 @@ class DBCache(dict):
             return {}
         return item
 
-    def add_uncomplete_referrer(self, item_type, referrer):
+    def add_incomplete_referrer(self, item_type, referrer):
         if referrer.key is None:
-            return False
-        self._uncomplete_referrers.setdefault(item_type, {})[referrer.key] = referrer
+            return
+        referrers = self._incomplete_referrers.setdefault(item_type, {})
+        if referrer.key in referrers:
+            return
+        referrers[referrer.key] = referrer
         self._advance_query(item_type)
 
-    def notify_uncomplete_referrers(self, item_type):
-        referrers = self._uncomplete_referrers.get(item_type, {})
+    def notify_incomplete_referrers(self, item_type):
+        referrers = self._incomplete_referrers.get(item_type, {})
         keys_to_remove = set()
         for key, referrer in referrers.items():
             if referrer.is_complete():
-                referrer.call_complete_callbacks()
-                self.notify_uncomplete_referrers(referrer.item_type)
                 keys_to_remove.add(key)
+        unique_item_types = set()
         for key in keys_to_remove:
-            del referrers[key]
+            referrer = referrers.pop(key)
+            referrer.call_complete_callbacks()
+            unique_item_types.add(referrer.item_type)
+        for unique_item_type in unique_item_types:
+            self.notify_incomplete_referrers(unique_item_type)
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -116,7 +118,7 @@ class TableCache(dict):
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
-        self._db_cache.notify_uncomplete_referrers(self._item_type)
+        self._db_cache.notify_incomplete_referrers(self._item_type)
         return new_item
 
     def update_item(self, item):
@@ -213,7 +215,7 @@ class CacheItem(dict):
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
         if not ref or not ref.is_complete():
-            self._db_cache.add_uncomplete_referrer(ref_type, self)
+            self._db_cache.add_incomplete_referrer(ref_type, self)
             self._complete = False
         else:
             if source_key in self._reference_keys():
