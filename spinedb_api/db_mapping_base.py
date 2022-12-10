@@ -1925,9 +1925,11 @@ class DatabaseMappingBase:
             self._do_advance_cache_query(tablename)
         return self.cache
 
-    def _advance_cache_query(self, tablename):
+    def _advance_cache_query(self, tablename, callback=None):
         if tablename not in self.cache:
             self._do_advance_cache_query(tablename)
+        if callback is not None:
+            callback()
 
     def _do_advance_cache_query(self, tablename):
         table_cache = self.cache.table_cache(tablename)

@@ -1030,7 +1030,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_entity_metadata_doesnt_raise_with_empty_cache(self):
         items, errors = self._db_map.add_entity_metadata(
-            {"entity_id": 1, "metadata_id": 1}, cache=DBCache(lambda tablename: None), strict=False
+            {"entity_id": 1, "metadata_id": 1}, cache=DBCache(lambda *args, **kwargs: None), strict=False
         )
         self.assertEqual(items, set())
         self.assertEqual(len(errors), 1)
@@ -1122,7 +1122,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_parameter_value_metadata_doesnt_raise_with_empty_cache(self):
         items, errors = self._db_map.add_parameter_value_metadata(
             {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1},
-            cache=DBCache(lambda tablename: None),
+            cache=DBCache(lambda *args, **kwargs: None),
             strict=False,
         )
         self.assertEqual(items, set())

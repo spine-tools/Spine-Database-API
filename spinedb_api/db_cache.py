@@ -28,7 +28,6 @@ class DBCache(dict):
         """
         super().__init__(*args, **kwargs)
         self._advance_query = advance_query
-        self._incomplete_referrers = {}
 
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
@@ -51,28 +50,14 @@ class DBCache(dict):
             return {}
         return item
 
-    def add_incomplete_referrer(self, item_type, referrer):
-        if referrer.key is None:
-            return
-        referrers = self._incomplete_referrers.setdefault(item_type, {})
-        if referrer.key in referrers:
-            return
-        referrers[referrer.key] = referrer
-        self._advance_query(item_type)
+    def advance_query_for_item(self, item_type, id_, item):
+        self._advance_query(item_type, callback=lambda: self._handle_query_advanced(item_type, id_, item))
 
-    def notify_incomplete_referrers(self, item_type):
-        referrers = self._incomplete_referrers.get(item_type, {})
-        keys_to_remove = set()
-        for key, referrer in referrers.items():
-            if referrer.is_complete():
-                keys_to_remove.add(key)
-        unique_item_types = set()
-        for key in keys_to_remove:
-            referrer = referrers.pop(key)
-            referrer.call_complete_callbacks()
-            unique_item_types.add(referrer.item_type)
-        for unique_item_type in unique_item_types:
-            self.notify_incomplete_referrers(unique_item_type)
+    def _handle_query_advanced(self, item_type, id_, item):
+        if not self.get(item_type, {}).get(id_):
+            self.advance_query_for_item(item_type, id_, item)
+            return
+        item.cascade_complete()
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -118,7 +103,6 @@ class TableCache(dict):
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
-        self._db_cache.notify_incomplete_referrers(self._item_type)
         return new_item
 
     def update_item(self, item):
@@ -147,6 +131,7 @@ class CacheItem(dict):
         """
         super().__init__(*args, **kwargs)
         self._db_cache = db_cache
+        self._incomplete_referrers = {}
         self._referrers = {}
         self._weak_referrers = {}
         self.complete_callbacks = set()
@@ -154,6 +139,7 @@ class CacheItem(dict):
         self.update_callbacks = set()
         self.remove_callbacks = set()
         self._item_type = item_type
+        self._to_complete = False
         self._complete = False
         self._to_remove = False
         self._removed = False
@@ -169,11 +155,15 @@ class CacheItem(dict):
         return (self._item_type, self["id"])
 
     def is_complete(self):
-        self._complete = True
+        if self._complete:
+            return True
+        self._to_complete = True
         for key in self._reference_keys():
             _ = self[key]
-            if not self._complete:
+            if not self._to_complete:
                 break
+        if self._to_complete:
+            self._complete = True
         return self._complete
 
     def is_valid(self):
@@ -215,8 +205,12 @@ class CacheItem(dict):
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
         if not ref or not ref.is_complete():
-            self._db_cache.add_incomplete_referrer(ref_type, self)
-            self._complete = False
+            if source_key in self._reference_keys():
+                if not ref:
+                    self._db_cache.advance_query_for_item(ref_type, ref_id, self)
+                else:
+                    ref.add_incomplete_referrer(self)
+                self._to_complete = False
         else:
             if source_key in self._reference_keys():
                 ref.add_referrer(self)
@@ -228,6 +222,9 @@ class CacheItem(dict):
                     return {}
         return ref
 
+    def add_incomplete_referrer(self, referrer):
+        self._incomplete_referrers[referrer.key] = referrer
+
     def add_referrer(self, referrer):
         if referrer.key is None:
             return
@@ -238,6 +235,16 @@ class CacheItem(dict):
             return
         if referrer.key not in self._referrers:
             self._weak_referrers[referrer.key] = referrer
+
+    def cascade_complete(self):
+        if not self.is_complete():
+            return
+        for referrer in self._incomplete_referrers.values():
+            referrer.cascade_complete()
+        self._incomplete_referrers.clear()
+        for callback in self.complete_callbacks:
+            callback(self)
+        self.complete_callbacks.clear()
 
     def cascade_readd(self):
         if not self._removed:
@@ -282,11 +289,6 @@ class CacheItem(dict):
             if not callback(self):
                 obsolete.add(callback)
         self.update_callbacks -= obsolete
-
-    def call_complete_callbacks(self):
-        for callback in self.complete_callbacks:
-            callback(self)
-        self.complete_callbacks.clear()
 
 
 class DisplayIconMixin:
@@ -585,8 +587,11 @@ class ToolFeatureMethodItem(CacheItem):
             value_list = self._get_ref("parameter_value_list", self["parameter_value_list_id"], key)
             if not value_list:
                 return None
-            list_value_id = value_list["value_id_list"][self["method_index"]]
-            return self._get_ref("list_value", list_value_id, key).get("value")
+            try:
+                list_value_id = value_list["value_id_list"][self["method_index"]]
+                return self._get_ref("list_value", list_value_id, key).get("value")
+            except IndexError:
+                return None
         return super().__getitem__(key)
 
     def _reference_keys(self):
