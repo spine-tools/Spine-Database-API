@@ -35,13 +35,6 @@ class DBCache(dict):
     def _get_table_cache(self, item_type):
         return self.get(item_type, {})
 
-    def get_item_by_key_value(self, item_type, key, value):
-        table_cache = self._get_table_cache(item_type)
-        item = next((x for x in table_cache.values() if x.get(key) == value), None)
-        if item is None:
-            return {}
-        return item
-
     def get_item(self, item_type, id_):
         table_cache = self._get_table_cache(item_type)
         item = table_cache.get(id_)
@@ -52,11 +45,6 @@ class DBCache(dict):
     def fetch_ref(self, item_type, id_):
         while self._advance_query(item_type):
             if id_ in self.get(item_type, {}):
-                break
-
-    def fetch_ref_by_key_value(self, item_type, key, value):
-        while self._advance_query(item_type):
-            if any(x.get(key) == value for x in self.get(item_type, {}).values()):
                 break
 
     def make_item(self, item_type, item):
@@ -199,14 +187,6 @@ class CacheItem(dict):
             return {}
         return self._handle_ref(ref, source_key)
 
-    def _get_ref_by_key_value(self, ref_type, ref_key, ref_value, source_key):
-        ref = self._db_cache.get_item_by_key_value(ref_type, ref_key, ref_value)
-        if not ref:
-            if source_key in self._reference_keys():
-                self._db_cache.fetch_ref_by_key_value(ref_type, ref_key, ref_value)
-            return {}
-        return self._handle_ref(ref, source_key)
-
     def _handle_ref(self, ref, source_key):
         if source_key in self._reference_keys():
             ref.add_referrer(self)
@@ -296,15 +276,10 @@ class ObjectItem(DescriptionMixin, CacheItem):
     def __getitem__(self, key):
         if key == "class_name":
             return self._get_ref("object_class", self["class_id"], key).get("name")
-        if key == "group_id":
-            id_ = dict.get(self, "id")
-            if not id_:
-                return None
-            return self._get_ref_by_key_value("entity_group", "entity_id", id_, key).get("entity_id")
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("class_name", "group_id")
+        return super()._reference_keys() + ("class_name",)
 
 
 class ObjectClassIdListMixin:
@@ -471,6 +446,9 @@ class EntityGroupItem(CacheItem):
         if key == "relationship_class_id":
             return self._get_ref("relationship_class", self["entity_class_id"], key).get("id")
         return super().__getitem__(key)
+
+    def _reference_keys(self):
+        return super()._reference_keys() + ("class_name", "group_name", "member_name")
 
 
 class ScenarioItem(CacheItem):
