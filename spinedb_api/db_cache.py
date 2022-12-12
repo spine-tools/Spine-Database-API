@@ -44,8 +44,9 @@ class DBCache(dict):
 
     def fetch_ref(self, item_type, id_):
         while self._advance_query(item_type):
-            if id_ in self.get(item_type, {}):
-                break
+            ref = self.get(item_type, {}).get(id_)
+            if ref:
+                return ref
 
     def make_item(self, item_type, item):
         """Returns a cache item.
@@ -182,9 +183,11 @@ class CacheItem(dict):
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
         if not ref:
-            if source_key in self._reference_keys():
-                self._db_cache.fetch_ref(ref_type, ref_id)
-            return {}
+            if source_key not in self._reference_keys():
+                return {}
+            ref = self._db_cache.fetch_ref(ref_type, ref_id)
+            if not ref:
+                return {}
         return self._handle_ref(ref, source_key)
 
     def _handle_ref(self, ref, source_key):

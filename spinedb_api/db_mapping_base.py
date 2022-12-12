@@ -740,7 +740,20 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._entity_group_sq is None:
-            self._entity_group_sq = self._subquery("entity_group")
+            group_entity = aliased(self.entity_sq)
+            member_entity = aliased(self.entity_sq)
+            entity_group_sq = self._subquery("entity_group")
+            self._entity_group_sq = (
+                self.query(
+                    entity_group_sq.c.id,
+                    entity_group_sq.c.entity_class_id,
+                    group_entity.c.id.label("entity_id"),
+                    member_entity.c.id.label("member_id"),
+                )
+                .join(group_entity, group_entity.c.id == entity_group_sq.c.entity_id)
+                .join(member_entity, member_entity.c.id == entity_group_sq.c.member_id)
+                .subquery()
+            )
         return self._entity_group_sq
 
     @property
@@ -1926,14 +1939,17 @@ class DatabaseMappingBase:
         return self.cache
 
     def _advance_cache_query(self, tablename, callback=None):
+        advanced = False
         if tablename not in self.cache:
+            advanced = True
             self._do_advance_cache_query(tablename)
         if callback is not None:
             callback()
+        return advanced
 
     def _do_advance_cache_query(self, tablename):
         table_cache = self.cache.table_cache(tablename)
-        for x in self.query(getattr(self, self.cache_sqs[tablename])):
+        for x in self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False):
             table_cache.add_item(x._asdict())
 
     def _items_with_type_id(self, tablename, *items):
