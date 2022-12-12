@@ -228,22 +228,22 @@ class CacheItem(dict):
             return
         self._removed = True
         self._to_remove = False
-        for referrer in self._referrers.values():
-            referrer.cascade_remove()
-        for weak_referrer in self._weak_referrers.values():
-            weak_referrer.call_update_callbacks()
         obsolete = set()
         for callback in self.remove_callbacks:
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
-
-    def cascade_update(self):
         for referrer in self._referrers.values():
-            referrer.cascade_update()
+            referrer.cascade_remove()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+
+    def cascade_update(self):
         self.call_update_callbacks()
+        for weak_referrer in self._weak_referrers.values():
+            weak_referrer.call_update_callbacks()
+        for referrer in self._referrers.values():
+            referrer.cascade_update()
 
     def call_update_callbacks(self):
         self.pop("parsed_value", None)
