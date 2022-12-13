@@ -88,7 +88,7 @@ def apply_filter_stack(db_map, stack):
     # then all filters that affect the query of table B must come *before* those that affect the query of table A.
     # This is because we want the B query to be already overriden when we use it to override the A query.
     # For example, the tool filter that affects the entity subquery must come before the scenario filter that
-    # affects the parameter_value subquery, because parameter_value depends on entity
+    # affects the parameter_value subquery, because parameter_value depends on entity.
     appliers = {
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
         PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
