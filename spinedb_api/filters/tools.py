@@ -89,6 +89,11 @@ def apply_filter_stack(db_map, stack):
     # This is because we want the B query to be already overriden when we use it to override the A query.
     # For example, the tool filter that affects the entity subquery must come before the scenario filter that
     # affects the parameter_value subquery, because parameter_value depends on entity.
+    # FIXME: Wait, so what happens, e.g., if an entity has is_active False in scenario A and True in scenario B?
+    # We want that entity to be excluded only in scenario A - but we want to have in scenario B.
+    # But if we apply the object_activity_control tool filter first,
+    # it may happen (?) that the entity gets excluded first in all scenarios,
+    # so then we'll never see it in scenario B.
     appliers = {
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
         PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
