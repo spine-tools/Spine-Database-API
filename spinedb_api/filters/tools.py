@@ -84,17 +84,26 @@ def apply_filter_stack(db_map, stack):
         db_map (DatabaseMappingBase): a database map
         stack (list): a stack of database filters and manipulators
     """
+    # NOTE: Order of application is important. That is, if table A depends on table B (via a foreign key),
+    # then all filters that affect the query of table B must come *before* those that affect the query of table A.
+    # This is because we want the B query to be already overriden when we use it to override the A query.
+    # For example, the tool filter that affects the entity subquery must come before the scenario filter that
+    # affects the parameter_value subquery, because parameter_value depends on entity
     appliers = {
-        ALTERNATIVE_FILTER_TYPE: alternative_filter_from_dict,
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
         PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
-        SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
         TOOL_FILTER_TYPE: tool_filter_from_dict,
+        ALTERNATIVE_FILTER_TYPE: alternative_filter_from_dict,
+        SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
         EXECUTION_FILTER_TYPE: execution_filter_from_dict,
         VALUE_TRANSFORMER_TYPE: value_transformer_from_dict,
     }
+    filters_by_type = {}
     for filter_ in stack:
-        appliers[filter_["type"]](db_map, filter_)
+        filters_by_type.setdefault(filter_["type"], []).append(filter_)
+    for type_, applier in appliers.items():
+        for filter_ in filters_by_type.get(type_, ()):
+            applier(db_map, filter_)
 
 
 def load_filters(configs):
