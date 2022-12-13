@@ -162,6 +162,7 @@ class DatabaseMappingBase:
         self._metadata_sq = None
         self._parameter_value_metadata_sq = None
         self._entity_metadata_sq = None
+        self._clean_parameter_value_sq = None
         # Special convenience subqueries that join two or more tables
         self._ext_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
@@ -224,7 +225,7 @@ class DatabaseMappingBase:
             "relationship": "wide_relationship_sq",
             "entity_group": "entity_group_sq",
             "parameter_definition": "parameter_definition_sq",
-            "parameter_value": "parameter_value_sq",
+            "parameter_value": "clean_parameter_value_sq",
             "metadata": "metadata_sq",
             "entity_metadata": "ext_entity_metadata_sq",
             "parameter_value_metadata": "ext_parameter_value_metadata_sq",
@@ -493,9 +494,9 @@ class DatabaseMappingBase:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        attrs = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
-        for attr in attrs:
-            setattr(self, attr, None)
+        attr_names = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
+        for attr_name in attr_names:
+            setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
@@ -786,6 +787,21 @@ class DatabaseMappingBase:
         if self._parameter_value_sq is None:
             self._parameter_value_sq = self._make_parameter_value_sq()
         return self._parameter_value_sq
+
+    @property
+    def clean_parameter_value_sq(self):
+        """A subquery of the parameter_value table that excludes rows with filtered entities.
+        This yields the correct results whenever there are both a scenario filter that filters some parameter values,
+        and a tool filter that then filters some entities based on the value of some their parameters
+        after the scenario filtering. Mildly insane.
+        """
+        if self._clean_parameter_value_sq is None:
+            self._clean_parameter_value_sq = (
+                self.query(self.parameter_value_sq)
+                .join(self.entity_sq, self.entity_sq.c.id == self.parameter_value_sq.c.entity_id)
+                .subquery()
+            )
+        return self._clean_parameter_value_sq
 
     @property
     def parameter_value_list_sq(self):
