@@ -159,7 +159,6 @@ def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
-
     return sorted(
         ((x.name, parse_value(x.value, x.type)) for x in _get_items(db_map, "parameter_value_list", ids, make_cache)),
         key=itemgetter(0),

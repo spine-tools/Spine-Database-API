@@ -52,10 +52,10 @@ class DiffDatabaseMapping(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._init_type_attributes()
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
-        self._init_type_attributes()
 
     def _add_items(self, tablename, *items):
         self._add_commit_id_and_ids(tablename, *items)
