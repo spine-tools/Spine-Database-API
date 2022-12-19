@@ -265,20 +265,14 @@ class DatabaseMappingAddMixin:
         elif tablename == "parameter_definition":
             for item in items_to_add:
                 item["entity_class_id"] = (
-                    item.pop("object_class_id", None)
-                    or item.pop("relationship_class_id", None)
-                    or item.get("entity_class_id")
+                    item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
                 )
             yield ("parameter_definition", items_to_add)
         elif tablename == "parameter_value":
             for item in items_to_add:
-                item["entity_id"] = (
-                    item.pop("object_id", None) or item.pop("relationship_id", None) or item.get("entity_id")
-                )
+                item["entity_id"] = item.get("object_id") or item.get("relationship_id") or item.get("entity_id")
                 item["entity_class_id"] = (
-                    item.pop("object_class_id", None)
-                    or item.pop("relationship_class_id", None)
-                    or item.get("entity_class_id")
+                    item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
                 )
             yield ("parameter_value", items_to_add)
         else:
