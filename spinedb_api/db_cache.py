@@ -32,11 +32,8 @@ class DBCache(dict):
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
 
-    def _get_table_cache(self, item_type):
-        return self.get(item_type, {})
-
     def get_item(self, item_type, id_):
-        table_cache = self._get_table_cache(item_type)
+        table_cache = self.get(item_type, {})
         item = table_cache.get(id_)
         if item is None:
             return {}
@@ -140,27 +137,6 @@ class CacheItem(dict):
             return None
         return (self._item_type, self["id"])
 
-    def _complete(self):
-        for key in self._reference_keys():
-            _ = self[key]
-
-    def is_valid(self):
-        if self._removed:
-            return False
-        self._to_remove = False
-        for key in self._reference_keys():
-            _ = self[key]
-            if self._to_remove:
-                self.cascade_remove()
-                break
-        return not self._removed
-
-    def is_removed(self):
-        return self._removed
-
-    def _reference_keys(self):
-        return ()
-
     def __getattr__(self, name):
         """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
         return self.get(name)
@@ -171,14 +147,15 @@ class CacheItem(dict):
     def _extended(self):
         return {**self, **{key: self[key] for key in self._reference_keys()}}
 
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
     def _asdict(self):
         return dict(**self)
+
+    def _reference_keys(self):
+        return ()
+
+    def _complete(self):
+        for key in self._reference_keys():
+            _ = self[key]
 
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
@@ -200,6 +177,26 @@ class CacheItem(dict):
             if ref.is_removed():
                 return {}
         return ref
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def is_valid(self):
+        if self._removed:
+            return False
+        self._to_remove = False
+        for key in self._reference_keys():
+            _ = self[key]
+            if self._to_remove:
+                self.cascade_remove()
+                break
+        return not self._removed
+
+    def is_removed(self):
+        return self._removed
 
     def add_referrer(self, referrer):
         if referrer.key is None:
