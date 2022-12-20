@@ -133,7 +133,9 @@ class _DBServerManager:
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
-        SpineDBClient(server.server_address).open_db_map(db_url, upgrade, memory)
+        error = SpineDBClient(server.server_address).open_db_map(db_url, upgrade, memory).get("error")
+        if error:
+            raise RuntimeError(error)
         return server.server_address
 
     def _shutdown_server(self, server_address):
@@ -500,7 +502,9 @@ class HandleDBMixin:
 class DBHandler(HandleDBMixin):
     def __init__(self, db_url, upgrade=False, memory=False):
         self.server_address = uuid.uuid4().hex
-        _db_manager.open_db_map(self.server_address, db_url, upgrade, memory)
+        error = _db_manager.open_db_map(self.server_address, db_url, upgrade, memory).get("error")
+        if error:
+            raise RuntimeError(error)
         atexit.register(self.close)
 
     def close(self):
