@@ -117,12 +117,12 @@ class CacheItem(dict):
         """
         super().__init__(*args, **kwargs)
         self._db_cache = db_cache
+        self._item_type = item_type
         self._referrers = {}
         self._weak_referrers = {}
         self.readd_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
-        self._item_type = item_type
         self._to_remove = False
         self._removed = False
         self._complete()
@@ -183,6 +183,9 @@ class CacheItem(dict):
             return self[key]
         except KeyError:
             return default
+
+    def copy(self):
+        return type(self)(self._db_cache, self._item_type, **self)
 
     def is_valid(self):
         if self._removed:
