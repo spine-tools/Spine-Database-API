@@ -85,7 +85,7 @@ class TableCache(dict):
         self._item_type = item_type
 
     def values(self):
-        return (x for x in super().values() if not x.is_removed())
+        return (x for x in super().values() if x.is_valid())
 
     def add_item(self, item):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
@@ -125,6 +125,7 @@ class CacheItem(dict):
         self.remove_callbacks = set()
         self._to_remove = False
         self._removed = False
+        self._corrupted = False
         self._complete()
 
     @property
@@ -164,6 +165,7 @@ class CacheItem(dict):
                 return {}
             ref = self._db_cache.fetch_ref(ref_type, ref_id)
             if not ref:
+                self._corrupted = True
                 return {}
         return self._handle_ref(ref, source_key)
 
@@ -188,15 +190,15 @@ class CacheItem(dict):
         return type(self)(self._db_cache, self._item_type, **self)
 
     def is_valid(self):
-        if self._removed:
+        if self._removed or self._corrupted:
             return False
         self._to_remove = False
+        self._corrupted = False
         for key in self._reference_keys():
             _ = self[key]
-            if self._to_remove:
-                self.cascade_remove()
-                break
-        return not self._removed
+        if self._to_remove:
+            self.cascade_remove()
+        return not self._removed and not self._corrupted
 
     def is_removed(self):
         return self._removed

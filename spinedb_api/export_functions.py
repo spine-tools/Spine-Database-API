@@ -120,7 +120,9 @@ def _get_items_from_cache(cache, tablename, ids):
         yield from items.values()
         return
     for id_ in ids:
-        yield items[id_]
+        item = items[id_]
+        if item.is_valid():
+            yield item
 
 
 def _make_item_processor(tablename, make_cache):
