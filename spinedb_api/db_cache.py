@@ -312,7 +312,7 @@ class RelationshipItem(ObjectClassIdListMixin, CacheItem):
             kwargs["object_class_id_list"] = db_cache.get_item("relationship_class", kwargs["class_id"]).get(
                 "object_class_id_list", ()
             )
-        object_id_list = kwargs["object_id_list"]
+        object_id_list = kwargs.get("object_id_list", ())
         if isinstance(object_id_list, str):
             object_id_list = (int(id_) for id_ in object_id_list.split(","))
         kwargs["object_id_list"] = tuple(object_id_list)
