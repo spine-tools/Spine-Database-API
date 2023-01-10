@@ -35,12 +35,14 @@ jobs:
         pip install .
         pip install coverage
         pip install codecov
+    - name: List packages
+      run:
         pip list
     - name: Run tests
       env: 
         QT_QPA_PLATFORM: offscreen
       run:
         coverage run -m unittest discover --verbose
-    - name: Run codecov
+    - name: Upload coverage report to Codecov
       run:
         codecov
