@@ -1186,6 +1186,7 @@ def _get_object_parameters_for_import(db_map, data, make_cache, unparse_value):
             else {
                 "name": parameter_name,
                 "entity_class_id": oc_id,
+                "object_class_id": oc_id,
                 "default_value": None,
                 "default_type": None,
                 "parameter_value_list_id": None,
@@ -1270,6 +1271,7 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_va
             else {
                 "name": parameter_name,
                 "entity_class_id": rc_id,
+                "relationship_class_id": rc_id,
                 "default_value": None,
                 "default_type": None,
                 "parameter_value_list_id": None,
