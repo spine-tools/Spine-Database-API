@@ -126,7 +126,6 @@ class CacheItem(dict):
         self._to_remove = False
         self._removed = False
         self._corrupted = False
-        self._completed = False
 
     @property
     def item_type(self):
@@ -153,13 +152,6 @@ class CacheItem(dict):
 
     def _reference_keys(self):
         return ()
-
-    def _complete(self):
-        if self._completed:
-            return
-        self._completed = True
-        for key in self._reference_keys():
-            _ = self[key]
 
     def _get_ref(self, ref_type, ref_id, source_key):
         ref = self._db_cache.get_item(ref_type, ref_id)
@@ -193,7 +185,6 @@ class CacheItem(dict):
         return type(self)(self._db_cache, self._item_type, **self)
 
     def is_valid(self):
-        self._complete()
         if self._removed or self._corrupted:
             return False
         self._to_remove = False
