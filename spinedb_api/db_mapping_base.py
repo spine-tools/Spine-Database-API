@@ -499,19 +499,19 @@ class DatabaseMappingBase:
     @property
     def alternative_sq(self):
         if self._alternative_sq is None:
-            self._alternative_sq = self._subquery("alternative")
+            self._alternative_sq = self._make_alternative_sq()
         return self._alternative_sq
 
     @property
     def scenario_sq(self):
         if self._scenario_sq is None:
-            self._scenario_sq = self._subquery("scenario")
+            self._scenario_sq = self._make_scenario_sq()
         return self._scenario_sq
 
     @property
     def scenario_alternative_sq(self):
         if self._scenario_alternative_sq is None:
-            self._scenario_alternative_sq = self._subquery("scenario_alternative")
+            self._scenario_alternative_sq = self._make_scenario_alternative_sq()
         return self._scenario_alternative_sq
 
     @property
@@ -1778,6 +1778,33 @@ class DatabaseMappingBase:
             .subquery()
         )
 
+    def _make_alternative_sq(self):
+        """
+        Creates a subquery for alternatives.
+
+        Returns:
+            Alias: an alternative subquery
+        """
+        return self._subquery("alternative")
+
+    def _make_scenario_sq(self):
+        """
+        Creates a subquery for scenarios.
+
+        Returns:
+            Alias: a scenario subquery
+        """
+        return self._subquery("scenario")
+
+    def _make_scenario_alternative_sq(self):
+        """
+        Creates a subquery for scenario alternatives.
+
+        Returns:
+            Alias: a scenario alternative subquery
+        """
+        return self._subquery("scenario_alternative")
+
     def get_import_alternative(self, cache=None):
         """Returns the id of the alternative to use as default for all import operations.
 
@@ -1874,6 +1901,54 @@ class DatabaseMappingBase:
         """
         self._create_import_alternative = MethodType(method, self)
         self._import_alternative_id = None
+
+    def override_alternative_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``alternative_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns alternative subquery as an :class:`Alias` object
+        """
+        self._make_alternative_sq = MethodType(method, self)
+        self._clear_subqueries("alternative")
+
+    def restore_alternative_sq_maker(self):
+        """Restores the original function that creates the ``alternative_sq`` property."""
+        self._make_alternative_sq = MethodType(DatabaseMappingBase._make_alternative_sq, self)
+        self._clear_subqueries("alternative")
+
+    def override_scenario_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``scenario_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns scenario subquery as an :class:`Alias` object
+        """
+        self._make_scenario_sq = MethodType(method, self)
+        self._clear_subqueries("scenario")
+
+    def restore_scenario_sq_maker(self):
+        """Restores the original function that creates the ``scenario_sq`` property."""
+        self._make_scenario_sq = MethodType(DatabaseMappingBase._make_scenario_sq, self)
+        self._clear_subqueries("scenario")
+
+    def override_scenario_alternative_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``scenario_alternative_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns scenario alternative subquery as an :class:`Alias` object
+        """
+        self._make_scenario_alternative_sq = MethodType(method, self)
+        self._clear_subqueries("scenario_alternative")
+
+    def restore_scenario_alternative_sq_maker(self):
+        """Restores the original function that creates the ``scenario_alternative_sq`` property."""
+        self._make_scenario_alternative_sq = MethodType(DatabaseMappingBase._make_scenario_alternative_sq, self)
+        self._clear_subqueries("scenario_alternative")
 
     def _checked_execute(self, stmt, items):
         if not items:
