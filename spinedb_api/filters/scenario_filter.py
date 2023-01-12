@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Provides functions to apply filtering based on scenarios to parameter value subqueries.
+Provides functions to apply filtering based on scenarios to subqueries.
 
 :author: Antti Soininen (VTT)
 :date:   21.8.2020
@@ -24,9 +24,9 @@ SCENARIO_FILTER_TYPE = "scenario_filter"
 SCENARIO_SHORTHAND_TAG = "scenario"
 
 
-def apply_scenario_filter_to_parameter_value_sq(db_map, scenario):
+def apply_scenario_filter_to_subqueries(db_map, scenario):
     """
-    Replaces parameter value subquery properties in ``db_map`` such that they return only values of given scenario.
+    Replaces affected subqueries in ``db_map`` such that they return only values of given scenario.
 
     Args:
         db_map (DatabaseMappingBase): a database map to alter
@@ -35,6 +35,12 @@ def apply_scenario_filter_to_parameter_value_sq(db_map, scenario):
     state = _ScenarioFilterState(db_map, scenario)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
+    make_alternative_sq = partial(_make_scenario_filtered_alternative_sq, state=state)
+    db_map.override_alternative_sq_maker(make_alternative_sq)
+    make_scenario_sq = partial(_make_scenario_filtered_scenario_sq, state=state)
+    db_map.override_scenario_sq_maker(make_scenario_sq)
+    make_scenario_alternative_sq = partial(_make_scenario_filtered_scenario_alternative_sq, state=state)
+    db_map.override_scenario_alternative_sq_maker(make_scenario_alternative_sq)
 
 
 def scenario_filter_config(scenario):
@@ -58,7 +64,7 @@ def scenario_filter_from_dict(db_map, config):
         db_map (DatabaseMappingBase): target database map
         config (dict): scenario filter configuration
     """
-    apply_scenario_filter_to_parameter_value_sq(db_map, config["scenario"])
+    apply_scenario_filter_to_subqueries(db_map, config["scenario"])
 
 
 def scenario_name_from_dict(config):
@@ -108,7 +114,11 @@ class _ScenarioFilterState:
     Internal state for :func:`_make_scenario_filtered_parameter_value_sq`.
 
     Attributes:
+        original_alternative_sq (Alias): previous ``alternative_sq``
         original_parameter_value_sq (Alias): previous ``parameter_value_sq``
+        original_scenario_alternative_sq (Alias): previous ``scenario_alternative_sq``
+        original_scenario_sq (Alias): previous ``scenario_sq``
+        scenario_alternative_ids (list of int): ids of selected scenario's alternatives
         scenario_id (int): id of selected scenario
     """
 
@@ -119,7 +129,11 @@ class _ScenarioFilterState:
             scenario (str or int): scenario name or ids
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
+        self.original_scenario_sq = db_map.scenario_sq
+        self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
+        self.original_alternative_sq = db_map.alternative_sq
         self.scenario_id = self._scenario_id(db_map, scenario)
+        self.scenario_alternative_ids, self.alternative_ids = self._scenario_alternative_ids(db_map)
 
     @staticmethod
     def _scenario_id(db_map, scenario):
@@ -146,6 +160,25 @@ class _ScenarioFilterState:
         if scenario is None:
             raise SpineDBAPIError(f"Scenario id {scenario_id} not found.")
         return scenario_id
+
+    def _scenario_alternative_ids(self, db_map):
+        """
+        Finds scenario alternative and alternative ids of current scenario.
+
+        Args:
+            db_map (DatabaseMappingBase): a database map
+
+        Returns:
+            tuple: scenario alternative ids and alternative ids
+        """
+        alternative_ids = []
+        scenario_alternative_ids = []
+        for row in db_map.query(db_map.scenario_alternative_sq).filter(
+            db_map.scenario_alternative_sq.c.scenario_id == self.scenario_id
+        ):
+            scenario_alternative_ids.append(row.id)
+            alternative_ids.append(row.alternative_id)
+        return scenario_alternative_ids, alternative_ids
 
 
 def _make_scenario_filtered_parameter_value_sq(db_map, state):
@@ -178,3 +211,58 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
     return db_map.query(ext_parameter_value_sq).filter(ext_parameter_value_sq.c.max_rank_row_number == 1).subquery()
+
+
+def _make_scenario_filtered_alternative_sq(db_map, state):
+    """
+    Returns an alternative filtering subquery similar to :func:`DatabaseMappingBase.alternative_sq`.
+
+    This function can be used as replacement for alternative subquery maker in :class:`DatabaseMappingBase`.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for alternative filtered by selected scenario
+    """
+    alternative_sq = state.original_alternative_sq
+    return db_map.query(alternative_sq).filter(alternative_sq.c.id.in_(state.alternative_ids)).subquery()
+
+
+def _make_scenario_filtered_scenario_sq(db_map, state):
+    """
+    Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.scenario_sq`.
+
+    This function can be used as replacement for scenario subquery maker in :class:`DatabaseMappingBase`.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for scenario filtered by selected scenario
+    """
+    scenario_sq = state.original_scenario_sq
+    return db_map.query(scenario_sq).filter(scenario_sq.c.id == state.scenario_id).subquery()
+
+
+def _make_scenario_filtered_scenario_alternative_sq(db_map, state):
+    """
+    Returns a scenario alternative filtering subquery similar to :func:`DatabaseMappingBase.scenario_alternative_sq`.
+
+    This function can be used as replacement for scenario alternative subquery maker in :class:`DatabaseMappingBase`.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for scenario alternative filtered by selected scenario
+    """
+    scenario_alternative_sq = state.original_scenario_alternative_sq
+    return (
+        db_map.query(scenario_alternative_sq)
+        .filter(scenario_alternative_sq.c.id.in_(state.scenario_alternative_ids))
+        .subquery()
+    )
