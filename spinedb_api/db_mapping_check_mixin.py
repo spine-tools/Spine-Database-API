@@ -41,7 +41,6 @@ from .check_functions import (
     check_parameter_value_metadata,
 )
 from .parameter_value import from_database
-from .helpers import CacheItem
 
 
 # NOTE: To check for an update we remove the current instance from our lookup dictionary,
@@ -205,7 +204,7 @@ class DatabaseMappingCheckMixin:
         }
         tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
         parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(",")]}
+            x.id: {"name": x.name, "value_index_list": x.value_index_list}
             for x in cache.get("parameter_value_list", {}).values()
         }
         for item in items:
@@ -443,11 +442,10 @@ class DatabaseMappingCheckMixin:
         checked_wide_items = list()
         relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", {}).values()}
         relationship_ids_by_obj_lst = {
-            (x.class_id, tuple(int(id_) for id_ in x.object_id_list.split(","))): x.id
-            for x in cache.get("relationship", {}).values()
+            (x.class_id, x.object_id_list): x.id for x in cache.get("relationship", {}).values()
         }
         relationship_classes = {
-            x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
+            x.id: {"object_class_id_list": x.object_class_id_list, "name": x.name}
             for x in cache.get("relationship_class", {}).values()
         }
         objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
@@ -525,21 +523,10 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self.make_cache({"parameter_definition"}, include_ancestors=True)
-        parameter_definition_ids_with_values = set()
-        parameter_values = cache.get("parameter_value")
-        if for_update:
-            if parameter_values is None:
-                for item in items:
-                    value = (
-                        self.query(self.parameter_value_sq)
-                        .filter(self.parameter_value_sq.c.parameter_definition_id == item["id"])
-                        .first()
-                    )
-                    if value is not None:
-                        parameter_definition_ids_with_values.add(item["id"])
-            else:
-                parameter_definition_ids_with_values = {value.parameter_id for value in parameter_values.values()}
+            cache = self.make_cache({"parameter_definition", "parameter_value"}, include_ancestors=True)
+        parameter_definition_ids_with_values = {
+            value.parameter_id for value in cache.get("parameter_value", {}).values()
+        }
         intgr_error_log = []
         checked_items = list()
         parameter_definition_ids = {
@@ -833,24 +820,22 @@ class DatabaseMappingCheckMixin:
         return checked_items, intgr_error_log
 
     @contextmanager
-    def _manage_stocks(self, item_type, item, existing_ids_by_key_fields, for_update, cache, intgr_error_log):
+    def _manage_stocks(self, item_type, item, existing_ids_by_pk, for_update, cache, intgr_error_log):
         if for_update:
             try:
                 id_ = item["id"]
             except KeyError:
                 raise SpineIntegrityError(f"Missing {item_type} identifier.") from None
             try:
-                cache_item = cache.get(item_type, {})[id_]
+                full_item = cache.get(item_type, {})[id_]
             except KeyError:
                 raise SpineIntegrityError(f"{item_type} not found.") from None
-            full_item = self.cache_to_db(item_type, cache_item._asdict())
         else:
             id_ = None
-            full_item = self.db_to_db(cache, item_type, item)
+            full_item = cache.make_item(item_type, item)
         try:
             existing_ids_by_key = {
-                _get_key(full_item, key_fields): existing_ids
-                for key_fields, existing_ids in existing_ids_by_key_fields.items()
+                _get_key(full_item, pk): existing_ids for pk, existing_ids in existing_ids_by_pk.items()
             }
         except KeyError as e:
             raise SpineIntegrityError(f"Missing key field {e} for {item_type}.") from None
@@ -874,19 +859,19 @@ class DatabaseMappingCheckMixin:
             for key, existing_ids in existing_ids_by_key.items():
                 existing_ids[key] = id_
             if for_update:
-                cache.get(item_type, {})[id_] = CacheItem(**self.db_to_cache(cache, item_type, full_item))
+                cache.get(item_type, {})[id_] = full_item
 
 
-def _get_key_values(item, key_fields):
-    for field in key_fields:
+def _get_key_values(item, pk):
+    for field in pk:
         value = item[field]
         if isinstance(value, list):
             value = tuple(value)
         yield value
 
 
-def _get_key(item, key_fields):
-    key = tuple(_get_key_values(item, key_fields))
+def _get_key(item, pk):
+    key = tuple(_get_key_values(item, pk))
     if len(key) > 1:
         return key
     return key[0]

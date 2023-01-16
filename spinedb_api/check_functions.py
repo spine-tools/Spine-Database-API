@@ -244,7 +244,7 @@ def check_wide_relationship(
     except KeyError:
         raise SpineIntegrityError(f"There is no object id list for relationship '{name}'")
     try:
-        given_object_class_id_list = [objects[id]["class_id"] for id in object_id_list]
+        given_object_class_id_list = tuple(objects[id]["class_id"] for id in object_id_list)
     except KeyError:
         raise SpineIntegrityError(f"Some of the objects in relationship '{name}' are invalid.")
     if given_object_class_id_list != object_class_id_list:
@@ -425,15 +425,14 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
         "parameter_value": ("value", "type"),
         "parameter_definition": ("default_value", "default_type"),
     }[item_type]
-    value = item.get(value_key)
-    value_type = item.get(type_key)
+    value = dict.get(item, value_key)
+    value_type = dict.get(item, type_key)
     try:
         parsed_value = from_database(value, value_type)
     except ParameterValueFormatError as err:
         raise SpineIntegrityError(f"Invalid {value_key} '{value}': {err}") from None
     if parsed_value is None:
         return False
-    value_id_list = [int(id_) for id_ in value_id_list.split(",")]
     list_value_id = next((id_ for id_ in value_id_list if list_values.get(id_) == parsed_value), None)
     if list_value_id is None:
         valid_values = ", ".join([f"'{list_values.get(id_)}'" for id_ in value_id_list])
@@ -442,6 +441,7 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
         )
     item[value_key] = str(list_value_id).encode("UTF8")
     item[type_key] = "list_value_ref"
+    item["list_value_id"] = list_value_id
     return True
 
 

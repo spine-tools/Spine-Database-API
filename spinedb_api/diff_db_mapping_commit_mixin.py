@@ -89,6 +89,9 @@ class DiffDatabaseMappingCommitMixin:
         """Discard all staged changes."""
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
+        self.reset_session()
+
+    def reset_session(self):
         transaction = self.connection.begin()
         try:
             self._reset_diff_mapping()

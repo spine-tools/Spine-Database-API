@@ -551,7 +551,7 @@ def _get_tool_feature_methods_for_import(db_map, data, make_cache, unparse_value
     }
     tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
     parameter_value_lists = {
-        x.id: {"name": x.name, "value_index_list": [int(idx) for idx in x.value_index_list.split(",")]}
+        x.id: {"name": x.name, "value_index_list": x.value_index_list}
         for x in cache.get("parameter_value_list", {}).values()
     }
     list_values = {
@@ -738,10 +738,7 @@ def import_scenario_alternatives(db_map, data, make_cache=None):
 
 def _get_scenario_alternatives_for_import(data, make_cache):
     cache = make_cache({"scenario_alternative"}, include_ancestors=True)
-    scenario_alternative_id_lists = {
-        x.id: [int(id_) for id_ in x.alternative_id_list.split(",")] if x.alternative_id_list else []
-        for x in cache.get("scenario", {}).values()
-    }
+    scenario_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
     scenario_alternative_ids = {
         (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
     }
@@ -892,7 +889,7 @@ def _get_relationship_classes_for_import(db_map, data, make_cache):
             continue
         rc_id = relationship_class_ids.pop(name, None)
         item = (
-            db_map.cache_relationship_class_to_db(cache["relationship_class"][rc_id]._asdict())
+            cache["relationship_class"][rc_id]._asdict()
             if rc_id is not None
             else {
                 "name": name,
@@ -1076,11 +1073,9 @@ def _get_relationships_for_import(db_map, data, make_cache):
     cache = make_cache({"relationship"}, include_ancestors=True)
     relationships = {x.name: x for x in cache.get("relationship", {}).values()}
     relationship_ids_per_name = {(x.class_id, x.name): x.id for x in relationships.values()}
-    relationship_ids_per_obj_lst = {
-        (x.class_id, tuple(int(id_) for id_ in x.object_id_list.split(","))): x.id for x in relationships.values()
-    }
+    relationship_ids_per_obj_lst = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
     relationship_classes = {
-        x.id: {"object_class_id_list": [int(y) for y in x.object_class_id_list.split(",")], "name": x.name}
+        x.id: {"object_class_id_list": x.object_class_id_list, "name": x.name}
         for x in cache.get("relationship_class", {}).values()
     }
     objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
@@ -1102,7 +1097,7 @@ def _get_relationships_for_import(db_map, data, make_cache):
             r_name = cache["relationship"][r_id].name
             relationship_ids_per_name.pop((rc_id, r_name))
         item = (
-            db_map.cache_relationship_to_db(cache["relationship"][r_id]._asdict())
+            cache["relationship"][r_id]._asdict()
             if r_id is not None
             else {
                 "name": _make_unique_relationship_name(rc_id, class_name, object_names, relationship_ids_per_name),
@@ -1186,11 +1181,12 @@ def _get_object_parameters_for_import(db_map, data, make_cache, unparse_value):
             continue
         p_id = parameter_ids.pop((oc_id, parameter_name), None)
         item = (
-            db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
+            cache["parameter_definition"][p_id]._asdict()
             if p_id is not None
             else {
                 "name": parameter_name,
                 "entity_class_id": oc_id,
+                "object_class_id": oc_id,
                 "default_value": None,
                 "default_type": None,
                 "parameter_value_list_id": None,
@@ -1270,11 +1266,12 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_va
             continue
         p_id = parameter_ids.pop((rc_id, parameter_name), None)
         item = (
-            db_map.cache_parameter_definition_to_db(cache["parameter_definition"][p_id]._asdict())
+            cache["parameter_definition"][p_id]._asdict()
             if p_id is not None
             else {
                 "name": parameter_name,
                 "entity_class_id": rc_id,
+                "relationship_class_id": rc_id,
                 "default_value": None,
                 "default_type": None,
                 "parameter_value_list_id": None,
@@ -1401,6 +1398,8 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_va
             "parameter_definition_id": p_id,
             "entity_class_id": oc_id,
             "entity_id": o_id,
+            "object_class_id": oc_id,
+            "object_id": o_id,
             "value": value,
             "type": type_,
             "alternative_id": alt_id,
@@ -1461,10 +1460,7 @@ def import_relationship_parameter_values(db_map, data, make_cache=None, unparse_
 
 def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
     cache = make_cache({"parameter_value"}, include_ancestors=True)
-    object_class_id_lists = {
-        x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
-        for x in cache.get("relationship_class", {}).values()
-    }
+    object_class_id_lists = {x.id: x.object_class_id_list for x in cache.get("relationship_class", {}).values()}
     parameter_value_ids = {
         (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
     }
@@ -1477,7 +1473,7 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
         for x in cache.get("parameter_definition", {}).values()
     }
     relationships = {
-        x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": [int(i) for i in x.object_id_list.split(",")]}
+        x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": x.object_id_list}
         for x in cache.get("relationship", {}).values()
     }
     parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
@@ -1537,6 +1533,8 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
             "parameter_definition_id": p_id,
             "entity_class_id": rc_id,
             "entity_id": r_id,
+            "relationship_class_id": rc_id,
+            "relationship_id": r_id,
             "value": value,
             "type": type_,
             "alternative_id": alt_id,
@@ -1650,7 +1648,7 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
         elif not value_index_list:
             index = 0
         else:
-            index = max(map(int, value_index_list.split(","))) + 1
+            index = max(value_index_list) + 1
         item = {"parameter_value_list_id": list_id, "value": val, "type": type_, "index": index}
         try:
             check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
@@ -1782,16 +1780,10 @@ def import_relationship_metadata(db_map, data, make_cache=None):
 def _get_relationship_metadata_for_import(db_map, data, make_cache):
     cache = make_cache({"relationship", "entity_metadata"}, include_ancestors=True)
     relationship_class_ids = {oc.name: oc.id for oc in cache.get("relationship_class", {}).values()}
-    object_class_id_lists = {
-        x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
-        for x in cache.get("relationship_class", {}).values()
-    }
+    object_class_id_lists = {x.id: x.object_class_id_list for x in cache.get("relationship_class", {}).values()}
     metadata_ids = {(x.name, x.value): x.id for x in cache.get("metadata", {}).values()}
     object_ids = {(x.name, x.class_id): x.id for x in cache.get("object", {}).values()}
-    relationship_ids = {
-        (x.class_id, tuple(int(id_) for id_ in x.object_id_list.split(","))): x.id
-        for x in cache.get("relationship", {}).values()
-    }
+    relationship_ids = {(x.class_id, x.object_id_list): x.id for x in cache.get("relationship", {}).values()}
     seen = {(x.entity_id, x.metadata_id) for x in cache.get("entity_metadata", {}).values()}
     error_log = []
     to_add = []
@@ -1929,10 +1921,7 @@ def import_relationship_parameter_value_metadata(db_map, data, make_cache=None):
 def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cache):
     cache = make_cache({"parameter_value", "parameter_value_metadata"}, include_ancestors=True)
     relationship_class_ids = {oc.name: oc.id for oc in cache.get("relationship_class", {}).values()}
-    object_class_id_lists = {
-        x.id: [int(id_) for id_ in x.object_class_id_list.split(",")]
-        for x in cache.get("relationship_class", {}).values()
-    }
+    object_class_id_lists = {x.id: x.object_class_id_list for x in cache.get("relationship_class", {}).values()}
     object_ids = {(x.name, x.class_id): x.id for x in cache.get("object", {}).values()}
     relationship_ids = {(x.object_id_list, x.class_id): x.id for x in cache.get("relationship", {}).values()}
     parameter_ids = {
@@ -1950,7 +1939,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cac
         rc_id = relationship_class_ids.get(class_name, None)
         oc_ids = object_class_id_lists.get(rc_id, [])
         o_ids = tuple(object_ids.get((name, oc_id), None) for name, oc_id in zip(object_names, oc_ids))
-        r_id = relationship_ids.get((",".join(map(str, o_ids)), rc_id), None)
+        r_id = relationship_ids.get((o_ids, rc_id), None)
         p_id = parameter_ids.get((parameter_name, rc_id), None)
         if optionals:
             alternative_name = optionals[0]

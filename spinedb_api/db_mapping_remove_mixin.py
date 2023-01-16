@@ -40,7 +40,12 @@ class DatabaseMappingRemoveMixin:
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
+        if not self.committing:
+            return
+        self._make_commit_id()
         for tablename, ids in kwargs.items():
+            if not ids:
+                continue
             table_id = self.table_ids.get(tablename, "id")
             table = self._metadata.tables[tablename]
             delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))
@@ -49,8 +54,6 @@ class DatabaseMappingRemoveMixin:
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg) from e
-            else:
-                self.make_commit_id()
 
     # pylint: disable=redefined-builtin
     def cascading_ids(self, cache=None, **kwargs):
@@ -64,10 +67,13 @@ class DatabaseMappingRemoveMixin:
             cascading_ids (dict): cascading ids keyed by table name
         """
         if cache is None:
-            forced_table_names = None
-            if "entity_metadata" in kwargs or "parameter_value_metadata" in kwargs or "metadata" in kwargs:
-                forced_table_names = {"entity_metadata", "parameter_value_metadata"}
-            cache = self.make_cache(set(kwargs), only_descendants=True, forced_table_names=forced_table_names)
+            cache = self.make_cache(
+                set(kwargs),
+                only_descendants=True,
+                force_tablenames={"entity_metadata", "parameter_value_metadata"}
+                if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
+                else None,
+            )
         ids = {}
         self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))
         self._merge(ids, self._object_cascading_ids(kwargs.get("object", set()), cache))
@@ -130,9 +136,7 @@ class DatabaseMappingRemoveMixin:
         cascading_ids = {"entity_class": set(ids), "object_class": set(ids)}
         objects = [x for x in cache.get("object", {}).values() if x.class_id in ids]
         relationship_classes = (
-            x
-            for x in cache.get("relationship_class", {}).values()
-            if {int(id_) for id_ in x.object_class_id_list.split(",")}.intersection(ids)
+            x for x in cache.get("relationship_class", {}).values() if set(x.object_class_id_list).intersection(ids)
         )
         paramerer_definitions = [x for x in cache.get("parameter_definition", {}).values() if x.entity_class_id in ids]
         self._merge(cascading_ids, self._object_cascading_ids({x.id for x in objects}, cache))
@@ -145,11 +149,7 @@ class DatabaseMappingRemoveMixin:
     def _object_cascading_ids(self, ids, cache):
         """Returns object cascading ids."""
         cascading_ids = {"entity": set(ids), "object": set(ids)}
-        relationships = (
-            x
-            for x in cache.get("relationship", {}).values()
-            if {int(id_) for id_ in x.object_id_list.split(",")}.intersection(ids)
-        )
+        relationships = (x for x in cache.get("relationship", {}).values() if set(x.object_id_list).intersection(ids))
         parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
         groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
         entity_metadata_ids = {x.id for x in cache.get("entity_metadata", {}).values() if x.entity_id in ids}
