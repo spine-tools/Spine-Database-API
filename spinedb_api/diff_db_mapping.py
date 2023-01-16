@@ -52,6 +52,7 @@ class DiffDatabaseMapping(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._init_type_attributes()
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
@@ -93,17 +94,18 @@ class DiffDatabaseMapping(
         return items_for_update, items_for_insert, dirty_ids, updated_ids
 
     def _do_update_items(self, tablename, *items):
-        try:
-            items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
-                tablename, items
-            )
-            self._update_and_insert_items(tablename, items_for_update, items_for_insert)
-            self._mark_as_dirty(tablename, dirty_ids)
-            self.updated_item_id[tablename].update(dirty_ids)
-            return updated_ids
-        except DBAPIError as e:
-            msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
-            raise SpineDBAPIError(msg)
+        items_for_update, items_for_insert, dirty_ids, updated_ids = self._get_items_for_update_and_insert(
+            tablename, items
+        )
+        if self.committing:
+            try:
+                self._update_and_insert_items(tablename, items_for_update, items_for_insert)
+                self._mark_as_dirty(tablename, dirty_ids)
+                self.updated_item_id[tablename].update(dirty_ids)
+            except DBAPIError as e:
+                msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
+                raise SpineDBAPIError(msg)
+        return updated_ids
 
     def _update_and_insert_items(self, tablename, items_for_update, items_for_insert):
         diff_table = self._diff_table(tablename)
@@ -112,9 +114,9 @@ class DiffDatabaseMapping(
             for k in self._get_primary_key(tablename):
                 upd = upd.where(getattr(diff_table.c, k) == bindparam(k))
             upd = upd.values({key: bindparam(key) for key in diff_table.columns.keys() & items_for_update[0].keys()})
-            self._checked_execute(upd, items_for_update)
+            self._checked_execute(upd, [{**item} for item in items_for_update])
         ins = diff_table.insert()
-        self._checked_execute(ins, items_for_insert)
+        self._checked_execute(ins, [{**item} for item in items_for_insert])
 
     def _update_wide_relationships(self, *items):
         """Update relationships without checking integrity."""
@@ -161,15 +163,16 @@ class DiffDatabaseMapping(
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
-        for tablename, ids in kwargs.items():
-            table_id = self.table_ids.get(tablename, "id")
-            diff_table = self._diff_table(tablename)
-            delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
-            try:
-                self.connection.execute(delete)
-            except DBAPIError as e:
-                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
-                raise SpineDBAPIError(msg)
+        if self.committing:
+            for tablename, ids in kwargs.items():
+                table_id = self.table_ids.get(tablename, "id")
+                diff_table = self._diff_table(tablename)
+                delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
+                try:
+                    self.connection.execute(delete)
+                except DBAPIError as e:
+                    msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
+                    raise SpineDBAPIError(msg)
         for tablename, ids in kwargs.items():
             self.added_item_id[tablename].difference_update(ids)
             self.updated_item_id[tablename].difference_update(ids)

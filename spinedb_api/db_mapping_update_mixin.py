@@ -25,7 +25,7 @@ class DatabaseMappingUpdateMixin:
 
     def _add_commit_id(self, *items):
         for item in items:
-            item["commit_id"] = self.make_commit_id()
+            item["commit_id"] = self._make_commit_id()
 
     def _update_items(self, tablename, *items):
         if not items:
@@ -43,17 +43,18 @@ class DatabaseMappingUpdateMixin:
         return self._do_update_items(real_tablename, *items)
 
     def _do_update_items(self, tablename, *items):
-        table = self._metadata.tables[tablename]
-        self._add_commit_id(*items)
-        upd = table.update()
-        for k in self._get_primary_key(tablename):
-            upd = upd.where(getattr(table.c, k) == bindparam(k))
-        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
-        try:
-            self._checked_execute(upd, items)
-        except DBAPIError as e:
-            msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
-            raise SpineDBAPIError(msg)
+        if self.committing:
+            self._add_commit_id(*items)
+            table = self._metadata.tables[tablename]
+            upd = table.update()
+            for k in self._get_primary_key(tablename):
+                upd = upd.where(getattr(table.c, k) == bindparam(k))
+            upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
+            try:
+                self._checked_execute(upd, [{**item} for item in items])
+            except DBAPIError as e:
+                msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
+                raise SpineDBAPIError(msg)
         return {x["id"] for x in items}
 
     def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None):
@@ -320,11 +321,11 @@ class DatabaseMappingUpdateMixin:
         """Returns data to add and remove, in order to set wide scenario alternatives.
 
         Args:
-            *items: One or more wide scenario_alternative :class:`dict` objects to set.
+            *items: One or more wide scenario :class:`dict` objects to set.
                 Each item must include the following keys:
 
                 - "id": integer scenario id
-                - "alternative_id_list": string comma separated list of alternative ids for that scenario
+                - "alternative_id_list": list of alternative ids for that scenario
 
         Returns
             list: narrow scenario_alternative :class:`dict` objects to add.
@@ -341,19 +342,9 @@ class DatabaseMappingUpdateMixin:
         for item in items:
             scenario_id = item["id"]
             alternative_id_list = item["alternative_id_list"]
-            alternative_id_list = [int(x) for x in alternative_id_list.split(",")] if alternative_id_list else []
             current_alternative_id_list = current_alternative_id_lists[scenario_id]
-            current_alternative_id_list = (
-                [int(x) for x in current_alternative_id_list.split(",")] if current_alternative_id_list else []
-            )
             for k, alternative_id in enumerate(alternative_id_list):
-                item_to_add = {
-                    "scenario_id": scenario_id,
-                    "alternative_id": alternative_id,
-                    "rank": k + 1,
-                    "before_alternative_id": alternative_id_list[k],
-                    "before_rank": k,
-                }
+                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
                 items_to_add.append(item_to_add)
             for alternative_id in current_alternative_id_list:
                 ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])

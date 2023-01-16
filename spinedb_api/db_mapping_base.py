@@ -21,8 +21,8 @@ import os
 import logging
 import time
 from collections import Counter
-from operator import itemgetter
 from types import MethodType
+from contextlib import contextmanager
 from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect, cast, Integer, or_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
@@ -44,10 +44,10 @@ from .helpers import (
     group_concat,
     model_meta,
     copy_database_bind,
-    CacheItem,
 )
 from .filters.tools import pop_filter_configs
 from .spine_db_client import get_db_url_from_server
+from .db_cache import DBCache
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
@@ -116,6 +116,7 @@ class DatabaseMappingBase:
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
         self._memory = memory
+        self.committing = True
         self._memory_dirty = False
         self._original_engine = self.create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
@@ -130,6 +131,7 @@ class DatabaseMappingBase:
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.session = Session(self.connection, **self._session_kwargs)
+        self.cache = DBCache(self._advance_cache_query)
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
@@ -160,6 +162,7 @@ class DatabaseMappingBase:
         self._metadata_sq = None
         self._parameter_value_metadata_sq = None
         self._entity_metadata_sq = None
+        self._clean_parameter_value_sq = None
         # Special convenience subqueries that join two or more tables
         self._ext_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
@@ -207,22 +210,22 @@ class DatabaseMappingBase:
         # Subqueries used to populate cache
         self.cache_sqs = {
             "entity": "entity_sq",
-            "feature": "ext_feature_sq",
+            "feature": "feature_sq",
             "tool": "tool_sq",
-            "tool_feature": "ext_tool_feature_sq",
-            "tool_feature_method": "ext_tool_feature_method_sq",
-            "parameter_value_list": "wide_parameter_value_list_sq",
+            "tool_feature": "tool_feature_sq",
+            "tool_feature_method": "tool_feature_method_sq",
+            "parameter_value_list": "parameter_value_list_sq",
             "list_value": "list_value_sq",
             "alternative": "alternative_sq",
-            "scenario": "wide_scenario_sq",
-            "scenario_alternative": "ext_linked_scenario_alternative_sq",
+            "scenario": "scenario_sq",
+            "scenario_alternative": "scenario_alternative_sq",
             "object_class": "object_class_sq",
-            "object": "ext_object_sq",
+            "object": "object_sq",
             "relationship_class": "wide_relationship_class_sq",
             "relationship": "wide_relationship_sq",
-            "entity_group": "ext_entity_group_sq",
-            "parameter_definition": "entity_parameter_definition_sq",
-            "parameter_value": "entity_parameter_value_sq",
+            "entity_group": "entity_group_sq",
+            "parameter_definition": "parameter_definition_sq",
+            "parameter_value": "clean_parameter_value_sq",
             "metadata": "metadata_sq",
             "entity_metadata": "ext_entity_metadata_sq",
             "parameter_value_metadata": "ext_parameter_value_metadata_sq",
@@ -264,12 +267,39 @@ class DatabaseMappingBase:
         self.descendant_tablenames = {
             tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
         }
+        self.object_class_type = None
+        self.relationship_class_type = None
+        self.object_entity_type = None
+        self.relationship_entity_type = None
+
+    def _init_type_attributes(self):
+        self.object_class_type = (
+            self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "object").first().id
+        )
+        self.relationship_class_type = (
+            self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "relationship").first().id
+        )
+        self.object_entity_type = (
+            self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "object").first().id
+        )
+        self.relationship_entity_type = (
+            self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "relationship").first().id
+        )
 
     def __enter__(self):
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         self.connection.close()
+
+    @contextmanager
+    def override_committing(self, new_committing):
+        committing = self.committing
+        self.committing = new_committing
+        try:
+            yield None
+        finally:
+            self.committing = committing
 
     def _descendant_tablenames(self, tablename):
         child_tablenames = {
@@ -294,7 +324,22 @@ class DatabaseMappingBase:
                     yield child
                     yield from self._descendant_tablenames(child)
 
-    def make_commit_id(self):
+    def sorted_tablenames(self):
+        tablenames = list(self.ITEM_TYPES)
+        sorted_tablenames = []
+        while tablenames:
+            tablename = tablenames.pop(0)
+            ancestors = self.ancestor_tablenames.get(tablename)
+            if ancestors is None or all(x in sorted_tablenames for x in ancestors):
+                sorted_tablenames.append(tablename)
+            else:
+                tablenames.append(tablename)
+        return sorted_tablenames
+
+    def commit_id(self):
+        return self._commit_id
+
+    def _make_commit_id(self):
         return None
 
     def _check_commit(self, comment):
@@ -449,9 +494,9 @@ class DatabaseMappingBase:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        attrs = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
-        for attr in attrs:
-            setattr(self, attr, None)
+        attr_names = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
+        for attr_name in attr_names:
+            setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
@@ -513,36 +558,6 @@ class DatabaseMappingBase:
         if self._scenario_alternative_sq is None:
             self._scenario_alternative_sq = self._make_scenario_alternative_sq()
         return self._scenario_alternative_sq
-
-    @property
-    def object_class_type(self):
-        if self._object_class_type is None:
-            result = self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "object").first()
-            self._object_class_type = result.id
-        return self._object_class_type
-
-    @property
-    def relationship_class_type(self):
-        if self._relationship_class_type is None:
-            result = (
-                self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "relationship").first()
-            )
-            self._relationship_class_type = result.id
-        return self._relationship_class_type
-
-    @property
-    def object_entity_type(self):
-        if self._object_entity_type is None:
-            result = self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "object").first()
-            self._object_entity_type = result.id
-        return self._object_entity_type
-
-    @property
-    def relationship_entity_type(self):
-        if self._relationship_entity_type is None:
-            result = self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "relationship").first()
-            self._relationship_entity_type = result.id
-        return self._relationship_entity_type
 
     @property
     def entity_class_type_sq(self):
@@ -726,7 +741,20 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._entity_group_sq is None:
-            self._entity_group_sq = self._subquery("entity_group")
+            group_entity = aliased(self.entity_sq)
+            member_entity = aliased(self.entity_sq)
+            entity_group_sq = self._subquery("entity_group")
+            self._entity_group_sq = (
+                self.query(
+                    entity_group_sq.c.id,
+                    entity_group_sq.c.entity_class_id,
+                    group_entity.c.id.label("entity_id"),
+                    member_entity.c.id.label("member_id"),
+                )
+                .join(group_entity, group_entity.c.id == entity_group_sq.c.entity_id)
+                .join(member_entity, member_entity.c.id == entity_group_sq.c.member_id)
+                .subquery()
+            )
         return self._entity_group_sq
 
     @property
@@ -759,6 +787,21 @@ class DatabaseMappingBase:
         if self._parameter_value_sq is None:
             self._parameter_value_sq = self._make_parameter_value_sq()
         return self._parameter_value_sq
+
+    @property
+    def clean_parameter_value_sq(self):
+        """A subquery of the parameter_value table that excludes rows with filtered entities.
+        This yields the correct results whenever there are both a scenario filter that filters some parameter values,
+        and a tool filter that then filters some entities based on the value of some their parameters
+        after the scenario filtering. Mildly insane.
+        """
+        if self._clean_parameter_value_sq is None:
+            self._clean_parameter_value_sq = (
+                self.query(self.parameter_value_sq)
+                .join(self.entity_sq, self.entity_sq.c.id == self.parameter_value_sq.c.entity_id)
+                .subquery()
+            )
+        return self._clean_parameter_value_sq
 
     @property
     def parameter_value_list_sq(self):
@@ -1817,7 +1860,7 @@ class DatabaseMappingBase:
 
     def _create_import_alternative(self, cache=None):
         """Creates the alternative to be used as default for all import operations."""
-        if cache is None:
+        if "alternative" not in cache:
             cache = self.make_cache({"alternative"})
         self._import_alternative_name = "Base"
         self._import_alternative_id = next(
@@ -1971,7 +2014,7 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, forced_table_names=None):
+    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, force_tablenames=None):
         if only_descendants:
             tablenames = {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
@@ -1980,375 +2023,25 @@ class DatabaseMappingBase:
             tablenames |= {
                 ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
             }
-        if forced_table_names:
-            tablenames |= forced_table_names
-        return {
-            tablename: {x.id: CacheItem(**x._asdict()) for x in self.query(getattr(self, self.cache_sqs[tablename]))}
-            for tablename in tablenames & self.cache_sqs.keys()
-        }
+        if force_tablenames:
+            tablenames |= force_tablenames
+        for tablename in tablenames & self.cache_sqs.keys():
+            self._do_advance_cache_query(tablename)
+        return self.cache
 
-    @staticmethod
-    def cache_to_db(tablename, item):
-        """
-        Returns the db equivalent of a cache item.
+    def _advance_cache_query(self, tablename, callback=None):
+        advanced = False
+        if tablename not in self.cache:
+            advanced = True
+            self._do_advance_cache_query(tablename)
+        if callback is not None:
+            callback()
+        return advanced
 
-        Args:
-            tablename (str): The table name
-            item (dict): The item in the cache
-
-        Returns:
-            dict
-        """
-        if tablename == "relationship_class":
-            return DatabaseMappingBase.cache_relationship_class_to_db(item)
-        if tablename == "relationship":
-            return DatabaseMappingBase.cache_relationship_to_db(item)
-        if tablename == "parameter_definition":
-            return DatabaseMappingBase.cache_parameter_definition_to_db(item)
-        if tablename == "parameter_value":
-            return DatabaseMappingBase.cache_parameter_value_to_db(item)
-        if tablename == "list_value":
-            return DatabaseMappingBase.cache_list_value_to_db(item)
-        if tablename == "entity_group":
-            return DatabaseMappingBase.cache_entity_group_to_db(item)
-        return item.copy()
-
-    @staticmethod
-    def cache_relationship_class_to_db(item):
-        return {
-            "id": item["id"],
-            "name": item["name"],
-            "description": item.get("description"),
-            "display_icon": item.get("display_icon"),
-            "object_class_id_list": tuple(int(id_) for id_ in item["object_class_id_list"].split(",")),
-            "commit_id": item["commit_id"],
-        }
-
-    @staticmethod
-    def cache_relationship_to_db(item):
-        return {
-            "id": item["id"],
-            "name": item["name"],
-            "class_id": item["class_id"],
-            "object_class_id_list": tuple(int(id_) for id_ in item["object_class_id_list"].split(",")),
-            "object_id_list": tuple(int(id_) for id_ in item["object_id_list"].split(",")),
-            "commit_id": item["commit_id"],
-        }
-
-    @staticmethod
-    def cache_parameter_definition_to_db(item):
-        return {
-            "id": item["id"],
-            "entity_class_id": item["entity_class_id"],
-            "name": item["parameter_name"],
-            "parameter_value_list_id": item.get("value_list_id"),
-            "default_value": item.get("default_value"),
-            "default_type": item.get("default_type"),
-            "list_value_id": item.get("list_value_id"),
-            "description": item.get("description"),
-            "commit_id": item["commit_id"],
-        }
-
-    @staticmethod
-    def cache_parameter_value_to_db(item):
-        return {
-            "id": item["id"],
-            "entity_class_id": item["entity_class_id"],
-            "entity_id": item["entity_id"],
-            "parameter_definition_id": item["parameter_id"],
-            "alternative_id": item["alternative_id"],
-            "value": item["value"],
-            "type": item["type"],
-            "list_value_id": item.get("list_value_id"),
-            "commit_id": item["commit_id"],
-        }
-
-    @staticmethod
-    def cache_list_value_to_db(item):
-        return {
-            "id": item["id"],
-            "parameter_value_list_id": item["parameter_value_list_id"],
-            "index": item["index"],
-            "type": item["type"],
-            "value": item["value"],
-            "commit_id": item["commit_id"],
-        }
-
-    @staticmethod
-    def cache_entity_group_to_db(item):
-        return {
-            "id": item["id"],
-            "entity_class_id": item["class_id"],
-            "entity_id": item["group_id"],
-            "member_id": item["member_id"],
-        }
-
-    def db_to_cache(self, cache, tablename, item, fetch=True):
-        """
-        Converts a db-item - that only has the fields for the corresponding table - into a cache-item
-        - that also has all the references to other tables as if it was fetched by running one the cache subqueries.
-        The idea is to avoid querying the database to fetch the updated references.
-
-        Args:
-            db_map (DiffDatabaseMapping): the db map
-            tablename (str): The name of the table
-            item (dict): The item in the db
-
-        Returns:
-            dict
-        """
-        item = item.copy()
-        if tablename == "object_class":
-            return self._db_object_class_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "object":
-            return self._db_object_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "relationship_class":
-            return self._db_relationship_class_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "relationship":
-            return self._db_relationship_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "parameter_definition":
-            return self._db_parameter_definition_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "parameter_value":
-            return self._db_parameter_value_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "entity_group":
-            return self._db_entity_group_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "scenario":
-            return self._db_scenario_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "scenario_alternative":
-            return self._db_scenario_alternative_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "feature":
-            return self._db_feature_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "tool_feature":
-            return self._db_tool_feature_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "parameter_value_list":
-            return self._db_parameter_value_list_to_cache(cache, tablename, item, fetch=fetch)
-        if tablename == "list_value":
-            return self._db_list_value_to_cache(cache, tablename, item, fetch=fetch)
-        return item.copy()
-
-    def _get_item(self, cache, tablename, id_, fetch=True):
-        table_cache = cache.get(tablename, {})
-        item = table_cache.get(id_, {})
-        if not item and fetch:
-            table_cache.update(self.make_cache({tablename})[tablename])
-            item = table_cache.get(id_, {})
-        return item
-
-    def _get_item_by_field(self, cache, tablename, field, value, fetch=True):
-        table_cache = cache.get(tablename, {})
-        item = next(iter(x for x in table_cache.values() if x.get(field) == value), {})
-        if not item and fetch:
-            table_cache.update(self.make_cache({tablename})[tablename])
-            item = next(iter(x for x in table_cache.values() if x.get(field) == value), {})
-        return item
-
-    def _db_object_class_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["display_icon"] = item.get("display_icon")
-        return item
-
-    def _db_object_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["class_name"] = self._get_item(cache, "object_class", item["class_id"], fetch=fetch).get("name")
-        item["group_id"] = self._get_item_by_field(cache, "entity_group", "group_id", item["id"], fetch=fetch).get(
-            "group_id"
-        )
-        return item
-
-    def _db_relationship_class_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["object_class_name_list"] = ",".join(
-            self._get_item(cache, "object_class", id_, fetch=fetch).get("name") for id_ in item["object_class_id_list"]
-        )
-        item["object_class_id_list"] = ",".join(str(id_) for id_ in item["object_class_id_list"])
-        item["display_icon"] = item.get("display_icon")
-        return item
-
-    def _db_relationship_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["class_name"] = self._get_item(cache, "relationship_class", item["class_id"], fetch=fetch).get("name")
-        item["object_name_list"] = ",".join(
-            self._get_item(cache, "object", id_, fetch=fetch).get("name") for id_ in item["object_id_list"]
-        )
-        item["object_id_list"] = ",".join(str(id_) for id_ in item["object_id_list"])
-        item["object_class_name_list"] = ",".join(
-            self._get_item(cache, "object_class", id_, fetch=fetch).get("name") for id_ in item["object_class_id_list"]
-        )
-        item["object_class_id_list"] = ",".join(str(id_) for id_ in item["object_class_id_list"])
-        return item
-
-    def _db_parameter_definition_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["parameter_name"] = item.pop("name", item.get("parameter_name"))
-        object_class = self._get_item(cache, "object_class", item["entity_class_id"], fetch=fetch)
-        relationship_class = self._get_item(cache, "relationship_class", item["entity_class_id"], fetch=fetch)
-        item["entity_class_name"] = object_class.get("name") or relationship_class.get("name")
-        item["object_class_id"] = object_class.get("id")
-        item["object_class_name"] = object_class.get("name")
-        item["relationship_class_id"] = relationship_class.get("id")
-        item["relationship_class_name"] = relationship_class.get("name")
-        item["object_class_id_list"] = relationship_class.get("object_class_id_list")
-        item["object_class_name_list"] = relationship_class.get("object_class_name_list")
-        item["value_list_id"] = value_list_id = item.pop("parameter_value_list_id", item.get("value_list_id"))
-        item["value_list_name"] = self._get_item(cache, "parameter_value_list", value_list_id, fetch=fetch).get("name")
-        item["list_value_id"] = int(item["default_value"]) if item.get("default_type") == "list_value_ref" else None
-        if item["list_value_id"] is not None:
-            list_value_item = self._get_item(cache, "list_value", item["list_value_id"], fetch=fetch)
-            item["default_value"] = list_value_item.get("value")
-            item["default_type"] = list_value_item.get("type")
-        else:
-            item["default_value"] = item.get("default_value")
-            item["default_type"] = item.get("default_type")
-        item["description"] = item.get("description")
-        item.pop("parsed_value", None)
-        return item
-
-    def _db_parameter_value_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["parameter_id"] = parameter_id = item.pop("parameter_definition_id", item.get("parameter_id"))
-        param_def = self._get_item(cache, "parameter_definition", parameter_id, fetch=fetch)
-        item["parameter_name"] = param_def.get("parameter_name")
-        item["entity_class_id"] = param_def.get("entity_class_id")
-        item["object_class_id"] = object_class_id = param_def.get("object_class_id")
-        item["relationship_class_id"] = relationship_class_id = param_def.get("relationship_class_id")
-        item["object_class_name"] = param_def.get("object_class_name")
-        item["relationship_class_name"] = param_def.get("relationship_class_name")
-        item["object_class_id_list"] = param_def.get("object_class_id_list")
-        item["object_class_name_list"] = param_def.get("object_class_name_list")
-        item["object_id"] = object_id = item["entity_id"] if object_class_id else None
-        object_ = self._get_item(cache, "object", object_id, fetch=fetch)
-        item["object_name"] = object_.get("name")
-        item["relationship_id"] = relationship_id = item["entity_id"] if relationship_class_id else None
-        relationship = self._get_item(cache, "relationship", relationship_id, fetch=fetch)
-        item["object_id_list"] = relationship.get("object_id_list")
-        item["object_name_list"] = relationship.get("object_name_list")
-        item["alternative_name"] = self._get_item(cache, "alternative", item["alternative_id"], fetch=fetch).get("name")
-        item["list_value_id"] = int(item["value"]) if item["type"] == "list_value_ref" else None
-        if item["list_value_id"] is not None:
-            list_value_item = self._get_item(cache, "list_value", item["list_value_id"], fetch=fetch)
-            item["value"] = list_value_item.get("value")
-            item["type"] = list_value_item.get("type")
-        item.pop("parsed_value", None)
-        return item
-
-    def _db_entity_group_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["class_id"] = item.pop("entity_class_id")
-        item["group_id"] = item.pop("entity_id")
-        item["class_name"] = (
-            self._get_item(cache, "object_class", item["class_id"], fetch=fetch)
-            or self._get_item(cache, "relationship_class", item["class_id"], fetch=fetch)
-        ).get("name")
-        item["group_name"] = (
-            self._get_item(cache, "object", item["group_id"], fetch=fetch)
-            or self._get_item(cache, "relationship", item["group_id"], fetch=fetch)
-        ).get("name")
-        item["member_name"] = (
-            self._get_item(cache, "object", item["member_id"], fetch=fetch)
-            or self._get_item(cache, "relationship", item["member_id"], fetch=fetch)
-        ).get("name")
-        item["object_class_id"] = self._get_item(cache, "object_class", item["class_id"], fetch=fetch).get("name")
-        item["relationship_class_id"] = self._get_item(cache, "relationship_class", item["class_id"], fetch=fetch).get(
-            "name"
-        )
-        return item
-
-    def _db_scenario_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["active"] = item.get("active", False)
-        sorted_scen_alts = sorted(
-            (x for x in cache.get("scenario_alternative", {}).values() if x["scenario_id"] == item["id"]),
-            key=itemgetter("rank"),
-        )
-        item["alternative_id_list"] = ",".join(str(x.get("alternative_id")) for x in sorted_scen_alts)
-        item["alternative_name_list"] = ",".join(x.get("alternative_name") for x in sorted_scen_alts)
-        return item
-
-    def _db_scenario_alternative_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item["scenario_name"] = self._get_item(cache, "scenario", item["scenario_id"], fetch=fetch).get("name")
-        item["alternative_name"] = self._get_item(cache, "alternative", item["alternative_id"], fetch=fetch).get("name")
-        item["before_alternative_name"] = self._get_item(
-            cache, "alternative", item["before_alternative_id"], fetch=fetch
-        ).get("name")
-        return item
-
-    def _db_feature_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        param_def = self._get_item(cache, "parameter_definition", item["parameter_definition_id"], fetch=fetch)
-        item["parameter_definition_name"] = param_def.get("parameter_name")
-        item["entity_class_id"] = entity_class_id = self._get_item(
-            cache, "parameter_definition", param_def.get("id"), fetch=fetch
-        ).get("entity_class_id")
-        item["entity_class_name"] = self._get_item(cache, "object_class", entity_class_id, fetch=fetch).get(
-            "name"
-        ) or self._get_item(cache, "relationship_class", entity_class_id, fetch=fetch).get("name")
-        item["parameter_value_list_name"] = self._get_item(
-            cache, "parameter_value_list", item["parameter_value_list_id"], fetch=fetch
-        ).get("name")
-        return item
-
-    def _db_tool_feature_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        feature = self._get_item(cache, "feature", item["feature_id"], fetch=fetch)
-        tool = self._get_item(cache, "tool", item["tool_id"], fetch=fetch)
-        par_val_lst = self._get_item(cache, "parameter_value_list", item["parameter_value_list_id"], fetch=fetch)
-        item["entity_class_id"] = feature.get("entity_class_id")
-        item["entity_class_name"] = feature.get("entity_class_name")
-        item["parameter_definition_id"] = feature.get("parameter_definition_id")
-        item["parameter_definition_name"] = feature.get("parameter_definition_name")
-        item["tool_name"] = tool.get("name")
-        item["parameter_value_list_name"] = par_val_lst.get("name")
-        item["required"] = item.get("required", False)
-        return item
-
-    def _db_parameter_value_list_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        sorted_list_values = sorted(
-            (x for x in cache.get("list_value", {}).values() if x["parameter_value_list_id"] == item["id"]),
-            key=itemgetter("index"),
-        )
-        item["value_index_list"] = ",".join(str(x["index"]) for x in sorted_list_values)
-        item["value_id_list"] = ",".join(str(x["id"]) for x in sorted_list_values)
-        return item
-
-    def _db_list_value_to_cache(self, cache, tablename, item, fetch=True):
-        item = item.copy()
-        item.pop("parsed_value", None)
-        return item
-
-    def get_updated_item(self, cache, tablename, id_, fill_missing=True):
-        """
-        Returns a cache item with updated references. If references have changed in cache after this item was added,
-        the result will have the correct values. For example, if we renamed class X to Y and call this method
-        for an object of that class, the resulting object will have 'class_name' equal to 'Y'.
-
-        Args:
-            db_map (DiffDatabaseMapping): the db map
-            tablename (str): The name of the table
-            id_ (int): The item's id'
-            fill_missing (bool): If True, then fill missing values (None) with current values.
-
-        Returns:
-            dict
-        """
-        old_item = cache.get(tablename, {}).get(id_)
-        if old_item is None:
-            return None
-        db_item = self.cache_to_db(tablename, old_item)
-        new_item = self.db_to_cache(cache, tablename, db_item, fetch=False)
-        if fill_missing:
-            for key, value in new_item.items():
-                if value is None:
-                    new_item[key] = old_item[key]
-        return new_item
-
-    def db_to_db(self, cache, tablename, item):
-        if tablename == "relationship":
-            item["object_class_id_list"] = [
-                self._get_item(cache, "object", id_).get("class_id") for id_ in item["object_id_list"]
-            ]
-        return item
+    def _do_advance_cache_query(self, tablename):
+        table_cache = self.cache.table_cache(tablename)
+        for x in self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False):
+            table_cache.add_item(x._asdict())
 
     def _items_with_type_id(self, tablename, *items):
         type_id = {
