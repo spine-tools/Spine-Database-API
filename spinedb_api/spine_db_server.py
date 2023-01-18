@@ -275,6 +275,7 @@ class _DBWorker:
             request, args, kwargs = input_
             handler = {
                 "query": self._do_query,
+                "filtered_query": self._do_filtered_query,
                 "import_data": self._do_import_data,
                 "export_data": self._do_export_data,
                 "call_method": self._do_call_method,
@@ -296,6 +297,18 @@ class _DBWorker:
             if sq is None:
                 continue
             result[sq_name] = [x._asdict() for x in self._db_map.query(sq)]
+        return dict(result=result)
+
+    def _do_filtered_query(self, **kwargs):
+        result = {}
+        for sq_name, filters in kwargs.items():
+            sq = getattr(self._db_map, sq_name, None)
+            if sq is None:
+                continue
+            qry = self._db_map.query(sq)
+            for field, value in filters.items():
+                qry = qry.filter_by(**{field: value})
+            result[sq_name] = [x._asdict() for x in qry]
         return dict(result=result)
 
     def _do_import_data(self, data, comment):
@@ -362,6 +375,9 @@ class _DBManager:
     def query(self, server_address, *args):
         return self._run_request(server_address, "query", args=args)
 
+    def filtered_query(self, server_address, **kwargs):
+        return self._run_request(server_address, "filtered_query", kwargs=kwargs)
+
     def import_data(self, server_address, data, comment):
         return self._run_request(server_address, "import_data", args=(data, comment))
 
@@ -397,6 +413,15 @@ class HandleDBMixin:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
         return _db_manager.query(self.server_address, *args)
+
+    def filtered_query(self, **kwargs):
+        """
+        Runs queries with filters.
+
+        Returns:
+            dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
+        """
+        return _db_manager.filtered_query(self.server_address, **kwargs)
 
     def import_data(self, data, comment):
         """Imports data and commit.
@@ -476,6 +501,7 @@ class HandleDBMixin:
             return dict(error=1, result=_required_client_version)
         handler = {
             "query": self.query,
+            "filtered_query": self.filtered_query,
             "import_data": self.import_data,
             "export_data": self.export_data,
             "call_method": self.call_method,
