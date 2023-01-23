@@ -17,7 +17,7 @@ Information about the Spine database API project.
 Project homepage
 ----------------
 
-Spine database API is hosted on GitHub at https://github.com/Spine-project/Spine-Database-API
+Spine database API is hosted on GitHub at https://github.com/spine-tools/Spine-Database-API
 under the Spine project.
 
 
@@ -28,7 +28,7 @@ Installation
 
 Install released versions of Spine database API from the project repository with pip or a similar tool::
 
-  pip install git+https://github.com/Spine-project/Spine-Database-API.git
+  pip install git+https://github.com/spine-tools/Spine-Database-API.git
 
 
 Dependencies
@@ -42,4 +42,4 @@ Bugs
 ----
 
 Bugs and feature enhancements to Spine database API should be reported on the
-`GitHub issue tracker <https://github.com/Spine-project/Spine-Database-API/issues>`_.
+`GitHub issue tracker <https://github.com/spine-tools/Spine-Database-API/issues>`_.
