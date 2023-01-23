@@ -38,6 +38,6 @@ Optional properties
 
     "tools": [{"name": "Spine Model",
               "version": "1.0.2",
-              "path": "https://github.com/Spine-project/Spine-Model"},
+              "path": "https://github.com/spine-tools/Spine-Model"},
               ...
              ]
