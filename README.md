@@ -1,8 +1,8 @@
 # Spine Database API
 
 [![Documentation Status](https://readthedocs.org/projects/spine-database-api/badge/?version=latest)](https://spine-database-api.readthedocs.io/en/latest/?badge=latest)
-[![Unit tests](https://github.com/Spine-project/Spine-Database-API/workflows/Unit%20tests/badge.svg)](https://github.com/Spine-project/Spine-Database-API/actions?query=workflow%3A"Unit+tests")
-[![codecov](https://codecov.io/gh/Spine-project/Spine-Database-API/branch/master/graph/badge.svg)](https://codecov.io/gh/Spine-project/Spine-Database-API)
+[![Unit tests](https://github.com/spine-tools/Spine-Database-API/workflows/Unit%20tests/badge.svg)](https://github.com/spine-tools/Spine-Database-API/actions?query=workflow%3A"Unit+tests")
+[![codecov](https://codecov.io/gh/spine-tools/Spine-Database-API/branch/master/graph/badge.svg)](https://codecov.io/gh/spine-tools/Spine-Database-API)
 [![PyPI version](https://badge.fury.io/py/spinedb-api.svg)](https://badge.fury.io/py/spinedb-api)
 
 A Python package to access and manipulate Spine databases in a customary, unified way.
@@ -30,7 +30,7 @@ You can also specify a branch, or a tag, for instance:
 
 To install the latest development version use the Git repository url:
 
-    $ pip install --upgrade git+https://github.com/Spine-project/Spine-Database-API.git
+    $ pip install --upgrade git+https://github.com/spine-tools/Spine-Database-API.git
 
 
 ## Building the documentation
