@@ -1,4 +1,4 @@
-# GitHub Action to run spine_items unit tests
+# GitHub Action to run spinedb_api unit tests
 
 name: Unit tests
 
