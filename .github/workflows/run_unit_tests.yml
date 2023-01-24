@@ -1,4 +1,4 @@
-# GitHub Action to run spine_items unit tests
+# GitHub Action to run spinedb_api unit tests
 
 name: Unit tests
 
@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, windows-latest]
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.8, 3.9, "3.10", 3.11]
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -35,12 +35,14 @@ jobs:
         pip install .
         pip install coverage
         pip install codecov
+    - name: List packages
+      run:
         pip list
     - name: Run tests
       env: 
         QT_QPA_PLATFORM: offscreen
       run:
         coverage run -m unittest discover --verbose
-    - name: Run codecov
+    - name: Upload coverage report to Codecov
       run:
         codecov
