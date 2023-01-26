@@ -336,8 +336,11 @@ class _DBWorker:
         return dict(result=True)
 
     def _do_apply_filters(self, configs):
-        apply_filter_stack(self._db_map, configs)
-        return dict(result=True)
+        try:
+            apply_filter_stack(self._db_map, configs)
+            return dict(result=True)
+        except Exception as error:  # pylint: disable=broad-except
+            return dict(error=str(error))
 
 
 class _DBManager:
