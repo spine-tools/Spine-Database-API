@@ -126,6 +126,7 @@ class CacheItem(dict):
         self._to_remove = False
         self._removed = False
         self._corrupted = False
+        self._valid = None
 
     @property
     def item_type(self):
@@ -185,6 +186,8 @@ class CacheItem(dict):
         return type(self)(self._db_cache, self._item_type, **self)
 
     def is_valid(self):
+        if self._valid is not None:
+            return self._valid
         if self._removed or self._corrupted:
             return False
         self._to_remove = False
@@ -193,7 +196,8 @@ class CacheItem(dict):
             _ = self[key]
         if self._to_remove:
             self.cascade_remove()
-        return not self._removed and not self._corrupted
+        self._valid = not self._removed and not self._corrupted
+        return self._valid
 
     def is_removed(self):
         return self._removed
@@ -228,6 +232,7 @@ class CacheItem(dict):
             return
         self._removed = True
         self._to_remove = False
+        self._valid = None
         obsolete = set()
         for callback in self.remove_callbacks:
             if not callback(self):
