@@ -55,12 +55,13 @@ class SqlAlchemyConnector(SourceConnection):
 
     def disconnect(self):
         """Disconnect from connected source."""
+        self._metadata = None
+        self._session.close()
+        self._session = None
         self._connection.close()
         self._connection_string = None
         self._engine = None
         self._connection = None
-        self._session = None
-        self._metadata = MetaData()
 
     def get_tables(self):
         """Method that should return a list of table names, list(str)
@@ -72,7 +73,7 @@ class SqlAlchemyConnector(SourceConnection):
         return tables
 
     def get_data_iterator(self, table, options, max_rows=-1):
-        """Creates a iterator for the file in self.filename
+        """Creates an iterator for the database connection.
 
         Args:
             table (str): table name
