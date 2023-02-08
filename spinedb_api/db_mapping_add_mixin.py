@@ -105,14 +105,9 @@ class DatabaseMappingAddMixin:
             next_id = getattr(next_id_row, fieldname)
             stmt = self._next_id.update()
         if next_id is None:
-            tablename = {
-                "object_class": "entity_class",
-                "relationship_class": "entity_class",
-                "object": "entity",
-                "relationship": "entity",
-            }.get(tablename, tablename)
-            table = self._metadata.tables[tablename]
-            id_col = self.table_ids.get(tablename, "id")
+            real_tablename = self._real_tablename(tablename)
+            table = self._metadata.tables[real_tablename]
+            id_col = self.table_ids.get(real_tablename, "id")
             select_max_id = select([func.max(getattr(table.c, id_col))])
             max_id = connection.execute(select_max_id).scalar()
             next_id = max_id + 1 if max_id else 1

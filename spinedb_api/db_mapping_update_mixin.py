@@ -33,13 +33,7 @@ class DatabaseMappingUpdateMixin:
         # Special cases
         if tablename == "relationship":
             return self._update_wide_relationships(*items)
-        real_tablename = {
-            "object_class": "entity_class",
-            "relationship_class": "entity_class",
-            "object": "entity",
-            "relationship": "entity",
-        }.get(tablename, tablename)
-        items = self._items_with_type_id(tablename, *items)
+        real_tablename = self._real_tablename(tablename)
         return self._do_update_items(real_tablename, *items)
 
     def _do_update_items(self, tablename, *items):
@@ -125,9 +119,8 @@ class DatabaseMappingUpdateMixin:
         return self.update_items("relationship", *items, **kwargs)
 
     def _update_wide_relationships(self, *items):
-        items = self._items_with_type_id("relationship", *items)
         entity_items = []
-        relationship_entity_items = []
+        entity_element_items = []
         for item in items:
             entity_id = item["id"]
             class_id = item["class_id"]
@@ -137,21 +130,21 @@ class DatabaseMappingUpdateMixin:
                 "name": item["name"],
                 "description": item.get("description"),
             }
+            entity_items.append(ent_item)
             object_class_id_list = item["object_class_id_list"]
             object_id_list = item["object_id_list"]
-            entity_items.append(ent_item)
-            for dimension, (member_class_id, member_id) in enumerate(zip(object_class_id_list, object_id_list)):
+            for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list)):
                 rel_ent_item = {
                     "id": None,  # Need to have an "id" field to make _update_items() happy.
                     "entity_class_id": class_id,
                     "entity_id": entity_id,
-                    "dimension": dimension,
-                    "member_class_id": member_class_id,
-                    "member_id": member_id,
+                    "position": position,
+                    "dimension_id": dimension_id,
+                    "element_id": element_id,
                 }
-                relationship_entity_items.append(rel_ent_item)
+                entity_element_items.append(rel_ent_item)
         entity_ids = self._update_items("entity", *entity_items)
-        self._update_items("relationship_entity", *relationship_entity_items)
+        self._update_items("entity_element", *entity_element_items)
         return entity_ids
 
     def update_parameter_definitions(self, *items, **kwargs):

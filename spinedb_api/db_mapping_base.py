@@ -193,16 +193,16 @@ class DatabaseMappingBase:
         self._table_to_sq_attr = {}
         # Table primary ids map:
         self.table_ids = {
-            "relationship_entity_class": "entity_class_id",
             "object_class": "entity_class_id",
             "relationship_class": "entity_class_id",
+            "entity_class_dimension": "entity_class_id",
             "object": "entity_id",
             "relationship": "entity_id",
-            "relationship_entity": "entity_id",
+            "entity_element": "entity_id",
         }
         self.composite_pks = {
-            "relationship_entity": ("entity_id", "dimension"),
-            "relationship_entity_class": ("entity_class_id", "dimension"),
+            "entity_element": ("entity_id", "position"),
+            "entity_class_dimension": ("entity_class_id", "position"),
         }
         # Subqueries used to populate cache
         self.cache_sqs = {
@@ -314,6 +314,14 @@ class DatabaseMappingBase:
             else:
                 tablenames.append(tablename)
         return sorted_tablenames
+
+    def _real_tablename(self, tablename):
+        return {
+            "object_class": "entity_class",
+            "relationship_class": "entity_class",
+            "object": "entity",
+            "relationship": "entity",
+        }.get(tablename, tablename)
 
     def commit_id(self):
         return self._commit_id

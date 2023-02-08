@@ -46,8 +46,9 @@ class DatabaseMappingRemoveMixin:
         for tablename, ids in kwargs.items():
             if not ids:
                 continue
-            table_id = self.table_ids.get(tablename, "id")
-            table = self._metadata.tables[tablename]
+            real_tablename = self._real_tablename(tablename)
+            table_id = self.table_ids.get(real_tablename, "id")
+            table = self._metadata.tables[real_tablename]
             delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))
             try:
                 self.connection.execute(delete)
@@ -163,7 +164,7 @@ class DatabaseMappingRemoveMixin:
         """Returns relationship class cascading ids."""
         cascading_ids = {
             "relationship_class": set(ids),
-            "relationship_entity_class": set(ids),
+            "entity_class_dimension": set(ids),
             "entity_class": set(ids),
         }
         relationships = [x for x in cache.get("relationship", {}).values() if x.class_id in ids]
@@ -176,7 +177,7 @@ class DatabaseMappingRemoveMixin:
 
     def _relationship_cascading_ids(self, ids, cache):
         """Returns relationship cascading ids."""
-        cascading_ids = {"relationship": set(ids), "entity": set(ids), "relationship_entity": set(ids)}
+        cascading_ids = {"relationship": set(ids), "entity": set(ids), "entity_element": set(ids)}
         parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
         groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
         entity_metadata_ids = {x.id for x in cache.get("entity_metadata", {}).values() if x.entity_id in ids}
