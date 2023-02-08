@@ -164,6 +164,8 @@ class DatabaseMappingBase:
         self._entity_metadata_sq = None
         self._clean_parameter_value_sq = None
         # Special convenience subqueries that join two or more tables
+        self._ext_entity_class_sq = None
+        self._ext_entity_sq = None
         self._ext_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
         self._ord_list_value_sq = None
@@ -267,24 +269,6 @@ class DatabaseMappingBase:
         self.descendant_tablenames = {
             tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
         }
-        self.object_class_type = None
-        self.relationship_class_type = None
-        self.object_entity_type = None
-        self.relationship_entity_type = None
-
-    def _init_type_attributes(self):
-        self.object_class_type = (
-            self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "object").first().id
-        )
-        self.relationship_class_type = (
-            self.query(self.entity_class_type_sq).filter(self.entity_class_type_sq.c.name == "relationship").first().id
-        )
-        self.object_entity_type = (
-            self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "object").first().id
-        )
-        self.relationship_entity_type = (
-            self.query(self.entity_type_sq).filter(self.entity_type_sq.c.name == "relationship").first().id
-        )
 
     def __enter__(self):
         return self
@@ -560,36 +544,6 @@ class DatabaseMappingBase:
         return self._scenario_alternative_sq
 
     @property
-    def entity_class_type_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM class_type
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._entity_class_type_sq is None:
-            self._entity_class_type_sq = self._subquery("entity_class_type")
-        return self._entity_class_type_sq
-
-    @property
-    def entity_type_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM class_type
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._entity_type_sq is None:
-            self._entity_type_sq = self._subquery("entity_type")
-        return self._entity_type_sq
-
-    @property
     def entity_class_sq(self):
         """A subquery of the form:
 
@@ -620,6 +574,74 @@ class DatabaseMappingBase:
         return self._entity_sq
 
     @property
+    def ext_entity_class_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT
+                ec.*,
+                count(ecd.dimension_id) AS dimension_count
+                group_concat(ecd.dimension_id) AS dimension_id_list
+            FROM
+                entity_class AS ec
+                entity_class_dimension AS ecd
+            WHERE
+                ec.id == ecd.entity_class_id
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._ext_entity_class_sq is None:
+            entity_class_dimension_sq = self._subquery("entity_class_dimension")
+            self._ext_entity_class_sq = (
+                self.query(
+                    self.entity_class_sq,
+                    group_concat(entity_class_dimension_sq.c.dimension_id, entity_class_dimension_sq.c.position).label(
+                        "dimension_id_list"
+                    ),
+                )
+                .outerjoin(
+                    entity_class_dimension_sq, self.entity_class_sq.c.id == entity_class_dimension_sq.c.entity_class_id
+                )
+                .group_by(entity_class_dimension_sq.c.entity_class_id)
+                .subquery()
+            )
+        return self._ext_entity_class_sq
+
+    @property
+    def ext_entity_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT
+                e.*,
+                count(ee.element_id) AS element_count
+                group_concat(ee.element_id) AS element_id_list
+            FROM
+                entity AS e
+                entity_element AS ee
+            WHERE
+                e.id == ee.entity_id
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._ext_entity_sq is None:
+            entity_element_sq = self._subquery("entity_element")
+            self._ext_entity_sq = (
+                self.query(
+                    self.entity_sq,
+                    group_concat(entity_element_sq.c.element_id, entity_element_sq.c.position).label("element_id_list"),
+                )
+                .outerjoin(entity_element_sq, self.entity_sq.c.id == entity_element_sq.c.entity_id)
+                .group_by(entity_element_sq.c.entity_id)
+                .subquery()
+            )
+        return self._ext_entity_sq
+
+    @property
     def object_class_sq(self):
         """A subquery of the form:
 
@@ -631,18 +653,16 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._object_class_sq is None:
-            object_class_sq = self._subquery("object_class")
             self._object_class_sq = (
                 self.query(
-                    self.entity_class_sq.c.id.label("id"),
-                    self.entity_class_sq.c.name.label("name"),
-                    self.entity_class_sq.c.description.label("description"),
-                    self.entity_class_sq.c.display_order.label("display_order"),
-                    self.entity_class_sq.c.display_icon.label("display_icon"),
-                    self.entity_class_sq.c.hidden.label("hidden"),
-                    self.entity_class_sq.c.commit_id.label("commit_id"),
+                    self.ext_entity_class_sq.c.id.label("id"),
+                    self.ext_entity_class_sq.c.name.label("name"),
+                    self.ext_entity_class_sq.c.description.label("description"),
+                    self.ext_entity_class_sq.c.display_order.label("display_order"),
+                    self.ext_entity_class_sq.c.display_icon.label("display_icon"),
+                    self.ext_entity_class_sq.c.hidden.label("hidden"),
                 )
-                .filter(self.entity_class_sq.c.id == object_class_sq.c.entity_class_id)
+                .filter(self.ext_entity_class_sq.c.dimension_id_list == None)
                 .subquery()
             )
         return self._object_class_sq
@@ -659,16 +679,15 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._object_sq is None:
-            object_sq = self._subquery("object")
             self._object_sq = (
                 self.query(
-                    self.entity_sq.c.id.label("id"),
-                    self.entity_sq.c.class_id.label("class_id"),
-                    self.entity_sq.c.name.label("name"),
-                    self.entity_sq.c.description.label("description"),
-                    self.entity_sq.c.commit_id.label("commit_id"),
+                    self.ext_entity_sq.c.id.label("id"),
+                    self.ext_entity_sq.c.class_id.label("class_id"),
+                    self.ext_entity_sq.c.name.label("name"),
+                    self.ext_entity_sq.c.description.label("description"),
+                    self.ext_entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.id == object_sq.c.entity_id)
+                .filter(self.ext_entity_sq.c.element_id_list == None)
                 .subquery()
             )
         return self._object_sq
@@ -685,19 +704,18 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._relationship_class_sq is None:
-            rel_ent_cls_sq = self._subquery("relationship_entity_class")
+            ent_cls_dim_sq = self._subquery("entity_class_dimension")
             self._relationship_class_sq = (
                 self.query(
-                    rel_ent_cls_sq.c.entity_class_id.label("id"),
-                    rel_ent_cls_sq.c.dimension.label("dimension"),
-                    rel_ent_cls_sq.c.member_class_id.label("object_class_id"),
-                    self.entity_class_sq.c.name.label("name"),
-                    self.entity_class_sq.c.description.label("description"),
-                    self.entity_class_sq.c.display_icon.label("display_icon"),
-                    self.entity_class_sq.c.hidden.label("hidden"),
-                    self.entity_class_sq.c.commit_id.label("commit_id"),
+                    ent_cls_dim_sq.c.entity_class_id.label("id"),
+                    ent_cls_dim_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
+                    ent_cls_dim_sq.c.dimension_id.label("object_class_id"),
+                    self.ext_entity_class_sq.c.name.label("name"),
+                    self.ext_entity_class_sq.c.description.label("description"),
+                    self.ext_entity_class_sq.c.display_icon.label("display_icon"),
+                    self.ext_entity_class_sq.c.hidden.label("hidden"),
                 )
-                .filter(self.entity_class_sq.c.id == rel_ent_cls_sq.c.entity_class_id)
+                .filter(self.ext_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
                 .subquery()
             )
         return self._relationship_class_sq
@@ -714,17 +732,17 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._relationship_sq is None:
-            rel_ent_sq = self._subquery("relationship_entity")
+            ent_el_sq = self._subquery("entity_element")
             self._relationship_sq = (
                 self.query(
-                    rel_ent_sq.c.entity_id.label("id"),
-                    rel_ent_sq.c.dimension.label("dimension"),
-                    rel_ent_sq.c.member_id.label("object_id"),
-                    rel_ent_sq.c.entity_class_id.label("class_id"),
-                    self.entity_sq.c.name.label("name"),
-                    self.entity_sq.c.commit_id.label("commit_id"),
+                    ent_el_sq.c.entity_id.label("id"),
+                    ent_el_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
+                    ent_el_sq.c.element_id.label("object_id"),
+                    ent_el_sq.c.entity_class_id.label("class_id"),
+                    self.ext_entity_sq.c.name.label("name"),
+                    self.ext_entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.entity_sq.c.id == rel_ent_sq.c.entity_id)
+                .filter(self.ext_entity_sq.c.id == ent_el_sq.c.entity_id)
                 .subquery()
             )
         return self._relationship_sq
@@ -1099,7 +1117,6 @@ class DatabaseMappingBase:
                     self.relationship_class_sq.c.display_icon.label("display_icon"),
                     self.object_class_sq.c.id.label("object_class_id"),
                     self.object_class_sq.c.name.label("object_class_name"),
-                    self.relationship_class_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.relationship_class_sq.c.object_class_id == self.object_class_sq.c.id)
                 .order_by(self.relationship_class_sq.c.id, self.relationship_class_sq.c.dimension)
@@ -1140,7 +1157,6 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
                     self.ext_relationship_class_sq.c.display_icon,
-                    self.ext_relationship_class_sq.c.commit_id,
                     group_concat(
                         self.ext_relationship_class_sq.c.object_class_id, self.ext_relationship_class_sq.c.dimension
                     ).label("object_class_id_list"),
@@ -1153,7 +1169,6 @@ class DatabaseMappingBase:
                     self.ext_relationship_class_sq.c.name,
                     self.ext_relationship_class_sq.c.description,
                     self.ext_relationship_class_sq.c.display_icon,
-                    self.ext_relationship_class_sq.c.commit_id,
                 )
                 .subquery()
             )
@@ -2058,34 +2073,32 @@ class DatabaseMappingBase:
             yield item
 
     def _object_class_id(self):
-        return case([(self.entity_class_sq.c.type_id == self.object_class_type, self.entity_class_sq.c.id)], else_=None)
+        return case([(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.id)], else_=None)
 
     def _relationship_class_id(self):
-        return case(
-            [(self.entity_class_sq.c.type_id == self.relationship_class_type, self.entity_class_sq.c.id)], else_=None
-        )
+        return case([(self.ext_entity_class_sq.c.dimension_id_list != None, self.ext_entity_class_sq.c.id)], else_=None)
 
     def _object_id(self):
-        return case([(self.entity_sq.c.type_id == self.object_entity_type, self.entity_sq.c.id)], else_=None)
+        return case([(self.ext_entity_sq.c.element_id_list == None, self.ext_entity_sq.c.id)], else_=None)
 
     def _relationship_id(self):
-        return case([(self.entity_sq.c.type_id == self.relationship_entity_type, self.entity_sq.c.id)], else_=None)
+        return case([(self.ext_entity_sq.c.element_id_list != None, self.ext_entity_sq.c.id)], else_=None)
 
     def _object_class_name(self):
         return case(
-            [(self.entity_class_sq.c.type_id == self.object_class_type, self.entity_class_sq.c.name)], else_=None
+            [(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.name)], else_=None
         )
 
     def _relationship_class_name(self):
         return case(
-            [(self.entity_class_sq.c.type_id == self.relationship_class_type, self.entity_class_sq.c.name)], else_=None
+            [(self.ext_entity_class_sq.c.dimension_id_list != None, self.ext_entity_class_sq.c.name)], else_=None
         )
 
     def _object_class_id_list(self):
         return case(
             [
                 (
-                    self.entity_class_sq.c.type_id == self.relationship_class_type,
+                    self.ext_entity_class_sq.c.dimension_id_list != None,
                     self.wide_relationship_class_sq.c.object_class_id_list,
                 )
             ],
@@ -2096,7 +2109,7 @@ class DatabaseMappingBase:
         return case(
             [
                 (
-                    self.entity_class_sq.c.type_id == self.relationship_class_type,
+                    self.ext_entity_class_sq.c.dimension_id_list != None,
                     self.wide_relationship_class_sq.c.object_class_name_list,
                 )
             ],
@@ -2104,18 +2117,16 @@ class DatabaseMappingBase:
         )
 
     def _object_name(self):
-        return case([(self.entity_sq.c.type_id == self.object_entity_type, self.entity_sq.c.name)], else_=None)
+        return case([(self.ext_entity_sq.c.element_id_list == None, self.entity_sq.c.name)], else_=None)
 
     def _object_id_list(self):
         return case(
-            [(self.entity_sq.c.type_id == self.relationship_entity_type, self.wide_relationship_sq.c.object_id_list)],
-            else_=None,
+            [(self.ext_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_id_list)], else_=None
         )
 
     def _object_name_list(self):
         return case(
-            [(self.entity_sq.c.type_id == self.relationship_entity_type, self.wide_relationship_sq.c.object_name_list)],
-            else_=None,
+            [(self.ext_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
 
     @staticmethod

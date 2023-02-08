@@ -88,7 +88,7 @@ def check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names,
         )
 
 
-def check_object_class(item, current_items, object_class_type):
+def check_object_class(item, current_items):
     """Check whether the insertion of an object class item
     results in the violation of an integrity constraint.
 
@@ -107,15 +107,11 @@ def check_object_class(item, current_items, object_class_type):
         )
     if not name:
         raise SpineIntegrityError("Object class name is an empty string and therefore not valid")
-    if "type_id" in item and item["type_id"] != object_class_type:
-        raise SpineIntegrityError(
-            f"Object class '{name}' does not have a type_id of an object class.", id=current_items[name]
-        )
     if name in current_items:
         raise SpineIntegrityError(f"There can't be more than one object class called '{name}'.", id=current_items[name])
 
 
-def check_object(item, current_items, object_class_ids, object_entity_type):
+def check_object(item, current_items, object_class_ids):
     """Check whether the insertion of an object item
     results in the violation of an integrity constraint.
 
@@ -135,8 +131,6 @@ def check_object(item, current_items, object_class_ids, object_entity_type):
         )
     if not name:
         raise SpineIntegrityError("Object name is an empty string and therefore not valid")
-    if "type_id" in item and item["type_id"] != object_entity_type:
-        raise SpineIntegrityError(f"Object '{name}' does not have entity type of and object", id=current_items[name])
     try:
         class_id = item["class_id"]
     except KeyError:

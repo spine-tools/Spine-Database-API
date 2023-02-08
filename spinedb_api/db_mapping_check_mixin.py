@@ -348,7 +348,7 @@ class DatabaseMappingCheckMixin:
                 with self._manage_stocks(
                     "object_class", item, {("name",): object_class_ids}, for_update, cache, intgr_error_log
                 ) as item:
-                    check_object_class(item, object_class_ids, self.object_class_type)
+                    check_object_class(item, object_class_ids)
                     checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:
@@ -378,7 +378,7 @@ class DatabaseMappingCheckMixin:
                 with self._manage_stocks(
                     "object", item, {("class_id", "name"): object_ids}, for_update, cache, intgr_error_log
                 ) as item:
-                    check_object(item, object_ids, object_class_ids, self.object_entity_type)
+                    check_object(item, object_ids, object_class_ids)
                     checked_items.append(item)
             except SpineIntegrityError as e:
                 if strict:

@@ -52,7 +52,6 @@ class DiffDatabaseMapping(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._init_type_attributes()
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)

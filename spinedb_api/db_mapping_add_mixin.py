@@ -106,6 +106,12 @@ class DatabaseMappingAddMixin:
             next_id = getattr(next_id_row, fieldname)
             stmt = self._next_id.update()
         if next_id is None:
+            tablename = {
+                "object_class": "entity_class",
+                "relationship_class": "entity_class",
+                "object": "entity",
+                "relationship": "entity",
+            }.get(tablename, tablename)
             table = self._metadata.tables[tablename]
             id_col = self.table_ids.get(tablename, "id")
             select_max_id = select([func.max(getattr(table.c, id_col))])
@@ -200,7 +206,6 @@ class DatabaseMappingAddMixin:
     def _do_add_items(self, tablename, *items_to_add):
         if not self.committing:
             return
-        items_to_add = tuple(self._items_with_type_id(tablename, *items_to_add))
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
                 table = self._get_table_for_insert(tablename_)
@@ -223,45 +228,35 @@ class DatabaseMappingAddMixin:
             tuple: database table name, items to add
         """
         if tablename == "object_class":
-            oc_items_to_add = list()
-            append_oc_items_to_add = oc_items_to_add.append
-            for item in items_to_add:
-                append_oc_items_to_add({"entity_class_id": item["id"], "type_id": self.object_class_type})
             yield ("entity_class", items_to_add)
-            yield ("object_class", oc_items_to_add)
         elif tablename == "object":
-            o_items_to_add = list()
-            append_o_items_to_add = o_items_to_add.append
-            for item in items_to_add:
-                append_o_items_to_add({"entity_id": item["id"], "type_id": item["type_id"]})
             yield ("entity", items_to_add)
-            yield ("object", o_items_to_add)
         elif tablename == "relationship_class":
-            rc_items_to_add = list()
-            rec_items_to_add = list()
+            ecd_items_to_add = []
             for item in items_to_add:
-                rc_items_to_add.append({"entity_class_id": item["id"], "type_id": self.relationship_class_type})
-                rec_items_to_add += get_relationship_entity_class_items(item, self.object_class_type)
+                ecd_items_to_add += [
+                    {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
+                    for position, dimension_id in enumerate(item["object_class_id_list"])
+                ]
             yield ("entity_class", items_to_add)
-            yield ("relationship_class", rc_items_to_add)
-            yield ("relationship_entity_class", rec_items_to_add)
+            yield ("entity_class_dimension", ecd_items_to_add)
         elif tablename == "relationship":
-            re_items_to_add = list()
-            r_items_to_add = list()
+            ee_items_to_add = []
             for item in items_to_add:
-                r_items_to_add.append(
+                ee_items_to_add += [
                     {
                         "entity_id": item["id"],
                         "entity_class_id": item["class_id"],
-                        "type_id": self.relationship_entity_type,
+                        "position": position,
+                        "element_id": object_id,
+                        "dimension_id": object_class_id,
                     }
-                )
-                re_items_to_add += get_relationship_entity_items(
-                    item, self.relationship_entity_type, self.object_entity_type
-                )
+                    for position, (object_id, object_class_id) in enumerate(
+                        zip(item["object_id_list"], item["object_class_id_list"])
+                    )
+                ]
             yield ("entity", items_to_add)
-            yield ("relationship", r_items_to_add)
-            yield ("relationship_entity", re_items_to_add)
+            yield ("entity_element", ee_items_to_add)
         elif tablename == "parameter_definition":
             for item in items_to_add:
                 item["entity_class_id"] = (
