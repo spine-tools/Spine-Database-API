@@ -143,7 +143,7 @@ def check_object(item, current_items, object_class_ids):
         )
 
 
-def check_wide_relationship_class(wide_item, current_items, object_class_ids, relationship_class_type):
+def check_wide_relationship_class(wide_item, current_items, object_class_ids):
     """Check whether the insertion of a relationship class item
     results in the violation of an integrity constraint.
 
@@ -177,17 +177,13 @@ def check_wide_relationship_class(wide_item, current_items, object_class_ids, re
         raise SpineIntegrityError(
             f"At least one of the object class ids of the relationship class '{name}' is not in the database."
         )
-    if "type_id" in wide_item and wide_item["type_id"] != relationship_class_type:
-        raise SpineIntegrityError(f"Relationship class '{name}' must have correct type_id .", id=current_items[name])
     if name in current_items:
         raise SpineIntegrityError(
             f"There can't be more than one relationship class with the name '{name}'.", id=current_items[name]
         )
 
 
-def check_wide_relationship(
-    wide_item, current_items_by_name, current_items_by_obj_lst, relationship_classes, objects, relationship_entity_type
-):
+def check_wide_relationship(wide_item, current_items_by_name, current_items_by_obj_lst, relationship_classes, objects):
     """Check whether the insertion of a relationship item
     results in the violation of an integrity constraint.
 
@@ -218,11 +214,6 @@ def check_wide_relationship(
         raise SpineIntegrityError(
             f"Python KeyError: There is no dictionary key for the relationship class id of relationship '{name}'. "
             "Probably a bug, please report"
-        )
-    if "type_id" in wide_item and wide_item["type_id"] != relationship_entity_type:
-        raise SpineIntegrityError(
-            f"Relationship '{name}' does not have entity type of a relationship.",
-            id=current_items_by_name[class_id, name],
         )
     if (class_id, name) in current_items_by_name:
         raise SpineIntegrityError(

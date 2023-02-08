@@ -132,11 +132,6 @@ class DatabaseMappingBase:
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.session = Session(self.connection, **self._session_kwargs)
         self.cache = DBCache(self._advance_cache_query)
-        # class and entity type id
-        self._object_class_type = None
-        self._relationship_class_type = None
-        self._object_entity_type = None
-        self._relationship_entity_type = None
         # Subqueries that select everything from each table
         self._commit_sq = None
         self._alternative_sq = None
@@ -604,7 +599,7 @@ class DatabaseMappingBase:
                 .outerjoin(
                     entity_class_dimension_sq, self.entity_class_sq.c.id == entity_class_dimension_sq.c.entity_class_id
                 )
-                .group_by(entity_class_dimension_sq.c.entity_class_id)
+                .group_by(self.entity_class_sq.c.id)
                 .subquery()
             )
         return self._ext_entity_class_sq
@@ -636,7 +631,7 @@ class DatabaseMappingBase:
                     group_concat(entity_element_sq.c.element_id, entity_element_sq.c.position).label("element_id_list"),
                 )
                 .outerjoin(entity_element_sq, self.entity_sq.c.id == entity_element_sq.c.entity_id)
-                .group_by(entity_element_sq.c.entity_id)
+                .group_by(self.entity_sq.c.id)
                 .subquery()
             )
         return self._ext_entity_sq
@@ -1296,13 +1291,13 @@ class DatabaseMappingBase:
                     self.entity_group_sq.c.entity_class_id.label("class_id"),
                     self.entity_group_sq.c.entity_id.label("group_id"),
                     self.entity_group_sq.c.member_id.label("member_id"),
-                    self.entity_class_sq.c.name.label("class_name"),
+                    self.ext_entity_class_sq.c.name.label("class_name"),
                     group_entity.c.name.label("group_name"),
                     member_entity.c.name.label("member_name"),
                     label("object_class_id", self._object_class_id()),
                     label("relationship_class_id", self._relationship_class_id()),
                 )
-                .filter(self.entity_group_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .filter(self.entity_group_sq.c.entity_class_id == self.ext_entity_class_sq.c.id)
                 .join(group_entity, self.entity_group_sq.c.entity_id == group_entity.c.id)
                 .join(member_entity, self.entity_group_sq.c.member_id == member_entity.c.id)
                 .subquery()
@@ -1322,7 +1317,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.entity_class_id,
                     self.parameter_definition_sq.c.object_class_id,
                     self.parameter_definition_sq.c.relationship_class_id,
-                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.ext_entity_class_sq.c.name.label("entity_class_name"),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
                     label("object_class_id_list", self._object_class_id_list()),
@@ -1336,13 +1331,17 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.description,
                     self.parameter_definition_sq.c.commit_id,
                 )
-                .join(self.entity_class_sq, self.entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
+                .join(
+                    self.ext_entity_class_sq,
+                    self.ext_entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id,
+                )
                 .outerjoin(
                     self.parameter_value_list_sq,
                     self.parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
                 )
                 .outerjoin(
-                    self.wide_relationship_class_sq, self.wide_relationship_class_sq.c.id == self.entity_class_sq.c.id
+                    self.wide_relationship_class_sq,
+                    self.wide_relationship_class_sq.c.id == self.ext_entity_class_sq.c.id,
                 )
                 .subquery()
             )
@@ -1798,7 +1797,7 @@ class DatabaseMappingBase:
                 par_def_sq.c.commit_id.label("commit_id"),
                 par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
             )
-            .join(self.entity_class_sq, self.entity_class_sq.c.id == par_def_sq.c.entity_class_id)
+            .join(self.ext_entity_class_sq, self.ext_entity_class_sq.c.id == par_def_sq.c.entity_class_id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
             .subquery()
         )
@@ -1830,8 +1829,8 @@ class DatabaseMappingBase:
                 par_val_sq.c.commit_id.label("commit_id"),
                 par_val_sq.c.alternative_id,
             )
-            .join(self.entity_sq, self.entity_sq.c.id == par_val_sq.c.entity_id)
-            .join(self.entity_class_sq, self.entity_class_sq.c.id == par_val_sq.c.entity_class_id)
+            .join(self.ext_entity_sq, self.ext_entity_sq.c.id == par_val_sq.c.entity_id)
+            .join(self.ext_entity_class_sq, self.ext_entity_class_sq.c.id == par_val_sq.c.entity_class_id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
             .subquery()
         )
@@ -2057,20 +2056,6 @@ class DatabaseMappingBase:
         table_cache = self.cache.table_cache(tablename)
         for x in self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False):
             table_cache.add_item(x._asdict())
-
-    def _items_with_type_id(self, tablename, *items):
-        type_id = {
-            "object_class": self.object_class_type,
-            "relationship_class": self.relationship_class_type,
-            "object": self.object_entity_type,
-            "relationship": self.relationship_entity_type,
-        }.get(tablename)
-        if type_id is None:
-            yield from items
-            return
-        for item in items:
-            item["type_id"] = type_id
-            yield item
 
     def _object_class_id(self):
         return case([(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.id)], else_=None)

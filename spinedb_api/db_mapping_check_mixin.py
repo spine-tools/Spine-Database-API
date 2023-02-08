@@ -414,9 +414,7 @@ class DatabaseMappingCheckMixin:
                     cache,
                     intgr_error_log,
                 ) as wide_item:
-                    check_wide_relationship_class(
-                        wide_item, relationship_class_ids, object_class_ids, self.relationship_class_type
-                    )
+                    check_wide_relationship_class(wide_item, relationship_class_ids, object_class_ids)
                     checked_wide_items.append(wide_item)
             except SpineIntegrityError as e:
                 if strict:
@@ -468,7 +466,6 @@ class DatabaseMappingCheckMixin:
                         relationship_ids_by_obj_lst,
                         relationship_classes,
                         objects,
-                        self.relationship_entity_type,
                     )
                     checked_wide_items.append(wide_item)
             except SpineIntegrityError as e:

@@ -821,35 +821,6 @@ def forward_sweep(root, fn):
             break
 
 
-def get_relationship_entity_class_items(item, object_class_type):
-    return [
-        {
-            "entity_class_id": item["id"],
-            "dimension": dimension,
-            "member_class_id": object_class_id,
-            "member_class_type_id": object_class_type,
-        }
-        for dimension, object_class_id in enumerate(item["object_class_id_list"])
-    ]
-
-
-def get_relationship_entity_items(item, relationship_entity_type, object_entity_type):
-    return [
-        {
-            "entity_id": item["id"],
-            "type_id": relationship_entity_type,
-            "entity_class_id": item["class_id"],
-            "dimension": dimension,
-            "member_id": object_id,
-            "member_class_type_id": object_entity_type,
-            "member_class_id": object_class_id,
-        }
-        for dimension, (object_id, object_class_id) in enumerate(
-            zip(item["object_id_list"], item["object_class_id_list"])
-        )
-    ]
-
-
 def labelled_columns(table):
     return [c.label(c.name) for c in table.columns]
 

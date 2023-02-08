@@ -20,7 +20,6 @@ from datetime import datetime
 from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .helpers import get_relationship_entity_class_items, get_relationship_entity_items
 
 
 class DatabaseMappingAddMixin:
