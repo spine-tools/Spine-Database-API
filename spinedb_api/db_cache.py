@@ -56,10 +56,8 @@ class DBCache(dict):
             CacheItem
         """
         factory = {
-            "object_class": ObjectClassItem,
-            "object": ObjectItem,
-            "relationship_class": RelationshipClassItem,
-            "relationship": RelationshipItem,
+            "entity_class": EntityClassItem,
+            "entity": EntityItem,
             "parameter_definition": ParameterDefinitionItem,
             "parameter_value": ParameterValueItem,
             "entity_group": EntityGroupItem,
@@ -273,98 +271,67 @@ class DescriptionMixin:
         return super().__getitem__(key)
 
 
-class ObjectClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
-    pass
-
-
-class ObjectItem(DescriptionMixin, CacheItem):
-    def __getitem__(self, key):
-        if key == "class_name":
-            return self._get_ref("object_class", self["class_id"], key).get("name")
-        return super().__getitem__(key)
-
-    def _reference_keys(self):
-        return super()._reference_keys() + ("class_name",)
-
-
-class ObjectClassIdListMixin:
+class EntityClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
     def __init__(self, *args, **kwargs):
-        object_class_id_list = kwargs["object_class_id_list"]
-        if isinstance(object_class_id_list, str):
-            object_class_id_list = (int(id_) for id_ in object_class_id_list.split(","))
-        kwargs["object_class_id_list"] = tuple(object_class_id_list)
+        dimension_id_list = kwargs["dimension_id_list"]
+        if dimension_id_list is None:
+            dimension_id_list = ()
+        if isinstance(dimension_id_list, str):
+            dimension_id_list = (int(id_) for id_ in dimension_id_list.split(","))
+        kwargs["dimension_id_list"] = tuple(dimension_id_list)
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        if key == "object_class_name_list":
-            return tuple(self._get_ref("object_class", id_, key).get("name") for id_ in self["object_class_id_list"])
+        if key == "dimension_name_list":
+            return tuple(self._get_ref("entity_class", id_, key).get("name") for id_ in self["dimension_id_list"])
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("object_class_name_list",)
+        return super()._reference_keys() + ("dimension_name_list",)
 
 
-class RelationshipClassItem(DisplayIconMixin, ObjectClassIdListMixin, DescriptionMixin, CacheItem):
-    pass
-
-
-class RelationshipItem(ObjectClassIdListMixin, CacheItem):
-    def __init__(self, db_cache, *args, **kwargs):
-        if "object_class_id_list" not in kwargs:
-            kwargs["object_class_id_list"] = db_cache.get_item("relationship_class", kwargs["class_id"]).get(
-                "object_class_id_list", ()
-            )
-        object_id_list = kwargs.get("object_id_list", ())
-        if isinstance(object_id_list, str):
-            object_id_list = (int(id_) for id_ in object_id_list.split(","))
-        kwargs["object_id_list"] = tuple(object_id_list)
-        super().__init__(db_cache, *args, **kwargs)
+class EntityItem(DescriptionMixin, CacheItem):
+    def __init__(self, *args, **kwargs):
+        element_id_list = kwargs["element_id_list"]
+        if element_id_list is None:
+            element_id_list = ()
+        if isinstance(element_id_list, str):
+            element_id_list = (int(id_) for id_ in element_id_list.split(","))
+        kwargs["element_id_list"] = tuple(element_id_list)
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
         if key == "class_name":
-            return self._get_ref("relationship_class", self["class_id"], key).get("name")
-        if key == "object_name_list":
-            return tuple(self._get_ref("object", id_, key).get("name") for id_ in self["object_id_list"])
+            return self._get_ref("entity_class", self["class_id"], key).get("name")
+        if key == "dimension_id_list":
+            return self._get_ref("entity_class", self["class_id"], key).get("dimension_id_list")
+        if key == "dimension_name_list":
+            return self._get_ref("entity_class", self["class_id"], key).get("dimension_name_list")
+        if key == "element_name_list":
+            return tuple(self._get_ref("entity", id_, key).get("name") for id_ in self["element_id_list"])
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("class_name", "object_name_list")
+        return super()._reference_keys() + (
+            "class_name",
+            "dimension_id_list",
+            "dimension_name_list",
+            "element_name_list",
+        )
 
 
 class ParameterMixin:
-    def __init__(self, *args, **kwargs):
-        if "entity_class_id" not in kwargs:
-            kwargs["entity_class_id"] = kwargs.get("object_class_id") or kwargs.get("relationship_class_id")
-        super().__init__(*args, **kwargs)
-
     def __getitem__(self, key):
-        if key in ("object_class_id", "relationship_class_id"):
-            return dict.get(self, key)
-        if key == "object_class_name":
-            if self["object_class_id"] is None:
-                return None
-            return self._get_ref("object_class", self["object_class_id"], key).get("name")
-        if key == "relationship_class_name":
-            if self["relationship_class_id"] is None:
-                return None
-            return self._get_ref("relationship_class", self["relationship_class_id"], key).get("name")
-        if key in ("object_class_id_list", "object_class_name_list"):
-            if self["relationship_class_id"] is None:
-                return None
-            return self._get_ref("relationship_class", self["relationship_class_id"], key).get(key)
+        if key in ("dimension_id_list", "dimension_name_list"):
+            return self._get_ref("entity_class", self["entity_class_id"], key)[key]
         if key == "entity_class_name":
-            return self["relationship_class_name"] if self["object_class_id"] is None else self["object_class_name"]
+            return self._get_ref("entity_class", self["entity_class_id"], key)["name"]
         if key == "parameter_value_list_id":
             return dict.get(self, key)
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        keys = super()._reference_keys()
-        if self["object_class_id"]:
-            keys += ("object_class_name",)
-        elif self["relationship_class_id"]:
-            keys += ("relationship_class_name", "object_class_id_list", "object_class_name_list")
-        return keys
+        return super()._reference_keys() + ("entity_class_name", "dimension_id_list", "dimension_name_list")
 
 
 class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
@@ -391,27 +358,19 @@ class ParameterDefinitionItem(DescriptionMixin, ParameterMixin, CacheItem):
 
 class ParameterValueItem(ParameterMixin, CacheItem):
     def __init__(self, *args, **kwargs):
-        if "entity_id" not in kwargs:
-            kwargs["entity_id"] = kwargs.get("object_id") or kwargs.get("relationship_id")
         if kwargs.get("list_value_id") is None:
             kwargs["list_value_id"] = int(kwargs["value"]) if kwargs.get("type") == "list_value_ref" else None
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        if key in ("object_id", "relationship_id"):
-            return dict.get(self, key)
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
         if key == "parameter_name":
             return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get("name")
-        if key == "object_name":
-            if self["object_id"] is None:
-                return None
-            return self._get_ref("object", self["object_id"], key).get("name")
-        if key in ("object_id_list", "object_name_list"):
-            if self["relationship_id"] is None:
-                return None
-            return self._get_ref("relationship", self["relationship_id"], key).get(key)
+        if key == "entity_name":
+            return self._get_ref("entity", self["entity_id"], key)["name"]
+        if key in ("element_id_list", "element_name_list"):
+            return self._get_ref("entity", self["entity_id"], key)[key]
         if key == "alternative_name":
             return self._get_ref("alternative", self["alternative_id"], key).get("name")
         if key in ("value", "type") and self["list_value_id"] is not None:
@@ -419,11 +378,13 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        keys = super()._reference_keys() + ("parameter_name", "alternative_name")
-        if self["object_id"]:
-            keys += ("object_name",)
-        elif self["relationship_id"]:
-            keys += ("object_id_list", "object_name_list")
+        keys = super()._reference_keys() + (
+            "parameter_name",
+            "alternative_name",
+            "entity_name",
+            "element_id_list",
+            "element_name_list",
+        )
         return keys
 
 

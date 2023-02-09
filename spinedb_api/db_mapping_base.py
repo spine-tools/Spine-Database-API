@@ -139,8 +139,8 @@ class DatabaseMappingBase:
         self._scenario_alternative_sq = None
         self._entity_class_sq = None
         self._entity_sq = None
-        self._entity_class_type_sq = None
-        self._entity_type_sq = None
+        self._entity_class_dimension_sq = None
+        self._entity_element_sq = None
         self._object_class_sq = None
         self._object_sq = None
         self._relationship_class_sq = None
@@ -206,7 +206,10 @@ class DatabaseMappingBase:
         }
         # Subqueries used to populate cache
         self.cache_sqs = {
-            "entity": "entity_sq",
+            "entity_class": "ext_entity_class_sq",
+            "entity_class_dimension": "entity_class_dimension_sq",
+            "entity": "ext_entity_sq",
+            "entity_element": "entity_element_sq",
             "feature": "feature_sq",
             "tool": "tool_sq",
             "tool_feature": "tool_feature_sq",
@@ -216,10 +219,6 @@ class DatabaseMappingBase:
             "alternative": "alternative_sq",
             "scenario": "scenario_sq",
             "scenario_alternative": "scenario_alternative_sq",
-            "object_class": "object_class_sq",
-            "object": "object_sq",
-            "relationship_class": "wide_relationship_class_sq",
-            "relationship": "wide_relationship_sq",
             "entity_group": "entity_group_sq",
             "parameter_definition": "parameter_definition_sq",
             "parameter_value": "clean_parameter_value_sq",
@@ -562,6 +561,18 @@ class DatabaseMappingBase:
         return self._entity_class_sq
 
     @property
+    def entity_class_dimension_sq(self):
+        if self._entity_class_dimension_sq is None:
+            self._entity_class_dimension_sq = self._subquery("entity_class_dimension")
+        return self._entity_class_dimension_sq
+
+    @property
+    def entity_element_sq(self):
+        if self._entity_element_sq is None:
+            self._entity_element_sq = self._subquery("entity_element")
+        return self._entity_element_sq
+
+    @property
     def entity_sq(self):
         """A subquery of the form:
 
@@ -596,16 +607,16 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._ext_entity_class_sq is None:
-            entity_class_dimension_sq = self._subquery("entity_class_dimension")
             self._ext_entity_class_sq = (
                 self.query(
                     self.entity_class_sq,
-                    group_concat(entity_class_dimension_sq.c.dimension_id, entity_class_dimension_sq.c.position).label(
-                        "dimension_id_list"
-                    ),
+                    group_concat(
+                        self.entity_class_dimension_sq.c.dimension_id, self.entity_class_dimension_sq.c.position
+                    ).label("dimension_id_list"),
                 )
                 .outerjoin(
-                    entity_class_dimension_sq, self.entity_class_sq.c.id == entity_class_dimension_sq.c.entity_class_id
+                    self.entity_class_dimension_sq,
+                    self.entity_class_sq.c.id == self.entity_class_dimension_sq.c.entity_class_id,
                 )
                 .group_by(self.entity_class_sq.c.id)
                 .subquery()
@@ -632,13 +643,14 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._ext_entity_sq is None:
-            entity_element_sq = self._subquery("entity_element")
             self._ext_entity_sq = (
                 self.query(
                     self.entity_sq,
-                    group_concat(entity_element_sq.c.element_id, entity_element_sq.c.position).label("element_id_list"),
+                    group_concat(self.entity_element_sq.c.element_id, self.entity_element_sq.c.position).label(
+                        "element_id_list"
+                    ),
                 )
-                .outerjoin(entity_element_sq, self.entity_sq.c.id == entity_element_sq.c.entity_id)
+                .outerjoin(self.entity_element_sq, self.entity_sq.c.id == self.entity_element_sq.c.entity_id)
                 .group_by(self.entity_sq.c.id)
                 .subquery()
             )
