@@ -607,18 +607,42 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._ext_entity_class_sq is None:
-            self._ext_entity_class_sq = (
+            ecd_sq = (
                 self.query(
-                    self.entity_class_sq,
-                    group_concat(
-                        self.entity_class_dimension_sq.c.dimension_id, self.entity_class_dimension_sq.c.position
-                    ).label("dimension_id_list"),
+                    self.entity_class_sq.c.id,
+                    self.entity_class_sq.c.name,
+                    self.entity_class_sq.c.description,
+                    self.entity_class_sq.c.display_order,
+                    self.entity_class_sq.c.display_icon,
+                    self.entity_class_sq.c.hidden,
+                    self.entity_class_dimension_sq.c.dimension_id,
+                    self.entity_class_dimension_sq.c.position,
                 )
                 .outerjoin(
                     self.entity_class_dimension_sq,
                     self.entity_class_sq.c.id == self.entity_class_dimension_sq.c.entity_class_id,
                 )
-                .group_by(self.entity_class_sq.c.id)
+                .order_by(self.entity_class_sq.c.id, self.entity_class_dimension_sq.c.position)
+                .subquery()
+            )
+            self._ext_entity_class_sq = (
+                self.query(
+                    ecd_sq.c.id,
+                    ecd_sq.c.name,
+                    ecd_sq.c.description,
+                    ecd_sq.c.display_order,
+                    ecd_sq.c.display_icon,
+                    ecd_sq.c.hidden,
+                    group_concat(ecd_sq.c.dimension_id, ecd_sq.c.position).label("dimension_id_list"),
+                )
+                .group_by(
+                    ecd_sq.c.id,
+                    ecd_sq.c.name,
+                    ecd_sq.c.description,
+                    ecd_sq.c.display_order,
+                    ecd_sq.c.display_icon,
+                    ecd_sq.c.hidden,
+                )
                 .subquery()
             )
         return self._ext_entity_class_sq
@@ -643,15 +667,39 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._ext_entity_sq is None:
+            ee_sq = (
+                self.query(
+                    self.entity_sq.c.id,
+                    self.entity_sq.c.class_id,
+                    self.entity_sq.c.name,
+                    self.entity_sq.c.description,
+                    self.entity_sq.c.commit_id,
+                    self.entity_element_sq.c.element_id,
+                    self.entity_element_sq.c.position,
+                )
+                .outerjoin(
+                    self.entity_element_sq,
+                    self.entity_sq.c.id == self.entity_element_sq.c.entity_id,
+                )
+                .order_by(self.entity_sq.c.id, self.entity_element_sq.c.position)
+                .subquery()
+            )
             self._ext_entity_sq = (
                 self.query(
-                    self.entity_sq,
-                    group_concat(self.entity_element_sq.c.element_id, self.entity_element_sq.c.position).label(
-                        "element_id_list"
-                    ),
+                    ee_sq.c.id,
+                    ee_sq.c.class_id,
+                    ee_sq.c.name,
+                    ee_sq.c.description,
+                    ee_sq.c.commit_id,
+                    group_concat(ee_sq.c.element_id, ee_sq.c.position).label("element_id_list"),
                 )
-                .outerjoin(self.entity_element_sq, self.entity_sq.c.id == self.entity_element_sq.c.entity_id)
-                .group_by(self.entity_sq.c.id)
+                .group_by(
+                    ee_sq.c.id,
+                    ee_sq.c.class_id,
+                    ee_sq.c.name,
+                    ee_sq.c.description,
+                    ee_sq.c.commit_id,
+                )
                 .subquery()
             )
         return self._ext_entity_sq
