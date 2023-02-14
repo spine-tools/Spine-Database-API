@@ -24,6 +24,11 @@ from .helpers import Asterisk
 
 def export_data(
     db_map,
+    entity_class_ids=Asterisk,
+    entity_ids=Asterisk,
+    parameter_definition_ids=Asterisk,
+    parameter_value_ids=Asterisk,
+    entity_group_ids=Asterisk,
     object_class_ids=Asterisk,
     relationship_class_ids=Asterisk,
     parameter_value_list_ids=Asterisk,
@@ -70,6 +75,15 @@ def export_data(
         dict: exported data
     """
     data = {
+        "entity_classes": export_entity_classes(db_map, entity_class_ids, make_cache=make_cache),
+        "entities": export_entities(db_map, entity_ids, make_cache=make_cache),
+        "entity_groups": export_entity_groups(db_map, entity_group_ids, make_cache=make_cache),
+        "parameter_definitions": export_parameter_definitions(
+            db_map, parameter_definition_ids, make_cache=make_cache, parse_value=parse_value
+        ),
+        "parameter_values": export_parameter_values(
+            db_map, parameter_value_ids, make_cache=make_cache, parse_value=parse_value
+        ),
         "object_classes": export_object_classes(db_map, object_class_ids, make_cache=make_cache),
         "relationship_classes": export_relationship_classes(db_map, relationship_class_ids, make_cache=make_cache),
         "parameter_value_lists": export_parameter_value_lists(
@@ -145,21 +159,6 @@ class _ParameterValueListProcessor:
             yield KeyedTuple([item.name, val.value, val.type], fields)
 
 
-def export_object_classes(db_map, ids=Asterisk, make_cache=None):
-    return sorted((x.name, x.description, x.display_icon) for x in _get_items(db_map, "object_class", ids, make_cache))
-
-
-def export_objects(db_map, ids=Asterisk, make_cache=None):
-    return sorted((x.class_name, x.name, x.description) for x in _get_items(db_map, "object", ids, make_cache))
-
-
-def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
-    return sorted(
-        (x.name, x.object_class_name_list, x.description, x.display_icon)
-        for x in _get_items(db_map, "relationship_class", ids, make_cache)
-    )
-
-
 def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
     return sorted(
         ((x.name, parse_value(x.value, x.type)) for x in _get_items(db_map, "parameter_value_list", ids, make_cache)),
@@ -167,52 +166,127 @@ def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, parse_va
     )
 
 
-def export_object_parameters(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
+def export_entity_classes(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (
-            x.object_class_name,
-            x.parameter_name,
-            parse_value(x.default_value, x.default_type),
-            x.value_list_name,
-            x.description,
-        )
-        for x in _get_items(db_map, "parameter_definition", ids, make_cache)
-        if x.object_class_id
+        (x.name, x.description, x.display_icon, x.dimension_name_list)
+        for x in _get_items(db_map, "entity_class", ids, make_cache)
     )
 
 
-def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
+def export_entities(db_map, ids=Asterisk, make_cache=None):
+    return sorted(
+        (x.class_name, x.element_name_list or x.name, x.description)
+        for x in _get_items(db_map, "entity", ids, make_cache)
+    )
+
+
+def export_entity_groups(db_map, ids=Asterisk, make_cache=None):
+    return sorted(
+        (x.class_name, x.group_name, x.member_name) for x in _get_items(db_map, "entity_group", ids, make_cache)
+    )
+
+
+def export_parameter_definitions(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
     return sorted(
         (
-            x.relationship_class_name,
+            x.entity_class_name,
             x.parameter_name,
             parse_value(x.default_value, x.default_type),
             x.value_list_name,
             x.description,
         )
         for x in _get_items(db_map, "parameter_definition", ids, make_cache)
-        if x.relationship_class_id
+    )
+
+
+def export_parameter_values(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
+    return sorted(
+        (
+            (
+                x.entity_class_name,
+                x.element_name_list or x.name,
+                x.parameter_name,
+                parse_value(x.value, x.type),
+                x.alternative_name,
+            )
+            for x in _get_items(db_map, "parameter_value", ids, make_cache)
+        ),
+        key=lambda x: x[:3] + (x[-1],),
+    )
+
+
+def export_object_classes(db_map, ids=Asterisk, make_cache=None):
+    return sorted(
+        (x.name, x.description, x.display_icon)
+        for x in _get_items(db_map, "entity_class", ids, make_cache)
+        if not x.dimension_id_list
+    )
+
+
+def export_relationship_classes(db_map, ids=Asterisk, make_cache=None):
+    return sorted(
+        (x.name, x.dimension_name_list, x.description, x.display_icon)
+        for x in _get_items(db_map, "entity_class", ids, make_cache)
+        if x.dimension_id_list
+    )
+
+
+def export_objects(db_map, ids=Asterisk, make_cache=None):
+    return sorted(
+        (x.class_name, x.name, x.description)
+        for x in _get_items(db_map, "entity", ids, make_cache)
+        if not x.element_id_list
     )
 
 
 def export_relationships(db_map, ids=Asterisk, make_cache=None):
-    return sorted((x.class_name, x.object_name_list) for x in _get_items(db_map, "relationship", ids, make_cache))
+    return sorted(
+        (x.class_name, x.element_name_list) for x in _get_items(db_map, "entity", ids, make_cache) if x.element_id_list
+    )
 
 
 def export_object_groups(db_map, ids=Asterisk, make_cache=None):
     return sorted(
         (x.class_name, x.group_name, x.member_name)
         for x in _get_items(db_map, "entity_group", ids, make_cache)
-        if x.object_class_id
+        if not x.dimension_id_list
+    )
+
+
+def export_object_parameters(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
+    return sorted(
+        (
+            x.entity_class_name,
+            x.parameter_name,
+            parse_value(x.default_value, x.default_type),
+            x.value_list_name,
+            x.description,
+        )
+        for x in _get_items(db_map, "parameter_definition", ids, make_cache)
+        if not x.dimension_id_list
+    )
+
+
+def export_relationship_parameters(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
+    return sorted(
+        (
+            x.entity_class_name,
+            x.parameter_name,
+            parse_value(x.default_value, x.default_type),
+            x.value_list_name,
+            x.description,
+        )
+        for x in _get_items(db_map, "parameter_definition", ids, make_cache)
+        if x.dimension_id_list
     )
 
 
 def export_object_parameter_values(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
     return sorted(
         (
-            (x.object_class_name, x.object_name, x.parameter_name, parse_value(x.value, x.type), x.alternative_name)
+            (x.entity_class_name, x.entity_name, x.parameter_name, parse_value(x.value, x.type), x.alternative_name)
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
-            if x.object_id
+            if not x.element_id_list
         ),
         key=lambda x: x[:3] + (x[-1],),
     )
@@ -222,14 +296,14 @@ def export_relationship_parameter_values(db_map, ids=Asterisk, make_cache=None, 
     return sorted(
         (
             (
-                x.relationship_class_name,
-                x.object_name_list,
+                x.entity_class_name,
+                x.element_name_list,
                 x.parameter_name,
                 parse_value(x.value, x.type),
                 x.alternative_name,
             )
             for x in _get_items(db_map, "parameter_value", ids, make_cache)
-            if x.relationship_id
+            if x.element_id_list
         ),
         key=lambda x: x[:3] + (x[-1],),
     )

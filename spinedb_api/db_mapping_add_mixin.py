@@ -419,6 +419,12 @@ class DatabaseMappingAddMixin:
             "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
         )
 
+    def _add_entity_classes(self, *items):
+        return self._add_items("entity_class", *items)
+
+    def _add_entities(self, *items):
+        return self._add_items("entities", *items)
+
     def _add_object_classes(self, *items):
         return self._add_items("object_class", *items)
 

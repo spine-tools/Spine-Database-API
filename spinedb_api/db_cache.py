@@ -381,14 +381,13 @@ class ParameterValueItem(ParameterMixin, CacheItem):
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        keys = super()._reference_keys() + (
+        return super()._reference_keys() + (
             "parameter_name",
             "alternative_name",
             "entity_name",
             "element_id_list",
             "element_name_list",
         )
-        return keys
 
 
 class EntityGroupItem(CacheItem):
@@ -398,26 +397,17 @@ class EntityGroupItem(CacheItem):
         if key == "group_id":
             return self["entity_id"]
         if key == "class_name":
-            return (
-                self._get_ref("object_class", self["entity_class_id"], key)
-                or self._get_ref("relationship_class", self["entity_class_id"], key)
-            ).get("name")
+            return self._get_ref("entity_class", self["entity_class_id"], key)["name"]
         if key == "group_name":
-            return (
-                self._get_ref("object", self["entity_id"], key) or self._get_ref("relationship", self["entity_id"], key)
-            ).get("name")
+            return self._get_ref("entity", self["entity_id"], key)["name"]
         if key == "member_name":
-            return (
-                self._get_ref("object", self["member_id"], key) or self._get_ref("relationship", self["member_id"], key)
-            ).get("name")
-        if key == "object_class_id":
-            return self._get_ref("object_class", self["entity_class_id"], key).get("id")
-        if key == "relationship_class_id":
-            return self._get_ref("relationship_class", self["entity_class_id"], key).get("id")
+            return self._get_ref("entity", self["member_id"], key)["name"]
+        if key == "dimension_id_list":
+            return self._get_ref("entity_class", self["entity_class_id"], key)["dimension_id_list"]
         return super().__getitem__(key)
 
     def _reference_keys(self):
-        return super()._reference_keys() + ("class_name", "group_name", "member_name")
+        return super()._reference_keys() + ("class_name", "group_name", "member_name", "dimension_id_list")
 
 
 class ScenarioItem(CacheItem):

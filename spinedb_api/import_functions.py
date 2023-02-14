@@ -19,6 +19,8 @@ Functions for importing data into a Spine database using entity names as referen
 import uuid
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
+    check_entity_class,
+    check_entity,
     check_tool,
     check_feature,
     check_tool_feature,
@@ -121,6 +123,7 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
         "alternative": db_map._add_alternatives,
         "scenario": db_map._add_scenarios,
         "scenario_alternative": db_map._add_scenario_alternatives,
+        "entity_class": db_map._add_entity_classes,
         "object_class": db_map._add_object_classes,
         "relationship_class": db_map._add_wide_relationship_classes,
         "parameter_value_list": db_map._add_parameter_value_lists,
@@ -130,6 +133,7 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
         "tool": db_map._add_tools,
         "tool_feature": db_map._add_tool_features,
         "tool_feature_method": db_map._add_tool_feature_methods,
+        "entity": db_map._add_entities,
         "object": db_map._add_objects,
         "relationship": db_map._add_wide_relationships,
         "entity_group": db_map._add_entity_groups,
@@ -142,6 +146,7 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
         "alternative": db_map._update_alternatives,
         "scenario": db_map._update_scenarios,
         "scenario_alternative": db_map._update_scenario_alternatives,
+        "entity_class": db_map._update_entity_classes,
         "object_class": db_map._update_object_classes,
         "relationship_class": db_map._update_wide_relationship_classes,
         "parameter_value_list": db_map._update_parameter_value_lists,
@@ -150,6 +155,7 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
         "feature": db_map._update_features,
         "tool": db_map._update_tools,
         "tool_feature": db_map._update_tool_features,
+        "entity": db_map._update_entities,
         "object": db_map._update_objects,
         "parameter_value": db_map._update_parameter_values,
     }
@@ -180,6 +186,11 @@ def get_data_for_import(
     make_cache=None,
     unparse_value=to_database,
     on_conflict="merge",
+    entity_classes=(),
+    entities=(),
+    parameter_definitions=(),
+    parameter_values=(),
+    entity_groups=(),
     object_classes=(),
     relationship_classes=(),
     parameter_value_lists=(),
@@ -247,6 +258,8 @@ def get_data_for_import(
             alternatives = (item[1] for item in scenario_alternatives)
             yield ("alternative", _get_alternatives_for_import(alternatives, make_cache))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(scenario_alternatives, make_cache))
+    if entity_classes:
+        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, make_cache))
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes, make_cache))
     if relationship_classes:
@@ -254,6 +267,11 @@ def get_data_for_import(
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists, make_cache))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, make_cache, unparse_value))
+    if parameter_definitions:
+        yield (
+            "parameter_definition",
+            _get_parameter_definitions_for_import(db_map, parameter_definitions, make_cache, unparse_value),
+        )
     if object_parameters:
         yield (
             "parameter_definition",
@@ -275,12 +293,21 @@ def get_data_for_import(
             "tool_feature_method",
             _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache, unparse_value),
         )
+    if entities:
+        yield ("entity", _get_entities_for_import(db_map, entities, make_cache))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects, make_cache))
     if relationships:
         yield ("relationship", _get_relationships_for_import(db_map, relationships, make_cache))
+    if entity_groups:
+        yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups, make_cache))
     if object_groups:
         yield ("entity_group", _get_object_groups_for_import(db_map, object_groups, make_cache))
+    if parameter_values:
+        yield (
+            "parameter_value",
+            _get_parameter_values_for_import(db_map, parameter_values, make_cache, unparse_value, on_conflict),
+        )
     if object_parameter_values:
         yield (
             "parameter_value",
@@ -313,6 +340,427 @@ def get_data_for_import(
                 db_map, relationship_parameter_value_metadata, make_cache
             ),
         )
+
+
+def import_entity_classes(db_map, data, make_cache=None):
+    """Imports entity classes.
+
+    Example::
+
+            data = [
+                'new_class',
+                ('another_class', 'description', 123456),
+                ('multidimensional_class', 'description', 654321, ("new_class", "another_class"))
+            ]
+            import_entity_classes(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (Iterable): list/set/iterable of string entity class names,
+            and optionally description, integer display icon reference, and lists/tuples with dimension names,
+
+    Returns:
+        tuple of int and list: Number of successfully inserted object classes, list of errors
+    """
+    return import_data(db_map, entity_classes=data, make_cache=make_cache)
+
+
+def _get_entity_classes_for_import(db_map, data, make_cache):
+    cache = make_cache({"entity_class"}, include_ancestors=True)
+    entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
+    checked = set()
+    error_log = []
+    to_add = []
+    to_update = []
+    for name, *optionals in data:
+        if name in checked:
+            continue
+        ec_id = entity_class_ids.pop(name, None)
+        item = (
+            cache["entity_class"][ec_id]._asdict()
+            if ec_id is not None
+            else {"name": name, "description": None, "display_icon": None}
+        )
+        item.update(dict(zip(("description", "display_icon", "dimension_name_list"), optionals)))
+        item["dimension_id_list"] = tuple(entity_class_ids.get(x, None) for x in item.get("dimension_name_list", ()))
+        try:
+            check_entity_class(item, entity_class_ids)
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(f"Could not import entity class '{name}': {e.msg}", db_type="entity_class")
+            )
+            continue
+        finally:
+            if ec_id is not None:
+                entity_class_ids[name] = ec_id
+        checked.add(name)
+        if ec_id is not None:
+            item["id"] = ec_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_entities(db_map, data, make_cache=None):
+    """Imports entities.
+
+    Example::
+
+            data = [
+                ('class_name1', 'entity_name1'),
+                ('class_name2', 'entity_name2'),
+                ('class_name3', ('entity_name1', 'entity_name2'))
+            ]
+            import_entities(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with entity class name
+            and entity name or list/tuple of element names
+
+    Returns:
+        (Int, List) Number of successful inserted entities, list of errors
+    """
+    return import_data(db_map, entities=data, make_cache=make_cache)
+
+
+def _make_unique_entity_name(class_id, class_name, ent_name_or_el_names, class_id_name_tuples):
+    if isinstance(ent_name_or_el_names, str):
+        return ent_name_or_el_names
+    base_name = class_name + "_" + "__".join([en if en is not None else "None" for en in ent_name_or_el_names])
+    name = base_name
+    while (class_id, name) in class_id_name_tuples:
+        name = base_name + uuid.uuid4().hex
+    return name
+
+
+def _get_entities_for_import(db_map, data, make_cache):
+    cache = make_cache({"entity"}, include_ancestors=True)
+    entities = {x.name: x for x in cache.get("entity", {}).values()}
+    entity_ids_per_name = {(x.class_id, x.name): x.id for x in entities.values()}
+    entity_ids_per_el_id_lst = {(x.class_id, x.element_id_list): x.id for x in entities.values()}
+    entity_classes = {
+        x.id: {"dimension_id_list": x.dimension_id_list, "name": x.name} for x in cache.get("entity_class", {}).values()
+    }
+    entity_ids = {(x["name"], x["class_id"]): id_ for id_, x in entities.items()}
+    entity_class_ids = {x["name"]: id_ for id_, x in entity_classes.items()}
+    dimension_id_lists = {id_: x["dimension_id_list"] for id_, x in entity_classes.items()}
+    error_log = []
+    to_add = []
+    to_update = []
+    checked = set()
+    for class_name, ent_name_or_el_names, *optionals in data:
+        ec_id = entity_class_ids.get(class_name, None)
+        dim_ids = dimension_id_lists.get(ec_id, ())
+        el_ids = tuple(entity_ids.get((name, dim_id), None) for name, dim_id in zip(ent_name_or_el_names, dim_ids))
+        e_key = el_ids or ent_name_or_el_names
+        if (ec_id, e_key) in checked:
+            continue
+        e_id = entity_ids_per_el_id_lst.pop((ec_id, el_ids), None)
+        if e_id is not None:
+            e_name = cache["entity"][e_id].name
+            entity_ids_per_name.pop((e_id, e_name))
+        else:
+            e_name = _make_unique_entity_name(ec_id, class_name, ent_name_or_el_names, entity_ids_per_name)
+        item = (
+            cache["entity"][e_id]._asdict()
+            if e_id is not None
+            else {
+                "name": e_name,
+                "class_id": ec_id,
+                "element_id_list": el_ids,
+            }
+        )
+        item.update(dict(zip(("description",), optionals)))
+        try:
+            check_entity(item, entity_ids_per_name, entity_ids_per_el_id_lst, entity_classes, entities)
+        except SpineIntegrityError as e:
+            msg = f"Could not import entity {tuple(ent_name_or_el_names)} into '{class_name}': {e.msg}"
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship"))
+            continue
+        finally:
+            if e_id is not None:
+                entity_ids_per_el_id_lst[ec_id, el_ids] = e_id
+                entity_ids_per_name[ec_id, e_name] = e_id
+        checked.add((ec_id, e_key))
+        if e_id is not None:
+            item["id"] = e_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_entity_groups(db_map, data, make_cache=None):
+    """Imports list of entity groups by name with associated class name into given database mapping:
+    Ignores duplicate and existing (group, member) tuples.
+
+    Example::
+
+            data = [
+                ('class_name', 'group_name', 'member_name'),
+                ('class_name', 'group_name', 'another_member_name')
+            ]
+            import_entity_groups(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with entity class name, group name,
+            and member name
+
+    Returns:
+        (Int, List) Number of successful inserted entity groups, list of errors
+    """
+    return import_data(db_map, entity_groups=data, make_cache=make_cache)
+
+
+def _get_entity_groups_for_import(db_map, data, make_cache):
+    cache = make_cache({"entity_group"}, include_ancestors=True)
+    entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
+    entity_ids = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values()}
+    entities = {}
+    for ent in cache.get("entity", {}).values():
+        entities.setdefault(ent.class_id, {})[ent.id] = ent._asdict()
+    entity_group_ids = {(x.group_id, x.member_id): x.id for x in cache.get("entity_group", {}).values()}
+    error_log = []
+    to_add = []
+    seen = set()
+    for class_name, group_name, member_name in data:
+        ec_id = entity_class_ids.get(class_name)
+        g_id = entity_ids.get((ec_id, group_name))
+        m_id = entity_ids.get((ec_id, member_name))
+        if (g_id, m_id) in seen | entity_group_ids.keys():
+            continue
+        item = {"entity_class_id": ec_id, "entity_id": g_id, "member_id": m_id}
+        try:
+            check_entity_group(item, entity_group_ids, entities)
+            to_add.append(item)
+            seen.add((g_id, m_id))
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import entity '{member_name}' into group '{group_name}': {e.msg}",
+                    db_type="entity group",
+                )
+            )
+    return to_add, [], error_log
+
+
+def import_parameter_definitions(db_map, data, make_cache=None, unparse_value=to_database):
+    """Imports list of parameter definitions:
+
+    Example::
+
+            data = [
+                ('entity_class_1', 'new_parameter'),
+                ('entity_class_2', 'other_parameter', 'default_value', 'value_list_name', 'description')
+            ]
+            import_parameter_definitions(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with entity class name, parameter name,
+            and optionally default value, value list name, and description
+
+    Returns:
+        (Int, List) Number of successful inserted parameter definitions, list of errors
+    """
+    return import_data(db_map, parameter_definitions=data, make_cache=make_cache, unparse_value=unparse_value)
+
+
+def _get_parameter_definitions_for_import(db_map, data, make_cache, unparse_value):
+    cache = make_cache({"parameter_definition"}, include_ancestors=True)
+    parameter_definition_ids = {
+        (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
+    }
+    entity_class_names = {x.id: x.name for x in cache.get("entity_class", {}).values()}
+    entity_class_ids = {ec_name: id_ for id_, ec_name in entity_class_names.items()}
+    parameter_value_lists = {}
+    parameter_value_list_ids = {}
+    for x in cache.get("parameter_value_list", {}).values():
+        parameter_value_lists[x.id] = x.value_id_list
+        parameter_value_list_ids[x.name] = x.id
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
+    error_log = []
+    to_add = []
+    to_update = []
+    checked = set()
+    functions = [unparse_value, lambda x: (parameter_value_list_ids.get(x),), lambda x: (x,)]
+    for class_name, parameter_name, *optionals in data:
+        ec_id = entity_class_ids.get(class_name, None)
+        checked_key = (ec_id, parameter_name)
+        if checked_key in checked:
+            continue
+        p_id = parameter_definition_ids.pop((ec_id, parameter_name), None)
+        item = (
+            cache["parameter_definition"][p_id]._asdict()
+            if p_id is not None
+            else {
+                "name": parameter_name,
+                "entity_class_id": ec_id,
+                "default_value": None,
+                "default_type": None,
+                "parameter_value_list_id": None,
+                "description": None,
+            }
+        )
+        optionals = [y for f, x in zip(functions, optionals) for y in f(x)]
+        item.update(dict(zip(("default_value", "default_type", "parameter_value_list_id", "description"), optionals)))
+        try:
+            check_parameter_definition(
+                item, parameter_definition_ids, entity_class_names.keys(), parameter_value_lists, list_values
+            )
+        except SpineIntegrityError as e:
+            # Relationship class doesn't exists
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import parameter definition '{parameter_name}' with class '{class_name}': {e.msg}",
+                    db_type="parameter definition",
+                )
+            )
+            continue
+        finally:
+            if p_id is not None:
+                parameter_definition_ids[ec_id, parameter_name] = p_id
+        checked.add(checked_key)
+        if p_id is not None:
+            item["id"] = p_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
+
+
+def import_parameter_values(db_map, data, make_cache=None, unparse_value=to_database, on_conflict="merge"):
+    """Imports parameter values:
+
+    Example::
+
+            data = [
+                ['example_class2', 'example_entity', 'parameter', 5.5, 'alternative'],
+                ['example_class1', ('example_entity', 'other_entity'), 'parameter', 2.718]
+            ]
+            import_parameter_values(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with
+            entity class name, entity name or list of element names, parameter name, (deserialized) parameter value,
+            optional name of an alternative
+
+    Returns:
+        (Int, List) Number of successful inserted parameter values, list of errors
+    """
+    return import_data(
+        db_map, parameter_values=data, make_cache=make_cache, unparse_value=unparse_value, on_conflict=on_conflict
+    )
+
+
+def _get_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
+    cache = make_cache({"parameter_value"}, include_ancestors=True)
+    dimension_id_lists = {x.id: x.dimension_id_list for x in cache.get("entity_class", {}).values()}
+    parameter_value_ids = {
+        (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
+    }
+    parameters = {
+        x.id: {
+            "name": x.parameter_name,
+            "entity_class_id": x.entity_class_id,
+            "parameter_value_list_id": x.value_list_id,
+        }
+        for x in cache.get("parameter_definition", {}).values()
+    }
+    entities = {
+        x.id: {"class_id": x.class_id, "name": x.name, "element_id_list": x.element_id_list}
+        for x in cache.get("entity", {}).values()
+    }
+    parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
+    list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
+    parameter_ids = {(p["entity_class_id"], p["name"]): p_id for p_id, p in parameters.items()}
+    entity_ids = {(x["class_id"], x["element_id_list"]): e_id for e_id, x in entities.items()}
+    entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
+    alternatives = {a.name: a.id for a in cache.get("alternative", {}).values()}
+    alternative_ids = set(alternatives.values())
+    error_log = []
+    to_add = []
+    to_update = []
+    checked = set()
+    for class_name, ent_name_or_el_names, parameter_name, value, *optionals in data:
+        ec_id = entity_class_ids.get(class_name, None)
+        dim_ids = dimension_id_lists.get(ec_id, ())
+        el_ids = tuple(entity_ids.get((dim_id, name)) for dim_id, name in zip(dim_ids, ent_name_or_el_names))
+        ent_key = el_ids or ent_name_or_el_names
+        e_id = entity_ids.get((ec_id, ent_key), None)
+        p_id = parameter_ids.get((ec_id, parameter_name), None)
+        if optionals:
+            alternative_name = optionals[0]
+            alt_id = alternatives.get(alternative_name)
+            if not alt_id:
+                error_log.append(
+                    ImportErrorLogItem(
+                        msg=(
+                            f"Could not import parameter value for '{ent_name_or_el_names}', class '{class_name}', "
+                            f"parameter '{parameter_name}': alternative {alternative_name} does not exist."
+                        ),
+                        db_type="parameter value",
+                    )
+                )
+                continue
+        else:
+            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
+            alternative_ids.add(alt_id)
+        checked_key = (e_id, p_id, alt_id)
+        if checked_key in checked:
+            msg = (
+                f"Could not import parameter value for '{ent_name_or_el_names}', class '{class_name}', "
+                f"parameter '{parameter_name}', alternative {alternative_name}: "
+                "Duplicate parameter value, only first value will be considered."
+            )
+            error_log.append(ImportErrorLogItem(msg=msg, db_type="parameter_value"))
+            continue
+        pv_id = parameter_value_ids.pop((e_id, p_id, alt_id), None)
+        value, type_ = unparse_value(value)
+        if pv_id is not None:
+            current_pv = cache["parameter_value"][pv_id]
+            value, type_ = fix_conflict((value, type_), (current_pv.value, current_pv.type), on_conflict)
+        item = {
+            "parameter_definition_id": p_id,
+            "entity_class_id": ec_id,
+            "entity_id": e_id,
+            "value": value,
+            "type": type_,
+            "alternative_id": alt_id,
+        }
+        try:
+            check_parameter_value(
+                item,
+                parameter_value_ids,
+                parameters,
+                entities,
+                parameter_value_lists,
+                list_values,
+                alternative_ids,
+            )
+        except SpineIntegrityError as e:
+            error_log.append(
+                ImportErrorLogItem(
+                    msg=f"Could not import parameter value for '{ent_name_or_el_names}', class '{class_name}', "
+                    f"parameter '{parameter_name}', alternative {alternative_name}: {e.msg}",
+                    db_type="parameter_value",
+                )
+            )
+            continue
+        finally:
+            if pv_id is not None:
+                parameter_value_ids[r_id, p_id, alt_id] = pv_id
+        checked.add(checked_key)
+        if pv_id is not None:
+            item["id"] = pv_id
+            to_update.append(item)
+        else:
+            to_add.append(item)
+    return to_add, to_update, error_log
 
 
 def import_features(db_map, data, make_cache=None):
@@ -815,8 +1263,10 @@ def import_object_classes(db_map, data, make_cache=None):
 
 
 def _get_object_classes_for_import(db_map, data, make_cache):
-    cache = make_cache({"object_class"}, include_ancestors=True)
-    object_class_ids = {oc.name: oc.id for oc in cache.get("object_class", {}).values()}
+    cache = make_cache({"entity_class"}, include_ancestors=True)
+    object_class_ids = {
+        oc.name: oc.id for oc in cache.get("_get_object_classes_for_import", {}).values() if not oc.dimension_id_list
+    }
     checked = set()
     to_add = []
     to_update = []
@@ -829,14 +1279,13 @@ def _get_object_classes_for_import(db_map, data, make_cache):
             continue
         oc_id = object_class_ids.pop(name, None)
         item = (
-            cache["object_class"][oc_id]._asdict()
+            cache["entity_class"][oc_id]._asdict()
             if oc_id is not None
             else {"name": name, "description": None, "display_icon": None}
         )
-        item["type_id"] = db_map.object_class_type
         item.update(dict(zip(("description", "display_icon"), optionals)))
         try:
-            check_object_class(item, object_class_ids, db_map.object_class_type)
+            check_object_class(item, object_class_ids)
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(msg=f"Could not import object class '{name}': {e.msg}", db_type="object class")
@@ -877,9 +1326,9 @@ def import_relationship_classes(db_map, data, make_cache=None):
 
 
 def _get_relationship_classes_for_import(db_map, data, make_cache):
-    cache = make_cache({"relationship_class"}, include_ancestors=True)
-    object_class_ids = {oc.name: oc.id for oc in cache.get("object_class", {}).values()}
-    relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", {}).values()}
+    cache = make_cache({"entity_class"}, include_ancestors=True)
+    object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
+    relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
     checked = set()
     error_log = []
     to_add = []
@@ -889,7 +1338,7 @@ def _get_relationship_classes_for_import(db_map, data, make_cache):
             continue
         rc_id = relationship_class_ids.pop(name, None)
         item = (
-            cache["relationship_class"][rc_id]._asdict()
+            cache["entity_class"][rc_id]._asdict()
             if rc_id is not None
             else {
                 "name": name,
@@ -898,12 +1347,9 @@ def _get_relationship_classes_for_import(db_map, data, make_cache):
                 "display_icon": None,
             }
         )
-        item["type_id"] = db_map.relationship_class_type
         item.update(dict(zip(("description", "display_icon"), optionals)))
         try:
-            check_wide_relationship_class(
-                item, relationship_class_ids, set(object_class_ids.values()), db_map.relationship_class_type
-            )
+            check_wide_relationship_class(item, relationship_class_ids, set(object_class_ids.values()))
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -947,9 +1393,9 @@ def import_objects(db_map, data, make_cache=None):
 
 
 def _get_objects_for_import(db_map, data, make_cache):
-    cache = make_cache({"object"}, include_ancestors=True)
-    object_class_ids = {oc.name: oc.id for oc in cache.get("object_class", {}).values()}
-    object_ids = {(o.class_id, o.name): o.id for o in cache.get("object", {}).values()}
+    cache = make_cache({"entity"}, include_ancestors=True)
+    object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
+    object_ids = {(o.class_id, o.name): o.id for o in cache.get("entity", {}).values() if not o.element_id_list}
     checked = set()
     error_log = []
     to_add = []
@@ -960,14 +1406,13 @@ def _get_objects_for_import(db_map, data, make_cache):
             continue
         o_id = object_ids.pop((oc_id, name), None)
         item = (
-            cache["object"][o_id]._asdict()
+            cache["entity"][o_id]._asdict()
             if o_id is not None
             else {"name": name, "class_id": oc_id, "description": None}
         )
-        item["type_id"] = db_map.object_entity_type
         item.update(dict(zip(("description",), optionals)))
         try:
-            check_object(item, object_ids, set(object_class_ids.values()), db_map.object_entity_type)
+            check_object(item, object_ids, set(object_class_ids.values()))
         except SpineIntegrityError as e:
             error_log.append(
                 ImportErrorLogItem(
@@ -1012,11 +1457,12 @@ def import_object_groups(db_map, data, make_cache=None):
 
 def _get_object_groups_for_import(db_map, data, make_cache):
     cache = make_cache({"entity_group"}, include_ancestors=True)
-    object_class_ids = {oc.name: oc.id for oc in cache.get("object_class", {}).values()}
-    object_ids = {(o.class_id, o.name): o.id for o in cache.get("object", {}).values()}
+    object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
+    object_ids = {(o.class_id, o.name): o.id for o in cache.get("entity", {}).values() if not o.element_id_list}
     objects = {}
-    for obj in cache.get("object", {}).values():
-        objects.setdefault(obj.class_id, dict())[obj.id] = obj._asdict()
+    for obj in cache.get("entity", {}).values():
+        if not obj.element_id_list:
+            objects.setdefault(obj.class_id, dict())[obj.id] = obj._asdict()
     entity_group_ids = {(x.group_id, x.member_id): x.id for x in cache.get("entity_group", {}).values()}
     error_log = []
     to_add = []
@@ -1070,15 +1516,20 @@ def _make_unique_relationship_name(class_id, class_name, object_names, class_id_
 
 
 def _get_relationships_for_import(db_map, data, make_cache):
-    cache = make_cache({"relationship"}, include_ancestors=True)
-    relationships = {x.name: x for x in cache.get("relationship", {}).values()}
+    cache = make_cache({"entity"}, include_ancestors=True)
+    relationships = {x.name: x for x in cache.get("entity", {}).values() if x.element_id_list}
     relationship_ids_per_name = {(x.class_id, x.name): x.id for x in relationships.values()}
-    relationship_ids_per_obj_lst = {(x.class_id, x.object_id_list): x.id for x in relationships.values()}
+    relationship_ids_per_obj_lst = {(x.class_id, x.element_id_list): x.id for x in relationships.values()}
     relationship_classes = {
-        x.id: {"object_class_id_list": x.object_class_id_list, "name": x.name}
-        for x in cache.get("relationship_class", {}).values()
+        x.id: {"object_class_id_list": x.dimension_id_list, "name": x.name}
+        for x in cache.get("entity_class", {}).values()
+        if x.dimension_id_list
     }
-    objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
+    objects = {
+        x.id: {"class_id": x.class_id, "name": x.name}
+        for x in cache.get("entity", {}).values()
+        if not x.element_id_list
+    }
     object_ids = {(o["name"], o["class_id"]): o_id for o_id, o in objects.items()}
     relationship_class_ids = {rc["name"]: rc_id for rc_id, rc in relationship_classes.items()}
     object_class_id_lists = {rc_id: rc["object_class_id_list"] for rc_id, rc in relationship_classes.items()}
@@ -1094,17 +1545,16 @@ def _get_relationships_for_import(db_map, data, make_cache):
             continue
         r_id = relationship_ids_per_obj_lst.pop((rc_id, o_ids), None)
         if r_id is not None:
-            r_name = cache["relationship"][r_id].name
+            r_name = cache["entity"][r_id].name
             relationship_ids_per_name.pop((rc_id, r_name))
         item = (
-            cache["relationship"][r_id]._asdict()
+            cache["entity"][r_id]._asdict()
             if r_id is not None
             else {
                 "name": _make_unique_relationship_name(rc_id, class_name, object_names, relationship_ids_per_name),
                 "class_id": rc_id,
                 "object_id_list": list(o_ids),
                 "object_class_id_list": oc_ids,
-                "type_id": db_map.relationship_entity_type,
             }
         )
         item.update(dict(zip(("description",), optionals)))
@@ -1115,7 +1565,6 @@ def _get_relationships_for_import(db_map, data, make_cache):
                 relationship_ids_per_obj_lst,
                 relationship_classes,
                 objects,
-                db_map.relationship_entity_type,
             )
         except SpineIntegrityError as e:
             msg = f"Could not import relationship with objects {tuple(object_names)} into '{class_name}': {e.msg}"
@@ -1161,7 +1610,7 @@ def _get_object_parameters_for_import(db_map, data, make_cache, unparse_value):
     parameter_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
-    object_class_names = {x.id: x.name for x in cache.get("object_class", {}).values()}
+    object_class_names = {x.id: x.name for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
     object_class_ids = {oc_name: oc_id for oc_id, oc_name in object_class_names.items()}
     parameter_value_lists = {}
     parameter_value_list_ids = {}
@@ -1246,7 +1695,7 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_va
     parameter_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
-    relationship_class_names = {x.id: x.name for x in cache.get("relationship_class", {}).values()}
+    relationship_class_names = {x.id: x.name for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
     relationship_class_ids = {rc_name: rc_id for rc_id, rc_name in relationship_class_names.items()}
     parameter_value_lists = {}
     parameter_value_list_ids = {}
@@ -1335,7 +1784,7 @@ def import_object_parameter_values(db_map, data, make_cache=None, unparse_value=
 
 def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
     cache = make_cache({"parameter_value"}, include_ancestors=True)
-    object_class_ids = {x.name: x.id for x in cache.get("object_class", {}).values()}
+    object_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
     parameter_value_ids = {
         (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
     }
@@ -1347,7 +1796,11 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_va
         }
         for x in cache.get("parameter_definition", {}).values()
     }
-    objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
+    objects = {
+        x.id: {"class_id": x.class_id, "name": x.name}
+        for x in cache.get("entity", {}).values()
+        if not x.element_id_list
+    }
     parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
     list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     object_ids = {(o["name"], o["class_id"]): o_id for o_id, o in objects.items()}
@@ -1460,7 +1913,9 @@ def import_relationship_parameter_values(db_map, data, make_cache=None, unparse_
 
 def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
     cache = make_cache({"parameter_value"}, include_ancestors=True)
-    object_class_id_lists = {x.id: x.object_class_id_list for x in cache.get("relationship_class", {}).values()}
+    object_class_id_lists = {
+        x.id: x.dimension_id_list for x in cache.get("entity_class", {}).values() if x.dimension_id_list
+    }
     parameter_value_ids = {
         (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
     }
@@ -1473,15 +1928,16 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
         for x in cache.get("parameter_definition", {}).values()
     }
     relationships = {
-        x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": x.object_id_list}
-        for x in cache.get("relationship", {}).values()
+        x.id: {"class_id": x.class_id, "name": x.name, "object_id_list": x.element_id_list}
+        for x in cache.get("entity", {}).values()
+        if x.element_id_list
     }
     parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
     list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     parameter_ids = {(p["entity_class_id"], p["name"]): p_id for p_id, p in parameters.items()}
     relationship_ids = {(r["class_id"], tuple(r["object_id_list"])): r_id for r_id, r in relationships.items()}
-    object_ids = {(o.name, o.class_id): o.id for o in cache.get("object", {}).values()}
-    relationship_class_ids = {oc.name: oc.id for oc in cache.get("relationship_class", {}).values()}
+    object_ids = {(o.name, o.class_id): o.id for o in cache.get("entity", {}).values() if not o.element_id_list}
+    relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
     alternatives = {a.name: a.id for a in cache.get("alternative", {}).values()}
     alternative_ids = set(alternatives.values())
     error_log = []
@@ -1497,6 +1953,10 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
             o_ids = tuple(None for _ in object_names)
         r_id = relationship_ids.get((rc_id, o_ids), None)
         p_id = parameter_ids.get((rc_id, parameter_name), None)
+        if p_id is None:
+            print(class_name, object_names, parameter_name, value)
+            for x in parameter_ids.items():
+                print(x)
         if optionals:
             alternative_name = optionals[0]
             alt_id = alternatives.get(alternative_name)
