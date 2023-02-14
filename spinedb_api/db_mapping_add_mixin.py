@@ -76,9 +76,11 @@ class DatabaseMappingAddMixin:
 
     def _do_reserve_ids(self, connection, tablename, count):
         fieldname = {
+            "entity_class": "entity_class_id",
             "object_class": "entity_class_id",
-            "object": "entity_id",
             "relationship_class": "entity_class_id",
+            "entity": "entity_id",
+            "object": "entity_id",
             "relationship": "entity_id",
             "entity_group": "entity_group_id",
             "parameter_definition": "parameter_definition_id",
@@ -221,7 +223,33 @@ class DatabaseMappingAddMixin:
         Yields:
             tuple: database table name, items to add
         """
-        if tablename == "object_class":
+        if tablename == "entity_class":
+            ecd_items_to_add = []
+            for item in items_to_add:
+                ecd_items_to_add += [
+                    {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
+                    for position, dimension_id in enumerate(item["dimension_id_list"])
+                ]
+            yield ("entity_class", items_to_add)
+            yield ("entity_class_dimension", ecd_items_to_add)
+        elif tablename == "entity":
+            ee_items_to_add = []
+            for item in items_to_add:
+                ee_items_to_add += [
+                    {
+                        "entity_id": item["id"],
+                        "entity_class_id": item["class_id"],
+                        "position": position,
+                        "element_id": element_id,
+                        "dimension_id": dimension_id,
+                    }
+                    for position, (element_id, dimension_id) in enumerate(
+                        zip(item["element_id_list"], item["dimension_id_list"])
+                    )
+                ]
+            yield ("entity", items_to_add)
+            yield ("entity_element", ee_items_to_add)
+        elif tablename == "object_class":
             yield ("entity_class", items_to_add)
         elif tablename == "object":
             yield ("entity", items_to_add)
@@ -242,10 +270,10 @@ class DatabaseMappingAddMixin:
                         "entity_id": item["id"],
                         "entity_class_id": item["class_id"],
                         "position": position,
-                        "element_id": object_id,
-                        "dimension_id": object_class_id,
+                        "element_id": element_id,
+                        "dimension_id": dimension_id,
                     }
-                    for position, (object_id, object_class_id) in enumerate(
+                    for position, (element_id, dimension_id) in enumerate(
                         zip(item["object_id_list"], item["object_class_id_list"])
                     )
                 ]
@@ -272,6 +300,12 @@ class DatabaseMappingAddMixin:
 
     def add_objects(self, *items, **kwargs):
         return self.add_items("object", *items, **kwargs)
+
+    def add_entity_classes(self, *items, **kwargs):
+        return self.add_items("entity_class", *items, **kwargs)
+
+    def add_entities(self, *items, **kwargs):
+        return self.add_items("entity", *items, **kwargs)
 
     def add_wide_relationship_classes(self, *items, **kwargs):
         return self.add_items("relationship_class", *items, **kwargs)

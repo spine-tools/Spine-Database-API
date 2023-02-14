@@ -88,6 +88,89 @@ def check_scenario_alternative(item, ids_by_alt_id, ids_by_rank, scenario_names,
         )
 
 
+def check_entity_class(item, current_items):
+    """Check whether the insertion of an entity class item results in the violation of an integrity constraint.
+
+    Args:
+        wide_item (dict): An entity class item to be checked.
+        current_items (dict): A dictionary mapping names to ids of entity classes already in the database.
+
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    """
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("The name for the entity class is missing.")
+    if not name:
+        raise SpineIntegrityError("Entity class name is an empty string, which is not valid")
+    try:
+        dimension_id_list = item["dimension_id_list"]
+    except KeyError:
+        item["dimension_id_list"] = dimension_id_list = ()
+    if not all(id_ in current_items.values() for id_ in dimension_id_list):
+        raise SpineIntegrityError(f"One or more dimension ids for the entity class '{name}' are not in the database.")
+    if name in current_items:
+        raise SpineIntegrityError(
+            f"There can't be more than one entity class with the name '{name}'.", id=current_items[name]
+        )
+
+
+def check_entity(item, current_items_by_name, current_items_by_el_id_lst, entity_classes, entities):
+    """Check whether the insertion of an entity item results in the violation of an integrity constraint.
+
+    Args:
+        wide_item (dict): An entity item to be checked.
+        current_items_by_name (dict): A dictionary mapping tuples (class_id, name) to ids of
+            entities already in the database.
+        current_items_by_el_id_lst (dict): A dictionary mapping tuples (class_id, element_name_list) to ids
+            of entities already in the database.
+        entity_classes (dict): A dictionary of entity class items in the database keyed by id.
+        entities (dict): A dictionary of entity items in the database keyed by id.
+
+    Raises:
+        SpineIntegrityError: if the insertion of the item violates an integrity constraint.
+    """
+
+    try:
+        name = item["name"]
+    except KeyError:
+        raise SpineIntegrityError("The name for the entity is missing.")
+    if not name:
+        raise SpineIntegrityError("Entity name is an empty string, which is not valid")
+    try:
+        class_id = item["class_id"]
+    except KeyError:
+        raise SpineIntegrityError(f"The entity class id for entity '{name}' is missing.")
+    if (class_id, name) in current_items_by_name:
+        raise SpineIntegrityError(
+            f"There's already an entity called '{name}' in the same class.",
+            id=current_items_by_name[class_id, name],
+        )
+    dimension_id_list = entity_classes[class_id]["dimension_id_list"]
+    if not dimension_id_list:
+        return
+    try:
+        element_id_list = tuple(item["element_id_list"])
+    except KeyError:
+        item["element_id_list"] = element_id_list = ()
+    try:
+        given_dimension_id_list = tuple(entities[id_]["class_id"] for id_ in element_id_list)
+    except KeyError:
+        raise SpineIntegrityError(f"Some of the elements in entity '{name}' are not in the database.")
+    if given_dimension_id_list != dimension_id_list:
+        element_name_list = [entities[id_]["name"] for id_ in element_id_list]
+        entity_class_name = entity_classes[class_id]["name"]
+        raise SpineIntegrityError(f"Incorrect elements '{element_name_list}' for entity class '{entity_class_name}'.")
+    if (class_id, element_id_list) in current_items_by_el_id_lst:
+        element_name_list = [entities[id]["name"] for id in element_id_list]
+        entity_class_name = entity_classes[class_id]["name"]
+        raise SpineIntegrityError(
+            f"There's already an entity with elements {element_name_list} in class {entity_class_name}.",
+            id=current_items_by_el_id_lst[class_id, element_id_list],
+        )
+
+
 def check_object_class(item, current_items):
     """Check whether the insertion of an object class item
     results in the violation of an integrity constraint.

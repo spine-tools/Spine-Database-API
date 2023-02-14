@@ -183,6 +183,9 @@ class CacheItem(dict):
     def copy(self):
         return type(self)(self._db_cache, self._item_type, **self)
 
+    def updated(self, other):
+        return type(self)(self._db_cache, self._item_type, **{**self, **other})
+
     def is_valid(self):
         if self._valid is not None:
             return self._valid

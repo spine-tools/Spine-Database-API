@@ -31,6 +31,8 @@ class DatabaseMappingUpdateMixin:
         if not items:
             return set()
         # Special cases
+        if tablename == "entity":
+            return self._update_entities(*items)
         if tablename == "relationship":
             return self._update_wide_relationships(*items)
         real_tablename = self._real_tablename(tablename)
@@ -97,6 +99,44 @@ class DatabaseMappingUpdateMixin:
     def _update_scenario_alternatives(self, *items):
         return self._update_items("scenario_alternative", *items)
 
+    def update_entity_classes(self, *items, **kwargs):
+        return self.update_items("entity_class", *items, **kwargs)
+
+    def _update_entity_classes(self, *items):
+        return self._update_items("entity_class", *items)
+
+    def update_entities(self, *items, **kwargs):
+        return self.update_items("entity", *items, **kwargs)
+
+    def _update_entities(self, *items):
+        entity_items = []
+        entity_element_items = []
+        for item in items:
+            entity_id = item["id"]
+            class_id = item["class_id"]
+            ent_item = {
+                "id": entity_id,
+                "class_id": class_id,
+                "name": item["name"],
+                "description": item.get("description"),
+            }
+            entity_items.append(ent_item)
+            dimension_id_list = item["dimension_id_list"]
+            element_id_list = item["element_id_list"]
+            for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list)):
+                rel_ent_item = {
+                    "id": None,  # Need to have an "id" field to make _update_items() happy.
+                    "entity_class_id": class_id,
+                    "entity_id": entity_id,
+                    "position": position,
+                    "dimension_id": dimension_id,
+                    "element_id": element_id,
+                }
+                entity_element_items.append(rel_ent_item)
+        entity_ids = self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity_element", *entity_element_items)
+        return entity_ids
+
     def update_object_classes(self, *items, **kwargs):
         return self.update_items("object_class", *items, **kwargs)
 
@@ -143,8 +183,8 @@ class DatabaseMappingUpdateMixin:
                     "element_id": element_id,
                 }
                 entity_element_items.append(rel_ent_item)
-        entity_ids = self._update_items("entity", *entity_items)
-        self._update_items("entity_element", *entity_element_items)
+        entity_ids = self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity_element", *entity_element_items)
         return entity_ids
 
     def update_parameter_definitions(self, *items, **kwargs):

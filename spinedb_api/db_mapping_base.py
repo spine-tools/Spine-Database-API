@@ -60,13 +60,11 @@ class DatabaseMappingBase:
 
     _session_kwargs = {}
     ITEM_TYPES = (
-        "object_class",
-        "relationship_class",
+        "entity_class",
         "parameter_value_list",
         "list_value",
         "parameter_definition",
-        "object",
-        "relationship",
+        "entity",
         "entity_group",
         "parameter_value",
         "alternative",

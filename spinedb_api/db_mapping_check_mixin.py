@@ -23,6 +23,8 @@ from .check_functions import (
     check_alternative,
     check_scenario,
     check_scenario_alternative,
+    check_entity_class,
+    check_entity,
     check_object_class,
     check_object,
     check_wide_relationship_class,
@@ -54,6 +56,8 @@ class DatabaseMappingCheckMixin:
             "alternative": self.check_alternatives,
             "scenario": self.check_scenarios,
             "scenario_alternative": self.check_scenario_alternatives,
+            "entity": self.check_entities,
+            "entity_class": self.check_entity_classes,
             "object": self.check_objects,
             "object_class": self.check_object_classes,
             "relationship_class": self.check_wide_relationship_classes,
@@ -326,6 +330,86 @@ class DatabaseMappingCheckMixin:
                 intgr_error_log.append(e)
         return checked_items, intgr_error_log
 
+    def check_entity_classes(self, *items, for_update=False, strict=False, cache=None):
+        """Check whether entity classes passed as argument respect integrity constraints.
+
+        Args:
+            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
+        if cache is None:
+            cache = self.make_cache({"entity_class"}, include_ancestors=True)
+        intgr_error_log = []
+        checked_items = list()
+        entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
+        for item in items:
+            try:
+                with self._manage_stocks(
+                    "entity_class", item, {("name",): entity_class_ids}, for_update, cache, intgr_error_log
+                ) as item:
+                    check_entity_class(item, entity_class_ids)
+                    checked_items.append(item)
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
+    def check_entities(self, *items, for_update=False, strict=False, cache=None):
+        """Check whether entities passed as argument respect integrity constraints.
+
+        Args:
+            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if one of the items violates an integrity constraint.
+
+        Returns
+            list: items that passed the check.
+            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
+        """
+        if cache is None:
+            cache = self.make_cache({"entity"}, include_ancestors=True)
+        intgr_error_log = []
+        checked_items = list()
+        entity_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values()}
+        entity_ids_by_el_id_lst = {(x.class_id, x.element_id_list): x.id for x in cache.get("entity", {}).values()}
+        entity_classes = {
+            x.id: {"dimension_id_list": x.dimension_id_list, "name": x.name}
+            for x in cache.get("entity_class", {}).values()
+        }
+        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("entity", {}).values()}
+        for item in items:
+            try:
+                with self._manage_stocks(
+                    "entity",
+                    item,
+                    {
+                        ("class_id", "name"): entity_ids_by_name,
+                        ("class_id", "element_id_list"): entity_ids_by_el_id_lst,
+                    },
+                    for_update,
+                    cache,
+                    intgr_error_log,
+                ) as item:
+                    check_entity(
+                        item,
+                        entity_ids_by_name,
+                        entity_ids_by_el_id_lst,
+                        entity_classes,
+                        entities,
+                    )
+                    checked_items.append(item)
+            except SpineIntegrityError as e:
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+        return checked_items, intgr_error_log
+
     def check_object_classes(self, *items, for_update=False, strict=False, cache=None):
         """Check whether object classes passed as argument respect integrity constraints.
 
@@ -339,14 +423,14 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self.make_cache({"object_class"}, include_ancestors=True)
+            cache = self.make_cache({"entity_class"}, include_ancestors=True)
         intgr_error_log = []
         checked_items = list()
-        object_class_ids = {x.name: x.id for x in cache.get("object_class", {}).values()}
+        object_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
         for item in items:
             try:
                 with self._manage_stocks(
-                    "object_class", item, {("name",): object_class_ids}, for_update, cache, intgr_error_log
+                    "entity_class", item, {("name",): object_class_ids}, for_update, cache, intgr_error_log
                 ) as item:
                     check_object_class(item, object_class_ids)
                     checked_items.append(item)
@@ -368,15 +452,15 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self.make_cache({"object"}, include_ancestors=True)
+            cache = self.make_cache({"entity"}, include_ancestors=True)
         intgr_error_log = []
         checked_items = list()
-        object_ids = {(x.class_id, x.name): x.id for x in cache.get("object", {}).values()}
-        object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
+        object_ids = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values() if not x.element_id_list}
+        object_class_ids = [x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list]
         for item in items:
             try:
                 with self._manage_stocks(
-                    "object", item, {("class_id", "name"): object_ids}, for_update, cache, intgr_error_log
+                    "entity", item, {("class_id", "name"): object_ids}, for_update, cache, intgr_error_log
                 ) as item:
                     check_object(item, object_ids, object_class_ids)
                     checked_items.append(item)
@@ -399,21 +483,22 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self.make_cache({"relationship_class"}, include_ancestors=True)
+            cache = self.make_cache({"entity_class"}, include_ancestors=True)
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_class_ids = {x.name: x.id for x in cache.get("relationship_class", {}).values()}
-        object_class_ids = [x.id for x in cache.get("object_class", {}).values()]
+        relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
+        object_class_ids = [x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list]
         for wide_item in wide_items:
             try:
                 with self._manage_stocks(
-                    "relationship_class",
+                    "entity_class",
                     wide_item,
                     {("name",): relationship_class_ids},
                     for_update,
                     cache,
                     intgr_error_log,
                 ) as wide_item:
+                    wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
                     check_wide_relationship_class(wide_item, relationship_class_ids, object_class_ids)
                     checked_wide_items.append(wide_item)
             except SpineIntegrityError as e:
@@ -435,31 +520,36 @@ class DatabaseMappingCheckMixin:
             list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
         """
         if cache is None:
-            cache = self.make_cache({"relationship"}, include_ancestors=True)
+            cache = self.make_cache({"entity"}, include_ancestors=True)
         intgr_error_log = []
         checked_wide_items = list()
-        relationship_ids_by_name = {(x.class_id, x.name): x.id for x in cache.get("relationship", {}).values()}
+        relationship_ids_by_name = {
+            (x.class_id, x.name): x.id for x in cache.get("entity", {}).values() if x.element_id_list
+        }
         relationship_ids_by_obj_lst = {
-            (x.class_id, x.object_id_list): x.id for x in cache.get("relationship", {}).values()
+            (x.class_id, x.element_id_list): x.id for x in cache.get("entity", {}).values() if x.element_id_list
         }
         relationship_classes = {
-            x.id: {"object_class_id_list": x.object_class_id_list, "name": x.name}
-            for x in cache.get("relationship_class", {}).values()
+            x.id: {"object_class_id_list": x.dimension_id_list, "name": x.name}
+            for x in cache.get("entity_class", {}).values()
+            if x.dimension_id_list
         }
         objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
         for wide_item in wide_items:
             try:
                 with self._manage_stocks(
-                    "relationship",
+                    "entity",
                     wide_item,
                     {
                         ("class_id", "name"): relationship_ids_by_name,
-                        ("class_id", "object_id_list"): relationship_ids_by_obj_lst,
+                        ("class_id", "element_id_list"): relationship_ids_by_obj_lst,
                     },
                     for_update,
                     cache,
                     intgr_error_log,
                 ) as wide_item:
+                    wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
+                    wide_item["object_id_list"] = wide_item.pop("element_id_list", ())
                     check_wide_relationship(
                         wide_item,
                         relationship_ids_by_name,
@@ -492,7 +582,7 @@ class DatabaseMappingCheckMixin:
         checked_items = list()
         current_ids = {(x.group_id, x.member_id): x.id for x in cache.get("entity_group", {}).values()}
         entities = {}
-        for entity in chain(cache.get("object", {}).values(), cache.get("relationship", {}).values()):
+        for entity in cache.get("entity", {}).values():
             entities.setdefault(entity.class_id, dict())[entity.id] = entity._asdict()
         for item in items:
             try:
@@ -529,29 +619,12 @@ class DatabaseMappingCheckMixin:
         parameter_definition_ids = {
             (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
         }
-        object_class_ids = {x.id for x in cache.get("object_class", {}).values()}
-        relationship_class_ids = {x.id for x in cache.get("relationship_class", {}).values()}
-        entity_class_ids = object_class_ids | relationship_class_ids
+        entity_class_ids = {x.id for x in cache.get("entity_class", {}).values()}
         parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         for item in items:
-            object_class_id = item.get("object_class_id")
-            relationship_class_id = item.get("relationship_class_id")
-            if object_class_id and relationship_class_id:
-                e = SpineIntegrityError("Can't associate a parameter to both an object and a relationship class.")
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-                continue
-            if object_class_id:
-                class_ids = object_class_ids
-            elif relationship_class_id:
-                class_ids = relationship_class_ids
-            else:
-                class_ids = entity_class_ids
-            entity_class_id = object_class_id or relationship_class_id
-            if entity_class_id is not None:
-                item["entity_class_id"] = entity_class_id
+            if "entity_class_id" not in item:
+                item["entity_class_id"] = item.get("object_class_id") or item.get("relationship_class_id")
             try:
                 if (
                     for_update
@@ -570,7 +643,7 @@ class DatabaseMappingCheckMixin:
                     intgr_error_log,
                 ) as full_item:
                     check_parameter_definition(
-                        full_item, parameter_definition_ids, class_ids, parameter_value_lists, list_values
+                        full_item, parameter_definition_ids, entity_class_ids, parameter_value_lists, list_values
                     )
                     checked_items.append(full_item)
             except SpineIntegrityError as e:
@@ -606,17 +679,13 @@ class DatabaseMappingCheckMixin:
             }
             for x in cache.get("parameter_definition", {}).values()
         }
-        entities = {
-            x.id: {"class_id": x.class_id, "name": x.name}
-            for x in chain(cache.get("object", {}).values(), cache.get("relationship", {}).values())
-        }
+        entities = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("entity", {}).values()}
         parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
-            entity_id = item.get("object_id") or item.get("relationship_id")
-            if entity_id is not None:
-                item["entity_id"] = entity_id
+            if "entity_id" not in item:
+                item["entity_id"] = item.get("object_id") or item.get("relationship_id")
             try:
                 with self._manage_stocks(
                     "parameter_value",
