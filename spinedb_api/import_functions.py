@@ -366,6 +366,8 @@ def import_entity_classes(db_map, data, make_cache=None):
 
 
 def _get_entity_classes_for_import(db_map, data, make_cache):
+    # FIXME: We need to find a way to set the ids for newly added single dimensional entities
+    # so that they can be used in this same function for adding multi dimensional ones
     cache = make_cache({"entity_class"}, include_ancestors=True)
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
     checked = set()
@@ -437,9 +439,11 @@ def _make_unique_entity_name(class_id, class_name, ent_name_or_el_names, class_i
 
 def _get_entities_for_import(db_map, data, make_cache):
     cache = make_cache({"entity"}, include_ancestors=True)
-    entities = {x.name: x for x in cache.get("entity", {}).values()}
-    entity_ids_per_name = {(x.class_id, x.name): x.id for x in entities.values()}
-    entity_ids_per_el_id_lst = {(x.class_id, x.element_id_list): x.id for x in entities.values()}
+    entities = {x.id: x for x in cache.get("entity", {}).values()}
+    entity_ids_per_name = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values()}
+    entity_ids_per_el_id_lst = {
+        (x.class_id, x.element_id_list): x.id for x in cache.get("entity", {}).values() if x.element_id_list
+    }
     entity_classes = {
         x.id: {"dimension_id_list": x.dimension_id_list, "name": x.name} for x in cache.get("entity_class", {}).values()
     }
