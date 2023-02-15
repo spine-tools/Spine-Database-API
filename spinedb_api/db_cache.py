@@ -312,6 +312,8 @@ class EntityItem(DescriptionMixin, CacheItem):
             return self._get_ref("entity_class", self["class_id"], key).get("dimension_name_list")
         if key == "element_name_list":
             return tuple(self._get_ref("entity", id_, key).get("name") for id_ in self["element_id_list"])
+        if key == "byname":
+            return self["element_name_list"] or (self["name"],)
         return super().__getitem__(key)
 
     def _reference_keys(self):
@@ -372,6 +374,8 @@ class ParameterValueItem(ParameterMixin, CacheItem):
             return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get("name")
         if key == "entity_name":
             return self._get_ref("entity", self["entity_id"], key)["name"]
+        if key == "entity_byname":
+            return self._get_ref("entity", self["entity_id"], key)["byname"]
         if key in ("element_id_list", "element_name_list"):
             return self._get_ref("entity", self["entity_id"], key)[key]
         if key == "alternative_name":
