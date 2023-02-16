@@ -43,21 +43,21 @@ def find_gams_directory():
     """
     Returns GAMS installation directory or None if not found.
 
-    On Windows systems, this function looks for `gams.location` in registry;
-    on other systems the `PATH` environment variable is checked.
+    On Windows systems, this function looks for `gams.location` in registry,
+    then checks the ``PATH`` environment variable.
+    On other systems, only the ``PATH`` environment variable is checked.
 
     Returns:
-        a path to GAMS installation directory or None if not found.
+        str: a path to GAMS installation directory or None if not found.
     """
     if sys.platform == "win32":
         try:
             with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, "gams.location") as gams_location_key:
-                gams_path, _ = winreg.QueryValueEx(gams_location_key, None)
-                if not _windows_dlls_exist(gams_path):
-                    return None
-                return gams_path
+                gams_path, _ = winreg.QueryValueEx(gams_location_key, "")
+                if _windows_dlls_exist(gams_path):
+                    return gams_path
         except FileNotFoundError:
-            return None
+            pass
     executable_paths = os.get_exec_path()
     for path in executable_paths:
         if "gams" in path.casefold():

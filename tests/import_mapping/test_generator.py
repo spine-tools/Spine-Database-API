@@ -17,7 +17,7 @@ Contains unit tests for the generator module.
 """
 import unittest
 
-from spinedb_api import Map
+from spinedb_api import Array, Map
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
 
@@ -325,6 +325,42 @@ class TestGetMappedData(unittest.TestCase):
                 "object_parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "object_parameters": [("klass", "Parameter_2")],
                 "objects": {("klass", "kloss")},
+            },
+        )
+
+    def test_array_parameters_get_imported_correctly_when_objects_are_in_header(self):
+        header = ["object_1", "object_2"]
+        data_source = iter([[-1.1, 2.3], [1.1, -2.3]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "class"},
+                {"map_type": "Object", "position": "header"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "param"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "array"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": "hidden"},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "float", 1: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "object_classes": {"class"},
+                "object_parameter_values": [
+                    ["class", "object_1", "param", Array([-1.1, 1.1]), "Base"],
+                    ["class", "object_2", "param", Array([2.3, -2.3]), "Base"],
+                ],
+                "object_parameters": [("class", "param")],
+                "objects": {("class", "object_1"), ("class", "object_2")},
             },
         )
 
