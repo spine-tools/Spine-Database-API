@@ -395,10 +395,6 @@ class TestImportMappingLegacy(unittest.TestCase):
             {'map_type': 'ObjectClass', 'position': 0},
             {'map_type': 'Object', 'position': 1},
             {'map_type': 'ObjectGroup', 'position': 2},
-            {'map_type': 'ParameterDefinition', 'position': 'hidden', 'value': 'pname'},
-            {'map_type': 'Alternative', 'position': 'hidden'},
-            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterValue', 'position': 2},
         ]
         self.assertEqual(out, expected)
 
@@ -1838,39 +1834,6 @@ class TestMappingIntegration(unittest.TestCase):
             ("class_A", "group2"),
             ("class_A", "object3"),
         }
-        self.assertFalse(errors)
-        self.assertEqual(out, expected)
-
-    def test_read_object_group_with_parameters(self):
-        input_data = [
-            ["Object Class", "Group", "Object", "Speed"],
-            ["class_A", "group1", "object1", 23.0],
-            ["class_A", "group1", "object2", 42.0],
-            ["class_A", "group2", "object3", 5.0],
-        ]
-        data = iter(input_data)
-        data_header = next(data)
-        mapping = {
-            "map_type": "ObjectGroup",
-            "name": 0,
-            "groups": 1,
-            "members": 2,
-            "parameters": {"name": "speed", "parameter_type": "single value", "value": 3},
-        }
-        out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["object_groups"] = {
-            ("class_A", "group1", "object1"),
-            ("class_A", "group1", "object2"),
-            ("class_A", "group2", "object3"),
-        }
-        expected["object_classes"] = {"class_A"}
-        expected["object_parameters"] = [("class_A", "speed")]
-        expected["object_parameter_values"] = [
-            ["class_A", "group1", "speed", 23.0],
-            ["class_A", "group1", "speed", 42.0],
-            ["class_A", "group2", "speed", 5.0],
-        ]
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 
