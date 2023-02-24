@@ -151,52 +151,6 @@ def object_parameter_export(
     return class_
 
 
-def object_group_parameter_export(
-    class_position=Position.hidden,
-    definition_position=Position.hidden,
-    value_list_position=Position.hidden,
-    group_position=Position.hidden,
-    object_position=Position.hidden,
-    alternative_position=Position.hidden,
-    value_type_position=Position.hidden,
-    value_position=Position.hidden,
-    index_name_positions=None,
-    index_positions=None,
-):
-    """
-    Sets up export mappings for exporting object groups and object parameters.
-
-    Args:
-        class_position (int or Position): position of object classes
-        definition_position (int or Position): position of parameter names in a table
-        value_list_position (int or Position): position of parameter value lists
-        group_position (int or Position): position of groups
-        object_position (int or Position): position of objects
-        alternative_position (int or position): position of alternatives in a table
-        value_type_position (int or Position): position of parameter value types in a table
-        value_position (int or Position): position of parameter values in a table
-        index_name_positions (list of int, optional): positions of index names
-        index_positions (list of int, optional): positions of parameter indexes in a table
-
-    Returns:
-        ExportMapping: root mapping
-    """
-    class_ = ObjectClassMapping(class_position)
-    definition = ParameterDefinitionMapping(definition_position)
-    value_list = ParameterValueListMapping(value_list_position)
-    value_list.set_ignorable(True)
-    group = ObjectGroupMapping(group_position)
-    object_ = ObjectGroupObjectMapping(object_position)
-    group.child = object_
-    _generate_parameter_value_mappings(
-        object_, alternative_position, value_type_position, value_position, index_name_positions, index_positions
-    )
-    value_list.child = group
-    definition.child = value_list
-    class_.child = definition
-    return class_
-
-
 def object_group_export(
     class_position=Position.hidden, group_position=Position.hidden, object_position=Position.hidden
 ):
