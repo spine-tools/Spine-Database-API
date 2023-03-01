@@ -72,7 +72,7 @@ def alternative_filter_config_to_shorthand(config):
     """
     shorthand = ""
     for alternative in config["alternatives"]:
-        shorthand = shorthand + ":" + alternative
+        shorthand = shorthand + f":'{alternative}'"
     return ALTERNATIVE_FILTER_SHORTHAND_TAG + shorthand
 
 
@@ -101,8 +101,10 @@ def alternative_filter_shorthand_to_config(shorthand):
     Returns:
         dict: alternative filter configuration
     """
-    alternatives = shorthand.split(":")
-    return alternative_filter_config(alternatives[1:])
+    filter_type, separator, tokens = shorthand.partition(":'")
+    alternatives = tokens.split("':'")
+    alternatives[-1] = alternatives[-1][:-1]
+    return alternative_filter_config(alternatives)
 
 
 class _AlternativeFilterState:
