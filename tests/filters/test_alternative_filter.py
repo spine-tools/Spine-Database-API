@@ -39,7 +39,7 @@ from spinedb_api.filters.alternative_filter import (
 )
 
 
-class TestAlternative_filter(unittest.TestCase):
+class TestAlternativeFilter(unittest.TestCase):
     _db_url = None
     _temp_dir = None
 
@@ -91,10 +91,6 @@ class TestAlternative_filter(unittest.TestCase):
         self.assertEqual(parameters[0].value, b"23.0")
         self._out_map.rollback_session()
 
-    def test_alternative_filter_config(self):
-        config = alternative_filter_config(["alternative1", "alternative2"])
-        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alternative1", "alternative2"]})
-
     def test_alternative_filter_from_dict(self):
         self._build_data_with_single_alternative()
         self._out_map.commit_session("Add test data")
@@ -103,19 +99,6 @@ class TestAlternative_filter(unittest.TestCase):
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, b"23.0")
-
-    def test_alternative_names_from_dict(self):
-        config = alternative_filter_config(["alternative1", "alternative2"])
-        self.assertEqual(alternative_names_from_dict(config), ["alternative1", "alternative2"])
-
-    def test_alternative_filter_config_to_shorthand(self):
-        config = alternative_filter_config(["alternative1", "alternative2"])
-        shorthand = alternative_filter_config_to_shorthand(config)
-        self.assertEqual(shorthand, "alternatives:alternative1:alternative2")
-
-    def test_alternative_filter_shorthand_to_config(self):
-        config = alternative_filter_shorthand_to_config("alternatives:alternative1:alternative2")
-        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alternative1", "alternative2"]})
 
     def _build_data_without_alternatives(self):
         import_object_classes(self._out_map, ["object_class"])
@@ -130,6 +113,65 @@ class TestAlternative_filter(unittest.TestCase):
         import_object_parameters(self._out_map, [("object_class", "parameter")])
         import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
         import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0, "alternative")])
+
+
+class TestAlternativeFilterWithMemoryDatabase(unittest.TestCase):
+    def setUp(self):
+        self._db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(self._db_map, ["object_class"])
+        import_objects(self._db_map, [("object_class", "object")])
+        import_object_parameters(self._db_map, [("object_class", "parameter")])
+        import_object_parameter_values(self._db_map, [("object_class", "object", "parameter", -1.0)])
+        self._db_map.commit_session("Add initial data.")
+
+    def tearDown(self):
+        self._db_map.connection.close()
+
+    def test_alternative_names_with_colons(self):
+        self._add_value_in_alternative(23.0, "new@2023-23-23T11:12:13")
+        config = alternative_filter_config(["new@2023-23-23T11:12:13"])
+        alternative_filter_from_dict(self._db_map, config)
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, b"23.0")
+
+    def test_multiple_alternatives(self):
+        self._add_value_in_alternative(23.0, "new@2023-23-23T11:12:13")
+        self._add_value_in_alternative(101.1, "new@2005-05-05T22:23:24")
+        config = alternative_filter_config(["new@2005-05-05T22:23:24", "new@2023-23-23T11:12:13"])
+        alternative_filter_from_dict(self._db_map, config)
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 2)
+        self.assertEqual(parameters[0].value, b"23.0")
+        self.assertEqual(parameters[1].value, b"101.1")
+
+    def _add_value_in_alternative(self, value, alternative):
+        import_alternatives(self._db_map, [alternative])
+        import_object_parameter_values(self._db_map, [("object_class", "object", "parameter", value, alternative)])
+        self._db_map.commit_session(f"Add value in {alternative}")
+
+
+class TestAlternativeFilterWithoutDatabase(unittest.TestCase):
+    def test_alternative_filter_config(self):
+        config = alternative_filter_config(["alternative1", "alternative2"])
+        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alternative1", "alternative2"]})
+
+    def test_alternative_names_from_dict(self):
+        config = alternative_filter_config(["alternative1", "alternative2"])
+        self.assertEqual(alternative_names_from_dict(config), ["alternative1", "alternative2"])
+
+    def test_alternative_filter_config_to_shorthand(self):
+        config = alternative_filter_config(["alternative1", "alternative2"])
+        shorthand = alternative_filter_config_to_shorthand(config)
+        self.assertEqual(shorthand, "alternatives:'alternative1':'alternative2'")
+
+    def test_alternative_filter_shorthand_to_config(self):
+        config = alternative_filter_shorthand_to_config("alternatives:'alternative1':'alternative2'")
+        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alternative1", "alternative2"]})
+
+    def test_quoted_alternative_names(self):
+        config = alternative_filter_shorthand_to_config("alternatives:'alt:er:na:ti:ve':'alternative2'")
+        self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alt:er:na:ti:ve", "alternative2"]})
 
 
 if __name__ == '__main__':
