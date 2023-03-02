@@ -21,13 +21,17 @@ from .writer import Writer, WriterException
 
 
 class SqlWriter(Writer):
-    def __init__(self, file_path):
+    """Export writer that targets SQL databases."""
+
+    def __init__(self, database):
         """
         Args:
-            file_path (str): path to output .sqlite file
+            database (str): URL or path to output .sqlite file
         """
         super().__init__()
-        self._engine = create_engine("sqlite:///" + file_path)
+        if database.find("://") < 0:
+            database = "sqlite:///" + database
+        self._engine = create_engine(database)
         self._connection = self._engine.connect()
         self._metadata = MetaData()
         self._metadata.reflect(bind=self._engine)
