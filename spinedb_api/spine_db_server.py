@@ -334,6 +334,9 @@ class _DBWorker:
         self._db_map.restore_entity_class_sq_maker()
         self._db_map.restore_parameter_definition_sq_maker()
         self._db_map.restore_parameter_value_sq_maker()
+        self._db_map.restore_alternative_sq_maker()
+        self._db_map.restore_scenario_sq_maker()
+        self._db_map.restore_scenario_alternative_sq_maker()
         return dict(result=True)
 
     def _do_apply_filters(self, configs):
