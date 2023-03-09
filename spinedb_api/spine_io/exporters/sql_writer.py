@@ -23,12 +23,14 @@ from .writer import Writer, WriterException
 class SqlWriter(Writer):
     """Export writer that targets SQL databases."""
 
-    def __init__(self, database):
+    def __init__(self, database, overwrite_existing):
         """
         Args:
             database (str): URL or path to output .sqlite file
+            overwrite_existing (bool): if True, overwrites tables in existing database, otherwise appends to the tables
         """
         super().__init__()
+        self._overwrite_existing = overwrite_existing
         if database.find("://") < 0:
             database = "sqlite:///" + database
         self._engine = create_engine(database)
@@ -62,7 +64,7 @@ class SqlWriter(Writer):
         if not table_name:
             raise WriterException("Cannot create anonymous SQL tables.")
         self._table = self._metadata.tables.get(table_name)
-        if self._table is not None and table_name not in self._finished_table_names:
+        if self._overwrite_existing and self._table is not None and table_name not in self._finished_table_names:
             self._table.drop(self._engine)
             self._metadata.remove(self._table)
             self._table = None
@@ -81,6 +83,8 @@ class SqlWriter(Writer):
             columns, self._column_converters = _database_columns_and_converters(self._column_names, row)
             self._table = Table(self._table_name, self._metadata, *columns)
             self._table.create(self._engine)
+        elif self._column_converters is None:
+            self._column_converters = _converters(row)
         row = [convert(x) for convert, x in zip(self._column_converters, row)]
         self._session.execute(self._table.insert().values(tuple(row)))
         return True
@@ -110,11 +114,37 @@ def _database_columns_and_converters(names, row):
             converters.append(bool)
         elif isinstance(x, parameter_value.DateTime):
             types.append(DateTime)
-            converters.append(lambda x: x.value)
+            converters.append(lambda v: v.value)
         elif isinstance(x, parameter_value.Duration):
             types.append(String)
-            converters.append(lambda x: parameter_value.relativedelta_to_duration(x.value))
+            converters.append(lambda v: parameter_value.relativedelta_to_duration(v.value))
         else:
             types.append(String)
             converters.append(str)
     return [Column(name, type_, nullable=True) for name, type_ in zip(names, types)], converters
+
+
+def _converters(row):
+    """Creates converters to convert a row to correct types.
+
+    Args:
+        row (list): a data row for sniffing column types
+
+    Returns:
+        list of Callable: list of converter callables
+    """
+    converters = []
+    for x in row:
+        if isinstance(x, float):
+            converters.append(float)
+        elif isinstance(x, int):
+            converters.append(int)
+        elif isinstance(x, bool):
+            converters.append(bool)
+        elif isinstance(x, parameter_value.DateTime):
+            converters.append(lambda v: v.value)
+        elif isinstance(x, parameter_value.Duration):
+            converters.append(lambda v: parameter_value.relativedelta_to_duration(v.value))
+        else:
+            converters.append(str)
+    return converters

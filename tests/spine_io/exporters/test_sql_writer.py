@@ -14,15 +14,14 @@ Unit tests for SQL writer.
 :author: A. Soininen (VTT)
 :date:   7.4.2021
 """
-from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import Column, create_engine, MetaData, String, Table
 from sqlalchemy.orm import Session
 from spinedb_api import (
     DateTime,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     Duration,
     import_object_classes,
     import_objects,
@@ -51,16 +50,16 @@ class TestSqlWriter(unittest.TestCase):
         self._temp_dir.cleanup()
 
     def test_write_empty_database(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         settings = FixedValueMapping(Position.table_name, "table 1")
         out_path = Path(self._temp_dir.name, "out.sqlite")
-        writer = SqlWriter(str(out_path))
+        writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, settings)
         db_map.connection.close()
         self.assertTrue(out_path.exists())
 
     def test_write_header_only(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         db_map.commit_session("Add test data.")
         root_mapping = unflatten(
@@ -71,7 +70,7 @@ class TestSqlWriter(unittest.TestCase):
             ]
         )
         out_path = Path(self._temp_dir.name, "out.sqlite")
-        writer = SqlWriter(str(out_path))
+        writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
         db_map.connection.close()
         self.assertTrue(out_path.exists())
@@ -91,7 +90,7 @@ class TestSqlWriter(unittest.TestCase):
             connection.close()
 
     def test_write_single_object_class_and_object(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -103,7 +102,7 @@ class TestSqlWriter(unittest.TestCase):
             ]
         )
         out_path = Path(self._temp_dir.name, "out.sqlite")
-        writer = SqlWriter(str(out_path))
+        writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
         db_map.connection.close()
         self.assertTrue(out_path.exists())
@@ -124,7 +123,7 @@ class TestSqlWriter(unittest.TestCase):
             connection.close()
 
     def test_write_datetime_value(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
@@ -142,7 +141,7 @@ class TestSqlWriter(unittest.TestCase):
             ]
         )
         out_path = Path(self._temp_dir.name, "out.sqlite")
-        writer = SqlWriter(str(out_path))
+        writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
         db_map.connection.close()
         self.assertTrue(out_path.exists())
@@ -165,7 +164,7 @@ class TestSqlWriter(unittest.TestCase):
             connection.close()
 
     def test_write_duration_value(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"),))
@@ -182,7 +181,7 @@ class TestSqlWriter(unittest.TestCase):
             ]
         )
         out_path = Path(self._temp_dir.name, "out.sqlite")
-        writer = SqlWriter(str(out_path))
+        writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
         db_map.connection.close()
         self.assertTrue(out_path.exists())
@@ -205,7 +204,7 @@ class TestSqlWriter(unittest.TestCase):
             connection.close()
 
     def test_append_to_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "q1")))
         db_map.commit_session("Add test data.")
@@ -216,7 +215,7 @@ class TestSqlWriter(unittest.TestCase):
         root_mapping2.child.header = "objects"
         root_mapping2.child.filter_re = "q1"
         out_path = Path(self._temp_dir.name, "out.sqlite")
-        writer = SqlWriter(str(out_path))
+        writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping1)
         write(db_map, writer, root_mapping2)
         db_map.connection.close()
@@ -232,6 +231,46 @@ class TestSqlWriter(unittest.TestCase):
             column_names = [str(c) for c in table.c]
             self.assertEqual(column_names, ["oc.objects"])
             expected_rows = (("o1",), ("q1",))
+            rows = session.query(table).all()
+            self.assertEqual(len(rows), len(expected_rows))
+            for row, expected in zip(rows, expected_rows):
+                self.assertEqual(row, expected)
+            session.close()
+        finally:
+            connection.close()
+
+    def test_appending_to_table_in_existing_database(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_objects(db_map, (("oc", "o1"),))
+        db_map.commit_session("Add test data.")
+        out_path = Path(self._temp_dir.name, "out.sqlite")
+        out_engine = create_engine("sqlite:///" + str(out_path))
+        out_connection = out_engine.connect()
+        try:
+            metadata = MetaData()
+            object_table = Table("oc", metadata, Column("objects", String))
+            metadata.create_all(out_engine)
+            out_connection.execute(object_table.insert(), objects="initial_object")
+        finally:
+            out_connection.close()
+        root_mapping = object_export(Position.table_name, 0)
+        root_mapping.child.header = "objects"
+        writer = SqlWriter(str(out_path), overwrite_existing=False)
+        write(db_map, writer, root_mapping)
+        db_map.connection.close()
+        self.assertTrue(out_path.exists())
+        engine = create_engine("sqlite:///" + str(out_path))
+        connection = engine.connect()
+        try:
+            metadata = MetaData()
+            metadata.reflect(bind=engine)
+            session = Session(engine)
+            self.assertIn("oc", metadata.tables)
+            table = metadata.tables["oc"]
+            column_names = [str(c) for c in table.c]
+            self.assertEqual(column_names, ["oc.objects"])
+            expected_rows = (("initial_object",), ("o1",))
             rows = session.query(table).all()
             self.assertEqual(len(rows), len(expected_rows))
             for row, expected in zip(rows, expected_rows):
