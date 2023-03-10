@@ -494,7 +494,6 @@ class DatabaseMappingBase:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        self.cache.clear()
         attr_names = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
