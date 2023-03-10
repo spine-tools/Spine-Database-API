@@ -73,7 +73,7 @@ class DatabaseMappingRemoveMixin:
         if cache is None:
             cache = self.make_cache(
                 set(kwargs),
-                only_descendants=True,
+                include_descendants=True,
                 force_tablenames={"entity_metadata", "parameter_value_metadata"}
                 if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
                 else None,

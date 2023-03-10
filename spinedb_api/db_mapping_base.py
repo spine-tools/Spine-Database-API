@@ -2018,9 +2018,9 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, force_tablenames=None):
-        if only_descendants:
-            tablenames = {
+    def make_cache(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
+        if include_descendants:
+            tablenames |= {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
             }
         if include_ancestors:
