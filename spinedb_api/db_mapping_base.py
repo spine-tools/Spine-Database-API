@@ -91,6 +91,7 @@ class DatabaseMappingBase:
         apply_filters=True,
         memory=False,
         sqlite_timeout=1800,
+        advance_cache_query=None,
     ):
         """
         Args:
@@ -102,6 +103,8 @@ class DatabaseMappingBase:
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
             memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
         """
+        if advance_cache_query is None:
+            advance_cache_query = self._advance_cache_query
         # FIXME: We should also check the server memory property and use it here
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
@@ -131,7 +134,7 @@ class DatabaseMappingBase:
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.session = Session(self.connection, **self._session_kwargs)
-        self.cache = DBCache(self._advance_cache_query)
+        self.cache = DBCache(advance_cache_query)
         # class and entity type id
         self._object_class_type = None
         self._relationship_class_type = None
