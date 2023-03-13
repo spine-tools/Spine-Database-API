@@ -18,7 +18,7 @@ Unit tests for export mappings.
 import unittest
 from spinedb_api import (
     DatabaseMapping,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_alternatives,
     import_features,
     import_object_classes,
@@ -95,7 +95,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_single_object_class(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         object_class_mapping = ObjectClassMapping(0)
@@ -103,7 +103,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_objects(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_objects(
             db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
@@ -118,7 +118,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_hidden_tail(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1",))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
         db_map.commit_session("Add test data.")
@@ -128,7 +128,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_pivot_without_values(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1",))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
         db_map.commit_session("Add test data.")
@@ -138,7 +138,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_hidden_tail_pivoted(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"), ("oc", "p2")))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -168,7 +168,7 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(object_class_mapping.check_validity(), ["Cannot be pivoted."])
 
     def test_object_groups(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
         import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
@@ -179,7 +179,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_object_groups_with_objects(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
         import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
@@ -190,7 +190,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_object_groups_with_parameter_values(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
         import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
@@ -215,7 +215,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_parameter_definitions(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
@@ -235,7 +235,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_single_parameter_value_when_there_are_multiple_objects(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
@@ -254,7 +254,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_single_parameter_value_pivoted_by_object_name(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1",))
         import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
@@ -282,7 +282,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_minimum_pivot_index_need_not_be_minus_one(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("alt",))
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
@@ -305,7 +305,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_pivot_row_order(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1",))
         import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
@@ -349,7 +349,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_parameter_indexes(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"), ("oc", "p2")))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -386,7 +386,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_nested_parameter_indexes(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -421,7 +421,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_nested_map_values_only(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -451,7 +451,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_full_pivot_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -487,7 +487,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_full_pivot_table_with_hidden_columns(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -505,7 +505,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_objects_as_pivot_header_for_indexed_values_with_alternatives(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("alt",))
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
@@ -532,7 +532,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_objects_and_indexes_as_pivot_header(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -550,7 +550,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_objects_and_indexes_as_pivot_header_with_multiple_alternatives_and_parameters(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("alt",))
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"),))
@@ -582,7 +582,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_empty_column_while_pivoted_handled_gracefully(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("alt",))
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
@@ -599,7 +599,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_object_classes_as_header_row_and_objects_in_columns(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_objects(
             db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
@@ -614,7 +614,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_object_classes_as_table_names(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_objects(
             db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
@@ -629,7 +629,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_object_class_and_parameter_definition_as_table_name(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11"), ("oc2", "p21"), ("oc2", "p22")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31")))
@@ -648,7 +648,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_object_relationship_name_as_table_name(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc1", "o2"), ("oc2", "O")))
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
@@ -664,7 +664,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_parameter_definitions_with_value_lists(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_parameter_value_lists(db_map, (("vl1", -1.0), ("vl2", -2.0)))
         import_object_parameters(db_map, (("oc", "p1", None, "vl1"), ("oc", "p2")))
@@ -681,7 +681,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_parameter_definitions_and_values_and_value_lists(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_parameter_value_lists(db_map, (("vl", -1.0),))
         import_object_parameters(db_map, (("oc", "p1", None, "vl"), ("oc", "p2")))
@@ -704,7 +704,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_parameter_definitions_and_values_and_ignorable_value_lists(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_parameter_value_lists(db_map, (("vl", -1.0),))
         import_object_parameters(db_map, (("oc", "p1", None, "vl"), ("oc", "p2")))
@@ -729,7 +729,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_parameter_value_lists(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_parameter_value_lists(db_map, (("vl1", -1.0), ("vl2", -2.0)))
         db_map.commit_session("Add test data.")
         value_list_mapping = ParameterValueListMapping(0)
@@ -740,7 +740,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_parameter_value_list_values(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_parameter_value_lists(db_map, (("vl1", -1.0), ("vl2", -2.0)))
         db_map.commit_session("Add test data.")
         value_list_mapping = ParameterValueListMapping(Position.table_name)
@@ -753,7 +753,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_no_item_declared_as_title_gives_full_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11"), ("oc2", "p21"), ("oc2", "p22")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31")))
@@ -770,7 +770,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_missing_values_for_alternatives(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"), ("oc", "p2")))
         import_alternatives(db_map, ("alt1", "alt2"))
@@ -804,7 +804,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_relationship_classes(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_relationship_classes(
             db_map, (("rc1", ("oc1",)), ("rc2", ("oc3", "oc2")), ("rc3", ("oc2", "oc3", "oc1")))
@@ -815,7 +815,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_export_relationships(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
         import_relationship_classes(db_map, (("rc1", ("oc1",)), ("rc2", ("oc2", "oc1"))))
@@ -829,7 +829,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_relationships_with_different_dimensions(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc2", "o22")))
         import_relationship_classes(db_map, (("rc1D", ("oc1",)), ("rc2D", ("oc1", "oc2"))))
@@ -865,7 +865,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_default_parameter_values(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
         db_map.commit_session("Add test data.")
@@ -879,7 +879,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_indexed_default_parameter_values(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(
             db_map,
@@ -909,7 +909,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_replace_parameter_indexes_by_external_data(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"),))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
@@ -939,7 +939,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_constant_mapping_as_title(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         db_map.commit_session("Add test data.")
         constant_mapping = FixedValueMapping(Position.table_name, "title_text")
@@ -952,7 +952,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_scenario_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_scenarios(db_map, ("s1", "s2"))
         db_map.commit_session("Add test data.")
         scenario_mapping = ScenarioMapping(0)
@@ -963,7 +963,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_scenario_active_flag_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_scenarios(db_map, (("s1", True), ("s2", False)))
         db_map.commit_session("Add test data.")
         scenario_mapping = ScenarioMapping(0)
@@ -976,7 +976,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_scenario_alternative_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("a1", "a2", "a3"))
         import_scenarios(db_map, ("s1", "s2", "empty"))
         import_scenario_alternatives(db_map, (("s1", "a2"), ("s1", "a1", "a2"), ("s2", "a2"), ("s2", "a3", "a2")))
@@ -991,7 +991,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_tool_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_tools(db_map, ("tool1", "tool2"))
         db_map.commit_session("Add test data.")
         tool_mapping = ToolMapping(0)
@@ -1002,7 +1002,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_feature_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_parameter_value_lists(db_map, (("features", "feat1"), ("features", "feat2")))
         import_object_parameters(
@@ -1025,7 +1025,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_tool_feature_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_parameter_value_lists(db_map, (("features", "feat1"), ("features", "feat2")))
         import_object_parameters(
@@ -1058,7 +1058,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_tool_feature_method_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_parameter_value_lists(db_map, (("features", "feat1"), ("features", "feat2")))
         import_object_parameters(
@@ -1103,7 +1103,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_header(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -1113,21 +1113,21 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_header_without_data_still_creates_header(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="object")])
         expected = [["class", "object"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
     def test_header_in_half_pivot_table_without_data_still_creates_header(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root = unflatten([ObjectClassMapping(-1, header="class"), ObjectMapping(9, header="object")])
         expected = [["class"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
     def test_header_in_pivot_table_without_data_still_creates_header(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root = unflatten(
             [
                 ObjectClassMapping(-1, header="class"),
@@ -1142,21 +1142,21 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_disabled_empty_data_header(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="object")])
         expected = []
         self.assertEqual(list(rows(root, db_map, empty_data_header=False)), expected)
         db_map.connection.close()
 
     def test_disabled_empty_data_header_in_pivot_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root = unflatten([ObjectClassMapping(-1, header="class"), ObjectMapping(0)])
         expected = []
         self.assertEqual(list(rows(root, db_map, empty_data_header=False)), expected)
         db_map.connection.close()
 
     def test_header_position(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -1166,7 +1166,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_header_position_with_relationships(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o11"), ("oc2", "o21")))
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
@@ -1187,7 +1187,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_header_position_with_relationships_but_no_data(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
         db_map.commit_session("Add test data.")
@@ -1206,7 +1206,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_header_and_pivot(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("alt",))
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"),))
@@ -1247,7 +1247,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_pivot_without_left_hand_side_has_padding_column_for_headers(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_alternatives(db_map, ("alt",))
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p1"),))
@@ -1367,7 +1367,7 @@ class TestExportMapping(unittest.TestCase):
                 self.assertEqual(m.highlight_dimension, highlight_dimension)
 
     def test_setting_ignorable_flag(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         db_map.commit_session("Add test data.")
         object_mapping = ObjectMapping(1)
@@ -1379,7 +1379,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_unsetting_ignorable_flag(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -1394,7 +1394,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_filter(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
         db_map.commit_session("Add test data.")
@@ -1406,7 +1406,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_hidden_tail_filter(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
         db_map.commit_session("Add test data.")
@@ -1418,7 +1418,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_index_names(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o"),))
@@ -1430,7 +1430,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_default_value_index_names_with_nested_map(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(
             db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3], index_name="idx2")], index_name="idx1")),)
@@ -1444,7 +1444,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_multiple_index_names_with_empty_database(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         mapping = relationship_parameter_export(
             0, 4, Position.hidden, 1, [2], [3], 5, Position.hidden, 8, [Position.header, Position.header], [6, 7]
         )
@@ -1453,7 +1453,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_parameter_default_value_type(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
         db_map.commit_session("Add test data.")
@@ -1467,7 +1467,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_map_with_more_dimensions_than_index_mappings(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o"),))
@@ -1481,7 +1481,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_default_map_value_with_more_dimensions_than_index_mappings(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3])])),))
         db_map.commit_session("Add test data.")
@@ -1491,7 +1491,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_map_with_single_value_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o"),))
@@ -1503,7 +1503,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_default_map_value_with_single_value_mapping(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p", Map(["A"], [2.3])),))
         db_map.commit_session("Add test data.")

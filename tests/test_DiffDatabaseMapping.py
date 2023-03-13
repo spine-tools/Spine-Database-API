@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Unit tests for DiffDatabaseMapping class.
+Unit tests for DatabaseMapping class.
 
 :author: P. Vennström (VTT)
 :date:   29.11.2018
@@ -22,7 +22,7 @@ import unittest
 from unittest import mock
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
-from spinedb_api.diff_db_mapping import DiffDatabaseMapping
+from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
 from spinedb_api.db_cache import DBCache
 from spinedb_api import import_functions, SpineDBAPIError
@@ -42,17 +42,17 @@ IN_MEMORY_DB_URL = "sqlite://"
 
 
 def create_diff_db_map():
-    return DiffDatabaseMapping(IN_MEMORY_DB_URL, username="UnitTest", create=True)
+    return DatabaseMapping(IN_MEMORY_DB_URL, username="UnitTest", create=True)
 
 
-class TestDiffDatabaseMappingConstruction(unittest.TestCase):
+class TestDatabaseMappingConstruction(unittest.TestCase):
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
         with mock.patch("spinedb_api.diff_db_mapping.apply_filter_stack") as mock_apply:
             with mock.patch(
                 "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DiffDatabaseMapping(db_url, create=True)
+                db_map = DatabaseMapping(db_url, create=True)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -64,7 +64,7 @@ class TestDiffDatabaseMappingConstruction(unittest.TestCase):
             with mock.patch(
                 "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DiffDatabaseMapping(sa_url, create=True)
+                db_map = DatabaseMapping(sa_url, create=True)
                 db_map.connection.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -73,19 +73,19 @@ class TestDiffDatabaseMappingConstruction(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             url = URL("sqlite")
             url.database = os.path.join(temp_dir, "test_shorthand_filter_query_works.json")
-            out_db = DiffDatabaseMapping(url, create=True)
+            out_db = DatabaseMapping(url, create=True)
             out_db.add_tools({"name": "object_activity_control", "id": 1})
             out_db.commit_session("Add tool.")
             out_db.connection.close()
             try:
-                db_map = DiffDatabaseMapping(url)
+                db_map = DatabaseMapping(url)
             except:
-                self.fail("DiffDatabaseMapping.__init__() should not raise.")
+                self.fail("DatabaseMapping.__init__() should not raise.")
             else:
                 db_map.connection.close()
 
 
-class TestDiffDatabaseMappingRemove(unittest.TestCase):
+class TestDatabaseMappingRemove(unittest.TestCase):
     def setUp(self):
         self._db_map = create_diff_db_map()
 
@@ -409,7 +409,7 @@ class TestDiffDatabaseMappingRemove(unittest.TestCase):
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
 
 
-class TestDiffDatabaseMappingAdd(unittest.TestCase):
+class TestDatabaseMappingAdd(unittest.TestCase):
     def setUp(self):
         self._db_map = create_diff_db_map()
 
@@ -428,10 +428,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_object_classes(self):
         """Test that adding object classes works."""
         self._db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
-        diff_table = self._db_map._diff_table("entity_class")
-        object_classes = (
-            self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.object_class_type).all()
-        )
+        object_classes = self._db_map.query(self._db_map.object_class_sq).all()
         self.assertEqual(len(object_classes), 2)
         self.assertEqual(object_classes[0].name, "fish")
         self.assertEqual(object_classes[1].name, "dog")
@@ -444,10 +441,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_object_classes_with_same_name(self):
         """Test that adding two object classes with the same name only adds one of them."""
         self._db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
-        diff_table = self._db_map._diff_table("entity_class")
-        object_classes = (
-            self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.object_class_type).all()
-        )
+        object_classes = self._db_map.query(self._db_map.object_class_sq).all()
         self.assertEqual(len(object_classes), 1)
         self.assertEqual(object_classes[0].name, "fish")
 
@@ -461,8 +455,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding objects works."""
         self._db_map.add_object_classes({"name": "fish"})
         self._db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
-        diff_table = self._db_map._diff_table("entity")
-        objects = self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.object_entity_type).all()
+        objects = self._db_map.query(self._db_map.object_sq).all()
         self.assertEqual(len(objects), 2)
         self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
@@ -479,8 +472,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         """Test that adding two objects with the same name only adds one of them."""
         self._db_map.add_object_classes({"name": "fish"})
         self._db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
-        diff_table = self._db_map._diff_table("entity")
-        objects = self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.object_entity_type).all()
+        objects = self._db_map.query(self._db_map.object_sq).all()
         self.assertEqual(len(objects), 1)
         self.assertEqual(objects[0].name, "nemo")
         self.assertEqual(objects[0].class_id, 1)
@@ -504,19 +496,16 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc2", "object_class_id_list": [2, 1]}
         )
-        diff_table = self._db_map._diff_table("relationship_entity_class")
-        rel_ent_clss = self._db_map.query(diff_table).all()
-        diff_table = self._db_map._diff_table("entity_class")
-        rel_clss = (
-            self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.relationship_class_type).all()
-        )
-        self.assertEqual(len(rel_ent_clss), 4)
+        diff_table = self._db_map.get_table("entity_class_dimension")
+        ent_cls_dims = self._db_map.query(diff_table).all()
+        rel_clss = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
+        self.assertEqual(len(ent_cls_dims), 4)
         self.assertEqual(rel_clss[0].name, "rc1")
-        self.assertEqual(rel_ent_clss[0].member_class_id, 1)
-        self.assertEqual(rel_ent_clss[1].member_class_id, 2)
+        self.assertEqual(ent_cls_dims[0].dimension_id, 1)
+        self.assertEqual(ent_cls_dims[1].dimension_id, 2)
         self.assertEqual(rel_clss[1].name, "rc2")
-        self.assertEqual(rel_ent_clss[2].member_class_id, 2)
-        self.assertEqual(rel_ent_clss[3].member_class_id, 1)
+        self.assertEqual(ent_cls_dims[2].dimension_id, 2)
+        self.assertEqual(ent_cls_dims[3].dimension_id, 1)
 
     def test_add_relationship_classes_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
@@ -530,25 +519,22 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc1", "object_class_id_list": [1, 2]}
         )
-        diff_table = self._db_map._diff_table("relationship_entity_class")
-        relationship_members = self._db_map.query(diff_table).all()
-        diff_table = self._db_map._diff_table("entity_class")
-        relationships = (
-            self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.relationship_class_type).all()
-        )
-        self.assertEqual(len(relationship_members), 2)
-        self.assertEqual(len(relationships), 1)
-        self.assertEqual(relationships[0].name, "rc1")
-        self.assertEqual(relationship_members[0].member_class_id, 1)
-        self.assertEqual(relationship_members[1].member_class_id, 2)
+        diff_table = self._db_map.get_table("entity_class_dimension")
+        ecs_dims = self._db_map.query(diff_table).all()
+        relationship_classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
+        self.assertEqual(len(ecs_dims), 2)
+        self.assertEqual(len(relationship_classes), 1)
+        self.assertEqual(relationship_classes[0].name, "rc1")
+        self.assertEqual(ecs_dims[0].dimension_id, 1)
+        self.assertEqual(ecs_dims[1].dimension_id, 2)
 
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
+        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
+            DatabaseMapping, "object_class_sq"
         ) as mock_object_class_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_sq"
+            DatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq:
             mock_query.side_effect = query_wrapper
             mock_object_class_sq.return_value = [
@@ -566,9 +552,9 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_class_with_invalid_object_class(self):
         """Test that adding a relationship class with a non existing object class raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq, mock.patch.object(DiffDatabaseMapping, "wide_relationship_class_sq"):
+        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
+            DatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq, mock.patch.object(DatabaseMapping, "wide_relationship_class_sq"):
             mock_query.side_effect = query_wrapper
             mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             with self.assertRaises(SpineIntegrityError):
@@ -582,19 +568,19 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self._db_map.add_wide_relationships({"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
-        diff_table = self._db_map._diff_table("relationship_entity")
-        rel_ents = self._db_map.query(diff_table).all()
-        diff_table = self._db_map._diff_table("entity")
-        relationships = (
-            self._db_map.query(diff_table).filter(diff_table.c.type_id == self._db_map.relationship_entity_type).all()
-        )
-        self.assertEqual(len(rel_ents), 2)
+        # FIXME
+        self._db_map.commit_session("Ok")
+        diff_table = self._db_map.get_table("entity_element")
+        ent_els = self._db_map.query(diff_table).all()
+        diff_table = self._db_map.get_table("entity")
+        relationships = self._db_map.query(diff_table).filter(diff_table.c.id.in_({x.entity_id for x in ent_els})).all()
+        self.assertEqual(len(ent_els), 2)
         self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "nemo__pluto")
-        self.assertEqual(rel_ents[0].entity_class_id, 3)
-        self.assertEqual(rel_ents[0].member_id, 1)
-        self.assertEqual(rel_ents[1].entity_class_id, 3)
-        self.assertEqual(rel_ents[1].member_id, 2)
+        self.assertEqual(ent_els[0].entity_class_id, 3)
+        self.assertEqual(ent_els[0].member_id, 1)
+        self.assertEqual(ent_els[1].entity_class_id, 3)
+        self.assertEqual(ent_els[1].member_id, 2)
 
     def test_add_relationship_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
@@ -607,14 +593,14 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one."""
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "dimension_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self._db_map.add_wide_relationships(
-            {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
-            {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
+            {"name": "nemo__pluto", "class_id": 3, "element_id_list": [1, 2]},
+            {"name": "nemo__pluto_duplicate", "class_id": 3, "element_id_list": [1, 2]},
         )
-        diff_table = self._db_map._diff_table("relationship")
-        relationships = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("Ok")
+        relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationships), 1)
 
     def test_add_relationship_identical_to_existing_one(self):
@@ -622,12 +608,12 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         raises an integrity error.
         """
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_sq"
+        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
+            DatabaseMapping, "object_sq"
         ) as mock_object_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_sq"
+            DatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_sq"
+            DatabaseMapping, "wide_relationship_sq"
         ) as mock_wide_rel_sq:
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -648,12 +634,12 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_class(self):
         """Test that adding a relationship with an invalid class raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_sq"
+        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
+            DatabaseMapping, "object_sq"
         ) as mock_object_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_sq"
+            DatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_sq"
+            DatabaseMapping, "wide_relationship_sq"
         ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -671,12 +657,12 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_object(self):
         """Test that adding a relationship with an invalid object raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DiffDatabaseMapping, "query") as mock_query, mock.patch.object(
-            DiffDatabaseMapping, "object_sq"
+        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
+            DatabaseMapping, "object_sq"
         ) as mock_object_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_class_sq"
+            DatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq, mock.patch.object(
-            DiffDatabaseMapping, "wide_relationship_sq"
+            DatabaseMapping, "wide_relationship_sq"
         ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -696,7 +682,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-        diff_table = self._db_map._diff_table("entity_group")
+        diff_table = self._db_map.get_table("entity_group")
         entity_groups = self._db_map.query(diff_table).all()
         self.assertEqual(len(entity_groups), 1)
         self.assertEqual(entity_groups[0].entity_id, 1)
@@ -740,7 +726,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
             {"name": "color", "object_class_id": 1, "description": "test1"},
             {"name": "relative_speed", "relationship_class_id": 3, "description": "test2"},
         )
-        diff_table = self._db_map._diff_table("parameter_definition")
+        diff_table = self._db_map.get_table("parameter_definition")
         parameter_definitions = self._db_map.query(diff_table).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
@@ -763,7 +749,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_parameter_definitions(
             {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
         )
-        diff_table = self._db_map._diff_table("parameter_definition")
+        diff_table = self._db_map.get_table("parameter_definition")
         parameter_definitions = self._db_map.query(diff_table).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
@@ -837,7 +823,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "alternative_id": 1,
             },
         )
-        diff_table = self._db_map._diff_table("parameter_value")
+        diff_table = self._db_map.get_table("parameter_value")
         parameter_values = self._db_map.query(diff_table).all()
         self.assertEqual(len(parameter_values), 2)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
@@ -893,7 +879,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
                 "alternative_id": 1,
             },
         )
-        diff_table = self._db_map._diff_table("parameter_value")
+        diff_table = self._db_map.get_table("parameter_value")
         parameter_values = self._db_map.query(diff_table).all()
         self.assertEqual(len(parameter_values), 1)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
@@ -1198,7 +1184,7 @@ class TestDiffDatabaseMappingAdd(unittest.TestCase):
         )
 
 
-class TestDiffDatabaseMappingUpdate(unittest.TestCase):
+class TestDatabaseMappingUpdate(unittest.TestCase):
     def setUp(self):
         self._db_map = create_diff_db_map()
 
@@ -1296,7 +1282,7 @@ class TestDiffDatabaseMappingUpdate(unittest.TestCase):
         self.assertEqual(rels[4]["object_id_list"], "1,3")
 
 
-class TestDiffDatabaseMappingCommit(unittest.TestCase):
+class TestDatabaseMappingCommit(unittest.TestCase):
     def setUp(self):
         self._db_map = create_diff_db_map()
 

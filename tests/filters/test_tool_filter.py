@@ -22,7 +22,7 @@ from sqlalchemy.engine.url import URL
 from spinedb_api import (
     apply_tool_filter_to_entity_sq,
     create_new_spine_database,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_object_classes,
     import_relationship_classes,
     import_object_parameter_values,
@@ -57,7 +57,7 @@ class TestToolEntityFilter(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._db_map = DiffDatabaseMapping(self._db_url)
+        self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
         self._db_map.connection.close()

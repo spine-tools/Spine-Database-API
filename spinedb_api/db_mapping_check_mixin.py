@@ -498,7 +498,8 @@ class DatabaseMappingCheckMixin:
                     cache,
                     intgr_error_log,
                 ) as wide_item:
-                    wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
+                    if "object_class_id_list" not in wide_item:
+                        wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
                     check_wide_relationship_class(wide_item, relationship_class_ids, object_class_ids)
                     checked_wide_items.append(wide_item)
             except SpineIntegrityError as e:
@@ -534,7 +535,11 @@ class DatabaseMappingCheckMixin:
             for x in cache.get("entity_class", {}).values()
             if x.dimension_id_list
         }
-        objects = {x.id: {"class_id": x.class_id, "name": x.name} for x in cache.get("object", {}).values()}
+        objects = {
+            x.id: {"class_id": x.class_id, "name": x.name}
+            for x in cache.get("entity", {}).values()
+            if not x.element_id_list
+        }
         for wide_item in wide_items:
             try:
                 with self._manage_stocks(
@@ -548,8 +553,10 @@ class DatabaseMappingCheckMixin:
                     cache,
                     intgr_error_log,
                 ) as wide_item:
-                    wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
-                    wide_item["object_id_list"] = wide_item.pop("element_id_list", ())
+                    if "object_class_id_list" not in wide_item:
+                        wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
+                    if "object_id_list" not in wide_item:
+                        wide_item["object_id_list"] = wide_item.pop("element_id_list", ())
                     check_wide_relationship(
                         wide_item,
                         relationship_ids_by_name,

@@ -22,7 +22,7 @@ from spinedb_api import (
     append_filter_config,
     clear_filter_configs,
     DatabaseMapping,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     export_object_classes,
     import_object_classes,
     pop_filter_configs,
@@ -93,7 +93,7 @@ class TestApplyFilterStack(unittest.TestCase):
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
         cls._db_url.database = os.path.join(cls._dir.name, ".json")
-        db_map = DiffDatabaseMapping(cls._db_url, create=True)
+        db_map = DatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
@@ -140,7 +140,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
         cls._db_url.database = os.path.join(cls._dir.name, "TestFilteredDatabaseMap.json")
-        db_map = DiffDatabaseMapping(cls._db_url, create=True)
+        db_map = DatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()

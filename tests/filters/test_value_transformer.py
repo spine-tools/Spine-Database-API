@@ -22,7 +22,7 @@ from sqlalchemy.engine.url import URL
 
 from spinedb_api import (
     DatabaseMapping,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -110,7 +110,7 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._out_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
         self._out_map.connection.close()

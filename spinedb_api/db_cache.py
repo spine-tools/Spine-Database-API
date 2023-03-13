@@ -276,7 +276,7 @@ class DescriptionMixin:
 
 class EntityClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
     def __init__(self, *args, **kwargs):
-        dimension_id_list = kwargs["dimension_id_list"]
+        dimension_id_list = kwargs.get("dimension_id_list")
         if dimension_id_list is None:
             dimension_id_list = ()
         if isinstance(dimension_id_list, str):
@@ -295,7 +295,7 @@ class EntityClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
 
 class EntityItem(DescriptionMixin, CacheItem):
     def __init__(self, *args, **kwargs):
-        element_id_list = kwargs["element_id_list"]
+        element_id_list = kwargs.get("element_id_list")
         if element_id_list is None:
             element_id_list = ()
         if isinstance(element_id_list, str):

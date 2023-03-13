@@ -23,7 +23,7 @@ from spinedb_api import (
     apply_alternative_filter_to_parameter_value_sq,
     create_new_spine_database,
     DatabaseMapping,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
@@ -50,9 +50,9 @@ class TestAlternativeFilter(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._out_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
-        self._diff_db_map = DiffDatabaseMapping(self._db_url)
+        self._diff_db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
         self._out_map.connection.close()

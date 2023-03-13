@@ -19,7 +19,6 @@ Unit tests for import_functions.py.
 import unittest
 
 from spinedb_api.spine_db_server import _unparse_value
-from spinedb_api.diff_db_mapping import DiffDatabaseMapping
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
     import_alternatives,
@@ -79,13 +78,13 @@ def _assert_same_elements(test, obs_vals, exp_vals):
 
 def create_diff_db_map():
     db_url = "sqlite://"
-    return DiffDatabaseMapping(db_url, username="UnitTest", create=True)
+    return DatabaseMapping(db_url, username="UnitTest", create=True)
 
 
 class TestIntegrationImportData(unittest.TestCase):
     def test_import_data_integration(self):
         database_url = "sqlite://"
-        db_map = DiffDatabaseMapping(database_url, username="IntegrationTest", create=True)
+        db_map = DatabaseMapping(database_url, username="IntegrationTest", create=True)
 
         object_c = ["example_class", "other_class"]  # 2 items
         objects = [["example_class", "example_object"], ["other_class", "other_object"]]  # 2 items

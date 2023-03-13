@@ -17,7 +17,7 @@ Unit tests for csv writer.
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from spinedb_api import DiffDatabaseMapping, import_object_classes, import_objects
+from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.mapping import Position
 from spinedb_api.export_mapping import object_export
 from spinedb_api.spine_io.exporters.writer import write
@@ -32,7 +32,7 @@ class TestCsvWriter(unittest.TestCase):
         self._temp_dir.cleanup()
 
     def test_write_empty_database(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root_mapping = object_export(0, 1)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
@@ -43,7 +43,7 @@ class TestCsvWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_write_single_object_class_and_object(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -57,7 +57,7 @@ class TestCsvWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_tables_are_written_to_separate_files(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
         db_map.commit_session("Add test data.")
@@ -81,7 +81,7 @@ class TestCsvWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_append_to_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")

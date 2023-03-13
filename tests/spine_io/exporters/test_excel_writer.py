@@ -18,7 +18,7 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from openpyxl import load_workbook
-from spinedb_api import DiffDatabaseMapping, import_object_classes, import_objects
+from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.mapping import Position
 from spinedb_api.export_mapping import object_export
 from spinedb_api.spine_io.exporters.writer import write
@@ -33,7 +33,7 @@ class TestExcelWriter(unittest.TestCase):
         self._temp_dir.cleanup()
 
     def test_write_empty_database(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         root_mapping = object_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
@@ -46,7 +46,7 @@ class TestExcelWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_write_single_object_class_and_object(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -62,7 +62,7 @@ class TestExcelWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_write_to_existing_sheet(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("Sheet1",))
         import_objects(db_map, (("Sheet1", "o1"), ("Sheet1", "o2")))
         db_map.commit_session("Add test data.")
@@ -78,7 +78,7 @@ class TestExcelWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_write_to_named_sheets(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", ("oc2")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
         db_map.commit_session("Add test data.")
@@ -96,7 +96,7 @@ class TestExcelWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_append_to_anonymous_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
@@ -113,7 +113,7 @@ class TestExcelWriter(unittest.TestCase):
         db_map.connection.close()
 
     def test_append_to_named_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")

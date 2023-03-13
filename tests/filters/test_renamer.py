@@ -24,7 +24,7 @@ from spinedb_api import (
     apply_renaming_to_entity_class_sq,
     create_new_spine_database,
     DatabaseMapping,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_object_classes,
     import_object_parameters,
     import_relationship_classes,
@@ -49,7 +49,7 @@ class TestEntityClassRenamer(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._out_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
@@ -154,7 +154,7 @@ class TestParameterRenamer(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._out_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):

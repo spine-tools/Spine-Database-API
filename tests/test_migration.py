@@ -21,7 +21,7 @@ import unittest
 from sqlalchemy import inspect
 from sqlalchemy.engine.url import URL
 from spinedb_api.helpers import create_new_spine_database, _create_first_spine_database, is_head_engine, schema_dict
-from spinedb_api import DiffDatabaseMapping
+from spinedb_api import DatabaseMapping
 
 
 class TestMigration(unittest.TestCase):
@@ -94,7 +94,7 @@ class TestMigration(unittest.TestCase):
             engine.execute("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 1, '100')")
             engine.execute("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 2, '-1')")
             # Upgrade the db and check that our stuff is still there
-            db_map = DiffDatabaseMapping(db_url, upgrade=True)
+            db_map = DatabaseMapping(db_url, upgrade=True)
             object_classes = {x.id: x.name for x in db_map.object_class_list()}
             objects = {x.id: (object_classes[x.class_id], x.name) for x in db_map.object_list()}
             rel_clss = {x.id: (x.name, x.object_class_name_list) for x in db_map.wide_relationship_class_list()}

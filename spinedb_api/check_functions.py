@@ -282,7 +282,6 @@ def check_wide_relationship(wide_item, current_items_by_name, current_items_by_o
     Raises:
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
-
     try:
         name = wide_item["name"]
     except KeyError:

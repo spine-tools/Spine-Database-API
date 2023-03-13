@@ -315,6 +315,9 @@ class DatabaseMappingBase:
             "relationship": "entity",
         }.get(tablename, tablename)
 
+    def get_table(self, tablename):
+        return self._metadata.tables[tablename]
+
     def commit_id(self):
         return self._commit_id
 
