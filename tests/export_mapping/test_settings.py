@@ -29,10 +29,8 @@ from spinedb_api import (
     import_relationships,
     TimeSeriesFixedResolution,
 )
-from spinedb_api.import_functions import import_object_groups
 from spinedb_api.export_mapping import rows
 from spinedb_api.export_mapping.settings import (
-    object_group_parameter_export,
     relationship_export,
     set_relationship_dimensions,
     object_parameter_export,
@@ -99,35 +97,6 @@ class TestRelationshipParameterExport(unittest.TestCase):
             [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
-        db_map.connection.close()
-
-
-class TestObjectGroupParameterExport(unittest.TestCase):
-    def test_export_with_parameter_values(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc",))
-        import_object_parameters(db_map, (("oc", "param"),))
-        import_objects(
-            db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2"), ("oc", "no_group"))
-        )
-        import_object_parameter_values(
-            db_map,
-            (
-                ("oc", "o1", "param", -11.0),
-                ("oc", "o2", "param", -22.0),
-                ("oc", "o3", "param", -33.0),
-                ("oc", "no_group", "param", -44.0),
-            ),
-        )
-        import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
-        db_map.commit_session("Add test data.")
-        mapping = object_group_parameter_export(0, 1, 2, 3, 4, 5, 6, 7, None)
-        expected = [
-            ["oc", "param", None, "g1", "o1", "Base", "single_value", -11.0],
-            ["oc", "param", None, "g1", "o2", "Base", "single_value", -22.0],
-            ["oc", "param", None, "g2", "o3", "Base", "single_value", -33.0],
-        ]
-        self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
 
 

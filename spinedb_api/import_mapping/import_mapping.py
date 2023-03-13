@@ -1105,6 +1105,9 @@ def from_dict(serialized):
                 position, value, skip_columns, read_start_row, filter_re, mapping_dict
             )
         )
+        if mapping_dict["map_type"] == "ObjectGroup":
+            # Legacy: dropping parameter mappings from object groups
+            break
     return unflatten(flattened)
 
 

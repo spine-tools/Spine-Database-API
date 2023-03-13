@@ -201,9 +201,10 @@ class _ManagerRequestHandler:
         self._mngr_queue = mngr_queue
 
     def _run_request(self, request, *args, **kwargs):
-        output_queue = mp.Manager().Queue()
-        self._mngr_queue.put((output_queue, request, args, kwargs))
-        return output_queue.get()
+        with mp.Manager() as manager:
+            output_queue = manager.Queue()
+            self._mngr_queue.put((output_queue, request, args, kwargs))
+            return output_queue.get()
 
     def start_server(self, db_url, upgrade, memory, ordering):
         return self._run_request("start_server", db_url, upgrade, memory, ordering)
@@ -333,6 +334,9 @@ class _DBWorker:
         self._db_map.restore_entity_class_sq_maker()
         self._db_map.restore_parameter_definition_sq_maker()
         self._db_map.restore_parameter_value_sq_maker()
+        self._db_map.restore_alternative_sq_maker()
+        self._db_map.restore_scenario_sq_maker()
+        self._db_map.restore_scenario_alternative_sq_maker()
         return dict(result=True)
 
     def _do_apply_filters(self, configs):

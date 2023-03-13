@@ -216,14 +216,12 @@ def _object_group_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     groups = map_dict.get("groups")
     members = map_dict.get("members")
-    parameters = map_dict.get("parameters")
     import_objects = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
     root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(groups))
-    group_mapping = object_mapping.child = ObjectGroupMapping(*_pos_and_val(members), import_objects=import_objects)
-    group_mapping.child = parameter_mapping_from_dict(parameters)
+    object_mapping.child = ObjectGroupMapping(*_pos_and_val(members), import_objects=import_objects)
     return root_mapping
 
 

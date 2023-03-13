@@ -89,6 +89,7 @@ class DatabaseMappingBase:
         apply_filters=True,
         memory=False,
         sqlite_timeout=1800,
+        advance_cache_query=None,
     ):
         """
         Args:
@@ -100,6 +101,8 @@ class DatabaseMappingBase:
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
             memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
         """
+        if advance_cache_query is None:
+            advance_cache_query = self._advance_cache_query
         # FIXME: We should also check the server memory property and use it here
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
@@ -129,7 +132,7 @@ class DatabaseMappingBase:
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.session = Session(self.connection, **self._session_kwargs)
-        self.cache = DBCache(self._advance_cache_query)
+        self.cache = DBCache(advance_cache_query)
         # Subqueries that select everything from each table
         self._commit_sq = None
         self._alternative_sq = None
@@ -470,7 +473,11 @@ class DatabaseMappingBase:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        attr_names = set(attr for table in tablenames for attr in self._get_table_to_sq_attr().get(table, []))
+        tablenames = list(tablenames)
+        for tablename in tablenames:
+            if self.cache.pop(tablename, None):
+                self._do_advance_cache_query(tablename)
+        attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
 
@@ -2086,9 +2093,9 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, only_descendants=False, include_ancestors=False, force_tablenames=None):
-        if only_descendants:
-            tablenames = {
+    def make_cache(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
+        if include_descendants:
+            tablenames |= {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
             }
         if include_ancestors:

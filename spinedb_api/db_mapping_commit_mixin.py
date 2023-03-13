@@ -81,4 +81,5 @@ class DatabaseMappingCommitMixin:
 
     def reset_session(self):
         self.session.rollback()
+        self.cache.clear()
         self._commit_id = None
