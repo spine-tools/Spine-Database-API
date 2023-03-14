@@ -119,8 +119,10 @@ class DatabaseMappingRemoveMixin:
     def _alternative_cascading_ids(self, ids, cache):
         """Returns alternative cascading ids."""
         cascading_ids = {"alternative": set(ids)}
-        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.alternative_id in ids]
-        scenario_alternatives = [x for x in cache.get("scenario_alternative", {}).values() if x.alternative_id in ids]
+        parameter_values = [x for x in dict.values(cache.get("parameter_value", {})) if x.alternative_id in ids]
+        scenario_alternatives = [
+            x for x in dict.values(cache.get("scenario_alternative", {})) if x.alternative_id in ids
+        ]
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(
             cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}, cache)
@@ -129,7 +131,7 @@ class DatabaseMappingRemoveMixin:
 
     def _scenario_cascading_ids(self, ids, cache):
         cascading_ids = {"scenario": set(ids)}
-        scenario_alternatives = [x for x in cache.get("scenario_alternative", {}).values() if x.scenario_id in ids]
+        scenario_alternatives = [x for x in dict.values(cache.get("scenario_alternative", {})) if x.scenario_id in ids]
         self._merge(
             cascading_ids, self._scenario_alternatives_cascading_ids({x.id for x in scenario_alternatives}, cache)
         )
@@ -138,11 +140,13 @@ class DatabaseMappingRemoveMixin:
     def _object_class_cascading_ids(self, ids, cache):
         """Returns object class cascading ids."""
         cascading_ids = {"entity_class": set(ids), "object_class": set(ids)}
-        objects = [x for x in cache.get("object", {}).values() if x.class_id in ids]
+        objects = [x for x in dict.values(cache.get("object", {})) if x.class_id in ids]
         relationship_classes = (
-            x for x in cache.get("relationship_class", {}).values() if set(x.object_class_id_list).intersection(ids)
+            x for x in dict.values(cache.get("relationship_class", {})) if set(x.object_class_id_list).intersection(ids)
         )
-        paramerer_definitions = [x for x in cache.get("parameter_definition", {}).values() if x.entity_class_id in ids]
+        paramerer_definitions = [
+            x for x in dict.values(cache.get("parameter_definition", {})) if x.entity_class_id in ids
+        ]
         self._merge(cascading_ids, self._object_cascading_ids({x.id for x in objects}, cache))
         self._merge(cascading_ids, self._relationship_class_cascading_ids({x.id for x in relationship_classes}, cache))
         self._merge(
@@ -153,10 +157,12 @@ class DatabaseMappingRemoveMixin:
     def _object_cascading_ids(self, ids, cache):
         """Returns object cascading ids."""
         cascading_ids = {"entity": set(ids), "object": set(ids)}
-        relationships = (x for x in cache.get("relationship", {}).values() if set(x.object_id_list).intersection(ids))
-        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
-        groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
-        entity_metadata_ids = {x.id for x in cache.get("entity_metadata", {}).values() if x.entity_id in ids}
+        relationships = (
+            x for x in dict.values(cache.get("relationship", {})) if set(x.object_id_list).intersection(ids)
+        )
+        parameter_values = [x for x in dict.values(cache.get("parameter_value", {})) if x.entity_id in ids]
+        groups = [x for x in dict.values(cache.get("entity_group", {})) if {x.group_id, x.member_id}.intersection(ids)]
+        entity_metadata_ids = {x.id for x in dict.values(cache.get("entity_metadata", {})) if x.entity_id in ids}
         self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}, cache))
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
@@ -170,8 +176,10 @@ class DatabaseMappingRemoveMixin:
             "relationship_entity_class": set(ids),
             "entity_class": set(ids),
         }
-        relationships = [x for x in cache.get("relationship", {}).values() if x.class_id in ids]
-        paramerer_definitions = [x for x in cache.get("parameter_definition", {}).values() if x.entity_class_id in ids]
+        relationships = [x for x in dict.values(cache.get("relationship", {})) if x.class_id in ids]
+        paramerer_definitions = [
+            x for x in dict.values(cache.get("parameter_definition", {})) if x.entity_class_id in ids
+        ]
         self._merge(cascading_ids, self._relationship_cascading_ids({x.id for x in relationships}, cache))
         self._merge(
             cascading_ids, self._parameter_definition_cascading_ids({x.id for x in paramerer_definitions}, cache)
@@ -181,9 +189,9 @@ class DatabaseMappingRemoveMixin:
     def _relationship_cascading_ids(self, ids, cache):
         """Returns relationship cascading ids."""
         cascading_ids = {"relationship": set(ids), "entity": set(ids), "relationship_entity": set(ids)}
-        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.entity_id in ids]
-        groups = [x for x in cache.get("entity_group", {}).values() if {x.group_id, x.member_id}.intersection(ids)]
-        entity_metadata_ids = {x.id for x in cache.get("entity_metadata", {}).values() if x.entity_id in ids}
+        parameter_values = [x for x in dict.values(cache.get("parameter_value", {})) if x.entity_id in ids]
+        groups = [x for x in dict.values(cache.get("entity_group", {})) if {x.group_id, x.member_id}.intersection(ids)]
+        entity_metadata_ids = {x.id for x in dict.values(cache.get("entity_metadata", {})) if x.entity_id in ids}
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._entity_group_cascading_ids({x.id for x in groups}, cache))
         self._merge(cascading_ids, self._entity_metadata_cascading_ids(entity_metadata_ids, cache))
@@ -196,8 +204,8 @@ class DatabaseMappingRemoveMixin:
     def _parameter_definition_cascading_ids(self, ids, cache):
         """Returns parameter definition cascading ids."""
         cascading_ids = {"parameter_definition": set(ids)}
-        parameter_values = [x for x in cache.get("parameter_value", {}).values() if x.parameter_id in ids]
-        features = [x for x in cache.get("feature", {}).values() if x.parameter_definition_id in ids]
+        parameter_values = [x for x in dict.values(cache.get("parameter_value", {})) if x.parameter_id in ids]
+        features = [x for x in dict.values(cache.get("feature", {})) if x.parameter_definition_id in ids]
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
         self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
@@ -206,7 +214,7 @@ class DatabaseMappingRemoveMixin:
         """Returns parameter value cascading ids."""
         cascading_ids = {"parameter_value": set(ids)}
         value_metadata_ids = {
-            x.id for x in cache.get("parameter_value_metadata", {}).values() if x.parameter_value_id in ids
+            x.id for x in dict.values(cache.get("parameter_value_metadata", {})) if x.parameter_value_id in ids
         }
         self._merge(cascading_ids, self._parameter_value_metadata_cascading_ids(value_metadata_ids, cache))
         return cascading_ids
@@ -214,7 +222,7 @@ class DatabaseMappingRemoveMixin:
     def _parameter_value_list_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries."""
         cascading_ids = {"parameter_value_list": set(ids)}
-        features = [x for x in cache.get("feature", {}).values() if x.parameter_value_list_id in ids]
+        features = [x for x in dict.values(cache.get("feature", {})) if x.parameter_value_list_id in ids]
         self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
 
@@ -227,19 +235,21 @@ class DatabaseMappingRemoveMixin:
 
     def _feature_cascading_ids(self, ids, cache):
         cascading_ids = {"feature": set(ids)}
-        tool_features = [x for x in cache.get("tool_feature", {}).values() if x.feature_id in ids]
+        tool_features = [x for x in dict.values(cache.get("tool_feature", {})) if x.feature_id in ids]
         self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}, cache))
         return cascading_ids
 
     def _tool_cascading_ids(self, ids, cache):
         cascading_ids = {"tool": set(ids)}
-        tool_features = [x for x in cache.get("tool_feature", {}).values() if x.tool_id in ids]
+        tool_features = [x for x in dict.values(cache.get("tool_feature", {})) if x.tool_id in ids]
         self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}, cache))
         return cascading_ids
 
     def _tool_feature_cascading_ids(self, ids, cache):
         cascading_ids = {"tool_feature": set(ids)}
-        tool_feature_methods = [x for x in cache.get("tool_feature_method", {}).values() if x.tool_feature_id in ids]
+        tool_feature_methods = [
+            x for x in dict.values(cache.get("tool_feature_method", {})) if x.tool_feature_id in ids
+        ]
         self._merge(cascading_ids, self._tool_feature_method_cascading_ids({x.id for x in tool_feature_methods}, cache))
         return cascading_ids
 
@@ -249,12 +259,12 @@ class DatabaseMappingRemoveMixin:
     def _metadata_cascading_ids(self, ids, cache):
         cascading_ids = {"metadata": set(ids)}
         entity_metadata = {
-            "entity_metadata": {x.id for x in cache.get("entity_metadata", {}).values() if x.metadata_id in ids}
+            "entity_metadata": {x.id for x in dict.values(cache.get("entity_metadata", {})) if x.metadata_id in ids}
         }
         self._merge(cascading_ids, entity_metadata)
         value_metadata = {
             "parameter_value_metadata": {
-                x.id for x in cache.get("parameter_value_metadata", {}).values() if x.metadata_id in ids
+                x.id for x in dict.values(cache.get("parameter_value_metadata", {})) if x.metadata_id in ids
             }
         }
         self._merge(cascading_ids, value_metadata)
