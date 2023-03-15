@@ -828,6 +828,11 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(array.indexes, [0])
         self.assertEqual(array.index_name, "index")
 
+    def test_Array_constructor_converts_ints_to_floats(self):
+        array = Array([9, 5])
+        self.assertIs(array.value_type, float)
+        self.assertEqual(array.values, [9.0, 5.0])
+
     def test_DateTime_copy_construction(self):
         date_time = DateTime("2019-07-03T09:09:09")
         copied = DateTime(date_time)
