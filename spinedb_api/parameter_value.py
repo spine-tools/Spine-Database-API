@@ -905,7 +905,10 @@ class Array(IndexedValue):
                     raise ParameterValueFormatError("Cannot convert array's values to float.")
                 value_type = float
         if any(not isinstance(x, value_type) for x in values):
-            raise ParameterValueFormatError("Not all array's values are of the same type.")
+            try:
+                values = [value_type(x) for x in values]
+            except ValueError:
+                raise ParameterValueFormatError("Not all array's values are of the same type.")
         self.indexes = range(len(values))
         self.values = list(values)
         self._value_type = value_type

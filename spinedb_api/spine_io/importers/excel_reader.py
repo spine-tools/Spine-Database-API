@@ -133,7 +133,7 @@ class ExcelConnector(SourceConnection):
         else:
             header = []
             rows = chain((first_row,), rows)
-        # iterator for selected columns and and skipped rows
+        # iterator for selected columns and skipped rows
         data_iterator = (list(cell.value for cell in islice(row, skip_columns, read_to_col)) for row in rows)
         if stop_at_empty_row:
             # add condition to iterator
