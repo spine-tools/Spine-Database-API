@@ -87,12 +87,11 @@ class TableCache(dict):
     def values(self):
         return (x for x in super().values() if x.is_valid())
 
-    def add_item(self, item):
-        existing_item = self.get(item["id"])
-        if existing_item is not None:
-            # Happens when the user presses refresh: New items are collected from the DB but they are already
-            # in the cache. We need to keep the cache version as it may have uncommitted changes.
-            return existing_item
+    def add_item(self, item, keep_existing=False):
+        if keep_existing:
+            existing_item = self.get(item["id"])
+            if existing_item is not None:
+                return existing_item
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
         return new_item
 
