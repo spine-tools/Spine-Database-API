@@ -276,10 +276,8 @@ class DatabaseMappingBase:
         child_tablenames = {
             "alternative": ("parameter_value", "scenario_alternative"),
             "scenario": ("scenario_alternative",),
-            "object_class": ("object", "relationship_class", "parameter_definition"),
-            "object": ("relationship", "parameter_value", "entity_group", "entity_metadata"),
-            "relationship_class": ("relationship", "parameter_definition"),
-            "relationship": ("parameter_value", "entity_group", "entity_metadata"),
+            "entity_class": ("entity", "parameter_definition"),
+            "entity": ("parameter_value", "entity_group", "entity_metadata"),
             "parameter_definition": ("parameter_value", "feature"),
             "parameter_value_list": ("feature",),
             "parameter_value": ("parameter_value_metadata", "entity_metadata"),
