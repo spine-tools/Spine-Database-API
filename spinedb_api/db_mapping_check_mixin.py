@@ -488,6 +488,9 @@ class DatabaseMappingCheckMixin:
         relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
         object_class_ids = [x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list]
         for wide_item in wide_items:
+            object_class_id_list = wide_item.get("object_class_id_list")
+            if "dimension_id_list" not in wide_item and object_class_id_list is not None:
+                wide_item["dimension_id_list"] = object_class_id_list
             try:
                 with self._manage_stocks(
                     "entity_class",
@@ -541,13 +544,16 @@ class DatabaseMappingCheckMixin:
             if not x.element_id_list
         }
         for wide_item in wide_items:
+            object_id_list = wide_item.get("object_id_list")
+            if "element_id_list" not in wide_item and object_id_list is not None:
+                wide_item["element_id_list"] = object_id_list
             try:
                 with self._manage_stocks(
                     "entity",
                     wide_item,
                     {
                         ("class_id", "name"): relationship_ids_by_name,
-                        ("class_id", "object_id_list"): relationship_ids_by_obj_lst,
+                        ("class_id", "element_id_list"): relationship_ids_by_obj_lst,
                     },
                     for_update,
                     cache,

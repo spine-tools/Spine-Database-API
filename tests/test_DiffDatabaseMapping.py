@@ -591,11 +591,10 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        x = self._db_map.add_wide_relationships(
+        self._db_map.add_wide_relationships(
             {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
             {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
         )
-        self._db_map.commit_session("Ok")
         relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationships), 1)
 
