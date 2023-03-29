@@ -69,7 +69,7 @@ class TestEntityClassRenamer(unittest.TestCase):
         self.assertEqual(len(classes), 1)
         class_row = classes[0]
         keys = tuple(class_row.keys())
-        expected_keys = ("id", "type_id", "name", "description", "display_order", "display_icon", "hidden", "commit_id")
+        expected_keys = ("id", "name", "description", "display_order", "display_icon", "hidden")
         self.assertEqual(len(keys), len(expected_keys))
         for expected_key in expected_keys:
             self.assertIn(expected_key, keys)
@@ -126,7 +126,7 @@ class TestEntityClassRenamer(unittest.TestCase):
         self.assertEqual(len(classes), 1)
         class_row = classes[0]
         keys = tuple(class_row.keys())
-        expected_keys = ("id", "type_id", "name", "description", "display_order", "display_icon", "hidden", "commit_id")
+        expected_keys = ("id", "name", "description", "display_order", "display_icon", "hidden")
         self.assertEqual(len(keys), len(expected_keys))
         for expected_key in expected_keys:
             self.assertIn(expected_key, keys)

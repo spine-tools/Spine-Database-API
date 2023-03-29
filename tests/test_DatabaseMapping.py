@@ -18,14 +18,7 @@ Unit tests for DatabaseMapping class.
 import unittest
 from unittest.mock import patch
 from sqlalchemy.engine.url import URL
-from spinedb_api import (
-    DatabaseMapping,
-    to_database,
-    import_functions,
-    from_database,
-    SpineDBAPIError,
-    SpineIntegrityError,
-)
+from spinedb_api import DatabaseMapping, to_database, import_functions, from_database, SpineDBAPIError
 
 IN_MEMORY_DB_URL = "sqlite://"
 
@@ -64,26 +57,14 @@ class TestDatabaseMappingBase(unittest.TestCase):
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
-    def test_entity_class_type_sq(self):
-        columns = ["id", "name", "commit_id"]
-        self.assertEqual(len(self._db_map.entity_class_type_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.entity_class_type_sq.c, column_name))
-
-    def test_entity_type_sq(self):
-        columns = ["id", "name", "commit_id"]
-        self.assertEqual(len(self._db_map.entity_type_sq.c), len(columns))
-        for column_name in columns:
-            self.assertTrue(hasattr(self._db_map.entity_type_sq.c, column_name))
-
     def test_entity_sq(self):
-        columns = ["id", "type_id", "class_id", "name", "description", "commit_id"]
+        columns = ["id", "class_id", "name", "description", "commit_id"]
         self.assertEqual(len(self._db_map.entity_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.entity_sq.c, column_name))
 
     def test_object_class_sq(self):
-        columns = ["id", "name", "description", "display_order", "display_icon", "hidden", "commit_id"]
+        columns = ["id", "name", "description", "display_order", "display_icon", "hidden"]
         self.assertEqual(len(self._db_map.object_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.object_class_sq.c, column_name))
@@ -95,7 +76,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
             self.assertTrue(hasattr(self._db_map.object_sq.c, column_name))
 
     def test_relationship_class_sq(self):
-        columns = ["id", "dimension", "object_class_id", "name", "description", "display_icon", "hidden", "commit_id"]
+        columns = ["id", "dimension", "object_class_id", "name", "description", "display_icon", "hidden"]
         self.assertEqual(len(self._db_map.relationship_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.relationship_class_sq.c, column_name))
@@ -171,22 +152,13 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "dimension",
             "object_class_id",
             "object_class_name",
-            "commit_id",
         ]
         self.assertEqual(len(self._db_map.ext_relationship_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.ext_relationship_class_sq.c, column_name))
 
     def test_wide_relationship_class_sq(self):
-        columns = [
-            "id",
-            "name",
-            "description",
-            "display_icon",
-            "commit_id",
-            "object_class_id_list",
-            "object_class_name_list",
-        ]
+        columns = ["id", "name", "description", "display_icon", "object_class_id_list", "object_class_name_list"]
         self.assertEqual(len(self._db_map.wide_relationship_class_sq.c), len(columns))
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_relationship_class_sq.c, column_name))

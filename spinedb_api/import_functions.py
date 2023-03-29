@@ -2396,7 +2396,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cac
     }
     object_ids = {(x.name, x.class_id): x.id for x in cache.get("entity", {}).values() if not x.element_id_list}
     relationship_ids = {
-        (x.object_id_list, x.class_id): x.id for x in cache.get("entity", {}).values() if x.element_id_list
+        (x.element_id_list, x.class_id): x.id for x in cache.get("entity", {}).values() if x.element_id_list
     }
     parameter_ids = {
         (x.parameter_name, x.entity_class_id): x.id for x in cache.get("parameter_definition", {}).values()

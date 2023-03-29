@@ -17,7 +17,6 @@
 # TODO: Review docstrings, they are almost good
 
 from contextlib import contextmanager
-from itertools import chain
 from .exception import SpineIntegrityError
 from .check_functions import (
     check_alternative,
@@ -499,7 +498,8 @@ class DatabaseMappingCheckMixin:
                     intgr_error_log,
                 ) as wide_item:
                     if "object_class_id_list" not in wide_item:
-                        wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
+                        # Use CacheItem.get rather than pop since the former implements the lookup
+                        wide_item["object_class_id_list"] = wide_item.get("dimension_id_list", ())
                     check_wide_relationship_class(wide_item, relationship_class_ids, object_class_ids)
                     checked_wide_items.append(wide_item)
             except SpineIntegrityError as e:
@@ -547,16 +547,18 @@ class DatabaseMappingCheckMixin:
                     wide_item,
                     {
                         ("class_id", "name"): relationship_ids_by_name,
-                        ("class_id", "element_id_list"): relationship_ids_by_obj_lst,
+                        ("class_id", "object_id_list"): relationship_ids_by_obj_lst,
                     },
                     for_update,
                     cache,
                     intgr_error_log,
                 ) as wide_item:
                     if "object_class_id_list" not in wide_item:
-                        wide_item["object_class_id_list"] = wide_item.pop("dimension_id_list", ())
+                        # NOTE: Use CacheItem.get rather than pop since the former implements the lookup
+                        wide_item["object_class_id_list"] = wide_item.get("dimension_id_list", ())
                     if "object_id_list" not in wide_item:
-                        wide_item["object_id_list"] = wide_item.pop("element_id_list", ())
+                        # NOTE: Use CacheItem.get rather than pop since the former implements the lookup
+                        wide_item["object_id_list"] = wide_item.get("element_id_list", ())
                     check_wide_relationship(
                         wide_item,
                         relationship_ids_by_name,
@@ -630,8 +632,17 @@ class DatabaseMappingCheckMixin:
         parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         for item in items:
-            if "entity_class_id" not in item:
-                item["entity_class_id"] = item.get("object_class_id") or item.get("relationship_class_id")
+            object_class_id = item.get("object_class_id")
+            relationship_class_id = item.get("relationship_class_id")
+            if object_class_id and relationship_class_id:
+                e = SpineIntegrityError("Can't associate a parameter to both an object and a relationship class.")
+                if strict:
+                    raise e
+                intgr_error_log.append(e)
+                continue
+            entity_class_id = object_class_id or relationship_class_id
+            if "entity_class_id" not in item and entity_class_id is not None:
+                item["entity_class_id"] = entity_class_id
             try:
                 if (
                     for_update
@@ -691,8 +702,9 @@ class DatabaseMappingCheckMixin:
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         alternatives = set(a.id for a in cache.get("alternative", {}).values())
         for item in items:
-            if "entity_id" not in item:
-                item["entity_id"] = item.get("object_id") or item.get("relationship_id")
+            entity_id = item.get("object_id") or item.get("relationship_id")
+            if "entity_id" not in item and entity_id is not None:
+                item["entity_id"] = entity_id
             try:
                 with self._manage_stocks(
                     "parameter_value",
@@ -846,8 +858,7 @@ class DatabaseMappingCheckMixin:
             cache = self.make_cache({"entity_metadata"}, include_ancestors=True)
         intgr_error_log = []
         checked_items = list()
-        entities = {x.id for x in cache.get("object", {}).values()}
-        entities |= {x.id for x in cache.get("relationship", {}).values()}
+        entities = {x.id for x in cache.get("entity", {}).values()}
         metadata = {x.id for x in cache.get("metadata", {}).values()}
         for item in items:
             try:
@@ -952,13 +963,17 @@ def _get_key(item, pk):
 
 def _fix_immutable_fields(item_type, current_item, item):
     immutable_fields = {
-        "object": ("class_id",),
+        "entity_class": ("dimension_id_list",),
         "relationship_class": ("object_class_id_list",),
+        "object": ("class_id",),
         "relationship": ("class_id",),
+        "entity": ("class_id",),
         "parameter_definition": ("entity_class_id", "object_class_id", "relationship_class_id"),
         "parameter_value": ("entity_class_id", "object_class_id", "relationship_class_id"),
     }.get(item_type, ())
     fixed = []
+    # FIXME: we need to be able to identify object_class_id_list as dimension_id_list
+    # for relationship class items
     for field in immutable_fields:
         if current_item.get(field) is None:
             continue

@@ -19,9 +19,7 @@ from pathlib import Path
 import unittest
 from tempfile import TemporaryDirectory
 from sqlalchemy.engine.url import URL
-
 from spinedb_api import (
-    DatabaseMapping,
     DatabaseMapping,
     import_object_classes,
     import_object_parameter_values,

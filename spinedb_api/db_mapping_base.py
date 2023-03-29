@@ -1567,13 +1567,13 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.entity_class_id,
                     self.parameter_definition_sq.c.object_class_id,
                     self.parameter_definition_sq.c.relationship_class_id,
-                    self.entity_class_sq.c.name.label("entity_class_name"),
+                    self.ext_entity_class_sq.c.name.label("entity_class_name"),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
                     label("object_class_id_list", self._object_class_id_list()),
                     label("object_class_name_list", self._object_class_name_list()),
                     self.parameter_value_sq.c.entity_id,
-                    self.entity_sq.c.name.label("entity_name"),
+                    self.ext_entity_sq.c.name.label("entity_name"),
                     self.parameter_value_sq.c.object_id,
                     self.parameter_value_sq.c.relationship_id,
                     label("object_name", self._object_name()),
@@ -1592,13 +1592,17 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq,
                     self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id,
                 )
-                .join(self.entity_sq, self.parameter_value_sq.c.entity_id == self.entity_sq.c.id)
-                .join(self.entity_class_sq, self.parameter_definition_sq.c.entity_class_id == self.entity_class_sq.c.id)
+                .join(self.ext_entity_sq, self.parameter_value_sq.c.entity_id == self.ext_entity_sq.c.id)
+                .join(
+                    self.ext_entity_class_sq,
+                    self.parameter_definition_sq.c.entity_class_id == self.ext_entity_class_sq.c.id,
+                )
                 .join(self.alternative_sq, self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .outerjoin(
-                    self.wide_relationship_class_sq, self.wide_relationship_class_sq.c.id == self.entity_class_sq.c.id
+                    self.wide_relationship_class_sq,
+                    self.wide_relationship_class_sq.c.id == self.ext_entity_class_sq.c.id,
                 )
-                .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.entity_sq.c.id)
+                .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.ext_entity_sq.c.id)
                 # object_id_list might be None when objects have been filtered out
                 .filter(
                     or_(
@@ -2170,7 +2174,7 @@ class DatabaseMappingBase:
         )
 
     def _object_name(self):
-        return case([(self.ext_entity_sq.c.element_id_list == None, self.entity_sq.c.name)], else_=None)
+        return case([(self.ext_entity_sq.c.element_id_list == None, self.ext_entity_sq.c.name)], else_=None)
 
     def _object_id_list(self):
         return case(

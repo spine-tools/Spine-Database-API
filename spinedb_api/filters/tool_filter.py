@@ -17,7 +17,7 @@ Provides functions to apply filtering based on tools to entity subqueries.
 """
 from functools import partial
 from uuid import uuid4
-from sqlalchemy import and_, or_, case, func, Table, Column, ForeignKey
+from sqlalchemy import and_, or_, case, func, Column, ForeignKey
 from ..exception import SpineDBAPIError
 
 
@@ -164,12 +164,10 @@ class _ToolFilterState:
             Alias: subquery
         """
         tool_feature_method_sq = _make_ext_tool_feature_method_sq(db_map, tool_id)
-
         method_filter = _make_method_filter(
             tool_feature_method_sq, db_map.parameter_value_sq, db_map.parameter_definition_sq
         )
         required_filter = _make_required_filter(tool_feature_method_sq, db_map.parameter_value_sq)
-
         return (
             db_map.query(db_map.entity_sq.c.id)
             .outerjoin(

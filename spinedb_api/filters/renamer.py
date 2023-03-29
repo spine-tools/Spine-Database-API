@@ -212,13 +212,11 @@ def _make_renaming_entity_class_sq(db_map, state):
     new_class_name = case(cases, else_=subquery.c.name)  # if not in the name map, just keep the original name
     entity_class_sq = db_map.query(
         subquery.c.id,
-        subquery.c.type_id,
         new_class_name.label("name"),
         subquery.c.description,
         subquery.c.display_order,
         subquery.c.display_icon,
         subquery.c.hidden,
-        subquery.c.commit_id,
     ).subquery()
     return entity_class_sq
 

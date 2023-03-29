@@ -23,7 +23,6 @@ from spinedb_api import (
     apply_scenario_filter_to_subqueries,
     create_new_spine_database,
     DatabaseMapping,
-    DatabaseMapping,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
@@ -107,7 +106,7 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, b"23.0")
         alternatives = [a._asdict() for a in self._out_map.query(self._out_map.alternative_sq)]
-        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
         scenarios = [s._asdict() for s in self._out_map.query(self._out_map.wide_scenario_sq).all()]
         self.assertEqual(
             scenarios,
@@ -119,7 +118,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative",
                     "alternative_id_list": "2",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )

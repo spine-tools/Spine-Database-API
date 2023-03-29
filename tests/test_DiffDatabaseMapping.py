@@ -568,19 +568,15 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
         self._db_map.add_wide_relationships({"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
-        # FIXME
-        self._db_map.commit_session("Ok")
-        diff_table = self._db_map.get_table("entity_element")
-        ent_els = self._db_map.query(diff_table).all()
-        diff_table = self._db_map.get_table("entity")
-        relationships = self._db_map.query(diff_table).filter(diff_table.c.id.in_({x.entity_id for x in ent_els})).all()
+        ent_els = self._db_map.query(self._db_map.get_table("entity_element")).all()
+        relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(ent_els), 2)
         self.assertEqual(len(relationships), 1)
         self.assertEqual(relationships[0].name, "nemo__pluto")
         self.assertEqual(ent_els[0].entity_class_id, 3)
-        self.assertEqual(ent_els[0].member_id, 1)
+        self.assertEqual(ent_els[0].element_id, 1)
         self.assertEqual(ent_els[1].entity_class_id, 3)
-        self.assertEqual(ent_els[1].member_id, 2)
+        self.assertEqual(ent_els[1].element_id, 2)
 
     def test_add_relationship_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
@@ -593,11 +589,11 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one."""
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "dimension_id_list": [1, 2]})
+        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        self._db_map.add_wide_relationships(
-            {"name": "nemo__pluto", "class_id": 3, "element_id_list": [1, 2]},
-            {"name": "nemo__pluto_duplicate", "class_id": 3, "element_id_list": [1, 2]},
+        x = self._db_map.add_wide_relationships(
+            {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
+            {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
         )
         self._db_map.commit_session("Ok")
         relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
@@ -916,7 +912,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             alternatives[0]._asdict(), {"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}
         )
         self.assertEqual(
-            alternatives[1]._asdict(), {"id": 2, "name": "my_alternative", "description": None, "commit_id": None}
+            alternatives[1]._asdict(), {"id": 2, "name": "my_alternative", "description": None, "commit_id": 2}
         )
 
     def test_add_scenario(self):
@@ -927,7 +923,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(scenarios), 1)
         self.assertEqual(
             scenarios[0]._asdict(),
-            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": None},
+            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": 2},
         )
 
     def test_add_scenario_alternative(self):
@@ -940,7 +936,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(scenario_alternatives), 1)
         self.assertEqual(
             scenario_alternatives[0]._asdict(),
-            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": None},
+            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": 3},
         )
 
     def test_add_metadata(self):

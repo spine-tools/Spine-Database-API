@@ -17,6 +17,9 @@ DB cache utility.
 from operator import itemgetter
 
 
+# TODO: Implement CacheItem.pop() to do lookup?
+
+
 class DBCache(dict):
     def __init__(self, advance_query, *args, **kwargs):
         """

@@ -191,17 +191,13 @@ def _make_parameter_value_transforming_sq(db_map, state):
     new_value = case([(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value)
     new_type = case([(temp_sq.c.transformed_type != None, temp_sq.c.transformed_type)], else_=subquery.c.type)
     object_class_case = case(
-        [(db_map.entity_class_sq.c.type_id == db_map.object_class_type, subquery.c.entity_class_id)], else_=None
+        [(db_map.ext_entity_class_sq.c.dimension_id_list == None, subquery.c.entity_class_id)], else_=None
     )
     rel_class_case = case(
-        [(db_map.entity_class_sq.c.type_id == db_map.relationship_class_type, subquery.c.entity_class_id)], else_=None
+        [(db_map.ext_entity_class_sq.c.dimension_id_list != None, subquery.c.entity_class_id)], else_=None
     )
-    object_entity_case = case(
-        [(db_map.entity_sq.c.type_id == db_map.object_entity_type, subquery.c.entity_id)], else_=None
-    )
-    rel_entity_case = case(
-        [(db_map.entity_sq.c.type_id == db_map.relationship_entity_type, subquery.c.entity_id)], else_=None
-    )
+    object_entity_case = case([(db_map.ext_entity_sq.c.element_id_list == None, subquery.c.entity_id)], else_=None)
+    rel_entity_case = case([(db_map.ext_entity_sq.c.element_id_list != None, subquery.c.entity_id)], else_=None)
     parameter_value_sq = (
         db_map.query(
             subquery.c.id.label("id"),
