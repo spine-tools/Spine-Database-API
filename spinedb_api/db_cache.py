@@ -88,7 +88,11 @@ class TableCache(dict):
     def values(self):
         return (x for x in super().values() if x.is_valid())
 
-    def add_item(self, item):
+    def add_item(self, item, keep_existing=False):
+        if keep_existing:
+            existing_item = self.get(item["id"])
+            if existing_item is not None:
+                return existing_item
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
         return new_item
 

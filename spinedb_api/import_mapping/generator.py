@@ -201,13 +201,9 @@ def _split_mapping(mapping):
     non_pivoted = []
     pivoted_from_header = []
     for m in flattened:
-        if m is flattened[-1]:
-            if pivoted:
-                break
-            elif pivoted_from_header and not non_pivoted:
-                m.position = -1
-                pivoted.append(m)
-                break
+        if pivoted and m is flattened[-1]:
+            # If any other mapping is pivoted, ignore last mapping's position
+            break
         if m.position == Position.header and m.value is None:
             pivoted_from_header.append(m)
             continue
@@ -224,17 +220,17 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     """Unpivots rows.
 
     Args:
-        rows (list(list)): Source table rows
+        rows (list of list): Source table rows
         data_header (list): Source table header
-        pivoted (list(ImportMapping)): Pivoted mappings (reading from rows)
-        non_pivoted (list(ImportMapping)): Non-pivoted mappings ('regular', reading from columns)
-        pivoted_from_header (list(ImportMapping)): Mappings pivoted from header
+        pivoted (list of ImportMapping): Pivoted mappings (reading from rows)
+        non_pivoted (list of ImportMapping): Non-pivoted mappings ('regular', reading from columns)
+        pivoted_from_header (list of ImportMapping): Mappings pivoted from header
 
     Returns:
-        list(list): Unpivoted rows
+        list of list: Unpivoted rows
         int: Position of last pivoted row
         int: Position of last non-pivoted row
-        list(int): Columns positions corresponding to unpivoted rows
+        list of int: Columns positions corresponding to unpivoted rows
     """
     # First we collect pivoted and unpivoted positions
     pivoted_pos = [-(m.position + 1) for m in pivoted]  # (-1) -> (0), (-2) -> (1), (-3) -> (2), etc.
@@ -250,11 +246,14 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     # Collect non pivoted and skipped positions
     skip_pos = set(skip_columns) | set(non_pivoted_pos)
     # Remove items in those positions from pivoted rows
-    pivoted_rows = [[item for k, item in enumerate(row) if k not in skip_pos] for row in pivoted_rows]
+    if skip_pos:
+        pivoted_rows = [[item for k, item in enumerate(row) if k not in skip_pos] for row in pivoted_rows]
     # Unpivot
     unpivoted_rows = [list(row) for row in zip(*pivoted_rows)]
     if not non_pivoted_pos:
         last_pivoted_position = max(pivoted_pos)
+        if pivoted_from_header:
+            last_pivoted_position += 1
         expanded_pivoted_rows = []
         for row in unpivoted_rows:
             head = row[: last_pivoted_position + 1]

@@ -364,6 +364,42 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_arrays_get_imported_correctly_when_objects_are_in_header_and_alternatives_in_first_row(self):
+        header = ["object_1", "object_2"]
+        data_source = iter([["Base", "Base"], [-1.1, 2.3], [1.1, -2.3]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "hidden", "value": "Gadget"},
+                {"map_type": "Object", "position": "header"},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "data"},
+                {"map_type": "Alternative", "position": -1},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "array"},
+                {"map_type": "IndexName", "position": "hidden"},
+                {"map_type": "ParameterValueIndex", "position": "hidden"},
+                {"map_type": "ExpandedValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "float", 1: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "object_classes": {"Gadget"},
+                "object_parameter_values": [
+                    ["Gadget", "object_1", "data", Array([-1.1, 1.1]), "Base"],
+                    ["Gadget", "object_2", "data", Array([2.3, -2.3]), "Base"],
+                ],
+                "object_parameters": [("Gadget", "data")],
+                "objects": {("Gadget", "object_1"), ("Gadget", "object_2")},
+            },
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
