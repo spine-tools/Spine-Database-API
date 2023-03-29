@@ -577,7 +577,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         updated_ids, errors = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "renamed", "object_class_id_list": [2]}
         )
-        self.assertEqual([str(err) for err in errors], ["Can't update fixed fields 'object_class_id_list'"])
+        self.assertEqual([str(err) for err in errors], ["Can't update fixed fields 'dimension_id_list'"])
         self.assertEqual(updated_ids, {3})
         self._db_map.commit_session("Update data.")
         classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()

@@ -978,8 +978,6 @@ def _fix_immutable_fields(item_type, current_item, item):
         "parameter_value": ("entity_class_id", "object_class_id", "relationship_class_id"),
     }.get(item_type, ())
     fixed = []
-    # FIXME: we need to be able to identify object_class_id_list as dimension_id_list
-    # for relationship class items
     for field in immutable_fields:
         if current_item.get(field) is None:
             continue

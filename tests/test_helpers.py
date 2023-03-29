@@ -38,7 +38,7 @@ class TestHelpers(unittest.TestCase):
         """Test that importing object class works"""
         engine1 = create_new_spine_database('sqlite://')
         engine2 = create_new_spine_database('sqlite://')
-        engine2.execute("drop table entity_type")
+        engine2.execute("drop table entity")
         self.assertFalse(compare_schemas(engine1, engine2))
 
 

@@ -48,9 +48,9 @@ def create_diff_db_map():
 class TestDatabaseMappingConstruction(unittest.TestCase):
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
-        with mock.patch("spinedb_api.diff_db_mapping.apply_filter_stack") as mock_apply:
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with mock.patch(
-                "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(db_url, create=True)
                 db_map.connection.close()
@@ -60,9 +60,9 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
     def test_construction_with_sqlalchemy_url_and_filters(self):
         db_url = IN_MEMORY_DB_URL + "/?spinedbfilter=fltr1&spinedbfilter=fltr2"
         sa_url = make_url(db_url)
-        with mock.patch("spinedb_api.diff_db_mapping.apply_filter_stack") as mock_apply:
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with mock.patch(
-                "spinedb_api.diff_db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(sa_url, create=True)
                 db_map.connection.close()
