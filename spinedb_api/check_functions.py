@@ -131,7 +131,6 @@ def check_entity(item, current_items_by_name, current_items_by_el_id_lst, entity
     Raises:
         SpineIntegrityError: if the insertion of the item violates an integrity constraint.
     """
-
     try:
         name = item["name"]
     except KeyError:

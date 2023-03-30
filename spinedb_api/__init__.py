@@ -48,6 +48,10 @@ from .check_functions import (
 from .import_functions import (
     import_alternatives,
     import_data,
+    import_entity_classes,
+    import_entities,
+    import_parameter_definitions,
+    import_parameter_values,
     import_object_classes,
     import_objects,
     import_object_parameters,

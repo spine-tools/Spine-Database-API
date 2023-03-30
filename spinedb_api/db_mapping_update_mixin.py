@@ -39,6 +39,8 @@ class DatabaseMappingUpdateMixin:
         return self._do_update_items(real_tablename, *items)
 
     def _do_update_items(self, tablename, *items):
+        if not items:
+            return set()
         if self.committing:
             self._add_commit_id(*items)
             table = self._metadata.tables[tablename]

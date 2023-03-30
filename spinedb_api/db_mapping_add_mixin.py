@@ -423,7 +423,7 @@ class DatabaseMappingAddMixin:
         return self._add_items("entity_class", *items)
 
     def _add_entities(self, *items):
-        return self._add_items("entities", *items)
+        return self._add_items("entity", *items)
 
     def _add_object_classes(self, *items):
         return self._add_items("object_class", *items)

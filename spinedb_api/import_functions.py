@@ -383,7 +383,7 @@ def _get_entity_classes_for_import(db_map, data, make_cache):
             if ec_id is not None
             else {"name": name, "description": None, "display_icon": None}
         )
-        item.update(dict(zip(("description", "display_icon", "dimension_name_list"), optionals)))
+        item.update(dict(zip(("dimension_name_list", "description", "display_icon"), optionals)))
         item["dimension_id_list"] = tuple(entity_class_ids.get(x, None) for x in item.get("dimension_name_list", ()))
         try:
             check_entity_class(item, entity_class_ids)
@@ -474,6 +474,7 @@ def _get_entities_for_import(db_map, data, make_cache):
                 "name": e_name,
                 "class_id": ec_id,
                 "element_id_list": el_ids,
+                "dimension_id_list": dim_ids,
             }
         )
         item.update(dict(zip(("description",), optionals)))
@@ -682,7 +683,7 @@ def _get_parameter_values_for_import(db_map, data, make_cache, unparse_value, on
     parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
     list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
     parameter_ids = {(p["entity_class_id"], p["name"]): p_id for p_id, p in parameters.items()}
-    entity_ids = {(x["class_id"], x["element_id_list"]): e_id for e_id, x in entities.items()}
+    entity_ids = {(x["class_id"], x["element_id_list"] or x["name"]): e_id for e_id, x in entities.items()}
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
     alternatives = {a.name: a.id for a in cache.get("alternative", {}).values()}
     alternative_ids = set(alternatives.values())
@@ -757,7 +758,7 @@ def _get_parameter_values_for_import(db_map, data, make_cache, unparse_value, on
             continue
         finally:
             if pv_id is not None:
-                parameter_value_ids[r_id, p_id, alt_id] = pv_id
+                parameter_value_ids[e_id, p_id, alt_id] = pv_id
         checked.add(checked_key)
         if pv_id is not None:
             item["id"] = pv_id
