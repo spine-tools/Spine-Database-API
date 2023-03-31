@@ -121,6 +121,15 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
+def lower_if_bool(value: str | bytes) -> str | bytes:
+    """Check if string or bytes object is a boolean, if yes lowercase, noop otherwise"""
+    value_lower = value.lower()
+    if value_lower in ['true', 'false', b'true', b'false']:
+        return value_lower
+    else:
+        return value
+
+
 def load_db_value(db_value, value_type=None):
     """
     Loads a database parameter value into a Python object using JSON.
@@ -136,7 +145,7 @@ def load_db_value(db_value, value_type=None):
     if db_value is None:
         return None
     try:
-        parsed = json.loads(db_value)
+        parsed = json.loads(lower_if_bool(db_value))
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     if isinstance(parsed, dict):
