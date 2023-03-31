@@ -36,7 +36,7 @@ class TestCheckFunctions(unittest.TestCase):
         self.list_values = {1: True, 2: False, 3: 42, 4: -2, 5: 'foo', 6: 'Bar', 7: 'BAZ'}
 
     def get_item(self, _type: type, val: bytes):
-        _id = self.value_type[_type]  # setup: param defn/value list ids are equal
+        _id = self.value_type[_type]  # setup: parameter definition/value list ids are equal
         kwargs = {
             'id': 1,
             'parameter_definition_id': _id,
@@ -54,6 +54,7 @@ class TestCheckFunctions(unittest.TestCase):
         return ParameterValueItem(DBCache(lambda *_, **__: None), item_type="value", **kwargs)
 
     def test_replace_parameter_or_default_values_with_list_references(self):
+        # regression test for spine-tools/Spine-Toolbox#1878
         for _type, _fail, _pass in self.data:
             for data in _fail:
                 with self.subTest(_type=_type, data=data):
