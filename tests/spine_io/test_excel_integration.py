@@ -104,10 +104,10 @@ class TestExcelIntegration(unittest.TestCase):
 
     def _check_parameter_value(self, val):
         input_data = {
-            "object_classes": ["dog"],
-            "objects": [("dog", "pluto")],
-            "object_parameters": [("dog", "bone")],
-            "object_parameter_values": [("dog", "pluto", "bone", val)],
+            "entity_classes": {("dog",)},
+            "entities": {("dog", "pluto")},
+            "parameter_definitions": [("dog", "bone")],
+            "parameter_values": [("dog", "pluto", "bone", val)],
         }
         db_map = DatabaseMapping("sqlite://", create=True)
         import_data(db_map, **input_data)
@@ -118,11 +118,11 @@ class TestExcelIntegration(unittest.TestCase):
             output_data, errors = get_mapped_data_from_xlsx(path)
         db_map.connection.close()
         self.assertEqual([], errors)
-        input_obj_param_vals = input_data.pop("object_parameter_values")
-        output_obj_param_vals = output_data.pop("object_parameter_values")
-        self.assertEqual(1, len(output_obj_param_vals))
-        input_obj_param_val = input_obj_param_vals[0]
-        output_obj_param_val = output_obj_param_vals[0]
+        input_param_vals = input_data.pop("parameter_values")
+        output_param_vals = output_data.pop("parameter_values")
+        self.assertEqual(1, len(output_param_vals))
+        input_obj_param_val = input_param_vals[0]
+        output_obj_param_val = output_param_vals[0]
         for input_, output in zip(input_obj_param_val[:3], output_obj_param_val[:3]):
             self.assertEqual(input_, output)
         input_val = input_obj_param_val[3]

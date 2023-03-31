@@ -159,7 +159,7 @@ def get_mapped_data(
                 full_row = non_pivoted_row + unpivoted_row
                 full_row.append(row[column_pos])
                 mapping.import_row(full_row, read_state, mapped_data)
-    _make_relationship_classes(mapped_data)
+    _make_entity_classes(mapped_data)
     _make_parameter_values(mapped_data, unparse_value)
     return mapped_data, errors
 
@@ -264,22 +264,22 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     return unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos
 
 
-def _make_relationship_classes(mapped_data):
-    rows = mapped_data.get("relationship_classes")
+def _make_entity_classes(mapped_data):
+    rows = mapped_data.get("entity_classes")
     if rows is None:
         return
-    full_rows = []
-    for class_name, object_classes in rows.items():
-        full_rows.append((class_name, object_classes))
-    mapped_data["relationship_classes"] = full_rows
+    full_rows = set()
+    for class_name, dimension_names in rows.items():
+        row = (class_name, tuple(dimension_names)) if dimension_names else (class_name,)
+        full_rows.add(row)
+    mapped_data["entity_classes"] = full_rows
 
 
 def _make_parameter_values(mapped_data, unparse_value):
     value_pos = 3
-    for key in ("object_parameter_values", "relationship_parameter_values"):
-        rows = mapped_data.get(key)
-        if rows is None:
-            continue
+    key = "parameter_values"
+    rows = mapped_data.get(key)
+    if rows is not None:
         valued_rows = []
         for row in rows:
             raw_value = _make_value(row, value_pos)
@@ -291,10 +291,9 @@ def _make_parameter_values(mapped_data, unparse_value):
                 valued_rows.append(row)
         mapped_data[key] = valued_rows
     value_pos = 0
-    for key in ("object_parameters", "relationship_parameters"):
-        rows = mapped_data.get(key)
-        if rows is None:
-            continue
+    key = "parameter_definitions"
+    rows = mapped_data.get(key)
+    if rows is not None:
         full_rows = []
         for entity_definition, extras in rows.items():
             if extras:

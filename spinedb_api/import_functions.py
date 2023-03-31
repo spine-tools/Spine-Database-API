@@ -457,8 +457,12 @@ def _get_entities_for_import(db_map, data, make_cache):
     for class_name, ent_name_or_el_names, *optionals in data:
         ec_id = entity_class_ids.get(class_name, None)
         dim_ids = dimension_id_lists.get(ec_id, ())
-        el_ids = tuple(entity_ids.get((name, dim_id), None) for name, dim_id in zip(ent_name_or_el_names, dim_ids))
-        e_key = el_ids or ent_name_or_el_names
+        if isinstance(ent_name_or_el_names, str):
+            el_ids = ()
+            e_key = ent_name_or_el_names
+        else:
+            el_ids = tuple(entity_ids.get((name, dim_id), None) for name, dim_id in zip(ent_name_or_el_names, dim_ids))
+            e_key = el_ids
         if (ec_id, e_key) in checked:
             continue
         e_id = entity_ids_per_el_id_lst.pop((ec_id, el_ids), None)

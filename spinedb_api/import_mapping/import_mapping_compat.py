@@ -17,14 +17,11 @@ Functions for creating import mappings from dicts.
 """
 from .import_mapping import (
     Position,
-    ObjectClassMapping,
-    RelationshipClassMapping,
-    RelationshipClassObjectClassMapping,
-    ObjectMapping,
-    ObjectMetadataMapping,
-    RelationshipMapping,
-    RelationshipObjectMapping,
-    RelationshipMetadataMapping,
+    EntityClassMapping,
+    DimensionMapping,
+    EntityMapping,
+    EntityMetadataMapping,
+    ElementMapping,
     ParameterDefinitionMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
@@ -49,7 +46,7 @@ from .import_mapping import (
     ToolFeatureMethodEntityClassMapping,
     ToolFeatureMethodParameterDefinitionMapping,
     ToolFeatureMethodMethodMapping,
-    ObjectGroupMapping,
+    EntityGroupMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     from_dict as mapping_from_dict,
@@ -205,9 +202,9 @@ def _object_class_mapping_from_dict(map_dict):
     parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(objects))
-    object_metadata_mapping = object_mapping.child = ObjectMetadataMapping(*_pos_and_val(object_metadata))
+    root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
+    object_mapping = root_mapping.child = EntityMapping(*_pos_and_val(objects))
+    object_metadata_mapping = object_mapping.child = EntityMetadataMapping(*_pos_and_val(object_metadata))
     object_metadata_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
@@ -216,12 +213,12 @@ def _object_group_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     groups = map_dict.get("groups")
     members = map_dict.get("members")
-    import_objects = map_dict.get("import_objects", False)
+    import_entities = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(groups))
-    object_mapping.child = ObjectGroupMapping(*_pos_and_val(members), import_objects=import_objects)
+    root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
+    object_mapping = root_mapping.child = EntityMapping(*_pos_and_val(groups))
+    object_mapping.child = EntityGroupMapping(*_pos_and_val(members), import_entities=import_entities)
     return root_mapping
 
 
@@ -235,26 +232,22 @@ def _relationship_class_mapping_from_dict(map_dict):
         object_classes = [None]
     relationship_metadata = map_dict.get("relationship_metadata")
     parameters = map_dict.get("parameters")
-    import_objects = map_dict.get("import_objects", False)
+    import_entities = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = RelationshipClassMapping(
-        *_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row
-    )
+    root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     parent_mapping = root_mapping
     for klass in object_classes:
-        class_mapping = RelationshipClassObjectClassMapping(*_pos_and_val(klass))
+        class_mapping = DimensionMapping(*_pos_and_val(klass))
         parent_mapping.child = class_mapping
         parent_mapping = class_mapping
-    relationship_mapping = parent_mapping.child = RelationshipMapping(Position.hidden, value="relationship")
+    relationship_mapping = parent_mapping.child = EntityMapping(Position.hidden)
     parent_mapping = relationship_mapping
     for obj in objects:
-        object_mapping = RelationshipObjectMapping(*_pos_and_val(obj), import_objects=import_objects)
+        object_mapping = ElementMapping(*_pos_and_val(obj), import_entities=import_entities)
         parent_mapping.child = object_mapping
         parent_mapping = object_mapping
-    relationship_metadata_mapping = parent_mapping.child = RelationshipMetadataMapping(
-        *_pos_and_val(relationship_metadata)
-    )
+    relationship_metadata_mapping = parent_mapping.child = EntityMetadataMapping(*_pos_and_val(relationship_metadata))
     relationship_metadata_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
