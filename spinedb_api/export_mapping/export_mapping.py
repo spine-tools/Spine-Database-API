@@ -289,7 +289,7 @@ class ExportMapping(Mapping):
         flat_buddies = [b for pair in buddies for b in pair]
         for _ in range(len(mappings)):
             m = mappings[-1]
-            if m.position == Position.header or m.position == Position.table_name or m in flat_buddies:
+            if m.position in (Position.header, Position.table_name) or m in flat_buddies:
                 break
             mappings.pop(-1)
         # Start with empty query
@@ -560,7 +560,7 @@ class ExportMapping(Mapping):
             if buddy is not None:
                 query.rewind()
                 header[buddy.position] = next(
-                    (x for db_row in query for x in self._get_data_iterator(self._data(db_row))), ""
+                    (x for db_row in query for x in self._get_data_iterator(self._data(db_row)) if x), ""
                 )
         else:
             header[self.position] = self.header

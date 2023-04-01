@@ -816,7 +816,12 @@ class TestExportMapping(unittest.TestCase):
         )
         db_map.commit_session("Add test data.")
         relationship_class_mapping = EntityClassMapping(0)
-        self.assertEqual(list(rows(relationship_class_mapping, db_map)), [["rc1"], ["rc2"], ["rc3"]])
+        dimension_mapping = relationship_class_mapping.child = DimensionMapping(1)
+        dimension_mapping.child = DimensionMapping(2)
+        self.assertEqual(
+            list(rows(relationship_class_mapping, db_map)),
+            [["rc1", "oc1", ""], ["rc2", "oc3", "oc2"], ["rc3", "oc2", "oc3"]],
+        )
         db_map.connection.close()
 
     def test_export_relationships(self):
@@ -827,9 +832,16 @@ class TestExportMapping(unittest.TestCase):
         import_relationships(db_map, (("rc1", ("o11",)), ("rc2", ("o21", "o11")), ("rc2", ("o21", "o12"))))
         db_map.commit_session("Add test data.")
         relationship_class_mapping = EntityClassMapping(0)
-        relationship_mapping = EntityMapping(1)
-        relationship_class_mapping.child = relationship_mapping
-        expected = [["rc1", "rc1_o11"], ["rc2", "rc2_o21__o11"], ["rc2", "rc2_o21__o12"]]
+        dimension1_mapping = relationship_class_mapping.child = DimensionMapping(1)
+        dimension2_mapping = dimension1_mapping.child = DimensionMapping(2)
+        relationship_mapping = dimension2_mapping.child = EntityMapping(3)
+        element1_mapping = relationship_mapping.child = ElementMapping(4)
+        element1_mapping.child = ElementMapping(5)
+        expected = [
+            ['rc1', 'oc1', '', 'rc1_o11', 'o11', ''],
+            ['rc2', 'oc2', 'oc1', 'rc2_o21__o11', 'o21', 'o11'],
+            ['rc2', 'oc2', 'oc1', 'rc2_o21__o12', 'o21', 'o12'],
+        ]
         self.assertEqual(list(rows(relationship_class_mapping, db_map)), expected)
         db_map.connection.close()
 
