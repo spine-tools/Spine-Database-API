@@ -605,6 +605,16 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._ext_entity_class_sq is None:
+            entity_class_dimension_sq = (
+                self.query(
+                    self.entity_class_dimension_sq.c.entity_class_id,
+                    self.entity_class_dimension_sq.c.dimension_id,
+                    self.entity_class_dimension_sq.c.position,
+                    self.entity_class_sq.c.name.label("dimension_name"),
+                )
+                .filter(self.entity_class_dimension_sq.c.dimension_id == self.entity_class_sq.c.id)
+                .subquery()
+            )
             ecd_sq = (
                 self.query(
                     self.entity_class_sq.c.id,
@@ -613,14 +623,15 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.display_order,
                     self.entity_class_sq.c.display_icon,
                     self.entity_class_sq.c.hidden,
-                    self.entity_class_dimension_sq.c.dimension_id,
-                    self.entity_class_dimension_sq.c.position,
+                    entity_class_dimension_sq.c.dimension_id,
+                    entity_class_dimension_sq.c.dimension_name,
+                    entity_class_dimension_sq.c.position,
                 )
                 .outerjoin(
-                    self.entity_class_dimension_sq,
-                    self.entity_class_sq.c.id == self.entity_class_dimension_sq.c.entity_class_id,
+                    entity_class_dimension_sq,
+                    self.entity_class_sq.c.id == entity_class_dimension_sq.c.entity_class_id,
                 )
-                .order_by(self.entity_class_sq.c.id, self.entity_class_dimension_sq.c.position)
+                .order_by(self.entity_class_sq.c.id, entity_class_dimension_sq.c.position)
                 .subquery()
             )
             self._ext_entity_class_sq = (
@@ -632,6 +643,7 @@ class DatabaseMappingBase:
                     ecd_sq.c.display_icon,
                     ecd_sq.c.hidden,
                     group_concat(ecd_sq.c.dimension_id, ecd_sq.c.position).label("dimension_id_list"),
+                    group_concat(ecd_sq.c.dimension_name, ecd_sq.c.position).label("dimension_name_list"),
                 )
                 .group_by(
                     ecd_sq.c.id,
@@ -665,6 +677,16 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._ext_entity_sq is None:
+            entity_element_sq = (
+                self.query(
+                    self.entity_element_sq.c.entity_id,
+                    self.entity_element_sq.c.element_id,
+                    self.entity_element_sq.c.position,
+                    self.entity_sq.c.name.label("element_name"),
+                )
+                .filter(self.entity_element_sq.c.element_id == self.entity_sq.c.id)
+                .subquery()
+            )
             ee_sq = (
                 self.query(
                     self.entity_sq.c.id,
@@ -672,14 +694,15 @@ class DatabaseMappingBase:
                     self.entity_sq.c.name,
                     self.entity_sq.c.description,
                     self.entity_sq.c.commit_id,
-                    self.entity_element_sq.c.element_id,
-                    self.entity_element_sq.c.position,
+                    entity_element_sq.c.element_id,
+                    entity_element_sq.c.element_name,
+                    entity_element_sq.c.position,
                 )
                 .outerjoin(
-                    self.entity_element_sq,
-                    self.entity_sq.c.id == self.entity_element_sq.c.entity_id,
+                    entity_element_sq,
+                    self.entity_sq.c.id == entity_element_sq.c.entity_id,
                 )
-                .order_by(self.entity_sq.c.id, self.entity_element_sq.c.position)
+                .order_by(self.entity_sq.c.id, entity_element_sq.c.position)
                 .subquery()
             )
             self._ext_entity_sq = (
@@ -690,6 +713,7 @@ class DatabaseMappingBase:
                     ee_sq.c.description,
                     ee_sq.c.commit_id,
                     group_concat(ee_sq.c.element_id, ee_sq.c.position).label("element_id_list"),
+                    group_concat(ee_sq.c.element_name, ee_sq.c.position).label("element_name_list"),
                 )
                 .group_by(
                     ee_sq.c.id,

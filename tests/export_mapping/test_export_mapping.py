@@ -18,7 +18,6 @@ Unit tests for export mappings.
 import unittest
 from spinedb_api import (
     DatabaseMapping,
-    DatabaseMapping,
     import_alternatives,
     import_features,
     import_object_classes,
@@ -34,17 +33,15 @@ from spinedb_api import (
     import_tool_feature_methods,
     import_tools,
     Map,
-    TimeSeriesFixedResolution,
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.mapping import Position, to_dict
 from spinedb_api.export_mapping import (
     rows,
     titles,
-    object_parameter_default_value_export,
-    object_parameter_export,
-    relationship_export,
-    relationship_parameter_export,
+    entity_class_parameter_default_value_export,
+    entity_parameter_export,
+    entity_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
@@ -55,10 +52,10 @@ from spinedb_api.export_mapping.export_mapping import (
     FeatureEntityClassMapping,
     FeatureParameterDefinitionMapping,
     from_dict,
-    ObjectGroupMapping,
-    ObjectGroupObjectMapping,
-    ObjectMapping,
-    ObjectClassMapping,
+    EntityGroupMapping,
+    EntityGroupEntityMapping,
+    EntityMapping,
+    EntityClassMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefinitionMapping,
@@ -67,12 +64,10 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueListValueMapping,
     ParameterValueMapping,
     ParameterValueTypeMapping,
-    RelationshipClassMapping,
-    RelationshipClassObjectClassMapping,
-    RelationshipClassObjectHighlightingMapping,
-    RelationshipMapping,
-    RelationshipObjectHighlightingMapping,
-    RelationshipObjectMapping,
+    DimensionMapping,
+    DimensionHighlightingMapping,
+    ElementHighlightingMapping,
+    ElementMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioMapping,
@@ -90,7 +85,7 @@ from spinedb_api.mapping import unflatten
 class TestExportMapping(unittest.TestCase):
     def test_export_empty_table(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         self.assertEqual(list(rows(object_class_mapping, db_map)), [])
         db_map.connection.close()
 
@@ -98,7 +93,7 @@ class TestExportMapping(unittest.TestCase):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         self.assertEqual(list(rows(object_class_mapping, db_map)), [["object_class"]])
         db_map.connection.close()
 
@@ -109,8 +104,8 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
-        object_class_mapping.child = ObjectMapping(1)
+        object_class_mapping = EntityClassMapping(0)
+        object_class_mapping.child = EntityMapping(1)
         self.assertEqual(
             list(rows(object_class_mapping, db_map)),
             [["oc1", "o11"], ["oc1", "o12"], ["oc2", "o21"], ["oc3", "o31"], ["oc3", "o32"], ["oc3", "o33"]],
@@ -122,8 +117,8 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1",))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
-        object_class_mapping.child = ObjectMapping(Position.hidden)
+        object_class_mapping = EntityClassMapping(0)
+        object_class_mapping.child = EntityMapping(Position.hidden)
         self.assertEqual(list(rows(object_class_mapping, db_map)), [["oc1"], ["oc1"]])
         db_map.connection.close()
 
@@ -132,8 +127,8 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1",))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12")))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(-1)
-        object_class_mapping.child = ObjectMapping(Position.hidden)
+        object_class_mapping = EntityClassMapping(-1)
+        object_class_mapping.child = EntityMapping(Position.hidden)
         self.assertEqual(list(rows(object_class_mapping, db_map)), [])
         db_map.connection.close()
 
@@ -146,9 +141,9 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data.")
         root_mapping = unflatten(
             [
-                ObjectClassMapping(0),
+                EntityClassMapping(0),
                 ParameterDefinitionMapping(-1),
-                ObjectMapping(1),
+                EntityMapping(1),
                 AlternativeMapping(2),
                 ParameterValueMapping(Position.hidden),
             ]
@@ -158,13 +153,13 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_hidden_leaf_item_in_regular_table_valid(self):
-        object_class_mapping = ObjectClassMapping(0)
-        object_class_mapping.child = ObjectMapping(Position.hidden)
+        object_class_mapping = EntityClassMapping(0)
+        object_class_mapping.child = EntityMapping(Position.hidden)
         self.assertEqual(object_class_mapping.check_validity(), [])
 
     def test_hidden_leaf_item_in_pivot_table_not_valid(self):
-        object_class_mapping = ObjectClassMapping(-1)
-        object_class_mapping.child = ObjectMapping(Position.hidden)
+        object_class_mapping = EntityClassMapping(-1)
+        object_class_mapping.child = EntityMapping(Position.hidden)
         self.assertEqual(object_class_mapping.check_validity(), ["Cannot be pivoted."])
 
     def test_object_groups(self):
@@ -173,7 +168,7 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
         import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
         db_map.commit_session("Add test data.")
-        flattened = [ObjectClassMapping(0), ObjectGroupMapping(1)]
+        flattened = [EntityClassMapping(0), EntityGroupMapping(1)]
         mapping = unflatten(flattened)
         self.assertEqual(list(rows(mapping, db_map)), [["oc", "g1"], ["oc", "g2"]])
         db_map.connection.close()
@@ -184,7 +179,7 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o1"), ("oc", "o2"), ("oc", "o3"), ("oc", "g1"), ("oc", "g2")))
         import_object_groups(db_map, (("oc", "g1", "o1"), ("oc", "g1", "o2"), ("oc", "g2", "o3")))
         db_map.commit_session("Add test data.")
-        flattened = [ObjectClassMapping(0), ObjectGroupMapping(1), ObjectGroupObjectMapping(2)]
+        flattened = [EntityClassMapping(0), EntityGroupMapping(1), EntityGroupEntityMapping(2)]
         mapping = unflatten(flattened)
         self.assertEqual(list(rows(mapping, db_map)), [["oc", "g1", "o1"], ["oc", "g1", "o2"], ["oc", "g2", "o3"]])
         db_map.connection.close()
@@ -200,9 +195,9 @@ class TestExportMapping(unittest.TestCase):
         )
         db_map.commit_session("Add test data.")
         flattened = [
-            ObjectClassMapping(0),
-            ObjectGroupMapping(1),
-            ObjectGroupObjectMapping(2),
+            EntityClassMapping(0),
+            EntityGroupMapping(1),
+            EntityGroupEntityMapping(2),
             ParameterDefinitionMapping(Position.hidden),
             AlternativeMapping(Position.hidden),
             ParameterValueMapping(3),
@@ -220,9 +215,9 @@ class TestExportMapping(unittest.TestCase):
         import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(1)
-        parameter_definition_mapping.child = ObjectMapping(2)
+        parameter_definition_mapping.child = EntityMapping(2)
         object_class_mapping.child = parameter_definition_mapping
         expected = [
             ["oc1", "p11", "o11"],
@@ -241,11 +236,11 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
         import_object_parameter_values(db_map, (("oc1", "o11", "p12", -11.0),))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(1)
         alternative_mapping = AlternativeMapping(Position.hidden)
         parameter_definition_mapping.child = alternative_mapping
-        object_mapping = ObjectMapping(2)
+        object_mapping = EntityMapping(2)
         alternative_mapping.child = object_mapping
         value_mapping = ParameterValueMapping(3)
         object_mapping.child = value_mapping
@@ -268,11 +263,11 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(1)
         alternative_mapping = AlternativeMapping(Position.hidden)
         parameter_definition_mapping.child = alternative_mapping
-        object_mapping = ObjectMapping(-1)
+        object_mapping = EntityMapping(-1)
         alternative_mapping.child = object_mapping
         value_mapping = ParameterValueMapping(-2)
         object_mapping.child = value_mapping
@@ -295,7 +290,9 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(1, 2, Position.hidden, 0, -2, Position.hidden, 4, [Position.hidden], [3])
+        mapping = entity_parameter_export(
+            1, 2, Position.hidden, 0, None, None, -2, Position.hidden, 4, [Position.hidden], [3]
+        )
         expected = [
             [None, None, None, None, "Base", "alt"],
             ["o", "oc", "p", "A", -1.1, -5.5],
@@ -319,10 +316,10 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(-1)
         alternative_mapping = AlternativeMapping(Position.hidden)
-        object_mapping = ObjectMapping(-2)
+        object_mapping = EntityMapping(-2)
         value_mapping = ParameterValueMapping(3)
         mappings = [
             object_class_mapping,
@@ -363,11 +360,11 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(2)
         alternative_mapping = AlternativeMapping(Position.hidden)
         parameter_definition_mapping.child = alternative_mapping
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         alternative_mapping.child = object_mapping
         index_mapping = ParameterValueIndexMapping(3)
         object_mapping.child = index_mapping
@@ -398,11 +395,11 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(2)
         alternative_mapping = AlternativeMapping(Position.hidden)
         parameter_definition_mapping.child = alternative_mapping
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         alternative_mapping.child = object_mapping
         index_mapping_1 = ParameterValueIndexMapping(3)
         index_mapping_2 = ParameterValueIndexMapping(4)
@@ -433,9 +430,9 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(Position.hidden)
+        object_class_mapping = EntityClassMapping(Position.hidden)
         parameter_definition_mapping = ParameterDefinitionMapping(Position.hidden)
-        object_mapping = ObjectMapping(Position.hidden)
+        object_mapping = EntityMapping(Position.hidden)
         parameter_definition_mapping.child = object_mapping
         alternative_mapping = AlternativeMapping(Position.hidden)
         object_mapping.child = alternative_mapping
@@ -463,11 +460,11 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(1)
         alternative_mapping = AlternativeMapping(Position.hidden)
         parameter_definition_mapping.child = alternative_mapping
-        object_mapping = ObjectMapping(-1)
+        object_mapping = EntityMapping(-1)
         alternative_mapping.child = object_mapping
         index_mapping_1 = ParameterValueIndexMapping(2)
         index_mapping_2 = ParameterValueIndexMapping(3)
@@ -495,7 +492,9 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-5.5, -6.6])))
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [Position.hidden], [4])
+        mapping = entity_parameter_export(
+            0, 2, Position.hidden, -1, None, None, 3, Position.hidden, 5, [Position.hidden], [4]
+        )
         expected = [
             [None, None, None, None, None, "o1", "o2"],
             ["oc", None, "p", "Base", "A", -1.1, -5.5],
@@ -520,7 +519,9 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 5, [Position.hidden], [4])
+        mapping = entity_parameter_export(
+            0, 2, Position.hidden, -1, None, None, 3, Position.hidden, 5, [Position.hidden], [4]
+        )
         expected = [
             [None, None, None, None, None, "o1", "o2"],
             ["oc", None, "p", "Base", "A", -1.1, -5.5],
@@ -540,7 +541,9 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-3.3, -4.4])))
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, -1, 3, Position.hidden, 4, [Position.hidden], [-2])
+        mapping = entity_parameter_export(
+            0, 2, Position.hidden, -1, None, None, 3, Position.hidden, 4, [Position.hidden], [-2]
+        )
         expected = [
             [None, None, None, None, "o1", "o1", "o2", "o2"],
             [None, None, None, None, "A", "B", "A", "B"],
@@ -570,7 +573,9 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 1, Position.hidden, -1, -2, Position.hidden, 2, [Position.hidden], [-3])
+        mapping = entity_parameter_export(
+            0, 1, Position.hidden, -1, None, None, -2, Position.hidden, 2, [Position.hidden], [-3]
+        )
         expected = [
             [None, None, "o1", "o1", "o1", "o1", "o2", "o2", "o2", "o2"],
             [None, None, "Base", "Base", "alt", "alt", "Base", "Base", "alt", "alt"],
@@ -588,10 +593,10 @@ class TestExportMapping(unittest.TestCase):
         import_object_parameters(db_map, (("oc", "p"),))
         import_objects(db_map, (("oc", "o"),))
         db_map.commit_session("Add test data.")
-        mapping = ObjectClassMapping(0)
+        mapping = EntityClassMapping(0)
         definition = ParameterDefinitionMapping(1)
         value_list = ParameterValueListMapping(2)
-        object_ = ObjectMapping(-1)
+        object_ = EntityMapping(-1)
         value_list.child = object_
         definition.child = value_list
         mapping.child = definition
@@ -605,8 +610,8 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(-1)
-        object_class_mapping.child = ObjectMapping(0)
+        object_class_mapping = EntityClassMapping(-1)
+        object_class_mapping.child = EntityMapping(0)
         self.assertEqual(
             list(rows(object_class_mapping, db_map)),
             [["oc1", "oc2", "oc3"], ["o11", "o21", "o31"], ["o12", None, "o32"], [None, None, "o33"]],
@@ -620,8 +625,8 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31"), ("oc3", "o32"), ("oc3", "o33"))
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(Position.table_name)
-        object_class_mapping.child = ObjectMapping(0)
+        object_class_mapping = EntityClassMapping(Position.table_name)
+        object_class_mapping.child = EntityMapping(0)
         tables = dict()
         for title, title_key in titles(object_class_mapping, db_map):
             tables[title] = list(rows(object_class_mapping, db_map, title_key))
@@ -634,9 +639,9 @@ class TestExportMapping(unittest.TestCase):
         import_object_parameters(db_map, (("oc1", "p11"), ("oc2", "p21"), ("oc2", "p22")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31")))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(Position.table_name)
+        object_class_mapping = EntityClassMapping(Position.table_name)
         definition_mapping = ParameterDefinitionMapping(Position.table_name)
-        object_mapping = ObjectMapping(0)
+        object_mapping = EntityMapping(0)
         object_class_mapping.child = definition_mapping
         definition_mapping.child = object_mapping
         tables = dict()
@@ -654,7 +659,7 @@ class TestExportMapping(unittest.TestCase):
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
         import_relationships(db_map, (("rc", ("o1", "O")), ("rc", ("o2", "O"))))
         db_map.commit_session("Add test data.")
-        mappings = relationship_export(0, Position.table_name, [1, 2], [Position.table_name, 3])
+        mappings = entity_export(0, Position.table_name, [1, 2], [Position.table_name, 3])
         tables = dict()
         for title, title_key in titles(mappings, db_map):
             tables[title] = list(rows(mappings, db_map, title_key))
@@ -669,7 +674,7 @@ class TestExportMapping(unittest.TestCase):
         import_parameter_value_lists(db_map, (("vl1", -1.0), ("vl2", -2.0)))
         import_object_parameters(db_map, (("oc", "p1", None, "vl1"), ("oc", "p2")))
         db_map.commit_session("Add test data.")
-        class_mapping = ObjectClassMapping(0)
+        class_mapping = EntityClassMapping(0)
         definition_mapping = ParameterDefinitionMapping(1)
         value_list_mapping = ParameterValueListMapping(2)
         definition_mapping.child = value_list_mapping
@@ -689,11 +694,11 @@ class TestExportMapping(unittest.TestCase):
         import_object_parameter_values(db_map, (("oc", "o", "p1", -1.0), ("oc", "o", "p2", 5.0)))
         db_map.commit_session("Add test data.")
         flattened = [
-            ObjectClassMapping(0),
+            EntityClassMapping(0),
             ParameterDefinitionMapping(1),
             AlternativeMapping(Position.hidden),
             ParameterValueListMapping(2),
-            ObjectMapping(3),
+            EntityMapping(3),
             ParameterValueMapping(4),
         ]
         mapping = unflatten(flattened)
@@ -714,11 +719,11 @@ class TestExportMapping(unittest.TestCase):
         value_list_mapping = ParameterValueListMapping(2)
         value_list_mapping.set_ignorable(True)
         flattened = [
-            ObjectClassMapping(0),
+            EntityClassMapping(0),
             ParameterDefinitionMapping(1),
             AlternativeMapping(Position.hidden),
             value_list_mapping,
-            ObjectMapping(3),
+            EntityMapping(3),
             ParameterValueMapping(4),
         ]
         mapping = unflatten(flattened)
@@ -758,9 +763,9 @@ class TestExportMapping(unittest.TestCase):
         import_object_parameters(db_map, (("oc1", "p11"), ("oc2", "p21"), ("oc2", "p22")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc3", "o31")))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(Position.hidden)
+        object_class_mapping = EntityClassMapping(Position.hidden)
         definition_mapping = ParameterDefinitionMapping(Position.hidden)
-        object_mapping = ObjectMapping(0)
+        object_mapping = EntityMapping(0)
         object_class_mapping.child = definition_mapping
         definition_mapping.child = object_mapping
         tables = dict()
@@ -785,9 +790,9 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         definition_mapping = ParameterDefinitionMapping(2)
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         alternative_mapping = AlternativeMapping(3)
         value_mapping = ParameterValueMapping(4)
         object_class_mapping.child = definition_mapping
@@ -810,7 +815,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("rc1", ("oc1",)), ("rc2", ("oc3", "oc2")), ("rc3", ("oc2", "oc3", "oc1")))
         )
         db_map.commit_session("Add test data.")
-        relationship_class_mapping = RelationshipClassMapping(0)
+        relationship_class_mapping = EntityClassMapping(0)
         self.assertEqual(list(rows(relationship_class_mapping, db_map)), [["rc1"], ["rc2"], ["rc3"]])
         db_map.connection.close()
 
@@ -821,8 +826,8 @@ class TestExportMapping(unittest.TestCase):
         import_relationship_classes(db_map, (("rc1", ("oc1",)), ("rc2", ("oc2", "oc1"))))
         import_relationships(db_map, (("rc1", ("o11",)), ("rc2", ("o21", "o11")), ("rc2", ("o21", "o12"))))
         db_map.commit_session("Add test data.")
-        relationship_class_mapping = RelationshipClassMapping(0)
-        relationship_mapping = RelationshipMapping(1)
+        relationship_class_mapping = EntityClassMapping(0)
+        relationship_mapping = EntityMapping(1)
         relationship_class_mapping.child = relationship_mapping
         expected = [["rc1", "rc1_o11"], ["rc2", "rc2_o21__o11"], ["rc2", "rc2_o21__o12"]]
         self.assertEqual(list(rows(relationship_class_mapping, db_map)), expected)
@@ -839,12 +844,12 @@ class TestExportMapping(unittest.TestCase):
             (("rc2D", ("o11", "o21")), ("rc2D", ("o11", "o22")), ("rc2D", ("o12", "o21")), ("rc2D", ("o12", "o22"))),
         )
         db_map.commit_session("Add test data.")
-        relationship_class_mapping = RelationshipClassMapping(0)
-        object_class_mapping1 = RelationshipClassObjectClassMapping(1)
-        object_class_mapping2 = RelationshipClassObjectClassMapping(2)
-        relationship_mapping = RelationshipMapping(Position.hidden)
-        object_mapping1 = RelationshipObjectMapping(3)
-        object_mapping2 = RelationshipObjectMapping(4)
+        relationship_class_mapping = EntityClassMapping(0)
+        object_class_mapping1 = DimensionMapping(1)
+        object_class_mapping2 = DimensionMapping(2)
+        relationship_mapping = EntityMapping(Position.hidden)
+        object_mapping1 = ElementMapping(3)
+        object_mapping2 = ElementMapping(4)
         object_mapping1.child = object_mapping2
         relationship_mapping.child = object_mapping1
         object_class_mapping2.child = relationship_mapping
@@ -869,7 +874,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         definition_mapping = ParameterDefinitionMapping(1)
         default_value_mapping = ParameterDefaultValueMapping(2)
         definition_mapping.child = default_value_mapping
@@ -890,7 +895,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         definition_mapping = ParameterDefinitionMapping(1)
         index_mapping = ParameterDefaultValueIndexMapping(2)
         value_mapping = ExpandedParameterDefaultValueMapping(3)
@@ -917,11 +922,11 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p1", Map(["a", "b"], [5.0, -5.0])), ("oc", "o2", "p1", Map(["a", "b"], [2.0, -2.0])))
         )
         db_map.commit_session("Add test data.")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(2)
         alternative_mapping = AlternativeMapping(Position.hidden)
         parameter_definition_mapping.child = alternative_mapping
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         alternative_mapping.child = object_mapping
         index_mapping = ParameterValueIndexMapping(3)
         value_mapping = ExpandedParameterValueMapping(4)
@@ -943,7 +948,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         db_map.commit_session("Add test data.")
         constant_mapping = FixedValueMapping(Position.table_name, "title_text")
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         constant_mapping.child = object_class_mapping
         tables = dict()
         for title, title_key in titles(constant_mapping, db_map):
@@ -1107,21 +1112,21 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="entity")])
+        root = unflatten([EntityClassMapping(0, header="class"), EntityMapping(1, header="entity")])
         expected = [["class", "entity"], ["oc", "o1"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
     def test_header_without_data_still_creates_header(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="object")])
+        root = unflatten([EntityClassMapping(0, header="class"), EntityMapping(1, header="object")])
         expected = [["class", "object"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
     def test_header_in_half_pivot_table_without_data_still_creates_header(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        root = unflatten([ObjectClassMapping(-1, header="class"), ObjectMapping(9, header="object")])
+        root = unflatten([EntityClassMapping(-1, header="class"), EntityMapping(9, header="object")])
         expected = [["class"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
@@ -1130,9 +1135,9 @@ class TestExportMapping(unittest.TestCase):
         db_map = DatabaseMapping("sqlite://", create=True)
         root = unflatten(
             [
-                ObjectClassMapping(-1, header="class"),
+                EntityClassMapping(-1, header="class"),
                 ParameterDefinitionMapping(0, header="parameter"),
-                ObjectMapping(-2, header="object"),
+                EntityMapping(-2, header="object"),
                 AlternativeMapping(1, header="alternative"),
                 ParameterValueMapping(0),
             ]
@@ -1143,14 +1148,14 @@ class TestExportMapping(unittest.TestCase):
 
     def test_disabled_empty_data_header(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        root = unflatten([ObjectClassMapping(0, header="class"), ObjectMapping(1, header="object")])
+        root = unflatten([EntityClassMapping(0, header="class"), EntityMapping(1, header="object")])
         expected = []
         self.assertEqual(list(rows(root, db_map, empty_data_header=False)), expected)
         db_map.connection.close()
 
     def test_disabled_empty_data_header_in_pivot_table(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        root = unflatten([ObjectClassMapping(-1, header="class"), ObjectMapping(0)])
+        root = unflatten([EntityClassMapping(-1, header="class"), EntityMapping(0)])
         expected = []
         self.assertEqual(list(rows(root, db_map, empty_data_header=False)), expected)
         db_map.connection.close()
@@ -1160,7 +1165,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root = unflatten([ObjectClassMapping(Position.header), ObjectMapping(0)])
+        root = unflatten([EntityClassMapping(Position.header), EntityMapping(0)])
         expected = [["oc"], ["o1"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
@@ -1174,15 +1179,18 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data.")
         root = unflatten(
             [
-                RelationshipClassMapping(0),
-                RelationshipClassObjectClassMapping(Position.header),
-                RelationshipClassObjectClassMapping(Position.header),
-                RelationshipMapping(1),
-                RelationshipObjectMapping(2),
-                RelationshipObjectMapping(3),
+                EntityClassMapping(0),
+                DimensionMapping(Position.header),
+                DimensionMapping(Position.header),
+                EntityMapping(1),
+                ElementMapping(2),
+                ElementMapping(3),
             ]
         )
         expected = [["", "", "oc1", "oc2"], ["rc", "rc_o11__o21", "o11", "o21"]]
+        import pprint
+
+        pprint.pprint(list(rows(root, db_map)))
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
@@ -1193,12 +1201,12 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data.")
         root = unflatten(
             [
-                RelationshipClassMapping(0),
-                RelationshipClassObjectClassMapping(Position.header),
-                RelationshipClassObjectClassMapping(Position.header),
-                RelationshipMapping(1),
-                RelationshipObjectMapping(2),
-                RelationshipObjectMapping(3),
+                EntityClassMapping(0),
+                DimensionMapping(Position.header),
+                DimensionMapping(Position.header),
+                EntityMapping(1),
+                ElementMapping(2),
+                ElementMapping(3),
             ]
         )
         expected = [["", "", "oc1", "oc2"]]
@@ -1228,9 +1236,9 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data.")
         mapping = unflatten(
             [
-                ObjectClassMapping(0, header="class"),
+                EntityClassMapping(0, header="class"),
                 ParameterDefinitionMapping(1, header="parameter"),
-                ObjectMapping(-1, header="object"),
+                EntityMapping(-1, header="object"),
                 AlternativeMapping(-2, header="alternative"),
                 ParameterValueIndexMapping(-3, header=""),
                 ExpandedParameterValueMapping(2, header="value"),
@@ -1269,9 +1277,9 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data.")
         mapping = unflatten(
             [
-                ObjectClassMapping(Position.header),
+                EntityClassMapping(Position.header),
                 ParameterDefinitionMapping(Position.hidden, header="parameter"),
-                ObjectMapping(-1),
+                EntityMapping(-1),
                 AlternativeMapping(-2, header="alternative"),
                 ParameterValueIndexMapping(-3, header="index"),
                 ExpandedParameterValueMapping(2, header="value"),
@@ -1288,42 +1296,42 @@ class TestExportMapping(unittest.TestCase):
         db_map.connection.close()
 
     def test_count_mappings(self):
-        object_class_mapping = ObjectClassMapping(2)
+        object_class_mapping = EntityClassMapping(2)
         parameter_definition_mapping = ParameterDefinitionMapping(0)
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         parameter_definition_mapping.child = object_mapping
         object_class_mapping.child = parameter_definition_mapping
         self.assertEqual(object_class_mapping.count_mappings(), 3)
 
     def test_flatten(self):
-        object_class_mapping = ObjectClassMapping(2)
+        object_class_mapping = EntityClassMapping(2)
         parameter_definition_mapping = ParameterDefinitionMapping(0)
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         parameter_definition_mapping.child = object_mapping
         object_class_mapping.child = parameter_definition_mapping
         mappings = object_class_mapping.flatten()
         self.assertEqual(mappings, [object_class_mapping, parameter_definition_mapping, object_mapping])
 
     def test_unflatten_sets_last_mappings_child_to_none(self):
-        object_class_mapping = ObjectClassMapping(2)
-        object_mapping = ObjectMapping(1)
+        object_class_mapping = EntityClassMapping(2)
+        object_mapping = EntityMapping(1)
         object_class_mapping.child = object_mapping
         mapping_list = object_class_mapping.flatten()
         root = unflatten(mapping_list[:1])
         self.assertIsNone(root.child)
 
     def test_has_titles(self):
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(Position.table_name)
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         parameter_definition_mapping.child = object_mapping
         object_class_mapping.child = parameter_definition_mapping
         self.assertTrue(object_class_mapping.has_titles())
 
     def test_drop_non_positioned_tail(self):
-        object_class_mapping = ObjectClassMapping(0)
+        object_class_mapping = EntityClassMapping(0)
         parameter_definition_mapping = ParameterDefinitionMapping(Position.hidden)
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         alternative_mapping = AlternativeMapping(Position.hidden)
         value_mapping = ParameterValueMapping(Position.hidden)
         alternative_mapping.child = value_mapping
@@ -1337,15 +1345,15 @@ class TestExportMapping(unittest.TestCase):
     def test_serialization(self):
         highlight_dimension = 5
         mappings = [
-            ObjectClassMapping(0),
-            RelationshipClassMapping(Position.table_name),
-            RelationshipClassObjectHighlightingMapping(Position.header, highlight_dimension=highlight_dimension),
-            RelationshipClassObjectClassMapping(2),
+            EntityClassMapping(0),
+            EntityClassMapping(Position.table_name),
+            DimensionHighlightingMapping(Position.header, highlight_dimension=highlight_dimension),
+            DimensionMapping(2),
             ParameterDefinitionMapping(1),
-            ObjectMapping(-1),
-            RelationshipMapping(Position.hidden),
-            RelationshipObjectHighlightingMapping(9),
-            RelationshipObjectMapping(-1),
+            EntityMapping(-1),
+            EntityMapping(Position.hidden),
+            ElementHighlightingMapping(9),
+            ElementMapping(-1),
             AlternativeMapping(3),
             ParameterValueMapping(4),
             ParameterValueIndexMapping(5),
@@ -1363,15 +1371,15 @@ class TestExportMapping(unittest.TestCase):
         for m in deserialized:
             if isinstance(m, FixedValueMapping):
                 self.assertEqual(m.value, "gaga")
-            elif isinstance(m, RelationshipClassObjectHighlightingMapping):
+            elif isinstance(m, DimensionHighlightingMapping):
                 self.assertEqual(m.highlight_dimension, highlight_dimension)
 
     def test_setting_ignorable_flag(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         db_map.commit_session("Add test data.")
-        object_mapping = ObjectMapping(1)
-        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        object_mapping = EntityMapping(1)
+        root_mapping = unflatten([EntityClassMapping(0), object_mapping])
         object_mapping.set_ignorable(True)
         self.assertTrue(object_mapping.is_ignorable())
         expected = [["oc", None]]
@@ -1383,8 +1391,8 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        object_mapping = ObjectMapping(1)
-        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        object_mapping = EntityMapping(1)
+        root_mapping = unflatten([EntityClassMapping(0), object_mapping])
         object_mapping.set_ignorable(True)
         self.assertTrue(object_mapping.is_ignorable())
         object_mapping.set_ignorable(False)
@@ -1398,9 +1406,9 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "o2")))
         db_map.commit_session("Add test data.")
-        object_mapping = ObjectMapping(1)
+        object_mapping = EntityMapping(1)
         object_mapping.filter_re = "o1"
-        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        root_mapping = unflatten([EntityClassMapping(0), object_mapping])
         expected = [["oc", "o1"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
@@ -1410,9 +1418,9 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
         db_map.commit_session("Add test data.")
-        object_mapping = ObjectMapping(Position.hidden)
+        object_mapping = EntityMapping(Position.hidden)
         object_mapping.filter_re = "o1"
-        root_mapping = unflatten([ObjectClassMapping(0), object_mapping])
+        root_mapping = unflatten([EntityClassMapping(0), object_mapping])
         expected = [["oc1"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
@@ -1424,7 +1432,9 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o"),))
         import_object_parameter_values(db_map, (("oc", "o", "p", Map(["a"], [5.0], index_name="index")),))
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 2, Position.hidden, 1, 3, Position.hidden, 5, [Position.header], [4])
+        mapping = entity_parameter_export(
+            0, 2, Position.hidden, 1, None, None, 3, Position.hidden, 5, [Position.header], [4]
+        )
         expected = [["", "", "", "", "index", ""], ["oc", "o", "p", "Base", "a", 5.0]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
@@ -1436,7 +1446,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3], index_name="idx2")], index_name="idx1")),)
         )
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_default_value_export(
+        mapping = entity_class_parameter_default_value_export(
             0, 1, Position.hidden, 4, [Position.header, Position.header], [2, 3]
         )
         expected = [["", "", "idx1", "idx2", ""], ["oc", "p", "A", "b", 2.3]]
@@ -1445,7 +1455,7 @@ class TestExportMapping(unittest.TestCase):
 
     def test_multiple_index_names_with_empty_database(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        mapping = relationship_parameter_export(
+        mapping = entity_parameter_export(
             0, 4, Position.hidden, 1, [2], [3], 5, Position.hidden, 8, [Position.header, Position.header], [6, 7]
         )
         expected = [9 * [""]]
@@ -1457,7 +1467,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
         db_map.commit_session("Add test data.")
-        root_mapping = object_parameter_default_value_export(0, 1, 2, 3, None, None)
+        root_mapping = entity_class_parameter_default_value_export(0, 1, 2, 3, None, None)
         expected = [
             ["oc1", "p11", "single_value", 3.14],
             ["oc2", "p21", "single_value", 14.3],
@@ -1473,8 +1483,8 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o"),))
         import_object_parameter_values(db_map, (("oc", "o", "p", Map(["A"], [Map(["b"], [2.3])])),))
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(
-            0, 1, Position.hidden, 2, Position.hidden, Position.hidden, 4, [Position.hidden], [3]
+        mapping = entity_parameter_export(
+            0, 1, Position.hidden, 2, None, None, Position.hidden, Position.hidden, 4, [Position.hidden], [3]
         )
         expected = [["oc", "p", "o", "A", "map"]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
@@ -1485,7 +1495,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3])])),))
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
+        mapping = entity_class_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
         expected = [["oc", "p", "A", "map"]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
@@ -1497,7 +1507,9 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o"),))
         import_object_parameter_values(db_map, (("oc", "o", "p", Map(["A"], [2.3])),))
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(0, 1, Position.hidden, 2, Position.hidden, Position.hidden, 3, None, None)
+        mapping = entity_parameter_export(
+            0, 1, Position.hidden, 2, None, None, Position.hidden, Position.hidden, 3, None, None
+        )
         expected = [["oc", "p", "o", "map"]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
@@ -1507,7 +1519,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p", Map(["A"], [2.3])),))
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
+        mapping = entity_class_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
         expected = [["oc", "p", "map"]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
@@ -1517,7 +1529,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         db_map.commit_session("Add test data.")
-        mapping = object_parameter_export(Position.header, Position.table_name, object_position=0, value_position=1)
+        mapping = entity_parameter_export(Position.header, Position.table_name, entity_position=0, value_position=1)
         tables = dict()
         for title, title_key in titles(mapping, db_map):
             tables[title] = list(rows(mapping, db_map, title_key))
@@ -1533,8 +1545,8 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
-                RelationshipClassObjectClassMapping(1),
+                DimensionHighlightingMapping(0),
+                DimensionMapping(1),
                 ParameterDefinitionMapping(2),
             ]
         )
@@ -1549,12 +1561,7 @@ class TestExportMapping(unittest.TestCase):
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
-            [
-                RelationshipClassObjectHighlightingMapping(0),
-                RelationshipClassObjectClassMapping(1),
-                RelationshipClassObjectClassMapping(3),
-                ParameterDefinitionMapping(2),
-            ]
+            [DimensionHighlightingMapping(0), DimensionMapping(1), DimensionMapping(3), ParameterDefinitionMapping(2)]
         )
         expected = [["rc", "oc1", "p11", "oc2"], ["rc", "oc1", "p12", "oc2"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
@@ -1571,12 +1578,12 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
-                RelationshipClassObjectClassMapping(1),
-                RelationshipClassObjectClassMapping(2),
-                RelationshipObjectHighlightingMapping(3),
-                RelationshipObjectMapping(4),
-                RelationshipObjectMapping(5),
+                DimensionHighlightingMapping(0),
+                DimensionMapping(1),
+                DimensionMapping(2),
+                ElementHighlightingMapping(3),
+                ElementMapping(4),
+                ElementMapping(5),
             ]
         )
         expected = [
@@ -1597,10 +1604,10 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
-                RelationshipClassObjectClassMapping(1),
-                RelationshipObjectHighlightingMapping(2),
-                RelationshipObjectMapping(3),
+                DimensionHighlightingMapping(0),
+                DimensionMapping(1),
+                ElementHighlightingMapping(2),
+                ElementMapping(3),
                 ParameterDefinitionMapping(4),
                 AlternativeMapping(5),
                 ParameterValueMapping(6),

@@ -20,7 +20,7 @@ import unittest
 from openpyxl import load_workbook
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.mapping import Position
-from spinedb_api.export_mapping import object_export
+from spinedb_api.export_mapping import entity_export
 from spinedb_api.spine_io.exporters.writer import write
 from spinedb_api.spine_io.exporters.excel_writer import ExcelWriter
 
@@ -34,7 +34,7 @@ class TestExcelWriter(unittest.TestCase):
 
     def test_write_empty_database(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -50,7 +50,7 @@ class TestExcelWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -66,7 +66,7 @@ class TestExcelWriter(unittest.TestCase):
         import_object_classes(db_map, ("Sheet1",))
         import_objects(db_map, (("Sheet1", "o1"), ("Sheet1", "o2")))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(Position.table_name, 0)
+        root_mapping = entity_export(Position.table_name, 0)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -82,7 +82,7 @@ class TestExcelWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc1", ("oc2")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(Position.table_name, 1)
+        root_mapping = entity_export(Position.table_name, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -100,8 +100,8 @@ class TestExcelWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping1 = object_export(0, 1)
-        root_mapping2 = object_export(0, 1)
+        root_mapping1 = entity_export(0, 1)
+        root_mapping2 = entity_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping1, root_mapping2)
@@ -117,8 +117,8 @@ class TestExcelWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping1 = object_export(Position.table_name, 0)
-        root_mapping2 = object_export(Position.table_name, 0)
+        root_mapping1 = entity_export(Position.table_name, 0)
+        root_mapping2 = entity_export(Position.table_name, 0)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping1, root_mapping2)

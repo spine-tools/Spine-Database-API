@@ -19,7 +19,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.mapping import Position
-from spinedb_api.export_mapping import object_export
+from spinedb_api.export_mapping import entity_export
 from spinedb_api.spine_io.exporters.writer import write
 from spinedb_api.spine_io.exporters.csv_writer import CsvWriter
 
@@ -33,7 +33,7 @@ class TestCsvWriter(unittest.TestCase):
 
     def test_write_empty_database(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
         write(db_map, writer, root_mapping)
@@ -47,7 +47,7 @@ class TestCsvWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
         write(db_map, writer, root_mapping)
@@ -61,7 +61,7 @@ class TestCsvWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2"))
         import_objects(db_map, (("oc1", "o1"), ("oc2", "o2")))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(Position.table_name, 0)
+        root_mapping = entity_export(Position.table_name, 0)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
         write(db_map, writer, root_mapping)
@@ -85,8 +85,8 @@ class TestCsvWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping1 = object_export(0, 1)
-        root_mapping2 = object_export(0, 1)
+        root_mapping1 = entity_export(0, 1)
+        root_mapping2 = entity_export(0, 1)
         out_path = Path(self._temp_dir.name, "out.csv")
         writer = CsvWriter(out_path.parent, out_path.name)
         write(db_map, writer, root_mapping1, root_mapping2)

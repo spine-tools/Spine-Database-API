@@ -16,7 +16,7 @@ Contains functions and methods to turn a regular export table into a pivot table
 """
 from copy import deepcopy
 
-from .export_mapping import RelationshipMapping
+from .export_mapping import EntityMapping
 from ..mapping import is_regular, is_pivoted, Position, unflatten, value_index
 from .group_functions import from_str as group_function_from_str, NoGroup
 
@@ -236,5 +236,5 @@ def make_regular(root_mapping):
 
 
 def _is_unhiddable(mapping):
-    """Returns True if mapping uhiddable for pivoting purposes."""
-    return not isinstance(mapping, RelationshipMapping)
+    """Returns True if mapping unhiddable for pivoting purposes."""
+    return not isinstance(mapping, EntityMapping)  # FIXME: Maybe also check that dimension_count > 0 ??

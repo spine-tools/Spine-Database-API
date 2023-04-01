@@ -17,7 +17,7 @@ Unit tests for ``writer`` module.
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.spine_io.exporters.writer import Writer, write
-from spinedb_api.export_mapping.settings import object_export
+from spinedb_api.export_mapping.settings import entity_export
 
 
 class _TableWriter(Writer):
@@ -63,7 +63,7 @@ class TestWrite(unittest.TestCase):
         )
         self._db_map.commit_session("Add test data.")
         writer = _TableWriter()
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         write(self._db_map, writer, root_mapping, max_rows=2)
         self.assertEqual(writer.tables, {None: [["class1", "obj1"], ["class1", "obj2"]]})
 
@@ -82,7 +82,7 @@ class TestWrite(unittest.TestCase):
         )
         self._db_map.commit_session("Add test data.")
         writer = _TableWriter()
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         root_mapping.child.filter_re = "obj6"
         write(self._db_map, writer, root_mapping, max_rows=1)
         self.assertEqual(writer.tables, {None: [["class2", "obj6"]]})
