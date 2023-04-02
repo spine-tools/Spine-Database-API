@@ -1506,7 +1506,7 @@ class TestMappingIntegration(unittest.TestCase):
         self.assertEqual(out, expected)
 
     def test_read_object_class_with_table_name_as_class_name(self):
-        input_data = [["Object names"], ["object 1"], ["object 2"]]
+        input_data = [["Entity names"], ["object 1"], ["object 2"]]
         data = iter(input_data)
         data_header = next(data)
         mapping = {

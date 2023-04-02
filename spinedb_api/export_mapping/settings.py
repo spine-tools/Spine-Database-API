@@ -60,20 +60,20 @@ from ..mapping import unflatten
 
 
 def entity_group_export(
-    class_position=Position.hidden, group_position=Position.hidden, entity_position=Position.hidden
+    entity_class_position=Position.hidden, group_position=Position.hidden, entity_position=Position.hidden
 ):
     """
     Sets up export mappings for exporting entity groups.
 
     Args:
-        class_position (int or Position): position of entity classes
+        entity_class_position (int or Position): position of entity classes
         group_position (int or Position): position of groups
         entity_position (int or Position): position of entities
 
     Returns:
         ExportMapping: root mapping
     """
-    class_ = EntityClassMapping(class_position)
+    class_ = EntityClassMapping(entity_class_position)
     group = EntityGroupMapping(group_position)
     entity = EntityGroupEntityMapping(entity_position)
     group.child = entity
@@ -111,7 +111,7 @@ def entity_export(
     return entity_class
 
 
-def entity_class_parameter_default_value_export(
+def entity_parameter_default_value_export(
     entity_class_position=Position.hidden,
     definition_position=Position.hidden,
     value_type_position=Position.hidden,
@@ -142,7 +142,7 @@ def entity_class_parameter_default_value_export(
     return entity_class
 
 
-def entity_parameter_export(
+def entity_parameter_value_export(
     entity_class_position=Position.hidden,
     definition_position=Position.hidden,
     value_list_position=Position.hidden,
@@ -199,7 +199,7 @@ def entity_parameter_export(
     return entity_class
 
 
-def entity_class_dimension_parameter_default_value_export(
+def entity_dimension_parameter_default_value_export(
     entity_class_position=Position.hidden,
     definition_position=Position.hidden,
     dimension_positions=None,
@@ -238,7 +238,7 @@ def entity_class_dimension_parameter_default_value_export(
     return root_mapping
 
 
-def entity_element_parameter_export(
+def entity_dimension_parameter_value_export(
     entity_class_position=Position.hidden,
     definition_position=Position.hidden,
     value_list_position=Position.hidden,
@@ -426,18 +426,18 @@ def set_parameter_default_value_dimensions(mapping, dimensions):
     )
 
 
-def feature_export(class_position=Position.hidden, definition_position=Position.hidden):
+def feature_export(entity_class_position=Position.hidden, definition_position=Position.hidden):
     """
     Sets up export mappings for exporting features.
 
     Args:
-        class_position (int or Position): position of entity classes
+        entity_class_position (int or Position): position of entity classes
         definition_position (int or Position): position of parameter definitions
 
     Returns:
         ExportMapping: root mapping
     """
-    class_ = FeatureEntityClassMapping(class_position)
+    class_ = FeatureEntityClassMapping(entity_class_position)
     definition = FeatureParameterDefinitionMapping(definition_position)
     class_.child = definition
     return class_
@@ -458,7 +458,7 @@ def tool_export(tool_position=Position.hidden):
 
 def tool_feature_export(
     tool_position=Position.hidden,
-    class_position=Position.hidden,
+    entity_class_position=Position.hidden,
     definition_position=Position.hidden,
     required_flag_position=Position.hidden,
 ):
@@ -467,7 +467,7 @@ def tool_feature_export(
 
     Args:
         tool_position (int or Position): position of tools
-        class_position (int or Position): position of entity classes
+        entity_class_position (int or Position): position of entity classes
         definition_position (int or Position): position of parameter definitions
         required_flag_position (int or Position): position of required flags
 
@@ -475,7 +475,7 @@ def tool_feature_export(
         ExportMapping: root mapping
     """
     tool = ToolMapping(tool_position)
-    class_ = ToolFeatureEntityClassMapping(class_position)
+    class_ = ToolFeatureEntityClassMapping(entity_class_position)
     definition = ToolFeatureParameterDefinitionMapping(definition_position)
     required_flag = ToolFeatureRequiredFlagMapping(required_flag_position)
     definition.child = required_flag
@@ -486,7 +486,7 @@ def tool_feature_export(
 
 def tool_feature_method_export(
     tool_position=Position.hidden,
-    class_position=Position.hidden,
+    entity_class_position=Position.hidden,
     definition_position=Position.hidden,
     method_position=Position.hidden,
 ):
@@ -495,7 +495,7 @@ def tool_feature_method_export(
 
     Args:
         tool_position (int or Position): position of tools
-        class_position (int or Position): position of entity classes
+        entity_class_position (int or Position): position of entity classes
         definition_position (int or Position): position of parameter definitions
         method_position (int or Position): position of methods
 
@@ -503,7 +503,7 @@ def tool_feature_method_export(
         ExportMapping: root mapping
     """
     tool = ToolMapping(tool_position)
-    class_ = ToolFeatureMethodEntityClassMapping(class_position)
+    class_ = ToolFeatureMethodEntityClassMapping(entity_class_position)
     definition = ToolFeatureMethodParameterDefinitionMapping(definition_position)
     method = ToolFeatureMethodMethodMapping(method_position)
     definition.child = method

@@ -39,8 +39,8 @@ from spinedb_api.mapping import Position, to_dict
 from spinedb_api.export_mapping import (
     rows,
     titles,
-    entity_class_parameter_default_value_export,
-    entity_parameter_export,
+    entity_parameter_default_value_export,
+    entity_parameter_value_export,
     entity_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
@@ -290,7 +290,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             1, 2, Position.hidden, 0, None, None, -2, Position.hidden, 4, [Position.hidden], [3]
         )
         expected = [
@@ -492,7 +492,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-5.5, -6.6])))
         )
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 2, Position.hidden, -1, None, None, 3, Position.hidden, 5, [Position.hidden], [4]
         )
         expected = [
@@ -519,7 +519,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 2, Position.hidden, -1, None, None, 3, Position.hidden, 5, [Position.hidden], [4]
         )
         expected = [
@@ -541,7 +541,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "o1", "p", Map(["A", "B"], [-1.1, -2.2])), ("oc", "o2", "p", Map(["A", "B"], [-3.3, -4.4])))
         )
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 2, Position.hidden, -1, None, None, 3, Position.hidden, 4, [Position.hidden], [-2]
         )
         expected = [
@@ -573,7 +573,7 @@ class TestExportMapping(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 1, Position.hidden, -1, None, None, -2, Position.hidden, 2, [Position.hidden], [-3]
         )
         expected = [
@@ -1200,9 +1200,6 @@ class TestExportMapping(unittest.TestCase):
             ]
         )
         expected = [["", "", "oc1", "oc2"], ["rc", "rc_o11__o21", "o11", "o21"]]
-        import pprint
-
-        pprint.pprint(list(rows(root, db_map)))
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.connection.close()
 
@@ -1444,7 +1441,7 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o"),))
         import_object_parameter_values(db_map, (("oc", "o", "p", Map(["a"], [5.0], index_name="index")),))
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 2, Position.hidden, 1, None, None, 3, Position.hidden, 5, [Position.header], [4]
         )
         expected = [["", "", "", "", "index", ""], ["oc", "o", "p", "Base", "a", 5.0]]
@@ -1458,7 +1455,7 @@ class TestExportMapping(unittest.TestCase):
             db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3], index_name="idx2")], index_name="idx1")),)
         )
         db_map.commit_session("Add test data.")
-        mapping = entity_class_parameter_default_value_export(
+        mapping = entity_parameter_default_value_export(
             0, 1, Position.hidden, 4, [Position.header, Position.header], [2, 3]
         )
         expected = [["", "", "idx1", "idx2", ""], ["oc", "p", "A", "b", 2.3]]
@@ -1467,7 +1464,7 @@ class TestExportMapping(unittest.TestCase):
 
     def test_multiple_index_names_with_empty_database(self):
         db_map = DatabaseMapping("sqlite://", create=True)
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 4, Position.hidden, 1, [2], [3], 5, Position.hidden, 8, [Position.header, Position.header], [6, 7]
         )
         expected = [9 * [""]]
@@ -1479,7 +1476,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc1", "oc2", "oc3"))
         import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_class_parameter_default_value_export(0, 1, 2, 3, None, None)
+        root_mapping = entity_parameter_default_value_export(0, 1, 2, 3, None, None)
         expected = [
             ["oc1", "p11", "single_value", 3.14],
             ["oc2", "p21", "single_value", 14.3],
@@ -1495,7 +1492,7 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o"),))
         import_object_parameter_values(db_map, (("oc", "o", "p", Map(["A"], [Map(["b"], [2.3])])),))
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 1, Position.hidden, 2, None, None, Position.hidden, Position.hidden, 4, [Position.hidden], [3]
         )
         expected = [["oc", "p", "o", "A", "map"]]
@@ -1507,7 +1504,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3])])),))
         db_map.commit_session("Add test data.")
-        mapping = entity_class_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
+        mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
         expected = [["oc", "p", "A", "map"]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
@@ -1519,7 +1516,7 @@ class TestExportMapping(unittest.TestCase):
         import_objects(db_map, (("oc", "o"),))
         import_object_parameter_values(db_map, (("oc", "o", "p", Map(["A"], [2.3])),))
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(
+        mapping = entity_parameter_value_export(
             0, 1, Position.hidden, 2, None, None, Position.hidden, Position.hidden, 3, None, None
         )
         expected = [["oc", "p", "o", "map"]]
@@ -1531,7 +1528,7 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p", Map(["A"], [2.3])),))
         db_map.commit_session("Add test data.")
-        mapping = entity_class_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
+        mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
         expected = [["oc", "p", "map"]]
         self.assertEqual(list(rows(mapping, db_map)), expected)
         db_map.connection.close()
@@ -1541,7 +1538,9 @@ class TestExportMapping(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_object_parameters(db_map, (("oc", "p"),))
         db_map.commit_session("Add test data.")
-        mapping = entity_parameter_export(Position.header, Position.table_name, entity_position=0, value_position=1)
+        mapping = entity_parameter_value_export(
+            Position.header, Position.table_name, entity_position=0, value_position=1
+        )
         tables = dict()
         for title, title_key in titles(mapping, db_map):
             tables[title] = list(rows(mapping, db_map, title_key))

@@ -168,7 +168,7 @@ def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, parse_va
 
 def export_entity_classes(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.name, x.description, x.display_icon, x.dimension_name_list)
+        (x.name, x.dimension_name_list, x.description, x.display_icon)
         for x in _get_items(db_map, "entity_class", ids, make_cache)
     )
 

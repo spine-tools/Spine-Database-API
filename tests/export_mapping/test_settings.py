@@ -33,12 +33,12 @@ from spinedb_api.export_mapping import rows
 from spinedb_api.export_mapping.settings import (
     entity_export,
     set_entity_dimensions,
-    entity_parameter_export,
+    entity_parameter_value_export,
     set_parameter_dimensions,
     set_parameter_default_value_dimensions,
-    entity_class_parameter_default_value_export,
-    entity_class_dimension_parameter_default_value_export,
-    entity_element_parameter_export,
+    entity_parameter_default_value_export,
+    entity_dimension_parameter_default_value_export,
+    entity_dimension_parameter_value_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
     Position,
@@ -85,7 +85,7 @@ class TestEntityParameterExport(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             element_positions=[-1, -2], value_position=-3, index_name_positions=[Position.hidden], index_positions=[0]
         )
         expected = [
@@ -113,7 +113,7 @@ class TestEntityClassDimensionParameterDefaultValueExport(unittest.TestCase):
         import_relationship_classes(self._db_map, (("rc", ("oc1", "oc2")),))
         import_relationship_parameters(self._db_map, (("rc", "rc_p", "dummy"),))
         self._db_map.commit_session("Add test data.")
-        root_mapping = entity_class_dimension_parameter_default_value_export(
+        root_mapping = entity_dimension_parameter_default_value_export(
             entity_class_position=0,
             definition_position=1,
             dimension_positions=[2, 3],
@@ -152,7 +152,7 @@ class TestEntityElementParameterExport(unittest.TestCase):
         import_relationships(self._db_map, (("rc", ("o11", "o21")), ("rc", ("o12", "o21"))))
         import_relationship_parameter_values(self._db_map, (("rc", ("o11", "o21"), "rc_p", "dummy"),))
         self._db_map.commit_session("Add test data.")
-        root_mapping = entity_element_parameter_export(
+        root_mapping = entity_dimension_parameter_value_export(
             entity_class_position=0,
             definition_position=1,
             value_list_position=Position.hidden,
@@ -247,7 +247,7 @@ class TestSetEntityDimensions(unittest.TestCase):
 
 class TestSetParameterDimensions(unittest.TestCase):
     def test_set_dimensions_from_zero_to_one(self):
-        root_mapping = entity_parameter_export()
+        root_mapping = entity_parameter_value_export()
         set_parameter_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterValueMapping,
@@ -259,7 +259,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_zero_to_one(self):
-        root_mapping = entity_class_parameter_default_value_export()
+        root_mapping = entity_parameter_default_value_export()
         set_parameter_default_value_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterDefaultValueMapping,
@@ -271,21 +271,21 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_dimensions_from_one_to_zero(self):
-        root_mapping = entity_parameter_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_dimensions(root_mapping, 0)
         expected_types = [ParameterValueMapping, ParameterValueTypeMapping]
         for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_one_to_zero(self):
-        root_mapping = entity_class_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_default_value_dimensions(root_mapping, 0)
         expected_types = [ParameterDefaultValueMapping, ParameterDefaultValueTypeMapping]
         for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_dimensions_from_one_to_two(self):
-        root_mapping = entity_parameter_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_dimensions(root_mapping, 2)
         expected_types = [
             ExpandedParameterValueMapping,
@@ -299,7 +299,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_one_to_two(self):
-        root_mapping = entity_class_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_default_value_dimensions(root_mapping, 2)
         expected_types = [
             ExpandedParameterDefaultValueMapping,
@@ -313,7 +313,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_dimensions_from_two_to_one(self):
-        root_mapping = entity_parameter_export(index_name_positions=[0, 2], index_positions=[1, 3])
+        root_mapping = entity_parameter_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
         set_parameter_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterValueMapping,
@@ -325,7 +325,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_two_to_one(self):
-        root_mapping = entity_class_parameter_default_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
+        root_mapping = entity_parameter_default_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
         set_parameter_default_value_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterDefaultValueMapping,

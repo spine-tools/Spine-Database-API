@@ -35,7 +35,7 @@ from spinedb_api import (
     Map,
 )
 from spinedb_api.mapping import Position, unflatten
-from spinedb_api.export_mapping import entity_export, entity_parameter_export, entity_export
+from spinedb_api.export_mapping import entity_export, entity_parameter_value_export, entity_export
 from spinedb_api.export_mapping.export_mapping import FixedValueMapping
 
 
@@ -102,7 +102,7 @@ class TestGdxWriter(unittest.TestCase):
         import_objects(db_map, (("oc", "o1"),))
         import_object_parameter_values(db_map, (("oc", "o1", "p", 2.3),))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             entity_class_position=Position.table_name, entity_position=0, value_position=1
         )
         mappings = root_mapping.flatten()
@@ -126,7 +126,7 @@ class TestGdxWriter(unittest.TestCase):
         import_objects(db_map, (("oc", "o1"),))
         import_object_parameter_values(db_map, (("oc", "o1", "p", "text"),))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             entity_class_position=Position.table_name, entity_position=0, value_position=1
         )
         mappings = root_mapping.flatten()
@@ -145,7 +145,7 @@ class TestGdxWriter(unittest.TestCase):
         import_objects(db_map, (("oc", "o1"),))
         import_object_parameter_values(db_map, (("oc", "o1", "p", Map([], [], str)),))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             entity_class_position=Position.table_name, entity_position=0, value_position=1
         )
         mappings = root_mapping.flatten()
@@ -170,7 +170,7 @@ class TestGdxWriter(unittest.TestCase):
         import_objects(db_map, (("oc", "o1"),))
         import_object_parameter_values(db_map, (("oc", "o1", "p", 2.3),))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(entity_class_position=Position.table_name, value_position=0)
+        root_mapping = entity_parameter_value_export(entity_class_position=Position.table_name, value_position=0)
         with TemporaryDirectory() as temp_dir:
             file_path = Path(temp_dir, "test_write_scalars.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
@@ -238,7 +238,7 @@ class TestGdxWriter(unittest.TestCase):
         import_objects(db_map, (("oc", "o"), ("oc", "p")))
         import_object_parameter_values(db_map, (("oc", "o", "param", "text"), ("oc", "p", "param", 2.3)))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             entity_class_position=Position.hidden,
             definition_position=Position.table_name,
             entity_position=0,
@@ -259,7 +259,7 @@ class TestGdxWriter(unittest.TestCase):
         import_objects(db_map, (("oc", "o"), ("oc", "p")))
         import_object_parameter_values(db_map, (("oc", "o", "param", 2.3), ("oc", "p", "param", "text")))
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             entity_class_position=Position.hidden,
             definition_position=Position.table_name,
             entity_position=0,
@@ -290,7 +290,7 @@ class TestGdxWriter(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        root_mapping = entity_parameter_export(
+        root_mapping = entity_parameter_value_export(
             entity_class_position=Position.table_name, entity_position=0, definition_position=1, value_position=2
         )
         mappings = root_mapping.flatten()
