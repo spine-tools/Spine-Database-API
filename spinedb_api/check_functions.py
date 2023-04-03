@@ -16,7 +16,7 @@ to the violation of integrity constraints.
 :date:   4.6.2019
 """
 
-from .parameter_value import from_database, ParameterValueFormatError
+from .parameter_value import dump_db_value, from_database, ParameterValueFormatError
 from .exception import SpineIntegrityError
 
 # NOTE: We parse each parameter value or default value before accepting it. Is it too much?
@@ -435,7 +435,7 @@ def _replace_values_with_list_references(item_type, item, parameter_value_list_i
         return False
     list_value_id = next((id_ for id_ in value_id_list if list_values.get(id_) == parsed_value), None)
     if list_value_id is None:
-        valid_values = ", ".join([f"'{list_values.get(id_)}'" for id_ in value_id_list])
+        valid_values = ", ".join(f"{dump_db_value(list_values.get(id_))[0].decode('utf8')!r}" for id_ in value_id_list)
         raise SpineIntegrityError(
             f"Invalid {value_key} '{parsed_value}' - it should be one from the parameter value list: {valid_values}."
         )
