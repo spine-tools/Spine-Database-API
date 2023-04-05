@@ -462,14 +462,15 @@ def _get_entities_for_import(db_map, data, make_cache):
             if isinstance(ent_name_or_el_names, str):
                 el_ids = ()
                 e_key = ent_name_or_el_names
+                e_id = None
             else:
                 el_ids = tuple(
                     entity_ids_per_name.get((dim_id, name), None) for dim_id, name in zip(dim_ids, ent_name_or_el_names)
                 )
                 e_key = el_ids
+                e_id = entity_ids_per_el_id_lst.pop((ec_id, el_ids), None)
             if (ec_id, e_key) in checked:
                 continue
-            e_id = entity_ids_per_el_id_lst.pop((ec_id, el_ids), None)
             if e_id is not None:
                 e_name = cache["entity"][e_id].name
                 entity_ids_per_name.pop((e_id, e_name))
