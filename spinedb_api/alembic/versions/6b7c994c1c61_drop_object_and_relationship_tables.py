@@ -9,7 +9,6 @@ from alembic import op
 import sqlalchemy as sa
 from spinedb_api.helpers import naming_convention
 
-
 # revision identifiers, used by Alembic.
 revision = '6b7c994c1c61'
 down_revision = '989fccf80441'
@@ -75,14 +74,20 @@ def upgrade():
         sa.PrimaryKeyConstraint('entity_id', 'position', name=op.f('pk_entity_element')),
     )
     _persist_data()
+    # NOTE: some constraints are only created by the create_new_spine_database() function,
+    # not by the corresponding migration script. Thus we need to check before removing those constraints.
+    # We should avoid this in the future.
+    entity_class_constraints, entity_constraints = _get_constraints()
     with op.batch_alter_table("entity", naming_convention=naming_convention) as batch_op:
-        batch_op.drop_constraint('uq_entity_idclass_id', type_='unique')
-        batch_op.drop_constraint('uq_entity_idtype_idclass_id', type_='unique')
+        for cname in ('uq_entity_idclass_id', 'uq_entity_idtype_idclass_id'):
+            if cname in entity_constraints:
+                batch_op.drop_constraint(cname, type_='unique')
         batch_op.drop_constraint('fk_entity_type_id_entity_type', type_='foreignkey')
         batch_op.drop_column('type_id')
     with op.batch_alter_table("entity_class", naming_convention=naming_convention) as batch_op:
-        batch_op.drop_constraint('uq_entity_class_idtype_id', type_='unique')
-        batch_op.drop_constraint('uq_entity_class_type_idname', type_='unique')
+        for cname in ('uq_entity_class_idtype_id', 'uq_entity_class_type_idname'):
+            if cname in entity_class_constraints:
+                batch_op.drop_constraint(cname, type_='unique')
         batch_op.drop_constraint('fk_entity_class_type_id_entity_class_type', type_='foreignkey')
         batch_op.drop_constraint('fk_entity_class_commit_id_commit', type_='foreignkey')
         batch_op.drop_column('commit_id')
@@ -96,6 +101,13 @@ def upgrade():
     op.drop_table('entity_type')
     op.drop_table('relationship_class')
     op.drop_table('relationship_entity')
+
+
+def _get_constraints():
+    conn = op.get_bind()
+    meta = sa.MetaData(conn)
+    meta.reflect()
+    return [[c.name for c in meta.tables[tname].constraints] for tname in ["entity_class", "entity"]]
 
 
 def _persist_data():
