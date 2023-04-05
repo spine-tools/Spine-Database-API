@@ -643,6 +643,11 @@ class EntityClassMapping(ExportMapping):
             db_map.ext_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
         )
 
+    def filter_query(self, db_map, query):
+        if isinstance(self.child, DimensionMapping):
+            return query.filter(db_map.ext_entity_class_sq.c.dimension_id_list != None)
+        return query.filter(db_map.ext_entity_class_sq.c.dimension_id_list == None)
+
     @staticmethod
     def name_field():
         return "entity_class_name"
