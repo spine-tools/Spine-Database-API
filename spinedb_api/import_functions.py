@@ -486,7 +486,6 @@ def _get_entities_for_import(db_map, data, make_cache):
                 }
             )
             item.update(dict(zip(("description",), optionals)))
-            print(item)
             try:
                 check_entity(item, entity_ids_per_name, entity_ids_per_el_id_lst, entity_classes, entities)
             except SpineIntegrityError as e:
