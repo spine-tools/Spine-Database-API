@@ -503,6 +503,7 @@ def _get_entities_for_import(db_map, data, make_cache):
                 item["id"] = entity_ids_per_el_id_lst[ec_id, el_ids] = entity_ids_per_name[
                     ec_id, e_name
                 ] = new_entity_id()
+                entities[item["id"]] = item
                 to_add.append(item)
     return to_add, to_update, error_log
 
