@@ -97,7 +97,9 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        ids, _ = self._db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
+        ids, _ = self._db_map.add_wide_relationships(
+            {"id": 3, "name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}
+        )
         self._db_map.cascade_remove_items(relationship=ids)
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
         self._db_map.commit_session("delete")
@@ -108,7 +110,9 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        ids, _ = self._db_map.add_wide_relationships({"name": "remove_me", "class_id": 3, "object_id_list": [1, 2]})
+        ids, _ = self._db_map.add_wide_relationships(
+            {"id": 3, "name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}
+        )
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 1)
         self._db_map.cascade_remove_items(relationship=ids)
