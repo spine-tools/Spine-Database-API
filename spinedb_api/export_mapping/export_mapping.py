@@ -644,7 +644,7 @@ class EntityClassMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        if isinstance(self.child, DimensionMapping):
+        if any(isinstance(m, (DimensionMapping, ElementMapping)) for m in self.flatten()):
             return query.filter(db_map.ext_entity_class_sq.c.dimension_id_list != None)
         return query.filter(db_map.ext_entity_class_sq.c.dimension_id_list == None)
 
