@@ -31,9 +31,10 @@ class DatabaseMappingCommitMixin:
         """Initialize class."""
         super().__init__(*args, **kwargs)
         self._commit_id = None
+        self._has_pending_changes = False
 
     def has_pending_changes(self):
-        return self._commit_id is not None
+        return self._has_pending_changes
 
     def _get_sqlite_lock(self):
         """Commits the session's natural transaction and begins a new locking one."""
@@ -41,14 +42,14 @@ class DatabaseMappingCommitMixin:
             self.session.commit()
             self.session.execute("BEGIN IMMEDIATE")
 
-    def _make_commit_id(self):
+    def _make_commit_id(self, dry_run=False):
         if self._commit_id is None:
-            if self.committing:
-                self._get_sqlite_lock()
-                self._commit_id = self._do_make_commit_id(self.connection)
-            else:
+            if dry_run:
                 with self.engine.begin() as connection:
                     self._commit_id = self._do_make_commit_id(connection)
+            else:
+                self._get_sqlite_lock()
+                self._commit_id = self._do_make_commit_id(self.connection)
         return self._commit_id
 
     def _do_make_commit_id(self, connection):
@@ -71,6 +72,7 @@ class DatabaseMappingCommitMixin:
         self._checked_execute(upd, dict(user=user, date=date, comment=comment))
         self.session.commit()
         self._commit_id = None
+        self._has_pending_changes = False
         if self._memory:
             self._memory_dirty = True
 
@@ -83,3 +85,4 @@ class DatabaseMappingCommitMixin:
         self.session.rollback()
         self.cache.clear()
         self._commit_id = None
+        self._has_pending_changes = False

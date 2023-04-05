@@ -75,7 +75,7 @@ class DatabaseMappingAddMixin:
                 self._next_id = Table("next_id", self._metadata, autoload=True)
 
     @contextmanager
-    def generate_ids(self, tablename):
+    def generate_ids(self, tablename, dry_run=False):
         """Manages id generation for new items to be added to the db.
 
         Args:
@@ -84,7 +84,7 @@ class DatabaseMappingAddMixin:
         Yields:
             self._IdGenerator: an object that generates a new id every time it is called.
         """
-        connection = self.connection if self.committing else self.engine.connect()
+        connection = self.engine.connect() if dry_run else self.connection
         fieldname = {
             "entity_class": "entity_class_id",
             "object_class": "entity_class_id",
@@ -128,24 +128,18 @@ class DatabaseMappingAddMixin:
             yield gen
         finally:
             connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: gen.next_id})
-            if not self.committing:
+            if dry_run:
                 connection.close()
 
-    def _add_commit_id_and_ids(self, tablename, *items):
+    def _add_commit_id_and_ids(self, tablename, *items, dry_run=False):
         if not items:
             return [], set()
-        commit_id = self._make_commit_id()
-        with self.generate_ids(tablename) as new_id:
+        commit_id = self._make_commit_id(dry_run=dry_run)
+        with self.generate_ids(tablename, dry_run=dry_run) as new_id:
             for item in items:
                 item["commit_id"] = commit_id
                 if "id" not in item:
                     item["id"] = new_id()
-
-    def _readd_items(self, tablename, *items):
-        """Add known items to database."""
-        self._make_commit_id()
-        for _ in self._do_add_items(tablename, *items):
-            pass
 
     def add_items(
         self,
@@ -157,6 +151,7 @@ class DatabaseMappingAddMixin:
         return_items=False,
         cache=None,
         readd=False,
+        dry_run=False,
     ):
         """Add items to db.
 
@@ -177,7 +172,9 @@ class DatabaseMappingAddMixin:
             list(SpineIntegrityError): found violations
         """
         if readd:
-            self._readd_items(tablename, *items)
+            if not dry_run:
+                for _ in self._do_add_items(tablename, *items):
+                    pass
             return items if return_items else {x["id"] for x in items}, []
         if check:
             checked_items, intgr_error_log = self.check_items(
@@ -185,14 +182,14 @@ class DatabaseMappingAddMixin:
             )
         else:
             checked_items, intgr_error_log = list(items), []
-        ids = self._add_items(tablename, *checked_items)
+        ids = self._add_items(tablename, *checked_items, dry_run=dry_run)
         if return_items:
             return checked_items, intgr_error_log
         if return_dups:
             ids.update(set(x.id for x in intgr_error_log if x.id))
         return ids, intgr_error_log
 
-    def _add_items(self, tablename, *items):
+    def _add_items(self, tablename, *items, dry_run=False):
         """Add items to database without checking integrity.
 
         Args:
@@ -204,9 +201,10 @@ class DatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        self._add_commit_id_and_ids(tablename, *items)
-        for _ in self._do_add_items(tablename, *items):
-            pass
+        self._add_commit_id_and_ids(tablename, *items, dry_run=dry_run)
+        if not dry_run:
+            for _ in self._do_add_items(tablename, *items):
+                pass
         return {item["id"] for item in items}
 
     def _get_table_for_insert(self, tablename):
@@ -224,8 +222,6 @@ class DatabaseMappingAddMixin:
         return self._metadata.tables[tablename]
 
     def _do_add_items(self, tablename, *items_to_add):
-        if not self.committing:
-            return
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
                 table = self._get_table_for_insert(tablename_)
@@ -234,6 +230,8 @@ class DatabaseMappingAddMixin:
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e
+        else:
+            self._has_pending_changes = True
 
     def _items_to_add_per_table(self, tablename, items_to_add):
         """
@@ -382,7 +380,7 @@ class DatabaseMappingAddMixin:
     def add_parameter_value_metadata(self, *items, **kwargs):
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def _get_or_add_metadata_ids_for_items(self, *items, check, strict, cache):
+    def _get_or_add_metadata_ids_for_items(self, *items, check, strict, cache, dry_run):
         metadata_ids = {}
         for entry in cache.get("metadata", {}).values():
             metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
@@ -397,7 +395,13 @@ class DatabaseMappingAddMixin:
             else:
                 item["metadata_id"] = existing_id
         added_metadata, errors = self.add_items(
-            "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, cache=cache
+            "metadata",
+            *metadata_to_add,
+            check=check,
+            strict=strict,
+            return_items=True,
+            cache=cache,
+            dry_run=dry_run,
         )
         for x in added_metadata:
             cache.table_cache("metadata").add_item(x)
@@ -411,36 +415,52 @@ class DatabaseMappingAddMixin:
                 item["metadata_id"] = new_metadata_ids[metadata_name][metadata_value]
         return added_metadata, errors
 
-    def _add_ext_item_metadata(self, table_name, *items, check=True, strict=False, return_items=False, cache=None):
+    def _add_ext_item_metadata(
+        self, table_name, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False
+    ):
         # Note, that even though return_items can be False, it doesn't make much sense here because we'll be mixing
         # metadata and entity metadata ids.
         if cache is None:
             cache = self.make_cache({table_name}, include_ancestors=True)
         added_metadata, metadata_errors = self._get_or_add_metadata_ids_for_items(
-            *items, check=check, strict=strict, cache=cache
+            *items, check=check, strict=strict, cache=cache, dry_run=dry_run
         )
         if metadata_errors:
             if not return_items:
                 return added_metadata, metadata_errors
             return {i["id"] for i in added_metadata}, metadata_errors
         added_item_metadata, item_errors = self.add_items(
-            table_name, *items, check=check, strict=strict, return_items=True, cache=cache
+            table_name, *items, check=check, strict=strict, return_items=True, cache=cache, dry_run=dry_run
         )
         errors = metadata_errors + item_errors
         if not return_items:
             return {i["id"] for i in added_metadata + added_item_metadata}, errors
         return added_metadata + added_item_metadata, errors
 
-    def add_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None, readd=False):
+    def add_ext_entity_metadata(
+        self, *items, check=True, strict=False, return_items=False, cache=None, readd=False, dry_run=False
+    ):
         return self._add_ext_item_metadata(
-            "entity_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+            "entity_metadata",
+            *items,
+            check=check,
+            strict=strict,
+            return_items=return_items,
+            cache=cache,
+            dry_run=dry_run,
         )
 
     def add_ext_parameter_value_metadata(
-        self, *items, check=True, strict=False, return_items=False, cache=None, readd=False
+        self, *items, check=True, strict=False, return_items=False, cache=None, readd=False, dry_run=False
     ):
         return self._add_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, cache=cache
+            "parameter_value_metadata",
+            *items,
+            check=check,
+            strict=strict,
+            return_items=return_items,
+            cache=cache,
+            dry_run=dry_run,
         )
 
     def _add_entity_classes(self, *items):

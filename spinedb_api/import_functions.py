@@ -186,6 +186,7 @@ def get_data_for_import(
     make_cache=None,
     unparse_value=to_database,
     on_conflict="merge",
+    dry_run=False,
     entity_classes=(),
     entities=(),
     parameter_definitions=(),
@@ -259,7 +260,7 @@ def get_data_for_import(
             yield ("alternative", _get_alternatives_for_import(alternatives, make_cache))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(scenario_alternatives, make_cache))
     if entity_classes:
-        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, make_cache))
+        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, make_cache, dry_run))
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes, make_cache))
     if relationship_classes:
@@ -294,7 +295,7 @@ def get_data_for_import(
             _get_tool_feature_methods_for_import(db_map, tool_feature_methods, make_cache, unparse_value),
         )
     if entities:
-        yield ("entity", _get_entities_for_import(db_map, entities, make_cache))
+        yield ("entity", _get_entities_for_import(db_map, entities, make_cache, dry_run))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects, make_cache))
     if relationships:
@@ -365,14 +366,14 @@ def import_entity_classes(db_map, data, make_cache=None):
     return import_data(db_map, entity_classes=data, make_cache=make_cache)
 
 
-def _get_entity_classes_for_import(db_map, data, make_cache):
+def _get_entity_classes_for_import(db_map, data, make_cache, dry_run):
     cache = make_cache({"entity_class"}, include_ancestors=True)
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
     checked = set()
     error_log = []
     to_add = []
     to_update = []
-    with db_map.generate_ids("entity_class") as new_entity_class_id:
+    with db_map.generate_ids("entity_class", dry_run=dry_run) as new_entity_class_id:
         for name, *optionals in data:
             if name in checked:
                 continue
@@ -439,7 +440,7 @@ def _make_unique_entity_name(class_id, class_name, ent_name_or_el_names, class_i
     return name
 
 
-def _get_entities_for_import(db_map, data, make_cache):
+def _get_entities_for_import(db_map, data, make_cache, dry_run):
     cache = make_cache({"entity"}, include_ancestors=True)
     entities = {x.id: x for x in cache.get("entity", {}).values()}
     entity_ids_per_name = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values()}
@@ -455,7 +456,7 @@ def _get_entities_for_import(db_map, data, make_cache):
     to_add = []
     to_update = []
     checked = set()
-    with db_map.generate_ids("entity") as new_entity_id:
+    with db_map.generate_ids("entity", dry_run=dry_run) as new_entity_id:
         for class_name, ent_name_or_el_names, *optionals in data:
             ec_id = entity_class_ids.get(class_name, None)
             dim_ids = dimension_id_lists.get(ec_id, ())

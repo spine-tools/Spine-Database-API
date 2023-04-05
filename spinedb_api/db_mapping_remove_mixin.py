@@ -40,9 +40,6 @@ class DatabaseMappingRemoveMixin:
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
-        if not self.committing:
-            return
-        self._make_commit_id()
         for tablename, ids in kwargs.items():
             if not ids:
                 continue
@@ -59,6 +56,8 @@ class DatabaseMappingRemoveMixin:
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg) from e
+            else:
+                self._has_pending_changes = True
 
     # pylint: disable=redefined-builtin
     def cascading_ids(self, cache=None, **kwargs):

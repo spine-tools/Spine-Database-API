@@ -117,7 +117,6 @@ class DatabaseMappingBase:
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
         self._memory = memory
-        self.committing = True
         self._memory_dirty = False
         self._original_engine = self.create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
@@ -263,15 +262,6 @@ class DatabaseMappingBase:
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         self.connection.close()
 
-    @contextmanager
-    def override_committing(self, new_committing):
-        committing = self.committing
-        self.committing = new_committing
-        try:
-            yield None
-        finally:
-            self.committing = committing
-
     def _descendant_tablenames(self, tablename):
         child_tablenames = {
             "alternative": ("parameter_value", "scenario_alternative"),
@@ -319,7 +309,7 @@ class DatabaseMappingBase:
     def commit_id(self):
         return self._commit_id
 
-    def _make_commit_id(self):
+    def _make_commit_id(self, dry_run=False):
         return None
 
     def _check_commit(self, comment):

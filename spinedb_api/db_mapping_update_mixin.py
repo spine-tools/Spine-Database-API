@@ -27,7 +27,7 @@ class DatabaseMappingUpdateMixin:
         for item in items:
             item["commit_id"] = self._make_commit_id()
 
-    def _update_items(self, tablename, *items):
+    def _update_items(self, tablename, *items, dry_run=False):
         if not items:
             return set()
         # Special cases
@@ -36,26 +36,28 @@ class DatabaseMappingUpdateMixin:
         if tablename == "relationship":
             return self._update_wide_relationships(*items)
         real_tablename = self._real_tablename(tablename)
-        return self._do_update_items(real_tablename, *items)
+        if not dry_run:
+            self._do_update_items(real_tablename, *items)
+        return {x["id"] for x in items}
 
     def _do_update_items(self, tablename, *items):
         if not items:
-            return set()
-        if self.committing:
-            self._add_commit_id(*items)
-            table = self._metadata.tables[tablename]
-            upd = table.update()
-            for k in self._get_primary_key(tablename):
-                upd = upd.where(getattr(table.c, k) == bindparam(k))
-            upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
-            try:
-                self._checked_execute(upd, [{**item} for item in items])
-            except DBAPIError as e:
-                msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
-                raise SpineDBAPIError(msg)
-        return {x["id"] for x in items}
+            return
+        self._add_commit_id(*items)
+        table = self._metadata.tables[tablename]
+        upd = table.update()
+        for k in self._get_primary_key(tablename):
+            upd = upd.where(getattr(table.c, k) == bindparam(k))
+        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
+        try:
+            self._checked_execute(upd, [{**item} for item in items])
+        except DBAPIError as e:
+            msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
+            raise SpineDBAPIError(msg) from e
+        else:
+            self._has_pending_changes = True
 
-    def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None):
+    def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False):
         """Updates items.
 
         Args:
@@ -78,7 +80,7 @@ class DatabaseMappingUpdateMixin:
             )
         else:
             checked_items, intgr_error_log = list(items), []
-        updated_ids = self._update_items(tablename, *checked_items)
+        updated_ids = self._update_items(tablename, *checked_items, dry_run=dry_run)
         if return_items:
             return checked_items, intgr_error_log
         return updated_ids, intgr_error_log
@@ -135,9 +137,9 @@ class DatabaseMappingUpdateMixin:
                     "element_id": element_id,
                 }
                 entity_element_items.append(rel_ent_item)
-        entity_ids = self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity", *entity_items)
         self._do_update_items("entity_element", *entity_element_items)
-        return entity_ids
+        return {x["id"] for x in entity_items}
 
     def update_object_classes(self, *items, **kwargs):
         return self.update_items("object_class", *items, **kwargs)
@@ -185,9 +187,9 @@ class DatabaseMappingUpdateMixin:
                     "element_id": element_id,
                 }
                 entity_element_items.append(rel_ent_item)
-        entity_ids = self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity", *entity_items)
         self._do_update_items("entity_element", *entity_element_items)
-        return entity_ids
+        return {x["id"] for x in entity_items}
 
     def update_parameter_definitions(self, *items, **kwargs):
         return self.update_items("parameter_definition", *items, **kwargs)
@@ -243,23 +245,27 @@ class DatabaseMappingUpdateMixin:
     def _update_metadata(self, *items):
         return self._update_items("metadata", *items)
 
-    def update_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+    def update_ext_entity_metadata(
+        self, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False
+    ):
         updated_items, errors = self._update_ext_item_metadata(
-            "entity_metadata", *items, check=check, strict=strict, cache=cache
+            "entity_metadata", *items, check=check, strict=strict, cache=cache, dry_run=dry_run
         )
         if return_items:
             return updated_items, errors
         return {i["id"] for i in updated_items}, errors
 
-    def update_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, cache=None):
+    def update_ext_parameter_value_metadata(
+        self, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False
+    ):
         updated_items, errors = self._update_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict, cache=cache
+            "parameter_value_metadata", *items, check=check, strict=strict, cache=cache, dry_run=dry_run
         )
         if return_items:
             return updated_items, errors
         return {i["id"] for i in updated_items}, errors
 
-    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False, cache=None):
+    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False, cache=None, dry_run=False):
         if cache is None:
             cache = self.make_cache({"entity_metadata", "parameter_value_metadata", "metadata"})
         metadata_ids = {}
@@ -320,7 +326,12 @@ class DatabaseMappingUpdateMixin:
         errors = []
         if updatable_metadata_items:
             updated_metadata, errors = self.update_metadata(
-                *updatable_metadata_items, check=False, strict=strict, return_items=True, cache=cache
+                *updatable_metadata_items,
+                check=False,
+                strict=strict,
+                return_items=True,
+                cache=cache,
+                dry_run=dry_run,
             )
             all_items += updated_metadata
             if errors:
