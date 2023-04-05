@@ -17,6 +17,7 @@
 # TODO: improve docstrings
 
 from datetime import datetime
+from contextlib import contextmanager
 from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
@@ -24,6 +25,20 @@ from .exception import SpineDBAPIError
 
 class DatabaseMappingAddMixin:
     """Provides methods to perform ``INSERT`` operations over a Spine db."""
+
+    class _IdGenerator:
+        def __init__(self, next_id):
+            self._next_id = next_id
+
+        @property
+        def next_id(self):
+            return self._next_id
+
+        def __call__(self):
+            try:
+                return self._next_id
+            finally:
+                self._next_id += 1
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""
@@ -59,22 +74,17 @@ class DatabaseMappingAddMixin:
                 # Some other concurrent process must have beaten us to create the table
                 self._next_id = Table("next_id", self._metadata, autoload=True)
 
-    def _add_commit_id_and_ids(self, tablename, *items):
-        if not items:
-            return [], set()
-        ids = self._reserve_ids(tablename, len(items))
-        commit_id = self._make_commit_id()
-        for id_, item in zip(ids, items):
-            item["commit_id"] = commit_id
-            item["id"] = id_
+    @contextmanager
+    def generate_ids(self, tablename):
+        """Manages id generation for new items to be added to the db.
 
-    def _reserve_ids(self, tablename, count):
-        if self.committing:
-            return self._do_reserve_ids(self.connection, tablename, count)
-        with self.engine.begin() as connection:
-            return self._do_reserve_ids(connection, tablename, count)
+        Args:
+            tablename (str): the table to which items will be added
 
-    def _do_reserve_ids(self, connection, tablename, count):
+        Yields:
+            self._IdGenerator: an object that generates a new id every time it is called.
+        """
+        connection = self.connection if self.committing else self.engine.connect()
         fieldname = {
             "entity_class": "entity_class_id",
             "object_class": "entity_class_id",
@@ -113,9 +123,23 @@ class DatabaseMappingAddMixin:
             select_max_id = select([func.max(getattr(table.c, id_col))])
             max_id = connection.execute(select_max_id).scalar()
             next_id = max_id + 1 if max_id else 1
-        new_next_id = next_id + count
-        connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: new_next_id})
-        return range(next_id, new_next_id)
+        gen = self._IdGenerator(next_id)
+        try:
+            yield gen
+        finally:
+            connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: gen.next_id})
+            if not self.committing:
+                connection.close()
+
+    def _add_commit_id_and_ids(self, tablename, *items):
+        if not items:
+            return [], set()
+        commit_id = self._make_commit_id()
+        with self.generate_ids(tablename) as new_id:
+            for item in items:
+                item["commit_id"] = commit_id
+                if "id" not in item:
+                    item["id"] = new_id()
 
     def _readd_items(self, tablename, *items):
         """Add known items to database."""

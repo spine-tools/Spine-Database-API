@@ -391,7 +391,7 @@ class EntityMapping(ImportMapping):
         entity_name = state[ImportKey.ENTITY_NAME] = str(source_data)
         if isinstance(self.child, EntityGroupMapping):
             raise KeyError(ImportKey.MEMBER_NAME)
-        mapped_data.setdefault("entities", set()).add((entity_class_name, entity_name))
+        mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = None
 
 
 class EntityMetadataMapping(ImportMapping):
@@ -422,8 +422,9 @@ class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
         member_name = str(source_data)
         mapped_data.setdefault("entity_groups", set()).add((entity_class_name, group_name, member_name))
         if self.import_entities:
-            entities = (entity_class_name, group_name), (entity_class_name, member_name)
-            mapped_data.setdefault("entities", set()).update(entities)
+            entities = mapped_data.setdefault("entities", {})
+            entities[entity_class_name, group_name] = None
+            entities[entity_class_name, member_name] = None
         raise KeyFix(ImportKey.MEMBER_NAME)
 
 
@@ -464,10 +465,9 @@ class ElementMapping(ImportEntitiesMixin, ImportMapping):
             k = len(element_names) - 1
             dimension_name = dimension_names[k]
             mapped_data.setdefault("entity_classes", {}).update({dimension_name: ()})
-            mapped_data.setdefault("entities", set()).add((dimension_name, element_name))
+            mapped_data.setdefault("entities", {})[dimension_name, element_name] = None
         if len(element_names) == state[ImportKey.DIMENSION_COUNT]:
-            entities = mapped_data.setdefault("entities", set())
-            entities.add((entity_class_name, tuple(element_names)))
+            mapped_data.setdefault("entities", {})[entity_class_name, tuple(element_names)] = None
             raise KeyFix(ImportKey.ELEMENT_NAMES)
         raise KeyError(ImportKey.ELEMENT_NAMES)
 

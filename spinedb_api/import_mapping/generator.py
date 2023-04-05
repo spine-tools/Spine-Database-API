@@ -18,6 +18,7 @@ using ``import_functions.import_data()``
 """
 
 from copy import deepcopy
+from operator import itemgetter
 from .import_mapping_compat import import_mapping_from_dict
 from .import_mapping import ImportMapping, check_validity
 from ..mapping import Position
@@ -160,6 +161,7 @@ def get_mapped_data(
                 full_row.append(row[column_pos])
                 mapping.import_row(full_row, read_state, mapped_data)
     _make_entity_classes(mapped_data)
+    _make_entities(mapped_data)
     _make_parameter_values(mapped_data, unparse_value)
     return mapped_data, errors
 
@@ -268,11 +270,19 @@ def _make_entity_classes(mapped_data):
     rows = mapped_data.get("entity_classes")
     if rows is None:
         return
-    full_rows = set()
-    for class_name, dimension_names in rows.items():
+    rows = [(class_name, tuple(dimension_names)) for class_name, dimension_names in rows.items()]
+    rows.sort(key=itemgetter(1))
+    mapped_data["entity_classes"] = final_rows = []
+    for class_name, dimension_names in rows:
         row = (class_name, tuple(dimension_names)) if dimension_names else (class_name,)
-        full_rows.add(row)
-    mapped_data["entity_classes"] = full_rows
+        final_rows.append(row)
+
+
+def _make_entities(mapped_data):
+    rows = mapped_data.get("entities")
+    if rows is None:
+        return
+    mapped_data["entities"] = list(rows)
 
 
 def _make_parameter_values(mapped_data, unparse_value):

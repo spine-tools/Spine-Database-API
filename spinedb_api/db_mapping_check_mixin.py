@@ -635,21 +635,23 @@ class DatabaseMappingCheckMixin:
             (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
         }
         entity_class_ids = {x.id for x in cache.get("entity_class", {}).values()}
+        object_class_ids = {x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
+        relationship_class_ids = {x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
         parameter_value_lists = {x.id: x.value_id_list for x in cache.get("parameter_value_list", {}).values()}
         list_values = {x.id: from_database(x.value, x.type) for x in cache.get("list_value", {}).values()}
         for item in items:
-            object_class_id = item.get("object_class_id")
-            relationship_class_id = item.get("relationship_class_id")
-            if object_class_id and relationship_class_id:
-                e = SpineIntegrityError("Can't associate a parameter to both an object and a relationship class.")
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-                continue
-            entity_class_id = object_class_id or relationship_class_id
-            if "entity_class_id" not in item and entity_class_id is not None:
-                item["entity_class_id"] = entity_class_id
             try:
+                object_class_id = item.get("object_class_id")
+                relationship_class_id = item.get("relationship_class_id")
+                if object_class_id and relationship_class_id:
+                    raise SpineIntegrityError("Can't associate a parameter to both an object and a relationship class.")
+                if object_class_id and object_class_id not in object_class_ids:
+                    raise SpineIntegrityError("Invalid object class id.")
+                if relationship_class_id and relationship_class_id not in relationship_class_ids:
+                    raise SpineIntegrityError("Invalid relationship class id.")
+                entity_class_id = object_class_id or relationship_class_id
+                if "entity_class_id" not in item and entity_class_id is not None:
+                    item["entity_class_id"] = entity_class_id
                 if (
                     for_update
                     and item["id"] in parameter_definition_ids_with_values

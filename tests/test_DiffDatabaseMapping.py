@@ -492,7 +492,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_classes(self):
         """Test that adding relationship classes works."""
-        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc2", "object_class_id_list": [2, 1]}
         )
@@ -515,7 +515,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_classes_with_same_name(self):
         """Test that adding two relationship classes with the same name only adds one of them."""
-        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc1", "object_class_id_list": [1, 2]}
         )
@@ -564,9 +564,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationships(self):
         """Test that adding relationships works."""
-        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
-        self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
+        self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2]})
+        self._db_map.add_objects({"name": "o1", "class_id": 1}, {"name": "o2", "class_id": 2})
         self._db_map.add_wide_relationships({"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
         ent_els = self._db_map.query(self._db_map.get_table("entity_element")).all()
         relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
@@ -588,9 +588,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one."""
-        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
-        self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
+        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
+        self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2]})
+        self._db_map.add_objects({"name": "o1", "class_id": 1}, {"name": "o2", "class_id": 2})
         self._db_map.add_wide_relationships(
             {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
             {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},

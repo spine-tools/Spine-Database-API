@@ -366,41 +366,43 @@ def import_entity_classes(db_map, data, make_cache=None):
 
 
 def _get_entity_classes_for_import(db_map, data, make_cache):
-    # FIXME: We need to find a way to set the ids for newly added single dimensional entities
-    # so that they can be used in this same function for adding multi dimensional ones
     cache = make_cache({"entity_class"}, include_ancestors=True)
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
     checked = set()
     error_log = []
     to_add = []
     to_update = []
-    for name, *optionals in data:
-        if name in checked:
-            continue
-        ec_id = entity_class_ids.pop(name, None)
-        item = (
-            cache["entity_class"][ec_id]._asdict()
-            if ec_id is not None
-            else {"name": name, "description": None, "display_icon": None}
-        )
-        item.update(dict(zip(("dimension_name_list", "description", "display_icon"), optionals)))
-        item["dimension_id_list"] = tuple(entity_class_ids.get(x, None) for x in item.get("dimension_name_list", ()))
-        try:
-            check_entity_class(item, entity_class_ids)
-        except SpineIntegrityError as e:
-            error_log.append(
-                ImportErrorLogItem(f"Could not import entity class '{name}': {e.msg}", db_type="entity_class")
+    with db_map.generate_ids("entity_class") as new_entity_class_id:
+        for name, *optionals in data:
+            if name in checked:
+                continue
+            ec_id = entity_class_ids.pop(name, None)
+            item = (
+                cache["entity_class"][ec_id]._asdict()
+                if ec_id is not None
+                else {"name": name, "description": None, "display_icon": None}
             )
-            continue
-        finally:
+            item.update(dict(zip(("dimension_name_list", "description", "display_icon"), optionals)))
+            item["dimension_id_list"] = tuple(
+                entity_class_ids.get(x, None) for x in item.get("dimension_name_list", ())
+            )
+            try:
+                check_entity_class(item, entity_class_ids)
+            except SpineIntegrityError as e:
+                error_log.append(
+                    ImportErrorLogItem(f"Could not import entity class '{name}': {e.msg}", db_type="entity_class")
+                )
+                continue
+            finally:
+                if ec_id is not None:
+                    entity_class_ids[name] = ec_id
+            checked.add(name)
             if ec_id is not None:
-                entity_class_ids[name] = ec_id
-        checked.add(name)
-        if ec_id is not None:
-            item["id"] = ec_id
-            to_update.append(item)
-        else:
-            to_add.append(item)
+                item["id"] = ec_id
+                to_update.append(item)
+            else:
+                item["id"] = entity_class_ids[name] = new_entity_class_id()
+                to_add.append(item)
     return to_add, to_update, error_log
 
 
@@ -447,57 +449,62 @@ def _get_entities_for_import(db_map, data, make_cache):
     entity_classes = {
         x.id: {"dimension_id_list": x.dimension_id_list, "name": x.name} for x in cache.get("entity_class", {}).values()
     }
-    entity_ids = {(x["name"], x["class_id"]): id_ for id_, x in entities.items()}
     entity_class_ids = {x["name"]: id_ for id_, x in entity_classes.items()}
     dimension_id_lists = {id_: x["dimension_id_list"] for id_, x in entity_classes.items()}
     error_log = []
     to_add = []
     to_update = []
     checked = set()
-    for class_name, ent_name_or_el_names, *optionals in data:
-        ec_id = entity_class_ids.get(class_name, None)
-        dim_ids = dimension_id_lists.get(ec_id, ())
-        if isinstance(ent_name_or_el_names, str):
-            el_ids = ()
-            e_key = ent_name_or_el_names
-        else:
-            el_ids = tuple(entity_ids.get((name, dim_id), None) for name, dim_id in zip(ent_name_or_el_names, dim_ids))
-            e_key = el_ids
-        if (ec_id, e_key) in checked:
-            continue
-        e_id = entity_ids_per_el_id_lst.pop((ec_id, el_ids), None)
-        if e_id is not None:
-            e_name = cache["entity"][e_id].name
-            entity_ids_per_name.pop((e_id, e_name))
-        else:
-            e_name = _make_unique_entity_name(ec_id, class_name, ent_name_or_el_names, entity_ids_per_name)
-        item = (
-            cache["entity"][e_id]._asdict()
-            if e_id is not None
-            else {
-                "name": e_name,
-                "class_id": ec_id,
-                "element_id_list": el_ids,
-                "dimension_id_list": dim_ids,
-            }
-        )
-        item.update(dict(zip(("description",), optionals)))
-        try:
-            check_entity(item, entity_ids_per_name, entity_ids_per_el_id_lst, entity_classes, entities)
-        except SpineIntegrityError as e:
-            msg = f"Could not import entity {tuple(ent_name_or_el_names)} into '{class_name}': {e.msg}"
-            error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship"))
-            continue
-        finally:
+    with db_map.generate_ids("entity") as new_entity_id:
+        for class_name, ent_name_or_el_names, *optionals in data:
+            ec_id = entity_class_ids.get(class_name, None)
+            dim_ids = dimension_id_lists.get(ec_id, ())
+            if isinstance(ent_name_or_el_names, str):
+                el_ids = ()
+                e_key = ent_name_or_el_names
+            else:
+                el_ids = tuple(
+                    entity_ids_per_name.get((dim_id, name), None) for dim_id, name in zip(dim_ids, ent_name_or_el_names)
+                )
+                e_key = el_ids
+            if (ec_id, e_key) in checked:
+                continue
+            e_id = entity_ids_per_el_id_lst.pop((ec_id, el_ids), None)
             if e_id is not None:
-                entity_ids_per_el_id_lst[ec_id, el_ids] = e_id
-                entity_ids_per_name[ec_id, e_name] = e_id
-        checked.add((ec_id, e_key))
-        if e_id is not None:
-            item["id"] = e_id
-            to_update.append(item)
-        else:
-            to_add.append(item)
+                e_name = cache["entity"][e_id].name
+                entity_ids_per_name.pop((e_id, e_name))
+            else:
+                e_name = _make_unique_entity_name(ec_id, class_name, ent_name_or_el_names, entity_ids_per_name)
+            item = (
+                cache["entity"][e_id]._asdict()
+                if e_id is not None
+                else {
+                    "name": e_name,
+                    "class_id": ec_id,
+                    "element_id_list": el_ids,
+                    "dimension_id_list": dim_ids,
+                }
+            )
+            item.update(dict(zip(("description",), optionals)))
+            print(item)
+            try:
+                check_entity(item, entity_ids_per_name, entity_ids_per_el_id_lst, entity_classes, entities)
+            except SpineIntegrityError as e:
+                msg = f"Could not import entity {tuple(ent_name_or_el_names)} into '{class_name}': {e.msg}"
+                error_log.append(ImportErrorLogItem(msg=msg, db_type="relationship"))
+                continue
+            finally:
+                if e_id is not None:
+                    entity_ids_per_el_id_lst[ec_id, el_ids] = entity_ids_per_name[ec_id, e_name] = e_id
+            checked.add((ec_id, e_key))
+            if e_id is not None:
+                item["id"] = e_id
+                to_update.append(item)
+            else:
+                item["id"] = entity_ids_per_el_id_lst[ec_id, el_ids] = entity_ids_per_name[
+                    ec_id, e_name
+                ] = new_entity_id()
+                to_add.append(item)
     return to_add, to_update, error_log
 
 

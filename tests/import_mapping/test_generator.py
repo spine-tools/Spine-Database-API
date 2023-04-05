@@ -72,10 +72,10 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 'alternatives': {'Base'},
-                'entity_classes': {('Object',)},
+                'entity_classes': [('Object',)],
                 'parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
                 'parameter_definitions': [('Object', 'Parameter')],
-                'entities': {('Object', 'data')},
+                'entities': [('Object', 'data')],
             },
         )
 
@@ -104,10 +104,10 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 'alternatives': {'Base'},
-                'entity_classes': {('Object',)},
+                'entity_classes': [('Object',)],
                 'parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
                 'parameter_definitions': [('Object', 'Parameter')],
-                'entities': {('Object', 'data')},
+                'entities': [('Object', 'data')],
             },
         )
 
@@ -135,10 +135,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'entity_classes': {('klass',)},
+                'entity_classes': [('klass',)],
                 'parameter_values': [['klass', 'kloss', 'Parameter_2', Map(["T1", "T2"], [2.3, 23.0])]],
                 'parameter_definitions': [('klass', 'Parameter_2')],
-                'entities': {('klass', 'kloss')},
+                'entities': [('klass', 'kloss')],
             },
         )
 
@@ -189,10 +189,10 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"base"},
-                "entity_classes": {("o",)},
+                'entity_classes': [("o",)],
                 "parameter_definitions": [("o", "parameter_name")],
                 "parameter_values": [],
-                "entities": {("o", "o1")},
+                "entities": [("o", "o1")],
             },
         )
 
@@ -225,16 +225,16 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"base"},
-                "entity_classes": {("o",), ("q",), ("o_to_q", ("o", "q"))},
-                "entities": {
+                'entity_classes': [("o",), ("q",), ("o_to_q", ("o", "q"))],
+                "entities": [
                     ("o", "o1"),
-                    ("o", "o2"),
                     ("q", "q1"),
-                    ("q", "q2"),
                     ("o_to_q", ("o1", "q1")),
-                    ("o_to_q", ("o1", "q2")),
+                    ("o", "o2"),
+                    ("q", "q2"),
                     ("o_to_q", ("o2", "q2")),
-                },
+                    ("o_to_q", ("o1", "q2")),
+                ],
                 "parameter_definitions": [("o_to_q", "param")],
                 "parameter_values": [
                     ["o_to_q", ("o1", "q1"), "param", Map(["t1", "t2"], [11, 22], index_name="time"), "base"],
@@ -269,10 +269,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                "entity_classes": {("klass",)},
+                'entity_classes': [("klass",)],
                 "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": {("klass", "kloss")},
+                "entities": [("klass", "kloss")],
             },
         )
 
@@ -297,10 +297,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                "entity_classes": {("klass",)},
+                'entity_classes': [("klass",)],
                 "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], ["2.3", "23.0"])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": {("klass", "kloss")},
+                "entities": [("klass", "kloss")],
             },
         )
 
@@ -327,10 +327,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                "entity_classes": {("klass",)},
+                'entity_classes': [("klass",)],
                 "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": {("klass", "kloss")},
+                "entities": [("klass", "kloss")],
             },
         )
 
@@ -360,13 +360,13 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Base"},
-                "entity_classes": {("class",)},
+                'entity_classes': [("class",)],
                 "parameter_values": [
                     ["class", "object_1", "param", Array([-1.1, 1.1]), "Base"],
                     ["class", "object_2", "param", Array([2.3, -2.3]), "Base"],
                 ],
                 "parameter_definitions": [("class", "param")],
-                "entities": {("class", "object_1"), ("class", "object_2")},
+                "entities": [("class", "object_1"), ("class", "object_2")],
             },
         )
 
@@ -396,13 +396,13 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Base"},
-                "entity_classes": {("Gadget",)},
+                'entity_classes': [("Gadget",)],
                 "parameter_values": [
                     ["Gadget", "object_1", "data", Array([-1.1, 1.1]), "Base"],
                     ["Gadget", "object_2", "data", Array([2.3, -2.3]), "Base"],
                 ],
                 "parameter_definitions": [("Gadget", "data")],
-                "entities": {("Gadget", "object_1"), ("Gadget", "object_2")},
+                "entities": [("Gadget", "object_1"), ("Gadget", "object_2")],
             },
         )
 
