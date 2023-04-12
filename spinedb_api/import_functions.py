@@ -1282,9 +1282,7 @@ def import_object_classes(db_map, data, make_cache=None):
 
 def _get_object_classes_for_import(db_map, data, make_cache):
     cache = make_cache({"entity_class"}, include_ancestors=True)
-    object_class_ids = {
-        oc.name: oc.id for oc in cache.get("_get_object_classes_for_import", {}).values() if not oc.dimension_id_list
-    }
+    object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
     checked = set()
     to_add = []
     to_update = []
