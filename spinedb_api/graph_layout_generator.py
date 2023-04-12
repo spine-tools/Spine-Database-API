@@ -59,9 +59,6 @@ class GraphLayoutGenerator:
         self._layout_progressed = layout_progressed
         self._message_available = message_available
 
-    def save_layout(self, x, y):
-        self._layout_available(x, y)
-
     def shortest_path_matrix(self):
         """Returns the shortest-path matrix."""
         if not self.src_inds:
