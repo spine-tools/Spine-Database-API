@@ -11,8 +11,6 @@
 
 """Provides :class:`.DiffDatabaseMappingRemoveMixin`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 
 from sqlalchemy.exc import DBAPIError

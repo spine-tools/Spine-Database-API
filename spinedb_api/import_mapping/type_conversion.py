@@ -12,8 +12,6 @@
 """
 Type conversion functions.
 
-:author: P. Vennström (VTT)
-:date:   21.11.2019
 """
 
 import re

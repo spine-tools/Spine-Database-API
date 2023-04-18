@@ -12,8 +12,6 @@
 """
 Contains SqlAlchemyConnector class.
 
-:author: P. Vennström (VTT)
-:date:   1.6.2019
 """
 
 

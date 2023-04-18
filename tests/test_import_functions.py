@@ -12,8 +12,6 @@
 """
 Unit tests for import_functions.py.
 
-:author: P. Vennström (VTT)
-:date:   17.12.2018
 """
 
 import unittest

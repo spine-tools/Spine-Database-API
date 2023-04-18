@@ -12,8 +12,6 @@
 """
 Provides :class:`.DatabaseMapping`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin

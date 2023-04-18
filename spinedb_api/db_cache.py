@@ -11,8 +11,6 @@
 """
 DB cache utility.
 
-:author: Manuel Marin (ER)
-:date:   22.11.2022
 """
 from contextlib import suppress
 from operator import itemgetter

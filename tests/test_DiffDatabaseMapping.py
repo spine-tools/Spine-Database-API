@@ -12,8 +12,6 @@
 """
 Unit tests for DiffDatabaseMapping class.
 
-:author: P. Vennström (VTT)
-:date:   29.11.2018
 """
 
 import os.path

@@ -12,8 +12,6 @@
 """
 A writer for exporting Spine databases to Excel files.
 
-:author: A. Soininen (VTT)
-:date:   15.1.2021
 """
 from pathlib import Path
 import re

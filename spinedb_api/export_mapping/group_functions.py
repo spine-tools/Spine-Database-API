@@ -11,8 +11,6 @@
 """
 Contains functions to group values in pivot tables with hidden columns or rows.
 
-:author: M. Marin (KTH)
-:date:   7.3.2021
 """
 import numpy as np
 

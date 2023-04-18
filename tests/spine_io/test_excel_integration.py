@@ -12,8 +12,6 @@
 """
 Integration tests for Excel import and export.
 
-:author: P. Vennström (VTT), A. Soininen (VTT)
-:date:   31.1.2020
 """
 
 from pathlib import PurePath

@@ -12,8 +12,6 @@
 """
 Unit tests for DatabaseMapping class.
 
-:author: A. Soininen
-:date:   2.7.2020
 """
 import unittest
 from unittest.mock import patch

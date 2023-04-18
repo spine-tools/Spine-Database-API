@@ -11,8 +11,6 @@
 """
 Unit tests for the ``filters.tools`` module.
 
-:author: A. Soininen
-:date:   7.12.2020
 """
 import os.path
 from tempfile import TemporaryDirectory

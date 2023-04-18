@@ -11,8 +11,6 @@
 
 """Provides :class:`.DatabaseMappingBase`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 # TODO: Finish docstrings
 import uuid

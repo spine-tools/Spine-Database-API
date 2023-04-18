@@ -12,8 +12,6 @@
 """
 Contains CSVConnector class and a help function.
 
-:author: P. Vennström (VTT)
-:date:   1.6.2019
 """
 
 

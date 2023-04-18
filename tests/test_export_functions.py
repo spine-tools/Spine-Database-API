@@ -12,8 +12,6 @@
 """
 Unit tests for export_functions.
 
-:authors: A. Soininen (VTT)
-:date:    29.6.2020
 """
 
 import unittest

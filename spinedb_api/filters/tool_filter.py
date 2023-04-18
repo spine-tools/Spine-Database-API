@@ -12,8 +12,6 @@
 """
 Provides functions to apply filtering based on tools to entity subqueries.
 
-:author: M. Marin (KTH)
-:date:   23.9.2020
 """
 from functools import partial
 from uuid import uuid4

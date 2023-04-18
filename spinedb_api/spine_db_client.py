@@ -12,8 +12,6 @@
 """
 Contains the SpineDBClient class.
 
-:authors: M. Marin (KTH)
-:date:   19.2.2020
 """
 
 from urllib.parse import urlparse

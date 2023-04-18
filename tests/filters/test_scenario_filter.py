@@ -12,8 +12,6 @@
 """
 Unit tests for ``alternative_value_filter`` module.
 
-:author: Antti Soininen (VTT)
-:date:   21.8.2020
 """
 from pathlib import Path
 from tempfile import TemporaryDirectory

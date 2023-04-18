@@ -12,8 +12,6 @@
 """
 Provides functions to apply filtering based on scenarios to subqueries.
 
-:author: Antti Soininen (VTT)
-:date:   21.8.2020
 """
 
 from functools import partial

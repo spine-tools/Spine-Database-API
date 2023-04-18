@@ -12,8 +12,6 @@
 """
 General helper functions and classes.
 
-:author: Manuel Marin (KTH)
-:date:   15.8.2018
 """
 
 import os

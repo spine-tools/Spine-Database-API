@@ -12,8 +12,6 @@
 """
 Unit tests for ``value_transformer`` module.
 
-:author: Antti Soininen (VTT)
-:date:   21.5.2021
 """
 from pathlib import Path
 import unittest

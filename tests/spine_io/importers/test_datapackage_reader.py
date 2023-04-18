@@ -12,8 +12,6 @@
 """
 Contains unit tests for DatapackageConnector.
 
-:author: A. Soininen (VTT)
-:date:   30.12.2021
 """
 from contextlib import contextmanager
 import csv

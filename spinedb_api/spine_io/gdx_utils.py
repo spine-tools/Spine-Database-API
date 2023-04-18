@@ -12,8 +12,6 @@
 """
 Utility functions for .gdx import/export.
 
-:author: A. Soininen (VTT)
-:date:   7.1.2020
 """
 
 import os

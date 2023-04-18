@@ -11,8 +11,6 @@
 """
 Contains generator functions that convert a Spine database into rows of tabular data.
 
-:author: A. Soininen (VTT)
-:date:   10.12.2020
 """
 from copy import deepcopy
 from ..mapping import Position

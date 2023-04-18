@@ -12,6 +12,4 @@
 """
 Init file for tests.spine_io package. Intentionally empty.
 
-:author: A. Soininen (VTT)
-:date:   28.10.2019
 """

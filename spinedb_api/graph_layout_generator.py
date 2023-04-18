@@ -12,8 +12,6 @@
 """
 Contains the GraphLayoutGenerator class.
 
-:authors: M. Marin (ER)
-:date:   18.5.2022
 """
 
 import math

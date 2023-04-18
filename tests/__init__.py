@@ -12,6 +12,4 @@
 """
 Unit tests package for :mod:`spinedb_api`.
 
-:author: A. Soininen (VTT)
-:date:   15.6.2020
 """
