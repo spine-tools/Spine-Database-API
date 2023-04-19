@@ -13,8 +13,6 @@
 Contains `get_mapped_data()` that converts rows of tabular data into a dictionary for import to a Spine DB,
 using ``import_functions.import_data()``
 
-:author: P. Vennström (VTT)
-:date:   22.02.2018
 """
 
 from copy import deepcopy

@@ -11,8 +11,6 @@
 """
 This package contains facilities to map a Spine database into tables.
 
-:author: A. Soininen (VTT)
-:date:   10.12.2020
 """
 
 from .generator import rows, titles

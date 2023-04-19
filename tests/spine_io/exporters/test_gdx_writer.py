@@ -11,8 +11,6 @@
 """
 Unit tests for gdx writer.
 
-:author: A. Soininen (VTT)
-:date:   10.12.2020
 """
 import math
 from pathlib import Path

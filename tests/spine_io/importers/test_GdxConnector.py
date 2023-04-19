@@ -12,8 +12,6 @@
 """
 Unit tests for GDXConnector class.
 
-:author: A. Soininen (VTT)
-:date:   7.1.2020
 """
 
 import os.path

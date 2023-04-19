@@ -12,6 +12,4 @@
 """
 Init file for spine_io.exporters package. Intentionally empty.
 
-:author: A. Soininen (VTT)
-:date:   30.8.2019
 """

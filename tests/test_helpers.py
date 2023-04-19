@@ -12,8 +12,6 @@
 """
 Unit tests for helpers.py.
 
-:author: P. Vennström (VTT)
-:date:   17.12.2018
 """
 
 

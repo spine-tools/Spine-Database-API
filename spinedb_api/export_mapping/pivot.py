@@ -11,8 +11,6 @@
 """
 Contains functions and methods to turn a regular export table into a pivot table
 
-:author: A. Soininen (VTT)
-:date:   1.2.2021
 """
 from copy import deepcopy
 

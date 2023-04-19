@@ -11,8 +11,6 @@
 """
 Unit tests for Excel writer.
 
-:author: A. Soininen (VTT)
-:date:   15.1.2021
 """
 import os.path
 from tempfile import TemporaryDirectory

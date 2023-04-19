@@ -12,8 +12,6 @@
 """
 Functions for the perfect db split.
 
-:author: M. Marin (ER)
-:date:   27.1.2022
 """
 from .db_mapping import DatabaseMapping
 from .export_functions import export_data

@@ -11,8 +11,6 @@
 """
 Module contains a .gdx writer implementation.
 
-:author: A. Soininen (VTT)
-:date:   9.12.2020
 """
 import math
 from gdx2py import GAMSSet, GAMSScalar, GAMSParameter, GdxFile

@@ -11,8 +11,6 @@
 """
 Unit tests for export settings.
 
-:author: A. Soininen (VTT)
-:date:   4.1.2021
 """
 
 import unittest

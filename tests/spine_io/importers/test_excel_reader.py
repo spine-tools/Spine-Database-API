@@ -12,8 +12,6 @@
 """
 Contains unit tests for ExcelConnector class.
 
-:author: A. Soininen (VTT)
-:date:   30.12.2021
 """
 import pickle
 import unittest

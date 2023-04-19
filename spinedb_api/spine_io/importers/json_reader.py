@@ -12,8 +12,6 @@
 """
 Contains JSONConnector class.
 
-:author: M. Marin (KTH)
-:date:   10.2.2020
 """
 
 import sys

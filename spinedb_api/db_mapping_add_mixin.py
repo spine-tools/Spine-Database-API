@@ -11,8 +11,6 @@
 
 """Provides :class:`.DatabaseMappingAddMixin`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 # TODO: improve docstrings
 

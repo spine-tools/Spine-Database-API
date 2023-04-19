@@ -11,8 +11,6 @@
 """
 Module contains an SQL writer implementation.
 
-:author: A. Soininen (VTT)
-:date:   7.4.2021
 """
 from sqlalchemy import Boolean, Column, create_engine, Float, Integer, MetaData, String, Table, DateTime
 from sqlalchemy.orm import Session

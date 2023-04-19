@@ -11,8 +11,6 @@
 
 """Provides :class:`.DatabaseMappingCheckMixin`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 # TODO: Review docstrings, they are almost good
 

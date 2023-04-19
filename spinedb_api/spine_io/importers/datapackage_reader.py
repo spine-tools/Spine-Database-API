@@ -12,8 +12,6 @@
 """
 Contains DataPackageConnector class.
 
-:author: M. Marin (KTH)
-:date:   15.11.2020
 """
 import threading
 from itertools import chain

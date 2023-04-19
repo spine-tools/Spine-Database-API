@@ -25,8 +25,6 @@ Individual time steps are represented as relativedelta objects from the dateutil
 Datetime indexes (as returned by TimeSeries.indexes()) are represented as
 numpy.ndarray arrays holding numpy.datetime64 objects.
 
-:author: A. Soininen (VTT)
-:date:   3.6.2019
 """
 
 from collections.abc import Sequence

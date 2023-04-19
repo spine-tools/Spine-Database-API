@@ -12,8 +12,6 @@
 """
 Functions for importing data into a Spine database using entity names as references.
 
-:author: P. Vennström (VTT)
-:date:   17.12.2018
 """
 
 import uuid

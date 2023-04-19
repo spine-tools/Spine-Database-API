@@ -12,8 +12,6 @@
 """
 Provides :class:`DiffDatabaseMapping`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 
 from sqlalchemy.sql.expression import bindparam

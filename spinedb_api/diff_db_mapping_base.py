@@ -12,8 +12,6 @@
 """
 Provides :class:`.DiffDatabaseMappingBase`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 
 from datetime import datetime, timezone

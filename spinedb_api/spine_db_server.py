@@ -12,8 +12,6 @@
 """
 Contains the SpineDBServer class.
 
-:authors: M. Marin (KTH)
-:date:   2.2.2020
 """
 
 from urllib.parse import urlunsplit

@@ -12,8 +12,6 @@
 """
 Tools and utilities to work with filters, manipulators and database URLs.
 
-:author: A. Soininen
-:date:   7.12.2020
 """
 from json import dump, load
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
