@@ -11,8 +11,6 @@
 
 """Provides :class:`.DatabaseMappingQueryMixin`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 # TODO: Deprecate and drop this module
 

@@ -12,8 +12,6 @@
 """
 Unit tests for ``renamer`` module.
 
-:author: Antti Soininen (VTT)
-:date:   2.10.2020
 """
 from pathlib import Path
 from tempfile import TemporaryDirectory

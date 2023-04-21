@@ -11,8 +11,6 @@
 """
 Module contains a .csv writer implementation.
 
-:author: A. Soininen (VTT)
-:date:   9.12.2020
 """
 import csv
 import os

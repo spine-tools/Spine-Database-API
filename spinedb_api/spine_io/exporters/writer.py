@@ -11,8 +11,6 @@
 """
 Module contains the :class:`Writer` base class and functions to write tabular data.
 
-:author: A. Soininen (VTT)
-:date:   8.12.2020
 """
 from contextlib import contextmanager
 from copy import copy

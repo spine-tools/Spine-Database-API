@@ -11,8 +11,6 @@
 """
 Unit tests for export mappings.
 
-:author: A. Soininen (VTT)
-:date:   10.12.2020
 """
 
 import unittest

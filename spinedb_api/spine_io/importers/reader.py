@@ -12,8 +12,6 @@
 """
 Contains a class template for a data source connector used in import ui.
 
-:author: P. Vennström (VTT)
-:date:   1.6.2019
 """
 
 from itertools import islice

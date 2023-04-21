@@ -11,8 +11,6 @@
 """
 Unit tests for csv writer.
 
-:author: A. Soininen (VTT)
-:date:   9.12.2020
 """
 from pathlib import Path
 from tempfile import TemporaryDirectory

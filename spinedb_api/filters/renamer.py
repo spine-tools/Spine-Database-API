@@ -12,8 +12,6 @@
 """
 Provides a database query manipulator that renames database items.
 
-:author: A. Soininen
-:date:   2.10.2020
 """
 from functools import partial
 from sqlalchemy import case

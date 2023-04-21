@@ -12,8 +12,6 @@
 """
 Unit tests for ``tool_entity_filter`` module.
 
-:author: M. Marin (KTH)
-:date:   23.9.2020
 """
 from pathlib import Path
 from tempfile import TemporaryDirectory

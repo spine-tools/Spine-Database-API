@@ -12,8 +12,6 @@
 """
 Unit tests for migration scripts.
 
-:author: M. Marin (KTH)
-:date:   19.9.2019
 """
 import os.path
 from tempfile import TemporaryDirectory

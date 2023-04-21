@@ -11,8 +11,6 @@
 
 """Provides :class:`DatabaseMappingUpdateMixin`.
 
-:author: Manuel Marin (KTH)
-:date:   11.8.2018
 """
 from collections import Counter
 from sqlalchemy.exc import DBAPIError

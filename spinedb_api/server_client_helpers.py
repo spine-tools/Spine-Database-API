@@ -12,8 +12,6 @@
 """
 Helpers for server and client.
 
-:author: Manuel Marin (ER)
-:date:   16.9.2022
 """
 
 import json

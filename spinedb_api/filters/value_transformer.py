@@ -12,8 +12,6 @@
 """
 Provides a database query manipulator that applies mathematical transformations to parameter values.
 
-:author: A. Soininen
-:date:   20.5.2021
 """
 from functools import partial
 from numbers import Number

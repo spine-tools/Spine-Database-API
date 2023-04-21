@@ -12,8 +12,6 @@
 """Functions for checking whether inserting data into a Spine database leads
 to the violation of integrity constraints.
 
-:author: Manuel Marin (KTH)
-:date:   4.6.2019
 """
 
 from .parameter_value import dump_db_value, from_database, ParameterValueFormatError

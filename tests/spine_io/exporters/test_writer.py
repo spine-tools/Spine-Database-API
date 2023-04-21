@@ -11,8 +11,6 @@
 """
 Unit tests for ``writer`` module.
 
-:author: A. Soininen (VTT)
-:date:   17.2.2022
 """
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects

@@ -12,8 +12,6 @@
 """
 Contains the GraphLayoutGenerator class.
 
-:authors: M. Marin (ER)
-:date:   18.5.2022
 """
 
 import math
@@ -26,14 +24,25 @@ class GraphLayoutGenerator:
     """Computes the layout for the Entity Graph View."""
 
     def __init__(
-        self, vertex_count, src_inds=(), dst_inds=(), spread=0, heavy_positions=None, max_iters=12, weight_exp=-2
+        self,
+        vertex_count,
+        src_inds=(),
+        dst_inds=(),
+        spread=0,
+        heavy_positions=None,
+        max_iters=12,
+        weight_exp=-2,
+        is_stopped=lambda: False,
+        preview_available=lambda x, y: None,
+        layout_available=lambda x, y: None,
+        layout_progressed=lambda iter: None,
+        message_available=lambda msg: None,
     ):
         super().__init__()
         if vertex_count == 0:
             vertex_count = 1
         if heavy_positions is None:
             heavy_positions = dict()
-        self._show_previews = False
         self.vertex_count = vertex_count
         self.src_inds = src_inds
         self.dst_inds = dst_inds
@@ -42,22 +51,11 @@ class GraphLayoutGenerator:
         self.max_iters = max(3, round(max_iters * (1 - len(heavy_positions) / self.vertex_count)))
         self.weight_exp = weight_exp
         self.initial_diameter = (self.vertex_count ** (0.5)) * self.spread
-        self._stopped = False
-        self.x = None
-        self.y = None
-
-    def stop(self):
-        self._stopped = True
-
-    def save_layout(self, x, y):
-        self.x = x
-        self.y = y
-
-    def emit_progressed(self, iteration):
-        """Emits progressed"""
-
-    def emit_msg(self, text):
-        """Emits msg"""
+        self._is_stopped = is_stopped
+        self._preview_available = preview_available
+        self._layout_available = layout_available
+        self._layout_progressed = layout_progressed
+        self._message_available = message_available
 
     def shortest_path_matrix(self):
         """Returns the shortest-path matrix."""
@@ -76,11 +74,11 @@ class GraphLayoutGenerator:
         start = 0
         slices = []
         iteration = 0
-        self.emit_msg("Step 1 of 2: Computing shortest-path matrix...")
+        self._message_available("Step 1 of 2: Computing shortest-path matrix...")
         while start < self.vertex_count:
-            if self._stopped:
+            if self._is_stopped():
                 return None
-            self.emit_progressed(iteration)
+            self._layout_progressed(iteration)
             stop = min(self.vertex_count, start + math.ceil(self.vertex_count / 10))
             slice_ = dijkstra(dist, directed=False, indices=range(start, stop))
             slices.append(slice_)
@@ -112,7 +110,7 @@ class GraphLayoutGenerator:
         """Computes and returns x and y coordinates for each vertex in the graph, using VSGD-MS."""
         if self.vertex_count <= 1:
             x, y = np.array([0.0]), np.array([0.0])
-            self.save_layout(x, y)
+            self._layout_available(x, y)
             return
         matrix = self.shortest_path_matrix()
         if matrix is None:
@@ -136,14 +134,13 @@ class GraphLayoutGenerator:
         minstep = 1 / np.max(weights[mask])
         lambda_ = np.log(minstep / maxstep) / (self.max_iters - 1)  # exponential decay of allowed adjustment
         sets = self.sets()  # construct sets of bus pairs
-        self.emit_msg("Step 2 of 2: Generating layout...")
+        self._message_available("Step 2 of 2: Generating layout...")
         for iteration in range(self.max_iters):
-            if self._stopped:
+            if self._is_stopped():
                 break
-            if self._show_previews:
-                x, y = layout[:, 0], layout[:, 1]
-                self.save_layout(x, y)
-            self.emit_progressed(iteration)
+            x, y = layout[:, 0], layout[:, 1]
+            self._preview_available(x, y)
+            self._layout_progressed(iteration)
             # FIXME
             step = maxstep * np.exp(lambda_ * iteration)  # how big adjustments are allowed?
             rand_order = np.random.permutation(
@@ -161,4 +158,4 @@ class GraphLayoutGenerator:
                 if heavy_ind.any():
                     layout[heavy_ind, :] = heavy_pos
         x, y = layout[:, 0], layout[:, 1]
-        self.save_layout(x, y)
+        self._layout_available(x, y)

@@ -12,8 +12,6 @@
 """
 Unit tests for :mod:`spinedb_api.mapping`.
 
-:author: A. Soininen (VTT)
-:date:   12.5.2021
 """
 import unittest
 from spinedb_api.mapping import Mapping, Position, value_index, unflatten

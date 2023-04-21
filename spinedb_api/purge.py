@@ -12,8 +12,6 @@
 """
 Functions to purge dbs.
 
-:authors: A. Soininen (VTT), M. Marin (ER)
-:date:   27.1.2022
 """
 
 from .db_mapping import DatabaseMapping

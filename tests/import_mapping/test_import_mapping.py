@@ -12,8 +12,6 @@
 """
 Unit tests for import Mappings.
 
-:author: P. Vennström (VTT)
-:date:   22.02.2018
 """
 import unittest
 from unittest.mock import Mock

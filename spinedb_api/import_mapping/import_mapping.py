@@ -11,8 +11,6 @@
 """
 Contains import mappings for database items such as entities, entity classes and parameter values.
 
-:author: A. Soininen (VTT)
-:date:   10.12.2020
 """
 
 from distutils.util import strtobool

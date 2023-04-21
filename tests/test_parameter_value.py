@@ -12,8 +12,6 @@
 """
 Tests for the parameter_value module.
 
-:authors: A. Soininen (VTT)
-:date:   7.6.2019
 """
 
 from datetime import datetime

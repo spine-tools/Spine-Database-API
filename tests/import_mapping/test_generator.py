@@ -12,8 +12,6 @@
 """
 Contains unit tests for the generator module.
 
-:author: A. Soininen (VTT)
-:date:   2.2.2022
 """
 import unittest
 

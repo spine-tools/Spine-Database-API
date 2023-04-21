@@ -12,8 +12,6 @@
 """
 Framework for exporting a database to Excel file.
 
-:author: P. Vennström (VTT), A. Soininen (VTT), M. Marin (KTH)
-:date:   31.1.2020
 """
 from spinedb_api.export_mapping.group_functions import GroupOneOrNone
 from spinedb_api.export_mapping.export_mapping import (

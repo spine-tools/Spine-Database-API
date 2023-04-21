@@ -11,8 +11,6 @@
 """
 Unit tests for SQL writer.
 
-:author: A. Soininen (VTT)
-:date:   7.4.2021
 """
 from pathlib import Path
 from tempfile import TemporaryDirectory

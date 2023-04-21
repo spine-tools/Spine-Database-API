@@ -12,8 +12,6 @@
 """
 Functions for creating import mappings from dicts.
 
-:author: P. Vennström (VTT)
-:date:   22.02.2018
 """
 from .import_mapping import (
     Position,

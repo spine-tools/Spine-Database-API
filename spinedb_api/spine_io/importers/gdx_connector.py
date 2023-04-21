@@ -12,8 +12,6 @@
 """
 Contains GDXConnector class and a help function.
 
-:author: P. Vennström (VTT)
-:date:   1.6.2019
 """
 
 from gdx2py import GdxFile, GAMSParameter, GAMSScalar, GAMSSet

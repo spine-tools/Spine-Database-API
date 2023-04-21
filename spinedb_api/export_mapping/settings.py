@@ -11,8 +11,6 @@
 """
 Contains convenience functions to set up different database export schemes.
 
-:author: A. Soininen (VTT)
-:date:   10.12.2020
 """
 from itertools import takewhile
 

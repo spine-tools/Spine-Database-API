@@ -11,9 +11,8 @@
 """
 DB cache utility.
 
-:author: Manuel Marin (ER)
-:date:   22.11.2022
 """
+from contextlib import suppress
 from operator import itemgetter
 
 
@@ -23,7 +22,7 @@ from operator import itemgetter
 class DBCache(dict):
     def __init__(self, advance_query, *args, **kwargs):
         """
-        A dictionary that maps table names to ids to items. Used to store and retreive database contents.
+        A dictionary that maps table names to ids to items. Used to store and retrieve database contents.
 
         Args:
             advance_query (function): A function to call when references aren't found.
@@ -44,9 +43,14 @@ class DBCache(dict):
 
     def fetch_ref(self, item_type, id_):
         while self._advance_query(item_type):
-            ref = self.get(item_type, {}).get(id_)
-            if ref:
-                return ref
+            with suppress(KeyError):
+                return self[item_type][id_]
+        # It is possible that fetching was completed between deciding to call this function
+        # and starting the while loop above resulting in self._advance_query() to return False immediately.
+        # Therefore, we should try one last time if the ref is available.
+        with suppress(KeyError):
+            return self[item_type][id_]
+        return None
 
     def make_item(self, item_type, item):
         """Returns a cache item.

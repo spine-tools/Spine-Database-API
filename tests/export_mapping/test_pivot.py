@@ -11,8 +11,6 @@
 """
 Contains unit tests for the ``pivot`` module.
 
-:author: A. Soininen (VTT)
-:date:   1.2.2021
 """
 import unittest
 import numpy

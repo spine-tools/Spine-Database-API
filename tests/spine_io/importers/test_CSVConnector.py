@@ -12,8 +12,6 @@
 """
 Contains unit tests for CSVConnector.
 
-:author: A. Soininen (VTT)
-:date:   22.10.2019
 """
 
 import csv
