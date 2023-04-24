@@ -166,15 +166,21 @@ def export_parameter_value_lists(db_map, ids=Asterisk, make_cache=None, parse_va
 
 def export_entity_classes(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.name, x.dimension_name_list, x.description, x.display_icon)
-        for x in _get_items(db_map, "entity_class", ids, make_cache)
+        (
+            (x.name, x.dimension_name_list, x.description, x.display_icon)
+            for x in _get_items(db_map, "entity_class", ids, make_cache)
+        ),
+        key=lambda x: (len(x[1]), x[0]),
     )
 
 
 def export_entities(db_map, ids=Asterisk, make_cache=None):
     return sorted(
-        (x.class_name, x.element_name_list or x.name, x.description)
-        for x in _get_items(db_map, "entity", ids, make_cache)
+        (
+            (x.class_name, x.element_name_list or x.name, x.description)
+            for x in _get_items(db_map, "entity", ids, make_cache)
+        ),
+        key=lambda x: (0 if isinstance(x[1], str) else len(x[1]), x[0]),
     )
 
 
