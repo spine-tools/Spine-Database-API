@@ -45,15 +45,6 @@ from .scenario_filter import (
     scenario_filter_shorthand_to_config,
     scenario_name_from_dict,
 )
-from .tool_filter import (
-    TOOL_SHORTHAND_TAG,
-    TOOL_FILTER_TYPE,
-    tool_filter_config,
-    tool_filter_config_to_shorthand,
-    tool_filter_from_dict,
-    tool_filter_shorthand_to_config,
-    tool_name_from_dict,
-)
 from .value_transformer import (
     VALUE_TRANSFORMER_SHORTHAND_TAG,
     VALUE_TRANSFORMER_TYPE,
@@ -88,7 +79,6 @@ def apply_filter_stack(db_map, stack):
         EXECUTION_FILTER_TYPE: execution_filter_from_dict,
         PARAMETER_RENAMER_TYPE: parameter_renamer_from_dict,
         SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
-        TOOL_FILTER_TYPE: tool_filter_from_dict,
         VALUE_TRANSFORMER_TYPE: value_transformer_from_dict,
     }
     for filter_ in stack:
@@ -139,7 +129,6 @@ def filter_config(filter_type, value):
     """
     return {
         SCENARIO_FILTER_TYPE: scenario_filter_config,
-        TOOL_FILTER_TYPE: tool_filter_config,
         ALTERNATIVE_FILTER_TYPE: alternative_filter_config,
         EXECUTION_FILTER_TYPE: execution_filter_config,
     }[filter_type](value)
@@ -288,7 +277,6 @@ def config_to_shorthand(config):
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_config_to_shorthand,
         PARAMETER_RENAMER_TYPE: parameter_renamer_config_to_shorthand,
         SCENARIO_FILTER_TYPE: scenario_filter_config_to_shorthand,
-        TOOL_FILTER_TYPE: tool_filter_config_to_shorthand,
         EXECUTION_FILTER_TYPE: execution_filter_config_to_shorthand,
         VALUE_TRANSFORMER_TYPE: value_transformer_config_to_shorthand,
     }
@@ -310,7 +298,6 @@ def _parse_shorthand(shorthand):
         ENTITY_CLASS_RENAMER_SHORTHAND_TAG: entity_class_renamer_shorthand_to_config,
         PARAMETER_RENAMER_SHORTHAND_TAG: parameter_renamer_shorthand_to_config,
         SCENARIO_SHORTHAND_TAG: scenario_filter_shorthand_to_config,
-        TOOL_SHORTHAND_TAG: tool_filter_shorthand_to_config,
         EXECUTION_SHORTHAND_TAG: execution_filter_shorthand_to_config,
         VALUE_TRANSFORMER_SHORTHAND_TAG: value_transformer_shorthand_to_config,
     }
@@ -320,7 +307,7 @@ def _parse_shorthand(shorthand):
 
 def name_from_dict(config):
     """
-    Returns scenario or tool name from filter config.
+    Returns scenario name from filter config.
 
     Args:
         config (dict): filter configuration
@@ -328,7 +315,7 @@ def name_from_dict(config):
     Returns:
         str: name or None if ``config`` is not a valid 'name' filter configuration
     """
-    func = {SCENARIO_FILTER_TYPE: scenario_name_from_dict, TOOL_FILTER_TYPE: tool_name_from_dict}.get(config["type"])
+    func = {SCENARIO_FILTER_TYPE: scenario_name_from_dict}.get(config["type"])
     if func is None:
         return None
     return func(config)

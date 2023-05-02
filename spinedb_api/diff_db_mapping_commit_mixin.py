@@ -42,13 +42,13 @@ class DiffDatabaseMappingCommitMixin:
                 if not ids:
                     continue
                 table = self._metadata.tables[tablename]
-                id_col = self.table_ids.get(tablename, "id")
+                id_col = self._id_fields.get(tablename, "id")
                 self.query(table).filter(self.in_(getattr(table.c, id_col), ids)).delete(synchronize_session=False)
             # Update
             for tablename, ids in self.updated_item_id.items():
                 if not ids:
                     continue
-                id_col = self.table_ids.get(tablename, "id")
+                id_col = self._id_fields.get(tablename, "id")
                 orig_table = self._metadata.tables[tablename]
                 diff_table = self._diff_table(tablename)
                 updated_items = []
@@ -65,7 +65,7 @@ class DiffDatabaseMappingCommitMixin:
             for tablename, ids in self.added_item_id.items():
                 if not ids:
                     continue
-                id_col = self.table_ids.get(tablename, "id")
+                id_col = self._id_fields.get(tablename, "id")
                 orig_table = self._metadata.tables[tablename]
                 diff_table = self._diff_table(tablename)
                 new_items = []

@@ -79,7 +79,7 @@ class DiffDatabaseMapping(
         items_for_insert = list()
         dirty_ids = set()
         updated_ids = set()
-        id_field = self.table_ids.get(tablename, "id")
+        id_field = self._id_fields.get(tablename, "id")
         for item in checked_items:
             id_ = item[id_field]
             updated_ids.add(id_)
@@ -162,7 +162,7 @@ class DiffDatabaseMapping(
         """
         if self.committing:
             for tablename, ids in kwargs.items():
-                table_id = self.table_ids.get(tablename, "id")
+                table_id = self._id_fields.get(tablename, "id")
                 diff_table = self._diff_table(tablename)
                 delete = diff_table.delete().where(self.in_(getattr(diff_table.c, table_id), ids))
                 try:

@@ -23,8 +23,6 @@ from .export_mapping import (
     ElementMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
-    FeatureEntityClassMapping,
-    FeatureParameterDefinitionMapping,
     EntityGroupMapping,
     EntityGroupEntityMapping,
     EntityMapping,
@@ -43,13 +41,6 @@ from .export_mapping import (
     ScenarioBeforeAlternativeMapping,
     ScenarioMapping,
     ScenarioDescriptionMapping,
-    ToolFeatureEntityClassMapping,
-    ToolFeatureMethodMethodMapping,
-    ToolFeatureMethodEntityClassMapping,
-    ToolFeatureMethodParameterDefinitionMapping,
-    ToolFeatureParameterDefinitionMapping,
-    ToolFeatureRequiredFlagMapping,
-    ToolMapping,
     IndexNameMapping,
     DefaultValueIndexNameMapping,
     ParameterDefaultValueTypeMapping,
@@ -422,92 +413,6 @@ def set_parameter_default_value_dimensions(mapping, dimensions):
         ParameterDefaultValueIndexMapping,
         DefaultValueIndexNameMapping,
     )
-
-
-def feature_export(entity_class_position=Position.hidden, definition_position=Position.hidden):
-    """
-    Sets up export mappings for exporting features.
-
-    Args:
-        entity_class_position (int or Position): position of entity classes
-        definition_position (int or Position): position of parameter definitions
-
-    Returns:
-        ExportMapping: root mapping
-    """
-    class_ = FeatureEntityClassMapping(entity_class_position)
-    definition = FeatureParameterDefinitionMapping(definition_position)
-    class_.child = definition
-    return class_
-
-
-def tool_export(tool_position=Position.hidden):
-    """
-    Sets up export mappings for exporting tools.
-
-    Args:
-        tool_position (int or Position): position of tools
-
-    Returns:
-        ExportMapping: root mapping
-    """
-    return ToolMapping(tool_position)
-
-
-def tool_feature_export(
-    tool_position=Position.hidden,
-    entity_class_position=Position.hidden,
-    definition_position=Position.hidden,
-    required_flag_position=Position.hidden,
-):
-    """
-    Sets up export mappings for exporting tool features.
-
-    Args:
-        tool_position (int or Position): position of tools
-        entity_class_position (int or Position): position of entity classes
-        definition_position (int or Position): position of parameter definitions
-        required_flag_position (int or Position): position of required flags
-
-    Returns:
-        ExportMapping: root mapping
-    """
-    tool = ToolMapping(tool_position)
-    class_ = ToolFeatureEntityClassMapping(entity_class_position)
-    definition = ToolFeatureParameterDefinitionMapping(definition_position)
-    required_flag = ToolFeatureRequiredFlagMapping(required_flag_position)
-    definition.child = required_flag
-    class_.child = definition
-    tool.child = class_
-    return tool
-
-
-def tool_feature_method_export(
-    tool_position=Position.hidden,
-    entity_class_position=Position.hidden,
-    definition_position=Position.hidden,
-    method_position=Position.hidden,
-):
-    """
-    Sets up export mappings for exporting tool feature methods.
-
-    Args:
-        tool_position (int or Position): position of tools
-        entity_class_position (int or Position): position of entity classes
-        definition_position (int or Position): position of parameter definitions
-        method_position (int or Position): position of methods
-
-    Returns:
-        ExportMapping: root mapping
-    """
-    tool = ToolMapping(tool_position)
-    class_ = ToolFeatureMethodEntityClassMapping(entity_class_position)
-    definition = ToolFeatureMethodParameterDefinitionMapping(definition_position)
-    method = ToolFeatureMethodMethodMapping(method_position)
-    definition.child = method
-    class_.child = definition
-    tool.child = class_
-    return tool
 
 
 def _generate_dimensions(parent, cls, positions):

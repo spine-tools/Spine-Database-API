@@ -38,10 +38,6 @@ class ImportKey(Enum):
     ALTERNATIVE_NAME = auto()
     SCENARIO_NAME = auto()
     SCENARIO_ALTERNATIVE = auto()
-    FEATURE = auto()
-    TOOL_NAME = auto()
-    TOOL_FEATURE = auto()
-    TOOL_FEATURE_METHOD = auto()
     PARAMETER_VALUE_LIST_NAME = auto()
 
     def __str__(self):
@@ -59,10 +55,6 @@ class ImportKey(Enum):
             self.PARAMETER_VALUE_LIST_NAME.value: "Parameter value lists",
             self.SCENARIO_NAME.value: "Scenario names",
             self.SCENARIO_ALTERNATIVE.value: "Alternative names",
-            self.TOOL_NAME.value: "Tool names",
-            self.FEATURE.value: "Entity class names",
-            self.TOOL_FEATURE.value: "Entity class names",
-            self.TOOL_FEATURE_METHOD.value: "Entity class names",
         }.get(self.value)
         if name is not None:
             return name
@@ -839,124 +831,6 @@ class ToolMapping(ImportMapping):
             mapped_data.setdefault("tools", set()).add(tool)
 
 
-class FeatureEntityClassMapping(ImportMapping):
-    """Maps feature entity classes.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "FeatureEntityClass"
-
-    def _import_row(self, source_data, state, mapped_data):
-        entity_class = str(source_data)
-        state[ImportKey.FEATURE] = [entity_class]
-
-
-class FeatureParameterDefinitionMapping(ImportMapping):
-    """Maps feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have a :class:`FeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "FeatureParameterDefinition"
-
-    def _import_row(self, source_data, state, mapped_data):
-        feature = state[ImportKey.FEATURE]
-        parameter = str(source_data)
-        feature.append(parameter)
-        mapped_data.setdefault("features", set()).add(tuple(feature))
-
-
-class ToolFeatureEntityClassMapping(ImportMapping):
-    """Maps tool feature entity classes.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureEntityClass"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool = state[ImportKey.TOOL_NAME]
-        entity_class = str(source_data)
-        tool_feature = [tool, entity_class]
-        state[ImportKey.TOOL_FEATURE] = tool_feature
-        mapped_data.setdefault("tool_features", []).append(tool_feature)
-
-
-class ToolFeatureParameterDefinitionMapping(ImportMapping):
-    """Maps tool feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureParameterDefinition"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool_feature = state[ImportKey.TOOL_FEATURE]
-        parameter = str(source_data)
-        tool_feature.append(parameter)
-
-
-class ToolFeatureRequiredFlagMapping(ImportMapping):
-    """Maps tool feature required flags.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureRequiredFlag"
-
-    def _import_row(self, source_data, state, mapped_data):
-        required = bool(strtobool(str(source_data)))
-        tool_feature = state[ImportKey.TOOL_FEATURE]
-        tool_feature.append(required)
-
-
-class ToolFeatureMethodEntityClassMapping(ImportMapping):
-    """Maps tool feature method entity classes.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodEntityClass"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool_name = state[ImportKey.TOOL_NAME]
-        entity_class = str(source_data)
-        tool_feature_method = [tool_name, entity_class]
-        state[ImportKey.TOOL_FEATURE_METHOD] = tool_feature_method
-        mapped_data.setdefault("tool_feature_methods", []).append(tool_feature_method)
-
-
-class ToolFeatureMethodParameterDefinitionMapping(ImportMapping):
-    """Maps tool feature method parameter definitions.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodParameterDefinition"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
-        parameter = str(source_data)
-        tool_feature_method.append(parameter)
-
-
-class ToolFeatureMethodMethodMapping(ImportMapping):
-    """Maps tool feature method methods.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodMethod"
-
-    def _import_row(self, source_data, state, mapped_data):
-        method = source_data
-        if method == "":
-            return
-        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
-        tool_feature_method.append(method)
-
-
 def from_dict(serialized):
     """
     Deserializes mappings.
@@ -995,14 +869,15 @@ def from_dict(serialized):
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
             ToolMapping,
-            FeatureEntityClassMapping,
-            FeatureParameterDefinitionMapping,
-            ToolFeatureEntityClassMapping,
-            ToolFeatureParameterDefinitionMapping,
-            ToolFeatureRequiredFlagMapping,
-            ToolFeatureMethodEntityClassMapping,
-            ToolFeatureMethodParameterDefinitionMapping,
-            ToolFeatureMethodMethodMapping,
+            # FIXME
+            # FeatureEntityClassMapping,
+            # FeatureParameterDefinitionMapping,
+            # ToolFeatureEntityClassMapping,
+            # ToolFeatureParameterDefinitionMapping,
+            # ToolFeatureRequiredFlagMapping,
+            # ToolFeatureMethodEntityClassMapping,
+            # ToolFeatureMethodParameterDefinitionMapping,
+            # ToolFeatureMethodMethodMapping,
         )
     }
     legacy_mappings = {

@@ -1439,227 +1439,6 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
         return isinstance(parent, ScenarioAlternativeMapping)
 
 
-class FeatureEntityClassMapping(ExportMapping):
-    """Maps feature entity classes.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "FeatureEntityClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_feature_sq.c.entity_class_id, db_map.ext_feature_sq.c.entity_class_name)
-
-    @staticmethod
-    def name_field():
-        return "entity_class_name"
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-
-class FeatureParameterDefinitionMapping(ExportMapping):
-    """Maps feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have a :class:`FeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "FeatureParameterDefinition"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_feature_sq.c.parameter_definition_id, db_map.ext_feature_sq.c.parameter_definition_name
-        )
-
-    @staticmethod
-    def name_field():
-        return "parameter_definition_name"
-
-    @staticmethod
-    def id_field():
-        return "parameter_definition_id"
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, FeatureEntityClassMapping)
-
-
-class ToolMapping(ExportMapping):
-    """Maps tools.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "Tool"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.tool_sq.c.id.label("tool_id"), db_map.tool_sq.c.name.label("tool_name"))
-
-    @staticmethod
-    def name_field():
-        return "tool_name"
-
-    @staticmethod
-    def id_field():
-        return "tool_id"
-
-
-class ToolFeatureEntityClassMapping(ExportMapping):
-    """Maps tool feature entity classes.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureEntityClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.entity_class_id, db_map.ext_tool_feature_sq.c.entity_class_name
-        )
-
-    def filter_query(self, db_map, query):
-        return query.outerjoin(db_map.ext_tool_feature_sq, db_map.ext_tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
-
-    @staticmethod
-    def name_field():
-        return "entity_class_name"
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolMapping)
-
-
-class ToolFeatureParameterDefinitionMapping(ExportMapping):
-    """Maps tool feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureParameterDefinition"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.parameter_definition_id, db_map.ext_tool_feature_sq.c.parameter_definition_name
-        )
-
-    @staticmethod
-    def name_field():
-        return "parameter_definition_name"
-
-    @staticmethod
-    def id_field():
-        return "parameter_definition_id"
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolFeatureEntityClassMapping)
-
-
-class ToolFeatureRequiredFlagMapping(ExportMapping):
-    """Maps tool feature required flags.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureRequiredFlag"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_tool_feature_sq.c.required)
-
-    @staticmethod
-    def name_field():
-        return "required"
-
-    @staticmethod
-    def id_field():
-        return "required"
-
-
-class ToolFeatureMethodEntityClassMapping(ExportMapping):
-    """Maps tool feature method entity classes.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodEntityClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.entity_class_id, db_map.ext_tool_feature_sq.c.entity_class_name
-        )
-
-    def filter_query(self, db_map, query):
-        return query.outerjoin(db_map.ext_tool_feature_sq, db_map.ext_tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
-
-    @staticmethod
-    def name_field():
-        return "entity_class_name"
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-
-class ToolFeatureMethodParameterDefinitionMapping(ExportMapping):
-    """Maps tool feature method parameter definitions.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodParameterDefinition"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.parameter_definition_id, db_map.ext_tool_feature_sq.c.parameter_definition_name
-        )
-
-    @staticmethod
-    def name_field():
-        return "parameter_definition_name"
-
-    @staticmethod
-    def id_field():
-        return "parameter_definition_id"
-
-
-class ToolFeatureMethodMethodMapping(ExportMapping):
-    """Maps tool feature method methods.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodMethod"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_tool_feature_method_sq.c.method)
-
-    def filter_query(self, db_map, query):
-        return query.outerjoin(
-            db_map.ext_tool_feature_method_sq,
-            and_(
-                db_map.ext_tool_feature_method_sq.c.tool_id == db_map.ext_tool_feature_sq.c.tool_id,
-                db_map.ext_tool_feature_method_sq.c.feature_id == db_map.ext_tool_feature_sq.c.feature_id,
-            ),
-        )
-
-    @staticmethod
-    def name_field():
-        return "method"
-
-    @staticmethod
-    def id_field():
-        return "method"
-
-    def _data(self, db_row):
-        data = super()._data(db_row)
-        return from_database_to_single_value(data, None)
-
-
 class _DescriptionMappingBase(ExportMapping):
     """Maps descriptions."""
 
@@ -1807,8 +1586,6 @@ def from_dict(serialized):
             ElementMapping,
             ExpandedParameterDefaultValueMapping,
             ExpandedParameterValueMapping,
-            FeatureEntityClassMapping,
-            FeatureParameterDefinitionMapping,
             FixedValueMapping,
             IndexNameMapping,
             EntityClassMapping,
@@ -1829,12 +1606,15 @@ def from_dict(serialized):
             ScenarioBeforeAlternativeMapping,
             ScenarioDescriptionMapping,
             ScenarioMapping,
-            ToolMapping,
-            ToolFeatureEntityClassMapping,
-            ToolFeatureParameterDefinitionMapping,
-            ToolFeatureRequiredFlagMapping,
-            ToolFeatureMethodEntityClassMapping,
-            ToolFeatureMethodParameterDefinitionMapping,
+            # FIXME
+            # FeatureEntityClassMapping,
+            # FeatureParameterDefinitionMapping,
+            # ToolMapping,
+            # ToolFeatureEntityClassMapping,
+            # ToolFeatureParameterDefinitionMapping,
+            # ToolFeatureRequiredFlagMapping,
+            # ToolFeatureMethodEntityClassMapping,
+            # ToolFeatureMethodParameterDefinitionMapping,
         )
     }
     legacy_mappings = {

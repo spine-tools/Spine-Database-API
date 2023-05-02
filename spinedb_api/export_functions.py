@@ -40,10 +40,6 @@ def export_data(
     alternative_ids=Asterisk,
     scenario_ids=Asterisk,
     scenario_alternative_ids=Asterisk,
-    tool_ids=Asterisk,
-    feature_ids=Asterisk,
-    tool_feature_ids=Asterisk,
-    tool_feature_method_ids=Asterisk,
     make_cache=None,
     parse_value=from_database,
 ):
@@ -64,10 +60,6 @@ def export_data(
         alternative_ids (Iterable, optional): A collection of ids to pick from the database table
         scenario_ids (Iterable, optional): A collection of ids to pick from the database table
         scenario_alternative_ids (Iterable, optional): A collection of ids to pick from the database table
-        tool_ids (Iterable, optional): A collection of ids to pick from the database table
-        feature_ids (Iterable, optional): A collection of ids to pick from the database table
-        tool_feature_ids (Iterable, optional): A collection of ids to pick from the database table
-        tool_feature_method_ids (Iterable, optional): A collection of ids to pick from the database table
 
     Returns:
         dict: exported data
@@ -105,12 +97,6 @@ def export_data(
         "alternatives": export_alternatives(db_map, alternative_ids, make_cache=make_cache),
         "scenarios": export_scenarios(db_map, scenario_ids, make_cache=make_cache),
         "scenario_alternatives": export_scenario_alternatives(db_map, scenario_alternative_ids, make_cache=make_cache),
-        "tools": export_tools(db_map, tool_ids, make_cache=make_cache),
-        "features": export_features(db_map, feature_ids, make_cache=make_cache),
-        "tool_features": export_tool_features(db_map, tool_feature_ids, make_cache=make_cache),
-        "tool_feature_methods": export_tool_feature_methods(
-            db_map, tool_feature_method_ids, make_cache=make_cache, parse_value=parse_value
-        ),
     }
     return {key: value for key, value in data.items() if value}
 
@@ -365,29 +351,4 @@ def export_scenario_alternatives(db_map, ids=Asterisk, make_cache=None):
             for x in _get_items(db_map, "scenario_alternative", ids, make_cache)
         ),
         key=itemgetter(0),
-    )
-
-
-def export_tools(db_map, ids=Asterisk, make_cache=None):
-    return sorted((x.name, x.description) for x in _get_items(db_map, "tool", ids, make_cache))
-
-
-def export_features(db_map, ids=Asterisk, make_cache=None):
-    return sorted(
-        (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name, x.description)
-        for x in _get_items(db_map, "feature", ids, make_cache)
-    )
-
-
-def export_tool_features(db_map, ids=Asterisk, make_cache=None):
-    return sorted(
-        (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-        for x in _get_items(db_map, "tool_feature", ids, make_cache)
-    )
-
-
-def export_tool_feature_methods(db_map, ids=Asterisk, make_cache=None, parse_value=from_database):
-    return sorted(
-        (x.tool_name, x.entity_class_name, x.parameter_definition_name, parse_value(x.method, None))
-        for x in _get_items(db_map, "tool_feature_method", ids, make_cache)
     )

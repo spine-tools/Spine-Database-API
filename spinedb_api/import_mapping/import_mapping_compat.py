@@ -35,15 +35,6 @@ from .import_mapping import (
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
-    ToolMapping,
-    FeatureEntityClassMapping,
-    FeatureParameterDefinitionMapping,
-    ToolFeatureEntityClassMapping,
-    ToolFeatureParameterDefinitionMapping,
-    ToolFeatureRequiredFlagMapping,
-    ToolFeatureMethodEntityClassMapping,
-    ToolFeatureMethodParameterDefinitionMapping,
-    ToolFeatureMethodMethodMapping,
     EntityGroupMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
@@ -84,10 +75,11 @@ def import_mapping_from_dict(map_dict):
         "Alternative": _alternative_mapping_from_dict,
         "Scenario": _scenario_mapping_from_dict,
         "ScenarioAlternative": _scenario_alternative_mapping_from_dict,
-        "Tool": _tool_mapping_from_dict,
-        "Feature": _feature_mapping_from_dict,
-        "ToolFeature": _tool_feature_mapping_from_dict,
-        "ToolFeatureMethod": _tool_feature_method_mapping_from_dict,
+        # FIXME
+        # "Tool": _tool_mapping_from_dict,
+        # "Feature": _feature_mapping_from_dict,
+        # "ToolFeature": _tool_feature_mapping_from_dict,
+        # "ToolFeatureMethod": _tool_feature_method_mapping_from_dict,
         "ObjectGroup": _object_group_mapping_from_dict,
         "ParameterValueList": _parameter_value_list_mapping_from_dict,
     }
@@ -138,58 +130,6 @@ def _scenario_alternative_mapping_from_dict(map_dict):
     )
     scen_alt_mapping = root_mapping.child = ScenarioAlternativeMapping(*_pos_and_val(alternative_name))
     scen_alt_mapping.child = ScenarioBeforeAlternativeMapping(*_pos_and_val(before_alternative_name))
-    return root_mapping
-
-
-def _tool_mapping_from_dict(map_dict):
-    name = map_dict.get("name")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ToolMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    return root_mapping
-
-
-def _feature_mapping_from_dict(map_dict):
-    entity_class_name = map_dict.get("entity_class_name")
-    parameter_definition_name = map_dict.get("parameter_definition_name")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = FeatureEntityClassMapping(
-        *_pos_and_val(entity_class_name), skip_columns=skip_columns, read_start_row=read_start_row
-    )
-    root_mapping.child = FeatureParameterDefinitionMapping(*_pos_and_val(parameter_definition_name))
-    return root_mapping
-
-
-def _tool_feature_mapping_from_dict(map_dict):
-    name = map_dict.get("name")
-    entity_class_name = map_dict.get("entity_class_name")
-    parameter_definition_name = map_dict.get("parameter_definition_name")
-    required = map_dict.get("required", "false")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ToolMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    root_mapping.child = ent_class_mapping = ToolFeatureEntityClassMapping(*_pos_and_val(entity_class_name))
-    ent_class_mapping.child = param_def_mapping = ToolFeatureParameterDefinitionMapping(
-        *_pos_and_val(parameter_definition_name)
-    )
-    param_def_mapping.child = ToolFeatureRequiredFlagMapping(*_pos_and_val(required))
-    return root_mapping
-
-
-def _tool_feature_method_mapping_from_dict(map_dict):
-    name = map_dict.get("name")
-    entity_class_name = map_dict.get("entity_class_name")
-    parameter_definition_name = map_dict.get("parameter_definition_name")
-    method = map_dict.get("method")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ToolMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    root_mapping.child = ent_class_mapping = ToolFeatureMethodEntityClassMapping(*_pos_and_val(entity_class_name))
-    ent_class_mapping.child = param_def_mapping = ToolFeatureMethodParameterDefinitionMapping(
-        *_pos_and_val(parameter_definition_name)
-    )
-    param_def_mapping.child = ToolFeatureMethodMethodMapping(*_pos_and_val(method))
     return root_mapping
 
 

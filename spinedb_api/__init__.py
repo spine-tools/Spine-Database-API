@@ -63,10 +63,6 @@ from .import_functions import (
     import_relationships,
     import_scenarios,
     import_scenario_alternatives,
-    import_tools,
-    import_features,
-    import_tool_features,
-    import_tool_feature_methods,
     import_metadata,
     import_object_metadata,
     import_relationship_metadata,
@@ -88,10 +84,6 @@ from .export_functions import (
     export_relationships,
     export_scenario_alternatives,
     export_scenarios,
-    export_tools,
-    export_features,
-    export_tool_features,
-    export_tool_feature_methods,
 )
 from .import_mapping.import_mapping_compat import import_mapping_from_dict
 from .import_mapping.generator import get_mapped_data
@@ -118,7 +110,6 @@ from .parameter_value import (
 )
 from .filters.alternative_filter import apply_alternative_filter_to_parameter_value_sq
 from .filters.scenario_filter import apply_scenario_filter_to_subqueries
-from .filters.tool_filter import apply_tool_filter_to_entity_sq
 from .filters.execution_filter import apply_execution_filter
 from .filters.renamer import apply_renaming_to_parameter_definition_sq, apply_renaming_to_entity_class_sq
 from .filters.tools import (

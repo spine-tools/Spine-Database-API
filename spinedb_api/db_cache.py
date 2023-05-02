@@ -70,9 +70,6 @@ class DBCache(dict):
             "entity_group": EntityGroupItem,
             "scenario": ScenarioItem,
             "scenario_alternative": ScenarioAlternativeItem,
-            "feature": FeatureItem,
-            "tool_feature": ToolFeatureItem,
-            "tool_feature_method": ToolFeatureMethodItem,
             "parameter_value_list": ParameterValueListItem,
         }.get(item_type, CacheItem)
         return factory(self, item_type, **item)
@@ -106,6 +103,9 @@ class TableCache(dict):
         current_item.cascade_update()
 
     def remove_item(self, id_):
+        if self._item_type == "alternative" and id_ == 1:
+            # Do not remove the Base alternative
+            return CacheItem(self._db_cache, self._item_type)
         current_item = self.get(id_)
         if current_item:
             current_item.cascade_remove()
@@ -325,6 +325,8 @@ class EntityItem(DescriptionMixin, CacheItem):
             return tuple(self._get_ref("entity", id_, key).get("name") for id_ in self["element_id_list"])
         if key == "byname":
             return self["element_name_list"] or (self["name"],)
+        if key == "alternative_name":
+            return self._get_ref("alternative", self["alternative_id"], key).get("name")
         return super().__getitem__(key)
 
     def _reference_keys(self):
@@ -333,6 +335,7 @@ class EntityItem(DescriptionMixin, CacheItem):
             "dimension_id_list",
             "dimension_name_list",
             "element_name_list",
+            "alternative_name",
         )
 
 
@@ -463,88 +466,6 @@ class ScenarioAlternativeItem(CacheItem):
 
     def _reference_keys(self):
         return super()._reference_keys() + ("scenario_name", "alternative_name")
-
-
-class FeatureItem(CacheItem):
-    def __getitem__(self, key):
-        if key == "parameter_definition_name":
-            return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get("name")
-        if key in ("entity_class_id", "entity_class_name"):
-            return self._get_ref("parameter_definition", self["parameter_definition_id"], key).get(key)
-        if key == "parameter_value_list_name":
-            return self._get_ref("parameter_value_list", self["parameter_value_list_id"], key).get("name")
-        return super().__getitem__(key)
-
-    def _reference_keys(self):
-        return super()._reference_keys() + (
-            "entity_class_id",
-            "entity_class_name",
-            "parameter_definition_name",
-            "parameter_value_list_name",
-        )
-
-
-class ToolFeatureItem(CacheItem):
-    def __getitem__(self, key):
-        if key in ("entity_class_id", "entity_class_name", "parameter_definition_id", "parameter_definition_name"):
-            return self._get_ref("feature", self["feature_id"], key).get(key)
-        if key == "tool_name":
-            return self._get_ref("tool", self["tool_id"], key).get("name")
-        if key == "parameter_value_list_name":
-            return self._get_ref("parameter_value_list", self["parameter_value_list_id"], key).get("name")
-        if key == "required":
-            return dict.get(self, "required", False)
-        return super().__getitem__(key)
-
-    def _reference_keys(self):
-        return super()._reference_keys() + (
-            "tool_name",
-            "entity_class_id",
-            "entity_class_name",
-            "parameter_definition_id",
-            "parameter_definition_name",
-            "parameter_value_list_name",
-        )
-
-
-class ToolFeatureMethodItem(CacheItem):
-    def __getitem__(self, key):
-        if key in (
-            "tool_id",
-            "tool_name",
-            "feature_id",
-            "entity_class_id",
-            "entity_class_name",
-            "parameter_definition_id",
-            "parameter_definition_name",
-            "parameter_value_list_id",
-            "parameter_value_list_name",
-        ):
-            return self._get_ref("tool_feature", self["tool_feature_id"], key).get(key)
-        if key == "method":
-            value_list = self._get_ref("parameter_value_list", self["parameter_value_list_id"], key)
-            if not value_list:
-                return None
-            try:
-                list_value_id = value_list["value_id_list"][self["method_index"]]
-                return self._get_ref("list_value", list_value_id, key).get("value")
-            except IndexError:
-                return None
-        return super().__getitem__(key)
-
-    def _reference_keys(self):
-        return super()._reference_keys() + (
-            "tool_id",
-            "tool_name",
-            "feature_id",
-            "entity_class_id",
-            "entity_class_name",
-            "parameter_definition_id",
-            "parameter_definition_name",
-            "parameter_value_list_id",
-            "parameter_value_list_name",
-            "method",
-        )
 
 
 class ParameterValueListItem(CacheItem):

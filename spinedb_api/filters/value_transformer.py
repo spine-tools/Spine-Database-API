@@ -16,7 +16,7 @@ Provides a database query manipulator that applies mathematical transformations 
 from functools import partial
 from numbers import Number
 from sqlalchemy import case, literal, Integer, LargeBinary, String
-from sqlalchemy.sql.expression import label, select, cast, union_all
+from sqlalchemy.sql.expression import select, cast, union_all
 
 from ..exception import SpineDBAPIError
 from ..helpers import LONGTEXT_LENGTH
@@ -188,24 +188,12 @@ def _make_parameter_value_transforming_sq(db_map, state):
     temp_sq = union_all(*statements).alias("transformed_values")
     new_value = case([(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value)
     new_type = case([(temp_sq.c.transformed_type != None, temp_sq.c.transformed_type)], else_=subquery.c.type)
-    object_class_case = case(
-        [(db_map.ext_entity_class_sq.c.dimension_id_list == None, subquery.c.entity_class_id)], else_=None
-    )
-    rel_class_case = case(
-        [(db_map.ext_entity_class_sq.c.dimension_id_list != None, subquery.c.entity_class_id)], else_=None
-    )
-    object_entity_case = case([(db_map.ext_entity_sq.c.element_id_list == None, subquery.c.entity_id)], else_=None)
-    rel_entity_case = case([(db_map.ext_entity_sq.c.element_id_list != None, subquery.c.entity_id)], else_=None)
     parameter_value_sq = (
         db_map.query(
             subquery.c.id.label("id"),
             subquery.c.parameter_definition_id,
             subquery.c.entity_class_id,
             subquery.c.entity_id,
-            label("object_class_id", object_class_case),
-            label("relationship_class_id", rel_class_case),
-            label("object_id", object_entity_case),
-            label("relationship_id", rel_entity_case),
             new_value.label("value"),
             new_type.label("type"),
             subquery.c.list_value_id,

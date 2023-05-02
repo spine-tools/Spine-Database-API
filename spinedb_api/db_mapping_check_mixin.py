@@ -31,10 +31,6 @@ from .check_functions import (
     check_parameter_value,
     check_parameter_value_list,
     check_list_value,
-    check_feature,
-    check_tool,
-    check_tool_feature,
-    check_tool_feature_method,
     check_entity_metadata,
     check_metadata,
     check_parameter_value_metadata,
@@ -64,167 +60,10 @@ class DatabaseMappingCheckMixin:
             "parameter_value": self.check_parameter_values,
             "parameter_value_list": self.check_parameter_value_lists,
             "list_value": self.check_list_values,
-            "feature": self.check_features,
-            "tool": self.check_tools,
-            "tool_feature": self.check_tool_features,
-            "tool_feature_method": self.check_tool_feature_methods,
             "metadata": self.check_metadata,
             "entity_metadata": self.check_entity_metadata,
             "parameter_value_metadata": self.check_parameter_value_metadata,
         }[tablename](*items, for_update=for_update, strict=strict, cache=cache)
-
-    def check_features(self, *items, for_update=False, strict=False, cache=None):
-        """Check whether features passed as argument respect integrity constraints.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        if cache is None:
-            cache = self.make_cache({"feature"}, include_ancestors=True)
-        intgr_error_log = []
-        checked_items = list()
-        feature_ids = {x.parameter_definition_id: x.id for x in cache.get("feature", {}).values()}
-        parameter_definitions = {
-            x.id: {
-                "name": x.parameter_name,
-                "entity_class_id": x.entity_class_id,
-                "parameter_value_list_id": x.value_list_id,
-            }
-            for x in cache.get("parameter_definition", {}).values()
-        }
-        for item in items:
-            try:
-                with self._manage_stocks(
-                    "feature", item, {("parameter_definition_id",): feature_ids}, for_update, cache, intgr_error_log
-                ) as item:
-                    check_feature(item, feature_ids, parameter_definitions)
-                    checked_items.append(item)
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_tools(self, *items, for_update=False, strict=False, cache=None):
-        """Check whether tools passed as argument respect integrity constraints.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        if cache is None:
-            cache = self.make_cache({"tool"}, include_ancestors=True)
-        intgr_error_log = []
-        checked_items = list()
-        tool_ids = {x.name: x.id for x in cache.get("tool", {}).values()}
-        for item in items:
-            try:
-                with self._manage_stocks(
-                    "tool", item, {("name",): tool_ids}, for_update, cache, intgr_error_log
-                ) as item:
-                    check_tool(item, tool_ids)
-                    checked_items.append(item)
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_tool_features(self, *items, for_update=False, strict=False, cache=None):
-        """Check whether tool features passed as argument respect integrity constraints.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        if cache is None:
-            cache = self.make_cache({"tool_feature"}, include_ancestors=True)
-        intgr_error_log = []
-        checked_items = list()
-        tool_feature_ids = {(x.tool_id, x.feature_id): x.id for x in cache.get("tool_feature", {}).values()}
-        tools = {x.id: x._asdict() for x in cache.get("tool", {}).values()}
-        features = {
-            x.id: {
-                "name": x.entity_class_name + "/" + x.parameter_definition_name,
-                "parameter_value_list_id": x.parameter_value_list_id,
-            }
-            for x in cache.get("feature", {}).values()
-        }
-        for item in items:
-            try:
-                with self._manage_stocks(
-                    "tool_feature",
-                    item,
-                    {("tool_id", "feature_id"): tool_feature_ids},
-                    for_update,
-                    cache,
-                    intgr_error_log,
-                ) as item:
-                    check_tool_feature(item, tool_feature_ids, tools, features)
-                    checked_items.append(item)
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
-
-    def check_tool_feature_methods(self, *items, for_update=False, strict=False, cache=None):
-        """Check whether tool feature methods passed as argument respect integrity constraints.
-
-        Args:
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be checked.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if one of the items violates an integrity constraint.
-
-        Returns
-            list: items that passed the check.
-            list: :exc:`~.exception.SpineIntegrityError` instances corresponding to found violations.
-        """
-        if cache is None:
-            cache = self.make_cache({"tool_feature_method"}, include_ancestors=True)
-        intgr_error_log = []
-        checked_items = list()
-        tool_feature_method_ids = {
-            (x.tool_feature_id, x.method_index): x.id for x in cache.get("tool_feature_method", {}).values()
-        }
-        tool_features = {x.id: x._asdict() for x in cache.get("tool_feature", {}).values()}
-        parameter_value_lists = {
-            x.id: {"name": x.name, "value_index_list": x.value_index_list}
-            for x in cache.get("parameter_value_list", {}).values()
-        }
-        for item in items:
-            try:
-                with self._manage_stocks(
-                    "tool_feature_method",
-                    item,
-                    {("tool_feature_id", "method_index"): tool_feature_method_ids},
-                    for_update,
-                    cache,
-                    intgr_error_log,
-                ) as item:
-                    check_tool_feature_method(item, tool_feature_method_ids, tool_features, parameter_value_lists)
-                    checked_items.append(item)
-            except SpineIntegrityError as e:
-                if strict:
-                    raise e
-                intgr_error_log.append(e)
-        return checked_items, intgr_error_log
 
     def check_alternatives(self, *items, for_update=False, strict=False, cache=None):
         """Check whether alternatives passed as argument respect integrity constraints.

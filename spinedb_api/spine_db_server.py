@@ -33,7 +33,6 @@ from .export_functions import export_data
 from .parameter_value import dump_db_value
 from .server_client_helpers import ReceiveAllMixing, encode, decode
 from .filters.scenario_filter import scenario_filter_config
-from .filters.tool_filter import tool_filter_config
 from .filters.alternative_filter import alternative_filter_config
 from .filters.tools import apply_filter_stack
 from .spine_db_client import SpineDBClient
@@ -462,9 +461,7 @@ class HandleDBMixin:
 
     def apply_filters(self, filters):
         configs = [
-            {"scenario": scenario_filter_config, "tool": tool_filter_config, "alternatives": alternative_filter_config}[
-                key
-            ](value)
+            {"scenario": scenario_filter_config, "alternatives": alternative_filter_config}[key](value)
             for key, value in filters.items()
         ]
         return _db_manager.apply_filters(self.server_address, configs)

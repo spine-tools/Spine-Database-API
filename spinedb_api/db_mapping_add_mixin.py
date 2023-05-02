@@ -58,10 +58,6 @@ class DatabaseMappingAddMixin:
                 Column("alternative_id", Integer, server_default=null()),
                 Column("scenario_id", Integer, server_default=null()),
                 Column("scenario_alternative_id", Integer, server_default=null()),
-                Column("tool_id", Integer, server_default=null()),
-                Column("feature_id", Integer, server_default=null()),
-                Column("tool_feature_id", Integer, server_default=null()),
-                Column("tool_feature_method_id", Integer, server_default=null()),
                 Column("metadata_id", Integer, server_default=null()),
                 Column("parameter_value_metadata_id", Integer, server_default=null()),
                 Column("entity_metadata_id", Integer, server_default=null()),
@@ -98,10 +94,6 @@ class DatabaseMappingAddMixin:
             "alternative": "alternative_id",
             "scenario": "scenario_id",
             "scenario_alternative": "scenario_alternative_id",
-            "tool": "tool_id",
-            "feature": "feature_id",
-            "tool_feature": "tool_feature_id",
-            "tool_feature_method": "tool_feature_method_id",
             "metadata": "metadata_id",
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
@@ -117,8 +109,8 @@ class DatabaseMappingAddMixin:
         if next_id is None:
             real_tablename = self._real_tablename(tablename)
             table = self._metadata.tables[real_tablename]
-            id_col = self.table_ids.get(real_tablename, "id")
-            select_max_id = select([func.max(getattr(table.c, id_col))])
+            id_field = self._id_fields.get(real_tablename, "id")
+            select_max_id = select([func.max(getattr(table.c, id_field))])
             max_id = connection.execute(select_max_id).scalar()
             next_id = max_id + 1 if max_id else 1
         gen = self._IdGenerator(next_id)
@@ -231,7 +223,8 @@ class DatabaseMappingAddMixin:
         else:
             self._has_pending_changes = True
 
-    def _items_to_add_per_table(self, tablename, items_to_add):
+    @staticmethod
+    def _items_to_add_per_table(tablename, items_to_add):
         """
         Yields tuples of string tablename, list of items to insert. Needed because some insert queries
         actually need to insert records to more than one table.
@@ -244,61 +237,72 @@ class DatabaseMappingAddMixin:
             tuple: database table name, items to add
         """
         if tablename == "entity_class":
-            ecd_items_to_add = []
-            for item in items_to_add:
-                ecd_items_to_add += [
-                    {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
-                    for position, dimension_id in enumerate(item["dimension_id_list"])
-                ]
+            ecd_items_to_add = [
+                {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
+                for item in items_to_add
+                for position, dimension_id in enumerate(item["dimension_id_list"])
+            ]
             yield ("entity_class", items_to_add)
             yield ("entity_class_dimension", ecd_items_to_add)
         elif tablename == "entity":
-            ee_items_to_add = []
-            for item in items_to_add:
-                ee_items_to_add += [
-                    {
-                        "entity_id": item["id"],
-                        "entity_class_id": item["class_id"],
-                        "position": position,
-                        "element_id": element_id,
-                        "dimension_id": dimension_id,
-                    }
-                    for position, (element_id, dimension_id) in enumerate(
-                        zip(item["element_id_list"], item["dimension_id_list"])
-                    )
-                ]
+            ee_items_to_add = [
+                {
+                    "entity_id": item["id"],
+                    "entity_class_id": item["class_id"],
+                    "position": position,
+                    "element_id": element_id,
+                    "dimension_id": dimension_id,
+                }
+                for item in items_to_add
+                for position, (element_id, dimension_id) in enumerate(
+                    zip(item["element_id_list"], item["dimension_id_list"])
+                )
+            ]
+            ea_items_to_add = [
+                {"entity_id": item["id"], "alternative_id": item["alternative_id"], "active": item["active"]}
+                for item in items_to_add
+            ]
             yield ("entity", items_to_add)
             yield ("entity_element", ee_items_to_add)
+            yield ("entity_alternative", ea_items_to_add)
         elif tablename == "object_class":
             yield ("entity_class", items_to_add)
         elif tablename == "object":
+            ea_items_to_add = [
+                {"entity_id": item["id"], "alternative_id": item["alternative_id"], "active": item["active"]}
+                for item in items_to_add
+            ]
             yield ("entity", items_to_add)
+            yield ("entity_alternative", ea_items_to_add)
         elif tablename == "relationship_class":
-            ecd_items_to_add = []
-            for item in items_to_add:
-                ecd_items_to_add += [
-                    {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
-                    for position, dimension_id in enumerate(item["object_class_id_list"])
-                ]
+            ecd_items_to_add = [
+                {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
+                for item in items_to_add
+                for position, dimension_id in enumerate(item["object_class_id_list"])
+            ]
             yield ("entity_class", items_to_add)
             yield ("entity_class_dimension", ecd_items_to_add)
         elif tablename == "relationship":
-            ee_items_to_add = []
-            for item in items_to_add:
-                ee_items_to_add += [
-                    {
-                        "entity_id": item["id"],
-                        "entity_class_id": item["class_id"],
-                        "position": position,
-                        "element_id": element_id,
-                        "dimension_id": dimension_id,
-                    }
-                    for position, (element_id, dimension_id) in enumerate(
-                        zip(item["object_id_list"], item["object_class_id_list"])
-                    )
-                ]
+            ee_items_to_add = [
+                {
+                    "entity_id": item["id"],
+                    "entity_class_id": item["class_id"],
+                    "position": position,
+                    "element_id": element_id,
+                    "dimension_id": dimension_id,
+                }
+                for item in items_to_add
+                for position, (element_id, dimension_id) in enumerate(
+                    zip(item["object_id_list"], item["object_class_id_list"])
+                )
+            ]
+            ea_items_to_add = [
+                {"entity_id": item["id"], "alternative_id": item["alternative_id"], "active": item["active"]}
+                for item in items_to_add
+            ]
             yield ("entity", items_to_add)
             yield ("entity_element", ee_items_to_add)
+            yield ("entity_alternative", ea_items_to_add)
         elif tablename == "parameter_definition":
             for item in items_to_add:
                 item["entity_class_id"] = (
@@ -344,18 +348,6 @@ class DatabaseMappingAddMixin:
 
     def add_list_values(self, *items, **kwargs):
         return self.add_items("list_value", *items, **kwargs)
-
-    def add_features(self, *items, **kwargs):
-        return self.add_items("feature", *items, **kwargs)
-
-    def add_tools(self, *items, **kwargs):
-        return self.add_items("tool", *items, **kwargs)
-
-    def add_tool_features(self, *items, **kwargs):
-        return self.add_items("tool_feature", *items, **kwargs)
-
-    def add_tool_feature_methods(self, *items, **kwargs):
-        return self.add_items("tool_feature_method", *items, **kwargs)
 
     def add_alternatives(self, *items, **kwargs):
         return self.add_items("alternative", *items, **kwargs)
@@ -490,18 +482,6 @@ class DatabaseMappingAddMixin:
 
     def _add_list_values(self, *items):
         return self._add_items("list_value", *items)
-
-    def _add_features(self, *items):
-        return self._add_items("feature", *items)
-
-    def _add_tools(self, *items):
-        return self._add_items("tool", *items)
-
-    def _add_tool_features(self, *items):
-        return self._add_items("tool_feature", *items)
-
-    def _add_tool_feature_methods(self, *items):
-        return self._add_items("tool_feature_method", *items)
 
     def _add_alternatives(self, *items):
         return self._add_items("alternative", *items)

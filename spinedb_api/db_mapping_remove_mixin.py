@@ -39,12 +39,15 @@ class DatabaseMappingRemoveMixin:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
         for tablename, ids in kwargs.items():
+            if tablename == "alternative":
+                # Do not remove the Base alternative
+                ids -= {1}
             if not ids:
                 continue
             real_tablename = self._real_tablename(tablename)
-            table_id = self.table_ids.get(real_tablename, "id")
+            id_field = self._id_fields.get(real_tablename, "id")
             table = self._metadata.tables[real_tablename]
-            delete = table.delete().where(self.in_(getattr(table.c, table_id), ids))
+            delete = table.delete().where(self.in_(getattr(table.c, id_field), ids))
             try:
                 self.connection.execute(delete)
                 table_cache = self.cache.get(tablename)
@@ -96,10 +99,6 @@ class DatabaseMappingRemoveMixin:
         self._merge(ids, self._alternative_cascading_ids(kwargs.get("alternative", set()), cache))
         self._merge(ids, self._scenario_cascading_ids(kwargs.get("scenario", set()), cache))
         self._merge(ids, self._scenario_alternatives_cascading_ids(kwargs.get("scenario_alternative", set()), cache))
-        self._merge(ids, self._feature_cascading_ids(kwargs.get("feature", set()), cache))
-        self._merge(ids, self._tool_cascading_ids(kwargs.get("tool", set()), cache))
-        self._merge(ids, self._tool_feature_cascading_ids(kwargs.get("tool_feature", set()), cache))
-        self._merge(ids, self._tool_feature_method_cascading_ids(kwargs.get("tool_feature_method", set()), cache))
         self._merge(ids, self._metadata_cascading_ids(kwargs.get("metadata", set()), cache))
         self._merge(ids, self._entity_metadata_cascading_ids(kwargs.get("entity_metadata", set()), cache))
         self._merge(
@@ -186,9 +185,7 @@ class DatabaseMappingRemoveMixin:
         """Returns parameter definition cascading ids."""
         cascading_ids = {"parameter_definition": set(ids)}
         parameter_values = [x for x in dict.values(cache.get("parameter_value", {})) if x.parameter_id in ids]
-        features = [x for x in dict.values(cache.get("feature", {})) if x.parameter_definition_id in ids]
         self._merge(cascading_ids, self._parameter_value_cascading_ids({x.id for x in parameter_values}, cache))
-        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
 
     def _parameter_value_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
@@ -203,8 +200,6 @@ class DatabaseMappingRemoveMixin:
     def _parameter_value_list_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
         """Returns parameter value list cascading ids and adds them to the given dictionaries."""
         cascading_ids = {"parameter_value_list": set(ids)}
-        features = [x for x in dict.values(cache.get("feature", {})) if x.parameter_value_list_id in ids]
-        self._merge(cascading_ids, self._feature_cascading_ids({x.id for x in features}, cache))
         return cascading_ids
 
     def _list_value_cascading_ids(self, ids, cache):  # pylint: disable=no-self-use
@@ -213,29 +208,6 @@ class DatabaseMappingRemoveMixin:
 
     def _scenario_alternatives_cascading_ids(self, ids, cache):
         return {"scenario_alternative": set(ids)}
-
-    def _feature_cascading_ids(self, ids, cache):
-        cascading_ids = {"feature": set(ids)}
-        tool_features = [x for x in dict.values(cache.get("tool_feature", {})) if x.feature_id in ids]
-        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}, cache))
-        return cascading_ids
-
-    def _tool_cascading_ids(self, ids, cache):
-        cascading_ids = {"tool": set(ids)}
-        tool_features = [x for x in dict.values(cache.get("tool_feature", {})) if x.tool_id in ids]
-        self._merge(cascading_ids, self._tool_feature_cascading_ids({x.id for x in tool_features}, cache))
-        return cascading_ids
-
-    def _tool_feature_cascading_ids(self, ids, cache):
-        cascading_ids = {"tool_feature": set(ids)}
-        tool_feature_methods = [
-            x for x in dict.values(cache.get("tool_feature_method", {})) if x.tool_feature_id in ids
-        ]
-        self._merge(cascading_ids, self._tool_feature_method_cascading_ids({x.id for x in tool_feature_methods}, cache))
-        return cascading_ids
-
-    def _tool_feature_method_cascading_ids(self, ids, cache):
-        return {"tool_feature_method": set(ids)}
 
     def _metadata_cascading_ids(self, ids, cache):
         cascading_ids = {"metadata": set(ids)}

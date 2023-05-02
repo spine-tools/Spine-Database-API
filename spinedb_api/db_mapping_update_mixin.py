@@ -28,15 +28,92 @@ class DatabaseMappingUpdateMixin:
     def _update_items(self, tablename, *items, dry_run=False):
         if not items:
             return set()
+        if dry_run:
+            return {x["id"] for x in items}
         # Special cases
         if tablename == "entity":
-            return self._update_entities(*items)
+            return self._do_update_entities(*items)
+        if tablename == "object":
+            return self._do_update_objects(*items)
         if tablename == "relationship":
-            return self._update_wide_relationships(*items)
+            return self._do_update_wide_relationships(*items)
         real_tablename = self._real_tablename(tablename)
-        if not dry_run:
-            self._do_update_items(real_tablename, *items)
-        return {x["id"] for x in items}
+        self._do_update_items(real_tablename, *items)
+
+    def _do_update_entities(self, *items):
+        entity_items = []
+        entity_element_items = []
+        entity_alternative_items = []
+        for item in items:
+            entity_id = item["id"]
+            class_id = item["class_id"]
+            dimension_id_list = item["dimension_id_list"]
+            element_id_list = item["element_id_list"]
+            entity_items.append(
+                {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
+            )
+            entity_element_items.extend(
+                [
+                    {
+                        "entity_class_id": class_id,
+                        "entity_id": entity_id,
+                        "position": position,
+                        "dimension_id": dimension_id,
+                        "element_id": element_id,
+                    }
+                    for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list))
+                ]
+            )
+            entity_alternative_items.append(
+                {"entity_id": entity_id, "alternative_id": item["alternative_id"], "active": item["active"]}
+            )
+        self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity_element", *entity_element_items)
+        self._do_update_items("entity_alternative", *entity_alternative_items)
+        return {x["id"] for x in entity_items}
+
+    def _do_update_objects(self, *items):
+        entity_items = []
+        entity_alternative_items = []
+        for item in items:
+            entity_id = item["id"]
+            class_id = item["class_id"]
+            entity_items.append(
+                {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
+            )
+            entity_alternative_items.append(
+                {"entity_id": entity_id, "alternative_id": item["alternative_id"], "active": item["active"]}
+            )
+        self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity_alternative", *entity_alternative_items)
+        return {x["id"] for x in entity_items}
+
+    def _do_update_wide_relationships(self, *items):
+        entity_items = []
+        entity_element_items = []
+        for item in items:
+            entity_id = item["id"]
+            class_id = item["class_id"]
+            object_class_id_list = item["object_class_id_list"]
+            object_id_list = item["object_id_list"]
+            entity_items.append(
+                {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
+            )
+            entity_element_items.extend(
+                [
+                    {
+                        "entity_class_id": class_id,
+                        "entity_id": entity_id,
+                        "position": position,
+                        "dimension_id": dimension_id,
+                        "element_id": element_id,
+                    }
+                    for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list))
+                ]
+            )
+        self._do_update_items("entity", *entity_items)
+        self._do_update_items("entity_element", *entity_element_items)
+        return {x["id"] for x in entity_items}
 
     def _do_update_items(self, tablename, *items):
         if not items:
@@ -111,33 +188,7 @@ class DatabaseMappingUpdateMixin:
         return self.update_items("entity", *items, **kwargs)
 
     def _update_entities(self, *items):
-        entity_items = []
-        entity_element_items = []
-        for item in items:
-            entity_id = item["id"]
-            class_id = item["class_id"]
-            ent_item = {
-                "id": entity_id,
-                "class_id": class_id,
-                "name": item["name"],
-                "description": item.get("description"),
-            }
-            entity_items.append(ent_item)
-            dimension_id_list = item["dimension_id_list"]
-            element_id_list = item["element_id_list"]
-            for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list)):
-                rel_ent_item = {
-                    "id": None,  # Need to have an "id" field to make _update_items() happy.
-                    "entity_class_id": class_id,
-                    "entity_id": entity_id,
-                    "position": position,
-                    "dimension_id": dimension_id,
-                    "element_id": element_id,
-                }
-                entity_element_items.append(rel_ent_item)
-        self._do_update_items("entity", *entity_items)
-        self._do_update_items("entity_element", *entity_element_items)
-        return {x["id"] for x in entity_items}
+        return self._update_items("entity", *items)
 
     def update_object_classes(self, *items, **kwargs):
         return self.update_items("object_class", *items, **kwargs)
@@ -161,33 +212,7 @@ class DatabaseMappingUpdateMixin:
         return self.update_items("relationship", *items, **kwargs)
 
     def _update_wide_relationships(self, *items):
-        entity_items = []
-        entity_element_items = []
-        for item in items:
-            entity_id = item["id"]
-            class_id = item["class_id"]
-            ent_item = {
-                "id": entity_id,
-                "class_id": class_id,
-                "name": item["name"],
-                "description": item.get("description"),
-            }
-            entity_items.append(ent_item)
-            object_class_id_list = item["object_class_id_list"]
-            object_id_list = item["object_id_list"]
-            for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list)):
-                rel_ent_item = {
-                    "id": None,  # Need to have an "id" field to make _update_items() happy.
-                    "entity_class_id": class_id,
-                    "entity_id": entity_id,
-                    "position": position,
-                    "dimension_id": dimension_id,
-                    "element_id": element_id,
-                }
-                entity_element_items.append(rel_ent_item)
-        self._do_update_items("entity", *entity_items)
-        self._do_update_items("entity_element", *entity_element_items)
-        return {x["id"] for x in entity_items}
+        return self._update_items("relationship", *items)
 
     def update_parameter_definitions(self, *items, **kwargs):
         return self.update_items("parameter_definition", *items, **kwargs)
@@ -200,30 +225,6 @@ class DatabaseMappingUpdateMixin:
 
     def _update_parameter_values(self, *items):
         return self._update_items("parameter_value", *items)
-
-    def update_features(self, *items, **kwargs):
-        return self.update_items("feature", *items, **kwargs)
-
-    def _update_features(self, *items):
-        return self._update_items("feature", *items)
-
-    def update_tools(self, *items, **kwargs):
-        return self.update_items("tool", *items, **kwargs)
-
-    def _update_tools(self, *items):
-        return self._update_items("tool", *items)
-
-    def update_tool_features(self, *items, **kwargs):
-        return self.update_items("tool_feature", *items, **kwargs)
-
-    def _update_tool_features(self, *items):
-        return self._update_items("tool_feature", *items)
-
-    def update_tool_feature_methods(self, *items, **kwargs):
-        return self.update_items("tool_feature_method", *items, **kwargs)
-
-    def _update_tool_feature_methods(self, *items):
-        return self._update_items("tool_feature_method", *items)
 
     def update_parameter_value_lists(self, *items, **kwargs):
         return self.update_items("parameter_value_list", *items, **kwargs)

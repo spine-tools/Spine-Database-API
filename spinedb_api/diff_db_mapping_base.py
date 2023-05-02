@@ -85,7 +85,7 @@ class DiffDatabaseMappingBase(DatabaseMappingBase):
             SELECT * FROM diff_table
         """
         orig_table = self._metadata.tables[tablename]
-        table_id = self.table_ids.get(tablename, "id")
+        table_id = self._id_fields.get(tablename, "id")
         qry = self.query(*labelled_columns(orig_table)).filter(
             ~self.in_(getattr(orig_table.c, table_id), self.dirty_item_id[tablename])
         )

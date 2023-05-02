@@ -41,6 +41,7 @@ from sqlalchemy import (
     func,
     inspect,
     null,
+    true,
     select,
 )
 from sqlalchemy.ext.automap import generate_relationship
@@ -424,6 +425,21 @@ def create_spine_metadata():
         ),
     )
     Table(
+        "entity_alternative",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("entity_id", Integer, ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False),
+        Column(
+            "alternative_id",
+            Integer,
+            ForeignKey("alternative.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("active", Boolean(name="active"), server_default=true(), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("entity_id", "alternative_id"),
+    )
+    Table(
         "parameter_definition",
         meta,
         Column("id", Integer, primary_key=True),
@@ -504,71 +520,6 @@ def create_spine_metadata():
         Column("value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_value_list_id", "index"),
-    )
-    Table(
-        "tool",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("name", String(155), nullable=False),
-        Column("description", Text(), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-    )
-    Table(
-        "feature",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("parameter_definition_id", Integer, nullable=False),
-        Column("parameter_value_list_id", Integer, nullable=False),
-        Column("description", Text(), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("parameter_definition_id", "parameter_value_list_id"),
-        UniqueConstraint("id", "parameter_value_list_id"),
-        ForeignKeyConstraint(
-            ("parameter_definition_id", "parameter_value_list_id"),
-            ("parameter_definition.id", "parameter_definition.parameter_value_list_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-    )
-    Table(
-        "tool_feature",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("tool_id", Integer, ForeignKey("tool.id")),
-        Column("feature_id", Integer, nullable=False),
-        Column("parameter_value_list_id", Integer, nullable=False),
-        Column("required", Boolean(name="required"), server_default=false(), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("tool_id", "feature_id"),
-        UniqueConstraint("id", "parameter_value_list_id"),
-        ForeignKeyConstraint(
-            ("feature_id", "parameter_value_list_id"),
-            ("feature.id", "feature.parameter_value_list_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-    )
-    Table(
-        "tool_feature_method",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("tool_feature_id", Integer, nullable=False),
-        Column("parameter_value_list_id", Integer, nullable=False),
-        Column("method_index", Integer),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("tool_feature_id", "method_index"),
-        ForeignKeyConstraint(
-            ("tool_feature_id", "parameter_value_list_id"),
-            ("tool_feature.id", "tool_feature.parameter_value_list_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ("parameter_value_list_id", "method_index"),
-            ("list_value.parameter_value_list_id", "list_value.index"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
     )
     Table(
         "metadata",
