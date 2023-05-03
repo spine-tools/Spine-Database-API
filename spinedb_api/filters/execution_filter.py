@@ -143,7 +143,7 @@ class _ExecutionFilterState:
         return execution_item, scenarios, timestamp
 
 
-def _create_import_alternative(db_map, state, cache=None):
+def _create_import_alternative(db_map, state):
     """
     Creates an alternative to use as default for all import operations on the given db_map.
 

@@ -13,7 +13,6 @@ DB cache utility.
 
 """
 from contextlib import suppress
-from operator import itemgetter
 
 
 # TODO: Implement CacheItem.pop() to do lookup?
@@ -25,8 +24,8 @@ class DBCache(dict):
         A dictionary that maps table names to ids to items. Used to store and retrieve database contents.
 
         Args:
-            advance_query (function): A function to call when references aren't found.
-                It receives a table name (a.k.a item type) and should bring more items of that type into this cache.
+            advance_query (function): A function that receives a table name (a.k.a item type) as input and returns
+                more items of that type to be added to this cache.
         """
         super().__init__(*args, **kwargs)
         self._advance_query = advance_query
@@ -41,12 +40,25 @@ class DBCache(dict):
             return {}
         return item
 
+    def fetch_more(self, item_type):
+        items = self._advance_query(item_type)
+        if not items:
+            return False
+        table_cache = self.table_cache(item_type)
+        for item in items:
+            table_cache.add_item(item._asdict())
+        return True
+
+    def fetch_all(self, item_type):
+        while self.fetch_more(item_type):
+            pass
+
     def fetch_ref(self, item_type, id_):
-        while self._advance_query(item_type):
+        while self.fetch_more(item_type):
             with suppress(KeyError):
                 return self[item_type][id_]
         # It is possible that fetching was completed between deciding to call this function
-        # and starting the while loop above resulting in self._advance_query() to return False immediately.
+        # and starting the while loop above resulting in self.fetch_more() to return False immediately.
         # Therefore, we should try one last time if the ref is available.
         with suppress(KeyError):
             return self[item_type][id_]
@@ -65,12 +77,10 @@ class DBCache(dict):
         factory = {
             "entity_class": EntityClassItem,
             "entity": EntityItem,
+            "entity_group": EntityGroupItem,
             "parameter_definition": ParameterDefinitionItem,
             "parameter_value": ParameterValueItem,
-            "entity_group": EntityGroupItem,
-            "scenario": ScenarioItem,
             "scenario_alternative": ScenarioAlternativeItem,
-            "parameter_value_list": ParameterValueListItem,
         }.get(item_type, CacheItem)
         return factory(self, item_type, **item)
 
@@ -325,8 +335,6 @@ class EntityItem(DescriptionMixin, CacheItem):
             return tuple(self._get_ref("entity", id_, key).get("name") for id_ in self["element_id_list"])
         if key == "byname":
             return self["element_name_list"] or (self["name"],)
-        if key == "alternative_name":
-            return self._get_ref("alternative", self["alternative_id"], key).get("name")
         return super().__getitem__(key)
 
     def _reference_keys(self):
@@ -335,7 +343,6 @@ class EntityItem(DescriptionMixin, CacheItem):
             "dimension_id_list",
             "dimension_name_list",
             "element_name_list",
-            "alternative_name",
         )
 
 
@@ -428,60 +435,23 @@ class EntityGroupItem(CacheItem):
         return super()._reference_keys() + ("class_name", "group_name", "member_name", "dimension_id_list")
 
 
-class ScenarioItem(CacheItem):
-    @property
-    def _sorted_scen_alts(self):
-        return sorted(
-            (x for x in self._db_cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
-            key=itemgetter("rank"),
-        )
-
-    def __getitem__(self, key):
-        if key == "active":
-            return dict.get(self, "active", False)
-        if key == "alternative_id_list":
-            return tuple(x.get("alternative_id") for x in self._sorted_scen_alts)
-        if key == "alternative_name_list":
-            return tuple(x.get("alternative_name") for x in self._sorted_scen_alts)
-        return super().__getitem__(key)
-
-
 class ScenarioAlternativeItem(CacheItem):
     def __getitem__(self, key):
         if key == "scenario_name":
             return self._get_ref("scenario", self["scenario_id"], key).get("name")
         if key == "alternative_name":
             return self._get_ref("alternative", self["alternative_id"], key).get("name")
-        scen_key = {
-            "before_alternative_id": "alternative_id_list",
-            "before_alternative_name": "alternative_name_list",
-        }.get(key)
-        if scen_key is not None:
-            scenario = self._get_ref("scenario", self["scenario_id"], key)
-            try:
-                return scenario[scen_key][self["rank"]]
-            except IndexError:
-                return None
-        return super().__getitem__(key)
+        if key == "before_alternative_name":
+            return self._get_ref("alternative", self["before_alternative_id"], key).get("name")
+        if key == "before_alternative_id":
+            return next(
+                (
+                    x
+                    for x in self._db_cache.get("scenario_alternative", {}).values()
+                    if x["scenario_id"] == self["scenario_id"] and x["rank"] == self["rank"] - 1
+                ),
+                {},
+            ).get("alternative_id")
 
     def _reference_keys(self):
         return super()._reference_keys() + ("scenario_name", "alternative_name")
-
-
-class ParameterValueListItem(CacheItem):
-    def _sorted_list_values(self, key):
-        return sorted(
-            (
-                self._get_ref("list_value", x["id"], key)
-                for x in self._db_cache.get("list_value", {}).values()
-                if x["parameter_value_list_id"] == self["id"]
-            ),
-            key=itemgetter("index"),
-        )
-
-    def __getitem__(self, key):
-        if key == "value_index_list":
-            return tuple(x.get("index") for x in self._sorted_list_values(key))
-        if key == "value_id_list":
-            return tuple(x.get("id") for x in self._sorted_list_values(key))
-        return super().__getitem__(key)

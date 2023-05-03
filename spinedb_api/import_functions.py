@@ -50,7 +50,7 @@ class ImportErrorLogItem:
         return self.msg
 
 
-def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict="merge", **kwargs):
+def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs):
     """Imports data into a Spine database using name references (rather than id references).
 
     Example::
@@ -147,7 +147,7 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
     error_log = []
     num_imports = 0
     for tablename, (to_add, to_update, errors) in get_data_for_import(
-        db_map, make_cache=make_cache, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs
+        db_map, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs
     ):
         update_items = update_items_by_tablename.get(tablename, lambda *args, **kwargs: ())
         try:
@@ -168,7 +168,6 @@ def import_data(db_map, make_cache=None, unparse_value=to_database, on_conflict=
 
 def get_data_for_import(
     db_map,
-    make_cache=None,
     unparse_value=to_database,
     on_conflict="merge",
     dry_run=False,
@@ -225,95 +224,89 @@ def get_data_for_import(
     Returns:
         dict(str, list)
     """
-    if make_cache is None:
-        make_cache = db_map.make_cache
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
-        yield ("alternative", _get_alternatives_for_import(alternatives, make_cache))
+        yield ("alternative", _get_alternatives_for_import(alternatives))
     if scenarios:
-        yield ("scenario", _get_scenarios_for_import(scenarios, make_cache))
+        yield ("scenario", _get_scenarios_for_import(scenarios))
     if scenario_alternatives:
         if not scenarios:
             scenarios = (item[0] for item in scenario_alternatives)
-            yield ("scenario", _get_scenarios_for_import(scenarios, make_cache))
+            yield ("scenario", _get_scenarios_for_import(scenarios))
         if not alternatives:
             alternatives = (item[1] for item in scenario_alternatives)
-            yield ("alternative", _get_alternatives_for_import(alternatives, make_cache))
-        yield ("scenario_alternative", _get_scenario_alternatives_for_import(scenario_alternatives, make_cache))
+            yield ("alternative", _get_alternatives_for_import(alternatives))
+        yield ("scenario_alternative", _get_scenario_alternatives_for_import(scenario_alternatives))
     if entity_classes:
-        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, make_cache, dry_run))
+        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, dry_run))
     if object_classes:
-        yield ("object_class", _get_object_classes_for_import(db_map, object_classes, make_cache))
+        yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
     if relationship_classes:
-        yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes, make_cache))
+        yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes))
     if parameter_value_lists:
-        yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists, make_cache))
-        yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, make_cache, unparse_value))
+        yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
+        yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
     if parameter_definitions:
         yield (
             "parameter_definition",
-            _get_parameter_definitions_for_import(db_map, parameter_definitions, make_cache, unparse_value),
+            _get_parameter_definitions_for_import(db_map, parameter_definitions, unparse_value),
         )
     if object_parameters:
         yield (
             "parameter_definition",
-            _get_object_parameters_for_import(db_map, object_parameters, make_cache, unparse_value),
+            _get_object_parameters_for_import(db_map, object_parameters, unparse_value),
         )
     if relationship_parameters:
         yield (
             "parameter_definition",
-            _get_relationship_parameters_for_import(db_map, relationship_parameters, make_cache, unparse_value),
+            _get_relationship_parameters_for_import(db_map, relationship_parameters, unparse_value),
         )
     if entities:
-        yield ("entity", _get_entities_for_import(db_map, entities, make_cache, dry_run))
+        yield ("entity", _get_entities_for_import(db_map, entities, dry_run))
     if objects:
-        yield ("object", _get_objects_for_import(db_map, objects, make_cache))
+        yield ("object", _get_objects_for_import(db_map, objects))
     if relationships:
-        yield ("relationship", _get_relationships_for_import(db_map, relationships, make_cache))
+        yield ("relationship", _get_relationships_for_import(db_map, relationships))
     if entity_groups:
-        yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups, make_cache))
+        yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
     if object_groups:
-        yield ("entity_group", _get_object_groups_for_import(db_map, object_groups, make_cache))
+        yield ("entity_group", _get_object_groups_for_import(db_map, object_groups))
     if parameter_values:
         yield (
             "parameter_value",
-            _get_parameter_values_for_import(db_map, parameter_values, make_cache, unparse_value, on_conflict),
+            _get_parameter_values_for_import(db_map, parameter_values, unparse_value, on_conflict),
         )
     if object_parameter_values:
         yield (
             "parameter_value",
-            _get_object_parameter_values_for_import(
-                db_map, object_parameter_values, make_cache, unparse_value, on_conflict
-            ),
+            _get_object_parameter_values_for_import(db_map, object_parameter_values, unparse_value, on_conflict),
         )
     if relationship_parameter_values:
         yield (
             "parameter_value",
             _get_relationship_parameter_values_for_import(
-                db_map, relationship_parameter_values, make_cache, unparse_value, on_conflict
+                db_map, relationship_parameter_values, unparse_value, on_conflict
             ),
         )
     if metadata:
-        yield ("metadata", _get_metadata_for_import(db_map, metadata, make_cache))
+        yield ("metadata", _get_metadata_for_import(db_map, metadata))
     if object_metadata:
-        yield ("entity_metadata", _get_object_metadata_for_import(db_map, object_metadata, make_cache))
+        yield ("entity_metadata", _get_object_metadata_for_import(db_map, object_metadata))
     if relationship_metadata:
-        yield ("entity_metadata", _get_relationship_metadata_for_import(db_map, relationship_metadata, make_cache))
+        yield ("entity_metadata", _get_relationship_metadata_for_import(db_map, relationship_metadata))
     if object_parameter_value_metadata:
         yield (
             "parameter_value_metadata",
-            _get_object_parameter_value_metadata_for_import(db_map, object_parameter_value_metadata, make_cache),
+            _get_object_parameter_value_metadata_for_import(db_map, object_parameter_value_metadata),
         )
     if relationship_parameter_value_metadata:
         yield (
             "parameter_value_metadata",
-            _get_relationship_parameter_value_metadata_for_import(
-                db_map, relationship_parameter_value_metadata, make_cache
-            ),
+            _get_relationship_parameter_value_metadata_for_import(db_map, relationship_parameter_value_metadata),
         )
 
 
-def import_entity_classes(db_map, data, make_cache=None):
+def import_entity_classes(db_map, data):
     """Imports entity classes.
 
     Example::
@@ -333,11 +326,12 @@ def import_entity_classes(db_map, data, make_cache=None):
     Returns:
         tuple of int and list: Number of successfully inserted object classes, list of errors
     """
-    return import_data(db_map, entity_classes=data, make_cache=make_cache)
+    return import_data(db_map, entity_classes=data)
 
 
-def _get_entity_classes_for_import(db_map, data, make_cache, dry_run):
-    cache = make_cache({"entity_class"}, include_ancestors=True)
+def _get_entity_classes_for_import(db_map, data, dry_run):
+    db_map.fetch_all({"entity_class"}, include_ancestors=True)
+    cache = db_map.cache
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
     checked = set()
     error_log = []
@@ -377,7 +371,7 @@ def _get_entity_classes_for_import(db_map, data, make_cache, dry_run):
     return to_add, to_update, error_log
 
 
-def import_entities(db_map, data, make_cache=None):
+def import_entities(db_map, data):
     """Imports entities.
 
     Example::
@@ -397,7 +391,7 @@ def import_entities(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted entities, list of errors
     """
-    return import_data(db_map, entities=data, make_cache=make_cache)
+    return import_data(db_map, entities=data)
 
 
 def _make_unique_entity_name(class_id, class_name, ent_name_or_el_names, class_id_name_tuples):
@@ -410,8 +404,9 @@ def _make_unique_entity_name(class_id, class_name, ent_name_or_el_names, class_i
     return name
 
 
-def _get_entities_for_import(db_map, data, make_cache, dry_run):
-    cache = make_cache({"entity"}, include_ancestors=True)
+def _get_entities_for_import(db_map, data, dry_run):
+    db_map.fetch_all({"entity"}, include_ancestors=True)
+    cache = db_map.cache
     entities = {x.id: x for x in cache.get("entity", {}).values()}
     entity_ids_per_name = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values()}
     entity_ids_per_el_id_lst = {
@@ -480,7 +475,7 @@ def _get_entities_for_import(db_map, data, make_cache, dry_run):
     return to_add, to_update, error_log
 
 
-def import_entity_groups(db_map, data, make_cache=None):
+def import_entity_groups(db_map, data):
     """Imports list of entity groups by name with associated class name into given database mapping:
     Ignores duplicate and existing (group, member) tuples.
 
@@ -500,11 +495,12 @@ def import_entity_groups(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted entity groups, list of errors
     """
-    return import_data(db_map, entity_groups=data, make_cache=make_cache)
+    return import_data(db_map, entity_groups=data)
 
 
-def _get_entity_groups_for_import(db_map, data, make_cache):
-    cache = make_cache({"entity_group"}, include_ancestors=True)
+def _get_entity_groups_for_import(db_map, data):
+    db_map.fetch_all({"entity_group"}, include_ancestors=True)
+    cache = db_map.cache
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
     entity_ids = {(x.class_id, x.name): x.id for x in cache.get("entity", {}).values()}
     entities = {}
@@ -535,7 +531,7 @@ def _get_entity_groups_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def import_parameter_definitions(db_map, data, make_cache=None, unparse_value=to_database):
+def import_parameter_definitions(db_map, data, unparse_value=to_database):
     """Imports list of parameter definitions:
 
     Example::
@@ -554,11 +550,12 @@ def import_parameter_definitions(db_map, data, make_cache=None, unparse_value=to
     Returns:
         (Int, List) Number of successful inserted parameter definitions, list of errors
     """
-    return import_data(db_map, parameter_definitions=data, make_cache=make_cache, unparse_value=unparse_value)
+    return import_data(db_map, parameter_definitions=data, unparse_value=unparse_value)
 
 
-def _get_parameter_definitions_for_import(db_map, data, make_cache, unparse_value):
-    cache = make_cache({"parameter_definition"}, include_ancestors=True)
+def _get_parameter_definitions_for_import(db_map, data, unparse_value):
+    db_map.fetch_all({"parameter_definition"}, include_ancestors=True)
+    cache = db_map.cache
     parameter_definition_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
@@ -620,7 +617,7 @@ def _get_parameter_definitions_for_import(db_map, data, make_cache, unparse_valu
     return to_add, to_update, error_log
 
 
-def import_parameter_values(db_map, data, make_cache=None, unparse_value=to_database, on_conflict="merge"):
+def import_parameter_values(db_map, data, unparse_value=to_database, on_conflict="merge"):
     """Imports parameter values:
 
     Example::
@@ -640,13 +637,12 @@ def import_parameter_values(db_map, data, make_cache=None, unparse_value=to_data
     Returns:
         (Int, List) Number of successful inserted parameter values, list of errors
     """
-    return import_data(
-        db_map, parameter_values=data, make_cache=make_cache, unparse_value=unparse_value, on_conflict=on_conflict
-    )
+    return import_data(db_map, parameter_values=data, unparse_value=unparse_value, on_conflict=on_conflict)
 
 
-def _get_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
-    cache = make_cache({"parameter_value"}, include_ancestors=True)
+def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
+    db_map.fetch_all({"parameter_value"}, include_ancestors=True)
+    cache = db_map.cache
     dimension_id_lists = {x.id: x.dimension_id_list for x in cache.get("entity_class", {}).values()}
     parameter_value_ids = {
         (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
@@ -696,7 +692,7 @@ def _get_parameter_values_for_import(db_map, data, make_cache, unparse_value, on
                 )
                 continue
         else:
-            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
+            alt_id, alternative_name = db_map.get_import_alternative()
             alternative_ids.add(alt_id)
         checked_key = (e_id, p_id, alt_id)
         if checked_key in checked:
@@ -751,7 +747,7 @@ def _get_parameter_values_for_import(db_map, data, make_cache, unparse_value, on
     return to_add, to_update, error_log
 
 
-def import_alternatives(db_map, data, make_cache=None):
+def import_alternatives(db_map, data):
     """
     Imports alternatives.
 
@@ -768,11 +764,12 @@ def import_alternatives(db_map, data, make_cache=None):
     Returns:
         tuple of int and list: Number of successfully inserted alternatives, list of errors
     """
-    return import_data(db_map, alternatives=data, make_cache=make_cache)
+    return import_data(db_map, alternatives=data)
 
 
-def _get_alternatives_for_import(data, make_cache):
-    cache = make_cache({"alternative"}, include_ancestors=True)
+def _get_alternatives_for_import(data):
+    db_map.fetch_all({"alternative"}, include_ancestors=True)
+    cache = db_map.cache
     alternative_ids = {alternative.name: alternative.id for alternative in cache.get("alternative", {}).values()}
     checked = set()
     to_add = []
@@ -810,7 +807,7 @@ def _get_alternatives_for_import(data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_scenarios(db_map, data, make_cache=None):
+def import_scenarios(db_map, data):
     """
     Imports scenarios.
 
@@ -829,11 +826,12 @@ def import_scenarios(db_map, data, make_cache=None):
     Returns:
         tuple of int and list: Number of successfully inserted scenarios, list of errors
     """
-    return import_data(db_map, scenarios=data, make_cache=make_cache)
+    return import_data(db_map, scenarios=data)
 
 
-def _get_scenarios_for_import(data, make_cache):
-    cache = make_cache({"scenario"}, include_ancestors=True)
+def _get_scenarios_for_import(data):
+    db_map.fetch_all({"scenario"}, include_ancestors=True)
+    cache = db_map.cache
     scenario_ids = {scenario.name: scenario.id for scenario in cache.get("scenario", {}).values()}
     checked = set()
     to_add = []
@@ -869,7 +867,7 @@ def _get_scenarios_for_import(data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_scenario_alternatives(db_map, data, make_cache=None):
+def import_scenario_alternatives(db_map, data):
     """
     Imports scenario alternatives.
 
@@ -888,11 +886,12 @@ def import_scenario_alternatives(db_map, data, make_cache=None):
     Returns:
         tuple of int and list: Number of successfully inserted scenario alternatives, list of errors
     """
-    return import_data(db_map, scenario_alternatives=data, make_cache=make_cache)
+    return import_data(db_map, scenario_alternatives=data)
 
 
-def _get_scenario_alternatives_for_import(data, make_cache):
-    cache = make_cache({"scenario_alternative"}, include_ancestors=True)
+def _get_scenario_alternatives_for_import(data):
+    db_map.fetch_all({"scenario_alternative"}, include_ancestors=True)
+    cache = db_map.cache
     scenario_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
     scenario_alternative_ids = {
         (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
@@ -950,7 +949,7 @@ def _get_scenario_alternatives_for_import(data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_object_classes(db_map, data, make_cache=None):
+def import_object_classes(db_map, data):
     """Imports object classes.
 
     Example::
@@ -966,11 +965,12 @@ def import_object_classes(db_map, data, make_cache=None):
     Returns:
         tuple of int and list: Number of successfully inserted object classes, list of errors
     """
-    return import_data(db_map, object_classes=data, make_cache=make_cache)
+    return import_data(db_map, object_classes=data)
 
 
-def _get_object_classes_for_import(db_map, data, make_cache):
-    cache = make_cache({"entity_class"}, include_ancestors=True)
+def _get_object_classes_for_import(db_map, data):
+    db_map.fetch_all({"entity_class"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
     checked = set()
     to_add = []
@@ -1008,7 +1008,7 @@ def _get_object_classes_for_import(db_map, data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_relationship_classes(db_map, data, make_cache=None):
+def import_relationship_classes(db_map, data):
     """Imports relationship classes.
 
     Example::
@@ -1027,11 +1027,12 @@ def import_relationship_classes(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, relationship_classes=data, make_cache=make_cache)
+    return import_data(db_map, relationship_classes=data)
 
 
-def _get_relationship_classes_for_import(db_map, data, make_cache):
-    cache = make_cache({"entity_class"}, include_ancestors=True)
+def _get_relationship_classes_for_import(db_map, data):
+    db_map.fetch_all({"entity_class"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
     relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
     checked = set()
@@ -1076,7 +1077,7 @@ def _get_relationship_classes_for_import(db_map, data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_objects(db_map, data, make_cache=None):
+def import_objects(db_map, data):
     """Imports list of object by name with associated object class name into given database mapping:
     Ignores duplicate names and existing names.
 
@@ -1095,11 +1096,12 @@ def import_objects(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, objects=data, make_cache=make_cache)
+    return import_data(db_map, objects=data)
 
 
-def _get_objects_for_import(db_map, data, make_cache):
-    cache = make_cache({"entity"}, include_ancestors=True)
+def _get_objects_for_import(db_map, data):
+    db_map.fetch_all({"entity"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
     object_ids = {(o.class_id, o.name): o.id for o in cache.get("entity", {}).values() if not o.element_id_list}
     checked = set()
@@ -1138,7 +1140,7 @@ def _get_objects_for_import(db_map, data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_object_groups(db_map, data, make_cache=None):
+def import_object_groups(db_map, data):
     """Imports list of object groups by name with associated object class name into given database mapping:
     Ignores duplicate and existing (group, member) tuples.
 
@@ -1158,11 +1160,12 @@ def import_object_groups(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, object_groups=data, make_cache=make_cache)
+    return import_data(db_map, object_groups=data)
 
 
-def _get_object_groups_for_import(db_map, data, make_cache):
-    cache = make_cache({"entity_group"}, include_ancestors=True)
+def _get_object_groups_for_import(db_map, data):
+    db_map.fetch_all({"entity_group"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {oc.name: oc.id for oc in cache.get("entity_class", {}).values() if not oc.dimension_id_list}
     object_ids = {(o.class_id, o.name): o.id for o in cache.get("entity", {}).values() if not o.element_id_list}
     objects = {}
@@ -1194,7 +1197,7 @@ def _get_object_groups_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def import_relationships(db_map, data, make_cache=None):
+def import_relationships(db_map, data):
     """Imports relationships.
 
     Example::
@@ -1210,7 +1213,7 @@ def import_relationships(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, relationships=data, make_cache=make_cache)
+    return import_data(db_map, relationships=data)
 
 
 def _make_unique_relationship_name(class_id, class_name, object_names, class_id_name_tuples):
@@ -1221,8 +1224,9 @@ def _make_unique_relationship_name(class_id, class_name, object_names, class_id_
     return name
 
 
-def _get_relationships_for_import(db_map, data, make_cache):
-    cache = make_cache({"entity"}, include_ancestors=True)
+def _get_relationships_for_import(db_map, data):
+    db_map.fetch_all({"entity"}, include_ancestors=True)
+    cache = db_map.cache
     relationships = {x.name: x for x in cache.get("entity", {}).values() if x.element_id_list}
     relationship_ids_per_name = {(x.class_id, x.name): x.id for x in relationships.values()}
     relationship_ids_per_obj_lst = {(x.class_id, x.element_id_list): x.id for x in relationships.values()}
@@ -1291,7 +1295,7 @@ def _get_relationships_for_import(db_map, data, make_cache):
     return to_add, to_update, error_log
 
 
-def import_object_parameters(db_map, data, make_cache=None, unparse_value=to_database):
+def import_object_parameters(db_map, data, unparse_value=to_database):
     """Imports list of object class parameters:
 
     Example::
@@ -1310,11 +1314,12 @@ def import_object_parameters(db_map, data, make_cache=None, unparse_value=to_dat
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, object_parameters=data, make_cache=make_cache, unparse_value=unparse_value)
+    return import_data(db_map, object_parameters=data, unparse_value=unparse_value)
 
 
-def _get_object_parameters_for_import(db_map, data, make_cache, unparse_value):
-    cache = make_cache({"parameter_definition"}, include_ancestors=True)
+def _get_object_parameters_for_import(db_map, data, unparse_value):
+    db_map.fetch_all({"parameter_definition"}, include_ancestors=True)
+    cache = db_map.cache
     parameter_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
@@ -1376,7 +1381,7 @@ def _get_object_parameters_for_import(db_map, data, make_cache, unparse_value):
     return to_add, to_update, error_log
 
 
-def import_relationship_parameters(db_map, data, make_cache=None, unparse_value=to_database):
+def import_relationship_parameters(db_map, data, unparse_value=to_database):
     """Imports list of relationship class parameters:
 
     Example::
@@ -1395,11 +1400,12 @@ def import_relationship_parameters(db_map, data, make_cache=None, unparse_value=
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, relationship_parameters=data, make_cache=make_cache, unparse_value=unparse_value)
+    return import_data(db_map, relationship_parameters=data, unparse_value=unparse_value)
 
 
-def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_value):
-    cache = make_cache({"parameter_definition"}, include_ancestors=True)
+def _get_relationship_parameters_for_import(db_map, data, unparse_value):
+    db_map.fetch_all({"parameter_definition"}, include_ancestors=True)
+    cache = db_map.cache
     parameter_ids = {
         (x.entity_class_id, x.parameter_name): x.id for x in cache.get("parameter_definition", {}).values()
     }
@@ -1462,7 +1468,7 @@ def _get_relationship_parameters_for_import(db_map, data, make_cache, unparse_va
     return to_add, to_update, error_log
 
 
-def import_object_parameter_values(db_map, data, make_cache=None, unparse_value=to_database, on_conflict="merge"):
+def import_object_parameter_values(db_map, data, unparse_value=to_database, on_conflict="merge"):
     """Imports object parameter values:
 
     Example::
@@ -1484,14 +1490,14 @@ def import_object_parameter_values(db_map, data, make_cache=None, unparse_value=
     return import_data(
         db_map,
         object_parameter_values=data,
-        make_cache=make_cache,
         unparse_value=unparse_value,
         on_conflict=on_conflict,
     )
 
 
-def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
-    cache = make_cache({"parameter_value"}, include_ancestors=True)
+def _get_object_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
+    db_map.fetch_all({"parameter_value"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
     parameter_value_ids = {
         (x.entity_id, x.parameter_id, x.alternative_id): x.id for x in cache.get("parameter_value", {}).values()
@@ -1539,7 +1545,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_va
                 )
                 continue
         else:
-            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
+            alt_id, alternative_name = db_map.get_import_alternative()
             alternative_ids.add(alt_id)
         checked_key = (o_id, p_id, alt_id)
         if checked_key in checked:
@@ -1591,7 +1597,7 @@ def _get_object_parameter_values_for_import(db_map, data, make_cache, unparse_va
     return to_add, to_update, error_log
 
 
-def import_relationship_parameter_values(db_map, data, make_cache=None, unparse_value=to_database, on_conflict="merge"):
+def import_relationship_parameter_values(db_map, data, unparse_value=to_database, on_conflict="merge"):
     """Imports relationship parameter values:
 
     Example::
@@ -1613,14 +1619,14 @@ def import_relationship_parameter_values(db_map, data, make_cache=None, unparse_
     return import_data(
         db_map,
         relationship_parameter_values=data,
-        make_cache=make_cache,
         unparse_value=unparse_value,
         on_conflict=on_conflict,
     )
 
 
-def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unparse_value, on_conflict):
-    cache = make_cache({"parameter_value"}, include_ancestors=True)
+def _get_relationship_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
+    db_map.fetch_all({"parameter_value"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_id_lists = {
         x.id: x.dimension_id_list for x in cache.get("entity_class", {}).values() if x.dimension_id_list
     }
@@ -1677,7 +1683,7 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
                 )
                 continue
         else:
-            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
+            alt_id, alternative_name = db_map.get_import_alternative()
             alternative_ids.add(alt_id)
         checked_key = (r_id, p_id, alt_id)
         if checked_key in checked:
@@ -1735,7 +1741,7 @@ def _get_relationship_parameter_values_for_import(db_map, data, make_cache, unpa
     return to_add, to_update, error_log
 
 
-def import_parameter_value_lists(db_map, data, make_cache=None, unparse_value=to_database):
+def import_parameter_value_lists(db_map, data, unparse_value=to_database):
     """Imports list of parameter value lists:
 
     Example::
@@ -1754,11 +1760,12 @@ def import_parameter_value_lists(db_map, data, make_cache=None, unparse_value=to
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, parameter_value_lists=data, make_cache=make_cache, unparse_value=unparse_value)
+    return import_data(db_map, parameter_value_lists=data, unparse_value=unparse_value)
 
 
-def _get_parameter_value_lists_for_import(db_map, data, make_cache):
-    cache = make_cache({"parameter_value_list"}, include_ancestors=True)
+def _get_parameter_value_lists_for_import(db_map, data):
+    db_map.fetch_all({"parameter_value_list"}, include_ancestors=True)
+    cache = db_map.cache
     parameter_value_list_ids = {x.name: x.id for x in cache.get("parameter_value_list", {}).values()}
     error_log = []
     to_add = []
@@ -1772,9 +1779,18 @@ def _get_parameter_value_lists_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
-    cache = make_cache({"list_value"}, include_ancestors=True)
-    value_lists_by_name = {x.name: (x.id, x.value_index_list) for x in cache.get("parameter_value_list", {}).values()}
+def _get_list_values_for_import(db_map, data, unparse_value):
+    db_map.fetch_all({"list_value"}, include_ancestors=True)
+    cache = db_map.cache
+    value_lists_by_name = {
+        x.name: (
+            x.id,
+            max(
+                (y.index for y in cache.get("list_value", {}).values() if y.parameter_value_list_id == x.id), default=-1
+            ),
+        )
+        for x in cache.get("parameter_value_list", {}).values()
+    }
     list_value_ids_by_index = {(x.parameter_value_list_id, x.index): x.id for x in cache.get("list_value", {}).values()}
     list_value_ids_by_value = {
         (x.parameter_value_list_id, x.type, x.value): x.id for x in cache.get("list_value", {}).values()
@@ -1787,7 +1803,7 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
     max_indexes = dict()
     for list_name, value in data:
         try:
-            list_id, value_index_list = value_lists_by_name.get(list_name)
+            list_id, current_max_index = value_lists_by_name.get(list_name)
         except TypeError:
             # cannot unpack non-iterable NoneType object
             error_log.append(
@@ -1809,10 +1825,8 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
         max_index = max_indexes.get(list_id)
         if max_index is not None:
             index = max_index + 1
-        elif not value_index_list:
-            index = 0
         else:
-            index = max(value_index_list) + 1
+            index = max(current_max_index) + 1
         item = {"parameter_value_list_id": list_id, "value": val, "type": type_, "index": index}
         try:
             check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)
@@ -1830,7 +1844,7 @@ def _get_list_values_for_import(db_map, data, make_cache, unparse_value):
     return to_add, to_update, error_log
 
 
-def import_metadata(db_map, data, make_cache=None):
+def import_metadata(db_map, data=None):
     """Imports metadata. Ignores duplicates.
 
     Example::
@@ -1845,11 +1859,12 @@ def import_metadata(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted objects, list of errors
     """
-    return import_data(db_map, metadata=data, make_cache=make_cache)
+    return import_data(db_map, metadata=data)
 
 
-def _get_metadata_for_import(db_map, data, make_cache):
-    cache = make_cache({"metadata"}, include_ancestors=True)
+def _get_metadata_for_import(db_map, data):
+    db_map.fetch_all({"metadata"}, include_ancestors=True)
+    cache = db_map.cache
     seen = {(x.name, x.value) for x in cache.get("metadata", {}).values()}
     to_add = []
     for metadata in data:
@@ -1865,7 +1880,7 @@ def _get_metadata_for_import(db_map, data, make_cache):
 # TODO: import_entity_metadata, import_parameter_value_metadata
 
 
-def import_object_metadata(db_map, data, make_cache=None):
+def import_object_metadata(db_map, data):
     """Imports object metadata. Ignores duplicates.
 
     Example::
@@ -1881,11 +1896,12 @@ def import_object_metadata(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    return import_data(db_map, object_metadata=data, make_cache=make_cache)
+    return import_data(db_map, object_metadata=data)
 
 
-def _get_object_metadata_for_import(db_map, data, make_cache):
-    cache = make_cache({"object", "entity_metadata"}, include_ancestors=True)
+def _get_object_metadata_for_import(db_map, data):
+    db_map.fetch_all({"object", "entity_metadata"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
     metadata_ids = {(x.name, x.value): x.id for x in cache.get("metadata", {}).values()}
     object_ids = {(x.name, x.class_id): x.id for x in cache.get("entity", {}).values() if not x.element_id_list}
@@ -1922,7 +1938,7 @@ def _get_object_metadata_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def import_relationship_metadata(db_map, data, make_cache=None):
+def import_relationship_metadata(db_map, data):
     """Imports relationship metadata. Ignores duplicates.
 
     Example::
@@ -1941,11 +1957,12 @@ def import_relationship_metadata(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    return import_data(db_map, relationship_metadata=data, make_cache=make_cache)
+    return import_data(db_map, relationship_metadata=data)
 
 
-def _get_relationship_metadata_for_import(db_map, data, make_cache):
-    cache = make_cache({"relationship", "entity_metadata"}, include_ancestors=True)
+def _get_relationship_metadata_for_import(db_map, data):
+    db_map.fetch_all({"relationship", "entity_metadata"}, include_ancestors=True)
+    cache = db_map.cache
     relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
     object_class_id_lists = {
         x.id: x.dimension_id_list for x in cache.get("entity_class", {}).values() if x.dimension_id_list
@@ -1992,7 +2009,7 @@ def _get_relationship_metadata_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def import_object_parameter_value_metadata(db_map, data, make_cache=None):
+def import_object_parameter_value_metadata(db_map, data):
     """Imports object parameter value metadata. Ignores duplicates.
 
     Example::
@@ -2011,11 +2028,12 @@ def import_object_parameter_value_metadata(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    return import_data(db_map, object_parameter_value_metadata=data, make_cache=make_cache)
+    return import_data(db_map, object_parameter_value_metadata=data)
 
 
-def _get_object_parameter_value_metadata_for_import(db_map, data, make_cache):
-    cache = make_cache({"parameter_value", "parameter_value_metadata"}, include_ancestors=True)
+def _get_object_parameter_value_metadata_for_import(db_map, data):
+    db_map.fetch_all({"parameter_value", "parameter_value_metadata"}, include_ancestors=True)
+    cache = db_map.cache
     object_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if not x.dimension_id_list}
     object_ids = {(x.name, x.class_id): x.id for x in cache.get("entity", {}).values() if not x.element_id_list}
     parameter_ids = {
@@ -2037,7 +2055,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data, make_cache):
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
+            alt_id, alternative_name = db_map.get_import_alternative()
         pv_id = parameter_value_ids.get((o_id, p_id, alt_id), None)
         if pv_id is None:
             msg = (
@@ -2067,7 +2085,7 @@ def _get_object_parameter_value_metadata_for_import(db_map, data, make_cache):
     return to_add, [], error_log
 
 
-def import_relationship_parameter_value_metadata(db_map, data, make_cache=None):
+def import_relationship_parameter_value_metadata(db_map, data):
     """Imports relationship parameter value metadata. Ignores duplicates.
 
     Example::
@@ -2086,11 +2104,12 @@ def import_relationship_parameter_value_metadata(db_map, data, make_cache=None):
     Returns:
         (Int, List) Number of successful inserted items, list of errors
     """
-    return import_data(db_map, relationship_parameter_value_metadata=data, make_cache=make_cache)
+    return import_data(db_map, relationship_parameter_value_metadata=data)
 
 
-def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cache):
-    cache = make_cache({"parameter_value", "parameter_value_metadata"}, include_ancestors=True)
+def _get_relationship_parameter_value_metadata_for_import(db_map, data):
+    db_map.fetch_all({"parameter_value", "parameter_value_metadata"}, include_ancestors=True)
+    cache = db_map.cache
     relationship_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values() if x.dimension_id_list}
     object_class_id_lists = {
         x.id: x.dimension_id_list for x in cache.get("entity_class", {}).values() if x.dimension_id_list
@@ -2120,7 +2139,7 @@ def _get_relationship_parameter_value_metadata_for_import(db_map, data, make_cac
             alternative_name = optionals[0]
             alt_id = alternative_ids.get(alternative_name, None)
         else:
-            alt_id, alternative_name = db_map.get_import_alternative(cache=cache)
+            alt_id, alternative_name = db_map.get_import_alternative()
         pv_id = parameter_value_ids.get((r_id, p_id, alt_id), None)
         if pv_id is None:
             msg = (

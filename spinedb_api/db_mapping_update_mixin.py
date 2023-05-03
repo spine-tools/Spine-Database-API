@@ -33,6 +33,8 @@ class DatabaseMappingUpdateMixin:
         # Special cases
         if tablename == "entity":
             return self._do_update_entities(*items)
+        if tablename == "scenario":
+            return self._do_update_scenarios(*items)
         if tablename == "object":
             return self._do_update_objects(*items)
         if tablename == "relationship":
@@ -64,13 +66,55 @@ class DatabaseMappingUpdateMixin:
                     for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list))
                 ]
             )
-            entity_alternative_items.append(
-                {"entity_id": entity_id, "alternative_id": item["alternative_id"], "active": item["active"]}
+            entity_alternative_items.extend(
+                [
+                    {"entity_id": entity_id, "alternative_id": alt_id, "active": True}
+                    for alt_id in item["active_alternative_id_list"]
+                ]
+                + [
+                    {"entity_id": entity_id, "alternative_id": alt_id, "active": False}
+                    for alt_id in item["inactive_alternative_id_list"]
+                ]
             )
         self._do_update_items("entity", *entity_items)
         self._do_update_items("entity_element", *entity_element_items)
         self._do_update_items("entity_alternative", *entity_alternative_items)
         return {x["id"] for x in entity_items}
+
+    def _do_update_scenarios(self, *items):
+        """Returns data to add and remove, in order to set wide scenario alternatives.
+
+        Args:
+            *items: One or more wide scenario :class:`dict` objects to set.
+                Each item must include the following keys:
+
+                - "id": integer scenario id
+                - "alternative_id_list": list of alternative ids for that scenario
+
+        Returns
+            list: narrow scenario_alternative :class:`dict` objects to add.
+            set: integer scenario_alternative ids to remove
+        """
+        self.fetch_all({"scenario_alternative", "scenario"})
+        cache = self.cache
+        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
+        scenario_alternative_ids = {
+            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
+        }
+        scen_alts_to_add = []
+        scen_alt_ids_to_remove = set()
+        for item in items:
+            scenario_id = item["id"]
+            alternative_id_list = item["alternative_id_list"]
+            current_alternative_id_list = current_alternative_id_lists[scenario_id]
+            for k, alternative_id in enumerate(alternative_id_list):
+                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
+                scen_alts_to_add.append(item_to_add)
+            for alternative_id in current_alternative_id_list:
+                scen_alt_ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
+        self.remove_items(scenario_alternative=scen_alt_ids_to_remove)
+        self.add_items("scenario_alternative", *scen_alts_to_add)
+        return self._do_update_items("scenario", *items)
 
     def _do_update_objects(self, *items):
         entity_items = []
@@ -81,8 +125,15 @@ class DatabaseMappingUpdateMixin:
             entity_items.append(
                 {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
             )
-            entity_alternative_items.append(
-                {"entity_id": entity_id, "alternative_id": item["alternative_id"], "active": item["active"]}
+            entity_alternative_items.extend(
+                [
+                    {"entity_id": entity_id, "alternative_id": alt_id, "active": True}
+                    for alt_id in item["active_alternative_id_list"]
+                ]
+                + [
+                    {"entity_id": entity_id, "alternative_id": alt_id, "active": False}
+                    for alt_id in item["inactive_alternative_id_list"]
+                ]
             )
         self._do_update_items("entity", *entity_items)
         self._do_update_items("entity_alternative", *entity_alternative_items)
@@ -91,6 +142,7 @@ class DatabaseMappingUpdateMixin:
     def _do_update_wide_relationships(self, *items):
         entity_items = []
         entity_element_items = []
+        entity_alternative_items = []
         for item in items:
             entity_id = item["id"]
             class_id = item["class_id"]
@@ -111,8 +163,19 @@ class DatabaseMappingUpdateMixin:
                     for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list))
                 ]
             )
+            entity_alternative_items.extend(
+                [
+                    {"entity_id": entity_id, "alternative_id": alt_id, "active": True}
+                    for alt_id in item["active_alternative_id_list"]
+                ]
+                + [
+                    {"entity_id": entity_id, "alternative_id": alt_id, "active": False}
+                    for alt_id in item["inactive_alternative_id_list"]
+                ]
+            )
         self._do_update_items("entity", *entity_items)
         self._do_update_items("entity_element", *entity_element_items)
+        self._do_update_items("entity_alternative", *entity_alternative_items)
         return {x["id"] for x in entity_items}
 
     def _do_update_items(self, tablename, *items):
@@ -132,7 +195,7 @@ class DatabaseMappingUpdateMixin:
         else:
             self._has_pending_changes = True
 
-    def update_items(self, tablename, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False):
+    def update_items(self, tablename, *items, check=True, strict=False, return_items=False, dry_run=False):
         """Updates items.
 
         Args:
@@ -142,17 +205,13 @@ class DatabaseMappingUpdateMixin:
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
             return_items (bool): Return full items rather than just ids
-            cache (dict): A dict mapping table names to a list of dictionary items, to use as db replacement
-                for queries
 
         Returns:
             set: ids or items successfully updated
             list(SpineIntegrityError): found violations
         """
         if check:
-            checked_items, intgr_error_log = self.check_items(
-                tablename, *items, for_update=True, strict=strict, cache=cache
-            )
+            checked_items, intgr_error_log = self.check_items(tablename, *items, for_update=True, strict=strict)
         else:
             checked_items, intgr_error_log = list(items), []
         updated_ids = self._update_items(tablename, *checked_items, dry_run=dry_run)
@@ -244,34 +303,30 @@ class DatabaseMappingUpdateMixin:
     def _update_metadata(self, *items):
         return self._update_items("metadata", *items)
 
-    def update_ext_entity_metadata(
-        self, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False
-    ):
+    def update_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, dry_run=False):
         updated_items, errors = self._update_ext_item_metadata(
-            "entity_metadata", *items, check=check, strict=strict, cache=cache, dry_run=dry_run
+            "entity_metadata", *items, check=check, strict=strict, dry_run=dry_run
         )
         if return_items:
             return updated_items, errors
         return {i["id"] for i in updated_items}, errors
 
-    def update_ext_parameter_value_metadata(
-        self, *items, check=True, strict=False, return_items=False, cache=None, dry_run=False
-    ):
+    def update_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, dry_run=False):
         updated_items, errors = self._update_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict, cache=cache, dry_run=dry_run
+            "parameter_value_metadata", *items, check=check, strict=strict, dry_run=dry_run
         )
         if return_items:
             return updated_items, errors
         return {i["id"] for i in updated_items}, errors
 
-    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False, cache=None, dry_run=False):
-        if cache is None:
-            cache = self.make_cache({"entity_metadata", "parameter_value_metadata", "metadata"})
+    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False, dry_run=False):
+        self.fetch_all({"entity_metadata", "parameter_value_metadata", "metadata"})
+        cache = self.cache
         metadata_ids = {}
         for entry in cache.get("metadata", {}).values():
             metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
         item_metadata_cache = cache[metadata_table]
-        metadata_usage_counts = self._metadata_usage_counts(cache)
+        metadata_usage_counts = self._metadata_usage_counts()
         updatable_items = []
         homeless_items = []
         for item in items:
@@ -325,12 +380,7 @@ class DatabaseMappingUpdateMixin:
         errors = []
         if updatable_metadata_items:
             updated_metadata, errors = self.update_metadata(
-                *updatable_metadata_items,
-                check=False,
-                strict=strict,
-                return_items=True,
-                cache=cache,
-                dry_run=dry_run,
+                *updatable_metadata_items, check=False, strict=strict, return_items=True, dry_run=dry_run
             )
             all_items += updated_metadata
             if errors:
@@ -341,7 +391,7 @@ class DatabaseMappingUpdateMixin:
         added_metadata = []
         if addable_metadata:
             added_metadata, metadata_add_errors = self.add_metadata(
-                *addable_metadata, check=False, strict=strict, return_items=True, cache=cache
+                *addable_metadata, check=False, strict=strict, return_items=True
             )
             all_items += added_metadata
             errors += metadata_add_errors
@@ -354,43 +404,10 @@ class DatabaseMappingUpdateMixin:
             item["metadata_id"] = added_metadata_ids[item["metadata_name"]][item["metadata_value"]]
             updatable_items.append(item)
         if updatable_items:
-            # Force-clear cache before updating item metadata to ensure that added/updated metadata is found.
+            # FIXME: Force-clear cache before updating item metadata to ensure that added/updated metadata is found.
             updated_item_metadata, item_metadata_errors = self.update_items(
                 metadata_table, *updatable_items, check=check, strict=strict, return_items=True
             )
             all_items += updated_item_metadata
             errors += item_metadata_errors
         return all_items, errors
-
-    def get_data_to_set_scenario_alternatives(self, *items, cache=None):
-        """Returns data to add and remove, in order to set wide scenario alternatives.
-
-        Args:
-            *items: One or more wide scenario :class:`dict` objects to set.
-                Each item must include the following keys:
-
-                - "id": integer scenario id
-                - "alternative_id_list": list of alternative ids for that scenario
-
-        Returns
-            list: narrow scenario_alternative :class:`dict` objects to add.
-            set: integer scenario_alternative ids to remove
-        """
-        if cache is None:
-            cache = self.make_cache("scenario_alternative", "scenario")
-        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
-        scenario_alternative_ids = {
-            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
-        }
-        items_to_add = list()
-        ids_to_remove = set()
-        for item in items:
-            scenario_id = item["id"]
-            alternative_id_list = item["alternative_id_list"]
-            current_alternative_id_list = current_alternative_id_lists[scenario_id]
-            for k, alternative_id in enumerate(alternative_id_list):
-                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
-                items_to_add.append(item_to_add)
-            for alternative_id in current_alternative_id_list:
-                ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
-        return items_to_add, ids_to_remove

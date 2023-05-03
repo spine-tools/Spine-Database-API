@@ -134,6 +134,7 @@ class DatabaseMappingBase:
         self._entity_sq = None
         self._entity_class_dimension_sq = None
         self._entity_element_sq = None
+        self._entity_alternative_sq = None
         self._object_class_sq = None
         self._object_sq = None
         self._relationship_class_sq = None
@@ -441,8 +442,8 @@ class DatabaseMappingBase:
         """
         tablenames = list(tablenames)
         for tablename in tablenames:
-            if self.cache.pop(tablename, None):
-                self._do_advance_cache_query(tablename)
+            if self.cache.pop(tablename, False):
+                self.cache.fetch_all(tablename)
         attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
@@ -534,6 +535,12 @@ class DatabaseMappingBase:
         if self._entity_element_sq is None:
             self._entity_element_sq = self._subquery("entity_element")
         return self._entity_element_sq
+
+    @property
+    def entity_alternative_sq(self):
+        if self._entity_alternative_sq is None:
+            self._entity_alternative_sq = self._subquery("entity_alternative")
+        return self._entity_alternative_sq
 
     @property
     def entity_sq(self):
@@ -643,26 +650,12 @@ class DatabaseMappingBase:
         """
         if self._ext_entity_sq is None:
             entity_element_sq = (
-                self.query(
-                    self.entity_element_sq.c.entity_id,
-                    self.entity_element_sq.c.element_id,
-                    self.entity_element_sq.c.position,
-                    self.entity_sq.c.name.label("element_name"),
-                )
+                self.query(self.entity_element_sq, self.entity_sq.c.name.label("element_name"))
                 .filter(self.entity_element_sq.c.element_id == self.entity_sq.c.id)
                 .subquery()
             )
-            ee_sq = (
-                self.query(
-                    self.entity_sq.c.id,
-                    self.entity_sq.c.class_id,
-                    self.entity_sq.c.name,
-                    self.entity_sq.c.description,
-                    self.entity_sq.c.commit_id,
-                    entity_element_sq.c.element_id,
-                    entity_element_sq.c.element_name,
-                    entity_element_sq.c.position,
-                )
+            entity_sq = (
+                self.query(self.entity_sq, entity_element_sq)
                 .outerjoin(
                     entity_element_sq,
                     self.entity_sq.c.id == entity_element_sq.c.entity_id,
@@ -672,20 +665,20 @@ class DatabaseMappingBase:
             )
             self._ext_entity_sq = (
                 self.query(
-                    ee_sq.c.id,
-                    ee_sq.c.class_id,
-                    ee_sq.c.name,
-                    ee_sq.c.description,
-                    ee_sq.c.commit_id,
-                    group_concat(ee_sq.c.element_id, ee_sq.c.position).label("element_id_list"),
-                    group_concat(ee_sq.c.element_name, ee_sq.c.position).label("element_name_list"),
+                    entity_sq.c.id,
+                    entity_sq.c.class_id,
+                    entity_sq.c.name,
+                    entity_sq.c.description,
+                    entity_sq.c.commit_id,
+                    group_concat(entity_sq.c.element_id, entity_sq.c.position).label("element_id_list"),
+                    group_concat(entity_sq.c.element_name, entity_sq.c.position).label("element_name_list"),
                 )
                 .group_by(
-                    ee_sq.c.id,
-                    ee_sq.c.class_id,
-                    ee_sq.c.name,
-                    ee_sq.c.description,
-                    ee_sq.c.commit_id,
+                    entity_sq.c.id,
+                    entity_sq.c.class_id,
+                    entity_sq.c.name,
+                    entity_sq.c.description,
+                    entity_sq.c.commit_id,
                 )
                 .subquery()
             )
@@ -1687,9 +1680,7 @@ class DatabaseMappingBase:
         Returns:
             Alias: an entity subquery
         """
-        e_sq = self._subquery("entity")
-        ea_sq = self._subquery("entity_alternative")
-        return self.query(e_sq, ea_sq).filter(e_sq.c.id == ea_sq.c.entity_id).subquery()
+        return self._subquery("entity")
 
     def _make_entity_class_sq(self):
         """
@@ -1798,23 +1789,26 @@ class DatabaseMappingBase:
         """
         return self._subquery("scenario_alternative")
 
-    def get_import_alternative(self, cache=None):
+    def get_import_alternative(self):
         """Returns the id of the alternative to use as default for all import operations.
 
         Returns:
             int, str
         """
         if self._import_alternative_id is None:
-            self._create_import_alternative(cache=cache)
+            self._create_import_alternative()
         return self._import_alternative_id, self._import_alternative_name
 
-    def _create_import_alternative(self, cache=None):
+    def _create_import_alternative(self):
         """Creates the alternative to be used as default for all import operations."""
-        if "alternative" not in cache:
-            cache = self.make_cache({"alternative"})
+        self.fetch_all({"alternative"})
         self._import_alternative_name = "Base"
         self._import_alternative_id = next(
-            (id_ for id_, alt in cache.get("alternative", {}).items() if alt.name == self._import_alternative_name),
+            (
+                id_
+                for id_, alt in self.cache.get("alternative", {}).items()
+                if alt.name == self._import_alternative_name
+            ),
             None,
         )
         if not self._import_alternative_id:
@@ -1964,7 +1958,7 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
+    def fetch_all(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
         if include_descendants:
             tablenames |= {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
@@ -1976,22 +1970,12 @@ class DatabaseMappingBase:
         if force_tablenames:
             tablenames |= force_tablenames
         for tablename in tablenames & self.cache_sqs.keys():
-            self._do_advance_cache_query(tablename)
-        return self.cache
+            self.cache.fetch_all(tablename)
 
-    def _advance_cache_query(self, tablename, callback=None):
-        advanced = False
-        if tablename not in self.cache:
-            advanced = True
-            self._do_advance_cache_query(tablename)
-        if callback is not None:
-            callback()
-        return advanced
-
-    def _do_advance_cache_query(self, tablename):
-        table_cache = self.cache.table_cache(tablename)
-        for x in self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False):
-            table_cache.add_item(x._asdict())
+    def _advance_cache_query(self, tablename):
+        if tablename in self.cache:
+            return []
+        return self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False).all()
 
     def _object_class_id(self):
         return case([(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.id)], else_=None)
@@ -2050,16 +2034,13 @@ class DatabaseMappingBase:
             [(self.ext_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
 
-    @staticmethod
-    def _metadata_usage_counts(cache):
+    def _metadata_usage_counts(self):
         """Counts references to metadata name, value pairs in entity_metadata and parameter_value_metadata tables.
-
-        Args:
-            cache (dict): database cache
 
         Returns:
             Counter: usage counts keyed by metadata id
         """
+        cache = self.cache
         usage_counts = Counter()
         for entry in cache.get("entity_metadata", {}).values():
             usage_counts[entry.metadata_id] += 1
