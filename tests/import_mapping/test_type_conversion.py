@@ -100,3 +100,9 @@ class TestConvertSpecToJsonValue(unittest.TestCase):
                 "duration": "1h",
             },
         )
+
+
+class TestFloatConvertSpec(unittest.TestCase):
+    def test_empty_string_conversion_gives_none(self):
+        convert_spec = FloatConvertSpec()
+        self.assertIsNone(convert_spec(""))
