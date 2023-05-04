@@ -40,15 +40,14 @@ class JSONConnector(SourceConnection):
     def connect_to_source(self, source):
         """saves filepath
 
-        Arguments:
-            source {str} -- filepath
+        Args:
+            source (str): filepath
         """
         self._filename = source
         self._root_prefix = os.path.splitext(os.path.basename(source))[0]
 
     def disconnect(self):
-        """Disconnect from connected source.
-        """
+        """Disconnect from connected source."""
 
     def get_tables(self):
         prefixes = dict()
@@ -61,9 +60,9 @@ class JSONConnector(SourceConnection):
     def file_iterator(self, table, options, max_rows=-1):
         if max_rows == -1:
             max_rows = sys.maxsize
-        max_depth = options["max_depth"]
+        max_depth = options.get("max_depth", self.OPTIONS["max_depth"]["default"])
         prefix = ".".join(table.split(".")[1:])
-        with open(self._filename) as f:
+        with open(self._filename, "rb") as f:
             row = 0
             for obj in ijson.items(f, prefix):
                 for x in _tabulize_json(obj):
@@ -74,7 +73,7 @@ class JSONConnector(SourceConnection):
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """
-        Return data read from data source table in table. If max_rows is
+        Returns data read from data source table in table. If max_rows is
         specified only that number of rows.
         """
         return self.file_iterator(table, options, max_rows=max_rows), []
