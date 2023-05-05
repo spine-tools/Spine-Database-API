@@ -14,7 +14,6 @@ Provides :class:`.DatabaseMapping`.
 
 """
 
-from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .db_mapping_base import DatabaseMappingBase
 from .db_mapping_add_mixin import DatabaseMappingAddMixin
 from .db_mapping_check_mixin import DatabaseMappingCheckMixin
@@ -25,7 +24,6 @@ from .filters.tools import apply_filter_stack, load_filters
 
 
 class DatabaseMapping(
-    DatabaseMappingQueryMixin,
     DatabaseMappingCheckMixin,
     DatabaseMappingAddMixin,
     DatabaseMappingUpdateMixin,

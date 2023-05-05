@@ -19,20 +19,16 @@ from .exception import SpineDBAPIError
 
 
 class DatabaseMappingCommitMixin:
-    """Provides methods to commit or rollback pending changes onto a Spine database.
-    Unlike Diff..., there's no "staging area", i.e., all changes are applied directly on the 'original' tables.
-    So no regrets. But it's much faster than maintaining the staging area and diff tables,
-    so ideal for, e.g., Spine Toolbox's Importer that operates 'in one go'.
-    """
+    """Provides methods to commit or rollback pending changes onto a Spine database."""
 
     def __init__(self, *args, **kwargs):
         """Initialize class."""
         super().__init__(*args, **kwargs)
         self._commit_id = None
-        self._has_pending_changes = False
 
     def has_pending_changes(self):
-        return self._has_pending_changes
+        # FIXME
+        return True
 
     def _get_sqlite_lock(self):
         """Commits the session's natural transaction and begins a new locking one."""
@@ -40,14 +36,10 @@ class DatabaseMappingCommitMixin:
             self.session.commit()
             self.session.execute("BEGIN IMMEDIATE")
 
-    def _make_commit_id(self, dry_run=False):
+    def _make_commit_id(self):
         if self._commit_id is None:
-            if dry_run:
-                with self.engine.begin() as connection:
-                    self._commit_id = self._do_make_commit_id(connection)
-            else:
-                self._get_sqlite_lock()
-                self._commit_id = self._do_make_commit_id(self.connection)
+            with self.engine.begin() as connection:
+                self._commit_id = self._do_make_commit_id(connection)
         return self._commit_id
 
     def _do_make_commit_id(self, connection):
@@ -68,19 +60,20 @@ class DatabaseMappingCommitMixin:
         date = datetime.now(timezone.utc)
         upd = commit.update().where(commit.c.id == self._make_commit_id())
         self._checked_execute(upd, dict(user=user, date=date, comment=comment))
-        self.session.commit()
+        to_add, to_update, to_remove = self.cache.to_change()
+        for tablename, items in to_add.items():
+            self._do_add_items(tablename, *items)
+        for tablename, items in to_update.items():
+            self._do_update_items(tablename, *items)
+        self._do_remove_items(**to_remove)
+        self.executor.submit(self.session.commit)
         self._commit_id = None
-        self._has_pending_changes = False
         if self._memory:
             self._memory_dirty = True
 
     def rollback_session(self):
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
-        self.reset_session()
-
-    def reset_session(self):
-        self.session.rollback()
-        self.cache.clear()
+        self.executor.submit(self.session.rollback)
+        self.cache.reset_queries()
         self._commit_id = None
-        self._has_pending_changes = False

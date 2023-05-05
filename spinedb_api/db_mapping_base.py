@@ -20,6 +20,7 @@ import logging
 import time
 from collections import Counter
 from types import MethodType
+from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect, cast, Integer, or_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
@@ -45,6 +46,7 @@ from .helpers import (
 from .filters.tools import pop_filter_configs
 from .spine_db_client import get_db_url_from_server
 from .db_cache import DBCache
+
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
@@ -82,7 +84,8 @@ class DatabaseMappingBase:
         apply_filters=True,
         memory=False,
         sqlite_timeout=1800,
-        advance_cache_query=None,
+        asynchronous=False,
+        chunk_size=None,
     ):
         """
         Args:
@@ -93,9 +96,11 @@ class DatabaseMappingBase:
             create (bool): Whether or not to create a Spine db at the given URL if it's not already.
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
             memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
+            sqlite_timeout (int): How many seconds to wait before raising connection errors.
+            asynchronous (bool): Whether or not communication with the db should be done asynchronously.
+            chunk_size (int, optional): How many rows to fetch from the DB at a time when populating the cache.
+                If not specified, then all rows are fetched at once.
         """
-        if advance_cache_query is None:
-            advance_cache_query = self._advance_cache_query
         # FIXME: We should also check the server memory property and use it here
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
@@ -111,20 +116,22 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
+        self._asynchronous = asynchronous
         self._original_engine = self.create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
-        self.connection = self.engine.connect()
-        if self._memory:
-            copy_database_bind(self.connection, self._original_engine)
         listen(self.engine, 'close', self._receive_engine_close)
-        self._metadata = MetaData(self.connection)
-        self._metadata.reflect()
-        self._tablenames = [t.name for t in self._metadata.sorted_tables]
+        self.executor = self._make_executor()
+        self.connection = self.executor.submit(self.engine.connect).result()
         self.session = Session(self.connection, **self._session_kwargs)
-        self.cache = DBCache(advance_cache_query)
+        if self._memory:
+            self.executor.submit(copy_database_bind, self.connection, self._original_engine)
+        self._metadata = MetaData(self.connection)
+        _ = self.executor.submit(self._metadata.reflect).result()
+        self._tablenames = [t.name for t in self._metadata.sorted_tables]
+        self.cache = DBCache(self, chunk_size=chunk_size)
         # Subqueries that select everything from each table
         self._commit_sq = None
         self._alternative_sq = None
@@ -239,7 +246,19 @@ class DatabaseMappingBase:
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
-        self.connection.close()
+        self.close()
+
+    def _make_executor(self):
+        return ThreadPoolExecutor(max_workers=1) if self._asynchronous else _Executor()
+
+    def close(self):
+        if not self.connection.closed:
+            self.executor.submit(self.connection.close)
+        self.executor.shutdown()
+
+    def reconnect(self):
+        self.executor = self._make_executor()
+        self.connection = self.executor.submit(self.engine.connect).result()
 
     def _descendant_tablenames(self, tablename):
         child_tablenames = {
@@ -285,7 +304,7 @@ class DatabaseMappingBase:
     def commit_id(self):
         return self._commit_id
 
-    def _make_commit_id(self, dry_run=False):
+    def _make_commit_id(self):
         return None
 
     def _check_commit(self, comment):
@@ -387,10 +406,7 @@ class DatabaseMappingBase:
 
     def _receive_engine_close(self, dbapi_con, _connection_record):
         if dbapi_con == self.connection.connection.connection and self._memory_dirty:
-            copy_database_bind(self._original_engine, self.connection)
-
-    def reconnect(self):
-        self.connection = self.engine.connect()
+            copy_database_bind(self._original_engine, self.engine)
 
     def in_(self, column, values):
         """Returns an expression equivalent to column.in_(values), that circumvents the
@@ -405,9 +421,8 @@ class DatabaseMappingBase:
             Column("value", column.type, primary_key=True),
             prefixes=['TEMPORARY'],
         )
-        in_value.create(self.connection, checkfirst=True)
-        python_type = column.type.python_type
-        self._checked_execute(in_value.insert(), [{"value": python_type(val)} for val in set(values)])
+        self.executor.submit(in_value.create, self.connection, checkfirst=True).result()
+        self._checked_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
         return column.in_(self.query(in_value.c.value))
 
     def _get_table_to_sq_attr(self):
@@ -1940,7 +1955,7 @@ class DatabaseMappingBase:
     def _checked_execute(self, stmt, items):
         if not items:
             return
-        return self.connection.execute(stmt, items)
+        return self.executor.submit(self.connection.execute, stmt, items).result()
 
     def _get_primary_key(self, tablename):
         pk = self.composite_pks.get(tablename)
@@ -1971,11 +1986,6 @@ class DatabaseMappingBase:
             tablenames |= force_tablenames
         for tablename in tablenames & self.cache_sqs.keys():
             self.cache.fetch_all(tablename)
-
-    def _advance_cache_query(self, tablename):
-        if tablename in self.cache:
-            return []
-        return self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False).all()
 
     def _object_class_id(self):
         return case([(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.id)], else_=None)
@@ -2050,24 +2060,42 @@ class DatabaseMappingBase:
 
     def __del__(self):
         try:
-            self.connection.close()
+            self.close()
         except AttributeError:
             pass
 
-    def make_temporary_table(self, table_name, *columns):
-        """Creates a temporary table.
-
-        Args:
-            table_name (str): table name
-            *columns: table's columns
-
-        Returns:
-            Table: created table
-        """
-        table = Table(table_name, self._metadata, *columns, prefixes=["TEMPORARY"])
-        table.drop(self.connection, checkfirst=True)
-        table.create(self.connection)
-        return table
-
     def get_filter_configs(self):
         return self._filter_configs
+
+
+class _Future:
+    def __init__(self):
+        self._result = None
+        self._exception = None
+
+    def set_result(self, result):
+        self._result = result
+
+    def set_exception(self, exception):
+        self._exception = exception
+
+    def add_done_callback(self, callback):
+        callback(self)
+
+    def result(self):
+        if self._exception is not None:
+            raise self._exception
+        return self._result
+
+
+class _Executor:
+    def submit(self, fn, *args, **kwargs):
+        future = _Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except Exception as exc:
+            future.set_exception(exc)
+        return future
+
+    def shutdown(self):
+        pass

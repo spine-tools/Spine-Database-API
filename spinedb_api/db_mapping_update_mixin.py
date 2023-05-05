@@ -21,182 +21,100 @@ from .exception import SpineDBAPIError
 class DatabaseMappingUpdateMixin:
     """Provides methods to perform ``UPDATE`` operations over a Spine db."""
 
-    def _add_commit_id(self, *items):
-        for item in items:
-            item["commit_id"] = self._make_commit_id()
-
-    def _update_items(self, tablename, *items, dry_run=False):
-        if not items:
-            return set()
-        if dry_run:
-            return {x["id"] for x in items}
-        # Special cases
-        if tablename == "entity":
-            return self._do_update_entities(*items)
-        if tablename == "scenario":
-            return self._do_update_scenarios(*items)
-        if tablename == "object":
-            return self._do_update_objects(*items)
-        if tablename == "relationship":
-            return self._do_update_wide_relationships(*items)
-        real_tablename = self._real_tablename(tablename)
-        self._do_update_items(real_tablename, *items)
-
-    def _do_update_entities(self, *items):
-        entity_items = []
-        entity_element_items = []
-        entity_alternative_items = []
-        for item in items:
-            entity_id = item["id"]
-            class_id = item["class_id"]
-            dimension_id_list = item["dimension_id_list"]
-            element_id_list = item["element_id_list"]
-            entity_items.append(
-                {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
-            )
-            entity_element_items.extend(
-                [
-                    {
-                        "entity_class_id": class_id,
-                        "entity_id": entity_id,
-                        "position": position,
-                        "dimension_id": dimension_id,
-                        "element_id": element_id,
-                    }
-                    for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list))
-                ]
-            )
-            entity_alternative_items.extend(
-                [
-                    {"entity_id": entity_id, "alternative_id": alt_id, "active": True}
-                    for alt_id in item["active_alternative_id_list"]
-                ]
-                + [
-                    {"entity_id": entity_id, "alternative_id": alt_id, "active": False}
-                    for alt_id in item["inactive_alternative_id_list"]
-                ]
-            )
-        self._do_update_items("entity", *entity_items)
-        self._do_update_items("entity_element", *entity_element_items)
-        self._do_update_items("entity_alternative", *entity_alternative_items)
-        return {x["id"] for x in entity_items}
-
-    def _do_update_scenarios(self, *items):
-        """Returns data to add and remove, in order to set wide scenario alternatives.
-
-        Args:
-            *items: One or more wide scenario :class:`dict` objects to set.
-                Each item must include the following keys:
-
-                - "id": integer scenario id
-                - "alternative_id_list": list of alternative ids for that scenario
-
-        Returns
-            list: narrow scenario_alternative :class:`dict` objects to add.
-            set: integer scenario_alternative ids to remove
-        """
-        self.fetch_all({"scenario_alternative", "scenario"})
-        cache = self.cache
-        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
-        scenario_alternative_ids = {
-            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
-        }
-        scen_alts_to_add = []
-        scen_alt_ids_to_remove = set()
-        for item in items:
-            scenario_id = item["id"]
-            alternative_id_list = item["alternative_id_list"]
-            current_alternative_id_list = current_alternative_id_lists[scenario_id]
-            for k, alternative_id in enumerate(alternative_id_list):
-                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
-                scen_alts_to_add.append(item_to_add)
-            for alternative_id in current_alternative_id_list:
-                scen_alt_ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
-        self.remove_items(scenario_alternative=scen_alt_ids_to_remove)
-        self.add_items("scenario_alternative", *scen_alts_to_add)
-        return self._do_update_items("scenario", *items)
-
-    def _do_update_objects(self, *items):
-        entity_items = []
-        entity_alternative_items = []
-        for item in items:
-            entity_id = item["id"]
-            class_id = item["class_id"]
-            entity_items.append(
-                {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
-            )
-            entity_alternative_items.extend(
-                [
-                    {"entity_id": entity_id, "alternative_id": alt_id, "active": True}
-                    for alt_id in item["active_alternative_id_list"]
-                ]
-                + [
-                    {"entity_id": entity_id, "alternative_id": alt_id, "active": False}
-                    for alt_id in item["inactive_alternative_id_list"]
-                ]
-            )
-        self._do_update_items("entity", *entity_items)
-        self._do_update_items("entity_alternative", *entity_alternative_items)
-        return {x["id"] for x in entity_items}
-
-    def _do_update_wide_relationships(self, *items):
-        entity_items = []
-        entity_element_items = []
-        entity_alternative_items = []
-        for item in items:
-            entity_id = item["id"]
-            class_id = item["class_id"]
-            object_class_id_list = item["object_class_id_list"]
-            object_id_list = item["object_id_list"]
-            entity_items.append(
-                {"id": entity_id, "class_id": class_id, "name": item["name"], "description": item.get("description")}
-            )
-            entity_element_items.extend(
-                [
-                    {
-                        "entity_class_id": class_id,
-                        "entity_id": entity_id,
-                        "position": position,
-                        "dimension_id": dimension_id,
-                        "element_id": element_id,
-                    }
-                    for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list))
-                ]
-            )
-            entity_alternative_items.extend(
-                [
-                    {"entity_id": entity_id, "alternative_id": alt_id, "active": True}
-                    for alt_id in item["active_alternative_id_list"]
-                ]
-                + [
-                    {"entity_id": entity_id, "alternative_id": alt_id, "active": False}
-                    for alt_id in item["inactive_alternative_id_list"]
-                ]
-            )
-        self._do_update_items("entity", *entity_items)
-        self._do_update_items("entity_element", *entity_element_items)
-        self._do_update_items("entity_alternative", *entity_alternative_items)
-        return {x["id"] for x in entity_items}
-
-    def _do_update_items(self, tablename, *items):
-        if not items:
-            return
-        self._add_commit_id(*items)
-        table = self._metadata.tables[tablename]
-        upd = table.update()
-        for k in self._get_primary_key(tablename):
-            upd = upd.where(getattr(table.c, k) == bindparam(k))
-        upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items[0].keys()})
+    def _do_update_items(self, tablename, *items_to_update):
+        """Update items in DB without checking integrity."""
         try:
-            self._checked_execute(upd, [{**item} for item in items])
+            for tablename_, items_to_update_ in self._items_to_update_per_table(tablename, items_to_update):
+                if not items_to_update_:
+                    continue
+                table = self._metadata.tables[self._real_tablename(tablename_)]
+                upd = table.update()
+                for k in self._get_primary_key(tablename_):
+                    upd = upd.where(getattr(table.c, k) == bindparam(k))
+                upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items_to_update_[0].keys()})
+                self._checked_execute(upd, [{**item} for item in items_to_update_])
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e
-        else:
-            self._has_pending_changes = True
 
-    def update_items(self, tablename, *items, check=True, strict=False, return_items=False, dry_run=False):
-        """Updates items.
+    @staticmethod
+    def _items_to_update_per_table(tablename, items_to_update):
+        """
+        Yields tuples of string tablename, list of items to update. Needed because some update queries
+        actually need to update records in more than one table.
+
+        Args:
+            tablename (str): target database table name
+            items_to_update (list): items to update
+
+        Yields:
+            tuple: database table name, items to update
+        """
+        if tablename == "entity":
+            entity_items = []
+            entity_element_items = []
+            for item in items_to_update:
+                entity_id = item["id"]
+                class_id = item["class_id"]
+                dimension_id_list = item["dimension_id_list"]
+                element_id_list = item["element_id_list"]
+                entity_items.append(
+                    {
+                        "id": entity_id,
+                        "class_id": class_id,
+                        "name": item["name"],
+                        "description": item.get("description"),
+                    }
+                )
+                entity_element_items.extend(
+                    [
+                        {
+                            "entity_class_id": class_id,
+                            "entity_id": entity_id,
+                            "position": position,
+                            "dimension_id": dimension_id,
+                            "element_id": element_id,
+                        }
+                        for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list))
+                    ]
+                )
+            yield ("entity", entity_items)
+            yield ("entity_element", entity_element_items)
+        elif tablename == "relationship":
+            entity_items = []
+            entity_element_items = []
+            for item in items_to_update:
+                entity_id = item["id"]
+                class_id = item["class_id"]
+                object_class_id_list = item["object_class_id_list"]
+                object_id_list = item["object_id_list"]
+                entity_items.append(
+                    {
+                        "id": entity_id,
+                        "class_id": class_id,
+                        "name": item["name"],
+                        "description": item.get("description"),
+                    }
+                )
+                entity_element_items.extend(
+                    [
+                        {
+                            "entity_class_id": class_id,
+                            "entity_id": entity_id,
+                            "position": position,
+                            "dimension_id": dimension_id,
+                            "element_id": element_id,
+                        }
+                        for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list))
+                    ]
+                )
+            yield ("entity", entity_items)
+            yield ("entity_element", entity_element_items)
+        else:
+            yield (tablename, items_to_update)
+
+    def update_items(self, tablename, *items, check=True, strict=False):
+        """Updates items in cache.
 
         Args:
             tablename (str): Target database table name
@@ -204,7 +122,6 @@ class DatabaseMappingUpdateMixin:
             check (bool): Whether or not to check integrity
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
-            return_items (bool): Return full items rather than just ids
 
         Returns:
             set: ids or items successfully updated
@@ -214,10 +131,21 @@ class DatabaseMappingUpdateMixin:
             checked_items, intgr_error_log = self.check_items(tablename, *items, for_update=True, strict=strict)
         else:
             checked_items, intgr_error_log = list(items), []
-        updated_ids = self._update_items(tablename, *checked_items, dry_run=dry_run)
-        if return_items:
-            return checked_items, intgr_error_log
-        return updated_ids, intgr_error_log
+        _ = self._update_items(tablename, *checked_items)
+        return checked_items, intgr_error_log
+
+    def _update_items(self, tablename, *items):
+        """Updates items in cache without checking integrity."""
+        if not items:
+            return set()
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.get(tablename)
+        if table_cache is not None:
+            commit_id = self._make_commit_id()
+            for item in items:
+                item["commit_id"] = commit_id
+                table_cache.update_item(item)
+        return {x["id"] for x in items}
 
     def update_alternatives(self, *items, **kwargs):
         return self.update_items("alternative", *items, **kwargs)
@@ -303,23 +231,17 @@ class DatabaseMappingUpdateMixin:
     def _update_metadata(self, *items):
         return self._update_items("metadata", *items)
 
-    def update_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, dry_run=False):
-        updated_items, errors = self._update_ext_item_metadata(
-            "entity_metadata", *items, check=check, strict=strict, dry_run=dry_run
-        )
-        if return_items:
-            return updated_items, errors
-        return {i["id"] for i in updated_items}, errors
+    def update_ext_entity_metadata(self, *items, check=True, strict=False):
+        updated_items, errors = self._update_ext_item_metadata("entity_metadata", *items, check=check, strict=strict)
+        return updated_items, errors
 
-    def update_ext_parameter_value_metadata(self, *items, check=True, strict=False, return_items=False, dry_run=False):
+    def update_ext_parameter_value_metadata(self, *items, check=True, strict=False):
         updated_items, errors = self._update_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict, dry_run=dry_run
+            "parameter_value_metadata", *items, check=check, strict=strict
         )
-        if return_items:
-            return updated_items, errors
-        return {i["id"] for i in updated_items}, errors
+        return updated_items, errors
 
-    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False, dry_run=False):
+    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False):
         self.fetch_all({"entity_metadata", "parameter_value_metadata", "metadata"})
         cache = self.cache
         metadata_ids = {}
@@ -379,9 +301,7 @@ class DatabaseMappingUpdateMixin:
         all_items = []
         errors = []
         if updatable_metadata_items:
-            updated_metadata, errors = self.update_metadata(
-                *updatable_metadata_items, check=False, strict=strict, return_items=True, dry_run=dry_run
-            )
+            updated_metadata, errors = self.update_metadata(*updatable_metadata_items, check=False, strict=strict)
             all_items += updated_metadata
             if errors:
                 return all_items, errors
@@ -390,9 +310,7 @@ class DatabaseMappingUpdateMixin:
         ]
         added_metadata = []
         if addable_metadata:
-            added_metadata, metadata_add_errors = self.add_metadata(
-                *addable_metadata, check=False, strict=strict, return_items=True
-            )
+            added_metadata, metadata_add_errors = self.add_metadata(*addable_metadata, check=False, strict=strict)
             all_items += added_metadata
             errors += metadata_add_errors
             if errors:
@@ -406,8 +324,41 @@ class DatabaseMappingUpdateMixin:
         if updatable_items:
             # FIXME: Force-clear cache before updating item metadata to ensure that added/updated metadata is found.
             updated_item_metadata, item_metadata_errors = self.update_items(
-                metadata_table, *updatable_items, check=check, strict=strict, return_items=True
+                metadata_table, *updatable_items, check=check, strict=strict
             )
             all_items += updated_item_metadata
             errors += item_metadata_errors
         return all_items, errors
+
+    def get_data_to_set_scenario_alternatives(self, *items):
+        """Returns data to add and remove, in order to set wide scenario alternatives.
+
+        Args:
+            *items: One or more wide scenario :class:`dict` objects to set.
+                Each item must include the following keys:
+
+                - "id": integer scenario id
+                - "alternative_id_list": list of alternative ids for that scenario
+
+        Returns
+            list: scenario_alternative :class:`dict` objects to add.
+            set: integer scenario_alternative ids to remove
+        """
+        self.fetch_all({"scenario_alternative", "scenario"})
+        cache = self.cache
+        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
+        scenario_alternative_ids = {
+            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
+        }
+        scen_alts_to_add = []
+        scen_alt_ids_to_remove = set()
+        for item in items:
+            scenario_id = item["id"]
+            alternative_id_list = item["alternative_id_list"]
+            current_alternative_id_list = current_alternative_id_lists[scenario_id]
+            for k, alternative_id in enumerate(alternative_id_list):
+                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
+                scen_alts_to_add.append(item_to_add)
+            for alternative_id in current_alternative_id_list:
+                scen_alt_ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
+        return scen_alts_to_add, scen_alt_ids_to_remove

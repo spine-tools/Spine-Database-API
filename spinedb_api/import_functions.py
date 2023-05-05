@@ -170,7 +170,6 @@ def get_data_for_import(
     db_map,
     unparse_value=to_database,
     on_conflict="merge",
-    dry_run=False,
     entity_classes=(),
     entities=(),
     parameter_definitions=(),
@@ -194,6 +193,11 @@ def get_data_for_import(
     relationship_metadata=(),
     object_parameter_value_metadata=(),
     relationship_parameter_value_metadata=(),
+    # FIXME: compat
+    tools=(),
+    features=(),
+    tool_features=(),
+    tool_feature_methods=(),
 ):
     """Returns an iterator of data for import, that the user can call instead of `import_data`
     if they want to add and update the data by themselves.
@@ -226,19 +230,19 @@ def get_data_for_import(
     """
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
-        yield ("alternative", _get_alternatives_for_import(alternatives))
+        yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
     if scenarios:
-        yield ("scenario", _get_scenarios_for_import(scenarios))
+        yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
     if scenario_alternatives:
         if not scenarios:
             scenarios = (item[0] for item in scenario_alternatives)
-            yield ("scenario", _get_scenarios_for_import(scenarios))
+            yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
         if not alternatives:
             alternatives = (item[1] for item in scenario_alternatives)
-            yield ("alternative", _get_alternatives_for_import(alternatives))
-        yield ("scenario_alternative", _get_scenario_alternatives_for_import(scenario_alternatives))
+            yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
+        yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
     if entity_classes:
-        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, dry_run))
+        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes))
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
     if relationship_classes:
@@ -262,7 +266,7 @@ def get_data_for_import(
             _get_relationship_parameters_for_import(db_map, relationship_parameters, unparse_value),
         )
     if entities:
-        yield ("entity", _get_entities_for_import(db_map, entities, dry_run))
+        yield ("entity", _get_entities_for_import(db_map, entities))
     if objects:
         yield ("object", _get_objects_for_import(db_map, objects))
     if relationships:
@@ -329,7 +333,7 @@ def import_entity_classes(db_map, data):
     return import_data(db_map, entity_classes=data)
 
 
-def _get_entity_classes_for_import(db_map, data, dry_run):
+def _get_entity_classes_for_import(db_map, data):
     db_map.fetch_all({"entity_class"}, include_ancestors=True)
     cache = db_map.cache
     entity_class_ids = {x.name: x.id for x in cache.get("entity_class", {}).values()}
@@ -337,7 +341,7 @@ def _get_entity_classes_for_import(db_map, data, dry_run):
     error_log = []
     to_add = []
     to_update = []
-    with db_map.generate_ids("entity_class", dry_run=dry_run) as new_entity_class_id:
+    with db_map.generate_ids("entity_class") as new_entity_class_id:
         for name, *optionals in data:
             if name in checked:
                 continue
@@ -404,7 +408,7 @@ def _make_unique_entity_name(class_id, class_name, ent_name_or_el_names, class_i
     return name
 
 
-def _get_entities_for_import(db_map, data, dry_run):
+def _get_entities_for_import(db_map, data):
     db_map.fetch_all({"entity"}, include_ancestors=True)
     cache = db_map.cache
     entities = {x.id: x for x in cache.get("entity", {}).values()}
@@ -421,7 +425,7 @@ def _get_entities_for_import(db_map, data, dry_run):
     to_add = []
     to_update = []
     checked = set()
-    with db_map.generate_ids("entity", dry_run=dry_run) as new_entity_id:
+    with db_map.generate_ids("entity") as new_entity_id:
         for class_name, ent_name_or_el_names, *optionals in data:
             ec_id = entity_class_ids.get(class_name, None)
             dim_ids = dimension_id_lists.get(ec_id, ())
@@ -767,7 +771,7 @@ def import_alternatives(db_map, data):
     return import_data(db_map, alternatives=data)
 
 
-def _get_alternatives_for_import(data):
+def _get_alternatives_for_import(db_map, data):
     db_map.fetch_all({"alternative"}, include_ancestors=True)
     cache = db_map.cache
     alternative_ids = {alternative.name: alternative.id for alternative in cache.get("alternative", {}).values()}
@@ -829,7 +833,7 @@ def import_scenarios(db_map, data):
     return import_data(db_map, scenarios=data)
 
 
-def _get_scenarios_for_import(data):
+def _get_scenarios_for_import(db_map, data):
     db_map.fetch_all({"scenario"}, include_ancestors=True)
     cache = db_map.cache
     scenario_ids = {scenario.name: scenario.id for scenario in cache.get("scenario", {}).values()}
@@ -889,7 +893,7 @@ def import_scenario_alternatives(db_map, data):
     return import_data(db_map, scenario_alternatives=data)
 
 
-def _get_scenario_alternatives_for_import(data):
+def _get_scenario_alternatives_for_import(db_map, data):
     db_map.fetch_all({"scenario_alternative"}, include_ancestors=True)
     cache = db_map.cache
     scenario_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
@@ -1826,7 +1830,7 @@ def _get_list_values_for_import(db_map, data, unparse_value):
         if max_index is not None:
             index = max_index + 1
         else:
-            index = max(current_max_index) + 1
+            index = current_max_index + 1
         item = {"parameter_value_list_id": list_id, "value": val, "type": type_, "index": index}
         try:
             check_list_value(item, list_names_by_id, list_value_ids_by_index, list_value_ids_by_value)

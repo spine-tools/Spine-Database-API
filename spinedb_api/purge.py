@@ -43,7 +43,7 @@ def purge_url(url, purge_settings, logger=None):
             logger.msg_warning.emit(f"Failed to purge url <b>{sanitized_url}</b>: {err}")
         return False
     success = purge(db_map, purge_settings, logger=logger)
-    db_map.connection.close()
+    db_map.close()
     return success
 
 
@@ -69,7 +69,9 @@ def purge(db_map, purge_settings, logger=None):
         try:
             if logger:
                 logger.msg.emit("Purging database...")
-            db_map.cascade_remove_items(**removable_db_map_data)
+            for item_type, ids in removable_db_map_data.items():
+                db_map.remove_items(item_type, **ids)
+                # FIXME: What do do here? How does one affect the DB directly, bypassing cache?
             db_map.commit_session("Purge database")
             if logger:
                 logger.msg.emit("Database purged")

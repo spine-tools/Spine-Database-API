@@ -69,7 +69,7 @@ class DatabaseMappingAddMixin:
                 self._next_id = Table("next_id", self._metadata, autoload=True)
 
     @contextmanager
-    def generate_ids(self, tablename, dry_run=False):
+    def generate_ids(self, tablename):
         """Manages id generation for new items to be added to the db.
 
         Args:
@@ -78,7 +78,6 @@ class DatabaseMappingAddMixin:
         Yields:
             self._IdGenerator: an object that generates a new id every time it is called.
         """
-        connection = self.engine.connect() if dry_run else self.connection
         fieldname = {
             "entity_class": "entity_class_id",
             "object_class": "entity_class_id",
@@ -98,51 +97,40 @@ class DatabaseMappingAddMixin:
             "parameter_value_metadata": "parameter_value_metadata_id",
             "entity_metadata": "entity_metadata_id",
         }[tablename]
-        select_next_id = select([self._next_id])
-        next_id_row = connection.execute(select_next_id).first()
-        if next_id_row is None:
-            next_id = None
-            stmt = self._next_id.insert()
-        else:
-            next_id = getattr(next_id_row, fieldname)
-            stmt = self._next_id.update()
-        if next_id is None:
-            real_tablename = self._real_tablename(tablename)
-            table = self._metadata.tables[real_tablename]
-            id_field = self._id_fields.get(real_tablename, "id")
-            select_max_id = select([func.max(getattr(table.c, id_field))])
-            max_id = connection.execute(select_max_id).scalar()
-            next_id = max_id + 1 if max_id else 1
-        gen = self._IdGenerator(next_id)
-        try:
-            yield gen
-        finally:
-            connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: gen.next_id})
-            if dry_run:
-                connection.close()
+        with self.engine.begin() as connection:
+            select_next_id = select([self._next_id])
+            next_id_row = connection.execute(select_next_id).first()
+            if next_id_row is None:
+                next_id = None
+                stmt = self._next_id.insert()
+            else:
+                next_id = getattr(next_id_row, fieldname)
+                stmt = self._next_id.update()
+            if next_id is None:
+                real_tablename = self._real_tablename(tablename)
+                table = self._metadata.tables[real_tablename]
+                id_field = self._id_fields.get(real_tablename, "id")
+                select_max_id = select([func.max(getattr(table.c, id_field))])
+                max_id = connection.execute(select_max_id).scalar()
+                next_id = max_id + 1 if max_id else 1
+            gen = self._IdGenerator(next_id)
+            try:
+                yield gen
+            finally:
+                connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: gen.next_id})
 
-    def _add_commit_id_and_ids(self, tablename, *items, dry_run=False):
+    def _add_commit_id_and_ids(self, tablename, *items):
         if not items:
             return [], set()
-        commit_id = self._make_commit_id(dry_run=dry_run)
-        with self.generate_ids(tablename, dry_run=dry_run) as new_id:
+        commit_id = self._make_commit_id()
+        with self.generate_ids(tablename) as new_id:
             for item in items:
                 item["commit_id"] = commit_id
                 if "id" not in item:
                     item["id"] = new_id()
 
-    def add_items(
-        self,
-        tablename,
-        *items,
-        check=True,
-        strict=False,
-        return_dups=False,
-        return_items=False,
-        readd=False,
-        dry_run=False,
-    ):
-        """Add items to db.
+    def add_items(self, tablename, *items, check=True, strict=False):
+        """Add items to cache.
 
         Args:
             tablename (str)
@@ -150,32 +138,20 @@ class DatabaseMappingAddMixin:
             check (bool): Whether or not to check integrity
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
-            return_dups (bool): Whether or not already existing and duplicated entries should also be returned.
-            return_items (bool): Return full items rather than just ids
-            readd (bool): Readds items directly
 
         Returns:
             set: ids or items successfully added
             list(SpineIntegrityError): found violations
         """
-        if readd:
-            if not dry_run:
-                for _ in self._do_add_items(tablename, *items):
-                    pass
-            return items if return_items else {x["id"] for x in items}, []
         if check:
             checked_items, intgr_error_log = self.check_items(tablename, *items, for_update=False, strict=strict)
         else:
             checked_items, intgr_error_log = list(items), []
-        ids = self._add_items(tablename, *checked_items, dry_run=dry_run)
-        if return_items:
-            return checked_items, intgr_error_log
-        if return_dups:
-            ids.update(set(x.id for x in intgr_error_log if x.id))
-        return ids, intgr_error_log
+        _ = self._add_items(tablename, *checked_items)
+        return checked_items, intgr_error_log
 
-    def _add_items(self, tablename, *items, dry_run=False):
-        """Add items to database without checking integrity.
+    def _add_items(self, tablename, *items):
+        """Add items to cache without checking integrity.
 
         Args:
             tablename (str)
@@ -186,37 +162,22 @@ class DatabaseMappingAddMixin:
         Returns:
             ids (set): added instances' ids
         """
-        self._add_commit_id_and_ids(tablename, *items, dry_run=dry_run)
-        if not dry_run:
-            for _ in self._do_add_items(tablename, *items):
-                pass
+        self._add_commit_id_and_ids(tablename, *items)
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        for item in items:
+            table_cache.add_item(item, new=True)
         return {item["id"] for item in items}
 
-    def _get_table_for_insert(self, tablename):
-        """
-        Returns the table name where to perform insertion.
-
-        Subclasses can override this method to insert to another table instead (e.g., diff...)
-
-        Args:
-            tablename (str): target database table name
-
-        Yields:
-            str: database table name
-        """
-        return self._metadata.tables[tablename]
-
     def _do_add_items(self, tablename, *items_to_add):
+        """Add items to DB without checking integrity."""
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
-                table = self._get_table_for_insert(tablename_)
+                table = self._metadata.tables[self._real_tablename(tablename_)]
                 self._checked_execute(table.insert(), [{**item} for item in items_to_add_])
-                yield tablename_
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e
-        else:
-            self._has_pending_changes = True
 
     @staticmethod
     def _items_to_add_per_table(tablename, items_to_add):
@@ -265,8 +226,14 @@ class DatabaseMappingAddMixin:
             yield ("entity", items_to_add)
             yield ("entity_element", ee_items_to_add)
             yield ("entity_alternative", ea_items_to_add)
-        elif tablename == "object_class":
+        elif tablename == "relationship_class":
+            ecd_items_to_add = [
+                {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
+                for item in items_to_add
+                for position, dimension_id in enumerate(item["object_class_id_list"])
+            ]
             yield ("entity_class", items_to_add)
+            yield ("entity_class_dimension", ecd_items_to_add)
         elif tablename == "object":
             ea_items_to_add = [
                 {"entity_id": item["id"], "alternative_id": alternative_id, "active": True}
@@ -279,14 +246,6 @@ class DatabaseMappingAddMixin:
             ]
             yield ("entity", items_to_add)
             yield ("entity_alternative", ea_items_to_add)
-        elif tablename == "relationship_class":
-            ecd_items_to_add = [
-                {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
-                for item in items_to_add
-                for position, dimension_id in enumerate(item["object_class_id_list"])
-            ]
-            yield ("entity_class", items_to_add)
-            yield ("entity_class_dimension", ecd_items_to_add)
         elif tablename == "relationship":
             ee_items_to_add = [
                 {
@@ -380,7 +339,7 @@ class DatabaseMappingAddMixin:
     def add_parameter_value_metadata(self, *items, **kwargs):
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def _get_or_add_metadata_ids_for_items(self, *items, check, strict, dry_run):
+    def _get_or_add_metadata_ids_for_items(self, *items, check, strict):
         cache = self.cache
         metadata_ids = {}
         for entry in cache.get("metadata", {}).values():
@@ -395,9 +354,7 @@ class DatabaseMappingAddMixin:
                 items_missing_metadata_ids.setdefault(item["metadata_name"], {})[item["metadata_value"]] = item
             else:
                 item["metadata_id"] = existing_id
-        added_metadata, errors = self.add_items(
-            "metadata", *metadata_to_add, check=check, strict=strict, return_items=True, dry_run=dry_run
-        )
+        added_metadata, errors = self.add_items("metadata", *metadata_to_add, check=check, strict=strict)
         for x in added_metadata:
             cache.table_cache("metadata").add_item(x)
         if errors:
@@ -410,37 +367,20 @@ class DatabaseMappingAddMixin:
                 item["metadata_id"] = new_metadata_ids[metadata_name][metadata_value]
         return added_metadata, errors
 
-    def _add_ext_item_metadata(self, table_name, *items, check=True, strict=False, return_items=False, dry_run=False):
-        # Note, that even though return_items can be False, it doesn't make much sense here because we'll be mixing
-        # metadata and entity metadata ids.
+    def _add_ext_item_metadata(self, table_name, *items, check=True, strict=False):
         self.fetch_all({table_name}, include_ancestors=True)
-        cache = self.cache
-        added_metadata, metadata_errors = self._get_or_add_metadata_ids_for_items(
-            *items, check=check, strict=strict, dry_run=dry_run
-        )
+        added_metadata, metadata_errors = self._get_or_add_metadata_ids_for_items(*items, check=check, strict=strict)
         if metadata_errors:
-            if not return_items:
-                return added_metadata, metadata_errors
-            return {i["id"] for i in added_metadata}, metadata_errors
-        added_item_metadata, item_errors = self.add_items(
-            table_name, *items, check=check, strict=strict, return_items=True, dry_run=dry_run
-        )
+            return added_metadata, metadata_errors
+        added_item_metadata, item_errors = self.add_items(table_name, *items, check=check, strict=strict)
         errors = metadata_errors + item_errors
-        if not return_items:
-            return {i["id"] for i in added_metadata + added_item_metadata}, errors
         return added_metadata + added_item_metadata, errors
 
-    def add_ext_entity_metadata(self, *items, check=True, strict=False, return_items=False, readd=False, dry_run=False):
-        return self._add_ext_item_metadata(
-            "entity_metadata", *items, check=check, strict=strict, return_items=return_items, dry_run=dry_run
-        )
+    def add_ext_entity_metadata(self, *items, check=True, strict=False):
+        return self._add_ext_item_metadata("entity_metadata", *items, check=check, strict=strict)
 
-    def add_ext_parameter_value_metadata(
-        self, *items, check=True, strict=False, return_items=False, readd=False, dry_run=False
-    ):
-        return self._add_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict, return_items=return_items, dry_run=dry_run
-        )
+    def add_ext_parameter_value_metadata(self, *items, check=True, strict=False):
+        return self._add_ext_item_metadata("parameter_value_metadata", *items, check=check, strict=strict)
 
     def _add_entity_classes(self, *items):
         return self._add_items("entity_class", *items)
@@ -575,40 +515,4 @@ class DatabaseMappingAddMixin:
         """
         sq = self.parameter_value_sq
         ids, _ = self.add_parameter_values(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def get_or_add_object_class(self, **kwargs):
-        """Stage an object class item for insertion if it doesn't already exists in the db.
-
-        :returns:
-            - **item** -- The item successfully staged for insertion or already existing.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.object_class_sq
-        ids, _ = self.add_object_classes(kwargs, return_dups=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def get_or_add_object(self, **kwargs):
-        """Stage an object item for insertion if it doesn't already exists in the db.
-
-        :returns:
-            - **item** -- The item successfully staged for insertion or already existing.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.object_sq
-        ids, _ = self.add_objects(kwargs, return_dups=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def get_or_add_parameter_definition(self, **kwargs):
-        """Stage a parameter definition item for insertion if it doesn't already exists in the db.
-
-        :returns:
-            - **item** -- The item successfully staged for insertion or already existing.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.parameter_definition_sq
-        ids, _ = self.add_parameter_definitions(kwargs, return_dups=True)
         return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()

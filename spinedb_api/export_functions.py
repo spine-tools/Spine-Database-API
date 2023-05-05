@@ -100,7 +100,7 @@ def _get_items(db_map, tablename, ids):
     if not ids:
         return ()
     db_map.fetch_all({tablename}, include_ancestors=True)
-    _process_item = _make_item_processor(db_map.cache, tablename)
+    _process_item = _make_item_processor(db_map, tablename)
     for item in _get_items_from_cache(db_map.cache, tablename, ids):
         yield from _process_item(item)
 
@@ -116,24 +116,22 @@ def _get_items_from_cache(cache, tablename, ids):
             yield item
 
 
-def _make_item_processor(cache, tablename):
+def _make_item_processor(db_map, tablename):
     if tablename == "parameter_value_list":
-        return _ParameterValueListProcessor(cache)
+        db_map.fetch_all({"list_value"}, include_ancestors=True)
+        return _ParameterValueListProcessor(db_map.cache.get("list_value", {}).values())
     return lambda item: (item,)
 
 
 class _ParameterValueListProcessor:
-    def __init__(self, cache):
-        self._list_value_by_id = cache.get("list_value", {})
+    def __init__(self, value_items):
+        self._value_items_by_list_id = {}
+        for x in value_items:
+            self._value_items_by_list_id.setdefault(x.parameter_value_list_id, []).append(x)
 
     def __call__(self, item):
-        fields = ["name", "value", "type"]
-        if item.value_id_list is None:
-            yield KeyedTuple([item.name, None, None], fields)
-            return
-        for value_id in item.value_id_list:
-            val = self._list_value_by_id[value_id]
-            yield KeyedTuple([item.name, val.value, val.type], fields)
+        for list_value_item in sorted(self._value_items_by_list_id.get(item.id, ()), key=lambda x: x.index):
+            yield KeyedTuple([item.name, list_value_item.value, list_value_item.type], ["name", "value", "type"])
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk, parse_value=from_database):

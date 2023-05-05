@@ -13,22 +13,93 @@ DB cache utility.
 
 """
 from contextlib import suppress
-
+from operator import itemgetter
 
 # TODO: Implement CacheItem.pop() to do lookup?
 
 
 class DBCache(dict):
-    def __init__(self, advance_query, *args, **kwargs):
+    """A dictionary that maps table names to ids to items. Used to store and retrieve database contents."""
+
+    def __init__(self, db_map, chunk_size=None):
         """
-        A dictionary that maps table names to ids to items. Used to store and retrieve database contents.
+        Args:
+            db_map (DatabaseMapping)
+        """
+        super().__init__()
+        self._db_map = db_map
+        self._offsets = {}
+        self._fetched_item_types = set()
+        self._chunk_size = chunk_size
+
+    def to_change(self):
+        to_add = {}
+        to_update = {}
+        to_remove = {}
+        for item_type, table_cache in self.items():
+            new = [x for x in table_cache.values() if x.new]
+            dirty = [x for x in table_cache.values() if x.dirty and not x.new]
+            removed = {x.id for x in dict.values(table_cache) if x.removed}
+            if new:
+                to_add[item_type] = new
+            if dirty:
+                to_update[item_type] = dirty
+            if removed:
+                to_remove[item_type] = removed
+        return to_add, to_update, to_remove
+
+    @property
+    def fetched_item_types(self):
+        return self._fetched_item_types
+
+    def reset_queries(self):
+        """Resets queries and clears caches."""
+        self._offsets.clear()
+        self._fetched_item_types.clear()
+
+    def advance_query(self, item_type):
+        """Schedules an advance of the DB query that fetches items of given type.
 
         Args:
-            advance_query (function): A function that receives a table name (a.k.a item type) as input and returns
-                more items of that type to be added to this cache.
+            item_type (str)
+
+        Returns:
+            Future
         """
-        super().__init__(*args, **kwargs)
-        self._advance_query = advance_query
+        return self._db_map.executor.submit(self.do_advance_query, item_type)
+
+    def _get_next_chunk(self, item_type):
+        try:
+            sq_name = self._db_map.cache_sqs[item_type]
+            qry = self._db_map.query(getattr(self._db_map, sq_name))
+        except KeyError:
+            return []
+        if not self._chunk_size:
+            self._fetched_item_types.add(item_type)
+            return [x._asdict() for x in qry.yield_per(1000).enable_eagerloads(False)]
+        offset = self._offsets.setdefault(item_type, 0)
+        chunk = [x._asdict() for x in qry.limit(self._chunk_size).offset(offset)]
+        self._offsets[item_type] += len(chunk)
+        return chunk
+
+    def do_advance_query(self, item_type):
+        """Advances the DB query that fetches items of given type and caches the results.
+
+        Args:
+            item_type (str)
+
+        Returns:
+            list: items fetched from the DB
+        """
+        chunk = self._get_next_chunk(item_type)
+        if not chunk:
+            self._fetched_item_types.add(item_type)
+            return []
+        table_cache = self.table_cache(item_type)
+        for item in chunk:
+            # FIXME: This will overwrite working changes after a refresh
+            table_cache.add_item(item)
+        return chunk
 
     def table_cache(self, item_type):
         return self.setdefault(item_type, TableCache(self, item_type))
@@ -41,13 +112,9 @@ class DBCache(dict):
         return item
 
     def fetch_more(self, item_type):
-        items = self._advance_query(item_type)
-        if not items:
+        if item_type in self._fetched_item_types:
             return False
-        table_cache = self.table_cache(item_type)
-        for item in items:
-            table_cache.add_item(item._asdict())
-        return True
+        return bool(self.advance_query(item_type).result())
 
     def fetch_all(self, item_type):
         while self.fetch_more(item_type):
@@ -80,6 +147,7 @@ class DBCache(dict):
             "entity_group": EntityGroupItem,
             "parameter_definition": ParameterDefinitionItem,
             "parameter_value": ParameterValueItem,
+            "scenario": ScenarioItem,
             "scenario_alternative": ScenarioAlternativeItem,
         }.get(item_type, CacheItem)
         return factory(self, item_type, **item)
@@ -99,35 +167,32 @@ class TableCache(dict):
     def values(self):
         return (x for x in super().values() if x.is_valid())
 
-    def add_item(self, item, keep_existing=False):
-        if keep_existing:
-            existing_item = self.get(item["id"])
-            if existing_item is not None:
-                return existing_item
+    def add_item(self, item, new=False):
         self[item["id"]] = new_item = self._db_cache.make_item(self._item_type, item)
+        new_item.new = new
         return new_item
 
     def update_item(self, item):
         current_item = self[item["id"]]
+        current_item.dirty = True
         current_item.update(item)
         current_item.cascade_update()
 
     def remove_item(self, id_):
-        if self._item_type == "alternative" and id_ == 1:
-            # Do not remove the Base alternative
-            return CacheItem(self._db_cache, self._item_type)
         current_item = self.get(id_)
-        if current_item:
+        if current_item is not None:
             current_item.cascade_remove()
+        return current_item
+
+    def restore_item(self, id_):
+        current_item = self.get(id_)
+        if current_item is not None:
+            current_item.cascade_restore()
         return current_item
 
 
 class CacheItem(dict):
-    """A dictionary that behaves kinda like a row from a query result.
-
-    It is used to store items in a cache, so we can access them as if they were rows from a query result.
-    This is mainly because we want to use the cache as a replacement for db queries in some methods.
-    """
+    """A dictionary that represents an db item."""
 
     def __init__(self, db_cache, item_type, *args, **kwargs):
         """
@@ -139,13 +204,19 @@ class CacheItem(dict):
         self._item_type = item_type
         self._referrers = {}
         self._weak_referrers = {}
-        self.readd_callbacks = set()
+        self.restore_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
         self._to_remove = False
         self._removed = False
         self._corrupted = False
         self._valid = None
+        self.new = False
+        self.dirty = False
+
+    @property
+    def removed(self):
+        return self._removed
 
     @property
     def item_type(self):
@@ -187,11 +258,11 @@ class CacheItem(dict):
     def _handle_ref(self, ref, source_key):
         if source_key in self._reference_keys():
             ref.add_referrer(self)
-            if ref.is_removed():
+            if ref.removed:
                 self._to_remove = True
         else:
             ref.add_weak_referrer(self)
-            if ref.is_removed():
+            if ref.removed:
                 return {}
         return ref
 
@@ -221,9 +292,6 @@ class CacheItem(dict):
         self._valid = not self._removed and not self._corrupted
         return self._valid
 
-    def is_removed(self):
-        return self._removed
-
     def add_referrer(self, referrer):
         if referrer.key is None:
             return
@@ -235,19 +303,19 @@ class CacheItem(dict):
         if referrer.key not in self._referrers:
             self._weak_referrers[referrer.key] = referrer
 
-    def cascade_readd(self):
+    def cascade_restore(self):
         if not self._removed:
             return
         self._removed = False
         for referrer in self._referrers.values():
-            referrer.cascade_readd()
+            referrer.cascade_restore()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
         obsolete = set()
-        for callback in self.readd_callbacks:
+        for callback in self.restore_callbacks:
             if not callback(self):
                 obsolete.add(callback)
-        self.readd_callbacks -= obsolete
+        self.restore_callbacks -= obsolete
 
     def cascade_remove(self):
         if self._removed:
@@ -435,6 +503,23 @@ class EntityGroupItem(CacheItem):
         return super()._reference_keys() + ("class_name", "group_name", "member_name", "dimension_id_list")
 
 
+class ScenarioItem(CacheItem):
+    @property
+    def sorted_scenario_alternatives(self):
+        self._db_cache.fetch_all("scenario_alternative")
+        return sorted(
+            (x for x in self._db_cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
+            key=itemgetter("rank"),
+        )
+
+    def __getitem__(self, key):
+        if key == "alternative_id_list":
+            return [x["alternative_id"] for x in self.sorted_scenario_alternatives]
+        if key == "alternative_name_list":
+            return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
+        return super().__getitem__(key)
+
+
 class ScenarioAlternativeItem(CacheItem):
     def __getitem__(self, key):
         if key == "scenario_name":
@@ -444,14 +529,12 @@ class ScenarioAlternativeItem(CacheItem):
         if key == "before_alternative_name":
             return self._get_ref("alternative", self["before_alternative_id"], key).get("name")
         if key == "before_alternative_id":
-            return next(
-                (
-                    x
-                    for x in self._db_cache.get("scenario_alternative", {}).values()
-                    if x["scenario_id"] == self["scenario_id"] and x["rank"] == self["rank"] - 1
-                ),
-                {},
-            ).get("alternative_id")
+            scenario = self._get_ref("scenario", self["scenario_id"], None)
+            try:
+                return scenario["alternative_id_list"][self["rank"]]
+            except IndexError:
+                return None
+        return super().__getitem__(key)
 
     def _reference_keys(self):
         return super()._reference_keys() + ("scenario_name", "alternative_name")

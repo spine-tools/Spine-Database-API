@@ -20,45 +20,52 @@ from .exception import SpineDBAPIError
 
 
 class DatabaseMappingRemoveMixin:
-    """Provides the :meth:`remove_items` method to stage ``REMOVE`` operations over a Spine db."""
+    """Provides methods to perform ``REMOVE`` operations over a Spine db."""
 
-    # pylint: disable=redefined-builtin
-    def cascade_remove_items(self, **kwargs):
-        """Removes items by id in cascade.
+    def restore_items(self, tablename, *ids):
+        if not ids:
+            return []
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.get(tablename)
+        if not table_cache:
+            return []
+        return [table_cache.restore_item(id_) for id_ in ids]
+
+    def remove_items(self, tablename, *ids):
+        if not ids:
+            return []
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.get(tablename)
+        if not table_cache:
+            return []
+        ids = set(ids)
+        if tablename == "alternative":
+            # Do not remove the Base alternative
+            ids -= {1}
+        return [table_cache.remove_item(id_) for id_ in ids]
+
+    def _do_remove_items(self, **kwargs):
+        """Removes items from the db.
 
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
         """
         cascading_ids = self.cascading_ids(**kwargs)
-        self.remove_items(**cascading_ids)
-
-    def remove_items(self, **kwargs):
-        """Removes items by id, *not in cascade*.
-
-        Args:
-            **kwargs: keyword is table name, argument is list of ids to remove
-        """
-        for tablename, ids in kwargs.items():
+        for tablename, ids in cascading_ids.items():
+            tablename = self._real_tablename(tablename)
             if tablename == "alternative":
                 # Do not remove the Base alternative
                 ids -= {1}
             if not ids:
                 continue
-            real_tablename = self._real_tablename(tablename)
-            id_field = self._id_fields.get(real_tablename, "id")
-            table = self._metadata.tables[real_tablename]
+            id_field = self._id_fields.get(tablename, "id")
+            table = self._metadata.tables[tablename]
             delete = table.delete().where(self.in_(getattr(table.c, id_field), ids))
             try:
-                self.connection.execute(delete)
-                table_cache = self.cache.get(tablename)
-                if table_cache:
-                    for id_ in ids:
-                        table_cache.remove_item(id_)
+                self.executor.submit(self.connection.execute, delete).result()
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg) from e
-            else:
-                self._has_pending_changes = True
 
     # pylint: disable=redefined-builtin
     def cascading_ids(self, **kwargs):
