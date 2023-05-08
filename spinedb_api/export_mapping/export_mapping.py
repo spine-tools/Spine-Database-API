@@ -14,6 +14,7 @@ Contains export mappings for database items such as entities, entity classes and
 """
 
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import cycle, dropwhile, islice
 from sqlalchemy import and_, or_
 from sqlalchemy.sql.expression import literal
@@ -808,9 +809,11 @@ class RelationshipClassObjectHighlightingMapping(RelationshipClassMapping):
         return "relationship_class_id"
 
     def query_parents(self, what):
-        if what != "highlight_dimension":
-            return super().query_parents(what)
-        return self._highlight_dimension
+        if what == "dimension":
+            return self._highlight_dimension - 1  # Object class mapping will increment by 1.
+        if what == "highlight_dimension":
+            return self._highlight_dimension
+        return super().query_parents(what)
 
     def to_dict(self):
         mapping_dict = super().to_dict()
@@ -917,6 +920,10 @@ class RelationshipObjectHighlightingMapping(RelationshipMapping):
 
     MAP_TYPE = "RelationshipObjectHighlightingMapping"
 
+    @cached_property
+    def _highlight_dimension(self):
+        return super().query_parents("highlight_dimension")
+
     def add_query_columns(self, db_map, query):
         query = super().add_query_columns(db_map, query)
         return query.add_columns(db_map.object_sq.c.id.label("object_id"))
@@ -930,6 +937,11 @@ class RelationshipObjectHighlightingMapping(RelationshipMapping):
             for x in highlighted_object_qry
         )
         return query.filter(or_(*conditions))
+
+    def query_parents(self, what):
+        if what != "dimension":
+            return super().query_parents(what)
+        return self._highlight_dimension - 1  # Object mapping will increment by one.
 
     @staticmethod
     def is_buddy(parent):
