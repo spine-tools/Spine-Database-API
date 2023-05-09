@@ -141,14 +141,16 @@ class DatabaseMappingAddMixin:
 
         Returns:
             set: ids or items successfully added
-            list(SpineIntegrityError): found violations
+            list(str): found violations
         """
         if check:
-            checked_items, intgr_error_log = self.check_items(tablename, *items, for_update=False, strict=strict)
+            checked_items, errors = self.check_items(tablename, *items)
         else:
-            checked_items, intgr_error_log = list(items), []
+            checked_items, errors = list(items), []
+        if errors and strict:
+            raise SpineDBAPIError(", ".join(errors))
         _ = self._add_items(tablename, *checked_items)
-        return checked_items, intgr_error_log
+        return checked_items, errors
 
     def _add_items(self, tablename, *items):
         """Add items to cache without checking integrity.
@@ -381,138 +383,3 @@ class DatabaseMappingAddMixin:
 
     def add_ext_parameter_value_metadata(self, *items, check=True, strict=False):
         return self._add_ext_item_metadata("parameter_value_metadata", *items, check=check, strict=strict)
-
-    def _add_entity_classes(self, *items):
-        return self._add_items("entity_class", *items)
-
-    def _add_entities(self, *items):
-        return self._add_items("entity", *items)
-
-    def _add_object_classes(self, *items):
-        return self._add_items("object_class", *items)
-
-    def _add_objects(self, *items):
-        return self._add_items("object", *items)
-
-    def _add_wide_relationship_classes(self, *items):
-        return self._add_items("relationship_class", *items)
-
-    def _add_wide_relationships(self, *items):
-        return self._add_items("relationship", *items)
-
-    def _add_parameter_definitions(self, *items):
-        return self._add_items("parameter_definition", *items)
-
-    def _add_parameter_values(self, *items):
-        return self._add_items("parameter_value", *items)
-
-    def _add_parameter_value_lists(self, *items):
-        return self._add_items("parameter_value_list", *items)
-
-    def _add_list_values(self, *items):
-        return self._add_items("list_value", *items)
-
-    def _add_alternatives(self, *items):
-        return self._add_items("alternative", *items)
-
-    def _add_scenarios(self, *items):
-        return self._add_items("scenario", *items)
-
-    def _add_scenario_alternatives(self, *items):
-        return self._add_items("scenario_alternative", *items)
-
-    def _add_entity_groups(self, *items):
-        return self._add_items("entity_group", *items)
-
-    def _add_metadata(self, *items):
-        return self._add_items("metadata", *items)
-
-    def _add_parameter_value_metadata(self, *items):
-        return self._add_items("parameter_value_metadata", *items)
-
-    def _add_entity_metadata(self, *items):
-        return self._add_items("entity_metadata", *items)
-
-    def add_object_class(self, **kwargs):
-        """Stage an object class item for insertion.
-
-        :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-
-        :returns:
-            - **new_item** -- The item successfully staged for insertion.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.object_class_sq
-        ids, _ = self.add_object_classes(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def add_object(self, **kwargs):
-        """Stage an object item for insertion.
-
-        :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-
-        :returns:
-            - **new_item** -- The item successfully staged for insertion.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.object_sq
-        ids, _ = self.add_objects(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def add_wide_relationship_class(self, **kwargs):
-        """Stage a relationship class item for insertion.
-
-        :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-
-        :returns:
-            - **new_item** -- The item successfully staged for insertion.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.wide_relationship_class_sq
-        ids, _ = self.add_wide_relationship_classes(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def add_wide_relationship(self, **kwargs):
-        """Stage a relationship item for insertion.
-
-        :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-
-        :returns:
-            - **new_item** -- The item successfully staged for insertion.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.wide_relationship_sq
-        ids, _ = self.add_wide_relationships(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def add_parameter_definition(self, **kwargs):
-        """Stage a parameter definition item for insertion.
-
-        :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-
-        :returns:
-            - **new_item** -- The item successfully staged for insertion.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.parameter_definition_sq
-        ids, _ = self.add_parameter_definitions(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()
-
-    def add_parameter_value(self, **kwargs):
-        """Stage a parameter value item for insertion.
-
-        :raises SpineIntegrityError: if the insertion of the item violates an integrity constraint.
-
-        :returns:
-            - **new_item** -- The item successfully staged for insertion.
-
-        :rtype: :class:`~sqlalchemy.util.KeyedTuple`
-        """
-        sq = self.parameter_value_sq
-        ids, _ = self.add_parameter_values(kwargs, strict=True)
-        return self.query(sq).filter(sq.c.id.in_(ids)).one_or_none()

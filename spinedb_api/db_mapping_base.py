@@ -210,8 +210,8 @@ class DatabaseMappingBase:
             "parameter_definition": "parameter_definition_sq",
             "parameter_value": "parameter_value_sq",
             "metadata": "metadata_sq",
-            "entity_metadata": "ext_entity_metadata_sq",
-            "parameter_value_metadata": "ext_parameter_value_metadata_sq",
+            "entity_metadata": "entity_metadata_sq",
+            "parameter_value_metadata": "parameter_value_metadata_sq",
             "commit": "commit_sq",
         }
         self.ancestor_tablenames = {
@@ -2057,6 +2057,18 @@ class DatabaseMappingBase:
         for entry in cache.get("parameter_value_metadata", {}).values():
             usage_counts[entry.metadata_id] += 1
         return usage_counts
+
+    def check_items(self, tablename, *items, for_update=False):
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        checked_items, errors = [], []
+        for item in items:
+            checked_item, error = table_cache.check_item(item, for_update=for_update)
+            if error:
+                errors.append(error)
+            else:
+                checked_items.append(checked_item)
+        return checked_items, errors
 
     def __del__(self):
         try:

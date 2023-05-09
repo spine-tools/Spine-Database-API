@@ -128,11 +128,13 @@ class DatabaseMappingUpdateMixin:
             list(SpineIntegrityError): found violations
         """
         if check:
-            checked_items, intgr_error_log = self.check_items(tablename, *items, for_update=True, strict=strict)
+            checked_items, errors = self.check_items(tablename, *items, for_update=True)
         else:
-            checked_items, intgr_error_log = list(items), []
+            checked_items, errors = list(items), []
+        if errors and strict:
+            raise SpineDBAPIError(", ".join(errors))
         _ = self._update_items(tablename, *checked_items)
-        return checked_items, intgr_error_log
+        return checked_items, errors
 
     def _update_items(self, tablename, *items):
         """Updates items in cache without checking integrity."""
@@ -150,86 +152,44 @@ class DatabaseMappingUpdateMixin:
     def update_alternatives(self, *items, **kwargs):
         return self.update_items("alternative", *items, **kwargs)
 
-    def _update_alternatives(self, *items):
-        return self._update_items("alternative", *items)
-
     def update_scenarios(self, *items, **kwargs):
         return self.update_items("scenario", *items, **kwargs)
-
-    def _update_scenarios(self, *items):
-        return self._update_items("scenario", *items)
 
     def update_scenario_alternatives(self, *items, **kwargs):
         return self.update_items("scenario_alternative", *items, **kwargs)
 
-    def _update_scenario_alternatives(self, *items):
-        return self._update_items("scenario_alternative", *items)
-
     def update_entity_classes(self, *items, **kwargs):
         return self.update_items("entity_class", *items, **kwargs)
-
-    def _update_entity_classes(self, *items):
-        return self._update_items("entity_class", *items)
 
     def update_entities(self, *items, **kwargs):
         return self.update_items("entity", *items, **kwargs)
 
-    def _update_entities(self, *items):
-        return self._update_items("entity", *items)
-
     def update_object_classes(self, *items, **kwargs):
         return self.update_items("object_class", *items, **kwargs)
-
-    def _update_object_classes(self, *items):
-        return self._update_items("object_class", *items)
 
     def update_objects(self, *items, **kwargs):
         return self.update_items("object", *items, **kwargs)
 
-    def _update_objects(self, *items):
-        return self._update_items("object", *items)
-
     def update_wide_relationship_classes(self, *items, **kwargs):
         return self.update_items("relationship_class", *items, **kwargs)
-
-    def _update_wide_relationship_classes(self, *items):
-        return self._update_items("relationship_class", *items)
 
     def update_wide_relationships(self, *items, **kwargs):
         return self.update_items("relationship", *items, **kwargs)
 
-    def _update_wide_relationships(self, *items):
-        return self._update_items("relationship", *items)
-
     def update_parameter_definitions(self, *items, **kwargs):
         return self.update_items("parameter_definition", *items, **kwargs)
-
-    def _update_parameter_definitions(self, *items):
-        return self._update_items("parameter_definition", *items)
 
     def update_parameter_values(self, *items, **kwargs):
         return self.update_items("parameter_value", *items, **kwargs)
 
-    def _update_parameter_values(self, *items):
-        return self._update_items("parameter_value", *items)
-
     def update_parameter_value_lists(self, *items, **kwargs):
         return self.update_items("parameter_value_list", *items, **kwargs)
-
-    def _update_parameter_value_lists(self, *items):
-        return self._update_items("parameter_value_list", *items)
 
     def update_list_values(self, *items, **kwargs):
         return self.update_items("list_value", *items, **kwargs)
 
-    def _update_list_values(self, *items):
-        return self._update_items("list_value", *items)
-
     def update_metadata(self, *items, **kwargs):
         return self.update_items("metadata", *items, **kwargs)
-
-    def _update_metadata(self, *items):
-        return self._update_items("metadata", *items)
 
     def update_ext_entity_metadata(self, *items, check=True, strict=False):
         updated_items, errors = self._update_ext_item_metadata("entity_metadata", *items, check=check, strict=strict)

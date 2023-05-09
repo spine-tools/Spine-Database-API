@@ -32,18 +32,6 @@ from .helpers import (
     forward_sweep,
     Asterisk,
 )
-from .check_functions import (
-    check_alternative,
-    check_scenario,
-    check_scenario_alternative,
-    check_object_class,
-    check_object,
-    check_wide_relationship_class,
-    check_wide_relationship,
-    check_parameter_definition,
-    check_parameter_value,
-    check_parameter_value_list,
-)
 from .import_functions import (
     import_alternatives,
     import_data,
