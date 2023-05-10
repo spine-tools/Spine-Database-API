@@ -195,7 +195,7 @@ def _make_scenario_filtered_entity_sq(db_map, state):
     Returns:
         Alias: a subquery for entity filtered by selected scenario
     """
-    ext_entity_sq = (
+    wide_entity_sq = (
         db_map.query(
             state.original_entity_sq,
             func.row_number()
@@ -211,7 +211,7 @@ def _make_scenario_filtered_entity_sq(db_map, state):
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
     # TODO: Maybe we want to filter multi-dimensional entities involving filtered entities right here too?
-    return db_map.query(ext_entity_sq).filter_by(max_rank_row_number=1, is_active=True).subquery()
+    return db_map.query(wide_entity_sq).filter_by(max_rank_row_number=1, is_active=True).subquery()
 
 
 def _make_scenario_filtered_parameter_value_sq(db_map, state):

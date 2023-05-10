@@ -635,16 +635,16 @@ class EntityClassMapping(ExportMapping):
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(
-            db_map.ext_entity_class_sq.c.id.label("entity_class_id"),
-            db_map.ext_entity_class_sq.c.name.label("entity_class_name"),
-            db_map.ext_entity_class_sq.c.dimension_id_list.label("dimension_id_list"),
-            db_map.ext_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
+            db_map.wide_entity_class_sq.c.id.label("entity_class_id"),
+            db_map.wide_entity_class_sq.c.name.label("entity_class_name"),
+            db_map.wide_entity_class_sq.c.dimension_id_list.label("dimension_id_list"),
+            db_map.wide_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
         )
 
     def filter_query(self, db_map, query):
         if any(isinstance(m, (DimensionMapping, ElementMapping)) for m in self.flatten()):
-            return query.filter(db_map.ext_entity_class_sq.c.dimension_id_list != None)
-        return query.filter(db_map.ext_entity_class_sq.c.dimension_id_list == None)
+            return query.filter(db_map.wide_entity_class_sq.c.dimension_id_list != None)
+        return query.filter(db_map.wide_entity_class_sq.c.dimension_id_list == None)
 
     @staticmethod
     def name_field():
@@ -676,14 +676,16 @@ class EntityMapping(ExportMapping):
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(
-            db_map.ext_entity_sq.c.id.label("entity_id"),
-            db_map.ext_entity_sq.c.name.label("entity_name"),
-            db_map.ext_entity_sq.c.element_id_list,
-            db_map.ext_entity_sq.c.element_name_list,
+            db_map.wide_entity_sq.c.id.label("entity_id"),
+            db_map.wide_entity_sq.c.name.label("entity_name"),
+            db_map.wide_entity_sq.c.element_id_list,
+            db_map.wide_entity_sq.c.element_name_list,
         )
 
     def filter_query(self, db_map, query):
-        return query.outerjoin(db_map.ext_entity_sq, db_map.ext_entity_sq.c.class_id == db_map.ext_entity_class_sq.c.id)
+        return query.outerjoin(
+            db_map.wide_entity_sq, db_map.wide_entity_sq.c.class_id == db_map.wide_entity_class_sq.c.id
+        )
 
     @staticmethod
     def name_field():
@@ -721,7 +723,7 @@ class EntityGroupMapping(ExportMapping):
 
     def filter_query(self, db_map, query):
         return query.outerjoin(
-            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.ext_entity_class_sq.c.id
+            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.wide_entity_class_sq.c.id
         ).distinct()
 
     @staticmethod
@@ -747,11 +749,11 @@ class EntityGroupEntityMapping(ExportMapping):
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(
-            db_map.ext_entity_sq.c.id.label("entity_id"), db_map.ext_entity_sq.c.name.label("entity_name")
+            db_map.wide_entity_sq.c.id.label("entity_id"), db_map.wide_entity_sq.c.name.label("entity_name")
         )
 
     def filter_query(self, db_map, query):
-        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.ext_entity_sq.c.id)
+        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.wide_entity_sq.c.id)
 
     @staticmethod
     def name_field():
@@ -797,7 +799,7 @@ class DimensionHighlightingMapping(EntityClassMapping):
             position=self._highlight_dimension
         )
         conditions = (
-            and_(db_map.ext_entity_class_sq.c.id == x.entity_class_id, db_map.entity_class_sq.c.id == x.dimension_id)
+            and_(db_map.wide_entity_class_sq.c.id == x.entity_class_id, db_map.entity_class_sq.c.id == x.dimension_id)
             for x in highlighted_dimension_qry
         )
         return query.filter(or_(*conditions))
@@ -883,7 +885,7 @@ class ElementHighlightingMapping(EntityMapping):
             position=self.query_parents("highlight_dimension")
         )
         conditions = (
-            and_(db_map.ext_entity_sq.c.id == x.entity_id, db_map.entity_sq.c.id == x.element_id)
+            and_(db_map.wide_entity_sq.c.id == x.entity_id, db_map.entity_sq.c.id == x.element_id)
             for x in highlighted_element_qry
         )
         return query.filter(or_(*conditions))
@@ -950,7 +952,7 @@ class ParameterDefinitionMapping(ExportMapping):
     def filter_query(self, db_map, query):
         column_names = {c["name"] for c in query.column_descriptions}
         # "dimension_id" in column_names means a DimensionHighlightingMapping is acting
-        entity_class_sq = db_map.entity_class_sq if "dimension_id" in column_names else db_map.ext_entity_class_sq
+        entity_class_sq = db_map.entity_class_sq if "dimension_id" in column_names else db_map.wide_entity_class_sq
         return query.outerjoin(
             db_map.parameter_definition_sq,
             db_map.parameter_definition_sq.c.entity_class_id == entity_class_sq.c.id,
@@ -1127,7 +1129,7 @@ class ParameterValueMapping(ExportMapping):
         if not self._selects_value:
             return query
         column_names = {c["name"] for c in query.column_descriptions}
-        entity_sq = db_map.entity_sq if "element_id" in column_names else db_map.ext_entity_sq
+        entity_sq = db_map.entity_sq if "element_id" in column_names else db_map.wide_entity_sq
         return query.filter(
             and_(
                 db_map.parameter_value_sq.c.entity_id == entity_sq.c.id,

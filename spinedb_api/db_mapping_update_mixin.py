@@ -32,7 +32,7 @@ class DatabaseMappingUpdateMixin:
                 for k in self._get_primary_key(tablename_):
                     upd = upd.where(getattr(table.c, k) == bindparam(k))
                 upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items_to_update_[0].keys()})
-                self._checked_execute(upd, [{**item} for item in items_to_update_])
+                self.safe_execute(upd, [{**item} for item in items_to_update_])
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e

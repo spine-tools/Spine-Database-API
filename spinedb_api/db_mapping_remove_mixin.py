@@ -62,7 +62,7 @@ class DatabaseMappingRemoveMixin:
             table = self._metadata.tables[tablename]
             delete = table.delete().where(self.in_(getattr(table.c, id_field), ids))
             try:
-                self.executor.submit(self.connection.execute, delete).result()
+                self.safe_execute(delete)
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg) from e

@@ -151,6 +151,7 @@ def _create_import_alternative(db_map, state):
         db_map (DatabaseMappingBase): database the state applies to
         state (_ExecutionFilterState): a state bound to ``db_map``
     """
+    # FIXME
     execution_item = state.execution_item
     scenarios = state.scenarios
     timestamp = state.timestamp

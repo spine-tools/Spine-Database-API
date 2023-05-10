@@ -9,9 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.DatabaseMappingBase`.
-
-"""
+"""Provides :class:`.DatabaseMappingBase`."""
 # TODO: Finish docstrings
 import uuid
 import hashlib
@@ -21,11 +19,11 @@ import time
 from collections import Counter
 from types import MethodType
 from concurrent.futures import ThreadPoolExecutor
-from sqlalchemy import create_engine, case, MetaData, Table, Column, false, and_, func, inspect, cast, Integer, or_
-from sqlalchemy.sql.expression import label, Alias
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, inspect, case, func, cast, false, and_, or_
+from sqlalchemy.sql.expression import label, Alias, select
 from sqlalchemy.engine.url import make_url, URL
-from sqlalchemy.orm import Session, aliased
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import aliased
+from sqlalchemy.exc import DatabaseError, ProgrammingError
 from sqlalchemy.event import listen
 from sqlalchemy.pool import NullPool
 from alembic.migration import MigrationContext
@@ -46,6 +44,7 @@ from .helpers import (
 from .filters.tools import pop_filter_configs
 from .spine_db_client import get_db_url_from_server
 from .db_cache import DBCache
+from .query import Query
 
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -125,7 +124,6 @@ class DatabaseMappingBase:
         listen(self.engine, 'close', self._receive_engine_close)
         self.executor = self._make_executor()
         self.connection = self.executor.submit(self.engine.connect).result()
-        self.session = Session(self.connection, **self._session_kwargs)
         if self._memory:
             self.executor.submit(copy_database_bind, self.connection, self._original_engine)
         self._metadata = MetaData(self.connection)
@@ -155,8 +153,8 @@ class DatabaseMappingBase:
         self._parameter_value_metadata_sq = None
         self._entity_metadata_sq = None
         # Special convenience subqueries that join two or more tables
-        self._ext_entity_class_sq = None
-        self._ext_entity_sq = None
+        self._wide_entity_class_sq = None
+        self._wide_entity_sq = None
         self._ext_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
         self._ord_list_value_sq = None
@@ -197,23 +195,6 @@ class DatabaseMappingBase:
             "entity_alternative": ("entity_id", "alternative_id"),
             "entity_class_dimension": ("entity_class_id", "position"),
         }
-        # Subqueries used to populate cache
-        self.cache_sqs = {
-            "entity_class": "ext_entity_class_sq",
-            "entity": "ext_entity_sq",
-            "parameter_value_list": "parameter_value_list_sq",
-            "list_value": "list_value_sq",
-            "alternative": "alternative_sq",
-            "scenario": "scenario_sq",
-            "scenario_alternative": "scenario_alternative_sq",
-            "entity_group": "entity_group_sq",
-            "parameter_definition": "parameter_definition_sq",
-            "parameter_value": "parameter_value_sq",
-            "metadata": "metadata_sq",
-            "entity_metadata": "entity_metadata_sq",
-            "parameter_value_metadata": "parameter_value_metadata_sq",
-            "commit": "commit_sq",
-        }
         self.ancestor_tablenames = {
             "scenario_alternative": ("scenario", "alternative"),
             "entity": ("entity_class",),
@@ -239,7 +220,7 @@ class DatabaseMappingBase:
             "list_value": ("parameter_value_list",),
         }
         self.descendant_tablenames = {
-            tablename: set(self._descendant_tablenames(tablename)) for tablename in self.cache_sqs
+            tablename: set(self._descendant_tablenames(tablename)) for tablename in self.ITEM_TYPES
         }
 
     def __enter__(self):
@@ -422,7 +403,7 @@ class DatabaseMappingBase:
             prefixes=['TEMPORARY'],
         )
         self.executor.submit(in_value.create, self.connection, checkfirst=True).result()
-        self._checked_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
+        self.safe_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
         return column.in_(self.query(in_value.c.value))
 
     def _get_table_to_sq_attr(self):
@@ -488,7 +469,7 @@ class DatabaseMappingBase:
                 db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
             ).group_by(db_map.object_class_sq.c.name).all()
         """
-        return self.session.query(*args, **kwargs)
+        return Query(self, select(args))
 
     def _subquery(self, tablename):
         """A subquery of the form:
@@ -504,7 +485,7 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         table = self._metadata.tables[tablename]
-        return self.query(table).subquery()
+        return self.query(table).subquery(tablename + "_sq")
 
     @property
     def alternative_sq(self):
@@ -546,18 +527,6 @@ class DatabaseMappingBase:
         return self._entity_class_dimension_sq
 
     @property
-    def entity_element_sq(self):
-        if self._entity_element_sq is None:
-            self._entity_element_sq = self._subquery("entity_element")
-        return self._entity_element_sq
-
-    @property
-    def entity_alternative_sq(self):
-        if self._entity_alternative_sq is None:
-            self._entity_alternative_sq = self._subquery("entity_alternative")
-        return self._entity_alternative_sq
-
-    @property
     def entity_sq(self):
         """A subquery of the form:
 
@@ -573,7 +542,19 @@ class DatabaseMappingBase:
         return self._entity_sq
 
     @property
-    def ext_entity_class_sq(self):
+    def entity_element_sq(self):
+        if self._entity_element_sq is None:
+            self._entity_element_sq = self._subquery("entity_element")
+        return self._entity_element_sq
+
+    @property
+    def entity_alternative_sq(self):
+        if self._entity_alternative_sq is None:
+            self._entity_alternative_sq = self._subquery("entity_alternative")
+        return self._entity_alternative_sq
+
+    @property
+    def wide_entity_class_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
@@ -591,7 +572,7 @@ class DatabaseMappingBase:
         Returns:
             sqlalchemy.sql.expression.Alias
         """
-        if self._ext_entity_class_sq is None:
+        if self._wide_entity_class_sq is None:
             entity_class_dimension_sq = (
                 self.query(
                     self.entity_class_dimension_sq.c.entity_class_id,
@@ -600,7 +581,7 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.name.label("dimension_name"),
                 )
                 .filter(self.entity_class_dimension_sq.c.dimension_id == self.entity_class_sq.c.id)
-                .subquery()
+                .subquery("entity_class_dimension_sq")
             )
             ecd_sq = (
                 self.query(
@@ -619,9 +600,9 @@ class DatabaseMappingBase:
                     self.entity_class_sq.c.id == entity_class_dimension_sq.c.entity_class_id,
                 )
                 .order_by(self.entity_class_sq.c.id, entity_class_dimension_sq.c.position)
-                .subquery()
+                .subquery("ext_entity_class_sq")
             )
-            self._ext_entity_class_sq = (
+            self._wide_entity_class_sq = (
                 self.query(
                     ecd_sq.c.id,
                     ecd_sq.c.name,
@@ -640,12 +621,12 @@ class DatabaseMappingBase:
                     ecd_sq.c.display_icon,
                     ecd_sq.c.hidden,
                 )
-                .subquery()
+                .subquery("wide_entity_class_sq")
             )
-        return self._ext_entity_class_sq
+        return self._wide_entity_class_sq
 
     @property
-    def ext_entity_sq(self):
+    def wide_entity_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
@@ -663,41 +644,41 @@ class DatabaseMappingBase:
         Returns:
             sqlalchemy.sql.expression.Alias
         """
-        if self._ext_entity_sq is None:
+        if self._wide_entity_sq is None:
             entity_element_sq = (
                 self.query(self.entity_element_sq, self.entity_sq.c.name.label("element_name"))
                 .filter(self.entity_element_sq.c.element_id == self.entity_sq.c.id)
-                .subquery()
+                .subquery("entity_element_sq")
             )
-            entity_sq = (
+            ext_entity_sq = (
                 self.query(self.entity_sq, entity_element_sq)
                 .outerjoin(
                     entity_element_sq,
                     self.entity_sq.c.id == entity_element_sq.c.entity_id,
                 )
                 .order_by(self.entity_sq.c.id, entity_element_sq.c.position)
-                .subquery()
+                .subquery("ext_entity_sq")
             )
-            self._ext_entity_sq = (
+            self._wide_entity_sq = (
                 self.query(
-                    entity_sq.c.id,
-                    entity_sq.c.class_id,
-                    entity_sq.c.name,
-                    entity_sq.c.description,
-                    entity_sq.c.commit_id,
-                    group_concat(entity_sq.c.element_id, entity_sq.c.position).label("element_id_list"),
-                    group_concat(entity_sq.c.element_name, entity_sq.c.position).label("element_name_list"),
+                    ext_entity_sq.c.id,
+                    ext_entity_sq.c.class_id,
+                    ext_entity_sq.c.name,
+                    ext_entity_sq.c.description,
+                    ext_entity_sq.c.commit_id,
+                    group_concat(ext_entity_sq.c.element_id, ext_entity_sq.c.position).label("element_id_list"),
+                    group_concat(ext_entity_sq.c.element_name, ext_entity_sq.c.position).label("element_name_list"),
                 )
                 .group_by(
-                    entity_sq.c.id,
-                    entity_sq.c.class_id,
-                    entity_sq.c.name,
-                    entity_sq.c.description,
-                    entity_sq.c.commit_id,
+                    ext_entity_sq.c.id,
+                    ext_entity_sq.c.class_id,
+                    ext_entity_sq.c.name,
+                    ext_entity_sq.c.description,
+                    ext_entity_sq.c.commit_id,
                 )
-                .subquery()
+                .subquery("wide_entity_sq")
             )
-        return self._ext_entity_sq
+        return self._wide_entity_sq
 
     @property
     def object_class_sq(self):
@@ -713,14 +694,14 @@ class DatabaseMappingBase:
         if self._object_class_sq is None:
             self._object_class_sq = (
                 self.query(
-                    self.ext_entity_class_sq.c.id.label("id"),
-                    self.ext_entity_class_sq.c.name.label("name"),
-                    self.ext_entity_class_sq.c.description.label("description"),
-                    self.ext_entity_class_sq.c.display_order.label("display_order"),
-                    self.ext_entity_class_sq.c.display_icon.label("display_icon"),
-                    self.ext_entity_class_sq.c.hidden.label("hidden"),
+                    self.wide_entity_class_sq.c.id.label("id"),
+                    self.wide_entity_class_sq.c.name.label("name"),
+                    self.wide_entity_class_sq.c.description.label("description"),
+                    self.wide_entity_class_sq.c.display_order.label("display_order"),
+                    self.wide_entity_class_sq.c.display_icon.label("display_icon"),
+                    self.wide_entity_class_sq.c.hidden.label("hidden"),
                 )
-                .filter(self.ext_entity_class_sq.c.dimension_id_list == None)
+                .filter(self.wide_entity_class_sq.c.dimension_id_list == None)
                 .subquery()
             )
         return self._object_class_sq
@@ -739,13 +720,13 @@ class DatabaseMappingBase:
         if self._object_sq is None:
             self._object_sq = (
                 self.query(
-                    self.ext_entity_sq.c.id.label("id"),
-                    self.ext_entity_sq.c.class_id.label("class_id"),
-                    self.ext_entity_sq.c.name.label("name"),
-                    self.ext_entity_sq.c.description.label("description"),
-                    self.ext_entity_sq.c.commit_id.label("commit_id"),
+                    self.wide_entity_sq.c.id.label("id"),
+                    self.wide_entity_sq.c.class_id.label("class_id"),
+                    self.wide_entity_sq.c.name.label("name"),
+                    self.wide_entity_sq.c.description.label("description"),
+                    self.wide_entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.ext_entity_sq.c.element_id_list == None)
+                .filter(self.wide_entity_sq.c.element_id_list == None)
                 .subquery()
             )
         return self._object_sq
@@ -768,12 +749,12 @@ class DatabaseMappingBase:
                     ent_cls_dim_sq.c.entity_class_id.label("id"),
                     ent_cls_dim_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
                     ent_cls_dim_sq.c.dimension_id.label("object_class_id"),
-                    self.ext_entity_class_sq.c.name.label("name"),
-                    self.ext_entity_class_sq.c.description.label("description"),
-                    self.ext_entity_class_sq.c.display_icon.label("display_icon"),
-                    self.ext_entity_class_sq.c.hidden.label("hidden"),
+                    self.wide_entity_class_sq.c.name.label("name"),
+                    self.wide_entity_class_sq.c.description.label("description"),
+                    self.wide_entity_class_sq.c.display_icon.label("display_icon"),
+                    self.wide_entity_class_sq.c.hidden.label("hidden"),
                 )
-                .filter(self.ext_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
+                .filter(self.wide_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
                 .subquery()
             )
         return self._relationship_class_sq
@@ -797,10 +778,10 @@ class DatabaseMappingBase:
                     ent_el_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
                     ent_el_sq.c.element_id.label("object_id"),
                     ent_el_sq.c.entity_class_id.label("class_id"),
-                    self.ext_entity_sq.c.name.label("name"),
-                    self.ext_entity_sq.c.commit_id.label("commit_id"),
+                    self.wide_entity_sq.c.name.label("name"),
+                    self.wide_entity_sq.c.commit_id.label("commit_id"),
                 )
-                .filter(self.ext_entity_sq.c.id == ent_el_sq.c.entity_id)
+                .filter(self.wide_entity_sq.c.id == ent_el_sq.c.entity_id)
                 .subquery()
             )
         return self._relationship_sq
@@ -817,20 +798,7 @@ class DatabaseMappingBase:
             sqlalchemy.sql.expression.Alias
         """
         if self._entity_group_sq is None:
-            group_entity = aliased(self.entity_sq)
-            member_entity = aliased(self.entity_sq)
-            entity_group_sq = self._subquery("entity_group")
-            self._entity_group_sq = (
-                self.query(
-                    entity_group_sq.c.id,
-                    entity_group_sq.c.entity_class_id,
-                    group_entity.c.id.label("entity_id"),
-                    member_entity.c.id.label("member_id"),
-                )
-                .join(group_entity, group_entity.c.id == entity_group_sq.c.entity_id)
-                .join(member_entity, member_entity.c.id == entity_group_sq.c.member_id)
-                .subquery()
-            )
+            self._entity_group_sq = self._subquery("entity_group")
         return self._entity_group_sq
 
     @property
@@ -1315,13 +1283,13 @@ class DatabaseMappingBase:
                     self.entity_group_sq.c.entity_class_id.label("class_id"),
                     self.entity_group_sq.c.entity_id.label("group_id"),
                     self.entity_group_sq.c.member_id.label("member_id"),
-                    self.ext_entity_class_sq.c.name.label("class_name"),
+                    self.wide_entity_class_sq.c.name.label("class_name"),
                     group_entity.c.name.label("group_name"),
                     member_entity.c.name.label("member_name"),
                     label("object_class_id", self._object_class_id()),
                     label("relationship_class_id", self._relationship_class_id()),
                 )
-                .filter(self.entity_group_sq.c.entity_class_id == self.ext_entity_class_sq.c.id)
+                .filter(self.entity_group_sq.c.entity_class_id == self.wide_entity_class_sq.c.id)
                 .join(group_entity, self.entity_group_sq.c.entity_id == group_entity.c.id)
                 .join(member_entity, self.entity_group_sq.c.member_id == member_entity.c.id)
                 .subquery()
@@ -1341,7 +1309,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.entity_class_id,
                     self.parameter_definition_sq.c.object_class_id,
                     self.parameter_definition_sq.c.relationship_class_id,
-                    self.ext_entity_class_sq.c.name.label("entity_class_name"),
+                    self.wide_entity_class_sq.c.name.label("entity_class_name"),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
                     label("object_class_id_list", self._object_class_id_list()),
@@ -1356,8 +1324,8 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.commit_id,
                 )
                 .join(
-                    self.ext_entity_class_sq,
-                    self.ext_entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id,
+                    self.wide_entity_class_sq,
+                    self.wide_entity_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id,
                 )
                 .outerjoin(
                     self.parameter_value_list_sq,
@@ -1365,7 +1333,7 @@ class DatabaseMappingBase:
                 )
                 .outerjoin(
                     self.wide_relationship_class_sq,
-                    self.wide_relationship_class_sq.c.id == self.ext_entity_class_sq.c.id,
+                    self.wide_relationship_class_sq.c.id == self.wide_entity_class_sq.c.id,
                 )
                 .subquery()
             )
@@ -1523,13 +1491,13 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.entity_class_id,
                     self.parameter_definition_sq.c.object_class_id,
                     self.parameter_definition_sq.c.relationship_class_id,
-                    self.ext_entity_class_sq.c.name.label("entity_class_name"),
+                    self.wide_entity_class_sq.c.name.label("entity_class_name"),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
                     label("object_class_id_list", self._object_class_id_list()),
                     label("object_class_name_list", self._object_class_name_list()),
                     self.parameter_value_sq.c.entity_id,
-                    self.ext_entity_sq.c.name.label("entity_name"),
+                    self.wide_entity_sq.c.name.label("entity_name"),
                     self.parameter_value_sq.c.object_id,
                     self.parameter_value_sq.c.relationship_id,
                     label("object_name", self._object_name()),
@@ -1548,17 +1516,17 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq,
                     self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id,
                 )
-                .join(self.ext_entity_sq, self.parameter_value_sq.c.entity_id == self.ext_entity_sq.c.id)
+                .join(self.wide_entity_sq, self.parameter_value_sq.c.entity_id == self.wide_entity_sq.c.id)
                 .join(
-                    self.ext_entity_class_sq,
-                    self.parameter_definition_sq.c.entity_class_id == self.ext_entity_class_sq.c.id,
+                    self.wide_entity_class_sq,
+                    self.parameter_definition_sq.c.entity_class_id == self.wide_entity_class_sq.c.id,
                 )
                 .join(self.alternative_sq, self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .outerjoin(
                     self.wide_relationship_class_sq,
-                    self.wide_relationship_class_sq.c.id == self.ext_entity_class_sq.c.id,
+                    self.wide_relationship_class_sq.c.id == self.wide_entity_class_sq.c.id,
                 )
-                .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.ext_entity_sq.c.id)
+                .outerjoin(self.wide_relationship_sq, self.wide_relationship_sq.c.id == self.wide_entity_sq.c.id)
                 # object_id_list might be None when objects have been filtered out
                 .filter(
                     or_(
@@ -1688,15 +1656,6 @@ class DatabaseMappingBase:
             )
         return self._ext_entity_metadata_sq
 
-    def _make_entity_sq(self):
-        """
-        Creates a subquery for entities.
-
-        Returns:
-            Alias: an entity subquery
-        """
-        return self._subquery("entity")
-
     def _make_entity_class_sq(self):
         """
         Creates a subquery for entity classes.
@@ -1705,6 +1664,15 @@ class DatabaseMappingBase:
             Alias: an entity class subquery
         """
         return self._subquery("entity_class")
+
+    def _make_entity_sq(self):
+        """
+        Creates a subquery for entities.
+
+        Returns:
+            Alias: an entity subquery
+        """
+        return self._subquery("entity")
 
     def _make_parameter_definition_sq(self):
         """
@@ -1739,9 +1707,9 @@ class DatabaseMappingBase:
                 par_def_sq.c.commit_id.label("commit_id"),
                 par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
             )
-            .join(self.ext_entity_class_sq, self.ext_entity_class_sq.c.id == par_def_sq.c.entity_class_id)
+            .join(self.wide_entity_class_sq, self.wide_entity_class_sq.c.id == par_def_sq.c.entity_class_id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
-            .subquery()
+            .subquery("clean_parameter_definition_sq")
         )
 
     def _make_parameter_value_sq(self):
@@ -1771,10 +1739,10 @@ class DatabaseMappingBase:
                 par_val_sq.c.commit_id.label("commit_id"),
                 par_val_sq.c.alternative_id,
             )
-            .join(self.ext_entity_sq, self.ext_entity_sq.c.id == par_val_sq.c.entity_id)
-            .join(self.ext_entity_class_sq, self.ext_entity_class_sq.c.id == par_val_sq.c.entity_class_id)
+            .join(self.wide_entity_sq, self.wide_entity_sq.c.id == par_val_sq.c.entity_id)
+            .join(self.wide_entity_class_sq, self.wide_entity_class_sq.c.id == par_val_sq.c.entity_class_id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
-            .subquery()
+            .subquery("clean_parameter_value_sq")
         )
 
     def _make_alternative_sq(self):
@@ -1830,21 +1798,15 @@ class DatabaseMappingBase:
             ids = self._add_alternatives({"name": self._import_alternative_name})
             self._import_alternative_id = next(iter(ids))
 
-    def override_entity_sq_maker(self, method):
+    def override_create_import_alternative(self, method):
         """
-        Overrides the function that creates the ``entity_sq`` property.
+        Overrides the ``_create_import_alternative`` function.
 
         Args:
-            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
-                returns entity subquery as an :class:`Alias` object
+            method (Callable)
         """
-        self._make_entity_sq = MethodType(method, self)
-        self._clear_subqueries("entity")
-
-    def restore_entity_sq_maker(self):
-        """Restores the original function that creates the ``entity_sq`` property."""
-        self._make_entity_sq = MethodType(DatabaseMappingBase._make_entity_sq, self)
-        self._clear_subqueries("entity")
+        self._create_import_alternative = MethodType(method, self)
+        self._import_alternative_id = None
 
     def override_entity_class_sq_maker(self, method):
         """
@@ -1857,10 +1819,16 @@ class DatabaseMappingBase:
         self._make_entity_class_sq = MethodType(method, self)
         self._clear_subqueries("entity_class")
 
-    def restore_entity_class_sq_maker(self):
-        """Restores the original function that creates the ``entity_class_sq`` property."""
-        self._make_entity_class_sq = MethodType(DatabaseMappingBase._make_entity_class_sq, self)
-        self._clear_subqueries("entity_class")
+    def override_entity_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns entity subquery as an :class:`Alias` object
+        """
+        self._make_entity_sq = MethodType(method, self)
+        self._clear_subqueries("entity")
 
     def override_parameter_definition_sq_maker(self, method):
         """
@@ -1871,11 +1839,6 @@ class DatabaseMappingBase:
                 returns parameter definition subquery as an :class:`Alias` object
         """
         self._make_parameter_definition_sq = MethodType(method, self)
-        self._clear_subqueries("parameter_definition")
-
-    def restore_parameter_definition_sq_maker(self):
-        """Restores the original function that creates the ``parameter_definition_sq`` property."""
-        self._make_parameter_definition_sq = MethodType(DatabaseMappingBase._make_parameter_definition_sq, self)
         self._clear_subqueries("parameter_definition")
 
     def override_parameter_value_sq_maker(self, method):
@@ -1889,11 +1852,6 @@ class DatabaseMappingBase:
         self._make_parameter_value_sq = MethodType(method, self)
         self._clear_subqueries("parameter_value")
 
-    def restore_parameter_value_sq_maker(self):
-        """Restores the original function that creates the ``parameter_value_sq`` property."""
-        self._make_parameter_value_sq = MethodType(DatabaseMappingBase._make_parameter_value_sq, self)
-        self._clear_subqueries("parameter_value")
-
     def override_alternative_sq_maker(self, method):
         """
         Overrides the function that creates the ``alternative_sq`` property.
@@ -1903,11 +1861,6 @@ class DatabaseMappingBase:
                 returns alternative subquery as an :class:`Alias` object
         """
         self._make_alternative_sq = MethodType(method, self)
-        self._clear_subqueries("alternative")
-
-    def restore_alternative_sq_maker(self):
-        """Restores the original function that creates the ``alternative_sq`` property."""
-        self._make_alternative_sq = MethodType(DatabaseMappingBase._make_alternative_sq, self)
         self._clear_subqueries("alternative")
 
     def override_scenario_sq_maker(self, method):
@@ -1921,11 +1874,6 @@ class DatabaseMappingBase:
         self._make_scenario_sq = MethodType(method, self)
         self._clear_subqueries("scenario")
 
-    def restore_scenario_sq_maker(self):
-        """Restores the original function that creates the ``scenario_sq`` property."""
-        self._make_scenario_sq = MethodType(DatabaseMappingBase._make_scenario_sq, self)
-        self._clear_subqueries("scenario")
-
     def override_scenario_alternative_sq_maker(self, method):
         """
         Overrides the function that creates the ``scenario_alternative_sq`` property.
@@ -1937,25 +1885,47 @@ class DatabaseMappingBase:
         self._make_scenario_alternative_sq = MethodType(method, self)
         self._clear_subqueries("scenario_alternative")
 
+    def restore_entity_class_sq_maker(self):
+        """Restores the original function that creates the ``entity_class_sq`` property."""
+        self._make_entity_class_sq = MethodType(DatabaseMappingBase._make_entity_class_sq, self)
+        self._clear_subqueries("entity_class")
+
+    def restore_entity_sq_maker(self):
+        """Restores the original function that creates the ``entity_sq`` property."""
+        self._make_entity_sq = MethodType(DatabaseMappingBase._make_entity_sq, self)
+        self._clear_subqueries("entity")
+
+    def restore_parameter_definition_sq_maker(self):
+        """Restores the original function that creates the ``parameter_definition_sq`` property."""
+        self._make_parameter_definition_sq = MethodType(DatabaseMappingBase._make_parameter_definition_sq, self)
+        self._clear_subqueries("parameter_definition")
+
+    def restore_parameter_value_sq_maker(self):
+        """Restores the original function that creates the ``parameter_value_sq`` property."""
+        self._make_parameter_value_sq = MethodType(DatabaseMappingBase._make_parameter_value_sq, self)
+        self._clear_subqueries("parameter_value")
+
+    def restore_alternative_sq_maker(self):
+        """Restores the original function that creates the ``alternative_sq`` property."""
+        self._make_alternative_sq = MethodType(DatabaseMappingBase._make_alternative_sq, self)
+        self._clear_subqueries("alternative")
+
+    def restore_scenario_sq_maker(self):
+        """Restores the original function that creates the ``scenario_sq`` property."""
+        self._make_scenario_sq = MethodType(DatabaseMappingBase._make_scenario_sq, self)
+        self._clear_subqueries("scenario")
+
     def restore_scenario_alternative_sq_maker(self):
         """Restores the original function that creates the ``scenario_alternative_sq`` property."""
         self._make_scenario_alternative_sq = MethodType(DatabaseMappingBase._make_scenario_alternative_sq, self)
         self._clear_subqueries("scenario_alternative")
 
-    def override_create_import_alternative(self, method):
-        """
-        Overrides the ``_create_import_alternative`` function.
-
-        Args:
-            method (Callable)
-        """
-        self._create_import_alternative = MethodType(method, self)
-        self._import_alternative_id = None
-
-    def _checked_execute(self, stmt, items):
-        if not items:
-            return
-        return self.executor.submit(self.connection.execute, stmt, items).result()
+    def safe_execute(self, *args):
+        # We try to execute directly. If we are in the wrong thread this will raise ProgrammingError.
+        try:
+            return self.connection.execute(*args)
+        except ProgrammingError:
+            return self.executor.submit(self.connection.execute, *args).result()
 
     def _get_primary_key(self, tablename):
         pk = self.composite_pks.get(tablename)
@@ -1984,36 +1954,40 @@ class DatabaseMappingBase:
             }
         if force_tablenames:
             tablenames |= force_tablenames
-        for tablename in tablenames & self.cache_sqs.keys():
+        for tablename in tablenames & set(self.ITEM_TYPES):
             self.cache.fetch_all(tablename)
 
     def _object_class_id(self):
-        return case([(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.id)], else_=None)
+        return case(
+            [(self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.id)], else_=None
+        )
 
     def _relationship_class_id(self):
-        return case([(self.ext_entity_class_sq.c.dimension_id_list != None, self.ext_entity_class_sq.c.id)], else_=None)
+        return case(
+            [(self.wide_entity_class_sq.c.dimension_id_list != None, self.wide_entity_class_sq.c.id)], else_=None
+        )
 
     def _object_id(self):
-        return case([(self.ext_entity_sq.c.element_id_list == None, self.ext_entity_sq.c.id)], else_=None)
+        return case([(self.wide_entity_sq.c.element_id_list == None, self.wide_entity_sq.c.id)], else_=None)
 
     def _relationship_id(self):
-        return case([(self.ext_entity_sq.c.element_id_list != None, self.ext_entity_sq.c.id)], else_=None)
+        return case([(self.wide_entity_sq.c.element_id_list != None, self.wide_entity_sq.c.id)], else_=None)
 
     def _object_class_name(self):
         return case(
-            [(self.ext_entity_class_sq.c.dimension_id_list == None, self.ext_entity_class_sq.c.name)], else_=None
+            [(self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.name)], else_=None
         )
 
     def _relationship_class_name(self):
         return case(
-            [(self.ext_entity_class_sq.c.dimension_id_list != None, self.ext_entity_class_sq.c.name)], else_=None
+            [(self.wide_entity_class_sq.c.dimension_id_list != None, self.wide_entity_class_sq.c.name)], else_=None
         )
 
     def _object_class_id_list(self):
         return case(
             [
                 (
-                    self.ext_entity_class_sq.c.dimension_id_list != None,
+                    self.wide_entity_class_sq.c.dimension_id_list != None,
                     self.wide_relationship_class_sq.c.object_class_id_list,
                 )
             ],
@@ -2024,7 +1998,7 @@ class DatabaseMappingBase:
         return case(
             [
                 (
-                    self.ext_entity_class_sq.c.dimension_id_list != None,
+                    self.wide_entity_class_sq.c.dimension_id_list != None,
                     self.wide_relationship_class_sq.c.object_class_name_list,
                 )
             ],
@@ -2032,16 +2006,16 @@ class DatabaseMappingBase:
         )
 
     def _object_name(self):
-        return case([(self.ext_entity_sq.c.element_id_list == None, self.ext_entity_sq.c.name)], else_=None)
+        return case([(self.wide_entity_sq.c.element_id_list == None, self.wide_entity_sq.c.name)], else_=None)
 
     def _object_id_list(self):
         return case(
-            [(self.ext_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_id_list)], else_=None
+            [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_id_list)], else_=None
         )
 
     def _object_name_list(self):
         return case(
-            [(self.ext_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
+            [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
 
     def _metadata_usage_counts(self):

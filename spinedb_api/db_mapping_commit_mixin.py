@@ -30,12 +30,6 @@ class DatabaseMappingCommitMixin:
         # FIXME
         return True
 
-    def _get_sqlite_lock(self):
-        """Commits the session's natural transaction and begins a new locking one."""
-        if self.sa_url.drivername == "sqlite":
-            self.session.commit()
-            self.session.execute("BEGIN IMMEDIATE")
-
     def _make_commit_id(self):
         if self._commit_id is None:
             with self.engine.begin() as connection:
@@ -66,7 +60,6 @@ class DatabaseMappingCommitMixin:
         for tablename, items in to_update.items():
             self._do_update_items(tablename, *items)
         self._do_remove_items(**to_remove)
-        self.executor.submit(self.session.commit)
         self._commit_id = None
         if self._memory:
             self._memory_dirty = True
@@ -74,6 +67,5 @@ class DatabaseMappingCommitMixin:
     def rollback_session(self):
         if not self.has_pending_changes():
             raise SpineDBAPIError("Nothing to rollback.")
-        self.executor.submit(self.session.rollback)
         self.cache.reset_queries()
         self._commit_id = None
