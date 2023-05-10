@@ -72,15 +72,30 @@ class DBCache(dict):
 
     def _get_next_chunk(self, item_type):
         try:
-            sq_name = self._db_map.cache_sqs[item_type]
+            sq_name = {
+                "entity_class": "wide_entity_class_sq",
+                "entity": "wide_entity_sq",
+                "parameter_value_list": "parameter_value_list_sq",
+                "list_value": "list_value_sq",
+                "alternative": "alternative_sq",
+                "scenario": "scenario_sq",
+                "scenario_alternative": "scenario_alternative_sq",
+                "entity_group": "entity_group_sq",
+                "parameter_definition": "parameter_definition_sq",
+                "parameter_value": "parameter_value_sq",
+                "metadata": "metadata_sq",
+                "entity_metadata": "entity_metadata_sq",
+                "parameter_value_metadata": "parameter_value_metadata_sq",
+                "commit": "commit_sq",
+            }[item_type]
             qry = self._db_map.query(getattr(self._db_map, sq_name))
         except KeyError:
             return []
         if not self._chunk_size:
             self._fetched_item_types.add(item_type)
-            return [x._asdict() for x in qry.yield_per(1000).enable_eagerloads(False)]
+            return qry.all()
         offset = self._offsets.setdefault(item_type, 0)
-        chunk = [x._asdict() for x in qry.limit(self._chunk_size).offset(offset)]
+        chunk = qry.limit(self._chunk_size).offset(offset).all()
         self._offsets[item_type] += len(chunk)
         return chunk
 
@@ -116,11 +131,7 @@ class DBCache(dict):
     def fetch_more(self, item_type):
         if item_type in self._fetched_item_types:
             return False
-        # We try to advance the query directly. If we are in the wrong thread this will raise ProgrammingError.
-        try:
-            return bool(self.do_advance_query(item_type))
-        except ProgrammingError:
-            return bool(self.advance_query(item_type).result())
+        return bool(self.do_advance_query(item_type))
 
     def fetch_all(self, item_type):
         while self.fetch_more(item_type):
