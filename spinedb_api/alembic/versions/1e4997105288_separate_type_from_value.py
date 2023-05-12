@@ -19,7 +19,7 @@ down_revision = 'fbb540efbf15'
 branch_labels = None
 depends_on = None
 
-LONGTEXT_LENGTH = 2 ** 32 - 1
+LONGTEXT_LENGTH = 2**32 - 1
 
 
 def upgrade():
