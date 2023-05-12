@@ -158,13 +158,11 @@ class CSVConnector(SourceConnection):
             yield from csv_reader
 
     def get_data_iterator(self, table, options, max_rows=-1):
-        """Creates an iterator for the file in self.filename
+        """Creates an iterator for the file in self.filename.
 
         Arguments:
             table (string): ignored, used in abstract IOWorker class
             options (dict): dict with options
-
-        Keyword Arguments:
             max_rows (int): how many rows of data to read, if -1 read all rows (default: {-1})
 
         Returns:

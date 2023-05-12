@@ -129,7 +129,7 @@ class GraphLayoutGenerator:
         heavy_pos = arr(heavy_pos_list)
         if heavy_ind.any():
             layout[heavy_ind, :] = heavy_pos
-        weights = matrix ** self.weight_exp  # bus-pair weights (lower for distant buses)
+        weights = matrix**self.weight_exp  # bus-pair weights (lower for distant buses)
         maxstep = 1 / np.min(weights[mask])
         minstep = 1 / np.max(weights[mask])
         lambda_ = np.log(minstep / maxstep) / (self.max_iters - 1)  # exponential decay of allowed adjustment

@@ -13,7 +13,10 @@
 Contains unit tests for JSONConnector.
 
 """
+import json
+from pathlib import Path
 import pickle
+from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api.spine_io.importers.json_reader import JSONConnector
 
@@ -23,6 +26,18 @@ class TestJSONConnector(unittest.TestCase):
         reader = JSONConnector(None)
         pickled = pickle.dumps(reader)
         self.assertTrue(pickled)
+
+    def test_file_iterator_works_with_empty_options(self):
+        reader = JSONConnector(None)
+        data = {"a": 1, "b": {"c": 2}}
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "test file.json"
+            with open(file_path, "w") as out_file:
+                json.dump(data, out_file)
+            reader.connect_to_source(str(file_path))
+            rows = list(reader.file_iterator("data", {}))
+            reader.disconnect()
+        self.assertEqual(rows, [["a", 1], ["b", "c", 2]])
 
 
 if __name__ == '__main__':
