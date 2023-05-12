@@ -36,9 +36,7 @@ from .export_mapping import (
     Position,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
-    RelationshipClassObjectHighlightingMapping,
     RelationshipMapping,
-    RelationshipObjectHighlightingMapping,
     RelationshipObjectMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
@@ -321,7 +319,7 @@ def relationship_object_parameter_default_value_export(
     """
     root_mapping = unflatten(
         [
-            RelationshipClassObjectHighlightingMapping(
+            RelationshipClassMapping(
                 relationship_class_position, highlight_dimension=highlight_dimension
             ),
             ParameterDefinitionMapping(definition_position),
@@ -372,7 +370,7 @@ def relationship_object_parameter_export(
         object_class_positions = list()
     if object_positions is None:
         object_positions = list()
-    relationship_class = RelationshipClassObjectHighlightingMapping(
+    relationship_class = RelationshipClassMapping(
         relationship_class_position, highlight_dimension=highlight_dimension
     )
     object_or_relationship_class = _generate_dimensions(
@@ -382,7 +380,7 @@ def relationship_object_parameter_export(
     value_list.set_ignorable(True)
     definition = ParameterDefinitionMapping(definition_position)
     object_or_relationship_class.child = definition
-    relationship = RelationshipObjectHighlightingMapping(relationship_position)
+    relationship = RelationshipMapping(relationship_position)
     definition.child = value_list
     value_list.child = relationship
     object_or_relationship = _generate_dimensions(relationship, RelationshipObjectMapping, object_positions)
