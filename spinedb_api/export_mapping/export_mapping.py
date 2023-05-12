@@ -55,7 +55,6 @@ class _MappingWithLeafMixin:
 
 
 class ExportMapping(Mapping):
-
     _TITLE_SEP = ","
 
     def __init__(self, position, value=None, header="", filter_re=""):

@@ -67,8 +67,7 @@ class DataPackageConnector(SourceConnection):
             self._filename = source
 
     def disconnect(self):
-        """Disconnect from connected source.
-        """
+        """Disconnect from connected source."""
         if self._datapackage:
             self._datapackage = None
         self._filename = None
