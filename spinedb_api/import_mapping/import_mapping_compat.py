@@ -75,18 +75,17 @@ def import_mapping_from_dict(map_dict):
         "Alternative": _alternative_mapping_from_dict,
         "Scenario": _scenario_mapping_from_dict,
         "ScenarioAlternative": _scenario_alternative_mapping_from_dict,
-        # FIXME
-        # "Tool": _tool_mapping_from_dict,
-        # "Feature": _feature_mapping_from_dict,
-        # "ToolFeature": _tool_feature_mapping_from_dict,
-        # "ToolFeatureMethod": _tool_feature_method_mapping_from_dict,
         "ObjectGroup": _object_group_mapping_from_dict,
         "ParameterValueList": _parameter_value_list_mapping_from_dict,
     }
     from_dict = legacy_mapping_from_dict.get(map_type)
     if from_dict is not None:
         return from_dict(map_dict)
-    raise ValueError(f'invalid "map_type" value, expected any of {", ".join(legacy_mapping_from_dict)}, got {map_type}')
+    obsolete_types = ("Tool", "Feature", "ToolFeature", "ToolFeatureMethod")
+    invalid = "obsolete" if map_type in obsolete_types else "unknown"
+    raise ValueError(
+        f'{invalid} "map_type" value, expected any of {", ".join(legacy_mapping_from_dict)}, got {map_type}'
+    )
 
 
 def _parameter_value_list_mapping_from_dict(map_dict):

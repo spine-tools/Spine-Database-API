@@ -11,31 +11,49 @@
 
 """Provides :class:`.Query`."""
 
+from sqlalchemy import select, and_
+from sqlalchemy.sql.functions import count
 from .exception import SpineDBAPIError
 
 
 class Query:
-    def __init__(self, db_map, select_):
+    def __init__(self, db_map, *entities):
         self._db_map = db_map
-        self._select = select_
+        self._entities = entities
+        self._select = select(entities)
         self._from = None
+
+    @property
+    def column_descriptions(self):
+        return [{"name": c.name} for c in self._select.columns]
 
     def subquery(self, name=None):
         return self._select.alias(name)
+
+    def add_columns(self, *columns):
+        self._entities += columns
+        self._select = select(self._entities)
+        return self
 
     def filter(self, *args):
         self._select = self._select.where(*args)
         return self
 
+    def filter_by(self, **kwargs):
+        if len(self._entities) != 1:
+            raise SpineDBAPIError(f"can't find a unique 'from-clause' to filter, candidates are {self._entities}")
+        return self.filter(and_(getattr(self._entities[0].c, k) == v for k, v in kwargs.items()))
+
     def _get_from(self, right, on):
+        if self._from is not None:
+            return self._from
         from_candidates = (set(_get_descendant_tables(on)) - {right}) & set(self._select.get_children())
         if len(from_candidates) != 1:
             raise SpineDBAPIError(f"can't find a unique 'from-clause' to join into, candidates are {from_candidates}")
         return next(iter(from_candidates))
 
     def join(self, right, on, isouter=False):
-        from_ = self._get_from(right, on) if self._from is None else self._from
-        self._from = from_.join(right, on, isouter=isouter)
+        self._from = self._get_from(right, on).join(right, on, isouter=isouter)
         self._select = self._select.select_from(self._from)
         return self
 
@@ -58,11 +76,52 @@ class Query:
         self._select = self._select.offset(*args)
         return self
 
+    def distinct(self, *args):
+        self._select = self._select.distinct(*args)
+        return self
+
+    def having(self, *args):
+        self._select = self._select.having(*args)
+        return self
+
+    def _result(self):
+        return self._db_map.connection_execute(self._select)
+
     def all(self):
-        return list(self)
+        return self._result().fetchall()
+
+    def first(self):
+        return self._result().first()
+
+    def one_or_none(self):
+        result = self._result()
+        first = result.fetchone()
+        if first is None:
+            return None
+        second = result.fetchone()
+        if second is not None:
+            raise SpineDBAPIError("multiple results found for one_or_none()")
+        return first
+
+    def scalar(self):
+        return self._result().scalar()
+
+    def count(self):
+        return self._db_map.connection_execute(select([count()]).select_from(self._select)).scalar()
 
     def __iter__(self):
-        return self._db_map.connection.execute(self._select)
+        return self._result()
+
+
+def _get_leaves(parent):
+    children = parent.get_children()
+    if not children:
+        try:
+            yield parent.table
+        except AttributeError:
+            pass
+    for child in children:
+        yield from _get_leaves(child)
 
 
 def _get_descendant_tables(on):

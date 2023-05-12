@@ -18,7 +18,6 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
-    apply_tool_filter_to_entity_sq,
     create_new_spine_database,
     DatabaseMapping,
     import_object_classes,
@@ -30,20 +29,11 @@ from spinedb_api import (
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_parameter_value_lists,
-    import_tools,
-    import_features,
-    import_tool_features,
-    import_tool_feature_methods,
     SpineDBAPIError,
 )
-from spinedb_api.filters.tool_filter import (
-    tool_filter_config,
-    tool_filter_config_to_shorthand,
-    tool_filter_from_dict,
-    tool_filter_shorthand_to_config,
-)
 
 
+@unittest.skip("obsolete, but need to adapt into the scenario filter")
 class TestToolEntityFilter(unittest.TestCase):
     _db_url = None
     _temp_dir = None

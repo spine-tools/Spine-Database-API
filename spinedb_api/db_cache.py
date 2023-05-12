@@ -15,9 +15,20 @@ DB cache utility.
 import uuid
 from contextlib import suppress
 from operator import itemgetter
-from sqlalchemy.exc import ProgrammingError
+from enum import Enum, unique, auto
+from .parameter_value import from_database
 
 # TODO: Implement CacheItem.pop() to do lookup?
+
+
+@unique
+class Status(Enum):
+    """Cache item status."""
+
+    committed = auto()
+    to_add = auto()
+    to_update = auto()
+    to_remove = auto()
 
 
 class DBCache(dict):
@@ -34,20 +45,38 @@ class DBCache(dict):
         self._fetched_item_types = set()
         self._chunk_size = chunk_size
 
-    def to_change(self):
+    def commit(self):
         to_add = {}
         to_update = {}
         to_remove = {}
         for item_type, table_cache in self.items():
-            new = [x for x in table_cache.values() if x.new]
-            dirty = [x for x in table_cache.values() if x.dirty and not x.new]
-            removed = {x.id for x in dict.values(table_cache) if x.removed}
-            if new:
-                to_add[item_type] = new
-            if dirty:
-                to_update[item_type] = dirty
-            if removed:
-                to_remove[item_type] = removed
+            for item in dict.values(table_cache):
+                if item.status == Status.to_add:
+                    to_add.setdefault(item_type, []).append(item)
+                elif item.status == Status.to_update:
+                    to_update.setdefault(item_type, []).append(item)
+                elif item.status == Status.to_remove:
+                    to_remove.setdefault(item_type, set()).add(item["id"])
+                item.status = Status.committed
+        # FIXME: When computing to_remove, we could at the same time fetch all tables where items should be removed
+        # in cascade. This could be nice. So we would visit the tables in order, collect removed items,
+        # and if we find some then we would fetch all the descendant tables and validate items in them.
+        # This would set the removed flag, and then we would be able to collect those items
+        # in subsequent iterations.
+        # This might solve the issue when the user removes, commits, and then undoes the removal.
+        # My impression is since committing the removal action would fetch all the referrers, then it would
+        # be possible to properly undo it. Maybe that is the case already because `cascading_ids()`
+        # also fetches all the descendant tablenams into cache.
+        # Actually, it looks like all we're missing is setting the new attribute for restored items too??!!
+        # Ok so when you restore and item whose removal was committed, you need to set new to True
+
+        # Another option would be to build a list of fetched ids in a fully independent dictionary.
+        # Then we could compare contents of the cache with this list and easily find out which items need
+        # to be added, updated and removed.
+        # To add: Those that are valid in the cache but not in fetched id
+        # To update: Those that are both valid in the cache and in fetched id
+        # To remove: Those that are in fetched id but not valid in the cache.
+        # But this would require fetching the entire DB before committing or something like that... To think about it.
         return to_add, to_update, to_remove
 
     @property
@@ -93,9 +122,9 @@ class DBCache(dict):
             return []
         if not self._chunk_size:
             self._fetched_item_types.add(item_type)
-            return qry.all()
+            return [dict(x) for x in qry]
         offset = self._offsets.setdefault(item_type, 0)
-        chunk = qry.limit(self._chunk_size).offset(offset).all()
+        chunk = [dict(x) for x in qry.limit(self._chunk_size).offset(offset)]
         self._offsets[item_type] += len(chunk)
         return chunk
 
@@ -159,20 +188,27 @@ class TableCache(dict):
         super().__init__(*args, **kwargs)
         self._db_cache = db_cache
         self._item_type = item_type
-        self._existing = {}
+        self._id_by_unique_key_value = {}
 
-    def existing(self, key, value):
-        """Returns the CacheItem that has the given value for the given unique constraint key, or None.
+    def unique_key_value_to_id(self, key, value, strict=False):
+        """Returns the id that has the given value for the given unique key, or None.
 
         Args:
             key (tuple)
             value (tuple)
 
         Returns:
-            CacheItem
+            int
         """
+        value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
         self._db_cache.fetch_all(self._item_type)
-        return self._existing.get(key, {}).get(value)
+        id_by_unique_value = self._id_by_unique_key_value.get(key, {})
+        if strict:
+            return id_by_unique_value[value]
+        return id_by_unique_value.get(value)
+
+    def _unique_key_value_to_item(self, key, value, strict=False):
+        return self.get(self.unique_key_value_to_id(key, value))
 
     def values(self):
         return (x for x in super().values() if x.is_valid())
@@ -186,6 +222,7 @@ class TableCache(dict):
             "parameter_definition": ParameterDefinitionItem,
             "parameter_value": ParameterValueItem,
             "list_value": ListValueItem,
+            "alternative": AlternativeItem,
             "scenario": ScenarioItem,
             "scenario_alternative": ScenarioAlternativeItem,
             "metadata": MetadataItem,
@@ -204,29 +241,32 @@ class TableCache(dict):
         """
         return self._item_factory(self._db_cache, self._item_type, **item)
 
-    def _current_item(self, item):
+    def current_item(self, item, skip_keys=()):
         id_ = item.get("id")
         if isinstance(id_, int):
             # id is an int, easy
             return self.get(id_)
         if isinstance(id_, dict):
             # id is a dict specifying the values for one of the unique constraints
-            return self._current_item_from_dict_id(id_)
+            key, value = zip(*id_.items())
+            return self._unique_key_value_to_item(key, value)
         if id_ is None:
-            # No id. Try to build the dict id from the item itself. Used by import_data.
-            for key in self._item_factory.unique_constraint:
-                dict_id = {k: item.get(k) for k in key}
-                current_item = self._current_item_from_dict_id(dict_id)
+            # No id. Try to locate the item by the value of one of the unique keys. Used by import_data.
+            item = self._make_item(item)
+            error = item.resolve_inverse_references()
+            if error:
+                return None
+            error = item.polish()
+            if error:
+                return None
+            for key, value in item.unique_values(skip_keys=skip_keys):
+                current_item = self._unique_key_value_to_item(key, value)
                 if current_item:
                     return current_item
 
-    def _current_item_from_dict_id(self, dict_id):
-        key, value = zip(*dict_id.items())
-        return self.existing(key, value)
-
-    def check_item(self, item, for_update=False):
+    def check_item(self, item, for_update=False, skip_keys=()):
         if for_update:
-            current_item = self._current_item(item)
+            current_item = self.current_item(item, skip_keys=skip_keys)
             if current_item is None:
                 return None, f"no {self._item_type} matching {item} to update"
             item = {**current_item, **item}
@@ -234,57 +274,63 @@ class TableCache(dict):
         else:
             current_item = None
         candidate_item = self._make_item(item)
-        candidate_item.resolve_inverse_references()
-        missing_ref = candidate_item.missing_ref()
-        if missing_ref:
-            return None, f"missing {missing_ref} for {self._item_type}"
+        error = candidate_item.resolve_inverse_references()
+        if error:
+            return None, error
+        error = candidate_item.polish()
+        if error:
+            return None, error
+        invalid_ref = candidate_item.invalid_ref()
+        if invalid_ref:
+            return None, f"invalid {invalid_ref} for {self._item_type}"
         try:
-            for key, value in candidate_item.unique_values():
-                existing_item = self.existing(key, value)
-                if existing_item not in (None, current_item) and existing_item.is_valid():
-                    kv_parts = [f"{k} '{', '.join(v) if isinstance(v, tuple) else v}'" for k, v in zip(key, value)]
-                    head, tail = kv_parts[:-1], kv_parts[-1]
-                    head_str = ", ".join(head)
-                    main_parts = [head_str, tail] if head_str else [tail]
-                    key_val = " and ".join(main_parts)
-                    return None, f"there's already a {self._item_type} with {key_val}"
+            for key, value in candidate_item.unique_values(skip_keys=skip_keys):
+                empty = {k for k, v in zip(key, value) if v == ""}
+                if empty:
+                    return None, f"invalid empty keys {empty} for {self._item_type}"
+                unique_item = self._unique_key_value_to_item(key, value)
+                if unique_item not in (None, current_item) and unique_item.is_valid():
+                    return None, f"there's already a {self._item_type} with {dict(zip(key, value))}"
         except KeyError as e:
             return None, f"missing {e} for {self._item_type}"
-        return candidate_item._asdict(), None
+        return candidate_item, None
 
-    def _add_to_existing(self, item):
+    def _add_unique(self, item):
         for key, value in item.unique_values():
-            self._existing.setdefault(key, {})[value] = item
+            self._id_by_unique_key_value.setdefault(key, {})[value] = item["id"]
 
-    def _remove_from_existing(self, item):
+    def _remove_unique(self, item):
         for key, value in item.unique_values():
-            self._existing.get(key, {}).pop(value, None)
+            self._id_by_unique_key_value.get(key, {}).pop(value, None)
 
     def add_item(self, item, new=False):
         self[item["id"]] = new_item = self._make_item(item)
-        self._add_to_existing(new_item)
-        new_item.new = new
+        self._add_unique(new_item)
+        if new:
+            new_item.status = Status.to_add
         return new_item
 
     def update_item(self, item):
         current_item = self[item["id"]]
-        self._remove_from_existing(current_item)
-        current_item.dirty = True
+        self._remove_unique(current_item)
         current_item.update(item)
-        self._add_to_existing(current_item)
+        self._add_unique(current_item)
         current_item.cascade_update()
+        if current_item.status != Status.to_add:
+            current_item.status = Status.to_update
+        return current_item
 
     def remove_item(self, id_):
         current_item = self.get(id_)
         if current_item is not None:
-            self._remove_from_existing(current_item)
+            self._remove_unique(current_item)
             current_item.cascade_remove()
         return current_item
 
     def restore_item(self, id_):
         current_item = self.get(id_)
         if current_item is not None:
-            self._add_to_existing(current_item)
+            self._add_unique(current_item)
             current_item.cascade_restore()
         return current_item
 
@@ -292,7 +338,8 @@ class TableCache(dict):
 class CacheItem(dict):
     """A dictionary that represents an db item."""
 
-    unique_constraint = (("name",),)
+    _defaults = {}
+    _unique_keys = (("name",),)
     _references = {}
     _inverse_references = {}
 
@@ -313,10 +360,44 @@ class CacheItem(dict):
         self._removed = False
         self._corrupted = False
         self._valid = None
-        self.new = False
-        self.dirty = False
+        self.status = Status.committed
 
-    def missing_ref(self):
+    def is_committed(self):
+        return self.status == Status.committed
+
+    def polish(self):
+        """Polishes this item once all it's references are resolved. Returns any errors.
+
+        Returns:
+            str or None
+        """
+        for key, default_value in self._defaults.items():
+            self.setdefault(key, default_value)
+        return ""
+
+    def resolve_inverse_references(self):
+        for src_key, (id_key, (ref_type, ref_key)) in self._inverse_references.items():
+            if dict.get(self, src_key):
+                # When updating items, the user might update the id keys while leaving the name keys intact.
+                # In this case we shouldn't overwrite the updated id keys from the obsolete name keys.
+                # FIXME: It feels that this is our fault, though, like it is us who keep the obsolete name keys around.
+                continue
+            id_value = tuple(dict.get(self, k) or self.get(k) for k in id_key)
+            if None in id_value:
+                continue
+            table_cache = self._db_cache.table_cache(ref_type)
+            try:
+                src_value = (
+                    tuple(table_cache.unique_key_value_to_id(ref_key, v, strict=True) for v in zip(*id_value))
+                    if all(isinstance(v, (tuple, list)) for v in id_value)
+                    else table_cache.unique_key_value_to_id(ref_key, id_value, strict=True)
+                )
+                self[src_key] = src_value
+            except KeyError as err:
+                # Happens at unique_key_value_to_id(..., strict=True)
+                return f"can't find {ref_type} with {dict(zip(ref_key, err.args[0]))}"
+
+    def invalid_ref(self):
         for key, (ref_type, _ref_key) in self._references.values():
             try:
                 ref_id = self[key]
@@ -329,9 +410,10 @@ class CacheItem(dict):
             elif not self._get_ref(ref_type, ref_id):
                 return key
 
-    def unique_values(self):
-        for key in self.unique_constraint:
-            yield key, tuple(self[k] for k in key)
+    def unique_values(self, skip_keys=()):
+        for key in self._unique_keys:
+            if key not in skip_keys:
+                yield key, tuple(self.get(k) for k in key)
 
     @property
     def removed(self):
@@ -414,6 +496,8 @@ class CacheItem(dict):
             self._weak_referrers[referrer.key] = referrer
 
     def cascade_restore(self):
+        if self.status == Status.committed:
+            self.status = Status.to_add
         if not self._removed:
             return
         self._removed = False
@@ -428,6 +512,7 @@ class CacheItem(dict):
         self.restore_callbacks -= obsolete
 
     def cascade_remove(self):
+        self.status = Status.to_remove
         if self._removed:
             return
         self._removed = True
@@ -468,36 +553,9 @@ class CacheItem(dict):
             return self._get_ref(ref_type, ref_id).get(ref_key)
         return super().__getitem__(key)
 
-    def resolve_inverse_references(self):
-        for src_key, (id_key, (ref_type, ref_key)) in self._inverse_references.items():
-            id_value = tuple(dict.get(self, k) or self.get(k) for k in id_key)
-            if None in id_value:
-                continue
-            table_cache = self._db_cache.table_cache(ref_type)
-            with suppress(AttributeError):  # NoneType has no attribute id, happens when existing() returns None
-                self[src_key] = (
-                    tuple(table_cache.existing(ref_key, v).id for v in zip(*id_value))
-                    if all(isinstance(v, tuple) for v in id_value)
-                    else table_cache.existing(ref_key, id_value).id
-                )
-                # FIXME: Do we need to catch the AttributeError and give it to the user instead??
 
-
-class DisplayIconMixin:
-    def __getitem__(self, key):
-        if key == "display_icon":
-            return dict.get(self, "display_icon")
-        return super().__getitem__(key)
-
-
-class DescriptionMixin:
-    def __getitem__(self, key):
-        if key == "description":
-            return dict.get(self, "description")
-        return super().__getitem__(key)
-
-
-class EntityClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
+class EntityClassItem(CacheItem):
+    _defaults = {"description": None, "display_icon": None}
     _references = {"dimension_name_list": ("dimension_id_list", ("entity_class", "name"))}
     _inverse_references = {"dimension_id_list": (("dimension_name_list",), ("entity_class", ("name",)))}
 
@@ -511,8 +569,9 @@ class EntityClassItem(DisplayIconMixin, DescriptionMixin, CacheItem):
         super().__init__(*args, **kwargs)
 
 
-class EntityItem(DescriptionMixin, CacheItem):
-    unique_constraint = (("class_name", "name"), ("class_name", "byname"))
+class EntityItem(CacheItem):
+    _defaults = {"description": None}
+    _unique_keys = (("class_name", "name"), ("class_name", "byname"))
     _references = {
         "class_name": ("class_id", ("entity_class", "name")),
         "dimension_id_list": ("class_id", ("entity_class", "dimension_id_list")),
@@ -538,23 +597,22 @@ class EntityItem(DescriptionMixin, CacheItem):
             return self["element_name_list"] or (self["name"],)
         return super().__getitem__(key)
 
-    def resolve_inverse_references(self):
-        super().resolve_inverse_references()
-        self._fill_name()
-
-    def _fill_name(self):
+    def polish(self):
+        error = super().polish()
+        if error:
+            return error
         if "name" in self:
             return
         base_name = self["class_name"] + "_" + "__".join(self["element_name_list"])
         name = base_name
         table_cache = self._db_cache.table_cache(self._item_type)
-        while table_cache.existing(("class_name", "name"), (self["class_name"], name)) is not None:
-            name = base_name + uuid.uuid4().hex
+        while table_cache.unique_key_value_to_id(("class_name", "name"), (self["class_name"], name)) is not None:
+            name = base_name + "_" + uuid.uuid4().hex
         self["name"] = name
 
 
 class EntityGroupItem(CacheItem):
-    unique_constraint = (("group_name", "member_name"),)
+    _unique_keys = (("group_name", "member_name"),)
     _references = {
         "class_name": ("entity_class_id", ("entity_class", "name")),
         "group_name": ("entity_id", ("entity", "name")),
@@ -575,8 +633,9 @@ class EntityGroupItem(CacheItem):
         return super().__getitem__(key)
 
 
-class ParameterDefinitionItem(DescriptionMixin, CacheItem):
-    unique_constraint = (("entity_class_name", "name"),)
+class ParameterDefinitionItem(CacheItem):
+    _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
+    _unique_keys = (("entity_class_name", "name"),)
     _references = {
         "entity_class_name": ("entity_class_id", ("entity_class", "name")),
         "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
@@ -587,12 +646,11 @@ class ParameterDefinitionItem(DescriptionMixin, CacheItem):
         "parameter_value_list_id": (("parameter_value_list_name",), ("parameter_value_list", ("name",))),
     }
 
-    def __init__(self, *args, **kwargs):
-        if kwargs.get("list_value_id") is None:
-            kwargs["list_value_id"] = (
-                int(kwargs["default_value"]) if kwargs.get("default_type") == "list_value_ref" else None
-            )
-        super().__init__(*args, **kwargs)
+    @property
+    def list_value_id(self):
+        if dict.get(self, "default_type") == "list_value_ref":
+            return int(dict.__getitem__(self, "default_value"))
+        return None
 
     def __getitem__(self, key):
         if key == "parameter_name":
@@ -601,23 +659,50 @@ class ParameterDefinitionItem(DescriptionMixin, CacheItem):
             return super().__getitem__("parameter_value_list_id")
         if key == "parameter_value_list_id":
             return dict.get(self, key)
-        if key == "value_list_name":
-            return self._get_ref("parameter_value_list", self["value_list_id"], strong=False).get("name")
+        if key == "parameter_value_list_name":
+            return self._get_ref("parameter_value_list", self["parameter_value_list_id"], strong=False).get("name")
         if key in ("default_value", "default_type"):
-            if self["list_value_id"] is not None:
-                return self._get_ref("list_value", self["list_value_id"], strong=False).get(key.split("_")[1])
+            list_value_id = self.list_value_id
+            if list_value_id is not None:
+                list_value_key = {"default_value": "value", "default_type": "type"}[key]
+                return self._get_ref("list_value", list_value_id, strong=False).get(list_value_key)
             return dict.get(self, key)
+        if key == "list_value_id":
+            return self.list_value_id
         return super().__getitem__(key)
+
+    def polish(self):
+        error = super().polish()
+        if error:
+            return error
+        default_type = self["default_type"]
+        default_value = self["default_value"]
+        list_name = self["parameter_value_list_name"]
+        if list_name is None:
+            return
+        if default_type == "list_value_ref":
+            return
+        parsed_value = from_database(default_value, default_type)
+        if parsed_value is None:
+            return
+        list_value_id = self._db_cache.table_cache("list_value").unique_key_value_to_id(
+            ("parameter_value_list_name", "value", "type"), (list_name, default_value, default_type)
+        )
+        if list_value_id is None:
+            return f"default value {parsed_value} of {self['name']} is not in {list_name}"
+        self["default_value"] = str(list_value_id).encode()
+        self["default_type"] = "list_value_ref"
 
 
 class ParameterValueItem(CacheItem):
-    unique_constraint = (("parameter_definition_name", "entity_byname", "alternative_name"),)
+    _unique_keys = (("parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
         "entity_class_name": ("entity_class_id", ("entity_class", "name")),
         "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
         "dimension_name_list": ("entity_class_id", ("entity_class", "dimension_name_list")),
         "parameter_definition_name": ("parameter_definition_id", ("parameter_definition", "name")),
         "parameter_value_list_id": ("parameter_definition_id", ("parameter_definition", "parameter_value_list_id")),
+        "parameter_value_list_name": ("parameter_definition_id", ("parameter_definition", "parameter_value_list_name")),
         "entity_name": ("entity_id", ("entity", "name")),
         "entity_byname": ("entity_id", ("entity", "byname")),
         "element_id_list": ("entity_id", ("entity", "element_id_list")),
@@ -625,6 +710,7 @@ class ParameterValueItem(CacheItem):
         "alternative_name": ("alternative_id", ("alternative", "name")),
     }
     _inverse_references = {
+        "entity_class_id": (("entity_class_name",), ("entity_class", ("name",))),
         "parameter_definition_id": (
             ("entity_class_name", "parameter_definition_name"),
             ("parameter_definition", ("entity_class_name", "name")),
@@ -633,30 +719,65 @@ class ParameterValueItem(CacheItem):
         "alternative_id": (("alternative_name",), ("alternative", ("name",))),
     }
 
-    def __init__(self, *args, **kwargs):
-        if kwargs.get("list_value_id") is None:
-            kwargs["list_value_id"] = int(kwargs["value"]) if kwargs.get("type") == "list_value_ref" else None
-        super().__init__(*args, **kwargs)
+    @property
+    def list_value_id(self):
+        if dict.__getitem__(self, "type") == "list_value_ref":
+            return int(dict.__getitem__(self, "value"))
+        return None
 
     def __getitem__(self, key):
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
-        if key in ("value", "type") and self["list_value_id"] is not None:
-            return self._get_ref("list_value", self["list_value_id"], strong=False).get(key)
+        if key == "parameter_name":
+            return super().__getitem__("parameter_definition_name")
+        if key in ("value", "type"):
+            list_value_id = self.list_value_id
+            if list_value_id:
+                return self._get_ref("list_value", list_value_id, strong=False).get(key)
+        if key == "list_value_id":
+            return self.list_value_id
         return super().__getitem__(key)
+
+    def polish(self):
+        list_name = self["parameter_value_list_name"]
+        if list_name is None:
+            return
+        type_ = self["type"]
+        if type_ == "list_value_ref":
+            return
+        value = self["value"]
+        parsed_value = from_database(value, type_)
+        if parsed_value is None:
+            return
+        list_value_id = self._db_cache.table_cache("list_value").unique_key_value_to_id(
+            ("parameter_value_list_name", "value", "type"), (list_name, value, type_)
+        )
+        if list_value_id is None:
+            return (
+                f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
+                "is not in {list_name}"
+            )
+        self["value"] = str(list_value_id).encode()
+        self["type"] = "list_value_ref"
 
 
 class ListValueItem(CacheItem):
-    unique_constraint = (("parameter_value_list_name", "value"), ("parameter_value_list_name", "index"))
+    _unique_keys = (("parameter_value_list_name", "value", "type"), ("parameter_value_list_name", "index"))
     _references = {"parameter_value_list_name": ("parameter_value_list_id", ("parameter_value_list", "name"))}
     _inverse_references = {
         "parameter_value_list_id": (("parameter_value_list_name",), ("parameter_value_list", ("name",))),
     }
 
 
+class AlternativeItem(CacheItem):
+    _defaults = {"description": None}
+
+
 class ScenarioItem(CacheItem):
+    _defaults = {"active": False, "description": None}
+
     @property
-    def sorted_scenario_alternatives(self):
+    def sorted_alternatives(self):
         self._db_cache.fetch_all("scenario_alternative")
         return sorted(
             (x for x in self._db_cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
@@ -665,14 +786,14 @@ class ScenarioItem(CacheItem):
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
-            return [x["alternative_id"] for x in self.sorted_scenario_alternatives]
+            return [x["alternative_id"] for x in self.sorted_alternatives]
         if key == "alternative_name_list":
-            return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
+            return [x["alternative_name"] for x in self.sorted_alternatives]
         return super().__getitem__(key)
 
 
 class ScenarioAlternativeItem(CacheItem):
-    unique_constraint = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
+    _unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
     _references = {
         "scenario_name": ("scenario_id", ("scenario", "name")),
         "alternative_name": ("alternative_id", ("alternative", "name")),
@@ -680,10 +801,13 @@ class ScenarioAlternativeItem(CacheItem):
     _inverse_references = {
         "scenario_id": (("scenario_name",), ("scenario", ("name",))),
         "alternative_id": (("alternative_name",), ("alternative", ("name",))),
-        "before_alternative_id": (("before_alternative_name",), ("alternative", ("name",))),
     }
 
     def __getitem__(self, key):
+        # The 'before' is to be interpreted as, this scenario alternative goes *before* the before_alternative.
+        # Since ranks go from 1 to the alternative count, the first alternative will have the second as the 'before',
+        # the second will have the third, etc, and the last will have None.
+        # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
             return self._get_ref("alternative", self["before_alternative_id"], strong=False).get("name")
         if key == "before_alternative_id":
@@ -696,11 +820,11 @@ class ScenarioAlternativeItem(CacheItem):
 
 
 class MetadataItem(CacheItem):
-    unique_constraint = (("name", "value"),)
+    _unique_keys = (("name", "value"),)
 
 
 class EntityMetadataItem(CacheItem):
-    unique_constraint = (("entity_name", "metadata_name"),)
+    _unique_keys = (("entity_name", "metadata_name"),)
     _references = {
         "entity_name": ("entity_id", ("entity", "name")),
         "metadata_name": ("metadata_id", ("metadata", "name")),
@@ -713,7 +837,7 @@ class EntityMetadataItem(CacheItem):
 
 
 class ParameterValueMetadataItem(CacheItem):
-    unique_constraint = (("parameter_definition_name", "entity_byname", "alternative_name", "metadata_name"),)
+    _unique_keys = (("parameter_definition_name", "entity_byname", "alternative_name", "metadata_name"),)
     _references = {
         "parameter_definition_name": ("parameter_value_id", ("parameter_value", "parameter_definition_name")),
         "entity_byname": ("parameter_value_id", ("parameter_value", "entity_byname")),

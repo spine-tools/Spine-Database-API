@@ -72,8 +72,9 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
             url = URL("sqlite")
             url.database = os.path.join(temp_dir, "test_shorthand_filter_query_works.json")
             out_db = DatabaseMapping(url, create=True)
-            out_db.add_tools({"name": "object_activity_control", "id": 1})
-            out_db.commit_session("Add tool.")
+            out_db.add_scenarios({"name": "scen1"})
+            out_db.add_scenario_alternatives({"scenario_name": "scen1", "alternative_name": "Base", "rank": 1})
+            out_db.commit_session("Add scen.")
             out_db.connection.close()
             try:
                 db_map = DatabaseMapping(url)
@@ -95,10 +96,10 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        ids, _ = self._db_map.add_wide_relationships(
+        items, _ = self._db_map.add_wide_relationships(
             {"id": 3, "name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}
         )
-        self._db_map.cascade_remove_items(relationship=ids)
+        self._db_map.remove_items("relationship", *{x["id"] for x in items})
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
@@ -108,37 +109,34 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2})
-        ids, _ = self._db_map.add_wide_relationships(
+        items, _ = self._db_map.add_wide_relationships(
             {"id": 3, "name": "remove_me", "class_id": 3, "object_id_list": [1, 2]}
         )
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 1)
-        self._db_map.cascade_remove_items(relationship=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
+        self._db_map.remove_items("relationship", *{x["id"] for x in items})
         self._db_map.commit_session("Add test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
 
     def test_remove_object(self):
         """Test adding and removing an object and committing"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        ids, _ = self._db_map.add_objects(
+        items, _ = self._db_map.add_objects(
             {"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2}
         )
-        self._db_map.remove_items(object=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
+        self._db_map.remove_items("object", *{x["id"] for x in items})
         self._db_map.commit_session("delete")
-        self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_sq).all()), 0)
+        self.assertEqual(len(self._db_map.query(self._db_map.object_sq).all()), 0)
 
     def test_remove_object_from_committed_session(self):
         """Test removing an object from a committed session"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        ids, _ = self._db_map.add_objects(
+        items, _ = self._db_map.add_objects(
             {"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 2}
         )
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.object_sq).all()), 2)
-        self._db_map.remove_items(object=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.object_sq).all()), 0)
+        self._db_map.remove_items("object", *{x["id"] for x in items})
         self._db_map.commit_session("Add test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.object_sq).all()), 0)
 
@@ -146,9 +144,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         """Test adding and removing an entity group and committing"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        ids, _ = self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-        self._db_map.remove_items(entity_group=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 0)
+        items, _ = self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        self._db_map.remove_items("entity_group", *{x["id"] for x in items})
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 0)
 
@@ -156,49 +153,44 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         """Test removing an entity group from a committed session"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        ids, _ = self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        items, _ = self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 1)
-        self._db_map.remove_items(entity_group=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 0)
+        self._db_map.remove_items("entity_group", *{x["id"] for x in items})
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 0)
 
     def test_cascade_remove_relationship_class(self):
         """Test adding and removing a relationship class and committing"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        ids, _ = self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
-        self._db_map.cascade_remove_items(relationship_class=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_class_sq).all()), 0)
+        items, _ = self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        self._db_map.remove_items("relationship_class", *{x["id"] for x in items})
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_class_sq).all()), 0)
 
     def test_cascade_remove_relationship_class_from_committed_session(self):
         """Test removing a relationship class from a committed session"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        ids, _ = self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
+        items, _ = self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_class_sq).all()), 1)
-        self._db_map.cascade_remove_items(relationship_class=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_class_sq).all()), 0)
-        self._db_map.commit_session("Add test data.")
+        self._db_map.remove_items("relationship_class", *{x["id"] for x in items})
+        self._db_map.commit_session("remove")
         self.assertEqual(len(self._db_map.query(self._db_map.wide_relationship_class_sq).all()), 0)
 
     def test_remove_object_class(self):
         """Test adding and removing an object class and committing"""
-        ids, _ = self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.remove_items(object_class=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.object_class_sq).all()), 0)
+        items, _ = self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self._db_map.remove_items("object_class", *{x["id"] for x in items})
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.object_class_sq).all()), 0)
 
     def test_remove_object_class_from_committed_session(self):
         """Test removing an object class from a committed session"""
-        ids, _ = self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        items, _ = self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.object_class_sq).all()), 2)
-        self._db_map.remove_items(object_class=ids)
-        self.assertEqual(len(self._db_map.query(self._db_map.object_class_sq).all()), 0)
+        self._db_map.remove_items("object_class", *{x["id"] for x in items})
         self._db_map.commit_session("Add test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.object_class_sq).all()), 0)
 
@@ -218,9 +210,9 @@ class TestDatabaseMappingRemove(unittest.TestCase):
             },
             strict=True,
         )
+        self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 1)
-        self._db_map.remove_items(parameter_value=[1])
-        self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
+        self._db_map.remove_items("parameter_value", 1)
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
 
@@ -242,8 +234,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         )
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 1)
-        self._db_map.remove_items(parameter_value=[1])
-        self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
+        self._db_map.remove_items("parameter_value", 1)
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
 
@@ -263,9 +254,9 @@ class TestDatabaseMappingRemove(unittest.TestCase):
             },
             strict=True,
         )
+        self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 1)
-        self._db_map.cascade_remove_items(object={1})
-        self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
+        self._db_map.remove_items("object", 1)
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
 
@@ -287,8 +278,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         )
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 1)
-        self._db_map.cascade_remove_items(object={1})
-        self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
+        self._db_map.remove_items("object", 1)
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
 
@@ -307,7 +297,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self._db_map.cascade_remove_items(**{"metadata": {metadata[0].id}})
+        self._db_map.remove_items("metadata", metadata[0].id)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
@@ -322,7 +313,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         entity_metadata = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
-        self._db_map.cascade_remove_items(**{"entity_metadata": {entity_metadata[0].id}})
+        self._db_map.remove_items("entity_metadata", entity_metadata[0].id)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.object_sq).all()), 1)
@@ -342,7 +334,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         entity_metadata = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
-        self._db_map.cascade_remove_items(**{"entity_metadata": {entity_metadata[0].id}})
+        self._db_map.remove_items("entity_metadata", entity_metadata[0].id)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 1)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_metadata_sq).all()), 1)
@@ -362,7 +355,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         parameter_value_metadata = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
         self.assertEqual(len(parameter_value_metadata), 1)
-        self._db_map.cascade_remove_items(**{"parameter_value_metadata": {parameter_value_metadata[0].id}})
+        self._db_map.remove_items("parameter_value_metadata", parameter_value_metadata[0].id)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 1)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 1)
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_metadata_sq).all()), 0)
@@ -373,7 +367,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
         self._db_map.commit_session("Add test data.")
-        self._db_map.cascade_remove_items(**{"object": {1}})
+        self._db_map.remove_items("object", 1)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.object_sq).all()), 0)
@@ -388,7 +383,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
             self._db_map, (("my_class", ("my_object",), '{"title": "My metadata."}'),)
         )
         self._db_map.commit_session("Add test data.")
-        self._db_map.cascade_remove_items(**{"relationship": {2}})
+        self._db_map.remove_items("relationship", 2)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.relationship_sq).all()), 0)
@@ -405,7 +401,8 @@ class TestDatabaseMappingRemove(unittest.TestCase):
             self._db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
         )
         self._db_map.commit_session("Add test data.")
-        self._db_map.cascade_remove_items(**{"parameter_value": {1}})
+        self._db_map.remove_items("parameter_value", 1)
+        self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.parameter_value_sq).all()), 0)
@@ -420,8 +417,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_and_retrieve_many_objects(self):
         """Tests add many objects into db and retrieving them."""
-        ids, _ = self._db_map.add_object_classes({"name": "testclass"})
-        class_id = next(iter(ids))
+        items, _ = self._db_map.add_object_classes({"name": "testclass"})
+        class_id = next(iter(items))["id"]
         added = self._db_map.add_objects(*[{"name": str(i), "class_id": class_id} for i in range(1001)])[0]
         self.assertEqual(len(added), 1001)
         self._db_map.commit_session("test_commit")
@@ -430,6 +427,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_object_classes(self):
         """Test that adding object classes works."""
         self._db_map.add_object_classes({"name": "fish"}, {"name": "dog"})
+        self._db_map.commit_session("add")
         object_classes = self._db_map.query(self._db_map.object_class_sq).all()
         self.assertEqual(len(object_classes), 2)
         self.assertEqual(object_classes[0].name, "fish")
@@ -443,6 +441,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_object_classes_with_same_name(self):
         """Test that adding two object classes with the same name only adds one of them."""
         self._db_map.add_object_classes({"name": "fish"}, {"name": "fish"})
+        self._db_map.commit_session("add")
         object_classes = self._db_map.query(self._db_map.object_class_sq).all()
         self.assertEqual(len(object_classes), 1)
         self.assertEqual(object_classes[0].name, "fish")
@@ -457,6 +456,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         """Test that adding objects works."""
         self._db_map.add_object_classes({"name": "fish"})
         self._db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
+        self._db_map.commit_session("add")
         objects = self._db_map.query(self._db_map.object_sq).all()
         self.assertEqual(len(objects), 2)
         self.assertEqual(objects[0].name, "nemo")
@@ -474,6 +474,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         """Test that adding two objects with the same name only adds one of them."""
         self._db_map.add_object_classes({"name": "fish"})
         self._db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
+        self._db_map.commit_session("add")
         objects = self._db_map.query(self._db_map.object_sq).all()
         self.assertEqual(len(objects), 1)
         self.assertEqual(objects[0].name, "nemo")
@@ -498,8 +499,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc2", "object_class_id_list": [2, 1]}
         )
-        diff_table = self._db_map.get_table("entity_class_dimension")
-        ent_cls_dims = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("entity_class_dimension")
+        ent_cls_dims = self._db_map.query(table).all()
         rel_clss = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
         self.assertEqual(len(ent_cls_dims), 4)
         self.assertEqual(rel_clss[0].name, "rc1")
@@ -519,10 +521,13 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         """Test that adding two relationship classes with the same name only adds one of them."""
         self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
         self._db_map.add_wide_relationship_classes(
-            {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc1", "object_class_id_list": [1, 2]}
+            {"name": "rc1", "object_class_id_list": [1, 2]},
+            {"name": "rc1", "object_class_id_list": [1, 2]},
+            strict=False,
         )
-        diff_table = self._db_map.get_table("entity_class_dimension")
-        ecs_dims = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("entity_class_dimension")
+        ecs_dims = self._db_map.query(table).all()
         relationship_classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
         self.assertEqual(len(ecs_dims), 2)
         self.assertEqual(len(relationship_classes), 1)
@@ -570,6 +575,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2]})
         self._db_map.add_objects({"name": "o1", "class_id": 1}, {"name": "o2", "class_id": 2})
         self._db_map.add_wide_relationships({"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
+        self._db_map.commit_session("add")
         ent_els = self._db_map.query(self._db_map.get_table("entity_element")).all()
         relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(ent_els), 2)
@@ -586,7 +592,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1]}, strict=True)
         self._db_map.add_objects({"name": "o1", "class_id": 1}, strict=True)
         with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_wide_relationships({"name": "", "class_id": 1, "object_id_list": [1]}, strict=True)
+            self._db_map.add_wide_relationships({"name": "", "class_id": 2, "object_id_list": [1]}, strict=True)
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one."""
@@ -597,6 +603,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
             {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
         )
+        self._db_map.commit_session("add")
         relationships = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationships), 1)
 
@@ -679,8 +686,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
         self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
-        diff_table = self._db_map.get_table("entity_group")
-        entity_groups = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("entity_group")
+        entity_groups = self._db_map.query(table).all()
         self.assertEqual(len(entity_groups), 1)
         self.assertEqual(entity_groups[0].entity_id, 1)
         self.assertEqual(entity_groups[0].entity_class_id, 1)
@@ -723,8 +731,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             {"name": "color", "object_class_id": 1, "description": "test1"},
             {"name": "relative_speed", "relationship_class_id": 3, "description": "test2"},
         )
-        diff_table = self._db_map.get_table("parameter_definition")
-        parameter_definitions = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("parameter_definition")
+        parameter_definitions = self._db_map.query(table).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
         self.assertEqual(parameter_definitions[0].entity_class_id, 1)
@@ -746,8 +755,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.add_parameter_definitions(
             {"name": "color", "object_class_id": 1}, {"name": "color", "relationship_class_id": 3}
         )
-        diff_table = self._db_map.get_table("parameter_definition")
-        parameter_definitions = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("parameter_definition")
+        parameter_definitions = self._db_map.query(table).all()
         self.assertEqual(len(parameter_definitions), 2)
         self.assertEqual(parameter_definitions[0].name, "color")
         self.assertEqual(parameter_definitions[1].name, "color")
@@ -790,20 +800,21 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_relationships(self._db_map, [("fish_dog", ("nemo", "pluto"))])
         import_functions.import_object_parameters(self._db_map, [("fish", "color")])
         import_functions.import_relationship_parameters(self._db_map, [("fish_dog", "rel_speed")])
+        self._db_map.commit_session("add")
         color_id = (
-            self._db_map.parameter_definition_list()
+            self._db_map.query(self._db_map.parameter_definition_sq)
             .filter(self._db_map.parameter_definition_sq.c.name == "color")
             .first()
             .id
         )
         rel_speed_id = (
-            self._db_map.parameter_definition_list()
+            self._db_map.query(self._db_map.parameter_definition_sq)
             .filter(self._db_map.parameter_definition_sq.c.name == "rel_speed")
             .first()
             .id
         )
-        nemo_row = self._db_map.object_list().filter(self._db_map.entity_sq.c.name == "nemo").first()
-        nemo__pluto_row = self._db_map.wide_relationship_list().filter().first()
+        nemo_row = self._db_map.query(self._db_map.object_sq).filter(self._db_map.object_sq.c.name == "nemo").first()
+        nemo__pluto_row = self._db_map.query(self._db_map.wide_relationship_sq).first()
         self._db_map.add_parameter_values(
             {
                 "parameter_definition_id": color_id,
@@ -820,8 +831,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "alternative_id": 1,
             },
         )
-        diff_table = self._db_map.get_table("parameter_value")
-        parameter_values = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("parameter_value")
+        parameter_values = self._db_map.query(table).all()
         self.assertEqual(len(parameter_values), 2)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].entity_id, 1)
@@ -853,13 +865,14 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ["fish"])
         import_functions.import_objects(self._db_map, [("fish", "nemo")])
         import_functions.import_object_parameters(self._db_map, [("fish", "color")])
+        self._db_map.commit_session("add")
         color_id = (
-            self._db_map.parameter_definition_list()
+            self._db_map.query(self._db_map.parameter_definition_sq)
             .filter(self._db_map.parameter_definition_sq.c.name == "color")
             .first()
             .id
         )
-        nemo_row = self._db_map.object_list().filter(self._db_map.entity_sq.c.name == "nemo").first()
+        nemo_row = self._db_map.query(self._db_map.object_sq).filter(self._db_map.entity_sq.c.name == "nemo").first()
         self._db_map.add_parameter_values(
             {
                 "parameter_definition_id": color_id,
@@ -876,8 +889,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "alternative_id": 1,
             },
         )
-        diff_table = self._db_map.get_table("parameter_value")
-        parameter_values = self._db_map.query(diff_table).all()
+        self._db_map.commit_session("add")
+        table = self._db_map.get_table("parameter_value")
+        parameter_values = self._db_map.query(table).all()
         self.assertEqual(len(parameter_values), 1)
         self.assertEqual(parameter_values[0].parameter_definition_id, 1)
         self.assertEqual(parameter_values[0].entity_id, 1)
@@ -900,66 +914,76 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             strict=False,
         )
         self.assertEqual(
-            [str(e) for e in errors], ["The value of parameter 'color' for entity 'nemo' is already specified."]
+            [str(e) for e in errors],
+            [
+                "there's already a parameter_value with "
+                "{'parameter_definition_name': 'color', 'entity_byname': ('nemo',), 'alternative_name': 'Base'}"
+            ],
         )
 
     def test_add_alternative(self):
-        ids, errors = self._db_map.add_alternatives({"name": "my_alternative"})
+        items, errors = self._db_map.add_alternatives({"name": "my_alternative"})
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {2})
+        self._db_map.commit_session("Add test data.")
         alternatives = self._db_map.query(self._db_map.alternative_sq).all()
         self.assertEqual(len(alternatives), 2)
         self.assertEqual(
-            alternatives[0]._asdict(), {"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}
+            dict(alternatives[0]), {"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}
         )
         self.assertEqual(
-            alternatives[1]._asdict(), {"id": 2, "name": "my_alternative", "description": None, "commit_id": 2}
+            dict(alternatives[1]), {"id": 2, "name": "my_alternative", "description": None, "commit_id": None}
         )
 
     def test_add_scenario(self):
-        ids, errors = self._db_map.add_scenarios({"name": "my_scenario"})
+        items, errors = self._db_map.add_scenarios({"name": "my_scenario"})
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.commit_session("Add test data.")
         scenarios = self._db_map.query(self._db_map.scenario_sq).all()
         self.assertEqual(len(scenarios), 1)
         self.assertEqual(
-            scenarios[0]._asdict(),
-            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": 2},
+            dict(scenarios[0]),
+            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": None},
         )
 
     def test_add_scenario_alternative(self):
         import_functions.import_scenarios(self._db_map, ("my_scenario",))
         self._db_map.commit_session("Add test data.")
-        ids, errors = self._db_map.add_scenario_alternatives({"scenario_id": 1, "alternative_id": 1, "rank": 0})
+        items, errors = self._db_map.add_scenario_alternatives({"scenario_id": 1, "alternative_id": 1, "rank": 0})
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.commit_session("Add test data.")
         scenario_alternatives = self._db_map.query(self._db_map.scenario_alternative_sq).all()
         self.assertEqual(len(scenario_alternatives), 1)
         self.assertEqual(
-            scenario_alternatives[0]._asdict(),
-            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": 3},
+            dict(scenario_alternatives[0]),
+            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": None},
         )
 
     def test_add_metadata(self):
         items, errors = self._db_map.add_metadata({"name": "test name", "value": "test_add_metadata"}, strict=False)
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
         self.assertEqual(
-            metadata[0]._asdict(), {"name": "test name", "id": 1, "value": "test_add_metadata", "commit_id": 2}
+            dict(metadata[0]), {"name": "test name", "id": 1, "value": "test_add_metadata", "commit_id": None}
         )
 
     def test_add_metadata_that_exists_does_not_add_it(self):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
-        items, errors = self._db_map.add_metadata({"name": "title", "value": "My metadata."}, strict=False)
-        self.assertEqual(errors, [])
-        self.assertEqual(items, set())
+        items, _ = self._db_map.add_metadata({"name": "title", "value": "My metadata."}, strict=False)
+        self.assertEqual(items, [])
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self.assertEqual(metadata[0]._asdict(), {"name": "title", "id": 1, "value": "My metadata.", "commit_id": 2})
+        self.assertEqual(dict(metadata[0]), {"name": "title", "id": 1, "value": "My metadata.", "commit_id": None})
 
     def test_add_entity_metadata_for_object(self):
         import_functions.import_object_classes(self._db_map, ("fish",))
@@ -967,13 +991,14 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_entity_metadata({"entity_id": 1, "metadata_id": 1}, strict=False)
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add entity metadata")
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
         self.assertEqual(
-            entity_metadata[0]._asdict(),
+            dict(entity_metadata[0]),
             {
                 "entity_id": 1,
                 "entity_name": "leviathan",
@@ -981,7 +1006,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
@@ -993,13 +1018,14 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_entity_metadata({"entity_id": 2, "metadata_id": 1}, strict=False)
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add entity metadata")
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
         self.assertEqual(
-            entity_metadata[0]._asdict(),
+            dict(entity_metadata[0]),
             {
                 "entity_id": 2,
                 "entity_name": "my_relationship_class_my_object",
@@ -1007,15 +1033,13 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
     def test_add_entity_metadata_doesnt_raise_with_empty_cache(self):
-        items, errors = self._db_map.add_entity_metadata(
-            {"entity_id": 1, "metadata_id": 1}, cache=DBCache(lambda *args, **kwargs: None), strict=False
-        )
-        self.assertEqual(items, set())
+        items, errors = self._db_map.add_entity_metadata({"entity_id": 1, "metadata_id": 1}, strict=False)
+        self.assertEqual(items, [])
         self.assertEqual(len(errors), 1)
 
     def test_add_ext_entity_metadata_for_object(self):
@@ -1025,13 +1049,14 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         items, errors = self._db_map.add_ext_entity_metadata(
             {"entity_id": 1, "metadata_name": "key", "metadata_value": "object metadata"}, strict=False
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add entity metadata")
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
         self.assertEqual(
-            entity_metadata[0]._asdict(),
+            dict(entity_metadata[0]),
             {
                 "entity_id": 1,
                 "entity_name": "leviathan",
@@ -1039,7 +1064,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "object metadata",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
@@ -1051,16 +1076,17 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         items, errors = self._db_map.add_ext_entity_metadata(
             {"entity_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add entity metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self.assertEqual(metadata[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2})
+        self.assertEqual(dict(metadata[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None})
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
         self.assertEqual(
-            entity_metadata[0]._asdict(),
+            dict(entity_metadata[0]),
             {
                 "entity_id": 1,
                 "entity_name": "leviathan",
@@ -1068,7 +1094,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
@@ -1082,13 +1108,14 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         items, errors = self._db_map.add_parameter_value_metadata(
             {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1}, strict=False
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add value metadata")
         value_metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata), 1)
         self.assertEqual(
-            value_metadata[0]._asdict(),
+            dict(value_metadata[0]),
             {
                 "alternative_name": "Base",
                 "entity_name": "leviathan",
@@ -1098,7 +1125,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
@@ -1108,7 +1135,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             cache=DBCache(lambda *args, **kwargs: None),
             strict=False,
         )
-        self.assertEqual(items, set())
+        ids = {x["id"] for x in items}
+        self.assertEqual(ids, set())
         self.assertEqual(len(errors), 1)
 
     def test_add_ext_parameter_value_metadata(self):
@@ -1126,13 +1154,14 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             },
             strict=False,
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add value metadata")
         value_metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata), 1)
         self.assertEqual(
-            value_metadata[0]._asdict(),
+            dict(value_metadata[0]),
             {
                 "alternative_name": "Base",
                 "entity_name": "leviathan",
@@ -1142,7 +1171,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "parameter metadata",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
@@ -1157,16 +1186,17 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             {"parameter_value_id": 1, "metadata_name": "title", "metadata_value": "My metadata.", "alternative_id": 1},
             strict=False,
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(items, {1})
+        self.assertEqual(ids, {1})
         self._db_map.commit_session("Add value metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self.assertEqual(metadata[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2})
+        self.assertEqual(dict(metadata[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None})
         value_metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata), 1)
         self.assertEqual(
-            value_metadata[0]._asdict(),
+            dict(value_metadata[0]),
             {
                 "alternative_name": "Base",
                 "entity_name": "leviathan",
@@ -1176,7 +1206,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": 3,
+                "commit_id": None,
             },
         )
 
@@ -1191,9 +1221,11 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
     def test_update_object_classes(self):
         """Test that updating object classes works."""
         self._db_map.add_object_classes({"id": 1, "name": "fish"}, {"id": 2, "name": "dog"})
-        ids, intgr_error_log = self._db_map.update_object_classes(
+        items, intgr_error_log = self._db_map.update_object_classes(
             {"id": 1, "name": "octopus"}, {"id": 2, "name": "god"}
         )
+        ids = {x["id"] for x in items}
+        self._db_map.commit_session("test commit")
         sq = self._db_map.object_class_sq
         object_classes = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
@@ -1204,7 +1236,9 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         """Test that updating objects works."""
         self._db_map.add_object_classes({"id": 1, "name": "fish"})
         self._db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1}, {"id": 2, "name": "dory", "class_id": 1})
-        ids, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"})
+        items, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"})
+        ids = {x["id"] for x in items}
+        self._db_map.commit_session("test commit")
         sq = self._db_map.object_sq
         objects = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
@@ -1215,13 +1249,13 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         """Test that updating objects works."""
         self._db_map.add_object_classes({"id": 1, "name": "some_class"})
         self._db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
-        ids, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"})
+        items, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"})
+        ids = {x["id"] for x in items}
+        self._db_map.commit_session("test commit")
         sq = self._db_map.object_sq
         objects = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
-        self.assertEqual(self._db_map.query(self._db_map.object_sq).filter_by(id=1).first().name, "klaus")
-        self._db_map.commit_session("update")
         self.assertEqual(self._db_map.query(self._db_map.object_sq).filter_by(id=1).first().name, "klaus")
 
     def test_update_committed_object(self):
@@ -1229,13 +1263,13 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.add_object_classes({"id": 1, "name": "some_class"})
         self._db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
         self._db_map.commit_session("update")
-        ids, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"})
+        items, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"})
+        ids = {x["id"] for x in items}
+        self._db_map.commit_session("test commit")
         sq = self._db_map.object_sq
         objects = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
         self.assertEqual(objects[1], "klaus")
-        self.assertEqual(self._db_map.query(self._db_map.object_sq).filter_by(id=1).first().name, "klaus")
-        self._db_map.commit_session("update")
         self.assertEqual(self._db_map.query(self._db_map.object_sq).filter_by(id=1).first().name, "klaus")
 
     def test_update_relationship_classes(self):
@@ -1245,9 +1279,11 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
             {"id": 3, "name": "dog__fish", "object_class_id_list": [1, 2]},
             {"id": 4, "name": "fish__dog", "object_class_id_list": [2, 1]},
         )
-        ids, intgr_error_log = self._db_map.update_wide_relationship_classes(
+        items, intgr_error_log = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "god__octopus"}, {"id": 4, "name": "octopus__dog"}
         )
+        ids = {x["id"] for x in items}
+        self._db_map.commit_session("test commit")
         sq = self._db_map.wide_relationship_class_sq
         rel_clss = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
         self.assertEqual(intgr_error_log, [])
@@ -1266,9 +1302,11 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.add_wide_relationships(
             {"id": 4, "name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2], "object_class_id_list": [1, 2]}
         )
-        ids, intgr_error_log = self._db_map.update_wide_relationships(
+        items, intgr_error_log = self._db_map.update_wide_relationships(
             {"id": 4, "name": "nemo__scooby", "class_id": 3, "object_id_list": [1, 3], "object_class_id_list": [1, 2]}
         )
+        ids = {x["id"] for x in items}
+        self._db_map.commit_session("test commit")
         sq = self._db_map.wide_relationship_sq
         rels = {
             x.id: {"name": x.name, "object_id_list": x.object_id_list}

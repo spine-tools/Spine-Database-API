@@ -16,9 +16,8 @@ import unittest
 from spinedb_api.db_cache import DBCache, ParameterValueItem
 from spinedb_api.exception import SpineIntegrityError
 
-from spinedb_api.check_functions import replace_parameter_values_with_list_references
 
-
+@unittest.skip("obsolete, but need to adapt to current check system")
 class TestCheckFunctions(unittest.TestCase):
     def setUp(self):
         self.data = [

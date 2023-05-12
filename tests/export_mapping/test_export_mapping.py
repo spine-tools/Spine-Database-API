@@ -17,7 +17,6 @@ import unittest
 from spinedb_api import (
     DatabaseMapping,
     import_alternatives,
-    import_features,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -27,9 +26,6 @@ from spinedb_api import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
-    import_tool_features,
-    import_tool_feature_methods,
-    import_tools,
     Map,
 )
 from spinedb_api.import_functions import import_object_groups
@@ -47,8 +43,6 @@ from spinedb_api.export_mapping.export_mapping import (
     FixedValueMapping,
     ExpandedParameterValueMapping,
     ExpandedParameterDefaultValueMapping,
-    FeatureEntityClassMapping,
-    FeatureParameterDefinitionMapping,
     from_dict,
     EntityGroupMapping,
     EntityGroupEntityMapping,
@@ -69,13 +63,6 @@ from spinedb_api.export_mapping.export_mapping import (
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioMapping,
-    ToolMapping,
-    ToolFeatureEntityClassMapping,
-    ToolFeatureParameterDefinitionMapping,
-    ToolFeatureRequiredFlagMapping,
-    ToolFeatureMethodEntityClassMapping,
-    ToolFeatureMethodMethodMapping,
-    ToolFeatureMethodParameterDefinitionMapping,
 )
 from spinedb_api.mapping import unflatten
 
@@ -1003,118 +990,6 @@ class TestExportMapping(unittest.TestCase):
         for title, title_key in titles(scenario_mapping, db_map):
             tables[title] = list(rows(scenario_mapping, db_map, title_key))
         self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a2"], ["s2", "a3"]]})
-        db_map.connection.close()
-
-    def test_tool_mapping(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_tools(db_map, ("tool1", "tool2"))
-        db_map.commit_session("Add test data.")
-        tool_mapping = ToolMapping(0)
-        tables = dict()
-        for title, title_key in titles(tool_mapping, db_map):
-            tables[title] = list(rows(tool_mapping, db_map, title_key))
-        self.assertEqual(tables, {None: [["tool1"], ["tool2"]]})
-        db_map.connection.close()
-
-    def test_feature_mapping(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2"))
-        import_parameter_value_lists(db_map, (("features", "feat1"), ("features", "feat2")))
-        import_object_parameters(
-            db_map,
-            (
-                ("oc1", "p1", "feat1", "features"),
-                ("oc1", "p2", "feat1", "features"),
-                ("oc2", "p3", "feat2", "features"),
-            ),
-        )
-        import_features(db_map, (("oc1", "p2"), ("oc2", "p3")))
-        db_map.commit_session("Add test data.")
-        class_mapping = FeatureEntityClassMapping(0)
-        parameter_mapping = FeatureParameterDefinitionMapping(1)
-        class_mapping.child = parameter_mapping
-        tables = dict()
-        for title, title_key in titles(class_mapping, db_map):
-            tables[title] = list(rows(class_mapping, db_map, title_key))
-        self.assertEqual(tables, {None: [["oc1", "p2"], ["oc2", "p3"]]})
-        db_map.connection.close()
-
-    def test_tool_feature_mapping(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2"))
-        import_parameter_value_lists(db_map, (("features", "feat1"), ("features", "feat2")))
-        import_object_parameters(
-            db_map,
-            (
-                ("oc1", "p1", "feat1", "features"),
-                ("oc1", "p2", "feat1", "features"),
-                ("oc2", "p3", "feat2", "features"),
-            ),
-        )
-        import_features(db_map, (("oc1", "p1"), ("oc1", "p2"), ("oc2", "p3")))
-        import_tools(db_map, ("tool1", "tool2"))
-        import_tool_features(
-            db_map, (("tool1", "oc1", "p1", True), ("tool1", "oc2", "p3", False), ("tool2", "oc1", "p1", True))
-        )
-        db_map.commit_session("Add test data.")
-        mapping = unflatten(
-            [
-                ToolMapping(Position.table_name),
-                ToolFeatureEntityClassMapping(0),
-                ToolFeatureParameterDefinitionMapping(1),
-                ToolFeatureRequiredFlagMapping(2),
-            ]
-        )
-        tables = dict()
-        for title, title_key in titles(mapping, db_map):
-            tables[title] = list(rows(mapping, db_map, title_key))
-        expected = {"tool1": [["oc1", "p1", True], ["oc2", "p3", False]], "tool2": [["oc1", "p1", True]]}
-        self.assertEqual(tables, expected)
-        db_map.connection.close()
-
-    def test_tool_feature_method_mapping(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc1", "oc2"))
-        import_parameter_value_lists(db_map, (("features", "feat1"), ("features", "feat2")))
-        import_object_parameters(
-            db_map,
-            (
-                ("oc1", "p1", "feat1", "features"),
-                ("oc1", "p2", "feat1", "features"),
-                ("oc2", "p3", "feat2", "features"),
-            ),
-        )
-        import_features(db_map, (("oc1", "p1"), ("oc1", "p2"), ("oc2", "p3")))
-        import_tools(db_map, ("tool1", "tool2"))
-        import_tool_features(
-            db_map, (("tool1", "oc1", "p1", True), ("tool1", "oc2", "p3", False), ("tool2", "oc1", "p1", True))
-        )
-        import_tool_feature_methods(
-            db_map,
-            (
-                ("tool1", "oc1", "p1", "feat1"),
-                ("tool1", "oc1", "p1", "feat2"),
-                ("tool2", "oc1", "p1", "feat1"),
-                ("tool2", "oc1", "p1", "feat2"),
-            ),
-        )
-        db_map.commit_session("Add test data.")
-        mapping = unflatten(
-            [
-                ToolMapping(Position.table_name),
-                ToolFeatureMethodEntityClassMapping(0),
-                ToolFeatureMethodParameterDefinitionMapping(1),
-                ToolFeatureMethodMethodMapping(2),
-            ]
-        )
-        tables = dict()
-        for title, title_key in titles(mapping, db_map):
-            tables[title] = list(rows(mapping, db_map, title_key))
-        expected = {
-            "tool1": [["oc1", "p1", "feat1"], ["oc1", "p1", "feat2"]],
-            "tool2": [["oc1", "p1", "feat1"], ["oc1", "p1", "feat2"]],
-        }
-        self.assertEqual(tables, expected)
         db_map.connection.close()
 
     def test_header(self):

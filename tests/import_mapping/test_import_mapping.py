@@ -224,30 +224,16 @@ class TestImportMappingIO(unittest.TestCase):
         self.assertEqual(types, expected)
 
     def test_tool_mapping(self):
-        mapping = import_mapping_from_dict({"map_type": "Tool"})
-        d = mapping_to_dict(mapping)
-        types = [m["map_type"] for m in d]
-        expected = ['Tool']
-        self.assertEqual(types, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict({"map_type": "Tool"})
 
     def test_tool_feature_mapping(self):
-        mapping = import_mapping_from_dict({"map_type": "ToolFeature"})
-        d = mapping_to_dict(mapping)
-        types = [m["map_type"] for m in d]
-        expected = ['Tool', 'ToolFeatureEntityClass', 'ToolFeatureParameterDefinition', 'ToolFeatureRequiredFlag']
-        self.assertEqual(types, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict({"map_type": "ToolFeature"})
 
     def test_tool_feature_method_mapping(self):
-        mapping = import_mapping_from_dict({"map_type": "ToolFeatureMethod"})
-        d = mapping_to_dict(mapping)
-        types = [m["map_type"] for m in d]
-        expected = [
-            'Tool',
-            'ToolFeatureMethodEntityClass',
-            'ToolFeatureMethodParameterDefinition',
-            'ToolFeatureMethodMethod',
-        ]
-        self.assertEqual(types, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict({"map_type": "ToolFeatureMethod"})
 
     def test_parameter_value_list_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "ParameterValueList"})
@@ -433,32 +419,18 @@ class TestImportMappingLegacy(unittest.TestCase):
 
     def test_Tool_to_dict_from_dict(self):
         mapping = {"map_type": "Tool", "name": 0}
-        mapping = import_mapping_from_dict(mapping)
-        out = mapping_to_dict(mapping)
-        expected = [{'map_type': 'Tool', 'position': 0}]
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict(mapping)
 
     def test_Feature_to_dict_from_dict(self):
         mapping = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
-        mapping = import_mapping_from_dict(mapping)
-        out = mapping_to_dict(mapping)
-        expected = [
-            {'map_type': 'FeatureEntityClass', 'position': 0},
-            {'map_type': 'FeatureParameterDefinition', 'position': 1},
-        ]
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict(mapping)
 
     def test_ToolFeature_to_dict_from_dict(self):
         mapping = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
-        mapping = import_mapping_from_dict(mapping)
-        out = mapping_to_dict(mapping)
-        expected = [
-            {'map_type': 'Tool', 'position': 0},
-            {'map_type': 'ToolFeatureEntityClass', 'position': 1},
-            {'map_type': 'ToolFeatureParameterDefinition', 'position': 2},
-            {'map_type': 'ToolFeatureRequiredFlag', 'position': 'hidden', 'value': 'false'},
-        ]
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict(mapping)
 
     def test_ToolFeatureMethod_to_dict_from_dict(self):
         mapping = {
@@ -468,15 +440,8 @@ class TestImportMappingLegacy(unittest.TestCase):
             "parameter_definition_name": 2,
             "method": 3,
         }
-        mapping = import_mapping_from_dict(mapping)
-        out = mapping_to_dict(mapping)
-        expected = [
-            {'map_type': 'Tool', 'position': 0},
-            {'map_type': 'ToolFeatureMethodEntityClass', 'position': 1},
-            {'map_type': 'ToolFeatureMethodParameterDefinition', 'position': 2},
-            {'map_type': 'ToolFeatureMethodMethod', 'position': 3},
-        ]
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            import_mapping_from_dict(mapping)
 
     def test_MapValueMapping_from_dict_to_dict(self):
         mapping_dict = {
@@ -1733,30 +1698,24 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         data_header = next(data)
         mapping = {"map_type": "Tool", "name": 0}
-        out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"tools": {"tool1", "second_tool", "last_one"}}
-        self.assertFalse(errors)
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            get_mapped_data(data, [mapping], data_header)
 
     def test_read_feature(self):
         input_data = [["Class", "Parameter"], ["class1", "param1"], ["class2", "param2"]]
         data = iter(input_data)
         data_header = next(data)
         mapping = {"map_type": "Feature", "entity_class_name": 0, "parameter_definition_name": 1}
-        out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"features": {("class1", "param1"), ("class2", "param2")}}
-        self.assertFalse(errors)
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            get_mapped_data(data, [mapping], data_header)
 
     def test_read_tool_feature(self):
         input_data = [["Tool", "Class", "Parameter"], ["tool1", "class1", "param1"], ["tool2", "class2", "param2"]]
         data = iter(input_data)
         data_header = next(data)
         mapping = {"map_type": "ToolFeature", "name": 0, "entity_class_name": 1, "parameter_definition_name": 2}
-        out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"tool_features": [["tool1", "class1", "param1", False], ["tool2", "class2", "param2", False]]}
-        self.assertFalse(errors)
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            get_mapped_data(data, [mapping], data_header)
 
     def test_read_tool_feature_with_required_flag(self):
         input_data = [
@@ -1773,10 +1732,8 @@ class TestMappingIntegration(unittest.TestCase):
             "parameter_definition_name": 2,
             "required": 3,
         }
-        out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"tool_features": [["tool1", "class1", "param1", False], ["tool2", "class2", "param2", True]]}
-        self.assertFalse(errors)
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            get_mapped_data(data, [mapping], data_header)
 
     def test_read_tool_feature_method(self):
         input_data = [
@@ -1793,14 +1750,8 @@ class TestMappingIntegration(unittest.TestCase):
             "parameter_definition_name": 2,
             "method": 3,
         }
-        out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
-        expected["tool_feature_methods"] = [
-            ["tool1", "class1", "param1", "meth1"],
-            ["tool2", "class2", "param2", "meth2"],
-        ]
-        self.assertFalse(errors)
-        self.assertEqual(out, expected)
+        with self.assertRaises(ValueError):
+            get_mapped_data(data, [mapping], data_header)
 
     def test_read_object_group_without_parameters(self):
         input_data = [

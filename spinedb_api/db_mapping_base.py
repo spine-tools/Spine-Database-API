@@ -20,7 +20,7 @@ from collections import Counter
 from types import MethodType
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, inspect, case, func, cast, false, and_, or_
-from sqlalchemy.sql.expression import label, Alias, select
+from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import DatabaseError, ProgrammingError
@@ -184,9 +184,10 @@ class DatabaseMappingBase:
         self._table_to_sq_attr = {}
         # Table primary ids map:
         self._id_fields = {
+            "entity_class_dimension": "entity_class_id",
+            "entity_element": "entity_id",
             "object_class": "entity_class_id",
             "relationship_class": "entity_class_id",
-            "entity_class_dimension": "entity_class_id",
             "object": "entity_id",
             "relationship": "entity_id",
         }
@@ -231,6 +232,14 @@ class DatabaseMappingBase:
 
     def _make_executor(self):
         return ThreadPoolExecutor(max_workers=1) if self._asynchronous else _Executor()
+
+    def call_in_right_thread(self, fn, *args, **kwargs):
+        # We try to call directly. If we are in the wrong thread this will raise ProgrammingError.
+        # Then we can execute in the executor thread.
+        try:
+            return fn(*args, **kwargs)
+        except ProgrammingError:
+            return self.executor.submit(fn, *args, **kwargs).result()
 
     def close(self):
         if not self.connection.closed:
@@ -281,23 +290,6 @@ class DatabaseMappingBase:
 
     def get_table(self, tablename):
         return self._metadata.tables[tablename]
-
-    def commit_id(self):
-        return self._commit_id
-
-    def _make_commit_id(self):
-        return None
-
-    def _check_commit(self, comment):
-        """Raises if commit not possible.
-
-        Args:
-            comment (str): commit message
-        """
-        if not self.has_pending_changes():
-            raise SpineDBAPIError("Nothing to commit.")
-        if not comment:
-            raise SpineDBAPIError("Commit message cannot be empty.")
 
     def _make_codename(self, codename):
         if codename:
@@ -402,8 +394,8 @@ class DatabaseMappingBase:
             Column("value", column.type, primary_key=True),
             prefixes=['TEMPORARY'],
         )
-        self.executor.submit(in_value.create, self.connection, checkfirst=True).result()
-        self.safe_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
+        self.call_in_right_thread(in_value.create, self.connection, checkfirst=True)
+        self.connection_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
         return column.in_(self.query(in_value.c.value))
 
     def _get_table_to_sq_attr(self):
@@ -469,7 +461,7 @@ class DatabaseMappingBase:
                 db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
             ).group_by(db_map.object_class_sq.c.name).all()
         """
-        return Query(self, select(args))
+        return Query(self, *args)
 
     def _subquery(self, tablename):
         """A subquery of the form:
@@ -702,7 +694,7 @@ class DatabaseMappingBase:
                     self.wide_entity_class_sq.c.hidden.label("hidden"),
                 )
                 .filter(self.wide_entity_class_sq.c.dimension_id_list == None)
-                .subquery()
+                .subquery("object_class_sq")
             )
         return self._object_class_sq
 
@@ -727,7 +719,7 @@ class DatabaseMappingBase:
                     self.wide_entity_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.wide_entity_sq.c.element_id_list == None)
-                .subquery()
+                .subquery("object_sq")
             )
         return self._object_sq
 
@@ -755,7 +747,7 @@ class DatabaseMappingBase:
                     self.wide_entity_class_sq.c.hidden.label("hidden"),
                 )
                 .filter(self.wide_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
-                .subquery()
+                .subquery("relationship_class_sq")
             )
         return self._relationship_class_sq
 
@@ -782,7 +774,7 @@ class DatabaseMappingBase:
                     self.wide_entity_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.wide_entity_sq.c.id == ent_el_sq.c.entity_id)
-                .subquery()
+                .subquery("relationship_sq")
             )
         return self._relationship_sq
 
@@ -1920,12 +1912,8 @@ class DatabaseMappingBase:
         self._make_scenario_alternative_sq = MethodType(DatabaseMappingBase._make_scenario_alternative_sq, self)
         self._clear_subqueries("scenario_alternative")
 
-    def safe_execute(self, *args):
-        # We try to execute directly. If we are in the wrong thread this will raise ProgrammingError.
-        try:
-            return self.connection.execute(*args)
-        except ProgrammingError:
-            return self.executor.submit(self.connection.execute, *args).result()
+    def connection_execute(self, *args):
+        return self.call_in_right_thread(self.connection.execute, *args)
 
     def _get_primary_key(self, tablename):
         pk = self.composite_pks.get(tablename)
@@ -1940,8 +1928,8 @@ class DatabaseMappingBase:
         """
         for tablename in self._tablenames:
             table = self._metadata.tables[tablename]
-            self.connection.execute(table.delete())
-        self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+            self.connection_execute(table.delete())
+        self.connection_execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
     def fetch_all(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
         if include_descendants:
@@ -2026,32 +2014,20 @@ class DatabaseMappingBase:
         """
         cache = self.cache
         usage_counts = Counter()
-        for entry in cache.get("entity_metadata", {}).values():
+        for entry in dict.values(cache.get("entity_metadata", {})):
             usage_counts[entry.metadata_id] += 1
-        for entry in cache.get("parameter_value_metadata", {}).values():
+        for entry in dict.values(cache.get("parameter_value_metadata", {})):
             usage_counts[entry.metadata_id] += 1
         return usage_counts
 
-    def check_items(self, tablename, *items, for_update=False):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        checked_items, errors = [], []
-        for item in items:
-            checked_item, error = table_cache.check_item(item, for_update=for_update)
-            if error:
-                errors.append(error)
-            else:
-                checked_items.append(checked_item)
-        return checked_items, errors
+    def get_filter_configs(self):
+        return self._filter_configs
 
     def __del__(self):
         try:
             self.close()
         except AttributeError:
             pass
-
-    def get_filter_configs(self):
-        return self._filter_configs
 
 
 class _Future:

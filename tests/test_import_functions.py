@@ -31,10 +31,6 @@ from spinedb_api.import_functions import (
     import_scenario_alternatives,
     import_scenarios,
     import_parameter_value_lists,
-    import_tools,
-    import_features,
-    import_tool_features,
-    import_tool_feature_methods,
     import_metadata,
     import_object_metadata,
     import_relationship_metadata,
@@ -120,6 +116,7 @@ class TestImportObjectClass(unittest.TestCase):
         db_map = create_diff_db_map()
         _, errors = import_object_classes(db_map, ["new_class"])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("new_class", [oc.name for oc in db_map.query(db_map.object_class_sq)])
         db_map.connection.close()
 
@@ -130,6 +127,7 @@ class TestImportObject(unittest.TestCase):
         import_object_classes(db_map, ["object_class"])
         _, errors = import_objects(db_map, [["object_class", "new_object"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("new_object", [o.name for o in db_map.query(db_map.object_sq)])
         db_map.connection.close()
 
@@ -144,6 +142,7 @@ class TestImportObject(unittest.TestCase):
         import_object_classes(db_map, ["object_class1", "object_class2"])
         _, errors = import_objects(db_map, [["object_class1", "object"], ["object_class2", "object"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         objects = {
             o.class_name: o.name
             for o in db_map.query(
@@ -158,9 +157,11 @@ class TestImportObject(unittest.TestCase):
         db_map = create_diff_db_map()
         import_object_classes(db_map, ["object_class"])
         import_objects(db_map, [["object_class", "object"]])
+        db_map.commit_session("test")
         self.assertIn("object", [o.name for o in db_map.query(db_map.object_sq)])
         _, errors = import_objects(db_map, [["object_class", "object"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("object", [o.name for o in db_map.query(db_map.object_sq)])
         db_map.connection.close()
 
@@ -171,6 +172,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         import_object_classes(db_map, ["object_class1", "object_class2"])
         _, errors = import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         relationship_classes = {
             rc.name: rc.object_class_name_list for rc in db_map.query(db_map.wide_relationship_class_sq)
         }
@@ -183,7 +185,8 @@ class TestImportRelationshipClass(unittest.TestCase):
         import_object_classes(db_map, ["object_class"])
         _, errors = import_relationship_classes(db_map, [["relationship_class", ["object_class", "nonexistent"]]])
         self.assertTrue(errors)
-        self.assertFalse([rc for rc in db_map.query(db_map.wide_relationship_class_sq)])
+        db_map.commit_session("test")
+        self.assertFalse(db_map.query(db_map.wide_relationship_class_sq).all())
         db_map.connection.close()
 
     def test_import_relationship_class_name_twice(self):
@@ -193,6 +196,7 @@ class TestImportRelationshipClass(unittest.TestCase):
             db_map, [["new_rc", ["object_class1", "object_class2"]], ["new_rc", ["object_class1", "object_class2"]]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         relationship_classes = {
             rc.name: rc.object_class_name_list for rc in db_map.query(db_map.wide_relationship_class_sq)
         }
@@ -213,6 +217,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         import_object_classes(db_map, ["object_class1"])
         _, errors = import_relationship_classes(db_map, [["new_rc", ["object_class", None]]])
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse([rc for rc in db_map.query(db_map.wide_relationship_class_sq)])
         db_map.connection.close()
 
@@ -223,6 +228,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
         import_object_classes(db_map, ["object_class"])
         _, errors = import_object_parameters(db_map, [["object_class", "new_parameter"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("new_parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
         db_map.connection.close()
 
@@ -239,6 +245,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
             db_map, [["object_class1", "new_parameter"], ["object_class2", "new_parameter"]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         definitions = {
             definition.object_class_name: definition.parameter_name
             for definition in db_map.query(db_map.object_parameter_definition_sq)
@@ -251,8 +258,10 @@ class TestImportObjectClassParameter(unittest.TestCase):
         db_map = create_diff_db_map()
         import_object_classes(db_map, ["object_class"])
         import_object_parameters(db_map, [["object_class", "parameter"]])
+        db_map.commit_session("test")
         self.assertIn("parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
         _, errors = import_object_parameters(db_map, [["object_class", "parameter"]])
+        db_map.commit_session("test")
         self.assertIn("parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
         self.assertFalse(errors)
         db_map.connection.close()
@@ -279,6 +288,7 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationship_parameters(db_map, [["relationship_class", "new_parameter"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         definitions = {
             d.class_name: d.name
             for d in db_map.query(
@@ -310,6 +320,7 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
             db_map, [["relationship_class1", "new_parameter"], ["relationship_class2", "new_parameter"]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         definitions = {
             d.class_name: d.name
             for d in db_map.query(
@@ -344,6 +355,7 @@ class TestImportRelationship(unittest.TestCase):
         import_relationship_classes(db_map, (("relationship_class", ("object_class",)),))
         _, errors = import_relationships(db_map, (("relationship_class", ("object",)),))
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("relationship_class_object", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -353,6 +365,7 @@ class TestImportRelationship(unittest.TestCase):
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -363,6 +376,7 @@ class TestImportRelationship(unittest.TestCase):
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", ["duplicate", "object2"]]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("relationship_class_duplicate__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -371,6 +385,7 @@ class TestImportRelationship(unittest.TestCase):
         self.populate(db_map)
         _, errors = import_relationships(db_map, [["nonexistent_relationship_class", ["object1", "object2"]]])
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -380,6 +395,7 @@ class TestImportRelationship(unittest.TestCase):
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", ["nonexistent_object", "object2"]]])
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -388,9 +404,11 @@ class TestImportRelationship(unittest.TestCase):
         self.populate(db_map)
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
+        db_map.commit_session("test")
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         _, errors = import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -400,6 +418,7 @@ class TestImportRelationship(unittest.TestCase):
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", [None, "object2"]]])
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.connection.close()
 
@@ -417,9 +436,7 @@ class TestImportParameterDefinition(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(count, 1)
         self._db_map.commit_session("Add test data.")
-        parameter_definitions = [
-            row._asdict() for row in self._db_map.query(self._db_map.object_parameter_definition_sq)
-        ]
+        parameter_definitions = [dict(row) for row in self._db_map.query(self._db_map.object_parameter_definition_sq)]
         self.assertEqual(
             parameter_definitions,
             [
@@ -446,9 +463,7 @@ class TestImportParameterDefinition(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(count, 1)
         self._db_map.commit_session("Add test data.")
-        parameter_definitions = [
-            row._asdict() for row in self._db_map.query(self._db_map.object_parameter_definition_sq)
-        ]
+        parameter_definitions = [dict(row) for row in self._db_map.query(self._db_map.object_parameter_definition_sq)]
         self.assertEqual(
             parameter_definitions,
             [
@@ -475,9 +490,7 @@ class TestImportParameterDefinition(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(count, 1)
         self._db_map.commit_session("Add test data.")
-        parameter_definitions = [
-            row._asdict() for row in self._db_map.query(self._db_map.object_parameter_definition_sq)
-        ]
+        parameter_definitions = [dict(row) for row in self._db_map.query(self._db_map.object_parameter_definition_sq)]
         self.assertEqual(
             parameter_definitions,
             [
@@ -501,13 +514,7 @@ class TestImportParameterDefinition(unittest.TestCase):
         import_object_classes(self._db_map, ["my_object_class"])
         import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
         count, errors = import_object_parameters(self._db_map, (("my_object_class", "my_parameter", 23.0, "my_list"),))
-        self.assertEqual(
-            [error.msg for error in errors],
-            [
-                "Could not import parameter 'my_parameter' with class 'my_object_class': "
-                "Invalid default_value '23.0' - it should be one from the parameter value list: '99.0'."
-            ],
-        )
+        self.assertEqual(errors, ["default value 23.0 of my_parameter is not in my_list"])
         self.assertEqual(count, 0)
 
 
@@ -530,6 +537,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.populate(db_map)
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b"1"}
         self.assertEqual(values, expected)
@@ -540,6 +548,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.populate(db_map)
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "value_string"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"value_string"'}
         self.assertEqual(values, expected)
@@ -551,6 +560,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]])
         _, errors = import_object_parameter_values(db_map, [["object_class1", "duplicate_object", "parameter", 1]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object_class1": {"duplicate_object": b"1"}}
         self.assertEqual(values, expected)
@@ -562,6 +572,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_object_parameters(db_map, [["object_class2", "parameter"]])
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object_class1": {"object1": b"1"}}
         self.assertEqual(values, expected)
@@ -573,6 +584,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_object_parameters(db_map, [["object_class", "parameter"]])
         _, errors = import_object_parameter_values(db_map, [["object_class", "nonexistent_object", "parameter", 1]])
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.object_parameter_value_sq).all())
         db_map.connection.close()
 
@@ -582,6 +594,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_objects(db_map, ["object_class", "object"])
         _, errors = import_object_parameter_values(db_map, [["object_class", "object", "nonexistent_parameter", 1]])
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.object_parameter_value_sq).all())
         db_map.connection.close()
 
@@ -591,6 +604,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "initial_value"]])
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "new_value"]])
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"new_value"'}
         self.assertEqual(values, expected)
@@ -606,6 +620,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="keep"
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         value = from_database(pv.value, pv.type)
         self.assertEqual(['2000-01-01T01:00:00', '2000-01-01T02:00:00'], [str(x) for x in value.indexes])
@@ -622,6 +637,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="replace"
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         value = from_database(pv.value, pv.type)
         self.assertEqual(['2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes])
@@ -638,6 +654,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         value = from_database(pv.value, pv.type)
         self.assertEqual(
@@ -664,6 +681,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         map_ = from_database(pv.value, pv.type)
         self.assertEqual(['xxx'], [str(x) for x in map_.indexes])
@@ -682,6 +700,7 @@ class TestImportParameterValue(unittest.TestCase):
             [["object_class1", "object1", "parameter", "first"], ["object_class1", "object1", "parameter", "second"]],
         )
         self.assertTrue(errors)
+        db_map.commit_session("test")
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"first"'}
         self.assertEqual(values, expected)
@@ -696,13 +715,9 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertFalse(errors)
         self.assertEqual(count, 1)
+        db_map.commit_session("test")
         values = {
-            v.object_name: (v.value, v.alternative_name)
-            for v in db_map.query(
-                db_map.object_parameter_value_sq, db_map.alternative_sq.c.name.label("alternative_name")
-            )
-            .filter(db_map.object_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
-            .all()
+            v.object_name: (v.value, v.alternative_name) for v in db_map.query(db_map.object_parameter_value_sq).all()
         }
         expected = {"object1": (b"1", "alternative")}
         self.assertEqual(values, expected)
@@ -727,6 +742,7 @@ class TestImportParameterValue(unittest.TestCase):
         count, errors = import_object_parameter_values(db_map, (("object_class", "my_object", "parameter", 5.0),))
         self.assertEqual(count, 1)
         self.assertEqual(errors, [])
+        db_map.commit_session("test")
         values = db_map.query(db_map.object_parameter_value_sq).all()
         self.assertEqual(len(values), 1)
         value = values[0]
@@ -751,6 +767,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b"1"}
         self.assertEqual(values, expected)
@@ -765,6 +782,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b"1"}
         self.assertEqual(values, expected)
@@ -779,6 +797,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["duplicate_object", "duplicate_object"], "parameter", 1]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"duplicate_object,duplicate_object": b"1"}
         self.assertEqual(values, expected)
@@ -791,6 +810,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["nonexistent_object", "object2"], "parameter", 1]]
         )
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
         db_map.connection.close()
 
@@ -801,6 +821,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["nonexistent_class", ["object1", "object2"], "parameter", 1]]
         )
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
         db_map.connection.close()
 
@@ -811,6 +832,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["object1", "object2"], "nonexistent_parameter", 1]]
         )
         self.assertTrue(errors)
+        db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
         db_map.connection.close()
 
@@ -824,6 +846,7 @@ class TestImportParameterValue(unittest.TestCase):
             db_map, [["relationship_class", ["object1", "object2"], "parameter", "new_value"]]
         )
         self.assertFalse(errors)
+        db_map.commit_session("test")
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b'"new_value"'}
         self.assertEqual(values, expected)
@@ -840,6 +863,7 @@ class TestImportParameterValue(unittest.TestCase):
             ],
         )
         self.assertTrue(errors)
+        db_map.commit_session("test")
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b'"first"'}
         self.assertEqual(values, expected)
@@ -854,13 +878,10 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertFalse(errors)
         self.assertEqual(count, 1)
+        db_map.commit_session("test")
         values = {
             v.object_name_list: (v.value, v.alternative_name)
-            for v in db_map.query(
-                db_map.relationship_parameter_value_sq, db_map.alternative_sq.c.name.label("alternative_name")
-            )
-            .filter(db_map.relationship_parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id)
-            .all()
+            for v in db_map.query(db_map.relationship_parameter_value_sq).all()
         }
         expected = {"object1,object2": (b"1", "alternative")}
         self.assertEqual(values, expected)
@@ -889,6 +910,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertEqual(count, 1)
         self.assertEqual(errors, [])
+        db_map.commit_session("test")
         values = db_map.query(db_map.relationship_parameter_value_sq).all()
         self.assertEqual(len(values), 1)
         value = values[0]
@@ -922,6 +944,7 @@ class TestImportParameterValueList(unittest.TestCase):
         count, errors = import_parameter_value_lists(self._db_map, (("list_1", 23.0),))
         self.assertEqual(errors, [])
         self.assertEqual(count, 2)
+        self._db_map.commit_session("test")
         value_lists = self._db_map.query(self._db_map.parameter_value_list_sq).all()
         list_values = self._db_map.query(self._db_map.list_value_sq).all()
         self.assertEqual(len(value_lists), 1)
@@ -938,7 +961,8 @@ class TestImportParameterValueList(unittest.TestCase):
         self.assertEqual(count, n_values + 1)
         count, errors = import_parameter_value_lists(self._db_map, (("list_1", 23.0),))
         self.assertEqual(errors, [])
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 2)
+        self._db_map.commit_session("test")
         value_lists = self._db_map.query(self._db_map.parameter_value_list_sq).all()
         self.assertEqual(len(value_lists), 1)
         self.assertEqual(value_lists[0].name, "list_1")
@@ -956,6 +980,7 @@ class TestImportAlternative(unittest.TestCase):
         count, errors = import_alternatives(db_map, ["alternative"])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         alternatives = [a.name for a in db_map.query(db_map.alternative_sq)]
         self.assertEqual(len(alternatives), 2)
         self.assertIn("Base", alternatives)
@@ -967,6 +992,7 @@ class TestImportAlternative(unittest.TestCase):
         count, errors = import_alternatives(db_map, [["alternative", "description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         alternatives = {a.name: a.description for a in db_map.query(db_map.alternative_sq)}
         expected = {"Base": "Base alternative", "alternative": "description"}
         self.assertEqual(alternatives, expected)
@@ -977,6 +1003,7 @@ class TestImportAlternative(unittest.TestCase):
         count, errors = import_alternatives(db_map, [["Base", "new description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         alternatives = {a.name: a.description for a in db_map.query(db_map.alternative_sq)}
         expected = {"Base": "new description"}
         self.assertEqual(alternatives, expected)
@@ -989,6 +1016,7 @@ class TestImportScenario(unittest.TestCase):
         count, errors = import_scenarios(db_map, ["scenario"])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
         self.assertEqual(scenarios, {"scenario": None})
         db_map.connection.close()
@@ -998,6 +1026,7 @@ class TestImportScenario(unittest.TestCase):
         count, errors = import_scenarios(db_map, [["scenario", False, "description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
         self.assertEqual(scenarios, {"scenario": "description"})
         db_map.connection.close()
@@ -1008,6 +1037,7 @@ class TestImportScenario(unittest.TestCase):
         count, errors = import_scenarios(db_map, [["scenario", False, "new description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
         self.assertEqual(scenarios, {"scenario": "new description"})
         db_map.connection.close()
@@ -1061,6 +1091,7 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self.assertEqual(count, 2)
 
     def scenario_alternatives(self):
+        self._db_map.commit_session("test")
         scenario_alternative_qry = (
             self._db_map.query(
                 self._db_map.scenario_sq.c.name.label("scenario_name"),
@@ -1077,260 +1108,13 @@ class TestImportScenarioAlternative(unittest.TestCase):
         return scenario_alternatives
 
 
-class TestImportTool(unittest.TestCase):
-    def test_single_tool(self):
-        db_map = create_diff_db_map()
-        count, errors = import_tools(db_map, ["tool"])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        tools = [x.name for x in db_map.query(db_map.tool_sq)]
-        self.assertEqual(len(tools), 1)
-        self.assertIn("tool", tools)
-        db_map.connection.close()
-
-    def test_tool_description(self):
-        db_map = create_diff_db_map()
-        count, errors = import_tools(db_map, [["tool", "description"]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        tools = {x.name: x.description for x in db_map.query(db_map.tool_sq)}
-        expected = {"tool": "description"}
-        self.assertEqual(tools, expected)
-        db_map.connection.close()
-
-    def test_update_tool_description(self):
-        db_map = create_diff_db_map()
-        count, errors = import_tools(db_map, [["tool", "description"]])
-        count, errors = import_tools(db_map, [["tool", "new description"]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        tools = {x.name: x.description for x in db_map.query(db_map.tool_sq)}
-        expected = {"tool": "new description"}
-        self.assertEqual(tools, expected)
-        db_map.connection.close()
-
-
-class TestImportFeature(unittest.TestCase):
-    @staticmethod
-    def populate(db_map):
-        import_object_classes(db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(
-            db_map, [['value_list', 'value1'], ['value_list', 'value2'], ['value_list', 'value3']]
-        )
-        import_object_parameters(
-            db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
-        )
-
-    def test_single_feature(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_features(db_map, [["object_class1", "parameter1"]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        features = [
-            (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name)
-            for x in db_map.query(db_map.ext_feature_sq)
-        ]
-        self.assertEqual(len(features), 1)
-        self.assertIn(("object_class1", "parameter1", "value_list"), features)
-        db_map.connection.close()
-
-    def test_feature_for_parameter_without_value_list(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_features(db_map, [["object_class1", "parameter2"]])
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_feature_description(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_features(db_map, [["object_class1", "parameter1", "description"]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        features = {
-            (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name): x.description
-            for x in db_map.query(db_map.ext_feature_sq)
-        }
-        expected = {("object_class1", "parameter1", "value_list"): "description"}
-        self.assertEqual(features, expected)
-        db_map.connection.close()
-
-    def test_update_feature_description(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_features(db_map, [["object_class1", "parameter1", "description"]])
-        count, errors = import_features(db_map, [["object_class1", "parameter1", "new description"]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        features = {
-            (x.entity_class_name, x.parameter_definition_name, x.parameter_value_list_name): x.description
-            for x in db_map.query(db_map.ext_feature_sq)
-        }
-        expected = {("object_class1", "parameter1", "value_list"): "new description"}
-        self.assertEqual(features, expected)
-        db_map.connection.close()
-
-
-class TestImportToolFeature(unittest.TestCase):
-    @staticmethod
-    def populate(db_map):
-        import_object_classes(db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(
-            db_map, [['value_list', 'value1'], ['value_list', 'value2'], ['value_list', 'value3']]
-        )
-        import_object_parameters(
-            db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
-        )
-        import_features(db_map, [["object_class1", "parameter1"]])
-        import_tools(db_map, ["tool1"])
-
-    def test_single_tool_feature(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        tool_features = [
-            (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-            for x in db_map.query(db_map.ext_tool_feature_sq)
-        ]
-        self.assertEqual(len(tool_features), 1)
-        self.assertIn(("tool1", "object_class1", "parameter1", False), tool_features)
-        db_map.connection.close()
-
-    def test_tool_feature_with_non_feature_parameter(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter2"]])
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_tool_feature_with_non_existing_tool(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_features(db_map, [["non_existing_tool", "object_class1", "parameter1"]])
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_tool_feature_required(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter1", True]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        tool_features = [
-            (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-            for x in db_map.query(db_map.ext_tool_feature_sq)
-        ]
-        self.assertEqual(len(tool_features), 1)
-        self.assertIn(("tool1", "object_class1", "parameter1", True), tool_features)
-        db_map.connection.close()
-
-    def test_update_tool_feature_required(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
-        count, errors = import_tool_features(db_map, [["tool1", "object_class1", "parameter1", True]])
-        self.assertEqual(count, 1)
-        self.assertFalse(errors)
-        tool_features = [
-            (x.tool_name, x.entity_class_name, x.parameter_definition_name, x.required)
-            for x in db_map.query(db_map.ext_tool_feature_sq)
-        ]
-        self.assertEqual(len(tool_features), 1)
-        self.assertIn(("tool1", "object_class1", "parameter1", True), tool_features)
-        db_map.connection.close()
-
-
-class TestImportToolFeatureMethod(unittest.TestCase):
-    @staticmethod
-    def populate(db_map):
-        import_object_classes(db_map, ["object_class1", "object_class2"])
-        import_parameter_value_lists(
-            db_map, [['value_list', 'value1'], ['value_list', 'value2'], ['value_list', 'value3']]
-        )
-        import_object_parameters(
-            db_map, [["object_class1", "parameter1", "value1", "value_list"], ["object_class1", "parameter2"]]
-        )
-        import_features(db_map, [["object_class1", "parameter1"]])
-        import_tools(db_map, ["tool1"])
-        import_tool_features(db_map, [["tool1", "object_class1", "parameter1"]])
-
-    def test_import_a_couple_of_tool_feature_methods(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_feature_methods(
-            db_map,
-            [["tool1", "object_class1", "parameter1", "value2"], ["tool1", "object_class1", "parameter1", "value3"]],
-        )
-        self.assertEqual(count, 2)
-        self.assertFalse(errors)
-        tool_feature_methods = [
-            (x.tool_name, x.entity_class_name, x.parameter_definition_name, from_database(x.method))
-            for x in db_map.query(db_map.ext_tool_feature_method_sq)
-        ]
-        self.assertEqual(len(tool_feature_methods), 2)
-        self.assertIn(("tool1", "object_class1", "parameter1", "value2"), tool_feature_methods)
-        self.assertIn(("tool1", "object_class1", "parameter1", "value3"), tool_feature_methods)
-        db_map.connection.close()
-
-    def test_tool_feature_method_with_non_feature_parameter(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_feature_methods(db_map, [["tool1", "object_class1", "parameter2", "method"]])
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_tool_feature_method_with_non_existing_tool(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_feature_methods(
-            db_map, [["non_existing_tool", "object_class1", "parameter1", "value2"]]
-        )
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_tool_feature_method_with_invalid_method(self):
-        db_map = create_diff_db_map()
-        self.populate(db_map)
-        count, errors = import_tool_feature_methods(
-            db_map, [["tool1", "object_class1", "parameter1", "invalid_method"]]
-        )
-        self.assertEqual(count, 0)
-        self.assertTrue(errors)
-        db_map.connection.close()
-
-    def test_tool_feature_method_with_db_server_style_method(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        self.populate(db_map)
-        db_map.commit_session("Add test data.")
-        count, errors = import_tool_feature_methods(
-            db_map, [["tool1", "object_class1", "parameter1", [b'"value1"', None]]], unparse_value=_unparse_value
-        )
-        self.assertEqual(errors, [])
-        self.assertEqual(count, 1)
-        tool_feature_methods = db_map.query(db_map.ext_tool_feature_method_sq).all()
-        self.assertEqual(len(tool_feature_methods), 1)
-        self.assertEqual(tool_feature_methods[0].entity_class_name, "object_class1")
-        self.assertEqual(from_database(tool_feature_methods[0].method), "value1")
-        self.assertEqual(tool_feature_methods[0].parameter_definition_name, "parameter1")
-        self.assertEqual(tool_feature_methods[0].parameter_value_list_name, "value_list")
-        self.assertEqual(tool_feature_methods[0].tool_name, "tool1")
-        db_map.connection.close()
-
-
 class TestImportMetadata(unittest.TestCase):
     def test_import_metadata(self):
         db_map = create_diff_db_map()
         count, errors = import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 90}'])
         self.assertEqual(count, 4)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
         self.assertEqual(len(metadata), 4)
         self.assertIn(("name", "John"), metadata)
@@ -1344,6 +1128,7 @@ class TestImportMetadata(unittest.TestCase):
         count, errors = import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 17}'])
         self.assertEqual(count, 3)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
         self.assertEqual(len(metadata), 3)
         self.assertIn(("name", "John"), metadata)
@@ -1354,6 +1139,7 @@ class TestImportMetadata(unittest.TestCase):
     def test_import_metadata_with_nested_dict(self):
         db_map = create_diff_db_map()
         count, errors = import_metadata(db_map, ['{"name": "John", "info": {"age": 17, "city": "LA"}}'])
+        db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
         self.assertEqual(count, 2)
         self.assertFalse(errors)
@@ -1365,6 +1151,7 @@ class TestImportMetadata(unittest.TestCase):
     def test_import_metadata_with_nested_list(self):
         db_map = create_diff_db_map()
         count, errors = import_metadata(db_map, ['{"contributors": [{"name": "John"}, {"name": "Charly"}]}'])
+        db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
         self.assertEqual(count, 2)
         self.assertFalse(errors)
@@ -1376,6 +1163,7 @@ class TestImportMetadata(unittest.TestCase):
     def test_import_unformatted_metadata(self):
         db_map = create_diff_db_map()
         count, errors = import_metadata(db_map, ['not a JSON object'])
+        db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
         self.assertEqual(count, 1)
         self.assertFalse(errors)
@@ -1409,6 +1197,7 @@ class TestImportEntityMetadata(unittest.TestCase):
         )
         self.assertEqual(count, 4)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         metadata = [
             (x.entity_name, x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)
         ]
@@ -1431,6 +1220,7 @@ class TestImportEntityMetadata(unittest.TestCase):
         )
         self.assertEqual(count, 4)
         self.assertFalse(errors)
+        db_map.commit_session("test")
         metadata = [(x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)]
         self.assertEqual(len(metadata), 4)
         self.assertIn(('co-author', 'John'), metadata)
@@ -1458,10 +1248,11 @@ class TestImportParameterValueMetadata(unittest.TestCase):
         )
         self.assertEqual(errors, [])
         self.assertEqual(count, 2)
+        self._db_map.commit_session("test")
         metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(metadata), 2)
         self.assertEqual(
-            metadata[0]._asdict(),
+            dict(metadata[0]),
             {
                 "alternative_name": "Base",
                 "entity_name": "object",
@@ -1471,11 +1262,11 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "John",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": 2,
+                "commit_id": None,
             },
         )
         self.assertEqual(
-            metadata[1]._asdict(),
+            dict(metadata[1]),
             {
                 "alternative_name": "Base",
                 "entity_name": "object",
@@ -1485,7 +1276,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "17",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": 2,
+                "commit_id": None,
             },
         )
 
@@ -1501,10 +1292,11 @@ class TestImportParameterValueMetadata(unittest.TestCase):
         )
         self.assertEqual(errors, [])
         self.assertEqual(count, 2)
+        self._db_map.commit_session("test")
         metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(metadata), 2)
         self.assertEqual(
-            metadata[0]._asdict(),
+            dict(metadata[0]),
             {
                 "alternative_name": "Base",
                 "entity_name": "relationship_class_object",
@@ -1514,11 +1306,11 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "John",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": 2,
+                "commit_id": None,
             },
         )
         self.assertEqual(
-            metadata[1]._asdict(),
+            dict(metadata[1]),
             {
                 "alternative_name": "Base",
                 "entity_name": "relationship_class_object",
@@ -1528,7 +1320,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "17",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": 2,
+                "commit_id": None,
             },
         )
 

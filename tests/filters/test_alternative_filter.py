@@ -26,6 +26,7 @@ from spinedb_api import (
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
+    SpineDBAPIError,
 )
 from spinedb_api.filters.alternative_filter import (
     alternative_filter_config,
@@ -49,20 +50,17 @@ class TestAlternativeFilter(unittest.TestCase):
         create_new_spine_database(self._db_url)
         self._out_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
-        self._diff_db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
         self._out_map.connection.close()
         self._db_map.connection.close()
-        self._diff_db_map.connection.close()
 
     def test_alternative_filter_without_scenarios_or_alternatives(self):
         self._build_data_without_alternatives()
         self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_filter_to_parameter_value_sq(db_map, [])
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(parameters, [])
+        apply_alternative_filter_to_parameter_value_sq(self._db_map, [])
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(parameters, [])
 
     def test_alternative_filter_without_scenarios_or_alternatives_uncommitted_data(self):
         self._build_data_without_alternatives()
@@ -74,18 +72,17 @@ class TestAlternativeFilter(unittest.TestCase):
     def test_alternative_filter(self):
         self._build_data_with_single_alternative()
         self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_alternative_filter_to_parameter_value_sq(db_map, ["alternative"])
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, b"23.0")
+        apply_alternative_filter_to_parameter_value_sq(self._db_map, ["alternative"])
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, b"23.0")
 
     def test_alternative_filter_uncommitted_data(self):
         self._build_data_with_single_alternative()
-        apply_alternative_filter_to_parameter_value_sq(self._out_map, ["alternative"])
+        with self.assertRaises(SpineDBAPIError):
+            apply_alternative_filter_to_parameter_value_sq(self._out_map, ["alternative"])
         parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
-        self.assertEqual(len(parameters), 1)
-        self.assertEqual(parameters[0].value, b"23.0")
+        self.assertEqual(len(parameters), 0)
         self._out_map.rollback_session()
 
     def test_alternative_filter_from_dict(self):

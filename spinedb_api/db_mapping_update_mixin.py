@@ -15,7 +15,8 @@
 from collections import Counter
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
-from .exception import SpineDBAPIError
+from .exception import SpineIntegrityError
+from .helpers import convert_legacy
 
 
 class DatabaseMappingUpdateMixin:
@@ -32,10 +33,10 @@ class DatabaseMappingUpdateMixin:
                 for k in self._get_primary_key(tablename_):
                     upd = upd.where(getattr(table.c, k) == bindparam(k))
                 upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items_to_update_[0].keys()})
-                self.safe_execute(upd, [{**item} for item in items_to_update_])
+                self.connection_execute(upd, [dict(item) for item in items_to_update_])
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
-            raise SpineDBAPIError(msg) from e
+            raise SpineIntegrityError(msg) from e
 
     @staticmethod
     def _items_to_update_per_table(tablename, items_to_update):
@@ -50,68 +51,22 @@ class DatabaseMappingUpdateMixin:
         Yields:
             tuple: database table name, items to update
         """
+        yield (tablename, items_to_update)
         if tablename == "entity":
-            entity_items = []
-            entity_element_items = []
-            for item in items_to_update:
-                entity_id = item["id"]
-                class_id = item["class_id"]
-                dimension_id_list = item["dimension_id_list"]
-                element_id_list = item["element_id_list"]
-                entity_items.append(
-                    {
-                        "id": entity_id,
-                        "class_id": class_id,
-                        "name": item["name"],
-                        "description": item.get("description"),
-                    }
+            ee_items_to_update = [
+                {
+                    "entity_id": item["id"],
+                    "entity_class_id": item["class_id"],
+                    "position": position,
+                    "element_id": element_id,
+                    "dimension_id": dimension_id,
+                }
+                for item in items_to_update
+                for position, (element_id, dimension_id) in enumerate(
+                    zip(item["element_id_list"], item["dimension_id_list"])
                 )
-                entity_element_items.extend(
-                    [
-                        {
-                            "entity_class_id": class_id,
-                            "entity_id": entity_id,
-                            "position": position,
-                            "dimension_id": dimension_id,
-                            "element_id": element_id,
-                        }
-                        for position, (dimension_id, element_id) in enumerate(zip(dimension_id_list, element_id_list))
-                    ]
-                )
-            yield ("entity", entity_items)
-            yield ("entity_element", entity_element_items)
-        elif tablename == "relationship":
-            entity_items = []
-            entity_element_items = []
-            for item in items_to_update:
-                entity_id = item["id"]
-                class_id = item["class_id"]
-                object_class_id_list = item["object_class_id_list"]
-                object_id_list = item["object_id_list"]
-                entity_items.append(
-                    {
-                        "id": entity_id,
-                        "class_id": class_id,
-                        "name": item["name"],
-                        "description": item.get("description"),
-                    }
-                )
-                entity_element_items.extend(
-                    [
-                        {
-                            "entity_class_id": class_id,
-                            "entity_id": entity_id,
-                            "position": position,
-                            "dimension_id": dimension_id,
-                            "element_id": element_id,
-                        }
-                        for position, (dimension_id, element_id) in enumerate(zip(object_class_id_list, object_id_list))
-                    ]
-                )
-            yield ("entity", entity_items)
-            yield ("entity_element", entity_element_items)
-        else:
-            yield (tablename, items_to_update)
+            ]
+            yield ("entity_element", ee_items_to_update)
 
     def update_items(self, tablename, *items, check=True, strict=False):
         """Updates items in cache.
@@ -127,27 +82,25 @@ class DatabaseMappingUpdateMixin:
             set: ids or items successfully updated
             list(SpineIntegrityError): found violations
         """
-        if check:
-            checked_items, errors = self.check_items(tablename, *items, for_update=True)
-        else:
-            checked_items, errors = list(items), []
-        if errors and strict:
-            raise SpineDBAPIError(", ".join(errors))
-        _ = self._update_items(tablename, *checked_items)
-        return checked_items, errors
-
-    def _update_items(self, tablename, *items):
-        """Updates items in cache without checking integrity."""
-        if not items:
-            return set()
+        updated, errors = [], []
         tablename = self._real_tablename(tablename)
-        table_cache = self.cache.get(tablename)
-        if table_cache is not None:
-            commit_id = self._make_commit_id()
+        table_cache = self.cache.table_cache(tablename)
+        if not check:
             for item in items:
-                item["commit_id"] = commit_id
-                table_cache.update_item(item)
-        return {x["id"] for x in items}
+                convert_legacy(tablename, item)
+                updated.append(table_cache.update_item(item)._asdict())
+        else:
+            for item in items:
+                convert_legacy(tablename, item)
+                checked_item, error = table_cache.check_item(item, for_update=True)
+                if error:
+                    if strict:
+                        raise SpineIntegrityError(error)
+                    errors.append(error)
+                    continue
+                item = checked_item._asdict()
+                updated.append(table_cache.update_item(item)._asdict())
+        return updated, errors
 
     def update_alternatives(self, *items, **kwargs):
         return self.update_items("alternative", *items, **kwargs)
@@ -290,11 +243,11 @@ class DatabaseMappingUpdateMixin:
             errors += item_metadata_errors
         return all_items, errors
 
-    def get_data_to_set_scenario_alternatives(self, *items):
+    def get_data_to_set_scenario_alternatives(self, *scenarios, strict=True):
         """Returns data to add and remove, in order to set wide scenario alternatives.
 
         Args:
-            *items: One or more wide scenario :class:`dict` objects to set.
+            *scenarios: One or more wide scenario :class:`dict` objects to set.
                 Each item must include the following keys:
 
                 - "id": integer scenario id
@@ -304,21 +257,25 @@ class DatabaseMappingUpdateMixin:
             list: scenario_alternative :class:`dict` objects to add.
             set: integer scenario_alternative ids to remove
         """
-        self.fetch_all({"scenario_alternative", "scenario"})
-        cache = self.cache
-        current_alternative_id_lists = {x.id: x.alternative_id_list for x in cache.get("scenario", {}).values()}
-        scenario_alternative_ids = {
-            (x.scenario_id, x.alternative_id): x.id for x in cache.get("scenario_alternative", {}).values()
-        }
         scen_alts_to_add = []
         scen_alt_ids_to_remove = set()
-        for item in items:
-            scenario_id = item["id"]
-            alternative_id_list = item["alternative_id_list"]
-            current_alternative_id_list = current_alternative_id_lists[scenario_id]
-            for k, alternative_id in enumerate(alternative_id_list):
-                item_to_add = {"scenario_id": scenario_id, "alternative_id": alternative_id, "rank": k + 1}
+        errors = []
+        for scen in scenarios:
+            current_scen = self.cache.table_cache("scenario").current_item(scen)
+            if current_scen is None:
+                error = f"no scenario matching {scen} to set alternatives for"
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+                continue
+            for k, alternative_id in enumerate(scen.get("alternative_id_list", ())):
+                item_to_add = {"scenario_id": current_scen["id"], "alternative_id": alternative_id, "rank": k + 1}
                 scen_alts_to_add.append(item_to_add)
-            for alternative_id in current_alternative_id_list:
-                scen_alt_ids_to_remove.add(scenario_alternative_ids[scenario_id, alternative_id])
-        return scen_alts_to_add, scen_alt_ids_to_remove
+            for k, alternative_name in enumerate(scen.get("alternative_name_list", ())):
+                item_to_add = {"scenario_id": current_scen["id"], "alternative_name": alternative_name, "rank": k + 1}
+                scen_alts_to_add.append(item_to_add)
+            for alternative_id in current_scen["alternative_id_list"]:
+                scen_alt = {"scenario_id": current_scen["id"], "alternative_id": alternative_id}
+                current_scen_alt = self.cache.table_cache("scenario_alternative").current_item(scen_alt)
+                scen_alt_ids_to_remove.add(current_scen_alt["id"])
+        return scen_alts_to_add, scen_alt_ids_to_remove, errors

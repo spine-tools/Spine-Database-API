@@ -315,6 +315,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
 
     def test_alternative_sq(self):
         import_functions.import_alternatives(self._db_map, (("alt1", "test alternative"),))
+        self._db_map.commit_session("test")
         alternative_rows = self._db_map.query(self._db_map.alternative_sq).all()
         expected_names_and_descriptions = {"Base": "Base alternative", "alt1": "test alternative"}
         self.assertEqual(len(alternative_rows), len(expected_names_and_descriptions))
@@ -326,6 +327,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
 
     def test_scenario_sq(self):
         import_functions.import_scenarios(self._db_map, (("scen1", True, "test scenario"),))
+        self._db_map.commit_session("test")
         scenario_rows = self._db_map.query(self._db_map.scenario_sq).all()
         self.assertEqual(len(scenario_rows), 1)
         self.assertEqual(scenario_rows[0].name, "scen1")
@@ -338,6 +340,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt2"),))
         import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt3"),))
         import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt1"),))
+        self._db_map.commit_session("test")
         scenario_alternative_rows = self._db_map.query(self._db_map.ext_linked_scenario_alternative_sq).all()
         self.assertEqual(len(scenario_alternative_rows), 3)
         expected_befores = {"alt2": "alt3", "alt3": "alt1", "alt1": None}
@@ -359,6 +362,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
     def test_entity_class_sq(self):
         obj_classes = self.create_object_classes()
         relationship_classes = self.create_relationship_classes()
+        self._db_map.commit_session("test")
         results = self._db_map.query(self._db_map.entity_class_sq).all()
         # Check that number of results matches total entities
         self.assertEqual(len(results), len(obj_classes) + len(relationship_classes))
@@ -371,6 +375,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         objects = self.create_objects()
         self.create_relationship_classes()
         relationships = self.create_relationships()
+        self._db_map.commit_session("test")
         entity_rows = self._db_map.query(self._db_map.entity_sq).all()
         self.assertEqual(len(entity_rows), len(objects) + len(relationships))
         object_names = [o[1] for o in objects]
@@ -381,6 +386,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
     def test_object_class_sq_picks_object_classes_only(self):
         obj_classes = self.create_object_classes()
         self.create_relationship_classes()
+        self._db_map.commit_session("test")
         class_rows = self._db_map.query(self._db_map.object_class_sq).all()
         self.assertEqual(len(class_rows), len(obj_classes))
         for row, expected_name in zip(class_rows, obj_classes):
@@ -391,6 +397,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         objects = self.create_objects()
         self.create_relationship_classes()
         self.create_relationships()
+        self._db_map.commit_session("test")
         object_rows = self._db_map.query(self._db_map.object_sq).all()
         self.assertEqual(len(object_rows), len(objects))
         for row, expected_object in zip(object_rows, objects):
@@ -399,6 +406,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
     def test_wide_relationship_class_sq(self):
         self.create_object_classes()
         relationship_classes = self.create_relationship_classes()
+        self._db_map.commit_session("test")
         class_rows = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
         self.assertEqual(len(class_rows), 2)
         for row, relationship_class in zip(class_rows, relationship_classes):
@@ -411,6 +419,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         relationship_classes = self.create_relationship_classes()
         object_classes = {rel_class[0]: rel_class[1] for rel_class in relationship_classes}
         relationships = self.create_relationships()
+        self._db_map.commit_session("test")
         relationship_rows = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationship_rows), 2)
         for row, relationship in zip(relationship_rows, relationships):
@@ -422,6 +431,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
     def test_parameter_definition_sq_for_object_class(self):
         self.create_object_classes()
         import_functions.import_object_parameters(self._db_map, (("class1", "par1"),))
+        self._db_map.commit_session("test")
         definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].name, "par1")
@@ -432,6 +442,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         self.create_object_classes()
         self.create_relationship_classes()
         import_functions.import_relationship_parameters(self._db_map, (("rel1", "par1"),))
+        self._db_map.commit_session("test")
         definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].name, "par1")
@@ -442,6 +453,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         self.create_object_classes()
         self.create_relationship_classes()
         import_functions.import_object_parameters(self._db_map, (("class1", "par1"),))
+        self._db_map.commit_session("test")
         definition_rows = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].parameter_name, "par1")
@@ -456,6 +468,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         object_classes = self.create_object_classes()
         self.create_relationship_classes()
         import_functions.import_relationship_parameters(self._db_map, (("rel2", "par1"),))
+        self._db_map.commit_session("test")
         definition_rows = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].parameter_name, "par1")
@@ -473,6 +486,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         rel_parameter_definitions = [('rel1', 'rpar1a')]
         import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
         import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
+        self._db_map.commit_session("test")
         results = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
         # Check that number of results matches total entities
         self.assertEqual(len(results), len(obj_parameter_definitions) + len(rel_parameter_definitions))
@@ -499,6 +513,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         relationship_parameter_values = [('rel1', ['obj11'], 'rpar1a', 1.1), ('rel2', ['obj11', 'obj21'], 'rpar2a', 42)]
         _, errors = import_functions.import_relationship_parameter_values(self._db_map, relationship_parameter_values)
         self.assertFalse(errors)
+        self._db_map.commit_session("test")
         results = self._db_map.query(self._db_map.entity_parameter_value_sq).all()
         # Check that number of results matches total entities
         self.assertEqual(len(results), len(object_parameter_values) + len(relationship_parameter_values))
@@ -517,6 +532,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
             self._db_map, (("list1", "value1"), ("list1", "value2"), ("list2", "valueA"))
         )
         self.assertEqual(errors, [])
+        self._db_map.commit_session("test")
         value_lists = self._db_map.query(self._db_map.wide_parameter_value_list_sq).all()
         self.assertEqual(len(value_lists), 2)
         self.assertEqual(value_lists[0].name, "list1")
@@ -530,37 +546,12 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
     def tearDown(self):
         self._db_map.connection.close()
 
-    def test_update_method_of_tool_feature_method(self):
-        import_functions.import_object_classes(self._db_map, ("object_class1", "object_class2"))
-        import_functions.import_parameter_value_lists(
-            self._db_map, (("value_list", "value1"), ("value_list", "value2"))
-        )
-        import_functions.import_object_parameters(
-            self._db_map, (("object_class1", "parameter1", "value1", "value_list"), ("object_class1", "parameter2"))
-        )
-        import_functions.import_features(self._db_map, (("object_class1", "parameter1"),))
-        import_functions.import_tools(self._db_map, ("tool1",))
-        import_functions.import_tool_features(self._db_map, (("tool1", "object_class1", "parameter1"),))
-        import_functions.import_tool_feature_methods(
-            self._db_map, (("tool1", "object_class1", "parameter1", "value2"),)
-        )
-        self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_tool_feature_methods(
-            {"id": 1, "method_index": 0, "method": to_database("value1")[0]}
-        )
-        self.assertEqual(errors, [])
-        self.assertEqual(updated_ids, {1})
-        self._db_map.commit_session("Update data.")
-        tool_feature_methods = self._db_map.query(self._db_map.ext_tool_feature_method_sq).all()
-        self.assertEqual(len(tool_feature_methods), 1)
-        tool_feature_method = tool_feature_methods[0]
-        self.assertEqual(tool_feature_method.method, to_database("value1")[0])
-
     def test_update_wide_relationship_class(self):
         _ = import_functions.import_object_classes(self._db_map, ("object_class_1",))
         _ = import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
         self._db_map.commit_session("Add test data")
-        updated_ids, errors = self._db_map.update_wide_relationship_classes({"id": 2, "name": "renamed"})
+        items, errors = self._db_map.update_wide_relationship_classes({"id": 2, "name": "renamed"})
+        updated_ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {2})
         self._db_map.commit_session("Update data.")
@@ -572,9 +563,10 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("object_class_1", "object_class_2"))
         import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
         self._db_map.commit_session("Add test data")
-        updated_ids, errors = self._db_map.update_wide_relationship_classes(
+        items, errors = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "renamed", "object_class_id_list": [2]}
         )
+        updated_ids = {x["id"] for x in items}
         self.assertEqual([str(err) for err in errors], ["Can't update fixed fields 'dimension_id_list'"])
         self.assertEqual(updated_ids, {3})
         self._db_map.commit_session("Update data.")
@@ -594,9 +586,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         )
         import_functions.import_relationships(self._db_map, (("my_class", ("object_11", "object_21")),))
         self._db_map.commit_session("Add test data")
-        updated_ids, errors = self._db_map.update_wide_relationships(
-            {"id": 4, "name": "renamed", "object_id_list": [2, 3]}
-        )
+        items, errors = self._db_map.update_wide_relationships({"id": 4, "name": "renamed", "object_id_list": [2, 3]})
+        updated_ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {4})
         self._db_map.commit_session("Update data.")
@@ -613,7 +604,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             self._db_map, (("object_class1", "object1", "parameter1", "something"),)
         )
         self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_parameter_values({"id": 1, "value": b"something else"})
+        items, errors = self._db_map.update_parameter_values({"id": 1, "value": b"something else"})
+        updated_ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {1})
         self._db_map.commit_session("Update data.")
@@ -626,7 +618,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("object_class1",))
         import_functions.import_object_parameters(self._db_map, (("object_class1", "parameter1"),))
         self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_parameter_definitions({"id": 1, "name": "parameter2"})
+        items, errors = self._db_map.update_parameter_definitions({"id": 1, "name": "parameter2"})
+        updated_ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {1})
         self._db_map.commit_session("Update data.")
@@ -639,18 +632,19 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("object_class",))
         import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter"),))
         self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_parameter_definitions(
+        items, errors = self._db_map.update_parameter_definitions(
             {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
         )
+        updated_ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {1})
         self._db_map.commit_session("Update data.")
         pdefs = self._db_map.query(self._db_map.parameter_definition_sq).all()
         self.assertEqual(len(pdefs), 1)
         self.assertEqual(
-            pdefs[0]._asdict(),
+            dict(pdefs[0]),
             {
-                "commit_id": 3,
+                "commit_id": None,
                 "default_type": None,
                 "default_value": None,
                 "description": None,
@@ -673,9 +667,10 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             self._db_map, (("object_class", "my_object", "my_parameter", 23.0),)
         )
         self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_parameter_definitions(
+        items, errors = self._db_map.update_parameter_definitions(
             {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
         )
+        updated_ids = {x["id"] for x in items}
         self.assertEqual(
             list(map(str, errors)),
             ["Can't change value list on parameter my_parameter because it has parameter values."],
@@ -688,13 +683,11 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         import_functions.import_objects(self._db_map, (("object_class", "my_object"),))
         import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter", None, "my_list"),))
         self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_parameter_definitions(
+        items, errors = self._db_map.update_parameter_definitions(
             {"id": 1, "name": "my_parameter", "default_value": to_database(23.0)[0]}
         )
-        self.assertEqual(
-            list(map(str, errors)),
-            ["Invalid default_value '23.0' - it should be one from the parameter value list: '99.0'."],
-        )
+        updated_ids = {x["id"] for x in items}
+        self.assertEqual(list(map(str, errors)), ["default value 23.0 of my_parameter is not in my_list"])
         self.assertEqual(updated_ids, set())
 
     def test_update_parameter_definition_value_list_when_default_value_not_on_the_list_exists_gives_error(self):
@@ -703,13 +696,11 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         import_functions.import_objects(self._db_map, (("object_class", "my_object"),))
         import_functions.import_object_parameters(self._db_map, (("object_class", "my_parameter", 23.0),))
         self._db_map.commit_session("Populate with initial data.")
-        updated_ids, errors = self._db_map.update_parameter_definitions(
+        items, errors = self._db_map.update_parameter_definitions(
             {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
         )
-        self.assertEqual(
-            list(map(str, errors)),
-            ["Invalid default_value '23.0' - it should be one from the parameter value list: '99.0'."],
-        )
+        updated_ids = {x["id"] for x in items}
+        self.assertEqual(list(map(str, errors)), ["default value 23.0 of my_parameter is not in my_list"])
         self.assertEqual(updated_ids, set())
 
     def test_update_object_metadata(self):
@@ -718,20 +709,20 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
         self._db_map.commit_session("Add test data")
-        ids, errors = self._db_map.update_ext_entity_metadata(
+        items, errors = self._db_map.update_ext_entity_metadata(
             *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(
-            metadata_entries[0]._asdict(), {"id": 1, "name": "key_2", "value": "new value", "commit_id": 3}
-        )
+        self.assertEqual(dict(metadata_entries[0]), {"id": 1, "name": "key_2", "value": "new value", "commit_id": None})
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 1)
         self.assertEqual(
-            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": 2}
+            dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": None}
         )
 
     def test_update_object_metadata_reuses_existing_metadata(self):
@@ -746,26 +737,28 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             ),
         )
         self._db_map.commit_session("Add test data")
-        ids, errors = self._db_map.update_ext_entity_metadata(
+        items, errors = self._db_map.update_ext_entity_metadata(
             *[{"id": 1, "metadata_name": "key 2", "metadata_value": "metadata value 2"}]
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 2)
         self.assertEqual(
-            metadata_entries[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2}
+            dict(metadata_entries[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None}
         )
         self.assertEqual(
-            metadata_entries[1]._asdict(), {"id": 2, "name": "key 2", "value": "metadata value 2", "commit_id": 2}
+            dict(metadata_entries[1]), {"id": 2, "name": "key 2", "value": "metadata value 2", "commit_id": None}
         )
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 2)
         self.assertEqual(
-            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3}
+            dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": None}
         )
         self.assertEqual(
-            entity_metadata_entries[1]._asdict(), {"id": 2, "entity_id": 2, "metadata_id": 2, "commit_id": 2}
+            dict(entity_metadata_entries[1]), {"id": 2, "entity_id": 2, "metadata_id": 2, "commit_id": None}
         )
 
     def test_update_object_metadata_keeps_metadata_still_in_use(self):
@@ -780,26 +773,28 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             ),
         )
         self._db_map.commit_session("Add test data")
-        ids, errors = self._db_map.update_ext_entity_metadata(
+        items, errors = self._db_map.update_ext_entity_metadata(
             *[{"id": 1, "metadata_name": "new key", "metadata_value": "new value"}]
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1, 2})
+        self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 2)
         self.assertEqual(
-            metadata_entries[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2}
+            dict(metadata_entries[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None}
         )
         self.assertEqual(
-            metadata_entries[1]._asdict(), {"id": 2, "name": "new key", "value": "new value", "commit_id": 3}
+            dict(metadata_entries[1]), {"id": 2, "name": "new key", "value": "new value", "commit_id": None}
         )
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 2)
         self.assertEqual(
-            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3}
+            dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": None}
         )
         self.assertEqual(
-            entity_metadata_entries[1]._asdict(), {"id": 2, "entity_id": 2, "metadata_id": 1, "commit_id": 2}
+            dict(entity_metadata_entries[1]), {"id": 2, "entity_id": 2, "metadata_id": 1, "commit_id": None}
         )
 
     def test_update_parameter_value_metadata(self):
@@ -814,20 +809,20 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             self._db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
         )
         self._db_map.commit_session("Add test data")
-        ids, errors = self._db_map.update_ext_parameter_value_metadata(
+        items, errors = self._db_map.update_ext_parameter_value_metadata(
             *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(
-            metadata_entries[0]._asdict(), {"id": 1, "name": "key_2", "value": "new value", "commit_id": 3}
-        )
+        self.assertEqual(dict(metadata_entries[0]), {"id": 1, "name": "key_2", "value": "new value", "commit_id": None})
         value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata_entries), 1)
         self.assertEqual(
-            value_metadata_entries[0]._asdict(), {"id": 1, "parameter_value_id": 1, "metadata_id": 1, "commit_id": 2}
+            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 1, "commit_id": None}
         )
 
     def test_update_parameter_value_metadata_will_not_delete_shared_entity_metadata(self):
@@ -843,40 +838,42 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
             self._db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
         )
         self._db_map.commit_session("Add test data")
-        ids, errors = self._db_map.update_ext_parameter_value_metadata(
+        items, errors = self._db_map.update_ext_parameter_value_metadata(
             *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
         )
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1, 2})
+        self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 2)
         self.assertEqual(
-            metadata_entries[0]._asdict(), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2}
+            dict(metadata_entries[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None}
         )
-        self.assertEqual(
-            metadata_entries[1]._asdict(), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3}
-        )
+        self.assertEqual(dict(metadata_entries[1]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": None})
         value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata_entries), 1)
         self.assertEqual(
-            value_metadata_entries[0]._asdict(), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": 3}
+            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": None}
         )
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 1)
         self.assertEqual(
-            entity_metadata_entries[0]._asdict(), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": 2}
+            dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": None}
         )
 
     def test_update_metadata(self):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
-        ids, errors = self._db_map.update_metadata(*({"id": 1, "name": "author", "value": "Prof. T. Est"},))
+        items, errors = self._db_map.update_metadata(*({"id": 1, "name": "author", "value": "Prof. T. Est"},))
+        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.commit_session("Update data")
         metadata_records = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_records), 1)
         self.assertEqual(
-            metadata_records[0]._asdict(), {"id": 1, "name": "author", "value": "Prof. T. Est", "commit_id": 3}
+            dict(metadata_records[0]), {"id": 1, "name": "author", "value": "Prof. T. Est", "commit_id": None}
         )
 
 
@@ -893,7 +890,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         import_functions.import_objects(self._db_map, (("my_class", "my_group"),))
         import_functions.import_object_groups(self._db_map, (("my_class", "my_group", "my_object"),))
         self._db_map.commit_session("Add test data.")
-        self._db_map.cascade_remove_items(object={1})  # This shouldn't raise an exception
+        self._db_map.remove_items("object", 1)  # This shouldn't raise an exception
         self._db_map.commit_session("Remove object.")
         objects = self._db_map.query(self._db_map.object_sq).all()
         self.assertEqual(len(objects), 1)
@@ -904,7 +901,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         my_class = self._db_map.query(self._db_map.object_class_sq).one_or_none()
         self.assertIsNotNone(my_class)
-        self._db_map.cascade_remove_items(**{"object_class": {my_class.id}})
+        self._db_map.remove_items("object_class", my_class.id)
         self._db_map.commit_session("Remove object class.")
         my_class = self._db_map.query(self._db_map.object_class_sq).one_or_none()
         self.assertIsNone(my_class)
@@ -915,7 +912,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         my_class = self._db_map.query(self._db_map.relationship_class_sq).one_or_none()
         self.assertIsNotNone(my_class)
-        self._db_map.cascade_remove_items(**{"relationship_class": {my_class.id}})
+        self._db_map.remove_items("relationship_class", my_class.id)
         self._db_map.commit_session("Remove relationship class.")
         my_class = self._db_map.query(self._db_map.relationship_class_sq).one_or_none()
         self.assertIsNone(my_class)
@@ -926,7 +923,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         my_object = self._db_map.query(self._db_map.object_sq).one_or_none()
         self.assertIsNotNone(my_object)
-        self._db_map.cascade_remove_items(**{"object": {my_object.id}})
+        self._db_map.remove_items("object", my_object.id)
         self._db_map.commit_session("Remove object.")
         my_object = self._db_map.query(self._db_map.object_sq).one_or_none()
         self.assertIsNone(my_object)
@@ -939,7 +936,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         my_relationship = self._db_map.query(self._db_map.relationship_sq).one_or_none()
         self.assertIsNotNone(my_relationship)
-        self._db_map.cascade_remove_items(**{"relationship": {2}})
+        self._db_map.remove_items("relationship", 2)
         self._db_map.commit_session("Remove relationship.")
         my_relationship = self._db_map.query(self._db_map.relationship_sq).one_or_none()
         self.assertIsNone(my_relationship)
@@ -954,7 +951,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         my_value = self._db_map.query(self._db_map.object_parameter_value_sq).one_or_none()
         self.assertIsNotNone(my_value)
-        self._db_map.cascade_remove_items(**{"parameter_value": {my_value.id}})
+        self._db_map.remove_items("parameter_value", my_value.id)
         self._db_map.commit_session("Remove parameter value.")
         my_parameter = self._db_map.query(self._db_map.object_parameter_value_sq).one_or_none()
         self.assertIsNone(my_parameter)

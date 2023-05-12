@@ -18,7 +18,8 @@ from datetime import datetime
 from contextlib import contextmanager
 from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
-from .exception import SpineDBAPIError
+from .exception import SpineIntegrityError
+from .helpers import convert_legacy
 
 
 class DatabaseMappingAddMixin:
@@ -119,16 +120,6 @@ class DatabaseMappingAddMixin:
             finally:
                 connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: gen.next_id})
 
-    def _add_commit_id_and_ids(self, tablename, *items):
-        if not items:
-            return [], set()
-        commit_id = self._make_commit_id()
-        with self.generate_ids(tablename) as new_id:
-            for item in items:
-                item["commit_id"] = commit_id
-                if "id" not in item:
-                    item["id"] = new_id()
-
     def add_items(self, tablename, *items, check=True, strict=False):
         """Add items to cache.
 
@@ -143,43 +134,42 @@ class DatabaseMappingAddMixin:
             set: ids or items successfully added
             list(str): found violations
         """
-        if check:
-            checked_items, errors = self.check_items(tablename, *items)
-        else:
-            checked_items, errors = list(items), []
-        if errors and strict:
-            raise SpineDBAPIError(", ".join(errors))
-        _ = self._add_items(tablename, *checked_items)
-        return checked_items, errors
-
-    def _add_items(self, tablename, *items):
-        """Add items to cache without checking integrity.
-
-        Args:
-            tablename (str)
-            items (Iterable): list of dictionaries which correspond to the instances to add
-            strict (bool): if True SpineIntegrityError are raised. Otherwise
-                they are caught and returned as a log
-
-        Returns:
-            ids (set): added instances' ids
-        """
-        self._add_commit_id_and_ids(tablename, *items)
+        added, errors = [], []
         tablename = self._real_tablename(tablename)
         table_cache = self.cache.table_cache(tablename)
-        for item in items:
-            table_cache.add_item(item, new=True)
-        return {item["id"] for item in items}
+        with self.generate_ids(tablename) as new_id:
+            if not check:
+                for item in items:
+                    convert_legacy(tablename, item)
+                    if "id" not in item:
+                        item["id"] = new_id()
+                    added.append(table_cache.add_item(item, new=True)._asdict())
+            else:
+                for item in items:
+                    convert_legacy(tablename, item)
+                    checked_item, error = table_cache.check_item(item)
+                    if error:
+                        if strict:
+                            raise SpineIntegrityError(error)
+                        errors.append(error)
+                        continue
+                    item = checked_item._asdict()
+                    if "id" not in item:
+                        item["id"] = new_id()
+                    added.append(table_cache.add_item(item, new=True)._asdict())
+        return added, errors
 
     def _do_add_items(self, tablename, *items_to_add):
         """Add items to DB without checking integrity."""
         try:
             for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
+                if not items_to_add_:
+                    continue
                 table = self._metadata.tables[self._real_tablename(tablename_)]
-                self._checked_execute(table.insert(), [{**item} for item in items_to_add_])
+                self.connection_execute(table.insert(), [dict(item) for item in items_to_add_])
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
-            raise SpineDBAPIError(msg) from e
+            raise SpineIntegrityError(msg) from e
 
     @staticmethod
     def _items_to_add_per_table(tablename, items_to_add):
@@ -194,13 +184,13 @@ class DatabaseMappingAddMixin:
         Yields:
             tuple: database table name, items to add
         """
+        yield (tablename, items_to_add)
         if tablename == "entity_class":
             ecd_items_to_add = [
                 {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
                 for item in items_to_add
                 for position, dimension_id in enumerate(item["dimension_id_list"])
             ]
-            yield ("entity_class", items_to_add)
             yield ("entity_class_dimension", ecd_items_to_add)
         elif tablename == "entity":
             ee_items_to_add = [
@@ -216,79 +206,7 @@ class DatabaseMappingAddMixin:
                     zip(item["element_id_list"], item["dimension_id_list"])
                 )
             ]
-            ea_items_to_add = [
-                {"entity_id": item["id"], "alternative_id": alternative_id, "active": True}
-                for item in items_to_add
-                for alternative_id in item["active_alternative_id_list"]
-            ] + [
-                {"entity_id": item["id"], "alternative_id": alternative_id, "active": False}
-                for item in items_to_add
-                for alternative_id in item["inactive_alternative_id_list"]
-            ]
-            yield ("entity", items_to_add)
             yield ("entity_element", ee_items_to_add)
-            yield ("entity_alternative", ea_items_to_add)
-        elif tablename == "relationship_class":
-            ecd_items_to_add = [
-                {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
-                for item in items_to_add
-                for position, dimension_id in enumerate(item["object_class_id_list"])
-            ]
-            yield ("entity_class", items_to_add)
-            yield ("entity_class_dimension", ecd_items_to_add)
-        elif tablename == "object":
-            ea_items_to_add = [
-                {"entity_id": item["id"], "alternative_id": alternative_id, "active": True}
-                for item in items_to_add
-                for alternative_id in item["active_alternative_id_list"]
-            ] + [
-                {"entity_id": item["id"], "alternative_id": alternative_id, "active": False}
-                for item in items_to_add
-                for alternative_id in item["inactive_alternative_id_list"]
-            ]
-            yield ("entity", items_to_add)
-            yield ("entity_alternative", ea_items_to_add)
-        elif tablename == "relationship":
-            ee_items_to_add = [
-                {
-                    "entity_id": item["id"],
-                    "entity_class_id": item["class_id"],
-                    "position": position,
-                    "element_id": element_id,
-                    "dimension_id": dimension_id,
-                }
-                for item in items_to_add
-                for position, (element_id, dimension_id) in enumerate(
-                    zip(item["object_id_list"], item["object_class_id_list"])
-                )
-            ]
-            ea_items_to_add = [
-                {"entity_id": item["id"], "alternative_id": alternative_id, "active": True}
-                for item in items_to_add
-                for alternative_id in item["active_alternative_id_list"]
-            ] + [
-                {"entity_id": item["id"], "alternative_id": alternative_id, "active": False}
-                for item in items_to_add
-                for alternative_id in item["inactive_alternative_id_list"]
-            ]
-            yield ("entity", items_to_add)
-            yield ("entity_element", ee_items_to_add)
-            yield ("entity_alternative", ea_items_to_add)
-        elif tablename == "parameter_definition":
-            for item in items_to_add:
-                item["entity_class_id"] = (
-                    item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
-                )
-            yield ("parameter_definition", items_to_add)
-        elif tablename == "parameter_value":
-            for item in items_to_add:
-                item["entity_id"] = item.get("object_id") or item.get("relationship_id") or item.get("entity_id")
-                item["entity_class_id"] = (
-                    item.get("object_class_id") or item.get("relationship_class_id") or item.get("entity_class_id")
-                )
-            yield ("parameter_value", items_to_add)
-        else:
-            yield (tablename, items_to_add)
 
     def add_object_classes(self, *items, **kwargs):
         return self.add_items("object_class", *items, **kwargs)
@@ -342,9 +260,8 @@ class DatabaseMappingAddMixin:
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
     def _get_or_add_metadata_ids_for_items(self, *items, check, strict):
-        cache = self.cache
         metadata_ids = {}
-        for entry in cache.get("metadata", {}).values():
+        for entry in self.cache.get("metadata", {}).values():
             metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
         metadata_to_add = []
         items_missing_metadata_ids = {}
@@ -357,8 +274,6 @@ class DatabaseMappingAddMixin:
             else:
                 item["metadata_id"] = existing_id
         added_metadata, errors = self.add_items("metadata", *metadata_to_add, check=check, strict=strict)
-        for x in added_metadata:
-            cache.table_cache("metadata").add_item(x)
         if errors:
             return added_metadata, errors
         new_metadata_ids = {}

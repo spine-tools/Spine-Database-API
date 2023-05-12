@@ -421,7 +421,7 @@ class ExportMapping(Mapping):
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
-        for db_row in qry.yield_per(1000):
+        for db_row in qry:
             yield from self.get_rows_recursive(db_row)
 
     def has_titles(self):
@@ -506,7 +506,7 @@ class ExportMapping(Mapping):
             tuple(str,dict): title, and associated title state dictionary
         """
         qry = self._build_title_query(db_map)
-        for db_row in qry.yield_per(1000):
+        for db_row in qry:
             yield from self.get_titles_recursive(db_row, limit=limit)
 
     def titles(self, db_map, limit=None):
@@ -575,7 +575,7 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        query = _Rewindable(self._build_header_query(db_map, title_state, buddies).yield_per(1000))
+        query = _Rewindable(self._build_header_query(db_map, title_state, buddies))
         return self.make_header_recursive(query, buddies)
 
 
@@ -1487,9 +1487,6 @@ class _FilteredQuery:
         """
         self._query = query
         self._condition = condition
-
-    def yield_per(self, count):
-        return _FilteredQuery(self._query.yield_per(count), self._condition)
 
     def filter(self, *args, **kwargs):
         return _FilteredQuery(self._query.filter(*args, **kwargs), self._condition)

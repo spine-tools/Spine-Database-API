@@ -99,7 +99,7 @@ def alternative_filter_shorthand_to_config(shorthand):
     Returns:
         dict: alternative filter configuration
     """
-    filter_type, separator, tokens = shorthand.partition(":'")
+    _filter_type, _separator, tokens = shorthand.partition(":'")
     alternatives = tokens.split("':'")
     alternatives[-1] = alternatives[-1][:-1]
     return alternative_filter_config(alternatives)

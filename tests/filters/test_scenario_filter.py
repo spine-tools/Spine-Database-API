@@ -32,6 +32,7 @@ from spinedb_api import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
+    SpineDBAPIError,
 )
 from spinedb_api.filters.scenario_filter import (
     scenario_filter_config,
@@ -55,12 +56,10 @@ class TestScenarioFilter(unittest.TestCase):
         create_new_spine_database(self._db_url)
         self._out_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
-        self._diff_db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
         self._out_map.connection.close()
         self._db_map.connection.close()
-        self._diff_db_map.connection.close()
 
     def _build_data_with_single_scenario(self):
         import_alternatives(self._out_map, ["alternative"])
@@ -74,38 +73,13 @@ class TestScenarioFilter(unittest.TestCase):
 
     def test_scenario_filter(self):
         _build_data_with_single_scenario(self._out_map)
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_scenario_filter_to_subqueries(db_map, "scenario")
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, b"23.0")
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario",
-                        "description": None,
-                        "active": True,
-                        "alternative_name_list": "alternative",
-                        "alternative_id_list": "2",
-                        "id": 1,
-                        "commit_id": 2,
-                    }
-                ],
-            )
-
-    def test_scenario_filter_uncommitted_data(self):
-        _build_data_with_single_scenario(self._out_map, commit=False)
-        apply_scenario_filter_to_subqueries(self._out_map, "scenario")
-        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario")
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, b"23.0")
-        alternatives = [a._asdict() for a in self._out_map.query(self._out_map.alternative_sq)]
-        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-        scenarios = [s._asdict() for s in self._out_map.query(self._out_map.wide_scenario_sq).all()]
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
         self.assertEqual(
             scenarios,
             [
@@ -116,39 +90,49 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative",
                     "alternative_id_list": "2",
                     "id": 1,
-                    "commit_id": 2,
+                    "commit_id": None,
                 }
             ],
         )
+
+    def test_scenario_filter_uncommitted_data(self):
+        _build_data_with_single_scenario(self._out_map, commit=False)
+        with self.assertRaises(SpineDBAPIError):
+            apply_scenario_filter_to_subqueries(self._out_map, "scenario")
+        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 0)
+        alternatives = [dict(a) for a in self._out_map.query(self._out_map.alternative_sq)]
+        self.assertEqual(alternatives, [{"name": "Base", "description": "Base alternative", "id": 1, "commit_id": 1}])
+        scenarios = self._out_map.query(self._out_map.wide_scenario_sq).all()
+        self.assertEqual(len(scenarios), 0)
         self._out_map.rollback_session()
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
         _build_data_with_single_scenario(self._out_map)
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_scenario_filter_to_subqueries(db_map, "scenario")
-            parameters = db_map.query(db_map.object_parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, b"23.0")
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario",
-                        "description": None,
-                        "active": True,
-                        "alternative_name_list": "alternative",
-                        "alternative_id_list": "2",
-                        "id": 1,
-                        "commit_id": 2,
-                    }
-                ],
-            )
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario")
+        parameters = self._db_map.query(self._db_map.object_parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, b"23.0")
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
+        self.assertEqual(
+            scenarios,
+            [
+                {
+                    "name": "scenario",
+                    "description": None,
+                    "active": True,
+                    "alternative_name_list": "alternative",
+                    "alternative_id_list": "2",
+                    "id": 1,
+                    "commit_id": None,
+                }
+            ],
+        )
 
     def test_scenario_filter_works_for_relationship_parameter_value_sq(self):
-        _build_data_with_single_scenario(self._out_map)
+        _build_data_with_single_scenario(self._out_map, commit=False)
         import_relationship_classes(self._out_map, [("relationship_class", ["object_class"])])
         import_relationship_parameters(self._out_map, [("relationship_class", "relationship_parameter")])
         import_relationships(self._out_map, [("relationship_class", ["object"])])
@@ -159,28 +143,27 @@ class TestScenarioFilter(unittest.TestCase):
             self._out_map, [("relationship_class", ["object"], "relationship_parameter", 23.0, "alternative")]
         )
         self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_scenario_filter_to_subqueries(db_map, "scenario")
-            parameters = db_map.query(db_map.relationship_parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, b"23.0")
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario",
-                        "description": None,
-                        "active": True,
-                        "alternative_name_list": "alternative",
-                        "alternative_id_list": "2",
-                        "id": 1,
-                        "commit_id": 2,
-                    }
-                ],
-            )
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario")
+        parameters = self._db_map.query(self._db_map.relationship_parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, b"23.0")
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
+        self.assertEqual(
+            scenarios,
+            [
+                {
+                    "name": "scenario",
+                    "description": None,
+                    "active": True,
+                    "alternative_name_list": "alternative",
+                    "alternative_id_list": "2",
+                    "id": 1,
+                    "commit_id": None,
+                }
+            ],
+        )
 
     def test_scenario_filter_selects_highest_ranked_alternative(self):
         import_alternatives(self._out_map, ["alternative3"])
@@ -203,35 +186,34 @@ class TestScenarioFilter(unittest.TestCase):
             ],
         )
         self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_scenario_filter_to_subqueries(db_map, "scenario")
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, b"2000.0")
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(
-                alternatives,
-                [
-                    {"name": "alternative3", "description": None, "id": 2, "commit_id": 2},
-                    {"name": "alternative1", "description": None, "id": 3, "commit_id": 2},
-                    {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
-                ],
-            )
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario",
-                        "description": None,
-                        "active": True,
-                        "alternative_name_list": "alternative1,alternative3,alternative2",
-                        "alternative_id_list": "3,2,4",
-                        "id": 1,
-                        "commit_id": 2,
-                    }
-                ],
-            )
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario")
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, b"2000.0")
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(
+            alternatives,
+            [
+                {"name": "alternative3", "description": None, "id": 2, "commit_id": None},
+                {"name": "alternative1", "description": None, "id": 3, "commit_id": None},
+                {"name": "alternative2", "description": None, "id": 4, "commit_id": None},
+            ],
+        )
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
+        self.assertEqual(
+            scenarios,
+            [
+                {
+                    "name": "scenario",
+                    "description": None,
+                    "active": True,
+                    "alternative_name_list": "alternative1,alternative3,alternative2",
+                    "alternative_id_list": "3,2,4",
+                    "id": 1,
+                    "commit_id": None,
+                }
+            ],
+        )
 
     def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
         import_alternatives(self._out_map, ["alternative3"])
@@ -265,35 +247,34 @@ class TestScenarioFilter(unittest.TestCase):
             ],
         )
         self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_scenario_filter_to_subqueries(db_map, "scenario")
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
-            self.assertEqual(parameters[0].value, b"2000.0")
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(
-                alternatives,
-                [
-                    {"name": "alternative3", "description": None, "id": 2, "commit_id": 2},
-                    {"name": "alternative1", "description": None, "id": 3, "commit_id": 2},
-                    {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
-                ],
-            )
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario",
-                        "description": None,
-                        "active": True,
-                        "alternative_name_list": "alternative1,alternative3,alternative2",
-                        "alternative_id_list": "3,2,4",
-                        "id": 1,
-                        "commit_id": 2,
-                    }
-                ],
-            )
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario")
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 1)
+        self.assertEqual(parameters[0].value, b"2000.0")
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(
+            alternatives,
+            [
+                {"name": "alternative3", "description": None, "id": 2, "commit_id": None},
+                {"name": "alternative1", "description": None, "id": 3, "commit_id": None},
+                {"name": "alternative2", "description": None, "id": 4, "commit_id": None},
+            ],
+        )
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
+        self.assertEqual(
+            scenarios,
+            [
+                {
+                    "name": "scenario",
+                    "description": None,
+                    "active": True,
+                    "alternative_name_list": "alternative1,alternative3,alternative2",
+                    "alternative_id_list": "3,2,4",
+                    "id": 1,
+                    "commit_id": None,
+                }
+            ],
+        )
 
     def test_scenario_filter_for_multiple_objects_and_parameters(self):
         import_alternatives(self._out_map, ["alternative"])
@@ -313,42 +294,41 @@ class TestScenarioFilter(unittest.TestCase):
         import_scenarios(self._out_map, [("scenario", True)])
         import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
         self._out_map.commit_session("Add test data")
-        for db_map in [self._db_map, self._diff_db_map]:
-            apply_scenario_filter_to_subqueries(db_map, "scenario")
-            parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 4)
-            object_names = {o.id: o.name for o in db_map.query(db_map.object_sq).all()}
-            alternative_names = {a.id: a.name for a in db_map.query(db_map.alternative_sq).all()}
-            parameter_names = {d.id: d.name for d in db_map.query(db_map.parameter_definition_sq).all()}
-            datamined_values = dict()
-            for parameter in parameters:
-                self.assertEqual(alternative_names[parameter.alternative_id], "alternative")
-                parameter_values = datamined_values.setdefault(object_names[parameter.object_id], dict())
-                parameter_values[parameter_names[parameter.parameter_definition_id]] = parameter.value
-            self.assertEqual(
-                datamined_values,
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario")
+        parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(len(parameters), 4)
+        object_names = {o.id: o.name for o in self._db_map.query(self._db_map.object_sq).all()}
+        alternative_names = {a.id: a.name for a in self._db_map.query(self._db_map.alternative_sq).all()}
+        parameter_names = {d.id: d.name for d in self._db_map.query(self._db_map.parameter_definition_sq).all()}
+        datamined_values = dict()
+        for parameter in parameters:
+            self.assertEqual(alternative_names[parameter.alternative_id], "alternative")
+            parameter_values = datamined_values.setdefault(object_names[parameter.object_id], dict())
+            parameter_values[parameter_names[parameter.parameter_definition_id]] = parameter.value
+        self.assertEqual(
+            datamined_values,
+            {
+                "object1": {"parameter1": b"10.0", "parameter2": b"11.0"},
+                "object2": {"parameter1": b"20.0", "parameter2": b"22.0"},
+            },
+        )
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
+        self.assertEqual(
+            scenarios,
+            [
                 {
-                    "object1": {"parameter1": b"10.0", "parameter2": b"11.0"},
-                    "object2": {"parameter1": b"20.0", "parameter2": b"22.0"},
-                },
-            )
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario",
-                        "description": None,
-                        "active": True,
-                        "alternative_name_list": "alternative",
-                        "alternative_id_list": "2",
-                        "id": 1,
-                        "commit_id": 2,
-                    }
-                ],
-            )
+                    "name": "scenario",
+                    "description": None,
+                    "active": True,
+                    "alternative_name_list": "alternative",
+                    "alternative_id_list": "2",
+                    "id": 1,
+                    "commit_id": None,
+                }
+            ],
+        )
 
     def test_filters_scenarios_and_alternatives(self):
         import_scenarios(self._out_map, ("scenario1", "scenario2"))
@@ -363,31 +343,30 @@ class TestScenarioFilter(unittest.TestCase):
             ),
         )
         self._out_map.commit_session("Add test data.")
-        for db_map in (self._db_map, self._diff_db_map):
-            apply_scenario_filter_to_subqueries(db_map, "scenario2")
-            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
-            self.assertEqual(
-                alternatives,
-                [
-                    {"name": "alternative2", "description": None, "id": 3, "commit_id": 2},
-                    {"name": "alternative3", "description": None, "id": 4, "commit_id": 2},
-                ],
-            )
-            scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
-            self.assertEqual(
-                scenarios,
-                [
-                    {
-                        "name": "scenario2",
-                        "description": None,
-                        "active": False,
-                        "alternative_name_list": "alternative2,alternative3",
-                        "alternative_id_list": "3,4",
-                        "id": 2,
-                        "commit_id": 2,
-                    }
-                ],
-            )
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario2")
+        alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
+        self.assertEqual(
+            alternatives,
+            [
+                {"name": "alternative2", "description": None, "id": 3, "commit_id": None},
+                {"name": "alternative3", "description": None, "id": 4, "commit_id": None},
+            ],
+        )
+        scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
+        self.assertEqual(
+            scenarios,
+            [
+                {
+                    "name": "scenario2",
+                    "description": None,
+                    "active": False,
+                    "alternative_name_list": "alternative2,alternative3",
+                    "alternative_id_list": "3,4",
+                    "id": 2,
+                    "commit_id": None,
+                }
+            ],
+        )
 
 
 class TestScenarioFilterUtils(unittest.TestCase):

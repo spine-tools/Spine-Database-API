@@ -306,8 +306,8 @@ class TestNameFromDict(unittest.TestCase):
         self.assertEqual(name_from_dict(config), "scenario_name")
 
     def test_get_tool_name(self):
-        config = filter_config("tool_filter", "tool_name")
-        self.assertEqual(name_from_dict(config), "tool_name")
+        with self.assertRaises(KeyError):
+            _ = filter_config("tool_filter", "tool_name")
 
     def test_returns_none_if_name_not_found(self):
         config = entity_class_renamer_config(name="rename")
