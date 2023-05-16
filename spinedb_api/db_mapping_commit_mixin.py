@@ -29,18 +29,19 @@ class DatabaseMappingCommitMixin:
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
-        user = self.username
-        date = datetime.now(timezone.utc)
-        ins = self._metadata.tables["commit"].insert()
-        commit_id = self.connection_execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
         to_add, to_update, to_remove = self.cache.commit()
         if not to_add and not to_update and not to_remove:
             raise SpineDBAPIError("Nothing to commit.")
-        for tablename, items in to_add.items():
-            self._do_add_items(tablename, *items)
-        for tablename, items in to_update.items():
-            self._do_update_items(tablename, *items)
-        self._do_remove_items(**to_remove)
+        user = self.username
+        date = datetime.now(timezone.utc)
+        ins = self._metadata.tables["commit"].insert()
+        with self.engine.begin() as connection:
+            commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
+            for tablename, items in to_add.items():
+                self._do_add_items(connection, tablename, *items)
+            for tablename, items in to_update.items():
+                self._do_update_items(connection, tablename, *items)
+            self._do_remove_items(connection, **to_remove)
         if self._memory:
             self._memory_dirty = True
 

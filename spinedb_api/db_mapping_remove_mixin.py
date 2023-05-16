@@ -44,7 +44,7 @@ class DatabaseMappingRemoveMixin:
             ids -= {1}
         return [table_cache.remove_item(id_) for id_ in ids]
 
-    def _do_remove_items(self, **kwargs):
+    def _do_remove_items(self, connection, **kwargs):
         """Removes items from the db.
 
         Args:
@@ -62,7 +62,7 @@ class DatabaseMappingRemoveMixin:
             table = self._metadata.tables[tablename]
             delete = table.delete().where(self.in_(getattr(table.c, id_field), ids))
             try:
-                self.connection_execute(delete)
+                connection.execute(delete)
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg) from e
@@ -234,23 +234,16 @@ class DatabaseMappingRemoveMixin:
         self._merge(cascading_ids, value_metadata)
         return cascading_ids
 
-    def _non_referenced_metadata_ids(self, ids, metadata_table_name):
-        cache = self.cache
-        metadata_id_counts = self._metadata_usage_counts()
-        cascading_ids = {}
-        metadata = cache.get(metadata_table_name, {})
-        for id_ in ids:
-            metadata_id_counts[metadata[id_].metadata_id] -= 1
-        zero_count_metadata_ids = {id_ for id_, count in metadata_id_counts.items() if count == 0}
-        self._merge(cascading_ids, {"metadata": zero_count_metadata_ids})
-        return cascading_ids
-
     def _entity_metadata_cascading_ids(self, ids):
-        cascading_ids = {"entity_metadata": set(ids)}
-        cascading_ids.update(self._non_referenced_metadata_ids(ids, "entity_metadata"))
-        return cascading_ids
+        return {"entity_metadata": set(ids)}
 
     def _parameter_value_metadata_cascading_ids(self, ids):
-        cascading_ids = {"parameter_value_metadata": set(ids)}
-        cascading_ids.update(self._non_referenced_metadata_ids(ids, "parameter_value_metadata"))
-        return cascading_ids
+        return {"parameter_value_metadata": set(ids)}
+
+    def get_metadata_ids_to_remove(self):
+        used_metadata_ids = set()
+        for x in self.cache.get("entity_metadata", {}).values():
+            used_metadata_ids.add(x["metadata_id"])
+        for x in self.cache.get("parameter_value_metadata", {}).values():
+            used_metadata_ids.add(x["metadata_id"])
+        return {x["id"] for x in self.cache.get("metadata", {}).values()} - used_metadata_ids

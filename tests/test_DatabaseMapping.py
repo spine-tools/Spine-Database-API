@@ -812,17 +812,16 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         items, errors = self._db_map.update_ext_parameter_value_metadata(
             *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 2)
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(dict(metadata_entries[0]), {"id": 1, "name": "key_2", "value": "new value", "commit_id": None})
+        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": None})
         value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata_entries), 1)
         self.assertEqual(
-            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 1, "commit_id": None}
+            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": None}
         )
 
     def test_update_parameter_value_metadata_will_not_delete_shared_entity_metadata(self):
@@ -841,9 +840,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         items, errors = self._db_map.update_ext_parameter_value_metadata(
             *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1, 2})
+        self.assertEqual(len(items), 2)
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 2)

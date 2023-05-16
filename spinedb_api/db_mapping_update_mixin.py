@@ -12,7 +12,6 @@
 """Provides :class:`DatabaseMappingUpdateMixin`.
 
 """
-from collections import Counter
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
 from .exception import SpineIntegrityError
@@ -22,24 +21,31 @@ from .helpers import convert_legacy
 class DatabaseMappingUpdateMixin:
     """Provides methods to perform ``UPDATE`` operations over a Spine db."""
 
-    def _do_update_items(self, tablename, *items_to_update):
+    def _make_update_stmt(self, tablename, keys):
+        table = self._metadata.tables[self._real_tablename(tablename)]
+        upd = table.update()
+        for k in self._get_primary_key(tablename):
+            upd = upd.where(getattr(table.c, k) == bindparam(k))
+        return upd.values({key: bindparam(key) for key in table.columns.keys() & keys})
+
+    def _do_update_items(self, connection, tablename, *items_to_update):
         """Update items in DB without checking integrity."""
+        if not items_to_update:
+            return
         try:
-            for tablename_, items_to_update_ in self._items_to_update_per_table(tablename, items_to_update):
+            upd = self._make_update_stmt(tablename, items_to_update[0].keys())
+            connection.execute(upd, [item._asdict() for item in items_to_update])
+            for tablename_, items_to_update_ in self._extra_items_to_update_per_table(tablename, items_to_update):
                 if not items_to_update_:
                     continue
-                table = self._metadata.tables[self._real_tablename(tablename_)]
-                upd = table.update()
-                for k in self._get_primary_key(tablename_):
-                    upd = upd.where(getattr(table.c, k) == bindparam(k))
-                upd = upd.values({key: bindparam(key) for key in table.columns.keys() & items_to_update_[0].keys()})
-                self.connection_execute(upd, [dict(item) for item in items_to_update_])
+                upd = self._make_update_stmt(tablename_, items_to_update_[0].keys())
+                connection.execute(upd, items_to_update_)
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
             raise SpineIntegrityError(msg) from e
 
     @staticmethod
-    def _items_to_update_per_table(tablename, items_to_update):
+    def _extra_items_to_update_per_table(tablename, items_to_update):
         """
         Yields tuples of string tablename, list of items to update. Needed because some update queries
         actually need to update records in more than one table.
@@ -51,7 +57,6 @@ class DatabaseMappingUpdateMixin:
         Yields:
             tuple: database table name, items to update
         """
-        yield (tablename, items_to_update)
         if tablename == "entity":
             ee_items_to_update = [
                 {
@@ -98,8 +103,9 @@ class DatabaseMappingUpdateMixin:
                         raise SpineIntegrityError(error)
                     errors.append(error)
                     continue
-                item = checked_item._asdict()
-                updated.append(table_cache.update_item(item)._asdict())
+                if checked_item:
+                    item = checked_item._asdict()
+                    updated.append(table_cache.update_item(item)._asdict())
         return updated, errors
 
     def update_alternatives(self, *items, **kwargs):
@@ -144,104 +150,25 @@ class DatabaseMappingUpdateMixin:
     def update_metadata(self, *items, **kwargs):
         return self.update_items("metadata", *items, **kwargs)
 
-    def update_ext_entity_metadata(self, *items, check=True, strict=False):
-        updated_items, errors = self._update_ext_item_metadata("entity_metadata", *items, check=check, strict=strict)
-        return updated_items, errors
+    def update_entity_metadata(self, *items, **kwargs):
+        return self.update_items("entity_metadata", *items, **kwargs)
 
-    def update_ext_parameter_value_metadata(self, *items, check=True, strict=False):
-        updated_items, errors = self._update_ext_item_metadata(
-            "parameter_value_metadata", *items, check=check, strict=strict
-        )
-        return updated_items, errors
+    def update_parameter_value_metadata(self, *items, **kwargs):
+        return self.update_items("parameter_value_metadata", *items, **kwargs)
 
-    def _update_ext_item_metadata(self, metadata_table, *items, check=True, strict=False):
-        self.fetch_all({"entity_metadata", "parameter_value_metadata", "metadata"})
-        cache = self.cache
-        metadata_ids = {}
-        for entry in cache.get("metadata", {}).values():
-            metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
-        item_metadata_cache = cache[metadata_table]
-        metadata_usage_counts = self._metadata_usage_counts()
-        updatable_items = []
-        homeless_items = []
-        for item in items:
-            metadata_name = item["metadata_name"]
-            metadata_value = item["metadata_value"]
-            metadata_id = metadata_ids.get(metadata_name, {}).get(metadata_value)
-            if metadata_id is None:
-                homeless_items.append(item)
-                continue
-            item["metadata_id"] = metadata_id
-            previous_metadata_id = item_metadata_cache[item["id"]]["metadata_id"]
-            metadata_usage_counts[previous_metadata_id] -= 1
-            metadata_usage_counts[metadata_id] += 1
-            updatable_items.append(item)
-        homeless_item_metadata_usage_counts = Counter()
-        for item in homeless_items:
-            homeless_item_metadata_usage_counts[item_metadata_cache[item["id"]].metadata_id] += 1
-        updatable_metadata_items = []
-        future_metadata_ids = {}
-        for metadata_id, count in homeless_item_metadata_usage_counts.items():
-            if count == metadata_usage_counts[metadata_id]:
-                for cached_item in item_metadata_cache.values():
-                    if cached_item["metadata_id"] == metadata_id:
-                        found = False
-                        for item in homeless_items:
-                            if item["id"] == cached_item["id"]:
-                                metadata_name = item["metadata_name"]
-                                metadata_value = item["metadata_value"]
-                                updatable_metadata_items.append(
-                                    {"id": metadata_id, "name": metadata_name, "value": metadata_value}
-                                )
-                                future_metadata_ids.setdefault(metadata_name, {})[metadata_value] = metadata_id
-                                metadata_usage_counts[metadata_id] = 0
-                                found = True
-                                break
-                        if found:
-                            break
-        items_needing_new_metadata = []
-        for item in homeless_items:
-            metadata_name = item["metadata_name"]
-            metadata_value = item["metadata_value"]
-            metadata_id = future_metadata_ids.get(metadata_name, {}).get(metadata_value)
-            if metadata_id is None:
-                items_needing_new_metadata.append(item)
-                continue
-            if item_metadata_cache[item["id"]]["metadata_id"] == metadata_id:
-                continue
-            item["metadata_id"] = metadata_id
-            updatable_items.append(item)
-        all_items = []
-        errors = []
-        if updatable_metadata_items:
-            updated_metadata, errors = self.update_metadata(*updatable_metadata_items, check=False, strict=strict)
-            all_items += updated_metadata
-            if errors:
-                return all_items, errors
-        addable_metadata = [
-            {"name": i["metadata_name"], "value": i["metadata_value"]} for i in items_needing_new_metadata
-        ]
-        added_metadata = []
-        if addable_metadata:
-            added_metadata, metadata_add_errors = self.add_metadata(*addable_metadata, check=False, strict=strict)
-            all_items += added_metadata
-            errors += metadata_add_errors
-            if errors:
-                return all_items, errors
-        added_metadata_ids = {}
-        for item in added_metadata:
-            added_metadata_ids.setdefault(item["name"], {})[item["value"]] = item["id"]
-        for item in items_needing_new_metadata:
-            item["metadata_id"] = added_metadata_ids[item["metadata_name"]][item["metadata_value"]]
-            updatable_items.append(item)
-        if updatable_items:
-            # FIXME: Force-clear cache before updating item metadata to ensure that added/updated metadata is found.
-            updated_item_metadata, item_metadata_errors = self.update_items(
-                metadata_table, *updatable_items, check=check, strict=strict
-            )
-            all_items += updated_item_metadata
-            errors += item_metadata_errors
-        return all_items, errors
+    def _update_ext_item_metadata(self, tablename, *items, **kwargs):
+        metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
+        added, errors = self.add_items("metadata", *metadata_items, **kwargs)
+        updated, more_errors = self.update_items(tablename, *items, **kwargs)
+        metadata_ids = self.get_metadata_ids_to_remove()
+        self.remove_items("metadata", *metadata_ids)
+        return added + updated, errors + more_errors
+
+    def update_ext_entity_metadata(self, *items, **kwargs):
+        return self._update_ext_item_metadata("entity_metadata", *items, **kwargs)
+
+    def update_ext_parameter_value_metadata(self, *items, **kwargs):
+        return self._update_ext_item_metadata("parameter_value_metadata", *items, **kwargs)
 
     def get_data_to_set_scenario_alternatives(self, *scenarios, strict=True):
         """Returns data to add and remove, in order to set wide scenario alternatives.

@@ -130,11 +130,13 @@ def get_data_for_import(
     scenarios=(),
     scenario_alternatives=(),
     metadata=(),
+    entity_metadata=(),
+    parameter_value_metadata=(),
     object_metadata=(),
     relationship_metadata=(),
     object_parameter_value_metadata=(),
     relationship_parameter_value_metadata=(),
-    # FIXME: compat
+    # legacy
     tools=(),
     features=(),
     tool_features=(),
@@ -187,7 +189,7 @@ def get_data_for_import(
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
     if relationship_classes:
-        yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes))
+        yield ("relationship_class", _get_entity_classes_for_import(db_map, relationship_classes))
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
@@ -197,22 +199,22 @@ def get_data_for_import(
             _get_parameter_definitions_for_import(db_map, parameter_definitions, unparse_value),
         )
     if object_parameters:
-        yield ("parameter_definition", _get_object_parameters_for_import(db_map, object_parameters, unparse_value))
+        yield ("parameter_definition", _get_parameter_definitions_for_import(db_map, object_parameters, unparse_value))
     if relationship_parameters:
         yield (
             "parameter_definition",
-            _get_relationship_parameters_for_import(db_map, relationship_parameters, unparse_value),
+            _get_parameter_definitions_for_import(db_map, relationship_parameters, unparse_value),
         )
     if entities:
         yield ("entity", _get_entities_for_import(db_map, entities))
     if objects:
-        yield ("object", _get_objects_for_import(db_map, objects))
+        yield ("object", _get_entities_for_import(db_map, objects))
     if relationships:
-        yield ("relationship", _get_relationships_for_import(db_map, relationships))
+        yield ("relationship", _get_entities_for_import(db_map, relationships))
     if entity_groups:
         yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
     if object_groups:
-        yield ("entity_group", _get_object_groups_for_import(db_map, object_groups))
+        yield ("entity_group", _get_entity_groups_for_import(db_map, object_groups))
     if parameter_values:
         yield (
             "parameter_value",
@@ -221,31 +223,28 @@ def get_data_for_import(
     if object_parameter_values:
         yield (
             "parameter_value",
-            _get_object_parameter_values_for_import(db_map, object_parameter_values, unparse_value, on_conflict),
+            _get_parameter_values_for_import(db_map, object_parameter_values, unparse_value, on_conflict),
         )
     if relationship_parameter_values:
         yield (
             "parameter_value",
-            _get_relationship_parameter_values_for_import(
-                db_map, relationship_parameter_values, unparse_value, on_conflict
-            ),
+            _get_parameter_values_for_import(db_map, relationship_parameter_values, unparse_value, on_conflict),
         )
     if metadata:
         yield ("metadata", _get_metadata_for_import(db_map, metadata))
+    if entity_metadata:
+        yield ("metadata", _get_metadata_for_import(db_map, (metadata for _, _, metadata in entity_metadata)))
+        yield ("entity_metadata", _get_entity_metadata_for_import(db_map, entity_metadata))
+    if parameter_value_metadata:
+        yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:
-        yield ("entity_metadata", _get_object_metadata_for_import(db_map, object_metadata))
+        yield from get_data_for_import(db_map, entity_metadata=object_metadata)
     if relationship_metadata:
-        yield ("entity_metadata", _get_relationship_metadata_for_import(db_map, relationship_metadata))
+        yield from get_data_for_import(db_map, entity_metadata=relationship_metadata)
     if object_parameter_value_metadata:
-        yield (
-            "parameter_value_metadata",
-            _get_object_parameter_value_metadata_for_import(db_map, object_parameter_value_metadata),
-        )
+        yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
     if relationship_parameter_value_metadata:
-        yield (
-            "parameter_value_metadata",
-            _get_relationship_parameter_value_metadata_for_import(db_map, relationship_parameter_value_metadata),
-        )
+        yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
 
 
 def import_entity_classes(db_map, data):
@@ -750,27 +749,25 @@ def _get_items_for_import(db_map, item_type, data, skip_keys=()):
     to_add = []
     to_update = []
     seen = {}
-    with db_map.generate_ids(item_type) as new_id:
-        for item in data:
-            checked_item, add_error = table_cache.check_item(item, skip_keys=skip_keys)
-            if not add_error:
-                if not _check_seen(item_type, checked_item, seen, errors):
-                    continue
-                checked_item["id"] = new_id()
-                to_add.append(checked_item)
+    for item in data:
+        checked_item, add_error = table_cache.check_item(item, skip_keys=skip_keys)
+        if not add_error:
+            if not _check_unique(item_type, checked_item, seen, errors):
                 continue
-            checked_item, update_error = table_cache.check_item(item, for_update=True, skip_keys=skip_keys)
-            if not update_error:
-                if not _check_seen(item_type, checked_item, seen, errors):
+            to_add.append(checked_item)
+            continue
+        checked_item, update_error = table_cache.check_item(item, for_update=True, skip_keys=skip_keys)
+        if not update_error:
+            if checked_item:
+                if not _check_unique(item_type, checked_item, seen, errors):
                     continue
-                # FIXME: Maybe check that item and checked_item are different before updating???
                 to_update.append(checked_item)
-                continue
-            errors.append(add_error)
+            continue
+        errors.append(add_error)
     return to_add, to_update, errors
 
 
-def _check_seen(item_type, checked_item, seen, errors):
+def _check_unique(item_type, checked_item, seen, errors):
     dupe_key = _add_to_seen(checked_item, seen)
     if not dupe_key:
         return True
@@ -960,51 +957,3 @@ def _get_object_classes_for_import(db_map, data):
             yield name, (), *optionals
 
     return _get_entity_classes_for_import(db_map, _data_iterator())
-
-
-def _get_relationship_classes_for_import(db_map, data):
-    return _get_entity_classes_for_import(db_map, data)
-
-
-def _get_objects_for_import(db_map, data):
-    return _get_entities_for_import(db_map, data)
-
-
-def _get_relationships_for_import(db_map, data):
-    return _get_entities_for_import(db_map, data)
-
-
-def _get_object_groups_for_import(db_map, data):
-    return _get_entity_groups_for_import(db_map, data)
-
-
-def _get_object_parameters_for_import(db_map, data, unparse_value):
-    return _get_parameter_definitions_for_import(db_map, data, unparse_value)
-
-
-def _get_relationship_parameters_for_import(db_map, data, unparse_value):
-    return _get_parameter_definitions_for_import(db_map, data, unparse_value)
-
-
-def _get_object_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
-    return _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict)
-
-
-def _get_relationship_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
-    return _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict)
-
-
-def _get_object_metadata_for_import(db_map, data):
-    return _get_entity_metadata_for_import(db_map, data)
-
-
-def _get_relationship_metadata_for_import(db_map, data):
-    return _get_entity_metadata_for_import(db_map, data)
-
-
-def _get_object_parameter_value_metadata_for_import(db_map, data):
-    return _get_parameter_value_metadata_for_import(db_map, data)
-
-
-def _get_relationship_parameter_value_metadata_for_import(db_map, data):
-    return _get_parameter_value_metadata_for_import(db_map, data)

@@ -16,7 +16,6 @@ import hashlib
 import os
 import logging
 import time
-from collections import Counter
 from types import MethodType
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, inspect, case, func, cast, false, and_, or_
@@ -43,7 +42,7 @@ from .helpers import (
 )
 from .filters.tools import pop_filter_configs
 from .spine_db_client import get_db_url_from_server
-from .db_cache import DBCache
+from .db_cache_impl import DBCache
 from .query import Query
 
 
@@ -230,6 +229,9 @@ class DatabaseMappingBase:
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         self.close()
 
+    def get_filter_configs(self):
+        return self._filter_configs
+
     def _make_executor(self):
         return ThreadPoolExecutor(max_workers=1) if self._asynchronous else _Executor()
 
@@ -267,18 +269,6 @@ class DatabaseMappingBase:
                 for child in children:
                     yield child
                     yield from self._descendant_tablenames(child)
-
-    def sorted_tablenames(self):
-        tablenames = list(self.ITEM_TYPES)
-        sorted_tablenames = []
-        while tablenames:
-            tablename = tablenames.pop(0)
-            ancestors = self.ancestor_tablenames.get(tablename)
-            if ancestors is None or all(x in sorted_tablenames for x in ancestors):
-                sorted_tablenames.append(tablename)
-            else:
-                tablenames.append(tablename)
-        return sorted_tablenames
 
     def _real_tablename(self, tablename):
         return {
@@ -384,6 +374,8 @@ class DatabaseMappingBase:
     def in_(self, column, values):
         """Returns an expression equivalent to column.in_(values), that circumvents the
         'too many sql variables' problem in sqlite."""
+        # FIXME
+        return column.in_(values)
         if not values:
             return false()
         if not self.sa_url.drivername.startswith("sqlite"):
@@ -396,7 +388,7 @@ class DatabaseMappingBase:
         )
         self.call_in_right_thread(in_value.create, self.connection, checkfirst=True)
         self.connection_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
-        return column.in_(self.query(in_value.c.value))
+        return column.in_({x.value for x in self.query(in_value.c.value)})
 
     def _get_table_to_sq_attr(self):
         if not self._table_to_sq_attr:
@@ -2006,22 +1998,19 @@ class DatabaseMappingBase:
             [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
 
-    def _metadata_usage_counts(self):
-        """Counts references to metadata name, value pairs in entity_metadata and parameter_value_metadata tables.
+    def advance_cache_query(self, item_type, callback=None):
+        """Schedules an advance of the DB query that fetches items of given type.
+
+        Args:
+            item_type (str)
 
         Returns:
-            Counter: usage counts keyed by metadata id
+            Future
         """
-        cache = self.cache
-        usage_counts = Counter()
-        for entry in dict.values(cache.get("entity_metadata", {})):
-            usage_counts[entry.metadata_id] += 1
-        for entry in dict.values(cache.get("parameter_value_metadata", {})):
-            usage_counts[entry.metadata_id] += 1
-        return usage_counts
-
-    def get_filter_configs(self):
-        return self._filter_configs
+        if not callback:
+            return self.cache.advance_query(item_type)
+        future = self.executor.submit(self.cache.advance_query, item_type)
+        future.add_done_callback(lambda future: callback(future.result()))
 
     def __del__(self):
         try:

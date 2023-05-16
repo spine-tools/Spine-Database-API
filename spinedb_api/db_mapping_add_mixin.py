@@ -14,9 +14,6 @@
 """
 # TODO: improve docstrings
 
-from datetime import datetime
-from contextlib import contextmanager
-from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineIntegrityError
 from .helpers import convert_legacy
@@ -24,101 +21,6 @@ from .helpers import convert_legacy
 
 class DatabaseMappingAddMixin:
     """Provides methods to perform ``INSERT`` operations over a Spine db."""
-
-    class _IdGenerator:
-        def __init__(self, next_id):
-            self._next_id = next_id
-
-        @property
-        def next_id(self):
-            return self._next_id
-
-        def __call__(self):
-            try:
-                return self._next_id
-            finally:
-                self._next_id += 1
-
-    def __init__(self, *args, **kwargs):
-        """Initialize class."""
-        super().__init__(*args, **kwargs)
-        self._next_id = self._metadata.tables.get("next_id")
-        if self._next_id is None:
-            self._next_id = Table(
-                "next_id",
-                self._metadata,
-                Column("user", String(155), primary_key=True),
-                Column("date", String(155), primary_key=True),
-                Column("entity_id", Integer, server_default=null()),
-                Column("entity_class_id", Integer, server_default=null()),
-                Column("entity_group_id", Integer, server_default=null()),
-                Column("parameter_definition_id", Integer, server_default=null()),
-                Column("parameter_value_id", Integer, server_default=null()),
-                Column("parameter_value_list_id", Integer, server_default=null()),
-                Column("list_value_id", Integer, server_default=null()),
-                Column("alternative_id", Integer, server_default=null()),
-                Column("scenario_id", Integer, server_default=null()),
-                Column("scenario_alternative_id", Integer, server_default=null()),
-                Column("metadata_id", Integer, server_default=null()),
-                Column("parameter_value_metadata_id", Integer, server_default=null()),
-                Column("entity_metadata_id", Integer, server_default=null()),
-            )
-            try:
-                self._next_id.create(self.connection)
-            except DBAPIError:
-                # Some other concurrent process must have beaten us to create the table
-                self._next_id = Table("next_id", self._metadata, autoload=True)
-
-    @contextmanager
-    def generate_ids(self, tablename):
-        """Manages id generation for new items to be added to the db.
-
-        Args:
-            tablename (str): the table to which items will be added
-
-        Yields:
-            self._IdGenerator: an object that generates a new id every time it is called.
-        """
-        fieldname = {
-            "entity_class": "entity_class_id",
-            "object_class": "entity_class_id",
-            "relationship_class": "entity_class_id",
-            "entity": "entity_id",
-            "object": "entity_id",
-            "relationship": "entity_id",
-            "entity_group": "entity_group_id",
-            "parameter_definition": "parameter_definition_id",
-            "parameter_value": "parameter_value_id",
-            "parameter_value_list": "parameter_value_list_id",
-            "list_value": "list_value_id",
-            "alternative": "alternative_id",
-            "scenario": "scenario_id",
-            "scenario_alternative": "scenario_alternative_id",
-            "metadata": "metadata_id",
-            "parameter_value_metadata": "parameter_value_metadata_id",
-            "entity_metadata": "entity_metadata_id",
-        }[tablename]
-        with self.engine.begin() as connection:
-            select_next_id = select([self._next_id])
-            next_id_row = connection.execute(select_next_id).first()
-            if next_id_row is None:
-                next_id = None
-                stmt = self._next_id.insert()
-            else:
-                next_id = getattr(next_id_row, fieldname)
-                stmt = self._next_id.update()
-            if next_id is None:
-                real_tablename = self._real_tablename(tablename)
-                table = self._metadata.tables[real_tablename]
-                id_field = self._id_fields.get(real_tablename, "id")
-                select_max_id = select([func.max(getattr(table.c, id_field))])
-                max_id = connection.execute(select_max_id).scalar()
-                next_id = max_id + 1 if max_id else 1
-            gen = self._IdGenerator(next_id)
-            try:
-                yield gen
-            finally:
-                connection.execute(stmt, {"user": self.username, "date": datetime.utcnow(), fieldname: gen.next_id})
 
     def add_items(self, tablename, *items, check=True, strict=False):
         """Add items to cache.
@@ -137,42 +39,46 @@ class DatabaseMappingAddMixin:
         added, errors = [], []
         tablename = self._real_tablename(tablename)
         table_cache = self.cache.table_cache(tablename)
-        with self.generate_ids(tablename) as new_id:
-            if not check:
-                for item in items:
-                    convert_legacy(tablename, item)
-                    if "id" not in item:
-                        item["id"] = new_id()
-                    added.append(table_cache.add_item(item, new=True)._asdict())
-            else:
-                for item in items:
-                    convert_legacy(tablename, item)
-                    checked_item, error = table_cache.check_item(item)
-                    if error:
-                        if strict:
-                            raise SpineIntegrityError(error)
-                        errors.append(error)
-                        continue
-                    item = checked_item._asdict()
-                    if "id" not in item:
-                        item["id"] = new_id()
-                    added.append(table_cache.add_item(item, new=True)._asdict())
+        if not check:
+            for item in items:
+                convert_legacy(tablename, item)
+                added.append(table_cache.add_item(item, new=True)._asdict())
+        else:
+            for item in items:
+                convert_legacy(tablename, item)
+                checked_item, error = table_cache.check_item(item)
+                if error:
+                    if strict:
+                        raise SpineIntegrityError(error)
+                    errors.append(error)
+                    continue
+                item = checked_item._asdict()
+                added.append(table_cache.add_item(item, new=True)._asdict())
         return added, errors
 
-    def _do_add_items(self, tablename, *items_to_add):
+    def _do_add_items(self, connection, tablename, *items_to_add):
         """Add items to DB without checking integrity."""
+        if not items_to_add:
+            return
         try:
-            for tablename_, items_to_add_ in self._items_to_add_per_table(tablename, items_to_add):
+            table = self._metadata.tables[self._real_tablename(tablename)]
+            for item in items_to_add:
+                item = item._asdict()
+                temp_id = item.pop("id") if hasattr(item["id"], "resolve") else None
+                id_ = connection.execute(table.insert(), item).inserted_primary_key[0]
+                if temp_id:
+                    temp_id.resolve(id_)
+            for tablename_, items_to_add_ in self._extra_items_to_add_per_table(tablename, items_to_add):
                 if not items_to_add_:
                     continue
                 table = self._metadata.tables[self._real_tablename(tablename_)]
-                self.connection_execute(table.insert(), [dict(item) for item in items_to_add_])
+                connection.execute(table.insert(), items_to_add_)
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineIntegrityError(msg) from e
 
     @staticmethod
-    def _items_to_add_per_table(tablename, items_to_add):
+    def _extra_items_to_add_per_table(tablename, items_to_add):
         """
         Yields tuples of string tablename, list of items to insert. Needed because some insert queries
         actually need to insert records to more than one table.
@@ -184,7 +90,6 @@ class DatabaseMappingAddMixin:
         Yields:
             tuple: database table name, items to add
         """
-        yield (tablename, items_to_add)
         if tablename == "entity_class":
             ecd_items_to_add = [
                 {"entity_class_id": item["id"], "position": position, "dimension_id": dimension_id}
@@ -259,42 +164,16 @@ class DatabaseMappingAddMixin:
     def add_parameter_value_metadata(self, *items, **kwargs):
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def _get_or_add_metadata_ids_for_items(self, *items, check, strict):
-        metadata_ids = {}
-        for entry in self.cache.get("metadata", {}).values():
-            metadata_ids.setdefault(entry.name, {})[entry.value] = entry.id
-        metadata_to_add = []
-        items_missing_metadata_ids = {}
-        for item in items:
-            existing_values = metadata_ids.get(item["metadata_name"])
-            existing_id = existing_values.get(item["metadata_value"]) if existing_values is not None else None
-            if existing_values is None or existing_id is None:
-                metadata_to_add.append({"name": item["metadata_name"], "value": item["metadata_value"]})
-                items_missing_metadata_ids.setdefault(item["metadata_name"], {})[item["metadata_value"]] = item
-            else:
-                item["metadata_id"] = existing_id
-        added_metadata, errors = self.add_items("metadata", *metadata_to_add, check=check, strict=strict)
-        if errors:
-            return added_metadata, errors
-        new_metadata_ids = {}
-        for added in added_metadata:
-            new_metadata_ids.setdefault(added["name"], {})[added["value"]] = added["id"]
-        for metadata_name, value_to_item in items_missing_metadata_ids.items():
-            for metadata_value, item in value_to_item.items():
-                item["metadata_id"] = new_metadata_ids[metadata_name][metadata_value]
-        return added_metadata, errors
+    def add_ext_entity_metadata(self, *items, **kwargs):
+        metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
+        self.add_items("metadata", *metadata_items, **kwargs)
+        return self.add_items("entity_metadata", *items, **kwargs)
 
-    def _add_ext_item_metadata(self, table_name, *items, check=True, strict=False):
-        self.fetch_all({table_name}, include_ancestors=True)
-        added_metadata, metadata_errors = self._get_or_add_metadata_ids_for_items(*items, check=check, strict=strict)
-        if metadata_errors:
-            return added_metadata, metadata_errors
-        added_item_metadata, item_errors = self.add_items(table_name, *items, check=check, strict=strict)
-        errors = metadata_errors + item_errors
-        return added_metadata + added_item_metadata, errors
+    def add_ext_parameter_value_metadata(self, *items, **kwargs):
+        metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
+        self.add_items("metadata", *metadata_items, **kwargs)
+        return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def add_ext_entity_metadata(self, *items, check=True, strict=False):
-        return self._add_ext_item_metadata("entity_metadata", *items, check=check, strict=strict)
-
-    def add_ext_parameter_value_metadata(self, *items, check=True, strict=False):
-        return self._add_ext_item_metadata("parameter_value_metadata", *items, check=check, strict=strict)
+    def get_metadata_to_add_with_entity_metadata_items(self, *items):
+        metadata_items = ({"name": item["metadata_name"], "value": item["metadata_value"]} for item in items)
+        return [x for x in metadata_items if not self.cache.table_cache("metadata").current_item(x)]

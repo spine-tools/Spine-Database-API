@@ -22,7 +22,6 @@ from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.exception import SpineIntegrityError
-from spinedb_api.db_cache import DBCache
 from spinedb_api import import_functions, SpineDBAPIError
 
 
@@ -153,10 +152,10 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         """Test removing an entity group from a committed session"""
         self._db_map.add_object_classes({"name": "oc1", "id": 1})
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, {"name": "o2", "id": 2, "class_id": 1})
-        items, _ = self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
+        self._db_map.add_entity_groups({"entity_id": 1, "entity_class_id": 1, "member_id": 2})
         self._db_map.commit_session("add")
         self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 1)
-        self._db_map.remove_items("entity_group", *{x["id"] for x in items})
+        self._db_map.remove_items("entity_group", 1)
         self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.entity_group_sq).all()), 0)
 
@@ -454,7 +453,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_objects(self):
         """Test that adding objects works."""
-        self._db_map.add_object_classes({"name": "fish"})
+        self._db_map.add_object_classes({"name": "fish", "id": 1})
         self._db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "dory", "class_id": 1})
         self._db_map.commit_session("add")
         objects = self._db_map.query(self._db_map.object_sq).all()
@@ -472,7 +471,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_objects_with_same_name(self):
         """Test that adding two objects with the same name only adds one of them."""
-        self._db_map.add_object_classes({"name": "fish"})
+        self._db_map.add_object_classes({"name": "fish", "id": 1})
         self._db_map.add_objects({"name": "nemo", "class_id": 1}, {"name": "nemo", "class_id": 1})
         self._db_map.commit_session("add")
         objects = self._db_map.query(self._db_map.object_sq).all()
@@ -495,7 +494,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_classes(self):
         """Test that adding relationship classes works."""
-        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
+        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]}, {"name": "rc2", "object_class_id_list": [2, 1]}
         )
@@ -519,7 +518,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_classes_with_same_name(self):
         """Test that adding two relationship classes with the same name only adds one of them."""
-        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
+        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
         self._db_map.add_wide_relationship_classes(
             {"name": "rc1", "object_class_id_list": [1, 2]},
             {"name": "rc1", "object_class_id_list": [1, 2]},
@@ -571,9 +570,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationships(self):
         """Test that adding relationships works."""
-        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2]})
-        self._db_map.add_objects({"name": "o1", "class_id": 1}, {"name": "o2", "class_id": 2})
+        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2], "id": 3})
+        self._db_map.add_objects({"name": "o1", "class_id": 1, "id": 1}, {"name": "o2", "class_id": 2, "id": 2})
         self._db_map.add_wide_relationships({"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]})
         self._db_map.commit_session("add")
         ent_els = self._db_map.query(self._db_map.get_table("entity_element")).all()
@@ -588,7 +587,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_relationship_with_invalid_name(self):
         """Test that adding object classes with empty name raises error"""
-        self._db_map.add_object_classes({"name": "oc1"}, strict=True)
+        self._db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1]}, strict=True)
         self._db_map.add_objects({"name": "o1", "class_id": 1}, strict=True)
         with self.assertRaises(SpineIntegrityError):
@@ -596,9 +595,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_identical_relationships(self):
         """Test that adding two relationships with the same class and same objects only adds the first one."""
-        self._db_map.add_object_classes({"name": "oc1"}, {"name": "oc2"})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2]})
-        self._db_map.add_objects({"name": "o1", "class_id": 1}, {"name": "o2", "class_id": 2})
+        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
+        self._db_map.add_wide_relationship_classes({"name": "rc1", "object_class_id_list": [1, 2], "id": 3})
+        self._db_map.add_objects({"name": "o1", "class_id": 1, "id": 1}, {"name": "o2", "class_id": 2, "id": 2})
         self._db_map.add_wide_relationships(
             {"name": "nemo__pluto", "class_id": 3, "object_id_list": [1, 2]},
             {"name": "nemo__pluto_duplicate", "class_id": 3, "object_id_list": [1, 2]},
@@ -903,6 +902,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_objects(self._db_map, [("fish", "nemo")])
         import_functions.import_object_parameters(self._db_map, [("fish", "color")])
         import_functions.import_object_parameter_values(self._db_map, [("fish", "nemo", "color", "orange")])
+        self._db_map.commit_session("add")
         _, errors = self._db_map.add_parameter_values(
             {
                 "parameter_definition_id": 1,
@@ -923,9 +923,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_alternative(self):
         items, errors = self._db_map.add_alternatives({"name": "my_alternative"})
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {2})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add test data.")
         alternatives = self._db_map.query(self._db_map.alternative_sq).all()
         self.assertEqual(len(alternatives), 2)
@@ -938,9 +937,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_scenario(self):
         items, errors = self._db_map.add_scenarios({"name": "my_scenario"})
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add test data.")
         scenarios = self._db_map.query(self._db_map.scenario_sq).all()
         self.assertEqual(len(scenarios), 1)
@@ -953,9 +951,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_scenarios(self._db_map, ("my_scenario",))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_scenario_alternatives({"scenario_id": 1, "alternative_id": 1, "rank": 0})
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add test data.")
         scenario_alternatives = self._db_map.query(self._db_map.scenario_alternative_sq).all()
         self.assertEqual(len(scenario_alternatives), 1)
@@ -966,9 +963,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_metadata(self):
         items, errors = self._db_map.add_metadata({"name": "test name", "value": "test_add_metadata"}, strict=False)
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
@@ -991,9 +987,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_entity_metadata({"entity_id": 1, "metadata_id": 1}, strict=False)
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add entity metadata")
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
@@ -1018,9 +1013,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_entity_metadata({"entity_id": 2, "metadata_id": 1}, strict=False)
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add entity metadata")
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
@@ -1049,9 +1043,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         items, errors = self._db_map.add_ext_entity_metadata(
             {"entity_id": 1, "metadata_name": "key", "metadata_value": "object metadata"}, strict=False
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add entity metadata")
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
@@ -1076,9 +1069,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         items, errors = self._db_map.add_ext_entity_metadata(
             {"entity_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add entity metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
@@ -1108,9 +1100,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         items, errors = self._db_map.add_parameter_value_metadata(
             {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1}, strict=False
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add value metadata")
         value_metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata), 1)
@@ -1131,12 +1122,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
     def test_add_parameter_value_metadata_doesnt_raise_with_empty_cache(self):
         items, errors = self._db_map.add_parameter_value_metadata(
-            {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1},
-            cache=DBCache(lambda *args, **kwargs: None),
-            strict=False,
+            {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1}
         )
-        ids = {x["id"] for x in items}
-        self.assertEqual(ids, set())
+        self.assertEqual(len(items), 0)
         self.assertEqual(len(errors), 1)
 
     def test_add_ext_parameter_value_metadata(self):
@@ -1154,9 +1142,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             },
             strict=False,
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add value metadata")
         value_metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata), 1)
@@ -1186,9 +1173,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             {"parameter_value_id": 1, "metadata_name": "title", "metadata_value": "My metadata.", "alternative_id": 1},
             strict=False,
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Add value metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
