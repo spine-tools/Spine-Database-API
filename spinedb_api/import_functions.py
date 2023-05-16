@@ -18,7 +18,6 @@ from .parameter_value import to_database, fix_conflict
 from .helpers import _parse_metadata
 
 # TODO: update docstrings
-# FIXME: alt_id, alternative_name = db_map.get_import_alternative()
 
 
 class ImportErrorLogItem:
@@ -824,13 +823,23 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
         for class_name, entity_byname, parameter_name, value, *optionals in data:
             if isinstance(entity_byname, str):
                 entity_byname = (entity_byname,)
+            alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
             value, type_ = unparse_value(value)
-            alternative_name = optionals[0] if optionals else "Base"
-            yield class_name, entity_byname, parameter_name, value, type_, alternative_name
+            item = {
+                "entity_class_name": class_name,
+                "entity_byname": entity_byname,
+                "parameter_definition_name": parameter_name,
+                "alternative_name": alternative_name,
+                "value": None,
+                "type": None,
+            }
+            pv = db_map.cache.table_cache("parameter_value").current_item(item)
+            if pv is not None:
+                value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
+            item.update({"value": value, "type": type_})
+            yield item
 
-    key = ("entity_class_name", "entity_byname", "parameter_definition_name", "value", "type", "alternative_name")
-    return _get_items_for_import(db_map, "parameter_value", (dict(zip(key, x)) for x in _data_iterator()))
-    # FIXME: value, type_ = fix_conflict((value, type_), (current_pv.value, current_pv.type), on_conflict)
+    return _get_items_for_import(db_map, "parameter_value", _data_iterator())
 
 
 def _get_alternatives_for_import(db_map, data):
@@ -931,7 +940,7 @@ def _get_parameter_value_metadata_for_import(db_map, data):
         for class_name, entity_byname, parameter_name, metadata, *optionals in data:
             if isinstance(entity_byname, str):
                 entity_byname = (entity_byname,)
-            alternative_name = optionals[0] if optionals else "Base"
+            alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
             for name, value in _parse_metadata(metadata):
                 yield (class_name, entity_byname, parameter_name, name, value, alternative_name)
 

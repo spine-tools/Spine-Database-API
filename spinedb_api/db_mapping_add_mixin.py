@@ -16,7 +16,7 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineIntegrityError
-from .helpers import convert_legacy
+from .query import Query
 
 
 class DatabaseMappingAddMixin:
@@ -41,11 +41,11 @@ class DatabaseMappingAddMixin:
         table_cache = self.cache.table_cache(tablename)
         if not check:
             for item in items:
-                convert_legacy(tablename, item)
+                self._convert_legacy(tablename, item)
                 added.append(table_cache.add_item(item, new=True)._asdict())
         else:
             for item in items:
-                convert_legacy(tablename, item)
+                self._convert_legacy(tablename, item)
                 checked_item, error = table_cache.check_item(item)
                 if error:
                     if strict:
@@ -62,12 +62,25 @@ class DatabaseMappingAddMixin:
             return
         try:
             table = self._metadata.tables[self._real_tablename(tablename)]
+            id_items, temp_id_items = [], []
             for item in items_to_add:
-                item = item._asdict()
-                temp_id = item.pop("id") if hasattr(item["id"], "resolve") else None
-                id_ = connection.execute(table.insert(), item).inserted_primary_key[0]
-                if temp_id:
+                if hasattr(item["id"], "resolve"):
+                    temp_id_items.append(item)
+                else:
+                    id_items.append(item)
+            if id_items:
+                connection.execute(table.insert(), [x._asdict() for x in id_items])
+            if temp_id_items:
+                current_ids = {x["id"] for x in Query(connection.execute, table)}
+                next_id = max(current_ids, default=0) + 1
+                available_ids = set(range(1, next_id)) - current_ids
+                missing_id_count = len(temp_id_items) - len(available_ids)
+                new_ids = set(range(next_id, next_id + missing_id_count))
+                ids = sorted(available_ids | new_ids)
+                for id_, item in zip(ids, temp_id_items):
+                    temp_id = item["id"]
                     temp_id.resolve(id_)
+                connection.execute(table.insert(), [x._asdict() for x in temp_id_items])
             for tablename_, items_to_add_ in self._extra_items_to_add_per_table(tablename, items_to_add):
                 if not items_to_add_:
                     continue

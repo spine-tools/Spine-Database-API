@@ -17,8 +17,8 @@ from .exception import SpineDBAPIError
 
 
 class Query:
-    def __init__(self, db_map, *entities):
-        self._db_map = db_map
+    def __init__(self, execute, *entities):
+        self._execute = execute
         self._entities = entities
         self._select = select(entities)
         self._from = None
@@ -85,7 +85,7 @@ class Query:
         return self
 
     def _result(self):
-        return self._db_map.connection_execute(self._select)
+        return self._execute(self._select)
 
     def all(self):
         return self._result().fetchall()
@@ -107,7 +107,7 @@ class Query:
         return self._result().scalar()
 
     def count(self):
-        return self._db_map.connection_execute(select([count()]).select_from(self._select)).scalar()
+        return self._execute(select([count()]).select_from(self._select)).scalar()
 
     def __iter__(self):
         return self._result()

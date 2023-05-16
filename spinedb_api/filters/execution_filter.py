@@ -151,23 +151,17 @@ def _create_import_alternative(db_map, state):
         db_map (DatabaseMappingBase): database the state applies to
         state (_ExecutionFilterState): a state bound to ``db_map``
     """
-    # FIXME
     execution_item = state.execution_item
     scenarios = state.scenarios
     timestamp = state.timestamp
     sep = "__" if scenarios else ""
     db_map._import_alternative_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
-    alt_ids, _ = db_map.add_alternatives({"name": db_map._import_alternative_name}, return_dups=True)
-    db_map._import_alternative_id = next(iter(alt_ids))
-    scenarios = [{"name": scenario} for scenario in scenarios]
-    scen_ids, _ = db_map.add_scenarios(*scenarios, return_dups=True)
-    for scen_id in scen_ids:
-        max_rank = (
-            db_map.query(func.max(db_map.scenario_alternative_sq.c.rank))
-            .filter(db_map.scenario_alternative_sq.c.scenario_id == scen_id)
-            .scalar()
-        )
-        rank = max_rank + 1 if max_rank else 1
+    db_map.add_alternatives({"name": db_map._import_alternative_name}, _strict=False)
+    scenarios = [{"name": scen_name} for scen_name in scenarios]
+    db_map.add_scenarios(*scenarios, _strict=True)
+    for scen_name in scenarios:
+        scen = db_map.cache.table_cache("scenario").current_item({"name": scen_name})
+        rank = len(scen.sorted_alternatives) + 1  # ranks are 1-based
         db_map.add_scenario_alternatives(
-            {"scenario_id": scen_id, "alternative_id": db_map._import_alternative_id, "rank": rank}
+            {"scenario_name": scen_name, "alternative_name": db_map._import_alternative_name, "rank": rank}
         )

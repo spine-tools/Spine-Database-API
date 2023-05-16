@@ -99,7 +99,7 @@ def export_data(
 def _get_items(db_map, tablename, ids):
     if not ids:
         return ()
-    db_map.fetch_all({tablename}, include_ancestors=True)
+    db_map.fetch_all({tablename})
     _process_item = _make_item_processor(db_map, tablename)
     for item in _get_items_from_cache(db_map.cache, tablename, ids):
         yield from _process_item(item)
@@ -118,7 +118,7 @@ def _get_items_from_cache(cache, tablename, ids):
 
 def _make_item_processor(db_map, tablename):
     if tablename == "parameter_value_list":
-        db_map.fetch_all({"list_value"}, include_ancestors=True)
+        db_map.fetch_all({"list_value"})
         return _ParameterValueListProcessor(db_map.cache.get("list_value", {}).values())
     return lambda item: (item,)
 

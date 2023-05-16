@@ -15,7 +15,6 @@
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
 from .exception import SpineIntegrityError
-from .helpers import convert_legacy
 
 
 class DatabaseMappingUpdateMixin:
@@ -92,17 +91,16 @@ class DatabaseMappingUpdateMixin:
         table_cache = self.cache.table_cache(tablename)
         if not check:
             for item in items:
-                convert_legacy(tablename, item)
+                self._convert_legacy(tablename, item)
                 updated.append(table_cache.update_item(item)._asdict())
         else:
             for item in items:
-                convert_legacy(tablename, item)
+                self._convert_legacy(tablename, item)
                 checked_item, error = table_cache.check_item(item, for_update=True)
                 if error:
                     if strict:
                         raise SpineIntegrityError(error)
                     errors.append(error)
-                    continue
                 if checked_item:
                     item = checked_item._asdict()
                     updated.append(table_cache.update_item(item)._asdict())

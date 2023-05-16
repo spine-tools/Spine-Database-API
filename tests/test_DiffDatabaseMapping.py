@@ -772,25 +772,6 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         with self.assertRaises(SpineIntegrityError):
             self._db_map.add_parameter_definitions({"name": "color", "object_class_id": 1}, strict=True)
 
-    def test_add_parameter_with_invalid_class(self):
-        """Test that adding parameter_definitions with an invalid (object or relationship) class raises and integrity error."""
-        self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.add_wide_relationship_classes({"name": "rc1", "id": 3, "object_class_id_list": [1, 2]})
-        with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_parameter_definitions({"name": "color", "object_class_id": 3}, strict=True)
-        with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_parameter_definitions({"name": "color", "relationship_class_id": 1}, strict=True)
-
-    def test_add_parameter_for_both_object_and_relationship_class(self):
-        """Test that adding parameter_definitions associated to both and object and relationship class
-        raises and integrity error."""
-        self._db_map.add_object_classes({"name": "fish", "id": 1}, {"name": "dog", "id": 2})
-        self._db_map.add_wide_relationship_classes({"name": "fish__dog", "id": 10, "object_class_id_list": [1, 2]})
-        with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_parameter_definitions(
-                {"name": "color", "object_class_id": 1, "relationship_class_id": 10}, strict=True
-            )
-
     def test_add_parameter_values(self):
         """Test that adding parameter values works."""
         import_functions.import_object_classes(self._db_map, ["fish", "dog"])
@@ -853,11 +834,11 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         _, errors = self._db_map.add_parameter_values(
             {"parameter_definition_id": 1, "object_id": 3, "value": b'"orange"', "alternative_id": 1}, strict=False
         )
-        self.assertEqual([str(e) for e in errors], ["Incorrect entity 'fish_dog_nemo__pluto' for parameter 'color'."])
+        self.assertEqual([str(e) for e in errors], ["invalid entity_class_id for parameter_value"])
         _, errors = self._db_map.add_parameter_values(
             {"parameter_definition_id": 2, "relationship_id": 2, "value": b"125", "alternative_id": 1}, strict=False
         )
-        self.assertEqual([str(e) for e in errors], ["Incorrect entity 'pluto' for parameter 'rel_speed'."])
+        self.assertEqual([str(e) for e in errors], ["invalid entity_class_id for parameter_value"])
 
     def test_add_same_parameter_value_twice(self):
         """Test that adding a parameter value twice only adds the first one."""

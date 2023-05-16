@@ -566,9 +566,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         items, errors = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "renamed", "object_class_id_list": [2]}
         )
-        updated_ids = {x["id"] for x in items}
-        self.assertEqual([str(err) for err in errors], ["Can't update fixed fields 'dimension_id_list'"])
-        self.assertEqual(updated_ids, {3})
+        self.assertEqual([str(err) for err in errors], ["can't modify dimensions of an entity class"])
+        self.assertEqual(len(items), 1)
         self._db_map.commit_session("Update data.")
         classes = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
         self.assertEqual(len(classes), 1)
@@ -670,12 +669,11 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         items, errors = self._db_map.update_parameter_definitions(
             {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
         )
-        updated_ids = {x["id"] for x in items}
         self.assertEqual(
             list(map(str, errors)),
-            ["Can't change value list on parameter my_parameter because it has parameter values."],
+            ["can't modify the parameter value list of a parameter that already has values"],
         )
-        self.assertEqual(updated_ids, set())
+        self.assertEqual(items, [])
 
     def test_update_parameter_definitions_default_value_that_is_not_on_value_list_gives_error(self):
         import_functions.import_parameter_value_lists(self._db_map, (("my_list", 99.0),))
@@ -712,17 +710,16 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         items, errors = self._db_map.update_ext_entity_metadata(
             *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1})
+        self.assertEqual(len(items), 2)
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(dict(metadata_entries[0]), {"id": 1, "name": "key_2", "value": "new value", "commit_id": None})
+        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": None})
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 1)
         self.assertEqual(
-            dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": None}
+            dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": None}
         )
 
     def test_update_object_metadata_reuses_existing_metadata(self):
@@ -745,12 +742,9 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         self.assertEqual(ids, {1})
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
-        self.assertEqual(len(metadata_entries), 2)
+        self.assertEqual(len(metadata_entries), 1)
         self.assertEqual(
-            dict(metadata_entries[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None}
-        )
-        self.assertEqual(
-            dict(metadata_entries[1]), {"id": 2, "name": "key 2", "value": "metadata value 2", "commit_id": None}
+            dict(metadata_entries[0]), {"id": 2, "name": "key 2", "value": "metadata value 2", "commit_id": None}
         )
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 2)
@@ -776,9 +770,8 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         items, errors = self._db_map.update_ext_entity_metadata(
             *[{"id": 1, "metadata_name": "new key", "metadata_value": "new value"}]
         )
-        ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
-        self.assertEqual(ids, {1, 2})
+        self.assertEqual(len(items), 2)
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 2)

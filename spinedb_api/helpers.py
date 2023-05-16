@@ -75,7 +75,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2**32 - 1
+LONGTEXT_LENGTH = 2 ** 32 - 1
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -826,28 +826,3 @@ def remove_credentials_from_url(url):
     if parsed.username is None:
         return url
     return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
-
-
-def convert_legacy(tablename, item):
-    if tablename in ("entity_class", "entity"):
-        object_class_id_list = tuple(item.pop("object_class_id_list", ()))
-        if object_class_id_list:
-            item["dimension_id_list"] = object_class_id_list
-        object_class_name_list = tuple(item.pop("object_class_name_list", ()))
-        if object_class_name_list:
-            item["dimension_name_list"] = object_class_name_list
-    if tablename == "entity":
-        object_id_list = tuple(item.pop("object_id_list", ()))
-        if object_id_list:
-            item["element_id_list"] = object_id_list
-        object_name_list = tuple(item.pop("object_name_list", ()))
-        if object_name_list:
-            item["element_name_list"] = object_name_list
-    if tablename in ("parameter_definition", "parameter_value"):
-        entity_class_id = item.pop("object_class_id", None) or item.pop("relationship_class_id", None)
-        if entity_class_id:
-            item["entity_class_id"] = entity_class_id
-    if tablename == "parameter_value":
-        entity_id = item.pop("object_id", None) or item.pop("relationship_id", None)
-        if entity_id:
-            item["entity_id"] = entity_id

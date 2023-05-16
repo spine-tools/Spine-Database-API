@@ -177,8 +177,6 @@ class DatabaseMappingBase:
         self._relationship_parameter_value_sq = None
         self._ext_parameter_value_metadata_sq = None
         self._ext_entity_metadata_sq = None
-        # Import alternative suff
-        self._import_alternative_id = None
         self._import_alternative_name = None
         self._table_to_sq_attr = {}
         # Table primary ids map:
@@ -194,33 +192,6 @@ class DatabaseMappingBase:
             "entity_element": ("entity_id", "position"),
             "entity_alternative": ("entity_id", "alternative_id"),
             "entity_class_dimension": ("entity_class_id", "position"),
-        }
-        self.ancestor_tablenames = {
-            "scenario_alternative": ("scenario", "alternative"),
-            "entity": ("entity_class",),
-            "entity_group": ("entity_class", "entity"),
-            "parameter_definition": ("entity_class", "parameter_value_list", "list_value"),
-            "parameter_value": (
-                "alternative",
-                "entity_class",
-                "entity",
-                "parameter_definition",
-                "parameter_value_list",
-                "list_value",
-            ),
-            "entity_metadata": ("metadata", "entity_class", "entity"),
-            "parameter_value_metadata": (
-                "metadata",
-                "parameter_value",
-                "parameter_definition",
-                "entity_class",
-                "entity",
-                "alternative",
-            ),
-            "list_value": ("parameter_value_list",),
-        }
-        self.descendant_tablenames = {
-            tablename: set(self._descendant_tablenames(tablename)) for tablename in self.ITEM_TYPES
         }
 
     def __enter__(self):
@@ -251,24 +222,6 @@ class DatabaseMappingBase:
     def reconnect(self):
         self.executor = self._make_executor()
         self.connection = self.executor.submit(self.engine.connect).result()
-
-    def _descendant_tablenames(self, tablename):
-        child_tablenames = {
-            "alternative": ("parameter_value", "scenario_alternative"),
-            "scenario": ("scenario_alternative",),
-            "entity_class": ("entity", "parameter_definition"),
-            "entity": ("parameter_value", "entity_group", "entity_metadata"),
-            "parameter_definition": ("parameter_value",),
-            "parameter_value_list": (),
-            "parameter_value": ("parameter_value_metadata", "entity_metadata"),
-            "entity_metadata": ("metadata",),
-            "parameter_value_metadata": ("metadata",),
-        }
-        for parent, children in child_tablenames.items():
-            if tablename == parent:
-                for child in children:
-                    yield child
-                    yield from self._descendant_tablenames(child)
 
     def _real_tablename(self, tablename):
         return {
@@ -453,7 +406,7 @@ class DatabaseMappingBase:
                 db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
             ).group_by(db_map.object_class_sq.c.name).all()
         """
-        return Query(self, *args)
+        return Query(self.connection_execute, *args)
 
     def _subquery(self, tablename):
         """A subquery of the form:
@@ -1756,31 +1709,19 @@ class DatabaseMappingBase:
         """
         return self._subquery("scenario_alternative")
 
-    def get_import_alternative(self):
-        """Returns the id of the alternative to use as default for all import operations.
+    def get_import_alternative_name(self):
+        """Returns the name of the alternative to use as default for all import operations.
 
         Returns:
-            int, str
+            str
         """
-        if self._import_alternative_id is None:
+        if self._import_alternative_name is None:
             self._create_import_alternative()
-        return self._import_alternative_id, self._import_alternative_name
+        return self._import_alternative_name
 
     def _create_import_alternative(self):
         """Creates the alternative to be used as default for all import operations."""
-        self.fetch_all({"alternative"})
         self._import_alternative_name = "Base"
-        self._import_alternative_id = next(
-            (
-                id_
-                for id_, alt in self.cache.get("alternative", {}).items()
-                if alt.name == self._import_alternative_name
-            ),
-            None,
-        )
-        if not self._import_alternative_id:
-            ids = self._add_alternatives({"name": self._import_alternative_name})
-            self._import_alternative_id = next(iter(ids))
 
     def override_create_import_alternative(self, method):
         """
@@ -1790,7 +1731,7 @@ class DatabaseMappingBase:
             method (Callable)
         """
         self._create_import_alternative = MethodType(method, self)
-        self._import_alternative_id = None
+        self._import_alternative_name = None
 
     def override_entity_class_sq_maker(self, method):
         """
@@ -1923,18 +1864,9 @@ class DatabaseMappingBase:
             self.connection_execute(table.delete())
         self.connection_execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def fetch_all(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
-        if include_descendants:
-            tablenames |= {
-                descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
-            }
-        if include_ancestors:
-            tablenames |= {
-                ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
-            }
-        if force_tablenames:
-            tablenames |= force_tablenames
-        for tablename in tablenames & set(self.ITEM_TYPES):
+    def fetch_all(self, tablenames=None):
+        tablenames = set(self.ITEM_TYPES) if tablenames is None else tablenames & set(self.ITEM_TYPES)
+        for tablename in tablenames:
             self.cache.fetch_all(tablename)
 
     def _object_class_id(self):
@@ -2011,6 +1943,31 @@ class DatabaseMappingBase:
             return self.cache.advance_query(item_type)
         future = self.executor.submit(self.cache.advance_query, item_type)
         future.add_done_callback(lambda future: callback(future.result()))
+
+    @staticmethod
+    def _convert_legacy(tablename, item):
+        if tablename in ("entity_class", "entity"):
+            object_class_id_list = tuple(item.pop("object_class_id_list", ()))
+            if object_class_id_list:
+                item["dimension_id_list"] = object_class_id_list
+            object_class_name_list = tuple(item.pop("object_class_name_list", ()))
+            if object_class_name_list:
+                item["dimension_name_list"] = object_class_name_list
+        if tablename == "entity":
+            object_id_list = tuple(item.pop("object_id_list", ()))
+            if object_id_list:
+                item["element_id_list"] = object_id_list
+            object_name_list = tuple(item.pop("object_name_list", ()))
+            if object_name_list:
+                item["element_name_list"] = object_name_list
+        if tablename in ("parameter_definition", "parameter_value"):
+            entity_class_id = item.pop("object_class_id", None) or item.pop("relationship_class_id", None)
+            if entity_class_id:
+                item["entity_class_id"] = entity_class_id
+        if tablename == "parameter_value":
+            entity_id = item.pop("object_id", None) or item.pop("relationship_id", None)
+            if entity_id:
+                item["entity_id"] = entity_id
 
     def __del__(self):
         try:
