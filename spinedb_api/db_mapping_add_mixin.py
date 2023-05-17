@@ -16,7 +16,6 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineIntegrityError
-from .query import Query
 
 
 class DatabaseMappingAddMixin:
@@ -71,7 +70,7 @@ class DatabaseMappingAddMixin:
             if id_items:
                 connection.execute(table.insert(), [x._asdict() for x in id_items])
             if temp_id_items:
-                current_ids = {x["id"] for x in Query(connection, table)}
+                current_ids = {x["id"] for x in connection.execute(table.select())}
                 next_id = max(current_ids, default=0) + 1
                 available_ids = set(range(1, next_id)) - current_ids
                 missing_id_count = len(temp_id_items) - len(available_ids)

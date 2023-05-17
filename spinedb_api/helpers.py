@@ -18,6 +18,7 @@ import os
 import json
 import warnings
 from operator import itemgetter
+from itertools import groupby
 from urllib.parse import urlparse, urlunparse
 from sqlalchemy import (
     Boolean,
@@ -826,3 +827,9 @@ def remove_credentials_from_url(url):
     if parsed.username is None:
         return url
     return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
+
+
+def group_consecutive(list_of_numbers):
+    for _k, g in groupby(enumerate(sorted(list_of_numbers)), lambda x: x[0] - x[1]):
+        group = list(map(itemgetter(1), g))
+        yield group[0], group[-1]

@@ -1260,7 +1260,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "John",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": None,
+                "commit_id": 2,
             },
         )
         self.assertEqual(
@@ -1274,7 +1274,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "17",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": None,
+                "commit_id": 2,
             },
         )
 
@@ -1304,7 +1304,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "John",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": None,
+                "commit_id": 2,
             },
         )
         self.assertEqual(
@@ -1318,7 +1318,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "metadata_value": "17",
                 "parameter_name": "param",
                 "parameter_value_id": 1,
-                "commit_id": None,
+                "commit_id": 2,
             },
         )
 

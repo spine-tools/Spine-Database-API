@@ -29,24 +29,24 @@ class DatabaseMappingCommitMixin:
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
-        to_add, to_update, to_remove = self.cache.commit()
-        if not to_add and not to_update and not to_remove:
+        dirty_items = self.cache.dirty_items()
+        if not dirty_items:
             raise SpineDBAPIError("Nothing to commit.")
         user = self.username
         date = datetime.now(timezone.utc)
         ins = self._metadata.tables["commit"].insert()
         with self.engine.begin() as connection:
             commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
-            for tablename, items in to_add.items():
-                self._do_add_items(connection, tablename, *items)
-            for tablename, items in to_update.items():
-                self._do_update_items(connection, tablename, *items)
-            self._do_remove_items(connection, **to_remove)
+            for tablename, (to_add, to_update, to_remove) in dirty_items:
+                for item in to_add + to_update + to_remove:
+                    item.commit(commit_id)
+                self._do_add_items(connection, tablename, *to_add)
+                self._do_update_items(connection, tablename, *to_update)
+                self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
         if self._memory:
             self._memory_dirty = True
 
     def rollback_session(self):
-        to_add, to_update, to_remove = self.cache.commit()
-        if not to_add and not to_update and not to_remove:
+        if not self.cache.dirty_items():
             raise SpineDBAPIError("Nothing to rollback.")
         self.cache.reset_queries()

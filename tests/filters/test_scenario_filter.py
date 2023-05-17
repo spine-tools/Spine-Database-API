@@ -78,7 +78,7 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, b"23.0")
         alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
-        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
         self.assertEqual(
             scenarios,
@@ -90,7 +90,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative",
                     "alternative_id_list": "2",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )
@@ -114,7 +114,7 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, b"23.0")
         alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
-        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
         self.assertEqual(
             scenarios,
@@ -126,7 +126,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative",
                     "alternative_id_list": "2",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )
@@ -148,7 +148,7 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(len(parameters), 1)
         self.assertEqual(parameters[0].value, b"23.0")
         alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
-        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
         self.assertEqual(
             scenarios,
@@ -160,7 +160,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative",
                     "alternative_id_list": "2",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )
@@ -200,9 +200,9 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(
             alternatives,
             [
-                {"name": "alternative3", "description": None, "id": 2, "commit_id": None},
-                {"name": "alternative1", "description": None, "id": 3, "commit_id": None},
-                {"name": "alternative2", "description": None, "id": 4, "commit_id": None},
+                {"name": "alternative3", "description": None, "id": 2, "commit_id": 2},
+                {"name": "alternative1", "description": None, "id": 3, "commit_id": 2},
+                {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
             ],
         )
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
@@ -216,7 +216,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative1,alternative3,alternative2",
                     "alternative_id_list": "3,2,4",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )
@@ -267,9 +267,9 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(
             alternatives,
             [
-                {"name": "alternative3", "description": None, "id": 2, "commit_id": None},
-                {"name": "alternative1", "description": None, "id": 3, "commit_id": None},
-                {"name": "alternative2", "description": None, "id": 4, "commit_id": None},
+                {"name": "alternative3", "description": None, "id": 2, "commit_id": 2},
+                {"name": "alternative1", "description": None, "id": 3, "commit_id": 2},
+                {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
             ],
         )
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
@@ -283,7 +283,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative1,alternative3,alternative2",
                     "alternative_id_list": "3,2,4",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )
@@ -333,7 +333,7 @@ class TestScenarioFilter(unittest.TestCase):
             },
         )
         alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
-        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": None}])
+        self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
         self.assertEqual(
             scenarios,
@@ -345,7 +345,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative",
                     "alternative_id_list": "2",
                     "id": 1,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )
@@ -368,8 +368,8 @@ class TestScenarioFilter(unittest.TestCase):
         self.assertEqual(
             alternatives,
             [
-                {"name": "alternative2", "description": None, "id": 3, "commit_id": None},
-                {"name": "alternative3", "description": None, "id": 4, "commit_id": None},
+                {"name": "alternative2", "description": None, "id": 3, "commit_id": 2},
+                {"name": "alternative3", "description": None, "id": 4, "commit_id": 2},
             ],
         )
         scenarios = [dict(s) for s in self._db_map.query(self._db_map.wide_scenario_sq).all()]
@@ -383,7 +383,7 @@ class TestScenarioFilter(unittest.TestCase):
                     "alternative_name_list": "alternative2,alternative3",
                     "alternative_id_list": "3,4",
                     "id": 2,
-                    "commit_id": None,
+                    "commit_id": 2,
                 }
             ],
         )

@@ -15,6 +15,7 @@ DB cache base.
 from contextlib import suppress
 from enum import Enum, unique, auto
 from functools import cmp_to_key
+from .temp_id import TempIdDict, TempId
 
 # TODO: Implement CacheItem.pop() to do lookup?
 
@@ -60,28 +61,30 @@ class DBCacheBase(dict):
     def _sorted_item_types(self):
         sorted(self, key=cmp_to_key(self._cmp_item_type))
 
-    def commit(self):
-        to_add = {}
-        to_update = {}
-        to_remove = {}
+    def dirty_items(self):
+        dirty_items = []
         for item_type in sorted(self, key=cmp_to_key(self._cmp_item_type)):
             table_cache = self[item_type]
+            to_add = []
+            to_update = []
+            to_remove = []
             for item in dict.values(table_cache):
                 _ = item.is_valid()
                 if item.status == Status.to_add:
-                    to_add.setdefault(item_type, []).append(item)
+                    to_add.append(item)
                 elif item.status == Status.to_update:
-                    to_update.setdefault(item_type, []).append(item)
+                    to_update.append(item)
                 elif item.status == Status.to_remove:
-                    to_remove.setdefault(item_type, set()).add(item["id"])
-                item.status = Status.committed
-                if to_remove.get(item_type):
+                    to_remove.append(item)
+                if to_remove:
                     # Fetch descendants, so that they are validated in next iterations of the loop.
-                    # This allows removal in cascade.
+                    # This ensures cascade removal.
                     for x in self:
                         if self._cmp_item_type(item_type, x) < 0:
                             self.fetch_all(x)
-        return to_add, to_update, to_remove
+            if to_add or to_update or to_remove:
+                dirty_items.append((item_type, (to_add, to_update, to_remove)))
+        return dirty_items
 
     @property
     def fetched_item_types(self):
@@ -140,6 +143,13 @@ class DBCacheBase(dict):
         while self.fetch_more(item_type):
             pass
 
+    def fetch_value(self, item_type, return_fn):
+        while self.fetch_more(item_type):
+            return_value = return_fn()
+            if return_value:
+                return return_value
+        return return_fn()
+
     def fetch_ref(self, item_type, id_):
         while self.fetch_more(item_type):
             with suppress(KeyError):
@@ -152,106 +162,7 @@ class DBCacheBase(dict):
         return None
 
 
-class _TempId(int):
-    _next_id = {}
-
-    def __new__(cls, item_type):
-        id_ = cls._next_id.setdefault(item_type, -1)
-        cls._next_id[item_type] -= 1
-        return super().__new__(cls, id_)
-
-    def __init__(self, item_type):
-        super().__init__()
-        self._item_type = item_type
-        self._value_binds = []
-        self._tuple_value_binds = []
-        self._key_binds = []
-        self._tuple_key_binds = []
-
-    def add_value_bind(self, item, key):
-        self._value_binds.append((item, key))
-
-    def add_tuple_value_bind(self, item, key):
-        self._tuple_value_binds.append((item, key))
-
-    def add_key_bind(self, item):
-        self._key_binds.append(item)
-
-    def add_tuple_key_bind(self, item, key):
-        self._tuple_key_binds.append((item, key))
-
-    def remove_key_bind(self, item):
-        self._key_binds.remove(item)
-
-    def remove_tuple_key_bind(self, item, key):
-        self._tuple_key_binds.remove((item, key))
-
-    def resolve(self, new_id):
-        for item, key in self._value_binds:
-            item[key] = new_id
-        for item, key in self._tuple_value_binds:
-            item[key] = tuple(new_id if v is self else v for v in item[key])
-        for item in self._key_binds:
-            if self in item:
-                item[new_id] = dict.pop(item, self, None)
-        for item, key in self._tuple_key_binds:
-            if key in item:
-                item[tuple(new_id if k is self else k for k in key)] = dict.pop(item, key, None)
-
-
-class _TempIdDict(dict):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        for key, value in kwargs.items():
-            self._bind(key, value)
-
-    def __setitem__(self, key, value):
-        super().__setitem__(key, value)
-        self._bind(key, value)
-
-    def __delitem__(self, key):
-        super().__delitem__(key)
-        self._unbind(key)
-
-    def setdefault(self, key, default):
-        value = super().setdefault(key, default)
-        self._bind(key, value)
-        return value
-
-    def update(self, other):
-        super().update(other)
-        for key, value in other.items():
-            self._bind(key, value)
-
-    def pop(self, key, default):
-        if key in self:
-            self._unbind(key)
-        return super().pop(key, default)
-
-    def _bind(self, key, value):
-        if isinstance(value, _TempId):
-            value.add_value_bind(self, key)
-        elif isinstance(value, tuple):
-            for v in value:
-                if isinstance(v, _TempId):
-                    v.add_tuple_value_bind(self, key)
-        elif isinstance(key, _TempId):
-            key.add_key_bind(self)
-        elif isinstance(key, tuple):
-            for k in key:
-                if isinstance(k, _TempId):
-                    k.add_tuple_key_bind(self, key)
-
-    def _unbind(self, key):
-        if isinstance(key, _TempId):
-            key.remove_key_bind(self)
-        elif isinstance(key, tuple):
-            for k in key:
-                if isinstance(k, _TempId):
-                    k.remove_tuple_key_bind(self, key)
-
-
-class _TableCache(_TempIdDict):
+class _TableCache(TempIdDict):
     def __init__(self, db_cache, item_type, *args, **kwargs):
         """
         Args:
@@ -264,7 +175,7 @@ class _TableCache(_TempIdDict):
         self._id_by_unique_key_value = {}
 
     def _new_id(self):
-        return _TempId(self._item_type)
+        return TempId(self._item_type)
 
     def unique_key_value_to_id(self, key, value, strict=False):
         """Returns the id that has the given value for the given unique key, or None.
@@ -276,9 +187,12 @@ class _TableCache(_TempIdDict):
         Returns:
             int
         """
-        value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
-        self._db_cache.fetch_all(self._item_type)
         id_by_unique_value = self._id_by_unique_key_value.get(key, {})
+        if not id_by_unique_value:
+            id_by_unique_value = self._db_cache.fetch_value(
+                self._item_type, lambda: self._id_by_unique_key_value.get(key, {})
+            )
+        value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
         if strict:
             return id_by_unique_value[value]
         return id_by_unique_value.get(value)
@@ -312,7 +226,7 @@ class _TableCache(_TempIdDict):
         id_ = item.get("id")
         if isinstance(id_, int):
             # id is an int, easy
-            return self.get(id_)
+            return self.get(id_) or self._db_cache.fetch_ref(self._item_type, id_)
         if isinstance(id_, dict):
             # id is a dict specifying the values for one of the unique constraints
             key, value = zip(*id_.items())
@@ -371,7 +285,7 @@ class _TableCache(_TempIdDict):
 
     def _add_unique(self, item):
         for key, value in item.unique_values():
-            self._id_by_unique_key_value.setdefault(key, _TempIdDict())[value] = item["id"]
+            self._id_by_unique_key_value.setdefault(key, TempIdDict())[value] = item["id"]
 
     def _remove_unique(self, item):
         for key, value in item.unique_values():
@@ -387,7 +301,7 @@ class _TableCache(_TempIdDict):
         return new_item
 
     def update_item(self, item):
-        current_item = self[item["id"]]
+        current_item = self.current_item(item)
         self._remove_unique(current_item)
         current_item.update(item)
         self._add_unique(current_item)
@@ -397,7 +311,7 @@ class _TableCache(_TempIdDict):
         return current_item
 
     def remove_item(self, id_):
-        current_item = self.get(id_)
+        current_item = self.current_item({"id": id_})
         if current_item is not None:
             self._remove_unique(current_item)
             current_item.cascade_remove()
@@ -411,7 +325,7 @@ class _TableCache(_TempIdDict):
         return current_item
 
 
-class CacheItemBase(_TempIdDict):
+class CacheItemBase(TempIdDict):
     """A dictionary that represents an db item."""
 
     _defaults = {}
@@ -427,8 +341,8 @@ class CacheItemBase(_TempIdDict):
         super().__init__(**kwargs)
         self._db_cache = db_cache
         self._item_type = item_type
-        self._referrers = _TempIdDict()
-        self._weak_referrers = _TempIdDict()
+        self._referrers = TempIdDict()
+        self._weak_referrers = TempIdDict()
         self.restore_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
@@ -662,3 +576,7 @@ class CacheItemBase(_TempIdDict):
 
     def is_committed(self):
         return self.status == Status.committed
+
+    def commit(self, commit_id):
+        self.status = Status.committed
+        self["commit_id"] = commit_id

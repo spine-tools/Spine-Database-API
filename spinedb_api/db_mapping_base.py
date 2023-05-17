@@ -11,14 +11,13 @@
 
 """Provides :class:`.DatabaseMappingBase`."""
 # TODO: Finish docstrings
-import uuid
 import hashlib
 import os
 import logging
 import time
 from types import MethodType
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, inspect, case, func, cast, false, and_, or_
-from sqlalchemy.sql.expression import label, Alias
+from sqlalchemy import create_engine, MetaData, Table, Integer, inspect, case, func, cast, and_, or_
+from sqlalchemy.sql.expression import Alias, label
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import DatabaseError
@@ -302,26 +301,6 @@ class DatabaseMappingBase:
         if self._memory_dirty:
             copy_database_bind(self._original_engine, self.engine)
 
-    def in_(self, column, values):
-        """Returns an expression equivalent to column.in_(values), that circumvents the
-        'too many sql variables' problem in sqlite."""
-        # FIXME
-        return column.in_(values)
-        if not values:
-            return false()
-        if not self.sa_url.drivername.startswith("sqlite"):
-            return column.in_(values)
-        in_value = Table(
-            "in_value_" + str(uuid.uuid4()),
-            MetaData(),
-            Column("value", column.type, primary_key=True),
-            prefixes=['TEMPORARY'],
-        )
-        with self.engine.connect() as connection:
-            in_value.create(connection, checkfirst=True)
-            connection.execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
-            return column.in_(Query(connection, in_value.c.value))
-
     def _get_table_to_sq_attr(self):
         if not self._table_to_sq_attr:
             self._table_to_sq_attr = self._make_table_to_sq_attr()
@@ -361,8 +340,7 @@ class DatabaseMappingBase:
             setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
-        """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
-        to this :class:`.DatabaseMappingBase`.
+        """Return a sqlalchemy :class:`~Query` object bound to this :class:`.DatabaseMappingBase`.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the class documented
         :class:`~sqlalchemy.sql.expression.Alias` properties. For example, to select the object class with

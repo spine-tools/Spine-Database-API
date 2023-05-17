@@ -913,7 +913,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             dict(alternatives[0]), {"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}
         )
         self.assertEqual(
-            dict(alternatives[1]), {"id": 2, "name": "my_alternative", "description": None, "commit_id": None}
+            dict(alternatives[1]), {"id": 2, "name": "my_alternative", "description": None, "commit_id": 2}
         )
 
     def test_add_scenario(self):
@@ -925,7 +925,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(scenarios), 1)
         self.assertEqual(
             dict(scenarios[0]),
-            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": None},
+            {"id": 1, "name": "my_scenario", "description": None, "active": False, "commit_id": 2},
         )
 
     def test_add_scenario_alternative(self):
@@ -939,7 +939,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(len(scenario_alternatives), 1)
         self.assertEqual(
             dict(scenario_alternatives[0]),
-            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": None},
+            {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": 3},
         )
 
     def test_add_metadata(self):
@@ -950,7 +950,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
         self.assertEqual(
-            dict(metadata[0]), {"name": "test name", "id": 1, "value": "test_add_metadata", "commit_id": None}
+            dict(metadata[0]), {"name": "test name", "id": 1, "value": "test_add_metadata", "commit_id": 2}
         )
 
     def test_add_metadata_that_exists_does_not_add_it(self):
@@ -960,7 +960,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self.assertEqual(items, [])
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self.assertEqual(dict(metadata[0]), {"name": "title", "id": 1, "value": "My metadata.", "commit_id": None})
+        self.assertEqual(dict(metadata[0]), {"name": "title", "id": 1, "value": "My metadata.", "commit_id": 2})
 
     def test_add_entity_metadata_for_object(self):
         import_functions.import_object_classes(self._db_map, ("fish",))
@@ -982,7 +982,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 
@@ -1008,7 +1008,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 
@@ -1038,7 +1038,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "object metadata",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 
@@ -1055,7 +1055,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.commit_session("Add entity metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self.assertEqual(dict(metadata[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None})
+        self.assertEqual(dict(metadata[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2})
         entity_metadata = self._db_map.query(self._db_map.ext_entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
         self.assertEqual(
@@ -1067,7 +1067,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 
@@ -1097,7 +1097,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 
@@ -1139,7 +1139,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "parameter metadata",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 
@@ -1159,7 +1159,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map.commit_session("Add value metadata")
         metadata = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata), 1)
-        self.assertEqual(dict(metadata[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": None})
+        self.assertEqual(dict(metadata[0]), {"id": 1, "name": "title", "value": "My metadata.", "commit_id": 2})
         value_metadata = self._db_map.query(self._db_map.ext_parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata), 1)
         self.assertEqual(
@@ -1173,7 +1173,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
                 "id": 1,
-                "commit_id": None,
+                "commit_id": 3,
             },
         )
 

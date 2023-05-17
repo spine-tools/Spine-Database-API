@@ -138,7 +138,7 @@ class _AlternativeFilterState:
         alternative_names = [name for name in alternatives if isinstance(name, str)]
         ids_from_db = (
             db_map.query(db_map.alternative_sq.c.id, db_map.alternative_sq.c.name)
-            .filter(db_map.in_(db_map.alternative_sq.c.name, alternative_names))
+            .filter(db_map.alternative_sq.c.name.in_(alternative_names))
             .all()
         )
         names_in_db = [i.name for i in ids_from_db]
@@ -148,9 +148,7 @@ class _AlternativeFilterState:
         ids = [i.id for i in ids_from_db]
         alternative_ids = [id_ for id_ in alternatives if isinstance(id_, int)]
         ids_from_db = (
-            db_map.query(db_map.alternative_sq.c.id)
-            .filter(db_map.in_(db_map.alternative_sq.c.id, alternative_ids))
-            .all()
+            db_map.query(db_map.alternative_sq.c.id).filter(db_map.alternative_sq.c.id.in_(alternative_ids)).all()
         )
         ids_in_db = [i.id for i in ids_from_db]
         if len(alternative_ids) != len(ids_from_db):
@@ -174,4 +172,4 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
         Alias: a subquery for parameter value filtered by selected alternatives
     """
     subquery = state.original_parameter_value_sq
-    return db_map.query(subquery).filter(db_map.in_(subquery.c.alternative_id, state.alternatives)).subquery()
+    return db_map.query(subquery).filter(subquery.c.alternative_id.in_(state.alternatives)).subquery()

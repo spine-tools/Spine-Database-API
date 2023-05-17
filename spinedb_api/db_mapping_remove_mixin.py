@@ -13,8 +13,10 @@
 
 """
 
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
+from .helpers import Asterisk, group_consecutive
 
 # TODO: improve docstrings
 
@@ -22,49 +24,52 @@ from .exception import SpineDBAPIError
 class DatabaseMappingRemoveMixin:
     """Provides methods to perform ``REMOVE`` operations over a Spine db."""
 
-    def restore_items(self, tablename, *ids):
-        if not ids:
-            return []
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.get(tablename)
-        if not table_cache:
-            return []
-        return [table_cache.restore_item(id_) for id_ in ids]
-
     def remove_items(self, tablename, *ids):
         if not ids:
             return []
         tablename = self._real_tablename(tablename)
-        table_cache = self.cache.get(tablename)
-        if not table_cache:
-            return []
+        table_cache = self.cache.table_cache(tablename)
+        if Asterisk in ids:
+            ids = table_cache
         ids = set(ids)
         if tablename == "alternative":
             # Do not remove the Base alternative
-            ids -= {1}
+            ids.discard(1)
         return [table_cache.remove_item(id_) for id_ in ids]
 
-    def _do_remove_items(self, connection, **kwargs):
+    def restore_items(self, tablename, *ids):
+        if not ids:
+            return []
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        return [table_cache.restore_item(id_) for id_ in ids]
+
+    def purge_items(self, tablename):
+        return self.remove_items(tablename, Asterisk)
+
+    def _do_remove_items(self, connection, tablename, *ids):
         """Removes items from the db.
 
         Args:
-            **kwargs: keyword is table name, argument is list of ids to remove
+            *ids: ids to remove
         """
-        for tablename, ids in kwargs.items():
-            tablename = self._real_tablename(tablename)
-            if tablename == "alternative":
-                # Do not remove the Base alternative
-                ids -= {1}
-            if not ids:
-                continue
-            id_field = self._id_fields.get(tablename, "id")
-            table = self._metadata.tables[tablename]
-            delete = table.delete().where(self.in_(getattr(table.c, id_field), ids))
-            try:
-                connection.execute(delete)
-            except DBAPIError as e:
-                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
-                raise SpineDBAPIError(msg) from e
+        tablename = self._real_tablename(tablename)
+        ids = set(ids)
+        if tablename == "alternative":
+            # Do not remove the Base alternative
+            ids.discard(1)
+        if not ids:
+            return
+        table = self._metadata.tables[tablename]
+        id_field = self._id_fields.get(tablename, "id")
+        id_column = getattr(table.c, id_field)
+        cond = or_(*(and_(id_column >= first, id_column <= last) for first, last in group_consecutive(ids)))
+        delete = table.delete().where(cond)
+        try:
+            connection.execute(delete)
+        except DBAPIError as e:
+            msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
+            raise SpineDBAPIError(msg) from e
 
     def _get_metadata_ids_to_remove(self):
         used_metadata_ids = set()
