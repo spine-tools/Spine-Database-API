@@ -48,7 +48,7 @@ class TestToolEntityFilter(unittest.TestCase):
         self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def _build_data_with_tools(self):
         import_object_classes(self._db_map, ["object_class"])

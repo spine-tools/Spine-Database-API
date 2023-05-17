@@ -106,7 +106,7 @@ class TestIntegrationImportData(unittest.TestCase):
             scenarios=scenarios,
             scenario_alternatives=scenario_alternatives,
         )
-        db_map.connection.close()
+        db_map.close()
         self.assertEqual(num_imports, 13)
         self.assertFalse(errors)
 
@@ -118,7 +118,7 @@ class TestImportObjectClass(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("new_class", [oc.name for oc in db_map.query(db_map.object_class_sq)])
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportObject(unittest.TestCase):
@@ -129,13 +129,13 @@ class TestImportObject(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("new_object", [o.name for o in db_map.query(db_map.object_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_with_invalid_object_class_name(self):
         db_map = create_diff_db_map()
         _, errors = import_objects(db_map, [["nonexistent_class", "new_object"]])
         self.assertTrue(errors)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_two_objects_with_same_name(self):
         db_map = create_diff_db_map()
@@ -151,7 +151,7 @@ class TestImportObject(unittest.TestCase):
         }
         expected = {"object_class1": "object", "object_class2": "object"}
         self.assertEqual(objects, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object(self):
         db_map = create_diff_db_map()
@@ -162,7 +162,7 @@ class TestImportObject(unittest.TestCase):
         _, errors = import_objects(db_map, [["object_class", "object"]])
         self.assertFalse(errors)
         self.assertIn("object", [o.name for o in db_map.query(db_map.object_sq)])
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportRelationshipClass(unittest.TestCase):
@@ -177,7 +177,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         }
         expected = {"relationship_class": "object_class1,object_class2"}
         self.assertEqual(relationship_classes, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_class_with_invalid_object_class_name(self):
         db_map = create_diff_db_map()
@@ -186,7 +186,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.wide_relationship_class_sq).all())
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_class_name_twice(self):
         db_map = create_diff_db_map()
@@ -201,7 +201,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         }
         expected = {"new_rc": "object_class1,object_class2"}
         self.assertEqual(relationship_classes, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_relationship_class(self):
         db_map = create_diff_db_map()
@@ -209,7 +209,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         import_relationship_classes(db_map, [["rc", ["object_class1", "object_class2"]]])
         _, errors = import_relationship_classes(db_map, [["rc", ["object_class1", "object_class2"]]])
         self.assertFalse(errors)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_class_with_one_object_class_as_None(self):
         db_map = create_diff_db_map()
@@ -218,7 +218,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse([rc for rc in db_map.query(db_map.wide_relationship_class_sq)])
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportObjectClassParameter(unittest.TestCase):
@@ -229,13 +229,13 @@ class TestImportObjectClassParameter(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("new_parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_parameter_with_invalid_object_class_name(self):
         db_map = create_diff_db_map()
         _, errors = import_object_parameters(db_map, [["nonexistent_object_class", "new_parameter"]])
         self.assertTrue(errors)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_class_parameter_name_twice(self):
         db_map = create_diff_db_map()
@@ -251,7 +251,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
         }
         expected = {"object_class1": "new_parameter", "object_class2": "new_parameter"}
         self.assertEqual(definitions, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object_class_parameter(self):
         db_map = create_diff_db_map()
@@ -262,7 +262,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
         _, errors = import_object_parameters(db_map, [["object_class", "parameter"]])
         self.assertIn("parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
         self.assertFalse(errors)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_class_parameter_with_null_default_value_and_db_server_unparsing(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -276,7 +276,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
         self.assertEqual(len(parameters), 1)
         self.assertIsNone(parameters[0].default_value)
         self.assertIsNone(parameters[0].default_type)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportRelationshipClassParameter(unittest.TestCase):
@@ -296,13 +296,13 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         }
         expected = {"relationship_class": "new_parameter"}
         self.assertEqual(definitions, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_parameter_with_invalid_relationship_class_name(self):
         db_map = create_diff_db_map()
         _, errors = import_relationship_parameters(db_map, [["nonexistent_relationship_class", "new_parameter"]])
         self.assertTrue(errors)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_class_parameter_name_twice(self):
         db_map = create_diff_db_map()
@@ -328,7 +328,7 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         }
         expected = {"relationship_class1": "new_parameter", "relationship_class2": "new_parameter"}
         self.assertEqual(definitions, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_relationship_class_parameter(self):
         db_map = create_diff_db_map()
@@ -337,7 +337,7 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         import_relationship_parameters(db_map, [["relationship_class", "new_parameter"]])
         _, errors = import_relationship_parameters(db_map, [["relationship_class", "new_parameter"]])
         self.assertFalse(errors)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportRelationship(unittest.TestCase):
@@ -355,7 +355,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("relationship_class_object", [r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_relationship(self):
         db_map = create_diff_db_map()
@@ -365,7 +365,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_relationship_with_object_name_in_multiple_classes(self):
         db_map = create_diff_db_map()
@@ -376,7 +376,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("relationship_class_duplicate__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_with_invalid_class_name(self):
         db_map = create_diff_db_map()
@@ -385,7 +385,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_with_invalid_object_name(self):
         db_map = create_diff_db_map()
@@ -395,7 +395,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_relationship(self):
         db_map = create_diff_db_map()
@@ -408,7 +408,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertFalse(errors)
         db_map.commit_session("test")
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_with_one_None_object(self):
         db_map = create_diff_db_map()
@@ -418,7 +418,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportParameterDefinition(unittest.TestCase):
@@ -426,7 +426,7 @@ class TestImportParameterDefinition(unittest.TestCase):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_import_object_parameter_definition(self):
         import_object_classes(self._db_map, ["my_object_class"])
@@ -539,7 +539,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b"1"}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_object_parameter_value_string(self):
         db_map = create_diff_db_map()
@@ -550,7 +550,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"value_string"'}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_object_parameter_value_with_duplicate_object_name(self):
         db_map = create_diff_db_map()
@@ -562,7 +562,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object_class1": {"duplicate_object": b"1"}}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_object_parameter_value_with_duplicate_parameter_name(self):
         db_map = create_diff_db_map()
@@ -574,7 +574,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object_class1": {"object1": b"1"}}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_parameter_value_with_invalid_object(self):
         db_map = create_diff_db_map()
@@ -584,7 +584,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.object_parameter_value_sq).all())
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_parameter_value_with_invalid_parameter(self):
         db_map = create_diff_db_map()
@@ -594,7 +594,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.object_parameter_value_sq).all())
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object_parameter_value_update_the_value(self):
         db_map = create_diff_db_map()
@@ -606,7 +606,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"new_value"'}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_keep(self):
         db_map = create_diff_db_map()
@@ -623,7 +623,7 @@ class TestImportParameterValue(unittest.TestCase):
         value = from_database(pv.value, pv.type)
         self.assertEqual(['2000-01-01T01:00:00', '2000-01-01T02:00:00'], [str(x) for x in value.indexes])
         self.assertEqual([1.0, 2.0], list(value.values))
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_replace(self):
         db_map = create_diff_db_map()
@@ -640,7 +640,7 @@ class TestImportParameterValue(unittest.TestCase):
         value = from_database(pv.value, pv.type)
         self.assertEqual(['2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes])
         self.assertEqual([3.0, 4.0], list(value.values))
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_merge(self):
         db_map = create_diff_db_map()
@@ -659,7 +659,7 @@ class TestImportParameterValue(unittest.TestCase):
             ['2000-01-01T01:00:00', '2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes]
         )
         self.assertEqual([1.0, 3.0, 4.0], list(value.values))
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_merge_map(self):
         db_map = create_diff_db_map()
@@ -688,7 +688,7 @@ class TestImportParameterValue(unittest.TestCase):
             ['2000-01-01T01:00:00', '2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in ts.indexes]
         )
         self.assertEqual([1.0, 3.0, 4.0], list(ts.values))
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_duplicate_object_parameter_value(self):
         db_map = create_diff_db_map()
@@ -702,7 +702,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
         expected = {"object1": b'"first"'}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_parameter_value_with_alternative(self):
         db_map = create_diff_db_map()
@@ -719,7 +719,7 @@ class TestImportParameterValue(unittest.TestCase):
         }
         expected = {"object1": (b"1", "alternative")}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_object_parameter_value_fails_with_nonexistent_alternative(self):
         db_map = create_diff_db_map()
@@ -729,7 +729,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertTrue(errors)
         self.assertEqual(count, 0)
-        db_map.connection.close()
+        db_map.close()
 
     def test_valid_object_parameter_value_from_value_list(self):
         db_map = create_diff_db_map()
@@ -745,7 +745,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertEqual(len(values), 1)
         value = values[0]
         self.assertEqual(from_database(value.value), 5.0)
-        db_map.connection.close()
+        db_map.close()
 
     def test_non_existent_object_parameter_value_from_value_list_fails_gracefully(self):
         db_map = create_diff_db_map()
@@ -756,7 +756,7 @@ class TestImportParameterValue(unittest.TestCase):
         count, errors = import_object_parameter_values(db_map, (("object_class", "my_object", "parameter", 2.3),))
         self.assertEqual(count, 0)
         self.assertEqual(len(errors), 1)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_relationship_parameter_value(self):
         db_map = create_diff_db_map()
@@ -769,7 +769,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b"1"}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_relationship_parameter_value_with_duplicate_parameter_name(self):
         db_map = create_diff_db_map()
@@ -784,7 +784,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b"1"}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_valid_relationship_parameter_value_with_duplicate_object_name(self):
         db_map = create_diff_db_map()
@@ -799,7 +799,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"duplicate_object,duplicate_object": b"1"}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_parameter_value_with_invalid_object(self):
         db_map = create_diff_db_map()
@@ -810,7 +810,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_parameter_value_with_invalid_relationship_class(self):
         db_map = create_diff_db_map()
@@ -821,7 +821,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_parameter_value_with_invalid_parameter(self):
         db_map = create_diff_db_map()
@@ -832,7 +832,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertTrue(errors)
         db_map.commit_session("test")
         self.assertFalse(db_map.query(db_map.relationship_parameter_value_sq).all())
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_existing_relationship_parameter_value(self):
         db_map = create_diff_db_map()
@@ -848,7 +848,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b'"new_value"'}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_duplicate_relationship_parameter_value(self):
         db_map = create_diff_db_map()
@@ -865,7 +865,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
         expected = {"object1,object2": b'"first"'}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_parameter_value_with_alternative(self):
         db_map = create_diff_db_map()
@@ -883,7 +883,7 @@ class TestImportParameterValue(unittest.TestCase):
         }
         expected = {"object1,object2": (b"1", "alternative")}
         self.assertEqual(values, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_parameter_value_fails_with_nonexistent_alternative(self):
         db_map = create_diff_db_map()
@@ -893,7 +893,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertTrue(errors)
         self.assertEqual(count, 0)
-        db_map.connection.close()
+        db_map.close()
 
     def test_valid_relationship_parameter_value_from_value_list(self):
         db_map = create_diff_db_map()
@@ -913,7 +913,7 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertEqual(len(values), 1)
         value = values[0]
         self.assertEqual(from_database(value.value), 5.0)
-        db_map.connection.close()
+        db_map.close()
 
     def test_non_existent_relationship_parameter_value_from_value_list_fails_gracefully(self):
         db_map = create_diff_db_map()
@@ -928,7 +928,7 @@ class TestImportParameterValue(unittest.TestCase):
         )
         self.assertEqual(count, 0)
         self.assertEqual(len(errors), 1)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportParameterValueList(unittest.TestCase):
@@ -936,7 +936,7 @@ class TestImportParameterValueList(unittest.TestCase):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_list_with_single_value(self):
         count, errors = import_parameter_value_lists(self._db_map, (("list_1", 23.0),))
@@ -983,7 +983,7 @@ class TestImportAlternative(unittest.TestCase):
         self.assertEqual(len(alternatives), 2)
         self.assertIn("Base", alternatives)
         self.assertIn("alternative", alternatives)
-        db_map.connection.close()
+        db_map.close()
 
     def test_alternative_description(self):
         db_map = create_diff_db_map()
@@ -994,7 +994,7 @@ class TestImportAlternative(unittest.TestCase):
         alternatives = {a.name: a.description for a in db_map.query(db_map.alternative_sq)}
         expected = {"Base": "Base alternative", "alternative": "description"}
         self.assertEqual(alternatives, expected)
-        db_map.connection.close()
+        db_map.close()
 
     def test_update_alternative_description(self):
         db_map = create_diff_db_map()
@@ -1005,7 +1005,7 @@ class TestImportAlternative(unittest.TestCase):
         alternatives = {a.name: a.description for a in db_map.query(db_map.alternative_sq)}
         expected = {"Base": "new description"}
         self.assertEqual(alternatives, expected)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportScenario(unittest.TestCase):
@@ -1017,7 +1017,7 @@ class TestImportScenario(unittest.TestCase):
         db_map.commit_session("test")
         scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
         self.assertEqual(scenarios, {"scenario": None})
-        db_map.connection.close()
+        db_map.close()
 
     def test_scenario_with_description(self):
         db_map = create_diff_db_map()
@@ -1027,7 +1027,7 @@ class TestImportScenario(unittest.TestCase):
         db_map.commit_session("test")
         scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
         self.assertEqual(scenarios, {"scenario": "description"})
-        db_map.connection.close()
+        db_map.close()
 
     def test_update_scenario_description(self):
         db_map = create_diff_db_map()
@@ -1038,7 +1038,7 @@ class TestImportScenario(unittest.TestCase):
         db_map.commit_session("test")
         scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
         self.assertEqual(scenarios, {"scenario": "new description"})
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportScenarioAlternative(unittest.TestCase):
@@ -1046,7 +1046,7 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self._db_map = create_diff_db_map()
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_single_scenario_alternative_import(self):
         count, errors = import_scenario_alternatives(self._db_map, [["scenario", "alternative"]])
@@ -1119,7 +1119,7 @@ class TestImportMetadata(unittest.TestCase):
         self.assertIn(("name", "Charly"), metadata)
         self.assertIn(("age", "17"), metadata)
         self.assertIn(("age", "90"), metadata)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_metadata_with_duplicate_entry(self):
         db_map = create_diff_db_map()
@@ -1132,7 +1132,7 @@ class TestImportMetadata(unittest.TestCase):
         self.assertIn(("name", "John"), metadata)
         self.assertIn(("name", "Charly"), metadata)
         self.assertIn(("age", "17"), metadata)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_metadata_with_nested_dict(self):
         db_map = create_diff_db_map()
@@ -1144,7 +1144,7 @@ class TestImportMetadata(unittest.TestCase):
         self.assertEqual(len(metadata), 2)
         self.assertIn(("name", "John"), metadata)
         self.assertIn(("info", "{'age': 17, 'city': 'LA'}"), metadata)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_metadata_with_nested_list(self):
         db_map = create_diff_db_map()
@@ -1156,7 +1156,7 @@ class TestImportMetadata(unittest.TestCase):
         self.assertEqual(len(metadata), 2)
         self.assertIn(('contributors', "{'name': 'John'}"), metadata)
         self.assertIn(('contributors', "{'name': 'Charly'}"), metadata)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_unformatted_metadata(self):
         db_map = create_diff_db_map()
@@ -1167,7 +1167,7 @@ class TestImportMetadata(unittest.TestCase):
         self.assertFalse(errors)
         self.assertEqual(len(metadata), 1)
         self.assertIn(("unnamed", "not a JSON object"), metadata)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportEntityMetadata(unittest.TestCase):
@@ -1204,7 +1204,7 @@ class TestImportEntityMetadata(unittest.TestCase):
         self.assertIn(('object1', 'age', '90'), metadata)
         self.assertIn(('object1', 'co-author', 'Charly'), metadata)
         self.assertIn(('object1', 'age', '17'), metadata)
-        db_map.connection.close()
+        db_map.close()
 
     def test_import_relationship_metadata(self):
         db_map = create_diff_db_map()
@@ -1225,7 +1225,7 @@ class TestImportEntityMetadata(unittest.TestCase):
         self.assertIn(('age', '90'), metadata)
         self.assertIn(('co-author', 'Charly'), metadata)
         self.assertIn(('age', '17'), metadata)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestImportParameterValueMetadata(unittest.TestCase):
@@ -1234,7 +1234,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
         import_metadata(self._db_map, ['{"co-author": "John", "age": 17}'])
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_import_object_parameter_value_metadata(self):
         import_object_classes(self._db_map, ["object_class"])

@@ -268,7 +268,7 @@ class _DBWorker:
         while True:
             input_ = self._in_queue.get()
             if input_ == self._CLOSE:
-                self._db_map.connection.close()
+                self._db_map.close()
                 break
             request, args, kwargs = input_
             handler = {

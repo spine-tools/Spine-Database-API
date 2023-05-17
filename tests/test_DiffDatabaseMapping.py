@@ -50,7 +50,7 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(db_url, create=True)
-                db_map.connection.close()
+                db_map.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
@@ -62,7 +62,7 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(sa_url, create=True)
-                db_map.connection.close()
+                db_map.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
@@ -70,17 +70,17 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             url = URL("sqlite")
             url.database = os.path.join(temp_dir, "test_shorthand_filter_query_works.json")
-            out_db = DatabaseMapping(url, create=True)
-            out_db.add_scenarios({"name": "scen1"})
-            out_db.add_scenario_alternatives({"scenario_name": "scen1", "alternative_name": "Base", "rank": 1})
-            out_db.commit_session("Add scen.")
-            out_db.connection.close()
+            out_db_map = DatabaseMapping(url, create=True)
+            out_db_map.add_scenarios({"name": "scen1"})
+            out_db_map.add_scenario_alternatives({"scenario_name": "scen1", "alternative_name": "Base", "rank": 1})
+            out_db_map.commit_session("Add scen.")
+            out_db_map.close()
             try:
                 db_map = DatabaseMapping(url)
             except:
                 self.fail("DatabaseMapping.__init__() should not raise.")
             else:
-                db_map.connection.close()
+                db_map.close()
 
 
 class TestDatabaseMappingRemove(unittest.TestCase):
@@ -88,7 +88,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         self._db_map = create_diff_db_map()
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_cascade_remove_relationship(self):
         """Test adding and removing a relationship and committing"""
@@ -412,7 +412,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         self._db_map = create_diff_db_map()
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_add_and_retrieve_many_objects(self):
         """Tests add many objects into db and retrieving them."""
@@ -1183,7 +1183,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map = create_diff_db_map()
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_update_object_classes(self):
         """Test that updating object classes works."""
@@ -1289,14 +1289,14 @@ class TestDatabaseMappingCommit(unittest.TestCase):
         self._db_map = create_diff_db_map()
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_commit_message(self):
         """Tests that commit comment ends up in the database."""
         self._db_map.add_object_classes({"name": "testclass"})
         self._db_map.commit_session("test commit")
         self.assertEqual(self._db_map.query(self._db_map.commit_sq).all()[-1].comment, "test commit")
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_commit_session_raise_with_empty_comment(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))

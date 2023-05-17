@@ -158,8 +158,6 @@ class DatabaseMappingUpdateMixin:
         metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
         added, errors = self.add_items("metadata", *metadata_items, **kwargs)
         updated, more_errors = self.update_items(tablename, *items, **kwargs)
-        metadata_ids = self.get_metadata_ids_to_remove()
-        self.remove_items("metadata", *metadata_ids)
         return added + updated, errors + more_errors
 
     def update_ext_entity_metadata(self, *items, **kwargs):

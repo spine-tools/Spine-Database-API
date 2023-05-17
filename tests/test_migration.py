@@ -142,4 +142,4 @@ class TestMigration(unittest.TestCase):
             self.assertTrue(('breed', 'pluto', b'"labrador"') in obj_par_vals)
             self.assertTrue(('relative_speed', 'pluto__nemo', b'100') in rel_par_vals)
             self.assertTrue(('relative_speed', 'scooby__nemo', b'-1') in rel_par_vals)
-            db_map.connection.close()
+            db_map.close()

@@ -38,7 +38,7 @@ class TestCsvWriter(unittest.TestCase):
         self.assertTrue(out_path.exists())
         with open(out_path) as out_file:
             self.assertEqual(out_file.readlines(), [])
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_single_object_class_and_object(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -52,7 +52,7 @@ class TestCsvWriter(unittest.TestCase):
         self.assertTrue(out_path.exists())
         with open(out_path) as out_file:
             self.assertEqual(out_file.readlines(), ["oc,o1\n"])
-        db_map.connection.close()
+        db_map.close()
 
     def test_tables_are_written_to_separate_files(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -76,7 +76,7 @@ class TestCsvWriter(unittest.TestCase):
                 self.assertEqual(out_file.readlines(), expected)
         self.assertEqual(len(out_files), 2)
         self.assertEqual(set(out_files), {"oc1.csv", "oc2.csv"})
-        db_map.connection.close()
+        db_map.close()
 
     def test_append_to_table(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -91,7 +91,7 @@ class TestCsvWriter(unittest.TestCase):
         self.assertTrue(out_path.exists())
         with open(out_path) as out_file:
             self.assertEqual(out_file.readlines(), ["oc,o1\n", "oc,o1\n"])
-        db_map.connection.close()
+        db_map.close()
 
 
 if __name__ == "__main__":

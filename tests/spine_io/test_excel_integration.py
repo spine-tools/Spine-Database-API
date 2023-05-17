@@ -114,7 +114,7 @@ class TestExcelIntegration(unittest.TestCase):
             path = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
             export_spine_database_to_xlsx(db_map, path)
             output_data, errors = get_mapped_data_from_xlsx(path)
-        db_map.connection.close()
+        db_map.close()
         self.assertEqual([], errors)
         input_param_vals = input_data.pop("parameter_values")
         output_param_vals = output_data.pop("parameter_values")

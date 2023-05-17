@@ -44,7 +44,7 @@ class TestWrite(unittest.TestCase):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_max_rows(self):
         import_object_classes(self._db_map, ("class1", "class2"))

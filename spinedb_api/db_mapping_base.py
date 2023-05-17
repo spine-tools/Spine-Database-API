@@ -17,12 +17,11 @@ import os
 import logging
 import time
 from types import MethodType
-from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, inspect, case, func, cast, false, and_, or_
 from sqlalchemy.sql.expression import label, Alias
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import aliased
-from sqlalchemy.exc import DatabaseError, ProgrammingError
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.event import listen
 from sqlalchemy.pool import NullPool
 from alembic.migration import MigrationContext
@@ -82,7 +81,6 @@ class DatabaseMappingBase:
         apply_filters=True,
         memory=False,
         sqlite_timeout=1800,
-        asynchronous=False,
         chunk_size=None,
     ):
         """
@@ -95,7 +93,6 @@ class DatabaseMappingBase:
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
             memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
             sqlite_timeout (int): How many seconds to wait before raising connection errors.
-            asynchronous (bool): Whether or not communication with the db should be done asynchronously.
             chunk_size (int, optional): How many rows to fetch from the DB at a time when populating the cache.
                 If not specified, then all rows are fetched at once.
         """
@@ -114,21 +111,19 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
-        self._asynchronous = asynchronous
         self._original_engine = self.create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
         listen(self.engine, 'close', self._receive_engine_close)
-        self.executor = self._make_executor()
-        self.connection = self.executor.submit(self.engine.connect).result()
         if self._memory:
-            self.executor.submit(copy_database_bind, self.connection, self._original_engine)
-        self._metadata = MetaData(self.connection)
-        _ = self.executor.submit(self._metadata.reflect).result()
+            copy_database_bind(self.engine, self._original_engine)
+        self._metadata = MetaData(self.engine)
+        self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.cache = DBCache(self, chunk_size=chunk_size)
+        self.closed = False
         # Subqueries that select everything from each table
         self._commit_sq = None
         self._alternative_sq = None
@@ -203,25 +198,8 @@ class DatabaseMappingBase:
     def get_filter_configs(self):
         return self._filter_configs
 
-    def _make_executor(self):
-        return ThreadPoolExecutor(max_workers=1) if self._asynchronous else _Executor()
-
-    def call_in_right_thread(self, fn, *args, **kwargs):
-        # We try to call directly. If we are in the wrong thread this will raise ProgrammingError.
-        # Then we can execute in the executor thread.
-        try:
-            return fn(*args, **kwargs)
-        except ProgrammingError:
-            return self.executor.submit(fn, *args, **kwargs).result()
-
     def close(self):
-        if not self.connection.closed:
-            self.executor.submit(self.connection.close)
-        self.executor.shutdown()
-
-    def reconnect(self):
-        self.executor = self._make_executor()
-        self.connection = self.executor.submit(self.engine.connect).result()
+        self.closed = True
 
     def _real_tablename(self, tablename):
         return {
@@ -321,7 +299,7 @@ class DatabaseMappingBase:
         return engine
 
     def _receive_engine_close(self, dbapi_con, _connection_record):
-        if dbapi_con == self.connection.connection.connection and self._memory_dirty:
+        if self._memory_dirty:
             copy_database_bind(self._original_engine, self.engine)
 
     def in_(self, column, values):
@@ -339,9 +317,10 @@ class DatabaseMappingBase:
             Column("value", column.type, primary_key=True),
             prefixes=['TEMPORARY'],
         )
-        self.call_in_right_thread(in_value.create, self.connection, checkfirst=True)
-        self.connection_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
-        return column.in_({x.value for x in self.query(in_value.c.value)})
+        with self.engine.connect() as connection:
+            in_value.create(connection, checkfirst=True)
+            connection.execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
+            return column.in_(Query(connection, in_value.c.value))
 
     def _get_table_to_sq_attr(self):
         if not self._table_to_sq_attr:
@@ -406,7 +385,7 @@ class DatabaseMappingBase:
                 db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
             ).group_by(db_map.object_class_sq.c.name).all()
         """
-        return Query(self.connection_execute, *args)
+        return Query(self.engine, *args)
 
     def _subquery(self, tablename):
         """A subquery of the form:
@@ -1845,9 +1824,6 @@ class DatabaseMappingBase:
         self._make_scenario_alternative_sq = MethodType(DatabaseMappingBase._make_scenario_alternative_sq, self)
         self._clear_subqueries("scenario_alternative")
 
-    def connection_execute(self, *args):
-        return self.call_in_right_thread(self.connection.execute, *args)
-
     def _get_primary_key(self, tablename):
         pk = self.composite_pks.get(tablename)
         if pk is None:
@@ -1859,10 +1835,11 @@ class DatabaseMappingBase:
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
         """
-        for tablename in self._tablenames:
-            table = self._metadata.tables[tablename]
-            self.connection_execute(table.delete())
-        self.connection_execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+        with self.engine.connect() as connection:
+            for tablename in self._tablenames:
+                table = self._metadata.tables[tablename]
+                connection.execute(table.delete())
+            connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
     def fetch_all(self, tablenames=None):
         tablenames = set(self.ITEM_TYPES) if tablenames is None else tablenames & set(self.ITEM_TYPES)
@@ -1930,19 +1907,13 @@ class DatabaseMappingBase:
             [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
 
-    def advance_cache_query(self, item_type, callback=None):
+    def advance_cache_query(self, item_type):
         """Schedules an advance of the DB query that fetches items of given type.
 
         Args:
             item_type (str)
-
-        Returns:
-            Future
         """
-        if not callback:
-            return self.cache.advance_query(item_type)
-        future = self.executor.submit(self.cache.advance_query, item_type)
-        future.add_done_callback(lambda future: callback(future.result()))
+        return self.cache.advance_query(item_type)
 
     @staticmethod
     def _convert_legacy(tablename, item):
@@ -1970,40 +1941,4 @@ class DatabaseMappingBase:
                 item["entity_id"] = entity_id
 
     def __del__(self):
-        try:
-            self.close()
-        except AttributeError:
-            pass
-
-
-class _Future:
-    def __init__(self):
-        self._result = None
-        self._exception = None
-
-    def set_result(self, result):
-        self._result = result
-
-    def set_exception(self, exception):
-        self._exception = exception
-
-    def add_done_callback(self, callback):
-        callback(self)
-
-    def result(self):
-        if self._exception is not None:
-            raise self._exception
-        return self._result
-
-
-class _Executor:
-    def submit(self, fn, *args, **kwargs):
-        future = _Future()
-        try:
-            future.set_result(fn(*args, **kwargs))
-        except Exception as exc:
-            future.set_exception(exc)
-        return future
-
-    def shutdown(self):
-        pass
+        self.close()

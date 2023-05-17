@@ -54,25 +54,25 @@ class TestScenarioFilter(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DatabaseMapping(self._db_url)
+        self._out_db_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
-        self._out_map.connection.close()
-        self._db_map.connection.close()
+        self._out_db_map.close()
+        self._db_map.close()
 
     def _build_data_with_single_scenario(self):
-        import_alternatives(self._out_map, ["alternative"])
-        import_object_classes(self._out_map, ["object_class"])
-        import_objects(self._out_map, [("object_class", "object")])
-        import_object_parameters(self._out_map, [("object_class", "parameter")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 23.0, "alternative")])
-        import_scenarios(self._out_map, [("scenario", True)])
-        import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
+        import_alternatives(self._out_db_map, ["alternative"])
+        import_object_classes(self._out_db_map, ["object_class"])
+        import_objects(self._out_db_map, [("object_class", "object")])
+        import_object_parameters(self._out_db_map, [("object_class", "parameter")])
+        import_object_parameter_values(self._out_db_map, [("object_class", "object", "parameter", -1.0)])
+        import_object_parameter_values(self._out_db_map, [("object_class", "object", "parameter", 23.0, "alternative")])
+        import_scenarios(self._out_db_map, [("scenario", True)])
+        import_scenario_alternatives(self._out_db_map, [("scenario", "alternative")])
 
     def test_scenario_filter(self):
-        _build_data_with_single_scenario(self._out_map)
+        _build_data_with_single_scenario(self._out_db_map)
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
@@ -96,19 +96,19 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_scenario_filter_uncommitted_data(self):
-        _build_data_with_single_scenario(self._out_map, commit=False)
+        _build_data_with_single_scenario(self._out_db_map, commit=False)
         with self.assertRaises(SpineDBAPIError):
-            apply_scenario_filter_to_subqueries(self._out_map, "scenario")
-        parameters = self._out_map.query(self._out_map.parameter_value_sq).all()
+            apply_scenario_filter_to_subqueries(self._out_db_map, "scenario")
+        parameters = self._out_db_map.query(self._out_db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 0)
-        alternatives = [dict(a) for a in self._out_map.query(self._out_map.alternative_sq)]
+        alternatives = [dict(a) for a in self._out_db_map.query(self._out_db_map.alternative_sq)]
         self.assertEqual(alternatives, [{"name": "Base", "description": "Base alternative", "id": 1, "commit_id": 1}])
-        scenarios = self._out_map.query(self._out_map.wide_scenario_sq).all()
+        scenarios = self._out_db_map.query(self._out_db_map.wide_scenario_sq).all()
         self.assertEqual(len(scenarios), 0)
-        self._out_map.rollback_session()
+        self._out_db_map.rollback_session()
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
-        _build_data_with_single_scenario(self._out_map)
+        _build_data_with_single_scenario(self._out_db_map)
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.object_parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
@@ -132,17 +132,17 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_scenario_filter_works_for_relationship_parameter_value_sq(self):
-        _build_data_with_single_scenario(self._out_map, commit=False)
-        import_relationship_classes(self._out_map, [("relationship_class", ["object_class"])])
-        import_relationship_parameters(self._out_map, [("relationship_class", "relationship_parameter")])
-        import_relationships(self._out_map, [("relationship_class", ["object"])])
+        _build_data_with_single_scenario(self._out_db_map, commit=False)
+        import_relationship_classes(self._out_db_map, [("relationship_class", ["object_class"])])
+        import_relationship_parameters(self._out_db_map, [("relationship_class", "relationship_parameter")])
+        import_relationships(self._out_db_map, [("relationship_class", ["object"])])
         import_relationship_parameter_values(
-            self._out_map, [("relationship_class", ["object"], "relationship_parameter", -1)]
+            self._out_db_map, [("relationship_class", ["object"], "relationship_parameter", -1)]
         )
         import_relationship_parameter_values(
-            self._out_map, [("relationship_class", ["object"], "relationship_parameter", 23.0, "alternative")]
+            self._out_db_map, [("relationship_class", ["object"], "relationship_parameter", 23.0, "alternative")]
         )
-        self._out_map.commit_session("Add test data")
+        self._out_db_map.commit_session("Add test data")
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.relationship_parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
@@ -166,26 +166,32 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_scenario_filter_selects_highest_ranked_alternative(self):
-        import_alternatives(self._out_map, ["alternative3"])
-        import_alternatives(self._out_map, ["alternative1"])
-        import_alternatives(self._out_map, ["alternative2"])
-        import_object_classes(self._out_map, ["object_class"])
-        import_objects(self._out_map, [("object_class", "object")])
-        import_object_parameters(self._out_map, [("object_class", "parameter")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 10.0, "alternative1")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 2000.0, "alternative2")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 300.0, "alternative3")])
-        import_scenarios(self._out_map, [("scenario", True)])
+        import_alternatives(self._out_db_map, ["alternative3"])
+        import_alternatives(self._out_db_map, ["alternative1"])
+        import_alternatives(self._out_db_map, ["alternative2"])
+        import_object_classes(self._out_db_map, ["object_class"])
+        import_objects(self._out_db_map, [("object_class", "object")])
+        import_object_parameters(self._out_db_map, [("object_class", "parameter")])
+        import_object_parameter_values(self._out_db_map, [("object_class", "object", "parameter", -1.0)])
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object", "parameter", 10.0, "alternative1")]
+        )
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object", "parameter", 2000.0, "alternative2")]
+        )
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object", "parameter", 300.0, "alternative3")]
+        )
+        import_scenarios(self._out_db_map, [("scenario", True)])
         import_scenario_alternatives(
-            self._out_map,
+            self._out_db_map,
             [
                 ("scenario", "alternative2"),
                 ("scenario", "alternative3", "alternative2"),
                 ("scenario", "alternative1", "alternative3"),
             ],
         )
-        self._out_map.commit_session("Add test data")
+        self._out_db_map.commit_session("Add test data")
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
@@ -216,21 +222,27 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
-        import_alternatives(self._out_map, ["alternative3"])
-        import_alternatives(self._out_map, ["alternative1"])
-        import_alternatives(self._out_map, ["alternative2"])
-        import_alternatives(self._out_map, ["non_active_alternative"])
-        import_object_classes(self._out_map, ["object_class"])
-        import_objects(self._out_map, [("object_class", "object")])
-        import_object_parameters(self._out_map, [("object_class", "parameter")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", -1.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 10.0, "alternative1")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 2000.0, "alternative2")])
-        import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 300.0, "alternative3")])
-        import_scenarios(self._out_map, [("scenario", True)])
-        import_scenarios(self._out_map, [("non_active_scenario", False)])
+        import_alternatives(self._out_db_map, ["alternative3"])
+        import_alternatives(self._out_db_map, ["alternative1"])
+        import_alternatives(self._out_db_map, ["alternative2"])
+        import_alternatives(self._out_db_map, ["non_active_alternative"])
+        import_object_classes(self._out_db_map, ["object_class"])
+        import_objects(self._out_db_map, [("object_class", "object")])
+        import_object_parameters(self._out_db_map, [("object_class", "parameter")])
+        import_object_parameter_values(self._out_db_map, [("object_class", "object", "parameter", -1.0)])
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object", "parameter", 10.0, "alternative1")]
+        )
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object", "parameter", 2000.0, "alternative2")]
+        )
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object", "parameter", 300.0, "alternative3")]
+        )
+        import_scenarios(self._out_db_map, [("scenario", True)])
+        import_scenarios(self._out_db_map, [("non_active_scenario", False)])
         import_scenario_alternatives(
-            self._out_map,
+            self._out_db_map,
             [
                 ("scenario", "alternative2"),
                 ("scenario", "alternative3", "alternative2"),
@@ -238,7 +250,7 @@ class TestScenarioFilter(unittest.TestCase):
             ],
         )
         import_scenario_alternatives(
-            self._out_map,
+            self._out_db_map,
             [
                 ("non_active_scenario", "non_active_alternative"),
                 ("scenario", "alternative2", "non_active_alternative"),
@@ -246,7 +258,7 @@ class TestScenarioFilter(unittest.TestCase):
                 ("scenario", "alternative1", "alternative3"),
             ],
         )
-        self._out_map.commit_session("Add test data")
+        self._out_db_map.commit_session("Add test data")
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 1)
@@ -277,23 +289,31 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_scenario_filter_for_multiple_objects_and_parameters(self):
-        import_alternatives(self._out_map, ["alternative"])
-        import_object_classes(self._out_map, ["object_class"])
-        import_objects(self._out_map, [("object_class", "object1")])
-        import_objects(self._out_map, [("object_class", "object2")])
-        import_object_parameters(self._out_map, [("object_class", "parameter1")])
-        import_object_parameters(self._out_map, [("object_class", "parameter2")])
-        import_object_parameter_values(self._out_map, [("object_class", "object1", "parameter1", -1.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object1", "parameter1", 10.0, "alternative")])
-        import_object_parameter_values(self._out_map, [("object_class", "object1", "parameter2", -1.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object1", "parameter2", 11.0, "alternative")])
-        import_object_parameter_values(self._out_map, [("object_class", "object2", "parameter1", -2.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object2", "parameter1", 20.0, "alternative")])
-        import_object_parameter_values(self._out_map, [("object_class", "object2", "parameter2", -2.0)])
-        import_object_parameter_values(self._out_map, [("object_class", "object2", "parameter2", 22.0, "alternative")])
-        import_scenarios(self._out_map, [("scenario", True)])
-        import_scenario_alternatives(self._out_map, [("scenario", "alternative")])
-        self._out_map.commit_session("Add test data")
+        import_alternatives(self._out_db_map, ["alternative"])
+        import_object_classes(self._out_db_map, ["object_class"])
+        import_objects(self._out_db_map, [("object_class", "object1")])
+        import_objects(self._out_db_map, [("object_class", "object2")])
+        import_object_parameters(self._out_db_map, [("object_class", "parameter1")])
+        import_object_parameters(self._out_db_map, [("object_class", "parameter2")])
+        import_object_parameter_values(self._out_db_map, [("object_class", "object1", "parameter1", -1.0)])
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object1", "parameter1", 10.0, "alternative")]
+        )
+        import_object_parameter_values(self._out_db_map, [("object_class", "object1", "parameter2", -1.0)])
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object1", "parameter2", 11.0, "alternative")]
+        )
+        import_object_parameter_values(self._out_db_map, [("object_class", "object2", "parameter1", -2.0)])
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object2", "parameter1", 20.0, "alternative")]
+        )
+        import_object_parameter_values(self._out_db_map, [("object_class", "object2", "parameter2", -2.0)])
+        import_object_parameter_values(
+            self._out_db_map, [("object_class", "object2", "parameter2", 22.0, "alternative")]
+        )
+        import_scenarios(self._out_db_map, [("scenario", True)])
+        import_scenario_alternatives(self._out_db_map, [("scenario", "alternative")])
+        self._out_db_map.commit_session("Add test data")
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 4)
@@ -331,10 +351,10 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_filters_scenarios_and_alternatives(self):
-        import_scenarios(self._out_map, ("scenario1", "scenario2"))
-        import_alternatives(self._out_map, ("alternative1", "alternative2", "alternative3"))
+        import_scenarios(self._out_db_map, ("scenario1", "scenario2"))
+        import_alternatives(self._out_db_map, ("alternative1", "alternative2", "alternative3"))
         import_scenario_alternatives(
-            self._out_map,
+            self._out_db_map,
             (
                 ("scenario1", "alternative2"),
                 ("scenario1", "alternative1", "alternative2"),
@@ -342,7 +362,7 @@ class TestScenarioFilter(unittest.TestCase):
                 ("scenario2", "alternative2", "alternative3"),
             ),
         )
-        self._out_map.commit_session("Add test data.")
+        self._out_db_map.commit_session("Add test data.")
         apply_scenario_filter_to_subqueries(self._db_map, "scenario2")
         alternatives = [dict(a) for a in self._db_map.query(self._db_map.alternative_sq)]
         self.assertEqual(

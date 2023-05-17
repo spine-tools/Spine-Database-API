@@ -42,7 +42,7 @@ class TestExportFunctions(unittest.TestCase):
         self._db_map = DatabaseMapping(db_url, username="UnitTest", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_export_alternatives(self):
         import_alternatives(self._db_map, [("alternative", "Description")])

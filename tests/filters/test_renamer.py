@@ -47,12 +47,12 @@ class TestEntityClassRenamer(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DatabaseMapping(self._db_url)
+        self._out_db_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
-        self._out_map.connection.close()
-        self._db_map.connection.close()
+        self._out_db_map.close()
+        self._db_map.close()
 
     def test_renaming_empty_database(self):
         apply_renaming_to_entity_class_sq(self._db_map, {"some_name": "another_name"})
@@ -60,8 +60,8 @@ class TestEntityClassRenamer(unittest.TestCase):
         self.assertEqual(classes, [])
 
     def test_renaming_singe_entity_class(self):
-        import_object_classes(self._out_map, ("old_name",))
-        self._out_map.commit_session("Add test data")
+        import_object_classes(self._out_db_map, ("old_name",))
+        self._out_db_map.commit_session("Add test data")
         apply_renaming_to_entity_class_sq(self._db_map, {"old_name": "new_name"})
         classes = list(self._db_map.query(self._db_map.entity_class_sq).all())
         self.assertEqual(len(classes), 1)
@@ -74,24 +74,24 @@ class TestEntityClassRenamer(unittest.TestCase):
         self.assertEqual(class_row.name, "new_name")
 
     def test_renaming_singe_relationship_class(self):
-        import_object_classes(self._out_map, ("object_class",))
-        import_relationship_classes(self._out_map, (("old_name", ("object_class",)),))
-        self._out_map.commit_session("Add test data")
+        import_object_classes(self._out_db_map, ("object_class",))
+        import_relationship_classes(self._out_db_map, (("old_name", ("object_class",)),))
+        self._out_db_map.commit_session("Add test data")
         apply_renaming_to_entity_class_sq(self._db_map, {"old_name": "new_name"})
         classes = list(self._db_map.query(self._db_map.relationship_class_sq).all())
         self.assertEqual(len(classes), 1)
         self.assertEqual(classes[0].name, "new_name")
 
     def test_renaming_multiple_entity_classes(self):
-        import_object_classes(self._out_map, ("object_class1", "object_class2"))
+        import_object_classes(self._out_db_map, ("object_class1", "object_class2"))
         import_relationship_classes(
-            self._out_map,
+            self._out_db_map,
             (
                 ("relationship_class1", ("object_class1", "object_class2")),
                 ("relationship_class2", ("object_class2", "object_class1")),
             ),
         )
-        self._out_map.commit_session("Add test data")
+        self._out_db_map.commit_session("Add test data")
         apply_renaming_to_entity_class_sq(
             self._db_map, {"object_class1": "new_object_class", "relationship_class1": "new_relationship_class"}
         )
@@ -116,8 +116,8 @@ class TestEntityClassRenamer(unittest.TestCase):
         )
 
     def test_entity_class_renamer_from_dict(self):
-        import_object_classes(self._out_map, ("old_name",))
-        self._out_map.commit_session("Add test data")
+        import_object_classes(self._out_db_map, ("old_name",))
+        self._out_db_map.commit_session("Add test data")
         config = entity_class_renamer_config(old_name="new_name")
         entity_class_renamer_from_dict(self._db_map, config)
         classes = list(self._db_map.query(self._db_map.entity_class_sq).all())
@@ -152,12 +152,12 @@ class TestParameterRenamer(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DatabaseMapping(self._db_url)
+        self._out_db_map = DatabaseMapping(self._db_url)
         self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
-        self._out_map.connection.close()
-        self._db_map.connection.close()
+        self._out_db_map.close()
+        self._db_map.close()
 
     def test_renaming_empty_database(self):
         apply_renaming_to_parameter_definition_sq(self._db_map, {"some_name": "another_name"})
@@ -165,9 +165,9 @@ class TestParameterRenamer(unittest.TestCase):
         self.assertEqual(classes, [])
 
     def test_renaming_single_parameter(self):
-        import_object_classes(self._out_map, ("object_class",))
-        import_object_parameters(self._out_map, (("object_class", "old_name"),))
-        self._out_map.commit_session("Add test data")
+        import_object_classes(self._out_db_map, ("object_class",))
+        import_object_parameters(self._out_db_map, (("object_class", "old_name"),))
+        self._out_db_map.commit_session("Add test data")
         apply_renaming_to_parameter_definition_sq(self._db_map, {"object_class": {"old_name": "new_name"}})
         parameters = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
         self.assertEqual(len(parameters), 1)
@@ -192,9 +192,9 @@ class TestParameterRenamer(unittest.TestCase):
         self.assertEqual(parameter_row.name, "new_name")
 
     def test_renaming_applies_to_correct_parameter(self):
-        import_object_classes(self._out_map, ("oc1", "oc2"))
-        import_object_parameters(self._out_map, (("oc1", "param"), ("oc2", "param")))
-        self._out_map.commit_session("Add test data")
+        import_object_classes(self._out_db_map, ("oc1", "oc2"))
+        import_object_parameters(self._out_db_map, (("oc1", "param"), ("oc2", "param")))
+        self._out_db_map.commit_session("Add test data")
         apply_renaming_to_parameter_definition_sq(self._db_map, {"oc2": {"param": "new_name"}})
         parameters = list(self._db_map.query(self._db_map.entity_parameter_definition_sq).all())
         self.assertEqual(len(parameters), 2)
@@ -212,9 +212,9 @@ class TestParameterRenamer(unittest.TestCase):
         )
 
     def test_parameter_renamer_from_dict(self):
-        import_object_classes(self._out_map, ("object_class",))
-        import_object_parameters(self._out_map, (("object_class", "old_name"),))
-        self._out_map.commit_session("Add test data")
+        import_object_classes(self._out_db_map, ("object_class",))
+        import_object_parameters(self._out_db_map, (("object_class", "old_name"),))
+        self._out_db_map.commit_session("Add test data")
         config = parameter_renamer_config({"object_class": {"old_name": "new_name"}})
         parameter_renamer_from_dict(self._db_map, config)
         parameters = list(self._db_map.query(self._db_map.parameter_definition_sq).all())
