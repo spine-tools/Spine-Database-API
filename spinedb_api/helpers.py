@@ -74,7 +74,7 @@ naming_convention = {
 
 model_meta = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2**32 - 1
+LONGTEXT_LENGTH = 2 ** 32 - 1
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
