@@ -15,7 +15,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
 from ..parameter_value import (
     from_database_to_single_value,
@@ -739,13 +739,30 @@ class RelationshipClassMapping(ExportMapping):
 
     MAP_TYPE = "RelationshipClass"
 
+    def __init__(self, position, value=None, header="", filter_re="", highlight_dimension=None):
+        super().__init__(position, value, header, filter_re)
+        self.highlight_dimension = highlight_dimension
+
     def add_query_columns(self, db_map, query):
-        return query.add_columns(
+        query = query.add_columns(
             db_map.wide_relationship_class_sq.c.id.label("relationship_class_id"),
             db_map.wide_relationship_class_sq.c.name.label("relationship_class_name"),
             db_map.wide_relationship_class_sq.c.object_class_id_list,
             db_map.wide_relationship_class_sq.c.object_class_name_list,
         )
+        if self.highlight_dimension is not None:
+            query = query.add_columns(
+                db_map.ext_relationship_class_sq.c.object_class_id.label("highlighted_object_class_id")
+            )
+        return query
+
+    def filter_query(self, db_map, query):
+        if self.highlight_dimension is not None:
+            query = query.outerjoin(
+                db_map.ext_relationship_class_sq,
+                db_map.ext_relationship_class_sq.c.id == db_map.wide_relationship_class_sq.c.id,
+            ).filter(db_map.ext_relationship_class_sq.c.dimension == self.highlight_dimension)
+        return query
 
     @staticmethod
     def name_field():
@@ -757,69 +774,26 @@ class RelationshipClassMapping(ExportMapping):
         return "relationship_class_name"
 
     def query_parents(self, what):
-        if what != "dimension":
-            return super().query_parents(what)
-        return -1
+        if what == "dimension":
+            return -1
+        if what == "highlight_dimension":
+            return self.highlight_dimension
+        return super().query_parents(what)
 
     def _title_state(self, db_row):
         state = super()._title_state(db_row)
         state["object_class_id_list"] = getattr(db_row, "object_class_id_list")
         return state
 
-
-class RelationshipClassObjectHighlightingMapping(RelationshipClassMapping):
-    """Maps relationships classes.
-
-    Adds object class dimension chosen by highlight_dimension to the query.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "RelationshipClassObjectHighlightingMapping"
-
-    def __init__(self, position, value=None, header="", filter_re="", highlight_dimension=0):
-        super().__init__(position, value, header, filter_re)
-        self._highlight_dimension = highlight_dimension
-
-    @property
-    def highlight_dimension(self):
-        return self._highlight_dimension
-
-    @highlight_dimension.setter
-    def highlight_dimension(self, dimension):
-        self._highlight_dimension = dimension
-
-    def add_query_columns(self, db_map, query):
-        query = super().add_query_columns(db_map, query)
-        return query.add_columns(db_map.object_class_sq.c.id.label("object_class_id"))
-
-    def filter_query(self, db_map, query):
-        highlighted_object_class_qry = db_map.query(db_map.relationship_class_sq).filter(
-            db_map.relationship_class_sq.c.dimension == self._highlight_dimension
-        )
-        conditions = (
-            and_(db_map.wide_relationship_class_sq.c.id == x.id, db_map.object_class_sq.c.id == x.object_class_id)
-            for x in highlighted_object_class_qry
-        )
-        return query.filter(or_(*conditions))
-
-    @staticmethod
-    def id_field():
-        return "relationship_class_id"
-
-    def query_parents(self, what):
-        if what != "highlight_dimension":
-            return super().query_parents(what)
-        return self._highlight_dimension
-
     def to_dict(self):
         mapping_dict = super().to_dict()
-        mapping_dict["highlight_dimension"] = self._highlight_dimension
+        if self.highlight_dimension is not None:
+            mapping_dict["highlight_dimension"] = self.highlight_dimension
         return mapping_dict
 
     @classmethod
     def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
-        highlight_dimension = mapping_dict["highlight_dimension"]
+        highlight_dimension = mapping_dict.get("highlight_dimension")
         mapping = cls(position, value, header, filter_re, highlight_dimension)
         mapping.set_ignorable(ignorable)
         return mapping
@@ -870,18 +844,26 @@ class RelationshipMapping(ExportMapping):
     MAP_TYPE = "Relationship"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(
+        query = query.add_columns(
             db_map.wide_relationship_sq.c.id.label("relationship_id"),
             db_map.wide_relationship_sq.c.name.label("relationship_name"),
             db_map.wide_relationship_sq.c.object_id_list,
             db_map.wide_relationship_sq.c.object_name_list,
         )
+        if self.query_parents("highlight_dimension") is not None:
+            query = query.add_columns(db_map.ext_relationship_sq.c.object_id.label("highlighted_object_id"))
+        return query
 
     def filter_query(self, db_map, query):
-        return query.outerjoin(
+        query = query.outerjoin(
             db_map.wide_relationship_sq,
             db_map.wide_relationship_sq.c.class_id == db_map.wide_relationship_class_sq.c.id,
         )
+        if (highlight_dimension := self.query_parents("highlight_dimension")) is not None:
+            query = query.outerjoin(
+                db_map.ext_relationship_sq, db_map.ext_relationship_sq.c.id == db_map.wide_relationship_sq.c.id
+            ).filter(db_map.ext_relationship_sq.c.dimension == highlight_dimension)
+        return query
 
     @staticmethod
     def name_field():
@@ -904,36 +886,6 @@ class RelationshipMapping(ExportMapping):
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, RelationshipClassMapping)
-
-
-class RelationshipObjectHighlightingMapping(RelationshipMapping):
-    """Maps relationships.
-
-    Adds object dimension chosen by highlight_dimension in relationship class mapping to the query.
-
-    Cannot be used as the topmost mapping;
-    one of the parents must be :class:`RelationshipClassObjectHighlightingMapping`.
-    """
-
-    MAP_TYPE = "RelationshipObjectHighlightingMapping"
-
-    def add_query_columns(self, db_map, query):
-        query = super().add_query_columns(db_map, query)
-        return query.add_columns(db_map.object_sq.c.id.label("object_id"))
-
-    def filter_query(self, db_map, query):
-        highlighted_object_qry = db_map.query(db_map.relationship_sq).filter(
-            db_map.relationship_sq.c.dimension == self.query_parents("highlight_dimension")
-        )
-        conditions = (
-            and_(db_map.wide_relationship_sq.c.id == x.id, db_map.object_sq.c.id == x.object_id)
-            for x in highlighted_object_qry
-        )
-        return query.filter(or_(*conditions))
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, RelationshipClassObjectHighlightingMapping)
 
 
 class RelationshipObjectMapping(ExportMapping):
@@ -995,6 +947,12 @@ class ParameterDefinitionMapping(ExportMapping):
                 db_map.parameter_definition_sq.c.object_class_id == db_map.object_class_sq.c.id,
             )
         if "relationship_class_id" in column_names:
+            if self.query_parents("highlight_dimension") is not None:
+                return query.outerjoin(
+                    db_map.parameter_definition_sq,
+                    db_map.parameter_definition_sq.c.object_class_id
+                    == db_map.ext_relationship_class_sq.c.object_class_id,
+                )
             return query.outerjoin(
                 db_map.parameter_definition_sq,
                 db_map.parameter_definition_sq.c.relationship_class_id == db_map.wide_relationship_class_sq.c.id,
@@ -1180,6 +1138,13 @@ class ParameterValueMapping(ExportMapping):
                 )
             )
         if "relationship_id" in column_names:
+            if self.query_parents("highlight_dimension") is not None:
+                return query.filter(
+                    and_(
+                        db_map.parameter_value_sq.c.object_id == db_map.ext_relationship_sq.c.object_id,
+                        db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                    )
+                )
             return query.filter(
                 and_(
                     db_map.parameter_value_sq.c.relationship_id == db_map.wide_relationship_sq.c.id,
@@ -1875,9 +1840,7 @@ def from_dict(serialized):
             ParameterValueTypeMapping,
             RelationshipClassMapping,
             RelationshipClassObjectClassMapping,
-            RelationshipClassObjectHighlightingMapping,
             RelationshipMapping,
-            RelationshipObjectHighlightingMapping,
             RelationshipObjectMapping,
             ScenarioActiveFlagMapping,
             ScenarioAlternativeMapping,
@@ -1894,6 +1857,8 @@ def from_dict(serialized):
     }
     # Legacy
     mappings["ParameterIndex"] = ParameterValueIndexMapping
+    if any(m["map_type"] == "RelationshipClassObjectHighlightingMapping" for m in serialized):
+        _upgrade_legacy_object_highlighting_mapping(serialized)
     flattened = list()
     for mapping_dict in serialized:
         position = mapping_dict["position"]
@@ -1925,6 +1890,22 @@ def legacy_group_fn_from_dict(serialized):
         if group_fn is not None:
             return group_fn
     return NoGroup.NAME
+
+
+def _upgrade_legacy_object_highlighting_mapping(serialized):
+    """Upgrades legacy object highlighting mappings in place.
+
+    ``RelationshipClassObjectHighlightingMapping`` and ``RelationshipObjectHighlightingMapping``
+    have been replaced by a ``highlight_dimension`` argument in ``RelationshipClassObjectClassMapping``.
+
+    Args:
+        serialized (list of dict): serialized mappings
+    """
+    for mapping_dict in serialized:
+        if mapping_dict["map_type"] == "RelationshipClassObjectHighlightingMapping":
+            mapping_dict["map_type"] = RelationshipClassMapping.MAP_TYPE
+        elif mapping_dict["map_type"] == "RelationshipObjectHighlightingMapping":
+            mapping_dict["map_type"] = RelationshipMapping.MAP_TYPE
 
 
 def _expand_indexed_data(data, mapping):

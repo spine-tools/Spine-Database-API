@@ -32,7 +32,6 @@ from spinedb_api import (
     import_tool_feature_methods,
     import_tools,
     Map,
-    TimeSeriesFixedResolution,
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.mapping import Position, to_dict
@@ -67,9 +66,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueTypeMapping,
     RelationshipClassMapping,
     RelationshipClassObjectClassMapping,
-    RelationshipClassObjectHighlightingMapping,
     RelationshipMapping,
-    RelationshipObjectHighlightingMapping,
     RelationshipObjectMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
@@ -1336,13 +1333,11 @@ class TestExportMapping(unittest.TestCase):
         highlight_dimension = 5
         mappings = [
             ObjectClassMapping(0),
-            RelationshipClassMapping(Position.table_name),
-            RelationshipClassObjectHighlightingMapping(Position.header, highlight_dimension=highlight_dimension),
+            RelationshipClassMapping(Position.table_name, highlight_dimension=highlight_dimension),
             RelationshipClassObjectClassMapping(2),
             ParameterDefinitionMapping(1),
             ObjectMapping(-1),
             RelationshipMapping(Position.hidden),
-            RelationshipObjectHighlightingMapping(9),
             RelationshipObjectMapping(-1),
             AlternativeMapping(3),
             ParameterValueMapping(4),
@@ -1361,7 +1356,7 @@ class TestExportMapping(unittest.TestCase):
         for m in deserialized:
             if isinstance(m, FixedValueMapping):
                 self.assertEqual(m.value, "gaga")
-            elif isinstance(m, RelationshipClassObjectHighlightingMapping):
+            elif isinstance(m, RelationshipClassMapping):
                 self.assertEqual(m.highlight_dimension, highlight_dimension)
 
     def test_setting_ignorable_flag(self):
@@ -1531,7 +1526,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassMapping(0, highlight_dimension=0),
                 RelationshipClassObjectClassMapping(1),
                 ParameterDefinitionMapping(2),
             ]
@@ -1548,7 +1543,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassMapping(0, highlight_dimension=0),
                 RelationshipClassObjectClassMapping(1),
                 RelationshipClassObjectClassMapping(3),
                 ParameterDefinitionMapping(2),
@@ -1569,10 +1564,10 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassMapping(0, highlight_dimension=0),
                 RelationshipClassObjectClassMapping(1),
                 RelationshipClassObjectClassMapping(2),
-                RelationshipObjectHighlightingMapping(3),
+                RelationshipMapping(3),
                 RelationshipObjectMapping(4),
                 RelationshipObjectMapping(5),
             ]
@@ -1595,9 +1590,9 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                RelationshipClassObjectHighlightingMapping(0),
+                RelationshipClassMapping(0, highlight_dimension=0),
                 RelationshipClassObjectClassMapping(1),
-                RelationshipObjectHighlightingMapping(2),
+                RelationshipMapping(2),
                 RelationshipObjectMapping(3),
                 ParameterDefinitionMapping(4),
                 AlternativeMapping(5),
@@ -1605,6 +1600,65 @@ class TestExportMapping(unittest.TestCase):
             ]
         )
         expected = [["rc", "oc", "rc_o", "o", "p", "Base", 23.0]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_export_default_values_of_object_parameters_while_exporting_relationships(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p", 23.0),))
+        import_objects(db_map, (("oc", "o"),))
+        import_relationship_classes(db_map, (("rc", ("oc",)),))
+        import_relationships(db_map, (("rc", ("o",)),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                RelationshipClassMapping(0, highlight_dimension=0),
+                RelationshipClassObjectClassMapping(1),
+                ParameterDefinitionMapping(2),
+                ParameterDefaultValueMapping(3),
+            ]
+        )
+        expected = [["rc", "oc", "p", 23.0]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_export_object_parameters_while_exporting_relationships_with_multiple_parameters_and_classes2(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
+        import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21"), ("oc3", "p31")))
+        import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc2", "o22"), ("oc3", "o31")))
+        import_object_parameter_values(db_map, (("oc1", "o11", "p11", 1.1),))
+        import_object_parameter_values(db_map, (("oc1", "o11", "p12", 2.2),))
+        import_object_parameter_values(db_map, (("oc1", "o12", "p11", 3.3),))
+        import_object_parameter_values(db_map, (("oc1", "o12", "p12", 4.4),))
+        import_object_parameter_values(db_map, (("oc2", "o21", "p21", 5.5),))
+        import_object_parameter_values(db_map, (("oc2", "o22", "p21", 6.6),))
+        import_object_parameter_values(db_map, (("oc3", "o31", "p31", 7.7),))
+        import_relationship_classes(db_map, (("rc12", ("oc1", "oc2")),))
+        import_relationship_classes(db_map, (("rc23", ("oc2", "oc3")),))
+        import_relationships(db_map, (("rc12", ("o11", "o21")),))
+        import_relationships(db_map, (("rc12", ("o12", "o21")),))
+        import_relationships(db_map, (("rc23", ("o21", "o31")),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                RelationshipClassMapping(0, highlight_dimension=1),
+                RelationshipClassObjectClassMapping(1),
+                RelationshipClassObjectClassMapping(2),
+                RelationshipMapping(3),
+                RelationshipObjectMapping(4),
+                RelationshipObjectMapping(5),
+                ParameterDefinitionMapping(6),
+                AlternativeMapping(7),
+                ParameterValueMapping(8),
+            ]
+        )
+        expected = [
+            ["rc12", "oc1", "oc2", "rc12_o11__o21", "o11", "o21", "p21", "Base", 5.5],
+            ["rc12", "oc1", "oc2", "rc12_o12__o21", "o12", "o21", "p21", "Base", 5.5],
+            ["rc23", "oc2", "oc3", "rc23_o21__o31", "o21", "o31", "p31", "Base", 7.7],
+        ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 
