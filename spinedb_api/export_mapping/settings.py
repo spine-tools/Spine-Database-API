@@ -319,9 +319,7 @@ def relationship_object_parameter_default_value_export(
     """
     root_mapping = unflatten(
         [
-            RelationshipClassMapping(
-                relationship_class_position, highlight_dimension=highlight_dimension
-            ),
+            RelationshipClassMapping(relationship_class_position, highlight_dimension=highlight_dimension),
             ParameterDefinitionMapping(definition_position),
         ]
     )
@@ -370,9 +368,7 @@ def relationship_object_parameter_export(
         object_class_positions = list()
     if object_positions is None:
         object_positions = list()
-    relationship_class = RelationshipClassMapping(
-        relationship_class_position, highlight_dimension=highlight_dimension
-    )
+    relationship_class = RelationshipClassMapping(relationship_class_position, highlight_dimension=highlight_dimension)
     object_or_relationship_class = _generate_dimensions(
         relationship_class, RelationshipClassObjectClassMapping, object_class_positions
     )
