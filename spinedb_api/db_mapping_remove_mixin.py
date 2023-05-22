@@ -71,10 +71,11 @@ class DatabaseMappingRemoveMixin:
             msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e
 
-    def _get_metadata_ids_to_remove(self):
+    def remove_unused_metadata(self):
         used_metadata_ids = set()
         for x in self.cache.get("entity_metadata", {}).values():
             used_metadata_ids.add(x["metadata_id"])
         for x in self.cache.get("parameter_value_metadata", {}).values():
             used_metadata_ids.add(x["metadata_id"])
-        return {x["id"] for x in self.cache.get("metadata", {}).values()} - used_metadata_ids
+        unused_metadata_ids = {x["id"] for x in self.cache.get("metadata", {}).values()} - used_metadata_ids
+        self.remove_items("metadata", *unused_metadata_ids)

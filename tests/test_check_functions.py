@@ -13,11 +13,17 @@ import json
 from numbers import Number
 import unittest
 
-from spinedb_api.db_cache import DBCache, ParameterValueItem
+from spinedb_api import DatabaseMapping
+from spinedb_api.parameter_value import to_database
 from spinedb_api.exception import SpineIntegrityError
 
 
-@unittest.skip("obsolete, but need to adapt to current check system")
+def _val_dict(val):
+    keys = ("value", "type")
+    values = to_database(val)
+    return dict(zip(keys, values))
+
+
 class TestCheckFunctions(unittest.TestCase):
     def setUp(self):
         self.data = [
@@ -25,58 +31,65 @@ class TestCheckFunctions(unittest.TestCase):
             (int, (b'32', b'3.14'), (b'42', b'-2')),
             (str, (b'"FOO"', b'"bar"'), (b'"foo"', b'"Bar"', b'"BAZ"')),
         ]
-        self.parameter_definitions = {
-            1: {'name': 'par1', 'entity_class_id': 1, 'parameter_value_list_id': 1},
-            2: {'name': 'par2', 'entity_class_id': 1, 'parameter_value_list_id': 2},
-            3: {'name': 'par2', 'entity_class_id': 1, 'parameter_value_list_id': 3},
-        }
         self.value_type = {bool: 1, int: 2, str: 3}
-        self.parameter_value_lists = {1: (1, 2), 2: (3, 4), 3: (5, 6, 7)}
-        self.list_values = {1: True, 2: False, 3: 42, 4: -2, 5: 'foo', 6: 'Bar', 7: 'BAZ'}
+        self.db_map = DatabaseMapping("sqlite://", create=True)
+        self.db_map.add_items("entity_class", {"id": 1, 'name': 'cat'})
+        self.db_map.add_items(
+            "entity",
+            {"id": 1, 'name': 'Tom', "class_id": 1},
+            {"id": 2, 'name': 'Felix', "class_id": 1},
+            {"id": 3, 'name': 'Jansson', "class_id": 1},
+        )
+        self.db_map.add_items(
+            "parameter_value_list", {"id": 1, 'name': 'list1'}, {"id": 2, 'name': 'list2'}, {"id": 3, 'name': 'list3'}
+        )
+        self.db_map.add_items(
+            "list_value",
+            {"id": 1, **_val_dict(True), "index": 0, "parameter_value_list_id": 1},
+            {"id": 2, **_val_dict(False), "index": 1, "parameter_value_list_id": 1},
+            {"id": 3, **_val_dict(42), "index": 0, "parameter_value_list_id": 2},
+            {"id": 4, **_val_dict(-2), "index": 1, "parameter_value_list_id": 2},
+            {"id": 5, **_val_dict("foo"), "index": 0, "parameter_value_list_id": 3},
+            {"id": 6, **_val_dict("Bar"), "index": 1, "parameter_value_list_id": 3},
+            {"id": 7, **_val_dict("BAZ"), "index": 2, "parameter_value_list_id": 3},
+        )
+        self.db_map.add_items(
+            "parameter_definition",
+            {"id": 1, 'name': 'par1', 'entity_class_id': 1, 'parameter_value_list_id': 1},
+            {"id": 2, 'name': 'par2', 'entity_class_id': 1, 'parameter_value_list_id': 2},
+            {"id": 3, 'name': 'par3', 'entity_class_id': 1, 'parameter_value_list_id': 3},
+        )
 
-    def get_item(self, _type: type, val: bytes):
-        _id = self.value_type[_type]  # setup: parameter definition/value list ids are equal
-        kwargs = {
+    @staticmethod
+    def get_item(id_: int, val: bytes, entity_id: int):
+        return {
             'id': 1,
-            'parameter_definition_id': _id,
+            'parameter_definition_id': id_,
             'entity_class_id': 1,
-            'entity_id': 1,
-            'object_class_id': 1,
-            'object_id': 1,
+            'entity_id': entity_id,
             'value': val,
-            'commit_id': 3,
+            'type': None,
             'alternative_id': 1,
-            'object_class_name': 'test_objcls',
-            'alternative_name': 'Base',
-            'object_name': 'obj1',
         }
-        return ParameterValueItem(DBCache(lambda *_, **__: None), item_type="value", **kwargs)
 
     def test_replace_parameter_or_default_values_with_list_references(self):
         # regression test for spine-tools/Spine-Toolbox#1878
-        for _type, _fail, _pass in self.data:
-            for data in _fail:
-                with self.subTest(_type=_type, data=data):
-                    expect_in = json.loads(data.decode('utf8'))
+        for type_, fail, pass_ in self.data:
+            id_ = self.value_type[type_]  # setup: parameter definition/value list ids are equal
+            for k, value in enumerate(fail):
+                with self.subTest(type=type_, value=value):
+                    expect_in = json.loads(value.decode('utf8'))
                     if isinstance(expect_in, Number):
                         expect_in = float(expect_in)
-                    ref = [self.list_values[i] for i in self.parameter_value_lists[self.value_type[_type]]]
-                    expect_ref = ", ".join(f"{json.dumps(i)!r}" for i in ref)
-                    self.assertRaisesRegex(
-                        SpineIntegrityError,
-                        fr"{expect_in!r}.+{expect_ref}",
-                        replace_parameter_values_with_list_references,
-                        self.get_item(_type, data),
-                        self.parameter_definitions,
-                        self.parameter_value_lists,
-                        self.list_values,
-                    )
-
-            for data in _pass:
-                with self.subTest(_type=_type, data=data):
-                    replace_parameter_values_with_list_references(
-                        self.get_item(_type, data),
-                        self.parameter_definitions,
-                        self.parameter_value_lists,
-                        self.list_values,
-                    )
+                    item = self.get_item(id_, value, 1)
+                    _, errors = self.db_map.add_items("parameter_value", item)
+                    self.assertEqual(len(errors), 1)
+                    parsed_value = json.loads(value.decode('utf8'))
+                    if isinstance(parsed_value, Number):
+                        parsed_value = float(parsed_value)
+                    self.assertEqual(errors[0], f"value {parsed_value} of par{id_} for ('Tom',) is not in list{id_}")
+            for k, value in enumerate(pass_):
+                with self.subTest(type=type_, value=value):
+                    item = self.get_item(id_, value, k + 1)
+                    _, errors = self.db_map.add_items("parameter_value", item)
+                    self.assertEqual(errors, [])
