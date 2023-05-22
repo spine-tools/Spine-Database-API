@@ -221,10 +221,10 @@ class ParameterDefinitionItem(CacheItemBase):
         return d
 
     def merge(self, other):
-        parameter_value_list_id = other.get("parameter_value_list_id")
+        other_parameter_value_list_id = other.get("parameter_value_list_id")
         if (
-            parameter_value_list_id is not None
-            and parameter_value_list_id != self["parameter_value_list_id"]
+            other_parameter_value_list_id is not None
+            and other_parameter_value_list_id != self["parameter_value_list_id"]
             and any(
                 x["parameter_definition_id"] == self["id"]
                 for x in self._db_cache.table_cache("parameter_value").values()
@@ -299,7 +299,7 @@ class ParameterValueItem(CacheItemBase):
         if list_value_id is None:
             return (
                 f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
-                "is not in {list_name}"
+                f"is not in {list_name}"
             )
         self["value"] = list_value_id
         self["type"] = "list_value_ref"

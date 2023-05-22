@@ -180,8 +180,11 @@ class TestDatabaseMappingRemove(unittest.TestCase):
     def test_remove_object_class(self):
         """Test adding and removing an object class and committing"""
         items, _ = self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
-        self._db_map.remove_items("object_class", *{x["id"] for x in items})
-        self._db_map.commit_session("delete")
+        self.assertEqual(len(items), 2)
+        self._db_map.remove_items("object_class", 1, 2)
+        with self.assertRaises(SpineDBAPIError):
+            # Nothing to commit
+            self._db_map.commit_session("delete")
         self.assertEqual(len(self._db_map.query(self._db_map.object_class_sq).all()), 0)
 
     def test_remove_object_class_from_committed_session(self):
@@ -313,6 +316,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         entity_metadata = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata), 1)
         self._db_map.remove_items("entity_metadata", entity_metadata[0].id)
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
@@ -367,6 +371,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
         self._db_map.commit_session("Add test data.")
         self._db_map.remove_items("object", 1)
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
@@ -383,6 +388,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         )
         self._db_map.commit_session("Add test data.")
         self._db_map.remove_items("relationship", 2)
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)
@@ -401,6 +407,7 @@ class TestDatabaseMappingRemove(unittest.TestCase):
         )
         self._db_map.commit_session("Add test data.")
         self._db_map.remove_items("parameter_value", 1)
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Remove test data.")
         self.assertEqual(len(self._db_map.query(self._db_map.metadata_sq).all()), 0)
         self.assertEqual(len(self._db_map.query(self._db_map.entity_metadata_sq).all()), 0)

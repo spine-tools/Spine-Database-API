@@ -712,13 +712,14 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 2)
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 2})
+        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3})
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 1)
-        self.assertEqual(dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 2})
+        self.assertEqual(dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3})
 
     def test_update_object_metadata_reuses_existing_metadata(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
@@ -738,6 +739,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         ids = {x["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
@@ -746,7 +748,7 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         )
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 2)
-        self.assertEqual(dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 2})
+        self.assertEqual(dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3})
         self.assertEqual(dict(entity_metadata_entries[1]), {"id": 2, "entity_id": 2, "metadata_id": 2, "commit_id": 2})
 
     def test_update_object_metadata_keeps_metadata_still_in_use(self):
@@ -793,14 +795,15 @@ class TestDatabaseMappingUpdateMixin(unittest.TestCase):
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 2)
+        self._db_map.remove_unused_metadata()
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 2})
+        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3})
         value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata_entries), 1)
         self.assertEqual(
-            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": 2}
+            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": 3}
         )
 
     def test_update_parameter_value_metadata_will_not_delete_shared_entity_metadata(self):
