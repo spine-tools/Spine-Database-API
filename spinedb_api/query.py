@@ -23,6 +23,14 @@ class Query:
     def subquery(self, name=None):
         return self._select.alias(name)
 
+    def column_names(self):
+        yield from (column.description for column in self._select.columns)
+
+    def add_columns(self, *columns):
+        for column in columns:
+            self._select.append_column(column)
+        return self
+
     def filter(self, *args):
         self._select = self._select.where(*args)
         return self

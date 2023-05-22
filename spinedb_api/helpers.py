@@ -77,6 +77,7 @@ model_meta = MetaData(naming_convention=naming_convention)
 
 LONGTEXT_LENGTH = 2 ** 32 - 1
 
+
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
 # For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
 # plus a CHECK constraint that at least one of the two is NOT NULL.
@@ -181,6 +182,7 @@ def is_head_engine(engine, upgrade=False):
             return True
         if not upgrade:
             return False
+
         # Upgrade function
         def fn(rev, context):
             return script._upgrade_revs("head", rev)

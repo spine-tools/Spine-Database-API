@@ -44,7 +44,12 @@ class ConvertSpec:
     RETURN_TYPE = str
 
     def __call__(self, value):
-        return self.RETURN_TYPE(value)
+        try:
+            return self.RETURN_TYPE(value)
+        except ValueError as error:
+            if not value:
+                return None
+            raise error
 
     def to_json_value(self):
         return self.DISPLAY_NAME

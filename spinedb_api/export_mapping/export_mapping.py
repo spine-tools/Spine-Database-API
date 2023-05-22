@@ -15,7 +15,7 @@ Contains export mappings for database items such as entities, entity classes and
 
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.sql.expression import literal
 from ..parameter_value import (
     from_database_to_single_value,
@@ -55,7 +55,6 @@ class _MappingWithLeafMixin:
 
 
 class ExportMapping(Mapping):
-
     _TITLE_SEP = ","
 
     def __init__(self, position, value=None, header="", filter_re=""):
@@ -421,7 +420,7 @@ class ExportMapping(Mapping):
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
-        for db_row in qry.yield_per(1000):
+        for db_row in qry:
             yield from self.get_rows_recursive(db_row)
 
     def has_titles(self):
@@ -633,18 +632,34 @@ class EntityClassMapping(ExportMapping):
 
     MAP_TYPE = "EntityClass"
 
+    def __init__(self, position, value=None, header="", filter_re="", highlight_position=None):
+        super().__init__(position, value, header, filter_re)
+        self.highlight_position = highlight_position
+
     def add_query_columns(self, db_map, query):
-        return query.add_columns(
+        query = query.add_columns(
             db_map.wide_entity_class_sq.c.id.label("entity_class_id"),
             db_map.wide_entity_class_sq.c.name.label("entity_class_name"),
             db_map.wide_entity_class_sq.c.dimension_id_list.label("dimension_id_list"),
             db_map.wide_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
         )
+        if self.highlight_position is not None:
+            query = query.add_columns(
+                db_map.entity_class_dimension_sq.c.dimension_id.label("highlighted_dimension_id")
+            )
+        return query
 
     def filter_query(self, db_map, query):
         if any(isinstance(m, (DimensionMapping, ElementMapping)) for m in self.flatten()):
-            return query.filter(db_map.wide_entity_class_sq.c.dimension_id_list != None)
-        return query.filter(db_map.wide_entity_class_sq.c.dimension_id_list == None)
+            query = query.filter(db_map.wide_entity_class_sq.c.dimension_id_list != None)
+        else:
+            query = query.filter(db_map.wide_entity_class_sq.c.dimension_id_list == None)
+        if self.highlight_position is not None:
+            query = query.outerjoin(
+                db_map.entity_class_dimension_sq,
+                db_map.entity_class_dimension_sq.c.entity_class_id == db_map.wide_entity_class_sq.c.id,
+            ).filter(db_map.entity_class_dimension_sq.c.position == self.highlight_position)
+        return query
 
     @staticmethod
     def name_field():
@@ -656,14 +671,29 @@ class EntityClassMapping(ExportMapping):
         return "entity_class_name"
 
     def query_parents(self, what):
-        if what != "dimension":
-            return super().query_parents(what)
-        return -1
+        if what == "dimension":
+            return -1
+        if what == "highlight_position":
+            return self.highlight_position
+        return super().query_parents(what)
 
     def _title_state(self, db_row):
         state = super()._title_state(db_row)
         state["dimension_id_list"] = getattr(db_row, "dimension_id_list")
         return state
+
+    def to_dict(self):
+        mapping_dict = super().to_dict()
+        if self.highlight_position is not None:
+            mapping_dict["highlight_position"] = self.highlight_position
+        return mapping_dict
+
+    @classmethod
+    def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
+        highlight_position = mapping_dict.get("highlight_position")
+        mapping = cls(position, value, header, filter_re, highlight_position)
+        mapping.set_ignorable(ignorable)
+        return mapping
 
 
 class EntityMapping(ExportMapping):
@@ -675,17 +705,25 @@ class EntityMapping(ExportMapping):
     MAP_TYPE = "Entity"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(
+        query = query.add_columns(
             db_map.wide_entity_sq.c.id.label("entity_id"),
             db_map.wide_entity_sq.c.name.label("entity_name"),
             db_map.wide_entity_sq.c.element_id_list,
             db_map.wide_entity_sq.c.element_name_list,
         )
+        if self.query_parents("highlight_position") is not None:
+            query = query.add_columns(db_map.entity_sq.c.element_id.label("highlighted_element_id"))
+        return query
 
     def filter_query(self, db_map, query):
-        return query.outerjoin(
+        query = query.outerjoin(
             db_map.wide_entity_sq, db_map.wide_entity_sq.c.class_id == db_map.wide_entity_class_sq.c.id
         )
+        if (highlight_position := self.query_parents("highlight_position")) is not None:
+            query = query.outerjoin(
+                db_map.entity_sq, db_map.entity_sq.c.id == db_map.wide_entity_sq.c.id
+            ).filter(db_map.entity_sq.c.position == highlight_position)
+        return query
 
     @staticmethod
     def name_field():
@@ -696,9 +734,9 @@ class EntityMapping(ExportMapping):
         return "entity_id"
 
     def query_parents(self, what):
-        if what != "dimension":
-            return super().query_parents(what)
-        return -1
+        if what == "dimension":
+            return -1
+        return super().query_parents(what)
 
     def _title_state(self, db_row):
         state = super()._title_state(db_row)
@@ -768,64 +806,6 @@ class EntityGroupEntityMapping(ExportMapping):
         return isinstance(parent, EntityGroupMapping)
 
 
-class DimensionHighlightingMapping(EntityClassMapping):
-    """Maps entity classes.
-
-    Adds dimension chosen by highlight_dimension to the query.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "DimensionHighlighting"
-
-    def __init__(self, position, value=None, header="", filter_re="", highlight_dimension=0):
-        super().__init__(position, value, header, filter_re)
-        self._highlight_dimension = highlight_dimension
-
-    @property
-    def highlight_dimension(self):
-        return self._highlight_dimension
-
-    @highlight_dimension.setter
-    def highlight_dimension(self, dimension):
-        self._highlight_dimension = dimension
-
-    def add_query_columns(self, db_map, query):
-        query = super().add_query_columns(db_map, query)
-        return query.add_columns(db_map.entity_class_sq.c.id.label("dimension_id"))
-
-    def filter_query(self, db_map, query):
-        highlighted_dimension_qry = db_map.query(db_map.entity_class_dimension_sq).filter_by(
-            position=self._highlight_dimension
-        )
-        conditions = (
-            and_(db_map.wide_entity_class_sq.c.id == x.entity_class_id, db_map.entity_class_sq.c.id == x.dimension_id)
-            for x in highlighted_dimension_qry
-        )
-        return query.filter(or_(*conditions))
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-    def query_parents(self, what):
-        if what != "highlight_dimension":
-            return super().query_parents(what)
-        return self._highlight_dimension
-
-    def to_dict(self):
-        mapping_dict = super().to_dict()
-        mapping_dict["highlight_dimension"] = self._highlight_dimension
-        return mapping_dict
-
-    @classmethod
-    def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
-        highlight_dimension = mapping_dict["highlight_dimension"]
-        mapping = cls(position, value, header, filter_re, highlight_dimension)
-        mapping.set_ignorable(ignorable)
-        return mapping
-
-
 class DimensionMapping(ExportMapping):
     """Maps dimensions.
 
@@ -863,36 +843,6 @@ class DimensionMapping(ExportMapping):
     @staticmethod
     def is_buddy(parent):
         return isinstance(parent, EntityClassMapping)
-
-
-class ElementHighlightingMapping(EntityMapping):
-    """Maps entities.
-
-    Adds elements chosen by highlight_dimension in dimension highlighting mapping to the query.
-
-    Cannot be used as the topmost mapping;
-    one of the parents must be :class:`DimensionHighlightingMapping`.
-    """
-
-    MAP_TYPE = "ElementHighlighting"
-
-    def add_query_columns(self, db_map, query):
-        query = super().add_query_columns(db_map, query)
-        return query.add_columns(db_map.entity_sq.c.id.label("element_id"))
-
-    def filter_query(self, db_map, query):
-        highlighted_element_qry = db_map.query(db_map.entity_element_sq).filter_by(
-            position=self.query_parents("highlight_dimension")
-        )
-        conditions = (
-            and_(db_map.wide_entity_sq.c.id == x.entity_id, db_map.entity_sq.c.id == x.element_id)
-            for x in highlighted_element_qry
-        )
-        return query.filter(or_(*conditions))
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, DimensionHighlightingMapping)
 
 
 class ElementMapping(ExportMapping):
@@ -950,9 +900,7 @@ class ParameterDefinitionMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        column_names = {c["name"] for c in query.column_descriptions}
-        # "dimension_id" in column_names means a DimensionHighlightingMapping is acting
-        entity_class_sq = db_map.entity_class_sq if "dimension_id" in column_names else db_map.wide_entity_class_sq
+        entity_class_sq = db_map.entity_class_sq if self.query_parents("highlight_position") is not None else db_map.wide_entity_class_sq
         return query.outerjoin(
             db_map.parameter_definition_sq,
             db_map.parameter_definition_sq.c.entity_class_id == entity_class_sq.c.id,
@@ -1060,7 +1008,7 @@ class ParameterDefaultValueIndexMapping(_MappingWithLeafMixin, ExportMapping):
     MAP_TYPE = "ParameterDefaultValueIndex"
 
     def add_query_columns(self, db_map, query):
-        if "default_value" in {c["name"] for c in query.column_descriptions}:
+        if "default_value" in set(query.column_names):
             return query
         return query.add_columns(
             db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
@@ -1120,7 +1068,7 @@ class ParameterValueMapping(ExportMapping):
     _selects_value = False
 
     def add_query_columns(self, db_map, query):
-        if "value" in {c["name"] for c in query.column_descriptions}:
+        if "value" in set(query.column_names()):
             return query
         self._selects_value = True
         return query.add_columns(db_map.parameter_value_sq.c.value, db_map.parameter_value_sq.c.type)
@@ -1128,8 +1076,7 @@ class ParameterValueMapping(ExportMapping):
     def filter_query(self, db_map, query):
         if not self._selects_value:
             return query
-        column_names = {c["name"] for c in query.column_descriptions}
-        entity_sq = db_map.entity_sq if "element_id" in column_names else db_map.wide_entity_sq
+        entity_sq = db_map.entity_sq if self.query_parents("highlight_position") is not None else db_map.wide_entity_sq
         return query.filter(
             and_(
                 db_map.parameter_value_sq.c.entity_id == entity_sq.c.id,
@@ -1177,7 +1124,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         pv = title_state.pop("type_and_dimensions", None)
         if pv is None:
             return query
-        if "value" not in {c["name"] for c in query.column_descriptions}:
+        if "value" not in set(query.column_names()):
             return query
         return _FilteredQuery(
             query, lambda db_row: (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type) == pv)
@@ -1583,8 +1530,6 @@ def from_dict(serialized):
             AlternativeMapping,
             DefaultValueIndexNameMapping,
             DimensionMapping,
-            DimensionHighlightingMapping,
-            ElementHighlightingMapping,
             ElementMapping,
             ExpandedParameterDefaultValueMapping,
             ExpandedParameterValueMapping,
@@ -1629,13 +1574,15 @@ def from_dict(serialized):
         "RelationshipClassObjectClass": DimensionMapping,
         "Relationship": EntityMapping,
         "RelationshipObject": ElementMapping,
-        "RelationshipClassObjectHighlightingMapping": DimensionHighlightingMapping,
-        "RelationshipObjectHighlightingMapping": ElementHighlightingMapping,
+        "RelationshipClassObjectHighlightingMapping": EntityClassMapping,
+        "RelationshipObjectHighlightingMapping": ElementMapping,
     }
     mappings.update(legacy_mappings)
-    # Legacy
     flattened = list()
     for mapping_dict in serialized:
+        if (highlight_position := mapping_dict.get("highlight_dimension")) is not None:
+            # legacy
+            mapping_dict["highlight_position"] = highlight_position
         position = mapping_dict["position"]
         if isinstance(position, str):
             position = Position(position)

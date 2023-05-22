@@ -17,7 +17,6 @@ import unittest
 from spinedb_api import (
     DatabaseMapping,
     import_alternatives,
-    import_features,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -27,9 +26,6 @@ from spinedb_api import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
-    import_tool_features,
-    import_tool_feature_methods,
-    import_tools,
     Map,
 )
 from spinedb_api.import_functions import import_object_groups
@@ -47,8 +43,6 @@ from spinedb_api.export_mapping.export_mapping import (
     FixedValueMapping,
     ExpandedParameterValueMapping,
     ExpandedParameterDefaultValueMapping,
-    FeatureEntityClassMapping,
-    FeatureParameterDefinitionMapping,
     from_dict,
     EntityGroupMapping,
     EntityGroupEntityMapping,
@@ -63,19 +57,10 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueMapping,
     ParameterValueTypeMapping,
     DimensionMapping,
-    DimensionHighlightingMapping,
-    ElementHighlightingMapping,
     ElementMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioMapping,
-    ToolMapping,
-    ToolFeatureEntityClassMapping,
-    ToolFeatureParameterDefinitionMapping,
-    ToolFeatureRequiredFlagMapping,
-    ToolFeatureMethodEntityClassMapping,
-    ToolFeatureMethodMethodMapping,
-    ToolFeatureMethodParameterDefinitionMapping,
 )
 from spinedb_api.mapping import unflatten
 
@@ -1005,6 +990,8 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a2"], ["s2", "a3"]]})
         db_map.connection.close()
 
+
+    @unittest.skip("tools missing in API")
     def test_tool_mapping(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_tools(db_map, ("tool1", "tool2"))
@@ -1016,6 +1003,7 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(tables, {None: [["tool1"], ["tool2"]]})
         db_map.connection.close()
 
+    @unittest.skip("features missing in API")
     def test_feature_mapping(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
@@ -1039,6 +1027,7 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(tables, {None: [["oc1", "p2"], ["oc2", "p3"]]})
         db_map.connection.close()
 
+    @unittest.skip("tool features missing in API")
     def test_tool_feature_mapping(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
@@ -1072,6 +1061,7 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(tables, expected)
         db_map.connection.close()
 
+    @unittest.skip("tool feature methods missing in API")
     def test_tool_feature_method_mapping(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
@@ -1350,16 +1340,14 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual(flattened, [object_class_mapping, parameter_definition_mapping, object_mapping])
 
     def test_serialization(self):
-        highlight_dimension = 5
+        highlight_position = 5
         mappings = [
-            EntityClassMapping(0),
+            EntityClassMapping(0, highlight_position=highlight_position),
             EntityClassMapping(Position.table_name),
-            DimensionHighlightingMapping(Position.header, highlight_dimension=highlight_dimension),
             DimensionMapping(2),
             ParameterDefinitionMapping(1),
             EntityMapping(-1),
             EntityMapping(Position.hidden),
-            ElementHighlightingMapping(9),
             ElementMapping(-1),
             AlternativeMapping(3),
             ParameterValueMapping(4),
@@ -1376,10 +1364,17 @@ class TestExportMapping(unittest.TestCase):
         self.assertEqual([type(m) for m in deserialized], expected_types)
         self.assertEqual([m.position for m in deserialized], expected_positions)
         for m in deserialized:
+            if isinstance(m, EntityClassMapping) and m.highlight_position is not None:
+                self.assertEqual(m.highlight_position, highlight_position)
+                break
+        else:
+            self.fail("no highlight_position in deserialized mappings")
+        for m in deserialized:
             if isinstance(m, FixedValueMapping):
                 self.assertEqual(m.value, "gaga")
-            elif isinstance(m, DimensionHighlightingMapping):
-                self.assertEqual(m.highlight_dimension, highlight_dimension)
+                break
+        else:
+            self.fail("no fixed value in deserialized mappings")
 
     def test_setting_ignorable_flag(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -1554,7 +1549,7 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                DimensionHighlightingMapping(0),
+                EntityClassMapping(0, highlight_position=0),
                 DimensionMapping(1),
                 ParameterDefinitionMapping(2),
             ]
@@ -1570,7 +1565,7 @@ class TestExportMapping(unittest.TestCase):
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
-            [DimensionHighlightingMapping(0), DimensionMapping(1), DimensionMapping(3), ParameterDefinitionMapping(2)]
+            [EntityClassMapping(0, highlight_position=0), DimensionMapping(1), DimensionMapping(3), ParameterDefinitionMapping(2)]
         )
         expected = [["rc", "oc1", "p11", "oc2"], ["rc", "oc1", "p12", "oc2"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
@@ -1587,10 +1582,9 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                DimensionHighlightingMapping(0),
+                EntityClassMapping(0, highlight_position=0),
                 DimensionMapping(1),
                 DimensionMapping(2),
-                ElementHighlightingMapping(3),
                 ElementMapping(4),
                 ElementMapping(5),
             ]
@@ -1613,9 +1607,8 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
             [
-                DimensionHighlightingMapping(0),
+                EntityClassMapping(0, highlight_position=0),
                 DimensionMapping(1),
-                ElementHighlightingMapping(2),
                 ElementMapping(3),
                 ParameterDefinitionMapping(4),
                 AlternativeMapping(5),
@@ -1623,6 +1616,65 @@ class TestExportMapping(unittest.TestCase):
             ]
         )
         expected = [["rc", "oc", "rc_o", "o", "p", "Base", 23.0]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_export_default_values_of_object_parameters_while_exporting_relationships(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc",))
+        import_object_parameters(db_map, (("oc", "p", 23.0),))
+        import_objects(db_map, (("oc", "o"),))
+        import_relationship_classes(db_map, (("rc", ("oc",)),))
+        import_relationships(db_map, (("rc", ("o",)),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                EntityClassMapping(0, highlight_position=0),
+                EntityMapping(1),
+                ParameterDefinitionMapping(2),
+                ParameterDefaultValueMapping(3),
+            ]
+        )
+        expected = [["rc", "oc", "p", 23.0]]
+        self.assertEqual(list(rows(root_mapping, db_map)), expected)
+        db_map.connection.close()
+
+    def test_export_object_parameters_while_exporting_relationships_with_multiple_parameters_and_classes2(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_object_classes(db_map, ("oc1", "oc2", "oc3"))
+        import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21"), ("oc3", "p31")))
+        import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"), ("oc2", "o22"), ("oc3", "o31")))
+        import_object_parameter_values(db_map, (("oc1", "o11", "p11", 1.1),))
+        import_object_parameter_values(db_map, (("oc1", "o11", "p12", 2.2),))
+        import_object_parameter_values(db_map, (("oc1", "o12", "p11", 3.3),))
+        import_object_parameter_values(db_map, (("oc1", "o12", "p12", 4.4),))
+        import_object_parameter_values(db_map, (("oc2", "o21", "p21", 5.5),))
+        import_object_parameter_values(db_map, (("oc2", "o22", "p21", 6.6),))
+        import_object_parameter_values(db_map, (("oc3", "o31", "p31", 7.7),))
+        import_relationship_classes(db_map, (("rc12", ("oc1", "oc2")),))
+        import_relationship_classes(db_map, (("rc23", ("oc2", "oc3")),))
+        import_relationships(db_map, (("rc12", ("o11", "o21")),))
+        import_relationships(db_map, (("rc12", ("o12", "o21")),))
+        import_relationships(db_map, (("rc23", ("o21", "o31")),))
+        db_map.commit_session("Add test data")
+        root_mapping = unflatten(
+            [
+                EntityClassMapping(0, highlight_position=1),
+                DimensionMapping(1),
+                DimensionMapping(2),
+                EntityMapping(3),
+                ElementMapping(4),
+                ElementMapping(5),
+                ParameterDefinitionMapping(6),
+                AlternativeMapping(7),
+                ParameterValueMapping(8),
+            ]
+        )
+        expected = [
+            ["rc12", "oc1", "oc2", "rc12_o11__o21", "o11", "o21", "p21", "Base", 5.5],
+            ["rc12", "oc1", "oc2", "rc12_o12__o21", "o12", "o21", "p21", "Base", 5.5],
+            ["rc23", "oc2", "oc3", "rc23_o21__o31", "o21", "o31", "p31", "Base", 7.7],
+        ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.connection.close()
 

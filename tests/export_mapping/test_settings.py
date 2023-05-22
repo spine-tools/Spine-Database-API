@@ -119,7 +119,7 @@ class TestEntityClassDimensionParameterDefaultValueExport(unittest.TestCase):
             value_type_position=5,
             index_name_positions=None,
             index_positions=None,
-            highlight_dimension=0,
+            highlight_position=0,
         )
         expected = [["rc", "p11", "oc1", "oc2", 2.3, "single_value"], ["rc", "p12", "oc1", "oc2", 5.0, "single_value"]]
         self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
@@ -160,7 +160,7 @@ class TestEntityElementParameterExport(unittest.TestCase):
             alternative_position=7,
             value_type_position=8,
             value_position=9,
-            highlight_dimension=0,
+            highlight_position=0,
         )
         set_entity_dimensions(root_mapping, 2)
         expected = [

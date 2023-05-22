@@ -18,8 +18,6 @@ from .export_mapping import (
     AlternativeMapping,
     AlternativeDescriptionMapping,
     DimensionMapping,
-    DimensionHighlightingMapping,
-    ElementHighlightingMapping,
     ElementMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
@@ -196,7 +194,7 @@ def entity_dimension_parameter_default_value_export(
     value_position=Position.hidden,
     index_name_positions=None,
     index_positions=None,
-    highlight_dimension=0,
+    highlight_position=0,
 ):
     """
     Sets up export mappings for exporting entity classes but with default dimension parameter values.
@@ -209,14 +207,14 @@ def entity_dimension_parameter_default_value_export(
         value_position (int or Position): position of parameter values
         index_name_positions (list of int, optional): positions of index names
         index_positions (list of int, optional): positions of parameter indexes
-        highlight_dimension (int): selected entity class dimension
+        highlight_position (int): selected dimension
 
     Returns:
         ExportMapping: root mapping
     """
     root_mapping = unflatten(
         [
-            DimensionHighlightingMapping(entity_class_position, highlight_dimension=highlight_dimension),
+            EntityClassMapping(entity_class_position, highlight_position=highlight_position),
             ParameterDefinitionMapping(definition_position),
         ]
     )
@@ -239,7 +237,7 @@ def entity_dimension_parameter_value_export(
     value_position=Position.hidden,
     index_name_positions=None,
     index_positions=None,
-    highlight_dimension=0,
+    highlight_position=0,
 ):
     """
     Sets up export mappings for exporting entities and element parameter values.
@@ -256,22 +254,23 @@ def entity_dimension_parameter_value_export(
         value_position (int or Position): position of parameter values
         index_name_positions (list of int, optional): positions of index names
         index_positions (list of int, optional): positions of parameter indexes
-        highlight_dimension (int): selected object class' entity dimension
+        highlight_position (int): selected dimension position
 
     Returns:
         ExportMapping: root mapping
     """
+    # TODO fix dimension highlighting
     if dimension_positions is None:
         dimension_positions = list()
     if element_positions is None:
         element_positions = list()
-    entity_class = DimensionHighlightingMapping(entity_class_position, highlight_dimension=highlight_dimension)
+    entity_class = EntityClassMapping(entity_class_position, highlight_position=highlight_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     value_list = ParameterValueListMapping(value_list_position)
     value_list.set_ignorable(True)
     definition = ParameterDefinitionMapping(definition_position)
     dimension.child = definition
-    entity = ElementHighlightingMapping(entity_position)
+    entity = ElementMapping(entity_position)
     definition.child = value_list
     value_list.child = entity
     element = _generate_dimensions(entity, ElementMapping, element_positions)
