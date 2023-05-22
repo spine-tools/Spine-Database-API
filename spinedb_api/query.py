@@ -30,7 +30,6 @@ class Query:
     def column_names(self):
         yield from (c.name for c in self._select.columns)
 
-
     def subquery(self, name=None):
         return self._select.alias(name)
 

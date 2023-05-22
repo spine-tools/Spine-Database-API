@@ -644,9 +644,7 @@ class EntityClassMapping(ExportMapping):
             db_map.wide_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
         )
         if self.highlight_position is not None:
-            query = query.add_columns(
-                db_map.entity_class_dimension_sq.c.dimension_id.label("highlighted_dimension_id")
-            )
+            query = query.add_columns(db_map.entity_class_dimension_sq.c.dimension_id.label("highlighted_dimension_id"))
         return query
 
     def filter_query(self, db_map, query):
@@ -901,7 +899,7 @@ class ParameterDefinitionMapping(ExportMapping):
 
     def filter_query(self, db_map, query):
         if self.query_parents("highlight_position") is not None:
-            return  query.outerjoin(
+            return query.outerjoin(
                 db_map.parameter_definition_sq,
                 db_map.parameter_definition_sq.c.entity_class_id == db_map.entity_class_dimension_sq.c.dimension_id,
             )

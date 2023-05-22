@@ -1448,7 +1448,12 @@ class TestExportMapping(unittest.TestCase):
         import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
         db_map.commit_session("Add test data")
         root_mapping = unflatten(
-            [EntityClassMapping(0, highlight_position=0), DimensionMapping(1), DimensionMapping(3), ParameterDefinitionMapping(2)]
+            [
+                EntityClassMapping(0, highlight_position=0),
+                DimensionMapping(1),
+                DimensionMapping(3),
+                ParameterDefinitionMapping(2),
+            ]
         )
         expected = [["rc", "oc1", "p11", "oc2"], ["rc", "oc1", "p12", "oc2"]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
