@@ -31,8 +31,9 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
         scenario (str or int): scenario name or id
     """
     state = _ScenarioFilterState(db_map, scenario)
-    make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
-    db_map.override_entity_sq_maker(make_entity_sq)
+    # FIXME
+    # make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
+    # db_map.override_entity_sq_maker(make_entity_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
     make_alternative_sq = partial(_make_scenario_filtered_alternative_sq, state=state)
@@ -204,14 +205,14 @@ def _make_scenario_filtered_entity_sq(db_map, state):
                 order_by=desc(db_map.scenario_alternative_sq.c.rank),
             )
             .label("max_rank_row_number"),
-            db_map.entity_alternative_sq.active.label("active"),
+            db_map.entity_alternative_sq.c.active.label("active"),
         )
         .filter(state.original_entity_sq.c.id == db_map.entity_alternative_sq.c.entity_id)
         .filter(db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
     # TODO: Maybe we want to filter multi-dimensional entities involving filtered entities right here too?
-    return db_map.query(wide_entity_sq).filter_by(max_rank_row_number=1, is_active=True).subquery()
+    return db_map.query(wide_entity_sq).filter_by(max_rank_row_number=1, active=True).subquery()
 
 
 def _make_scenario_filtered_parameter_value_sq(db_map, state):
@@ -237,7 +238,7 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
                     state.original_parameter_value_sq.c.entity_id,
                 ],
                 order_by=desc(db_map.scenario_alternative_sq.c.rank),
-            )
+            )  # the one with the highest rank will have row_number equal to 1, so it will 'win' in the filter below
             .label("max_rank_row_number"),
         )
         .filter(state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)

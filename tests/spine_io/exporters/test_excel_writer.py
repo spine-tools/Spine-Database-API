@@ -41,7 +41,7 @@ class TestExcelWriter(unittest.TestCase):
         sheet = workbook["Sheet1"]
         self.assertEqual(sheet.calculate_dimension(), "A1:A1")
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_single_object_class_and_object(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -57,7 +57,7 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["oc", "o1"]]
         self.check_sheet(workbook, "Sheet1", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_to_existing_sheet(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -73,7 +73,7 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["o1"], ["o2"]]
         self.check_sheet(workbook, "Sheet1", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_to_named_sheets(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -91,7 +91,7 @@ class TestExcelWriter(unittest.TestCase):
         expected = [[None, "o21"]]
         self.check_sheet(workbook, "oc2", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_append_to_anonymous_table(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -108,7 +108,7 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["oc", "o1"], ["oc", "o1"]]
         self.check_sheet(workbook, "Sheet1", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_append_to_named_table(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -125,7 +125,7 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["o1"], ["o1"]]
         self.check_sheet(workbook, "oc", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def check_sheet(self, workbook, sheet_name, expected):
         """

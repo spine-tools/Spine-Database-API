@@ -270,7 +270,7 @@ def entity_dimension_parameter_value_export(
     value_list.set_ignorable(True)
     definition = ParameterDefinitionMapping(definition_position)
     dimension.child = definition
-    entity = ElementMapping(entity_position)
+    entity = EntityMapping(entity_position)
     definition.child = value_list
     value_list.child = entity
     element = _generate_dimensions(entity, ElementMapping, element_positions)

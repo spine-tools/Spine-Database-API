@@ -24,7 +24,8 @@ from spinedb_api import DatabaseMapping
 
 class TestMigration(unittest.TestCase):
     @unittest.skip(
-        "default_values's server_default has been changed from 0 to NULL in the create scrip, but there's no associated upgrade script yet."
+        "default_values's server_default has been changed from 0 to NULL in the create scrip, "
+        "but there's no associated upgrade script yet."
     )
     def test_upgrade_schema(self):
         """Tests that the upgrade scripts produce the same schema as the function to create
@@ -93,27 +94,30 @@ class TestMigration(unittest.TestCase):
             engine.execute("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 2, '-1')")
             # Upgrade the db and check that our stuff is still there
             db_map = DatabaseMapping(db_url, upgrade=True)
-            object_classes = {x.id: x.name for x in db_map.object_class_list()}
-            objects = {x.id: (object_classes[x.class_id], x.name) for x in db_map.object_list()}
-            rel_clss = {x.id: (x.name, x.object_class_name_list) for x in db_map.wide_relationship_class_list()}
+            object_classes = {x.id: x.name for x in db_map.query(db_map.object_class_sq)}
+            objects = {x.id: (object_classes[x.class_id], x.name) for x in db_map.query(db_map.object_sq)}
+            rel_clss = {
+                x.id: (x.name, x.object_class_name_list) for x in db_map.query(db_map.wide_relationship_class_sq)
+            }
             rels = {
-                x.id: (rel_clss[x.class_id][0], x.name, x.object_name_list) for x in db_map.wide_relationship_list()
+                x.id: (rel_clss[x.class_id][0], x.name, x.object_name_list)
+                for x in db_map.query(db_map.wide_relationship_sq)
             }
             obj_par_defs = {
                 x.id: (object_classes[x.object_class_id], x.parameter_name)
-                for x in db_map.object_parameter_definition_list()
+                for x in db_map.query(db_map.object_parameter_definition_sq)
             }
             rel_par_defs = {
                 x.id: (rel_clss[x.relationship_class_id][0], x.parameter_name)
-                for x in db_map.relationship_parameter_definition_list()
+                for x in db_map.query(db_map.relationship_parameter_definition_sq)
             }
             obj_par_vals = {
                 (obj_par_defs[x.parameter_id][1], objects[x.object_id][1], x.value)
-                for x in db_map.object_parameter_value_list()
+                for x in db_map.query(db_map.object_parameter_value_sq)
             }
             rel_par_vals = {
                 (rel_par_defs[x.parameter_id][1], rels[x.relationship_id][1], x.value)
-                for x in db_map.relationship_parameter_value_list()
+                for x in db_map.query(db_map.relationship_parameter_value_sq)
             }
             self.assertTrue(len(object_classes), 2)
             self.assertTrue(len(objects), 3)
@@ -138,4 +142,4 @@ class TestMigration(unittest.TestCase):
             self.assertTrue(('breed', 'pluto', b'"labrador"') in obj_par_vals)
             self.assertTrue(('relative_speed', 'pluto__nemo', b'100') in rel_par_vals)
             self.assertTrue(('relative_speed', 'scooby__nemo', b'-1') in rel_par_vals)
-            db_map.connection.close()
+            db_map.close()

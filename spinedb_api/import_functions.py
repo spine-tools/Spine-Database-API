@@ -18,7 +18,6 @@ from .parameter_value import to_database, fix_conflict
 from .helpers import _parse_metadata
 
 # TODO: update docstrings
-# FIXME: alt_id, alternative_name = db_map.get_import_alternative()
 
 
 class ImportErrorLogItem:
@@ -130,11 +129,13 @@ def get_data_for_import(
     scenarios=(),
     scenario_alternatives=(),
     metadata=(),
+    entity_metadata=(),
+    parameter_value_metadata=(),
     object_metadata=(),
     relationship_metadata=(),
     object_parameter_value_metadata=(),
     relationship_parameter_value_metadata=(),
-    # FIXME: compat
+    # legacy
     tools=(),
     features=(),
     tool_features=(),
@@ -176,10 +177,10 @@ def get_data_for_import(
         yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
     if scenario_alternatives:
         if not scenarios:
-            scenarios = (item[0] for item in scenario_alternatives)
+            scenarios = list({item[0]: None for item in scenario_alternatives})
             yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
         if not alternatives:
-            alternatives = (item[1] for item in scenario_alternatives)
+            alternatives = list({item[1]: None for item in scenario_alternatives})
             yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
     if entity_classes:
@@ -187,7 +188,7 @@ def get_data_for_import(
     if object_classes:
         yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
     if relationship_classes:
-        yield ("relationship_class", _get_relationship_classes_for_import(db_map, relationship_classes))
+        yield ("relationship_class", _get_entity_classes_for_import(db_map, relationship_classes))
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
@@ -197,22 +198,22 @@ def get_data_for_import(
             _get_parameter_definitions_for_import(db_map, parameter_definitions, unparse_value),
         )
     if object_parameters:
-        yield ("parameter_definition", _get_object_parameters_for_import(db_map, object_parameters, unparse_value))
+        yield ("parameter_definition", _get_parameter_definitions_for_import(db_map, object_parameters, unparse_value))
     if relationship_parameters:
         yield (
             "parameter_definition",
-            _get_relationship_parameters_for_import(db_map, relationship_parameters, unparse_value),
+            _get_parameter_definitions_for_import(db_map, relationship_parameters, unparse_value),
         )
     if entities:
         yield ("entity", _get_entities_for_import(db_map, entities))
     if objects:
-        yield ("object", _get_objects_for_import(db_map, objects))
+        yield ("object", _get_entities_for_import(db_map, objects))
     if relationships:
-        yield ("relationship", _get_relationships_for_import(db_map, relationships))
+        yield ("relationship", _get_entities_for_import(db_map, relationships))
     if entity_groups:
         yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
     if object_groups:
-        yield ("entity_group", _get_object_groups_for_import(db_map, object_groups))
+        yield ("entity_group", _get_entity_groups_for_import(db_map, object_groups))
     if parameter_values:
         yield (
             "parameter_value",
@@ -221,31 +222,28 @@ def get_data_for_import(
     if object_parameter_values:
         yield (
             "parameter_value",
-            _get_object_parameter_values_for_import(db_map, object_parameter_values, unparse_value, on_conflict),
+            _get_parameter_values_for_import(db_map, object_parameter_values, unparse_value, on_conflict),
         )
     if relationship_parameter_values:
         yield (
             "parameter_value",
-            _get_relationship_parameter_values_for_import(
-                db_map, relationship_parameter_values, unparse_value, on_conflict
-            ),
+            _get_parameter_values_for_import(db_map, relationship_parameter_values, unparse_value, on_conflict),
         )
     if metadata:
         yield ("metadata", _get_metadata_for_import(db_map, metadata))
+    if entity_metadata:
+        yield ("metadata", _get_metadata_for_import(db_map, (metadata for _, _, metadata in entity_metadata)))
+        yield ("entity_metadata", _get_entity_metadata_for_import(db_map, entity_metadata))
+    if parameter_value_metadata:
+        yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:
-        yield ("entity_metadata", _get_object_metadata_for_import(db_map, object_metadata))
+        yield from get_data_for_import(db_map, entity_metadata=object_metadata)
     if relationship_metadata:
-        yield ("entity_metadata", _get_relationship_metadata_for_import(db_map, relationship_metadata))
+        yield from get_data_for_import(db_map, entity_metadata=relationship_metadata)
     if object_parameter_value_metadata:
-        yield (
-            "parameter_value_metadata",
-            _get_object_parameter_value_metadata_for_import(db_map, object_parameter_value_metadata),
-        )
+        yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
     if relationship_parameter_value_metadata:
-        yield (
-            "parameter_value_metadata",
-            _get_relationship_parameter_value_metadata_for_import(db_map, relationship_parameter_value_metadata),
-        )
+        yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
 
 
 def import_entity_classes(db_map, data):
@@ -744,24 +742,44 @@ def import_relationship_parameter_value_metadata(db_map, data):
     return import_data(db_map, relationship_parameter_value_metadata=data)
 
 
-def _get_items_for_import(db_map, item_type, data):
+def _get_items_for_import(db_map, item_type, data, skip_keys=()):
     table_cache = db_map.cache.table_cache(item_type)
     errors = []
     to_add = []
     to_update = []
-    with db_map.generate_ids(item_type) as new_id:
-        for item in data:
-            checked_item, error = table_cache.check_item(item)
-            if not error:
-                item["id"] = new_id()
-                to_add.append(checked_item)
+    seen = {}
+    for item in data:
+        checked_item, add_error = table_cache.check_item(item, skip_keys=skip_keys)
+        if not add_error:
+            if not _check_unique(item_type, checked_item, seen, errors):
                 continue
-            checked_item, error = table_cache.check_item(item, for_update=True)
-            if not error:
+            to_add.append(checked_item)
+            continue
+        checked_item, update_error = table_cache.check_item(item, for_update=True, skip_keys=skip_keys)
+        if not update_error:
+            if checked_item:
+                if not _check_unique(item_type, checked_item, seen, errors):
+                    continue
                 to_update.append(checked_item)
-                continue
-            errors.append(error)
+            continue
+        errors.append(add_error)
     return to_add, to_update, errors
+
+
+def _check_unique(item_type, checked_item, seen, errors):
+    dupe_key = _add_to_seen(checked_item, seen)
+    if not dupe_key:
+        return True
+    if item_type in ("parameter_value",):
+        errors.append(f"attempting to import more than one {item_type} with {dupe_key} - only first will be considered")
+    return False
+
+
+def _add_to_seen(checked_item, seen):
+    for key, value in checked_item.unique_values():
+        if value in seen.get(key, set()):
+            return dict(zip(key, value))
+        seen.setdefault(key, set()).add(value)
 
 
 def _get_entity_classes_for_import(db_map, data):
@@ -805,12 +823,23 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
         for class_name, entity_byname, parameter_name, value, *optionals in data:
             if isinstance(entity_byname, str):
                 entity_byname = (entity_byname,)
+            alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
             value, type_ = unparse_value(value)
-            yield class_name, entity_byname, parameter_name, value, type_, *optionals
+            item = {
+                "entity_class_name": class_name,
+                "entity_byname": entity_byname,
+                "parameter_definition_name": parameter_name,
+                "alternative_name": alternative_name,
+                "value": None,
+                "type": None,
+            }
+            pv = db_map.cache.table_cache("parameter_value").current_item(item)
+            if pv is not None:
+                value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
+            item.update({"value": value, "type": type_})
+            yield item
 
-    key = ("entity_class_name", "entity_byname", "parameter_definition_name", "value", "type", "alternative_name")
-    return _get_items_for_import(db_map, "parameter_value", (dict(zip(key, x)) for x in _data_iterator()))
-    # FIXME: value, type_ = fix_conflict((value, type_), (current_pv.value, current_pv.type), on_conflict)
+    return _get_items_for_import(db_map, "parameter_value", _data_iterator())
 
 
 def _get_alternatives_for_import(db_map, data):
@@ -828,8 +857,34 @@ def _get_scenarios_for_import(db_map, data):
 
 
 def _get_scenario_alternatives_for_import(db_map, data):
-    key = ("scenario_name", "alternative_name", "before_alternative_name")
-    return _get_items_for_import(db_map, "scenario_alternative", (dict(zip(key, x)) for x in data))
+    alt_name_list_by_scen_name, errors = {}, []
+    for scen_name, alt_name, *optionals in data:
+        scen = db_map.cache.table_cache("scenario").current_item({"name": scen_name})
+        if scen is None:
+            errors.append(f"no scenario with name {scen_name} to set alternatives for")
+            continue
+        alternative_name_list = alt_name_list_by_scen_name.setdefault(scen_name, scen["alternative_name_list"])
+        if alt_name in alternative_name_list:
+            alternative_name_list.remove(alt_name)
+        before_alt_name = optionals[0] if optionals else None
+        if before_alt_name is None:
+            alternative_name_list.append(alt_name)
+            continue
+        if before_alt_name in alternative_name_list:
+            pos = alternative_name_list.index(before_alt_name)
+            alternative_name_list.insert(pos, alt_name)
+        else:
+            errors.append(f"{before_alt_name} is not in {scen_name}")
+
+    def _data_iterator():
+        for scen_name, alternative_name_list in alt_name_list_by_scen_name.items():
+            for k, alt_name in enumerate(alternative_name_list):
+                yield {"scenario_name": scen_name, "alternative_name": alt_name, "rank": k + 1}
+
+    to_add, to_update, more_errors = _get_items_for_import(
+        db_map, "scenario_alternative", _data_iterator(), skip_keys=(("scenario_name", "rank"),)
+    )
+    return to_add, to_update, errors + more_errors
 
 
 def _get_parameter_value_lists_for_import(db_map, data):
@@ -838,9 +893,23 @@ def _get_parameter_value_lists_for_import(db_map, data):
 
 def _get_list_values_for_import(db_map, data, unparse_value):
     def _data_iterator():
+        index_by_list_name = {}
         for list_name, value in data:
             value, type_ = unparse_value(value)
-            yield {"parameter_value_list_name": list_name, "value": value, "type": type_}
+            index = index_by_list_name.get(list_name)
+            if index is None:
+                current_list = db_map.cache.table_cache("parameter_value_list").current_item({"name": list_name})
+                index = max(
+                    (
+                        x["index"]
+                        for x in db_map.cache.get("list_value", {}).values()
+                        if x["parameter_value_list_id"] == current_list["id"]
+                    ),
+                    default=-1,
+                )
+            index += 1
+            index_by_list_name[list_name] = index
+            yield {"parameter_value_list_name": list_name, "value": value, "type": type_, "index": index}
 
     return _get_items_for_import(db_map, "list_value", _data_iterator())
 
@@ -871,8 +940,9 @@ def _get_parameter_value_metadata_for_import(db_map, data):
         for class_name, entity_byname, parameter_name, metadata, *optionals in data:
             if isinstance(entity_byname, str):
                 entity_byname = (entity_byname,)
+            alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
             for name, value in _parse_metadata(metadata):
-                yield (class_name, entity_byname, parameter_name, name, value, *optionals)
+                yield (class_name, entity_byname, parameter_name, name, value, alternative_name)
 
     key = (
         "entity_class_name",
@@ -891,55 +961,8 @@ def _get_object_classes_for_import(db_map, data):
         for x in data:
             if isinstance(x, str):
                 yield x
+                continue
             name, *optionals = x
             yield name, (), *optionals
 
     return _get_entity_classes_for_import(db_map, _data_iterator())
-
-
-def _get_relationship_classes_for_import(db_map, data):
-    return _get_entity_classes_for_import(db_map, data)
-
-
-def _get_objects_for_import(db_map, data):
-    return _get_entities_for_import(db_map, data)
-
-
-def _get_relationships_for_import(db_map, data):
-    return _get_entities_for_import(db_map, data)
-
-
-def _get_object_groups_for_import(db_map, data):
-    return _get_entity_groups_for_import(db_map, data)
-
-
-def _get_object_parameters_for_import(db_map, data, unparse_value):
-    return _get_parameter_definitions_for_import(db_map, data, unparse_value)
-
-
-def _get_relationship_parameters_for_import(db_map, data, unparse_value):
-    return _get_parameter_definitions_for_import(db_map, data, unparse_value)
-
-
-def _get_object_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
-    return _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict)
-
-
-def _get_relationship_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
-    return _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict)
-
-
-def _get_object_metadata_for_import(db_map, data):
-    return _get_entity_metadata_for_import(db_map, data)
-
-
-def _get_relationship_metadata_for_import(db_map, data):
-    return _get_entity_metadata_for_import(db_map, data)
-
-
-def _get_object_parameter_value_metadata_for_import(db_map, data):
-    return _get_parameter_value_metadata_for_import(db_map, data)
-
-
-def _get_relationship_parameter_value_metadata_for_import(db_map, data):
-    return _get_parameter_value_metadata_for_import(db_map, data)

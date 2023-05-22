@@ -93,7 +93,7 @@ class TestEntityParameterExport(unittest.TestCase):
             [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
-        db_map.connection.close()
+        db_map.close()
 
 
 class TestEntityClassDimensionParameterDefaultValueExport(unittest.TestCase):
@@ -101,7 +101,7 @@ class TestEntityClassDimensionParameterDefaultValueExport(unittest.TestCase):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_export_with_two_dimensions(self):
         import_object_classes(self._db_map, ("oc1", "oc2"))
@@ -130,7 +130,7 @@ class TestEntityElementParameterExport(unittest.TestCase):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_export_with_two_dimensions(self):
         import_object_classes(self._db_map, ("oc1", "oc2"))

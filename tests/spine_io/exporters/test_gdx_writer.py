@@ -51,7 +51,7 @@ class TestGdxWriter(unittest.TestCase):
             write(db_map, writer, root_mapping)
             with GdxFile(str(file_path), "r", self._gams_dir) as gdx_file:
                 self.assertEqual(len(gdx_file), 0)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_single_object_class_and_object(self):
@@ -70,7 +70,7 @@ class TestGdxWriter(unittest.TestCase):
                 gams_set = gdx_file["oc"]
                 self.assertIsNone(gams_set.domain)
                 self.assertEqual(gams_set.elements, ["o1"])
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_2D_relationship(self):
@@ -90,7 +90,7 @@ class TestGdxWriter(unittest.TestCase):
                 gams_set = gdx_file["rel"]
                 self.assertEqual(gams_set.domain, ["oc1", "oc2"])
                 self.assertEqual(gams_set.elements, [("o1", "o2")])
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_parameters(self):
@@ -114,7 +114,7 @@ class TestGdxWriter(unittest.TestCase):
                 gams_parameter = gdx_file["oc"]
                 self.assertEqual(len(gams_parameter), 1)
                 self.assertEqual(gams_parameter["o1"], 2.3)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_non_numerical_parameter_value_raises_writer_expection(self):
@@ -133,7 +133,7 @@ class TestGdxWriter(unittest.TestCase):
             file_path = Path(temp_dir, "test_write_parameters.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
             self.assertRaises(WriterException, write, db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_empty_parameter(self):
@@ -158,7 +158,7 @@ class TestGdxWriter(unittest.TestCase):
                 gams_parameter = gdx_file["oc"]
                 self.assertIsInstance(gams_parameter, GAMSParameter)
                 self.assertEqual(len(gams_parameter), 0)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_write_scalars(self):
@@ -177,7 +177,7 @@ class TestGdxWriter(unittest.TestCase):
                 self.assertEqual(len(gdx_file), 1)
                 gams_scalar = gdx_file["oc"]
                 self.assertEqual(float(gams_scalar), 2.3)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_two_tables(self):
@@ -199,7 +199,7 @@ class TestGdxWriter(unittest.TestCase):
                 gams_set = gdx_file["oc2"]
                 self.assertIsNone(gams_set.domain)
                 self.assertEqual(gams_set.elements, ["p"])
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_append_to_table(self):
@@ -226,7 +226,7 @@ class TestGdxWriter(unittest.TestCase):
                 gams_set = gdx_file["set_X"]
                 self.assertIsNone(gams_set.domain)
                 self.assertEqual(gams_set.elements, ["o", "p"])
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_parameter_value_non_convertible_to_float_raises_WriterException(self):
@@ -247,7 +247,7 @@ class TestGdxWriter(unittest.TestCase):
             file_path = Path(temp_dir, "test_two_tables.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
             self.assertRaises(WriterException, write, db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_non_string_set_element_raises_WriterException(self):
@@ -268,7 +268,7 @@ class TestGdxWriter(unittest.TestCase):
             file_path = Path(temp_dir, "test_two_tables.gdx")
             writer = GdxWriter(str(file_path), self._gams_dir)
             self.assertRaises(WriterException, write, db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
 
     @unittest.skipIf(_gams_dir is None, "No working GAMS installation found.")
     def test_special_value_conversions(self):
@@ -305,7 +305,7 @@ class TestGdxWriter(unittest.TestCase):
                 self.assertEqual(gams_parameter[("o1", "infinity")], math.inf)
                 self.assertEqual(gams_parameter[("o1", "negative_infinity")], -math.inf)
                 self.assertTrue(math.isnan(gams_parameter[("o1", "nan")]))
-        db_map.connection.close()
+        db_map.close()
 
 
 if __name__ == '__main__':

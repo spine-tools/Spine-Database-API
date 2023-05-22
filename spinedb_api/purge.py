@@ -61,17 +61,13 @@ def purge(db_map, purge_settings, logger=None):
     if purge_settings is None:
         # Bring all the pain
         purge_settings = {item_type: True for item_type in DatabaseMapping.ITEM_TYPES}
-    removable_db_map_data = {
-        item_type: _ids_for_item_type(db_map, item_type) for item_type, checked in purge_settings.items() if checked
-    }
-    removable_db_map_data = {item_type: ids for item_type, ids in removable_db_map_data.items() if ids}
+    removable_db_map_data = {item_type for item_type, checked in purge_settings.items() if checked}
     if removable_db_map_data:
         try:
             if logger:
                 logger.msg.emit("Purging database...")
-            for item_type, ids in removable_db_map_data.items():
-                db_map.remove_items(item_type, **ids)
-                # FIXME: What do do here? How does one affect the DB directly, bypassing cache?
+            for item_type in removable_db_map_data:
+                db_map.purge_items(item_type)
             db_map.commit_session("Purge database")
             if logger:
                 logger.msg.emit("Database purged")

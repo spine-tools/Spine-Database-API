@@ -11,19 +11,16 @@
 
 """Provides :class:`.DatabaseMappingBase`."""
 # TODO: Finish docstrings
-import uuid
 import hashlib
 import os
 import logging
 import time
-from collections import Counter
 from types import MethodType
-from concurrent.futures import ThreadPoolExecutor
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, inspect, case, func, cast, false, and_, or_
-from sqlalchemy.sql.expression import label, Alias, select
+from sqlalchemy import create_engine, MetaData, Table, Integer, inspect, case, func, cast, and_, or_
+from sqlalchemy.sql.expression import Alias, label
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.orm import aliased
-from sqlalchemy.exc import DatabaseError, ProgrammingError
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.event import listen
 from sqlalchemy.pool import NullPool
 from alembic.migration import MigrationContext
@@ -43,7 +40,7 @@ from .helpers import (
 )
 from .filters.tools import pop_filter_configs
 from .spine_db_client import get_db_url_from_server
-from .db_cache import DBCache
+from .db_cache_impl import DBCache
 from .query import Query
 
 
@@ -83,7 +80,6 @@ class DatabaseMappingBase:
         apply_filters=True,
         memory=False,
         sqlite_timeout=1800,
-        asynchronous=False,
         chunk_size=None,
     ):
         """
@@ -96,7 +92,6 @@ class DatabaseMappingBase:
             apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
             memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
             sqlite_timeout (int): How many seconds to wait before raising connection errors.
-            asynchronous (bool): Whether or not communication with the db should be done asynchronously.
             chunk_size (int, optional): How many rows to fetch from the DB at a time when populating the cache.
                 If not specified, then all rows are fetched at once.
         """
@@ -115,21 +110,19 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
-        self._asynchronous = asynchronous
         self._original_engine = self.create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
         listen(self.engine, 'close', self._receive_engine_close)
-        self.executor = self._make_executor()
-        self.connection = self.executor.submit(self.engine.connect).result()
         if self._memory:
-            self.executor.submit(copy_database_bind, self.connection, self._original_engine)
-        self._metadata = MetaData(self.connection)
-        _ = self.executor.submit(self._metadata.reflect).result()
+            copy_database_bind(self.engine, self._original_engine)
+        self._metadata = MetaData(self.engine)
+        self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self.cache = DBCache(self, chunk_size=chunk_size)
+        self.closed = False
         # Subqueries that select everything from each table
         self._commit_sq = None
         self._alternative_sq = None
@@ -178,15 +171,14 @@ class DatabaseMappingBase:
         self._relationship_parameter_value_sq = None
         self._ext_parameter_value_metadata_sq = None
         self._ext_entity_metadata_sq = None
-        # Import alternative suff
-        self._import_alternative_id = None
         self._import_alternative_name = None
         self._table_to_sq_attr = {}
         # Table primary ids map:
         self._id_fields = {
+            "entity_class_dimension": "entity_class_id",
+            "entity_element": "entity_id",
             "object_class": "entity_class_id",
             "relationship_class": "entity_class_id",
-            "entity_class_dimension": "entity_class_id",
             "object": "entity_id",
             "relationship": "entity_id",
         }
@@ -195,33 +187,6 @@ class DatabaseMappingBase:
             "entity_alternative": ("entity_id", "alternative_id"),
             "entity_class_dimension": ("entity_class_id", "position"),
         }
-        self.ancestor_tablenames = {
-            "scenario_alternative": ("scenario", "alternative"),
-            "entity": ("entity_class",),
-            "entity_group": ("entity_class", "entity"),
-            "parameter_definition": ("entity_class", "parameter_value_list", "list_value"),
-            "parameter_value": (
-                "alternative",
-                "entity_class",
-                "entity",
-                "parameter_definition",
-                "parameter_value_list",
-                "list_value",
-            ),
-            "entity_metadata": ("metadata", "entity_class", "entity"),
-            "parameter_value_metadata": (
-                "metadata",
-                "parameter_value",
-                "parameter_definition",
-                "entity_class",
-                "entity",
-                "alternative",
-            ),
-            "list_value": ("parameter_value_list",),
-        }
-        self.descendant_tablenames = {
-            tablename: set(self._descendant_tablenames(tablename)) for tablename in self.ITEM_TYPES
-        }
 
     def __enter__(self):
         return self
@@ -229,47 +194,11 @@ class DatabaseMappingBase:
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         self.close()
 
-    def _make_executor(self):
-        return ThreadPoolExecutor(max_workers=1) if self._asynchronous else _Executor()
+    def get_filter_configs(self):
+        return self._filter_configs
 
     def close(self):
-        if not self.connection.closed:
-            self.executor.submit(self.connection.close)
-        self.executor.shutdown()
-
-    def reconnect(self):
-        self.executor = self._make_executor()
-        self.connection = self.executor.submit(self.engine.connect).result()
-
-    def _descendant_tablenames(self, tablename):
-        child_tablenames = {
-            "alternative": ("parameter_value", "scenario_alternative"),
-            "scenario": ("scenario_alternative",),
-            "entity_class": ("entity", "parameter_definition"),
-            "entity": ("parameter_value", "entity_group", "entity_metadata"),
-            "parameter_definition": ("parameter_value",),
-            "parameter_value_list": (),
-            "parameter_value": ("parameter_value_metadata", "entity_metadata"),
-            "entity_metadata": ("metadata",),
-            "parameter_value_metadata": ("metadata",),
-        }
-        for parent, children in child_tablenames.items():
-            if tablename == parent:
-                for child in children:
-                    yield child
-                    yield from self._descendant_tablenames(child)
-
-    def sorted_tablenames(self):
-        tablenames = list(self.ITEM_TYPES)
-        sorted_tablenames = []
-        while tablenames:
-            tablename = tablenames.pop(0)
-            ancestors = self.ancestor_tablenames.get(tablename)
-            if ancestors is None or all(x in sorted_tablenames for x in ancestors):
-                sorted_tablenames.append(tablename)
-            else:
-                tablenames.append(tablename)
-        return sorted_tablenames
+        self.closed = True
 
     def _real_tablename(self, tablename):
         return {
@@ -281,23 +210,6 @@ class DatabaseMappingBase:
 
     def get_table(self, tablename):
         return self._metadata.tables[tablename]
-
-    def commit_id(self):
-        return self._commit_id
-
-    def _make_commit_id(self):
-        return None
-
-    def _check_commit(self, comment):
-        """Raises if commit not possible.
-
-        Args:
-            comment (str): commit message
-        """
-        if not self.has_pending_changes():
-            raise SpineDBAPIError("Nothing to commit.")
-        if not comment:
-            raise SpineDBAPIError("Commit message cannot be empty.")
 
     def _make_codename(self, codename):
         if codename:
@@ -386,25 +298,8 @@ class DatabaseMappingBase:
         return engine
 
     def _receive_engine_close(self, dbapi_con, _connection_record):
-        if dbapi_con == self.connection.connection.connection and self._memory_dirty:
+        if self._memory_dirty:
             copy_database_bind(self._original_engine, self.engine)
-
-    def in_(self, column, values):
-        """Returns an expression equivalent to column.in_(values), that circumvents the
-        'too many sql variables' problem in sqlite."""
-        if not values:
-            return false()
-        if not self.sa_url.drivername.startswith("sqlite"):
-            return column.in_(values)
-        in_value = Table(
-            "in_value_" + str(uuid.uuid4()),
-            MetaData(),
-            Column("value", column.type, primary_key=True),
-            prefixes=['TEMPORARY'],
-        )
-        self.executor.submit(in_value.create, self.connection, checkfirst=True).result()
-        self.safe_execute(in_value.insert(), [{"value": column.type.python_type(val)} for val in set(values)])
-        return column.in_(self.query(in_value.c.value))
 
     def _get_table_to_sq_attr(self):
         if not self._table_to_sq_attr:
@@ -445,8 +340,7 @@ class DatabaseMappingBase:
             setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
-        """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
-        to this :class:`.DatabaseMappingBase`.
+        """Return a sqlalchemy :class:`~Query` object bound to this :class:`.DatabaseMappingBase`.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the class documented
         :class:`~sqlalchemy.sql.expression.Alias` properties. For example, to select the object class with
@@ -469,7 +363,7 @@ class DatabaseMappingBase:
                 db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
             ).group_by(db_map.object_class_sq.c.name).all()
         """
-        return Query(self, select(args))
+        return Query(self.engine, *args)
 
     def _subquery(self, tablename):
         """A subquery of the form:
@@ -702,7 +596,7 @@ class DatabaseMappingBase:
                     self.wide_entity_class_sq.c.hidden.label("hidden"),
                 )
                 .filter(self.wide_entity_class_sq.c.dimension_id_list == None)
-                .subquery()
+                .subquery("object_class_sq")
             )
         return self._object_class_sq
 
@@ -727,7 +621,7 @@ class DatabaseMappingBase:
                     self.wide_entity_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.wide_entity_sq.c.element_id_list == None)
-                .subquery()
+                .subquery("object_sq")
             )
         return self._object_sq
 
@@ -755,7 +649,7 @@ class DatabaseMappingBase:
                     self.wide_entity_class_sq.c.hidden.label("hidden"),
                 )
                 .filter(self.wide_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
-                .subquery()
+                .subquery("relationship_class_sq")
             )
         return self._relationship_class_sq
 
@@ -782,7 +676,7 @@ class DatabaseMappingBase:
                     self.wide_entity_sq.c.commit_id.label("commit_id"),
                 )
                 .filter(self.wide_entity_sq.c.id == ent_el_sq.c.entity_id)
-                .subquery()
+                .subquery("relationship_sq")
             )
         return self._relationship_sq
 
@@ -1772,31 +1666,19 @@ class DatabaseMappingBase:
         """
         return self._subquery("scenario_alternative")
 
-    def get_import_alternative(self):
-        """Returns the id of the alternative to use as default for all import operations.
+    def get_import_alternative_name(self):
+        """Returns the name of the alternative to use as default for all import operations.
 
         Returns:
-            int, str
+            str
         """
-        if self._import_alternative_id is None:
+        if self._import_alternative_name is None:
             self._create_import_alternative()
-        return self._import_alternative_id, self._import_alternative_name
+        return self._import_alternative_name
 
     def _create_import_alternative(self):
         """Creates the alternative to be used as default for all import operations."""
-        self.fetch_all({"alternative"})
         self._import_alternative_name = "Base"
-        self._import_alternative_id = next(
-            (
-                id_
-                for id_, alt in self.cache.get("alternative", {}).items()
-                if alt.name == self._import_alternative_name
-            ),
-            None,
-        )
-        if not self._import_alternative_id:
-            ids = self._add_alternatives({"name": self._import_alternative_name})
-            self._import_alternative_id = next(iter(ids))
 
     def override_create_import_alternative(self, method):
         """
@@ -1806,7 +1688,7 @@ class DatabaseMappingBase:
             method (Callable)
         """
         self._create_import_alternative = MethodType(method, self)
-        self._import_alternative_id = None
+        self._import_alternative_name = None
 
     def override_entity_class_sq_maker(self, method):
         """
@@ -1920,13 +1802,6 @@ class DatabaseMappingBase:
         self._make_scenario_alternative_sq = MethodType(DatabaseMappingBase._make_scenario_alternative_sq, self)
         self._clear_subqueries("scenario_alternative")
 
-    def safe_execute(self, *args):
-        # We try to execute directly. If we are in the wrong thread this will raise ProgrammingError.
-        try:
-            return self.connection.execute(*args)
-        except ProgrammingError:
-            return self.executor.submit(self.connection.execute, *args).result()
-
     def _get_primary_key(self, tablename):
         pk = self.composite_pks.get(tablename)
         if pk is None:
@@ -1938,23 +1813,15 @@ class DatabaseMappingBase:
         """Delete all records from all tables but don't drop the tables.
         Useful for writing tests
         """
-        for tablename in self._tablenames:
-            table = self._metadata.tables[tablename]
-            self.connection.execute(table.delete())
-        self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
+        with self.engine.connect() as connection:
+            for tablename in self._tablenames:
+                table = self._metadata.tables[tablename]
+                connection.execute(table.delete())
+            connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def fetch_all(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
-        if include_descendants:
-            tablenames |= {
-                descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
-            }
-        if include_ancestors:
-            tablenames |= {
-                ancestor for tablename in tablenames for ancestor in self.ancestor_tablenames.get(tablename, ())
-            }
-        if force_tablenames:
-            tablenames |= force_tablenames
-        for tablename in tablenames & set(self.ITEM_TYPES):
+    def fetch_all(self, tablenames=None):
+        tablenames = set(self.ITEM_TYPES) if tablenames is None else tablenames & set(self.ITEM_TYPES)
+        for tablename in tablenames:
             self.cache.fetch_all(tablename)
 
     def _object_class_id(self):
@@ -2018,70 +1885,38 @@ class DatabaseMappingBase:
             [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
 
-    def _metadata_usage_counts(self):
-        """Counts references to metadata name, value pairs in entity_metadata and parameter_value_metadata tables.
+    def advance_cache_query(self, item_type):
+        """Schedules an advance of the DB query that fetches items of given type.
 
-        Returns:
-            Counter: usage counts keyed by metadata id
+        Args:
+            item_type (str)
         """
-        cache = self.cache
-        usage_counts = Counter()
-        for entry in cache.get("entity_metadata", {}).values():
-            usage_counts[entry.metadata_id] += 1
-        for entry in cache.get("parameter_value_metadata", {}).values():
-            usage_counts[entry.metadata_id] += 1
-        return usage_counts
+        return self.cache.advance_query(item_type)
 
-    def check_items(self, tablename, *items, for_update=False):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        checked_items, errors = [], []
-        for item in items:
-            checked_item, error = table_cache.check_item(item, for_update=for_update)
-            if error:
-                errors.append(error)
-            else:
-                checked_items.append(checked_item)
-        return checked_items, errors
+    @staticmethod
+    def _convert_legacy(tablename, item):
+        if tablename in ("entity_class", "entity"):
+            object_class_id_list = tuple(item.pop("object_class_id_list", ()))
+            if object_class_id_list:
+                item["dimension_id_list"] = object_class_id_list
+            object_class_name_list = tuple(item.pop("object_class_name_list", ()))
+            if object_class_name_list:
+                item["dimension_name_list"] = object_class_name_list
+        if tablename == "entity":
+            object_id_list = tuple(item.pop("object_id_list", ()))
+            if object_id_list:
+                item["element_id_list"] = object_id_list
+            object_name_list = tuple(item.pop("object_name_list", ()))
+            if object_name_list:
+                item["element_name_list"] = object_name_list
+        if tablename in ("parameter_definition", "parameter_value"):
+            entity_class_id = item.pop("object_class_id", None) or item.pop("relationship_class_id", None)
+            if entity_class_id:
+                item["entity_class_id"] = entity_class_id
+        if tablename == "parameter_value":
+            entity_id = item.pop("object_id", None) or item.pop("relationship_id", None)
+            if entity_id:
+                item["entity_id"] = entity_id
 
     def __del__(self):
-        try:
-            self.close()
-        except AttributeError:
-            pass
-
-    def get_filter_configs(self):
-        return self._filter_configs
-
-
-class _Future:
-    def __init__(self):
-        self._result = None
-        self._exception = None
-
-    def set_result(self, result):
-        self._result = result
-
-    def set_exception(self, exception):
-        self._exception = exception
-
-    def add_done_callback(self, callback):
-        callback(self)
-
-    def result(self):
-        if self._exception is not None:
-            raise self._exception
-        return self._result
-
-
-class _Executor:
-    def submit(self, fn, *args, **kwargs):
-        future = _Future()
-        try:
-            future.set_result(fn(*args, **kwargs))
-        except Exception as exc:
-            future.set_exception(exc)
-        return future
-
-    def shutdown(self):
-        pass
+        self.close()

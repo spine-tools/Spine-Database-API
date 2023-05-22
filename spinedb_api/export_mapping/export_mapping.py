@@ -505,7 +505,7 @@ class ExportMapping(Mapping):
             tuple(str,dict): title, and associated title state dictionary
         """
         qry = self._build_title_query(db_map)
-        for db_row in qry.yield_per(1000):
+        for db_row in qry:
             yield from self.get_titles_recursive(db_row, limit=limit)
 
     def titles(self, db_map, limit=None):
@@ -574,7 +574,7 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        query = _Rewindable(self._build_header_query(db_map, title_state, buddies).yield_per(1000))
+        query = _Rewindable(self._build_header_query(db_map, title_state, buddies))
         return self.make_header_recursive(query, buddies)
 
 
@@ -712,7 +712,7 @@ class EntityMapping(ExportMapping):
             db_map.wide_entity_sq.c.element_name_list,
         )
         if self.query_parents("highlight_position") is not None:
-            query = query.add_columns(db_map.entity_sq.c.element_id.label("highlighted_element_id"))
+            query = query.add_columns(db_map.entity_element_sq.c.element_id.label("highlighted_element_id"))
         return query
 
     def filter_query(self, db_map, query):
@@ -721,8 +721,8 @@ class EntityMapping(ExportMapping):
         )
         if (highlight_position := self.query_parents("highlight_position")) is not None:
             query = query.outerjoin(
-                db_map.entity_sq, db_map.entity_sq.c.id == db_map.wide_entity_sq.c.id
-            ).filter(db_map.entity_sq.c.position == highlight_position)
+                db_map.entity_element_sq, db_map.entity_element_sq.c.entity_id == db_map.wide_entity_sq.c.id
+            ).filter(db_map.entity_element_sq.c.position == highlight_position)
         return query
 
     @staticmethod
@@ -900,10 +900,14 @@ class ParameterDefinitionMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        entity_class_sq = db_map.entity_class_sq if self.query_parents("highlight_position") is not None else db_map.wide_entity_class_sq
+        if self.query_parents("highlight_position") is not None:
+            return  query.outerjoin(
+                db_map.parameter_definition_sq,
+                db_map.parameter_definition_sq.c.entity_class_id == db_map.entity_class_dimension_sq.c.dimension_id,
+            )
         return query.outerjoin(
             db_map.parameter_definition_sq,
-            db_map.parameter_definition_sq.c.entity_class_id == entity_class_sq.c.id,
+            db_map.parameter_definition_sq.c.entity_class_id == db_map.wide_entity_class_sq.c.id,
         )
 
     @staticmethod
@@ -1008,7 +1012,7 @@ class ParameterDefaultValueIndexMapping(_MappingWithLeafMixin, ExportMapping):
     MAP_TYPE = "ParameterDefaultValueIndex"
 
     def add_query_columns(self, db_map, query):
-        if "default_value" in set(query.column_names):
+        if "default_value" in set(query.column_names()):
             return query
         return query.add_columns(
             db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
@@ -1076,10 +1080,16 @@ class ParameterValueMapping(ExportMapping):
     def filter_query(self, db_map, query):
         if not self._selects_value:
             return query
-        entity_sq = db_map.entity_sq if self.query_parents("highlight_position") is not None else db_map.wide_entity_sq
+        if self.query_parents("highlight_position") is not None:
+            return query.filter(
+                and_(
+                    db_map.parameter_value_sq.c.entity_id == db_map.entity_element_sq.c.element_id,
+                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                )
+            )
         return query.filter(
             and_(
-                db_map.parameter_value_sq.c.entity_id == entity_sq.c.id,
+                db_map.parameter_value_sq.c.entity_id == db_map.wide_entity_sq.c.id,
                 db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
             )
         )
@@ -1434,9 +1444,6 @@ class _FilteredQuery:
         """
         self._query = query
         self._condition = condition
-
-    def yield_per(self, count):
-        return _FilteredQuery(self._query.yield_per(count), self._condition)
 
     def filter(self, *args, **kwargs):
         return _FilteredQuery(self._query.filter(*args, **kwargs), self._condition)
