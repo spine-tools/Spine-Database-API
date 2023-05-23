@@ -14,7 +14,7 @@ DB cache implementation.
 """
 import uuid
 from operator import itemgetter
-from .parameter_value import from_database
+from .parameter_value import from_database, ParameterValueFormatError
 from .db_cache_base import DBCacheBase, CacheItemBase
 
 
@@ -65,7 +65,7 @@ class DBCache(DBCacheBase):
 
 
 class EntityClassItem(CacheItemBase):
-    _defaults = {"description": None, "display_icon": None}
+    _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
     _unique_keys = (("name",),)
     _references = {"dimension_name_list": ("dimension_id_list", ("entity_class", "name"))}
     _inverse_references = {"dimension_id_list": (("dimension_name_list",), ("entity_class", ("name",)))}
@@ -88,6 +88,9 @@ class EntityClassItem(CacheItemBase):
         )
         merged, super_error = super().merge(other)
         return merged, " and ".join([x for x in (super_error, error) if x])
+
+    def commit(self, commit_id):
+        super().commit(None)
 
 
 class EntityItem(CacheItemBase):
@@ -154,7 +157,31 @@ class EntityGroupItem(CacheItemBase):
         return super().__getitem__(key)
 
 
-class ParameterDefinitionItem(CacheItemBase):
+class ParsedValueBase(CacheItemBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._parsed_value = None
+
+    @property
+    def parsed_value(self):
+        if self._parsed_value is None:
+            self._parsed_value = self._make_parsed_value()
+        return self._parsed_value
+
+    def _make_parsed_value(self):
+        raise NotImplementedError()
+
+    def update(self, other):
+        self._parsed_value = None
+        super().update(other)
+
+    def __getitem__(self, key):
+        if key == "parsed_value":
+            return self.parsed_value
+        return super().__getitem__(key)
+
+
+class ParameterDefinitionItem(ParsedValueBase):
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     _unique_keys = (("entity_class_name", "name"),)
     _references = {
@@ -172,6 +199,12 @@ class ParameterDefinitionItem(CacheItemBase):
         if dict.get(self, "default_type") == "list_value_ref":
             return int(dict.__getitem__(self, "default_value"))
         return None
+
+    def _make_parsed_value(self):
+        try:
+            return from_database(self["default_value"], self["default_type"])
+        except ParameterValueFormatError as error:
+            return error
 
     def __getitem__(self, key):
         if key == "parameter_name":
@@ -238,7 +271,7 @@ class ParameterDefinitionItem(CacheItemBase):
         return merged, " and ".join([x for x in (super_error, error) if x])
 
 
-class ParameterValueItem(CacheItemBase):
+class ParameterValueItem(ParsedValueBase):
     _unique_keys = (("parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
         "entity_class_name": ("entity_class_id", ("entity_class", "name")),
@@ -268,6 +301,12 @@ class ParameterValueItem(CacheItemBase):
         if dict.__getitem__(self, "type") == "list_value_ref":
             return int(dict.__getitem__(self, "value"))
         return None
+
+    def _make_parsed_value(self):
+        try:
+            return from_database(self["value"], self["type"])
+        except ParameterValueFormatError as error:
+            return error
 
     def __getitem__(self, key):
         if key == "parameter_id":
@@ -315,12 +354,18 @@ class ParameterValueListItem(CacheItemBase):
     _unique_keys = (("name",),)
 
 
-class ListValueItem(CacheItemBase):
+class ListValueItem(ParsedValueBase):
     _unique_keys = (("parameter_value_list_name", "value", "type"), ("parameter_value_list_name", "index"))
     _references = {"parameter_value_list_name": ("parameter_value_list_id", ("parameter_value_list", "name"))}
     _inverse_references = {
         "parameter_value_list_id": (("parameter_value_list_name",), ("parameter_value_list", ("name",))),
     }
+
+    def _make_parsed_value(self):
+        try:
+            return from_database(self["value"], self["type"])
+        except ParameterValueFormatError as error:
+            return error
 
 
 class AlternativeItem(CacheItemBase):

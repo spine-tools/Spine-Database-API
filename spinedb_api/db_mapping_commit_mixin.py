@@ -47,6 +47,9 @@ class DatabaseMappingCommitMixin:
             self._memory_dirty = True
 
     def rollback_session(self):
-        if not self.cache.dirty_items():
+        if not self.cache.rollback():
             raise SpineDBAPIError("Nothing to rollback.")
-        self.cache.reset_queries()
+
+    def refresh_session(self):
+        # TODO
+        pass

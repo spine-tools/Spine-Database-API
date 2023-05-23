@@ -79,12 +79,40 @@ class DBCacheBase(dict):
                 if to_remove:
                     # Fetch descendants, so that they are validated in next iterations of the loop.
                     # This ensures cascade removal.
+                    # FIXME: We should also fetch the current item type because of multi-dimensional entities and
+                    # classes which also depend on no-dimensional ones
                     for x in self:
                         if self._cmp_item_type(item_type, x) < 0:
                             self.fetch_all(x)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
+
+    def rollback(self):
+        dirty_items = self.dirty_items()
+        if not dirty_items:
+            return False
+        to_add_by_type = []
+        to_update_by_type = []
+        to_remove_by_type = []
+        for item_type, (to_add, to_update, to_remove) in reversed(dirty_items):
+            to_add_by_type.append((item_type, to_add))
+            to_update_by_type.append((item_type, to_update))
+            to_remove_by_type.append((item_type, to_remove))
+        for item_type, to_remove in to_remove_by_type:
+            table_cache = self.table_cache(item_type)
+            for item in to_remove:
+                table_cache.restore_item(item["id"])
+        for item_type, to_update in to_update_by_type:
+            table_cache = self.table_cache(item_type)
+            for item in to_update:
+                table_cache.update_item(item.backup)
+        for item_type, to_add in to_add_by_type:
+            table_cache = self.table_cache(item_type)
+            for item in to_add:
+                if table_cache.remove_item(item["id"]) is not None:
+                    del item["id"]
+        return True
 
     @property
     def fetched_item_types(self):
@@ -306,8 +334,6 @@ class _TableCache(TempIdDict):
         current_item.update(item)
         self._add_unique(current_item)
         current_item.cascade_update()
-        if current_item.status == Status.committed:
-            current_item.status = Status.to_update
         return current_item
 
     def remove_item(self, id_):
@@ -350,11 +376,24 @@ class CacheItemBase(TempIdDict):
         self._removed = False
         self._corrupted = False
         self._valid = None
-        self.status = Status.committed
+        self._status = Status.committed
+        self._backup = None
 
     @classmethod
     def ref_types(cls):
         return set(ref_type for _src_key, (ref_type, _ref_key) in cls._references.values())
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = status
+
+    @property
+    def backup(self):
+        return self._backup
 
     @property
     def removed(self):
@@ -396,6 +435,9 @@ class CacheItemBase(TempIdDict):
             return default
 
     def update(self, other):
+        if self._status == Status.committed:
+            self._status = Status.to_update
+            self._backup = self._asdict()
         for src_key, (ref_type, _ref_key) in self._references.values():
             ref_id = self[src_key]
             if src_key in other and other[src_key] != ref_id:
@@ -406,11 +448,13 @@ class CacheItemBase(TempIdDict):
                 else:
                     self._forget_ref(ref_type, ref_id)
         super().update(other)
+        if self._asdict() == self._backup:
+            self._status = Status.committed
 
     def merge(self, other):
         if all(self.get(key) == value for key, value in other.items()):
             return None, ""
-        merged = {**self, **other}
+        merged = {**self._extended(), **other}
         merged["id"] = self["id"]
         return merged, ""
 
@@ -428,7 +472,7 @@ class CacheItemBase(TempIdDict):
         for src_key, (id_key, (ref_type, ref_key)) in self._inverse_references.items():
             if src_key in skip_keys:
                 continue
-            id_value = tuple(dict.get(self, k) or self.get(k) for k in id_key)
+            id_value = tuple(dict.pop(self, k, None) or self.get(k) for k in id_key)
             if None in id_value:
                 continue
             table_cache = self._db_cache.table_cache(ref_type)
@@ -523,8 +567,10 @@ class CacheItemBase(TempIdDict):
     def cascade_restore(self):
         if not self._removed:
             return
-        if self.status == Status.committed:
-            self.status = Status.to_add
+        if self._status == Status.committed:
+            self._status = Status.to_add
+        else:
+            self._status = Status.committed
         self._removed = False
         for referrer in self._referrers.values():
             referrer.cascade_restore()
@@ -538,10 +584,10 @@ class CacheItemBase(TempIdDict):
     def cascade_remove(self):
         if self._removed:
             return
-        if self.status == Status.committed:
-            self.status = Status.to_remove
+        if self._status == Status.committed:
+            self._status = Status.to_remove
         else:
-            self.status = Status.committed
+            self._status = Status.committed
         self._removed = True
         self._to_remove = False
         self._valid = None
@@ -561,7 +607,6 @@ class CacheItemBase(TempIdDict):
         self._update_weak_referrers()
 
     def call_update_callbacks(self):
-        self.pop("parsed_value", None)
         obsolete = set()
         for callback in self.update_callbacks:
             if not callback(self):
@@ -575,8 +620,9 @@ class CacheItemBase(TempIdDict):
         return dict(self)
 
     def is_committed(self):
-        return self.status == Status.committed
+        return self._status == Status.committed
 
     def commit(self, commit_id):
-        self.status = Status.committed
-        self["commit_id"] = commit_id
+        self._status = Status.committed
+        if commit_id:
+            self["commit_id"] = commit_id
