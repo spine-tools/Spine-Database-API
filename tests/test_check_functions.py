@@ -15,7 +15,6 @@ import unittest
 
 from spinedb_api import DatabaseMapping
 from spinedb_api.parameter_value import to_database
-from spinedb_api.exception import SpineIntegrityError
 
 
 def _val_dict(val):
@@ -78,9 +77,6 @@ class TestCheckFunctions(unittest.TestCase):
             id_ = self.value_type[type_]  # setup: parameter definition/value list ids are equal
             for k, value in enumerate(fail):
                 with self.subTest(type=type_, value=value):
-                    expect_in = json.loads(value.decode('utf8'))
-                    if isinstance(expect_in, Number):
-                        expect_in = float(expect_in)
                     item = self.get_item(id_, value, 1)
                     _, errors = self.db_map.add_items("parameter_value", item)
                     self.assertEqual(len(errors), 1)
