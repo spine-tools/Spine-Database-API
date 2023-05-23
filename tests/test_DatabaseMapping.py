@@ -2196,6 +2196,43 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
     def test_commit_session_raise_when_nothing_to_commit(self):
         self.assertRaisesRegex(SpineDBAPIError, "Nothing to commit.", self._db_map.commit_session, "No changes.")
 
+    def test_rollback_addition(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("test commit")
+        import_functions.import_object_classes(self._db_map, ("second_class",))
+        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 2)
+        self._db_map.rollback_session()
+        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 1)
+        with self.assertRaises(SpineDBAPIError):
+            # Nothing to commit
+            self._db_map.commit_session("test commit")
+
+    def test_rollback_removal(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("test commit")
+        self._db_map.remove_items("entity_class", 1)
+        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 0)
+        self._db_map.rollback_session()
+        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 1)
+        with self.assertRaises(SpineDBAPIError):
+            # Nothing to commit
+            self._db_map.commit_session("test commit")
+
+    def test_rollback_update(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("test commit")
+        self._db_map.update_items("entity_class", {"id": {"name": "my_class"}, "name": "new_name"})
+        entity_classes = list(self._db_map.cache.table_cache("entity_class").values())
+        self.assertEqual(len(entity_classes), 1)
+        self.assertEqual(entity_classes[0]["name"], "new_name")
+        self._db_map.rollback_session()
+        entity_classes = list(self._db_map.cache.table_cache("entity_class").values())
+        self.assertEqual(len(entity_classes), 1)
+        self.assertEqual(entity_classes[0]["name"], "my_class")
+        with self.assertRaises(SpineDBAPIError):
+            # Nothing to commit
+            self._db_map.commit_session("test commit")
+
 
 if __name__ == "__main__":
     unittest.main()

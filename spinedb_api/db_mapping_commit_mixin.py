@@ -51,5 +51,4 @@ class DatabaseMappingCommitMixin:
             raise SpineDBAPIError("Nothing to rollback.")
 
     def refresh_session(self):
-        # TODO
-        pass
+        self.cache.refresh()

@@ -13,6 +13,7 @@
 
 from sqlalchemy import select, and_
 from sqlalchemy.sql.functions import count
+from sqlalchemy.exc import OperationalError
 from .exception import SpineDBAPIError
 
 
@@ -88,7 +89,10 @@ class Query:
         return self
 
     def _result(self):
-        return self._bind.execute(self._select)
+        try:
+            return self._bind.execute(self._select)
+        except OperationalError:
+            return None
 
     def all(self):
         return self._result().fetchall()
@@ -113,7 +117,7 @@ class Query:
         return self._bind.execute(select([count()]).select_from(self._select)).scalar()
 
     def __iter__(self):
-        return self._result()
+        return self._result() or iter([])
 
 
 def _get_leaves(parent):
