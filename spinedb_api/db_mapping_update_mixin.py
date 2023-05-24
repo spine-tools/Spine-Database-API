@@ -14,7 +14,7 @@
 """
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
-from .exception import SpineIntegrityError
+from .exception import SpineIntegrityError, SpineDBAPIError
 
 
 class DatabaseMappingUpdateMixin:
@@ -41,7 +41,7 @@ class DatabaseMappingUpdateMixin:
                 connection.execute(upd, items_to_update_)
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
-            raise SpineIntegrityError(msg) from e
+            raise SpineDBAPIError(msg) from e
 
     @staticmethod
     def _extra_items_to_update_per_table(tablename, items_to_update):

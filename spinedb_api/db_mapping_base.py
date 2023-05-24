@@ -308,6 +308,11 @@ class DatabaseMappingBase:
 
     def _make_table_to_sq_attr(self):
         """Returns a dict mapping table names to subquery attribute names, involving that table."""
+
+        def _func(x, tables):
+            if isinstance(x, Table):
+                tables.add(x.name)  # pylint: disable=cell-var-from-loop
+
         # This 'loads' our subquery attributes
         for attr in dir(self):
             getattr(self, attr)
@@ -316,12 +321,7 @@ class DatabaseMappingBase:
             if not isinstance(val, Alias):
                 continue
             tables = set()
-
-            def _func(x):
-                if isinstance(x, Table):
-                    tables.add(x.name)  # pylint: disable=cell-var-from-loop
-
-            forward_sweep(val, _func)
+            forward_sweep(val, _func, tables)
             # Now `tables` contains all tables related to `val`
             for table in tables:
                 table_to_sq_attr.setdefault(table, set()).add(attr)

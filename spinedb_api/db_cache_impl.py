@@ -27,7 +27,8 @@ class DBCache(DBCacheBase):
         super().__init__(chunk_size=chunk_size)
         self._db_map = db_map
 
-    def _item_factory(self, item_type):
+    @staticmethod
+    def _item_factory(item_type):
         return {
             "entity_class": EntityClassItem,
             "entity": EntityItem,
@@ -45,6 +46,8 @@ class DBCache(DBCacheBase):
         }.get(item_type, CacheItemBase)
 
     def _query(self, item_type):
+        if self._db_map.closed:
+            return None
         sq_name = {
             "entity_class": "wide_entity_class_sq",
             "entity": "wide_entity_sq",
@@ -89,7 +92,7 @@ class EntityClassItem(CacheItemBase):
         merged, super_error = super().merge(other)
         return merged, " and ".join([x for x in (super_error, error) if x])
 
-    def commit(self, commit_id):
+    def commit(self, _commit_id):
         super().commit(None)
 
 

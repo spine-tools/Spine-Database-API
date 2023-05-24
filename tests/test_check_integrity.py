@@ -23,7 +23,7 @@ def _val_dict(val):
     return dict(zip(keys, values))
 
 
-class TestCheckFunctions(unittest.TestCase):
+class TestCheckIntegrity(unittest.TestCase):
     def setUp(self):
         self.data = [
             (bool, (b'"TRUE"', b'"FALSE"', b'"T"', b'"True"', b'"False"'), (b'true', b'false')),
@@ -71,7 +71,7 @@ class TestCheckFunctions(unittest.TestCase):
             'alternative_id': 1,
         }
 
-    def test_replace_parameter_or_default_values_with_list_references(self):
+    def test_parameter_values_and_default_values_with_list_references(self):
         # regression test for spine-tools/Spine-Toolbox#1878
         for type_, fail, pass_ in self.data:
             id_ = self.value_type[type_]  # setup: parameter definition/value list ids are equal

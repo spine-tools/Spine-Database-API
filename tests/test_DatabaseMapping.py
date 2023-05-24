@@ -2200,9 +2200,11 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         import_functions.import_object_classes(self._db_map, ("second_class",))
-        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 2)
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"my_class", "second_class"})
         self._db_map.rollback_session()
-        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 1)
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"my_class"})
         with self.assertRaises(SpineDBAPIError):
             # Nothing to commit
             self._db_map.commit_session("test commit")
@@ -2211,9 +2213,11 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         self._db_map.remove_items("entity_class", 1)
-        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 0)
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, set())
         self._db_map.rollback_session()
-        self.assertEqual(len(list(self._db_map.cache.table_cache("entity_class").values())), 1)
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"my_class"})
         with self.assertRaises(SpineDBAPIError):
             # Nothing to commit
             self._db_map.commit_session("test commit")
@@ -2222,16 +2226,47 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         self._db_map.update_items("entity_class", {"id": {"name": "my_class"}, "name": "new_name"})
-        entity_classes = list(self._db_map.cache.table_cache("entity_class").values())
-        self.assertEqual(len(entity_classes), 1)
-        self.assertEqual(entity_classes[0]["name"], "new_name")
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"new_name"})
         self._db_map.rollback_session()
-        entity_classes = list(self._db_map.cache.table_cache("entity_class").values())
-        self.assertEqual(len(entity_classes), 1)
-        self.assertEqual(entity_classes[0]["name"], "my_class")
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"my_class"})
         with self.assertRaises(SpineDBAPIError):
             # Nothing to commit
             self._db_map.commit_session("test commit")
+
+    def test_refresh_addition(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("test commit")
+        import_functions.import_object_classes(self._db_map, ("second_class",))
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"my_class", "second_class"})
+        self._db_map.refresh_session()
+        self._db_map.fetch_all()
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"my_class", "second_class"})
+
+    def test_refresh_removal(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("test commit")
+        self._db_map.remove_items("entity_class", 1)
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, set())
+        self._db_map.refresh_session()
+        self._db_map.fetch_all()
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, set())
+
+    def test_refresh_update(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        self._db_map.commit_session("test commit")
+        self._db_map.update_items("entity_class", {"id": {"name": "my_class"}, "name": "new_name"})
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"new_name"})
+        self._db_map.refresh_session()
+        self._db_map.fetch_all()
+        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
+        self.assertEqual(entity_class_names, {"new_name"})
 
 
 if __name__ == "__main__":

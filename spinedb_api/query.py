@@ -13,7 +13,6 @@
 
 from sqlalchemy import select, and_
 from sqlalchemy.sql.functions import count
-from sqlalchemy.exc import OperationalError
 from .exception import SpineDBAPIError
 
 
@@ -89,10 +88,7 @@ class Query:
         return self
 
     def _result(self):
-        try:
-            return self._bind.execute(self._select)
-        except OperationalError:
-            return None
+        return self._bind.execute(self._select)
 
     def all(self):
         return self._result().fetchall()

@@ -45,7 +45,8 @@ class DBCacheBase(dict):
     def fetched_item_types(self):
         return self._fetched_item_types
 
-    def _item_factory(self, item_type):
+    @staticmethod
+    def _item_factory(item_type):
         raise NotImplementedError()
 
     def _query(self, item_type):
@@ -100,6 +101,11 @@ class DBCacheBase(dict):
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
 
+    def commit(self):
+        """Clears the internal storage of dirty items created by ``refresh``."""
+        self._updated_items.clear()
+        self._removed_items.clear()
+
     def rollback(self):
         """Discards uncommitted changes.
 
@@ -140,8 +146,6 @@ class DBCacheBase(dict):
         """
         dirty_items = self.dirty_items()  # Get dirty items before clearing
         self.clear()
-        self._updated_items.clear()
-        self._removed_items.clear()
         for item_type, (to_add, to_update, to_remove) in dirty_items:
             # Add new items directly
             table_cache = self.table_cache(item_type)
@@ -149,13 +153,15 @@ class DBCacheBase(dict):
                 table_cache.add_item(item, new=True)
             # Store updated and removed so we can take the proper action
             # when we see their equivalents comming from the DB
-            self._updated_items[item_type] = {x["id"]: x for x in to_update}
-            self._removed_items[item_type] = {x["id"]: x for x in to_remove}
+            self._updated_items.setdefault(item_type, {}).update({x["id"]: x for x in to_update})
+            self._removed_items.setdefault(item_type, {}).update({x["id"]: x for x in to_remove})
         self._offsets.clear()
         self._fetched_item_types.clear()
 
     def _get_next_chunk(self, item_type):
         qry = self._query(item_type)
+        if not qry:
+            return []
         if not self._chunk_size:
             self._fetched_item_types.add(item_type)
             return [dict(x) for x in qry]
@@ -165,7 +171,8 @@ class DBCacheBase(dict):
         return chunk
 
     def advance_query(self, item_type):
-        """Advances the DB query that fetches items of given type and caches the results.
+        """Advances the DB query that fetches items of given type
+        and adds the results to the corresponding table cache.
 
         Args:
             item_type (str)
@@ -181,11 +188,11 @@ class DBCacheBase(dict):
         updated_items = self._updated_items.get(item_type, {})
         removed_items = self._removed_items.get(item_type, {})
         for item in chunk:
-            updated_item = updated_items.get(item["id"])
+            updated_item = updated_items.pop(item["id"], None)
             if updated_item:
                 table_cache.persist_item(updated_item)
                 continue
-            removed_item = removed_items.get(item["id"])
+            removed_item = removed_items.pop(item["id"], None)
             if removed_item:
                 table_cache.persist_item(removed_item, removed=True)
                 continue
@@ -400,9 +407,30 @@ class CacheItemBase(TempIdDict):
     """A dictionary that represents an db item."""
 
     _defaults = {}
+    """A dictionary mapping fields to their default values"""
     _unique_keys = ()
+    """A tuple where each element is itself a tuple of fields indicating a unique key"""
     _references = {}
+    """A dictionary mapping fields that are not in the original dictionary,
+    to a recipe for finding the field they reference in another item.
+
+    The recipe is a tuple of the form (original_field, (ref_item_type, ref_field)),
+    to be interpreted as follows:
+        1. take the value from the original_field of this item, which should be an id,
+        2. locate the item of type ref_item_type that has that id,
+        3. return the value from the ref_field of that item.
+    """
     _inverse_references = {}
+    """Another dictionary mapping fields that are not in the original dictionary,
+    to a recipe for finding the field they reference in another item.
+    Used only for creating new items, when the user provides names and we want to find the ids.
+
+    The recipe is a tuple of the form (src_unique_key, (ref_item_type, ref_unique_key)),
+    to be interpreted as follows:
+        1. take the values from the src_unique_key of this item, to form a tuple,
+        2. locate the item of type ref_item_type where the ref_unique_key is exactly that tuple of values,
+        3. return the id of that item.
+    """
 
     def __init__(self, db_cache, item_type, **kwargs):
         """

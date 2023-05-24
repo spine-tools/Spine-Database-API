@@ -15,7 +15,7 @@
 # TODO: improve docstrings
 
 from sqlalchemy.exc import DBAPIError
-from .exception import SpineIntegrityError
+from .exception import SpineIntegrityError, SpineDBAPIError
 
 
 class DatabaseMappingAddMixin:
@@ -87,7 +87,7 @@ class DatabaseMappingAddMixin:
                 connection.execute(table.insert(), items_to_add_)
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
-            raise SpineIntegrityError(msg) from e
+            raise SpineDBAPIError(msg) from e
 
     @staticmethod
     def _extra_items_to_add_per_table(tablename, items_to_add):
