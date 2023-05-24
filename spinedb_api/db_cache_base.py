@@ -68,6 +68,11 @@ class DBCacheBase(dict):
     def _sorted_item_types(self):
         sorted(self, key=cmp_to_key(self._cmp_item_type))
 
+    def dirty_ids(self, item_type):
+        return {
+            item["id"] for item in self.get(item_type, {}).values() if item.status in (Status.to_add, Status.to_update)
+        }
+
     def dirty_items(self):
         """Returns a list of tuples of the form (item_type, (to_add, to_update, to_remove)) corresponding to
         items that have been modified but not yet committed.
@@ -146,6 +151,10 @@ class DBCacheBase(dict):
         """
         dirty_items = self.dirty_items()  # Get dirty items before clearing
         self.clear()
+        # Clear _offsets and _fetched_item_types before adding dirty items below,
+        # so those items are able to properly fetch their references from the DB
+        self._offsets.clear()
+        self._fetched_item_types.clear()
         for item_type, (to_add, to_update, to_remove) in dirty_items:
             # Add new items directly
             table_cache = self.table_cache(item_type)
@@ -155,8 +164,6 @@ class DBCacheBase(dict):
             # when we see their equivalents comming from the DB
             self._updated_items.setdefault(item_type, {}).update({x["id"]: x for x in to_update})
             self._removed_items.setdefault(item_type, {}).update({x["id"]: x for x in to_remove})
-        self._offsets.clear()
-        self._fetched_item_types.clear()
 
     def _get_next_chunk(self, item_type):
         qry = self._query(item_type)
