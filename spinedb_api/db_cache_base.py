@@ -279,7 +279,7 @@ class _TableCache(TempIdDict):
             return id_by_unique_value[value]
         return id_by_unique_value.get(value)
 
-    def _unique_key_value_to_item(self, key, value, strict=False):
+    def _unique_key_value_to_item(self, key, value):
         return self.get(self.unique_key_value_to_id(key, value))
 
     def values(self):
@@ -371,7 +371,9 @@ class _TableCache(TempIdDict):
 
     def _remove_unique(self, item):
         for key, value in item.unique_values():
-            self._id_by_unique_key_value.get(key, {}).pop(value, None)
+            id_by_value = self._id_by_unique_key_value.get(key, {})
+            if id_by_value.get(value) == item["id"]:
+                del id_by_value[value]
 
     def persist_item(self, item, removed=False):
         self[item["id"]] = item
