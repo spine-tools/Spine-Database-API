@@ -348,9 +348,9 @@ class _TableCache(TempIdDict):
         error = candidate_item.polish()
         if error:
             return None, error
-        invalid_ref = candidate_item.invalid_ref()
-        if invalid_ref:
-            return None, f"invalid {invalid_ref} for {self._item_type}"
+        first_invalid_key = candidate_item.first_invalid_key()
+        if first_invalid_key:
+            return None, f"invalid {first_invalid_key} for {self._item_type}"
         try:
             for key, value in candidate_item.unique_values(skip_keys=skip_keys):
                 empty = {k for k, v in zip(key, value) if v == ""}
@@ -416,11 +416,11 @@ class CacheItemBase(TempIdDict):
     """A dictionary that represents an db item."""
 
     _defaults = {}
-    """A dictionary mapping fields to their default values"""
+    """A dictionary mapping keys to their default values"""
     _unique_keys = ()
-    """A tuple where each element is itself a tuple of fields indicating a unique key"""
+    """A tuple where each element is itself a tuple of keys that are unique"""
     _references = {}
-    """A dictionary mapping fields that are not in the original dictionary,
+    """A dictionary mapping keys that are not in the original dictionary,
     to a recipe for finding the field they reference in another item.
 
     The recipe is a tuple of the form (original_field, (ref_item_type, ref_field)),
@@ -430,7 +430,7 @@ class CacheItemBase(TempIdDict):
         3. return the value from the ref_field of that item.
     """
     _inverse_references = {}
-    """Another dictionary mapping fields that are not in the original dictionary,
+    """Another dictionary mapping keys that are not in the original dictionary,
     to a recipe for finding the field they reference in another item.
     Used only for creating new items, when the user provides names and we want to find the ids.
 
@@ -463,94 +463,147 @@ class CacheItemBase(TempIdDict):
 
     @classmethod
     def ref_types(cls):
+        """Returns a set of item types that this class refers.
+
+        Returns:
+            set(str)
+        """
         return set(ref_type for _src_key, (ref_type, _ref_key) in cls._references.values())
 
     @property
     def status(self):
+        """Returns the status of this item.
+
+        Returns:
+            Status
+        """
         return self._status
 
     @status.setter
     def status(self, status):
+        """Sets the status of this item.
+
+        Args:
+            status (Status)
+        """
         self._status = status
 
     @property
     def backup(self):
+        """Returns the committed version of this item.
+
+        Returns:
+            dict or None
+        """
         return self._backup
 
     @property
     def removed(self):
+        """Returns whether or not this item has been removed.
+
+        Returns:
+            bool
+        """
         return self._removed
 
     @property
     def item_type(self):
+        """Returns this item's type
+
+        Returns:
+            str
+        """
         return self._item_type
 
     @property
     def key(self):
+        """Returns a tuple (item_type, id) for convenience, or None if this item doesn't yet have an id.
+        TODO: When does the latter happen?
+
+        Returns:
+            tuple(str,int) or None
+        """
         id_ = dict.get(self, "id")
         if id_ is None:
             return None
         return (self._item_type, id_)
 
-    def __repr__(self):
-        return f"{self._item_type}{self._extended()}"
+    def _extended(self):
+        """Returns a dict from this item's original fields plus all the references resolved statically.
 
-    def __getattr__(self, name):
-        """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
-        # FIXME: We should try and get rid of this one
-        return self.get(name)
+        Returns:
+            dict
+        """
+        return {**self, **{key: self[key] for key in self._references}}
 
-    def __getitem__(self, key):
-        ref = self._references.get(key)
-        if ref:
-            src_key, (ref_type, ref_key) = ref
-            ref_id = self[src_key]
-            if isinstance(ref_id, tuple):
-                return tuple(self._get_ref(ref_type, x).get(ref_key) for x in ref_id)
-            return self._get_ref(ref_type, ref_id).get(ref_key)
-        return super().__getitem__(key)
+    def _asdict(self):
+        """Returns a dict from this item's original fields.
 
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-    def update(self, other):
-        if self._status == Status.committed:
-            self._status = Status.to_update
-            self._backup = self._asdict()
-        for src_key, (ref_type, _ref_key) in self._references.values():
-            ref_id = self[src_key]
-            if src_key in other and other[src_key] != ref_id:
-                # Forget references
-                if isinstance(ref_id, tuple):
-                    for x in ref_id:
-                        self._forget_ref(ref_type, x)
-                else:
-                    self._forget_ref(ref_type, ref_id)
-        super().update(other)
-        if self._asdict() == self._backup:
-            self._status = Status.committed
+        Returns:
+            dict
+        """
+        return dict(self)
 
     def merge(self, other):
+        """Merges this item with another and returns the merged item together with any errors.
+        Used for updating items.
+
+        Args:
+            other (dict): the item to merge into this.
+
+        Returns:
+            dict: merged item.
+            str: error description if any.
+        """
         if all(self.get(key) == value for key, value in other.items()):
             return None, ""
         merged = {**self._extended(), **other}
         merged["id"] = self["id"]
         return merged, ""
 
-    def polish(self):
-        """Polishes this item once all it's references are resolved. Returns any errors.
+    def first_invalid_key(self):
+        """Goes through the ``_references`` class attribute and returns the key of the first one
+        that cannot be resolved.
 
         Returns:
-            str or None
+            str or None: unresolved reference's key if any.
         """
-        for key, default_value in self._defaults.items():
-            self.setdefault(key, default_value)
-        return ""
+        for src_key, (ref_type, _ref_key) in self._references.values():
+            try:
+                ref_id = self[src_key]
+            except KeyError:
+                return src_key
+            if isinstance(ref_id, tuple):
+                for x in ref_id:
+                    if not self._get_ref(ref_type, x):
+                        return src_key
+            elif not self._get_ref(ref_type, ref_id):
+                return src_key
+
+    def unique_values(self, skip_keys=()):
+        """Yields tuples of unique keys and their values.
+
+        Args:
+            skip_keys: Don't yield these keys
+
+        Yields:
+            tuple(tuple,tuple): the first element is the unique key, the second is the values.
+        """
+        for key in self._unique_keys:
+            if key not in skip_keys:
+                yield key, tuple(self.get(k) for k in key)
 
     def resolve_inverse_references(self, skip_keys=()):
+        """Goes through the ``_inverse_references`` class attribute and updates this item
+        by resolving those references.
+        Returns any error.
+
+        Args:
+            skip_keys (tuple): don't resolve references for these keys.
+
+        Returns:
+            str or None: error description if any.
+        """
         for src_key, (id_key, (ref_type, ref_key)) in self._inverse_references.items():
             if src_key in skip_keys:
                 continue
@@ -568,25 +621,32 @@ class CacheItemBase(TempIdDict):
                 # Happens at unique_key_value_to_id(..., strict=True)
                 return f"can't find {ref_type} with {dict(zip(ref_key, err.args[0]))}"
 
-    def invalid_ref(self):
-        for src_key, (ref_type, _ref_key) in self._references.values():
-            try:
-                ref_id = self[src_key]
-            except KeyError:
-                return src_key
-            if isinstance(ref_id, tuple):
-                for x in ref_id:
-                    if not self._get_ref(ref_type, x):
-                        return src_key
-            elif not self._get_ref(ref_type, ref_id):
-                return src_key
+    def polish(self):
+        """Polishes this item once all it's references have been resolved. Returns any error.
 
-    def unique_values(self, skip_keys=()):
-        for key in self._unique_keys:
-            if key not in skip_keys:
-                yield key, tuple(self.get(k) for k in key)
+        The base implementation sets defaults but subclasses can do more work if needed.
+
+        Returns:
+            str or None: error description if any.
+        """
+        for key, default_value in self._defaults.items():
+            self.setdefault(key, default_value)
+        return ""
 
     def _get_ref(self, ref_type, ref_id, strong=True):
+        """Collects a reference from the cache.
+        Adds this item to the reference's list of referrers if strong is True;
+        or weak referrers if strong is False.
+        If the reference is not found, sets some flags.
+
+        Args:
+            ref_type (str): The references's type
+            ref_id (int): The references's id
+            strong (bool): True if the reference corresponds to a foreign key, False otherwise
+
+        Returns:
+            CacheItemBase or dict
+        """
         ref = self._db_cache.get_item(ref_type, ref_id)
         if not ref:
             if not strong:
@@ -595,9 +655,7 @@ class CacheItemBase(TempIdDict):
             if not ref:
                 self._corrupted = True
                 return {}
-        return self._handle_ref(ref, strong)
-
-    def _handle_ref(self, ref, strong):
+        # Here we have a ref
         if strong:
             ref.add_referrer(self)
             if ref.removed:
@@ -608,11 +666,23 @@ class CacheItemBase(TempIdDict):
                 return {}
         return ref
 
-    def _forget_ref(self, ref_type, ref_id):
+    def _invalidate_ref(self, ref_type, ref_id):
+        """Invalidates a reference previously collected from the cache.
+
+        Args:
+            ref_type (str): The references's type
+            ref_id (int): The references's id
+        """
         ref = self._db_cache.get_item(ref_type, ref_id)
         ref.remove_referrer(self)
 
     def is_valid(self):
+        """Checks if this item has all its references.
+        Removes the item from the cache if not valid by calling ``cascade_remove``.
+
+        Returns:
+            bool
+        """
         if self._valid is not None:
             return self._valid
         if self._removed or self._corrupted:
@@ -627,16 +697,33 @@ class CacheItemBase(TempIdDict):
         return self._valid
 
     def add_referrer(self, referrer):
+        """Adds a strong referrer to this item. Strong referrers are removed, updated and restored
+        in cascade with this item.
+
+        Args:
+            referrer (CacheItemBase)
+        """
         if referrer.key is None:
             return
         self._referrers[referrer.key] = self._weak_referrers.pop(referrer.key, referrer)
 
     def remove_referrer(self, referrer):
+        """Removes a strong referrer.
+
+        Args:
+            referrer (CacheItemBase)
+        """
         if referrer.key is None:
             return
         self._referrers.pop(referrer.key, None)
 
     def add_weak_referrer(self, referrer):
+        """Adds a weak referrer to this item.
+        Weak referrers' update callbacks are called whenever this item changes.
+
+        Args:
+            referrer (CacheItemBase)
+        """
         if referrer.key is None:
             return
         if referrer.key not in self._referrers:
@@ -647,6 +734,9 @@ class CacheItemBase(TempIdDict):
             weak_referrer.call_update_callbacks()
 
     def cascade_restore(self):
+        """Restores this item (if removed) and all its referrers in cascade.
+        Also, updates items' status and calls their restore callbacks.
+        """
         if not self._removed:
             return
         if self._status == Status.committed:
@@ -664,6 +754,9 @@ class CacheItemBase(TempIdDict):
         self.restore_callbacks -= obsolete
 
     def cascade_remove(self):
+        """Removes this item and all its referrers in cascade.
+        Also, updates items' status and calls their remove callbacks.
+        """
         if self._removed:
             return
         if self._status == Status.committed:
@@ -683,6 +776,9 @@ class CacheItemBase(TempIdDict):
         self._update_weak_referrers()
 
     def cascade_update(self):
+        """Updates this item and all its referrers in cascade.
+        Also, calls items' update callbacks.
+        """
         self.call_update_callbacks()
         for referrer in self._referrers.values():
             referrer.cascade_update()
@@ -695,16 +791,61 @@ class CacheItemBase(TempIdDict):
                 obsolete.add(callback)
         self.update_callbacks -= obsolete
 
-    def _extended(self):
-        return {**self, **{key: self[key] for key in self._references}}
-
-    def _asdict(self):
-        return dict(self)
-
     def is_committed(self):
+        """Returns whether or not this item is committed to the DB.
+
+        Returns:
+            bool
+        """
         return self._status == Status.committed
 
     def commit(self, commit_id):
+        """Sets this item as committed with the given commit id."""
         self._status = Status.committed
         if commit_id:
             self["commit_id"] = commit_id
+
+    def __repr__(self):
+        """Overridden to return a more verbose representation."""
+        return f"{self._item_type}{self._extended()}"
+
+    def __getattr__(self, name):
+        """Overridden to return the dictionary key named after the attribute, or None if it doesn't exist."""
+        # FIXME: We should try and get rid of this one
+        return self.get(name)
+
+    def __getitem__(self, key):
+        """Overridden to return references."""
+        ref = self._references.get(key)
+        if ref:
+            src_key, (ref_type, ref_key) = ref
+            ref_id = self[src_key]
+            if isinstance(ref_id, tuple):
+                return tuple(self._get_ref(ref_type, x).get(ref_key) for x in ref_id)
+            return self._get_ref(ref_type, ref_id).get(ref_key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        """Overridden to return references."""
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def update(self, other):
+        """Overridden to update the item status and also to invalidate references that become obsolete."""
+        if self._status == Status.committed:
+            self._status = Status.to_update
+            self._backup = self._asdict()
+        for src_key, (ref_type, _ref_key) in self._references.values():
+            ref_id = self[src_key]
+            if src_key in other and other[src_key] != ref_id:
+                # Invalidate references
+                if isinstance(ref_id, tuple):
+                    for x in ref_id:
+                        self._invalidate_ref(ref_type, x)
+                else:
+                    self._invalidate_ref(ref_type, ref_id)
+        super().update(other)
+        if self._asdict() == self._backup:
+            self._status = Status.committed
