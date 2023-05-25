@@ -294,7 +294,7 @@ class _DBWorker:
             sq = getattr(self._db_map, sq_name, None)
             if sq is None:
                 continue
-            result[sq_name] = [x._asdict() for x in self._db_map.query(sq)]
+            result[sq_name] = [dict(x) for x in self._db_map.query(sq)]
         return dict(result=result)
 
     def _do_filtered_query(self, **kwargs):
