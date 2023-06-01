@@ -110,4 +110,4 @@ from .filters.tools import (
 )
 
 name = "spinedb_api"
-__version__ = "0.29.0.dev0"
+__version__ = "0.30.0.dev0"
