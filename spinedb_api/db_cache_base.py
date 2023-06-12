@@ -748,7 +748,7 @@ class CacheItemBase(TempIdDict):
             referrer.cascade_restore()
         self._update_weak_referrers()
         obsolete = set()
-        for callback in self.restore_callbacks:
+        for callback in list(self.restore_callbacks):
             if not callback(self):
                 obsolete.add(callback)
         self.restore_callbacks -= obsolete
@@ -767,7 +767,7 @@ class CacheItemBase(TempIdDict):
         self._to_remove = False
         self._valid = None
         obsolete = set()
-        for callback in self.remove_callbacks:
+        for callback in list(self.remove_callbacks):
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
@@ -786,7 +786,7 @@ class CacheItemBase(TempIdDict):
 
     def call_update_callbacks(self):
         obsolete = set()
-        for callback in self.update_callbacks:
+        for callback in list(self.update_callbacks):
             if not callback(self):
                 obsolete.add(callback)
         self.update_callbacks -= obsolete
