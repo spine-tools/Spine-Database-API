@@ -28,6 +28,7 @@ class Status(Enum):
     to_add = auto()
     to_update = auto()
     to_remove = auto()
+    added_and_removed = auto()
 
 
 class DBCacheBase(dict):
@@ -459,6 +460,7 @@ class CacheItemBase(TempIdDict):
         self._corrupted = False
         self._valid = None
         self._status = Status.committed
+        self._status_when_removed = None
         self._backup = None
 
     @classmethod
@@ -739,10 +741,10 @@ class CacheItemBase(TempIdDict):
         """
         if not self._removed:
             return
-        if self._status == Status.committed:
-            self._status = Status.to_add
+        if self.status in (Status.added_and_removed, Status.to_remove):
+            self._status = self._status_when_removed
         else:
-            self._status = Status.committed
+            raise RuntimeError("invalid status for item being restored")
         self._removed = False
         for referrer in self._referrers.values():
             referrer.cascade_restore()
@@ -759,10 +761,13 @@ class CacheItemBase(TempIdDict):
         """
         if self._removed:
             return
-        if self._status == Status.committed:
+        self._status_when_removed = self._status
+        if self._status == Status.to_add:
+            self._status = Status.added_and_removed
+        elif self._status in (Status.committed, Status.to_update):
             self._status = Status.to_remove
         else:
-            self._status = Status.committed
+            raise RuntimeError("invalid status for item being removed")
         self._removed = True
         self._to_remove = False
         self._valid = None
@@ -837,6 +842,8 @@ class CacheItemBase(TempIdDict):
         if self._status == Status.committed:
             self._status = Status.to_update
             self._backup = self._asdict()
+        elif self._status in (Status.to_remove, Status.added_and_removed):
+            raise RuntimeError("invalid status of item being updated")
         for src_key, (ref_type, _ref_key) in self._references.values():
             ref_id = self[src_key]
             if src_key in other and other[src_key] != ref_id:
