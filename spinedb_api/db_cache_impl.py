@@ -14,7 +14,7 @@ DB cache implementation.
 """
 import uuid
 from operator import itemgetter
-from .parameter_value import from_database, ParameterValueFormatError
+from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_cache_base import DBCacheBase, CacheItemBase
 
 
@@ -247,14 +247,8 @@ class ParameterDefinitionItem(ParsedValueBase):
         )
         if list_value_id is None:
             return f"default value {parsed_value} of {self['name']} is not in {list_name}"
-        self["default_value"] = list_value_id
+        self["default_value"] = to_database(list_value_id)[0]
         self["default_type"] = "list_value_ref"
-
-    def _asdict(self):
-        d = super()._asdict()
-        if d.get("default_type") == "list_value_ref":
-            d["default_value"] = str(d["default_value"]).encode()
-        return d
 
     def merge(self, other):
         other_parameter_value_list_id = other.get("parameter_value_list_id")
@@ -343,14 +337,8 @@ class ParameterValueItem(ParsedValueBase):
                 f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
                 f"is not in {list_name}"
             )
-        self["value"] = list_value_id
+        self["value"] = to_database(list_value_id)[0]
         self["type"] = "list_value_ref"
-
-    def _asdict(self):
-        d = super()._asdict()
-        if d.get("type") == "list_value_ref":
-            d["value"] = str(d["value"]).encode()
-        return d
 
 
 class ParameterValueListItem(CacheItemBase):
