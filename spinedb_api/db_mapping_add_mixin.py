@@ -188,4 +188,4 @@ class DatabaseMappingAddMixin:
 
     def get_metadata_to_add_with_entity_metadata_items(self, *items):
         metadata_items = ({"name": item["metadata_name"], "value": item["metadata_value"]} for item in items)
-        return [x for x in metadata_items if not self.cache.table_cache("metadata").current_item(x)]
+        return [x for x in metadata_items if not self.cache.table_cache("metadata").find_item(x)]

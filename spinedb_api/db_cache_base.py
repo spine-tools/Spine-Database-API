@@ -296,7 +296,7 @@ class _TableCache(TempIdDict):
         """
         return self._db_cache.make_item(self._item_type, **item)
 
-    def current_item(self, item, skip_keys=()):
+    def find_item(self, item, skip_keys=()):
         """Returns a CacheItemBase that matches the given dictionary-item.
 
         Args:
@@ -332,7 +332,7 @@ class _TableCache(TempIdDict):
         # FIXME: The only use-case for skip_keys at the moment is that of importing scenario alternatives,
         # where we only want to match by (scen_name, alt_name) and not by (scen_name, rank)
         if for_update:
-            current_item = self.current_item(item, skip_keys=skip_keys)
+            current_item = self.find_item(item, skip_keys=skip_keys)
             if current_item is None:
                 return None, f"no {self._item_type} matching {item} to update"
             full_item, merge_error = current_item.merge(item)
@@ -390,7 +390,7 @@ class _TableCache(TempIdDict):
         return new_item
 
     def update_item(self, item):
-        current_item = self.current_item(item)
+        current_item = self.find_item(item)
         self._remove_unique(current_item)
         current_item.update(item)
         self._add_unique(current_item)
@@ -398,7 +398,7 @@ class _TableCache(TempIdDict):
         return current_item
 
     def remove_item(self, id_):
-        current_item = self.current_item({"id": id_})
+        current_item = self.find_item({"id": id_})
         if current_item is not None:
             self._remove_unique(current_item)
             current_item.cascade_remove()

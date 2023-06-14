@@ -30,42 +30,54 @@ class TempId(int):
         self._key_binds = []
         self._tuple_key_binds = []
 
-    def add_value_bind(self, item, key):
-        self._value_binds.append((item, key))
+    def add_value_bind(self, collection, key):
+        self._value_binds.append((collection, key))
 
-    def add_tuple_value_bind(self, item, key):
-        self._tuple_value_binds.append((item, key))
+    def add_tuple_value_bind(self, collection, key):
+        self._tuple_value_binds.append((collection, key))
 
-    def add_key_bind(self, item):
-        self._key_binds.append(item)
+    def add_key_bind(self, collection):
+        self._key_binds.append(collection)
 
-    def add_tuple_key_bind(self, item, key):
-        self._tuple_key_binds.append((item, key))
+    def add_tuple_key_bind(self, collection, key):
+        self._tuple_key_binds.append((collection, key))
 
-    def remove_key_bind(self, item):
-        self._key_binds.remove(item)
+    def remove_key_bind(self, collection):
+        self._key_binds.remove(collection)
 
-    def remove_tuple_key_bind(self, item, key):
-        self._tuple_key_binds.remove((item, key))
+    def remove_tuple_key_bind(self, collection, key):
+        self._tuple_key_binds.remove((collection, key))
 
     def resolve(self, new_id):
-        for item, key in self._value_binds:
-            item[key] = new_id
-        for item, key in self._tuple_value_binds:
-            item[key] = tuple(new_id if v is self else v for v in item[key])
-        for item in self._key_binds:
-            if self in item:
-                item[new_id] = dict.pop(item, self, None)
-        for item, key in self._tuple_key_binds:
-            if key in item:
-                item[tuple(new_id if k is self else k for k in key)] = dict.pop(item, key, None)
+        for collection, key in self._value_binds:
+            collection[key] = new_id
+        for collection, key in self._tuple_value_binds:
+            collection[key] = tuple(new_id if v is self else v for v in collection[key])
+        for collection in self._key_binds:
+            if self in collection:
+                collection.key_map[self] = new_id
+                collection[new_id] = dict.pop(collection, self, None)
+        for collection, key in self._tuple_key_binds:
+            if key in collection:
+                new_key = tuple(new_id if k is self else k for k in key)
+                collection[new_key] = dict.pop(collection, key, None)
+                collection.key_map[key] = new_key
 
 
 class TempIdDict(dict):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.key_map = {}
         for key, value in kwargs.items():
             self._bind(key, value)
+
+    def __getitem__(self, key):
+        key = self.key_map.get(key, key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        key = self.key_map.get(key, key)
+        return super().get(key, default)
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)

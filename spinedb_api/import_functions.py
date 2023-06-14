@@ -846,7 +846,7 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
                 "value": None,
                 "type": None,
             }
-            pv = db_map.cache.table_cache("parameter_value").current_item(item)
+            pv = db_map.cache.table_cache("parameter_value").find_item(item)
             if pv is not None:
                 value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
             item.update({"value": value, "type": type_})
@@ -872,7 +872,7 @@ def _get_scenarios_for_import(db_map, data):
 def _get_scenario_alternatives_for_import(db_map, data):
     alt_name_list_by_scen_name, errors = {}, []
     for scen_name, alt_name, *optionals in data:
-        scen = db_map.cache.table_cache("scenario").current_item({"name": scen_name})
+        scen = db_map.cache.table_cache("scenario").find_item({"name": scen_name})
         if scen is None:
             errors.append(f"no scenario with name {scen_name} to set alternatives for")
             continue
@@ -911,7 +911,7 @@ def _get_list_values_for_import(db_map, data, unparse_value):
             value, type_ = unparse_value(value)
             index = index_by_list_name.get(list_name)
             if index is None:
-                current_list = db_map.cache.table_cache("parameter_value_list").current_item({"name": list_name})
+                current_list = db_map.cache.table_cache("parameter_value_list").find_item({"name": list_name})
                 index = max(
                     (
                         x["index"]

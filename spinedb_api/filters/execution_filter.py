@@ -160,8 +160,8 @@ def _create_import_alternative(db_map, state):
     scenarios = [{"name": scen_name} for scen_name in scenarios]
     db_map.add_scenarios(*scenarios, _strict=True)
     for scen_name in scenarios:
-        scen = db_map.cache.table_cache("scenario").current_item({"name": scen_name})
-        rank = len(scen.sorted_alternatives) + 1  # ranks are 1-based
+        scen = db_map.cache.table_cache("scenario").find_item({"name": scen_name})
+        rank = len(scen.sorted_scenario_alternatives) + 1  # ranks are 1-based
         db_map.add_scenario_alternatives(
             {"scenario_name": scen_name, "alternative_name": db_map._import_alternative_name, "rank": rank}
         )

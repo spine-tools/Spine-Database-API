@@ -40,9 +40,10 @@ class DatabaseMappingCommitMixin:
             for tablename, (to_add, to_update, to_remove) in dirty_items:
                 for item in to_add + to_update + to_remove:
                     item.commit(commit_id)
-                self._do_add_items(connection, tablename, *to_add)
-                self._do_update_items(connection, tablename, *to_update)
+                # Remove before add, to help with keeping integrity constraints
                 self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
+                self._do_update_items(connection, tablename, *to_update)
+                self._do_add_items(connection, tablename, *to_add)
         self.cache.commit()
         if self._memory:
             self._memory_dirty = True

@@ -381,7 +381,7 @@ class ScenarioItem(CacheItemBase):
     _unique_keys = (("name",),)
 
     @property
-    def sorted_alternatives(self):
+    def sorted_scenario_alternatives(self):
         self._db_cache.fetch_all("scenario_alternative")
         return sorted(
             (x for x in self._db_cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
@@ -390,9 +390,9 @@ class ScenarioItem(CacheItemBase):
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
-            return [x["alternative_id"] for x in self.sorted_alternatives]
+            return [x["alternative_id"] for x in self.sorted_scenario_alternatives]
         if key == "alternative_name_list":
-            return [x["alternative_name"] for x in self.sorted_alternatives]
+            return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
         return super().__getitem__(key)
 
 

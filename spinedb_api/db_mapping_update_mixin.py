@@ -181,10 +181,10 @@ class DatabaseMappingUpdateMixin:
             set: integer scenario_alternative ids to remove
         """
         scen_alts_to_add = []
-        scen_alt_ids_to_remove = set()
+        scen_alt_ids_to_remove = {}
         errors = []
         for scen in scenarios:
-            current_scen = self.cache.table_cache("scenario").current_item(scen)
+            current_scen = self.cache.table_cache("scenario").find_item(scen)
             if current_scen is None:
                 error = f"no scenario matching {scen} to set alternatives for"
                 if strict:
@@ -199,6 +199,16 @@ class DatabaseMappingUpdateMixin:
                 scen_alts_to_add.append(item_to_add)
             for alternative_id in current_scen["alternative_id_list"]:
                 scen_alt = {"scenario_id": current_scen["id"], "alternative_id": alternative_id}
-                current_scen_alt = self.cache.table_cache("scenario_alternative").current_item(scen_alt)
-                scen_alt_ids_to_remove.add(current_scen_alt["id"])
-        return scen_alts_to_add, scen_alt_ids_to_remove, errors
+                current_scen_alt = self.cache.table_cache("scenario_alternative").find_item(scen_alt)
+                scen_alt_ids_to_remove[current_scen_alt["id"]] = current_scen_alt
+        # Remove items that are both to add and to remove
+        for id_, to_rm in list(scen_alt_ids_to_remove.items()):
+            i = next((i for i, to_add in enumerate(scen_alts_to_add) if _is_equal(to_add, to_rm)), None)
+            if i is not None:
+                del scen_alts_to_add[i]
+                del scen_alt_ids_to_remove[id_]
+        return scen_alts_to_add, set(scen_alt_ids_to_remove), errors
+
+
+def _is_equal(to_add, to_rm):
+    return all(to_rm[k] == v for k, v in to_add.items())
