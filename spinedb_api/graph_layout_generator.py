@@ -111,10 +111,10 @@ class GraphLayoutGenerator:
         if self.vertex_count <= 1:
             x, y = np.array([0.0]), np.array([0.0])
             self._layout_available(x, y)
-            return
+            return x, y
         matrix = self.shortest_path_matrix()
         if matrix is None:
-            return
+            return [], []
         mask = np.ones((self.vertex_count, self.vertex_count)) == 1 - np.tril(
             np.ones((self.vertex_count, self.vertex_count))
         )  # Upper triangular except diagonal
@@ -159,3 +159,4 @@ class GraphLayoutGenerator:
                     layout[heavy_ind, :] = heavy_pos
         x, y = layout[:, 0], layout[:, 1]
         self._layout_available(x, y)
+        return x, y
