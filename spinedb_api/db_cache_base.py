@@ -460,6 +460,7 @@ class CacheItemBase(TempIdDict):
         self._corrupted = False
         self._valid = None
         self._status = Status.committed
+        self._removal_source = None
         self._status_when_removed = None
         self._backup = None
 
@@ -735,11 +736,13 @@ class CacheItemBase(TempIdDict):
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
 
-    def cascade_restore(self):
+    def cascade_restore(self, source=None):
         """Restores this item (if removed) and all its referrers in cascade.
         Also, updates items' status and calls their restore callbacks.
         """
         if not self._removed:
+            return
+        if source is not self._removal_source:
             return
         if self.status in (Status.added_and_removed, Status.to_remove):
             self._status = self._status_when_removed
@@ -747,7 +750,7 @@ class CacheItemBase(TempIdDict):
             raise RuntimeError("invalid status for item being restored")
         self._removed = False
         for referrer in self._referrers.values():
-            referrer.cascade_restore()
+            referrer.cascade_restore(source=self)
         self._update_weak_referrers()
         obsolete = set()
         for callback in list(self.restore_callbacks):
@@ -755,7 +758,7 @@ class CacheItemBase(TempIdDict):
                 obsolete.add(callback)
         self.restore_callbacks -= obsolete
 
-    def cascade_remove(self):
+    def cascade_remove(self, source=None):
         """Removes this item and all its referrers in cascade.
         Also, updates items' status and calls their remove callbacks.
         """
@@ -768,6 +771,7 @@ class CacheItemBase(TempIdDict):
             self._status = Status.to_remove
         else:
             raise RuntimeError("invalid status for item being removed")
+        self._removal_source = source
         self._removed = True
         self._to_remove = False
         self._valid = None
@@ -777,7 +781,7 @@ class CacheItemBase(TempIdDict):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
         for referrer in self._referrers.values():
-            referrer.cascade_remove()
+            referrer.cascade_remove(source=self)
         self._update_weak_referrers()
 
     def cascade_update(self):
