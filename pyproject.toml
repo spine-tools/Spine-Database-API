@@ -1,5 +1,5 @@
 [project]
-name = "spinetoolbox"
+name = "spinedb_api"
 dynamic = ["version"]
 authors = [{name = "Spine Project consortium", email = "spine_info@vtt.fi"}]
 license = {text = "LGPL-3.0-or-later"}
