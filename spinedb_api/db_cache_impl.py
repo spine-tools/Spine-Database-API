@@ -269,7 +269,7 @@ class ParameterDefinitionItem(ParsedValueBase):
 
 
 class ParameterValueItem(ParsedValueBase):
-    _unique_keys = (("parameter_definition_name", "entity_byname", "alternative_name"),)
+    _unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
         "entity_class_name": ("entity_class_id", ("entity_class", "name")),
         "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
