@@ -6,6 +6,10 @@
 Welcome to Spine Database API's documentation!
 ==============================================
 
+.. image:: img/spinetoolbox_on_wht.svg
+   :align: center
+   :scale: 30%
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
