@@ -141,6 +141,14 @@ class TestPolishImportMapping(unittest.TestCase):
         self.assertEqual(mapping.position, Position.header)
         self.assertEqual(mapping.value, "C")
 
+    def test_polish_column_header_mapping_duplicates(self):
+        mapping = ImportMapping(Position.header, value=3)
+        table_name = "tablename"
+        header = ["A", "B", "C", "A"]
+        mapping.polish(table_name, header, for_preview=True)
+        self.assertEqual(mapping.position, Position.header)
+        self.assertEqual(mapping.value, 3)
+
     def test_polish_column_header_mapping_invalid_header(self):
         mapping = ImportMapping(Position.header, value="D")
         table_name = "tablename"
