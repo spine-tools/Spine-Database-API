@@ -95,6 +95,7 @@ class ImportMapping(Mapping):
         self.skip_columns = skip_columns
         self.read_start_row = read_start_row
         self._has_filter_cached = None
+        self._index = None
 
     @property
     def skip_columns(self):
@@ -178,6 +179,7 @@ class ImportMapping(Mapping):
                     raise InvalidMappingComponent(msg)
             # Integer value, we try and get the actual value from that index in the header
             try:
+                self._index = self.value
                 self.value = source_header[self.value]
             except IndexError:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
@@ -185,7 +187,7 @@ class ImportMapping(Mapping):
 
     def _polish_for_preview(self, source_header):
         if self.position == Position.header and self.value is not None:
-            self.value = source_header.index(self.value)
+            self.value = self._index
         if self.child is not None:
             self.child._polish_for_preview(source_header)
 
