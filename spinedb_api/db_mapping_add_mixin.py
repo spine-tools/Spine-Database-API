@@ -16,6 +16,7 @@
 
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineIntegrityError, SpineDBAPIError
+from .temp_id import TempId
 
 
 class DatabaseMappingAddMixin:
@@ -51,8 +52,7 @@ class DatabaseMappingAddMixin:
                         raise SpineIntegrityError(error)
                     errors.append(error)
                     continue
-                item = checked_item._asdict()
-                added.append(table_cache.add_item(item, new=True)._asdict())
+                added.append(table_cache.add_item(checked_item, new=True)._asdict())
         return added, errors
 
     def _do_add_items(self, connection, tablename, *items_to_add):
@@ -63,7 +63,7 @@ class DatabaseMappingAddMixin:
             table = self._metadata.tables[self._real_tablename(tablename)]
             id_items, temp_id_items = [], []
             for item in items_to_add:
-                if hasattr(item["id"], "resolve"):
+                if isinstance(item["id"], TempId):
                     temp_id_items.append(item)
                 else:
                     id_items.append(item)
@@ -177,15 +177,15 @@ class DatabaseMappingAddMixin:
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
     def add_ext_entity_metadata(self, *items, **kwargs):
-        metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
+        metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         self.add_items("metadata", *metadata_items, **kwargs)
         return self.add_items("entity_metadata", *items, **kwargs)
 
     def add_ext_parameter_value_metadata(self, *items, **kwargs):
-        metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
+        metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         self.add_items("metadata", *metadata_items, **kwargs)
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def get_metadata_to_add_with_entity_metadata_items(self, *items):
+    def get_metadata_to_add_with_item_metadata_items(self, *items):
         metadata_items = ({"name": item["metadata_name"], "value": item["metadata_value"]} for item in items)
         return [x for x in metadata_items if not self.cache.table_cache("metadata").find_item(x)]

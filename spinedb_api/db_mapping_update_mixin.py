@@ -155,7 +155,7 @@ class DatabaseMappingUpdateMixin:
         return self.update_items("parameter_value_metadata", *items, **kwargs)
 
     def _update_ext_item_metadata(self, tablename, *items, **kwargs):
-        metadata_items = self.get_metadata_to_add_with_entity_metadata_items(*items)
+        metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         added, errors = self.add_items("metadata", *metadata_items, **kwargs)
         updated, more_errors = self.update_items(tablename, *items, **kwargs)
         return added + updated, errors + more_errors

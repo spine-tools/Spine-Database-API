@@ -1201,9 +1201,9 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_definition_sq.c.id.label("id"),
                     self.parameter_definition_sq.c.entity_class_id,
-                    self.parameter_definition_sq.c.object_class_id,
-                    self.parameter_definition_sq.c.relationship_class_id,
                     self.wide_entity_class_sq.c.name.label("entity_class_name"),
+                    label("object_class_id", self._object_class_id()),
+                    label("relationship_class_id", self._relationship_class_id()),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
                     label("object_class_id_list", self._object_class_id_list()),
@@ -1282,7 +1282,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
-                .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.object_class_id)
+                .filter(self.object_class_sq.c.id == self.parameter_definition_sq.c.entity_class_id)
                 .outerjoin(
                     self.parameter_value_list_sq,
                     self.parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -1363,7 +1363,7 @@ class DatabaseMappingBase:
                     self.parameter_definition_sq.c.default_type,
                     self.parameter_definition_sq.c.description,
                 )
-                .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
+                .filter(self.parameter_definition_sq.c.entity_class_id == self.wide_relationship_class_sq.c.id)
                 .outerjoin(
                     self.parameter_value_list_sq,
                     self.parameter_value_list_sq.c.id == self.parameter_definition_sq.c.parameter_value_list_id,
@@ -1383,17 +1383,17 @@ class DatabaseMappingBase:
                 self.query(
                     self.parameter_value_sq.c.id.label("id"),
                     self.parameter_definition_sq.c.entity_class_id,
-                    self.parameter_definition_sq.c.object_class_id,
-                    self.parameter_definition_sq.c.relationship_class_id,
                     self.wide_entity_class_sq.c.name.label("entity_class_name"),
+                    label("object_class_id", self._object_class_id()),
+                    label("relationship_class_id", self._relationship_class_id()),
                     label("object_class_name", self._object_class_name()),
                     label("relationship_class_name", self._relationship_class_name()),
                     label("object_class_id_list", self._object_class_id_list()),
                     label("object_class_name_list", self._object_class_name_list()),
                     self.parameter_value_sq.c.entity_id,
                     self.wide_entity_sq.c.name.label("entity_name"),
-                    self.parameter_value_sq.c.object_id,
-                    self.parameter_value_sq.c.relationship_id,
+                    label("object_id", self._object_id()),
+                    label("relationship_id", self._relationship_id()),
                     label("object_name", self._object_name()),
                     label("object_id_list", self._object_id_list()),
                     label("object_name_list", self._object_name_list()),
@@ -1424,7 +1424,7 @@ class DatabaseMappingBase:
                 # object_id_list might be None when objects have been filtered out
                 .filter(
                     or_(
-                        self.parameter_value_sq.c.relationship_id.is_(None),
+                        self.wide_relationship_sq.c.id.is_(None),
                         self.wide_relationship_sq.c.object_id_list.isnot(None),
                     )
                 )
@@ -1457,8 +1457,8 @@ class DatabaseMappingBase:
                     self.parameter_value_sq.c.type,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
-                .filter(self.parameter_value_sq.c.object_id == self.object_sq.c.id)
-                .filter(self.parameter_definition_sq.c.object_class_id == self.object_class_sq.c.id)
+                .filter(self.parameter_value_sq.c.entity_id == self.object_sq.c.id)
+                .filter(self.parameter_definition_sq.c.entity_class_id == self.object_class_sq.c.id)
                 .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .subquery()
             )
@@ -1492,8 +1492,8 @@ class DatabaseMappingBase:
                     self.parameter_value_sq.c.type,
                 )
                 .filter(self.parameter_definition_sq.c.id == self.parameter_value_sq.c.parameter_definition_id)
-                .filter(self.parameter_value_sq.c.relationship_id == self.wide_relationship_sq.c.id)
-                .filter(self.parameter_definition_sq.c.relationship_class_id == self.wide_relationship_class_sq.c.id)
+                .filter(self.parameter_value_sq.c.entity_id == self.wide_relationship_sq.c.id)
+                .filter(self.parameter_definition_sq.c.entity_class_id == self.wide_relationship_class_sq.c.id)
                 .filter(self.parameter_value_sq.c.alternative_id == self.alternative_sq.c.id)
                 .subquery()
             )
@@ -1593,8 +1593,6 @@ class DatabaseMappingBase:
                 par_def_sq.c.name.label("name"),
                 par_def_sq.c.description.label("description"),
                 par_def_sq.c.entity_class_id,
-                label("object_class_id", self._object_class_id()),
-                label("relationship_class_id", self._relationship_class_id()),
                 label("default_value", default_value),
                 label("default_type", default_type),
                 label("list_value_id", list_value_id),
@@ -1623,10 +1621,6 @@ class DatabaseMappingBase:
                 par_val_sq.c.parameter_definition_id,
                 par_val_sq.c.entity_class_id,
                 par_val_sq.c.entity_id,
-                label("object_class_id", self._object_class_id()),
-                label("relationship_class_id", self._relationship_class_id()),
-                label("object_id", self._object_id()),
-                label("relationship_id", self._relationship_id()),
                 label("value", value),
                 label("type", type_),
                 label("list_value_id", list_value_id),

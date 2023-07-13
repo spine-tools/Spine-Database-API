@@ -16,6 +16,7 @@ import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_cache_base import DBCacheBase, CacheItemBase
+from .temp_id import TempId
 
 
 class DBCache(DBCacheBase):
@@ -249,6 +250,12 @@ class ParameterDefinitionItem(ParsedValueBase):
             return f"default value {parsed_value} of {self['name']} is not in {list_name}"
         self["default_value"] = to_database(list_value_id)[0]
         self["default_type"] = "list_value_ref"
+        if isinstance(list_value_id, TempId):
+
+            def callback(new_id):
+                self["default_value"] = to_database(new_id)[0]
+
+            list_value_id.add_resolve_callback(callback)
 
     def merge(self, other):
         other_parameter_value_list_id = other.get("parameter_value_list_id")
@@ -339,6 +346,12 @@ class ParameterValueItem(ParsedValueBase):
             )
         self["value"] = to_database(list_value_id)[0]
         self["type"] = "list_value_ref"
+        if isinstance(list_value_id, TempId):
+
+            def callback(new_id):
+                self["value"] = to_database(new_id)[0]
+
+            list_value_id.add_resolve_callback(callback)
 
 
 class ParameterValueListItem(CacheItemBase):
@@ -441,8 +454,11 @@ class ParameterValueMetadataItem(CacheItemBase):
     }
     _inverse_references = {
         "parameter_value_id": (
-            ("parameter_definition_name", "entity_byname", "alternative_name"),
-            ("parameter_value", ("parameter_definition_name", "entity_byname", "alternative_name")),
+            ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
+            (
+                "parameter_value",
+                ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
+            ),
         ),
         "metadata_id": (("metadata_name", "metadata_value"), ("metadata", ("name", "value"))),
     }

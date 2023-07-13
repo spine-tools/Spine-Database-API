@@ -323,7 +323,7 @@ class TestScenarioFilter(unittest.TestCase):
         datamined_values = dict()
         for parameter in parameters:
             self.assertEqual(alternative_names[parameter.alternative_id], "alternative")
-            parameter_values = datamined_values.setdefault(object_names[parameter.object_id], dict())
+            parameter_values = datamined_values.setdefault(object_names[parameter.entity_id], dict())
             parameter_values[parameter_names[parameter.parameter_definition_id]] = parameter.value
         self.assertEqual(
             datamined_values,

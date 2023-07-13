@@ -382,13 +382,16 @@ class _TableCache(TempIdDict):
             self._add_unique(item)
 
     def add_item(self, item, new=False):
+        if not isinstance(item, CacheItemBase):
+            item = self._make_item(item)
+            item.polish()
         if "id" not in item:
             item["id"] = self._new_id()
-        self[item["id"]] = new_item = self._make_item(item)
-        self._add_unique(new_item)
+        self[item["id"]] = item
+        self._add_unique(item)
         if new:
-            new_item.status = Status.to_add
-        return new_item
+            item.status = Status.to_add
+        return item
 
     def update_item(self, item):
         current_item = self.find_item(item)
@@ -537,7 +540,9 @@ class CacheItemBase(TempIdDict):
         Returns:
             dict
         """
-        return {**self, **{key: self[key] for key in self._references}}
+        d = self._asdict()
+        d.update({key: self[key] for key in self._references})
+        return d
 
     def _asdict(self):
         """Returns a dict from this item's original fields.

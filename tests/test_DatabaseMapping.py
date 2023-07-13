@@ -160,8 +160,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "name",
             "description",
             "entity_class_id",
-            "object_class_id",
-            "relationship_class_id",
             "default_value",
             "default_type",
             "list_value_id",
@@ -178,10 +176,6 @@ class TestDatabaseMappingBase(unittest.TestCase):
             "parameter_definition_id",
             "entity_class_id",
             "entity_id",
-            "object_class_id",
-            "relationship_class_id",
-            "object_id",
-            "relationship_id",
             "value",
             "type",
             "list_value_id",
@@ -498,8 +492,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].name, "par1")
-        self.assertIsNotNone(definition_rows[0].object_class_id)
-        self.assertIsNone(definition_rows[0].relationship_class_id)
+        self.assertIsNotNone(definition_rows[0].entity_class_id)
 
     def test_parameter_definition_sq_for_relationship_class(self):
         self.create_object_classes()
@@ -509,8 +502,7 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].name, "par1")
-        self.assertIsNone(definition_rows[0].object_class_id)
-        self.assertIsNotNone(definition_rows[0].relationship_class_id)
+        self.assertIsNotNone(definition_rows[0].entity_class_id)
 
     def test_entity_parameter_definition_sq_for_object_class(self):
         self.create_object_classes()
@@ -1093,7 +1085,8 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             [str(e) for e in errors],
             [
                 "there's already a parameter_value with "
-                "{'parameter_definition_name': 'color', 'entity_byname': ('nemo',), 'alternative_name': 'Base'}"
+                "{'entity_class_name': 'fish', 'parameter_definition_name': 'color', "
+                "'entity_byname': ('nemo',), 'alternative_name': 'Base'}"
             ],
         )
 
@@ -1570,9 +1563,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
                 "id": 1,
                 "list_value_id": None,
                 "name": "my_parameter",
-                "object_class_id": 1,
                 "parameter_value_list_id": 1,
-                "relationship_class_id": None,
             },
         )
 
@@ -1627,7 +1618,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
         self._db_map.commit_session("Add test data")
         items, errors = self._db_map.update_ext_entity_metadata(
-            *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
+            {"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 2)
@@ -1635,10 +1626,10 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3})
+        self.assertEqual(dict(metadata_entries[0]), {"id": 1, "name": "key_2", "value": "new value", "commit_id": 3})
         entity_metadata_entries = self._db_map.query(self._db_map.entity_metadata_sq).all()
         self.assertEqual(len(entity_metadata_entries), 1)
-        self.assertEqual(dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 2, "commit_id": 3})
+        self.assertEqual(dict(entity_metadata_entries[0]), {"id": 1, "entity_id": 1, "metadata_id": 1, "commit_id": 3})
 
     def test_update_object_metadata_reuses_existing_metadata(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
@@ -1710,7 +1701,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         )
         self._db_map.commit_session("Add test data")
         items, errors = self._db_map.update_ext_parameter_value_metadata(
-            *[{"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}]
+            {"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 2)
@@ -1718,11 +1709,11 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.commit_session("Update data")
         metadata_entries = self._db_map.query(self._db_map.metadata_sq).all()
         self.assertEqual(len(metadata_entries), 1)
-        self.assertEqual(dict(metadata_entries[0]), {"id": 2, "name": "key_2", "value": "new value", "commit_id": 3})
+        self.assertEqual(dict(metadata_entries[0]), {"id": 1, "name": "key_2", "value": "new value", "commit_id": 3})
         value_metadata_entries = self._db_map.query(self._db_map.parameter_value_metadata_sq).all()
         self.assertEqual(len(value_metadata_entries), 1)
         self.assertEqual(
-            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 2, "commit_id": 3}
+            dict(value_metadata_entries[0]), {"id": 1, "parameter_value_id": 1, "metadata_id": 1, "commit_id": 3}
         )
 
     def test_update_parameter_value_metadata_will_not_delete_shared_entity_metadata(self):

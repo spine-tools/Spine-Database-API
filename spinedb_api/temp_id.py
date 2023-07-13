@@ -25,49 +25,30 @@ class TempId(int):
     def __init__(self, item_type):
         super().__init__()
         self._item_type = item_type
-        self._value_binds = []
-        self._tuple_value_binds = []
-        self._key_binds = []
-        self._tuple_key_binds = []
+        self._resolve_callbacks = []
 
-    def add_value_bind(self, collection, key):
-        self._value_binds.append((collection, key))
+    def __repr__(self):
+        return f"TempId({self._item_type}, {super().__repr__()})"
 
-    def add_tuple_value_bind(self, collection, key):
-        self._tuple_value_binds.append((collection, key))
+    def add_resolve_callback(self, callback):
+        self._resolve_callbacks.append(callback)
 
-    def add_key_bind(self, collection):
-        self._key_binds.append(collection)
-
-    def add_tuple_key_bind(self, collection, key):
-        self._tuple_key_binds.append((collection, key))
-
-    def remove_key_bind(self, collection):
-        self._key_binds.remove(collection)
-
-    def remove_tuple_key_bind(self, collection, key):
-        self._tuple_key_binds.remove((collection, key))
+    def remove_resolve_callback(self, callback):
+        try:
+            self._resolve_callbacks.remove(callback)
+        except ValueError:
+            pass
 
     def resolve(self, new_id):
-        for collection, key in self._value_binds:
-            collection[key] = new_id
-        for collection, key in self._tuple_value_binds:
-            collection[key] = tuple(new_id if v is self else v for v in collection[key])
-        for collection in self._key_binds:
-            if self in collection:
-                collection.key_map[self] = new_id
-                collection[new_id] = dict.pop(collection, self, None)
-        for collection, key in self._tuple_key_binds:
-            if key in collection:
-                new_key = tuple(new_id if k is self else k for k in key)
-                collection[new_key] = dict.pop(collection, key, None)
-                collection.key_map[key] = new_key
+        while self._resolve_callbacks:
+            self._resolve_callbacks.pop(0)(new_id)
 
 
 class TempIdDict(dict):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.key_map = {}
+        self._unbind_callbacks_by_key = {}
         for key, value in kwargs.items():
             self._bind(key, value)
 
@@ -102,24 +83,66 @@ class TempIdDict(dict):
             self._unbind(key)
         return super().pop(key, default)
 
+    def _make_value_resolve_callback(self, key):
+        def callback(new_id):
+            self[key] = new_id
+
+        return callback
+
+    def _make_value_component_resolve_callback(self, key, value, i):
+        """Returns a callback to call when the given key is resolved.
+
+        Args:
+            key (TempId)
+        """
+
+        def callback(new_id, i=i):
+            new_value = list(value)
+            new_value[i] = new_id
+            new_value = tuple(new_value)
+            self[key] = new_value
+
+        return callback
+
+    def _make_key_resolve_callback(self, key):
+        def callback(new_id):
+            if key in self:
+                self.key_map[key] = new_id
+                self[new_id] = self.pop(key, None)
+
+        return callback
+
+    def _make_key_component_resolve_callback(self, key, i):
+        def callback(new_id, i=i):
+            if key in self:
+                new_key = list(key)
+                new_key[i] = new_id
+                new_key = tuple(new_key)
+                self.key_map[key] = new_key
+                self[new_key] = self.pop(key, None)
+
+        return callback
+
     def _bind(self, key, value):
         if isinstance(value, TempId):
-            value.add_value_bind(self, key)
+            value.add_resolve_callback(self._make_value_resolve_callback(key))
         elif isinstance(value, tuple):
-            for v in value:
+            for (i, v) in enumerate(value):
                 if isinstance(v, TempId):
-                    v.add_tuple_value_bind(self, key)
+                    v.add_resolve_callback(self._make_value_component_resolve_callback(key, value, i))
         elif isinstance(key, TempId):
-            key.add_key_bind(self)
+            callback = self._make_key_resolve_callback(key)
+            key.add_resolve_callback(callback)
+            self._unbind_callbacks_by_key.setdefault(key, []).append(lambda: key.remove_resolve_callback(callback))
         elif isinstance(key, tuple):
-            for k in key:
+            for i, k in enumerate(key):
                 if isinstance(k, TempId):
-                    k.add_tuple_key_bind(self, key)
+                    callback = self._make_key_component_resolve_callback(key, i)
+                    k.add_resolve_callback(callback)
+                    self._unbind_callbacks_by_key.setdefault(key, []).append(
+                        lambda k=k, callback=callback: k.remove_resolve_callback(callback)
+                    )
 
     def _unbind(self, key):
-        if isinstance(key, TempId):
-            key.remove_key_bind(self)
-        elif isinstance(key, tuple):
-            for k in key:
-                if isinstance(k, TempId):
-                    k.remove_tuple_key_bind(self, key)
+        for callback in self._unbind_callbacks_by_key.pop(key, ()):
+            callback()
