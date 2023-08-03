@@ -229,6 +229,7 @@ class CacheItem(dict):
         if not self._removed:
             return
         self._removed = False
+        self._to_remove = False
         for referrer in self._referrers.values():
             referrer.cascade_readd()
         for weak_referrer in self._weak_referrers.values():
