@@ -146,6 +146,10 @@ class CacheItem(dict):
             return None
         return (self._item_type, self["id"])
 
+    @property
+    def referrers(self):
+        return self._referrers
+
     def __getattr__(self, name):
         """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
         return self.get(name)
