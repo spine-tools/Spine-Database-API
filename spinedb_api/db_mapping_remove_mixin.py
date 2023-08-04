@@ -28,19 +28,26 @@ class DatabaseMappingRemoveMixin:
 
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
+
+        Returns:
+            list of CacheItem: removed items
         """
         cascading_ids = self.cascading_ids(cache=cache, **kwargs)
-        self.remove_items(**cascading_ids)
+        return self.remove_items(**cascading_ids)
 
     def remove_items(self, **kwargs):
         """Removes items by id, *not in cascade*.
 
         Args:
             **kwargs: keyword is table name, argument is list of ids to remove
+
+        Returns:
+            list of CacheItems: removed items
         """
         if not self.committing:
             return
         self._make_commit_id()
+        removed_items = []
         for tablename, ids in kwargs.items():
             if not ids:
                 continue
@@ -52,10 +59,11 @@ class DatabaseMappingRemoveMixin:
                 table_cache = self.cache.get(tablename)
                 if table_cache:
                     for id_ in ids:
-                        table_cache.remove_item(id_)
+                        removed_items += table_cache.remove_item(id_)
             except DBAPIError as e:
                 msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg) from e
+        return removed_items
 
     # pylint: disable=redefined-builtin
     def cascading_ids(self, cache=None, **kwargs):

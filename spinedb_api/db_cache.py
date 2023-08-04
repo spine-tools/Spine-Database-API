@@ -105,10 +105,18 @@ class TableCache(dict):
         current_item.cascade_update()
 
     def remove_item(self, id_):
+        """Removes item and its referrers from the cache.
+
+        Args:
+            id_ (int): item's database id
+
+        Returns:
+            list of CacheItem: removed items
+        """
         current_item = self.get(id_)
         if current_item:
-            current_item.cascade_remove()
-        return current_item
+            return current_item.cascade_remove()
+        return []
 
 
 class CacheItem(dict):
@@ -241,8 +249,15 @@ class CacheItem(dict):
         self.readd_callbacks -= obsolete
 
     def cascade_remove(self):
+        """Sets item and its referrers as removed.
+
+        Calls necessary callbacks on weak referrers too.
+
+        Returns:
+            list of CacheItem: removed items
+        """
         if self._removed:
-            return
+            return []
         self._removed = True
         self._to_remove = False
         self._valid = None
@@ -251,10 +266,12 @@ class CacheItem(dict):
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
+        removed_items = [self]
         for referrer in self._referrers.values():
-            referrer.cascade_remove()
+            removed_items += referrer.cascade_remove()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+        return removed_items
 
     def cascade_update(self):
         self.call_update_callbacks()
