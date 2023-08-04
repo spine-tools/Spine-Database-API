@@ -105,10 +105,18 @@ class TableCache(dict):
         current_item.cascade_update()
 
     def remove_item(self, id_):
+        """Removes item and its referrers from the cache.
+
+        Args:
+            id_ (int): item's database id
+
+        Returns:
+            list of CacheItem: removed items
+        """
         current_item = self.get(id_)
         if current_item:
-            current_item.cascade_remove()
-        return current_item
+            return current_item.cascade_remove()
+        return []
 
 
 class CacheItem(dict):
@@ -145,6 +153,10 @@ class CacheItem(dict):
         if dict.get(self, "id") is None:
             return None
         return (self._item_type, self["id"])
+
+    @property
+    def referrers(self):
+        return self._referrers
 
     def __getattr__(self, name):
         """Overridden method to return the dictionary key named after the attribute, or None if it doesn't exist."""
@@ -193,6 +205,32 @@ class CacheItem(dict):
     def copy(self):
         return type(self)(self._db_cache, self._item_type, **self)
 
+    def deepcopy(self):
+        """Makes a deep copy of the item.
+
+        Returns:
+            CacheItem: copied item
+        """
+        copy = self.copy()
+        self._copy_internal_state(copy)
+        return copy
+
+    def _copy_internal_state(self, other):
+        """Copies item's internal state to other cache item.
+
+        Args:
+            other (CacheItem): target item
+        """
+        other._referrers = {key: item.deepcopy() for key, item in self._referrers.items()}
+        other._weak_referrers = {key: item.deepcopy() for key, item in self._weak_referrers.items()}
+        other.readd_callbacks = set(self.readd_callbacks)
+        other.update_callbacks = set(self.update_callbacks)
+        other.remove_callbacks = set(self.remove_callbacks)
+        other._to_remove = self._to_remove
+        other._removed = self._removed
+        other._corrupted = self._corrupted
+        other._valid = self._valid
+
     def is_valid(self):
         if self._valid is not None:
             return self._valid
@@ -221,14 +259,27 @@ class CacheItem(dict):
         if referrer.key not in self._referrers:
             self._weak_referrers[referrer.key] = referrer
 
+    def readd(self):
+        """Adds item back to cache without adding its referrers."""
+        if not self._removed:
+            return
+        self._removed = False
+        self._to_remove = False
+        self._call_readd_callbacks()
+
     def cascade_readd(self):
         if not self._removed:
             return
         self._removed = False
+        self._to_remove = False
         for referrer in self._referrers.values():
             referrer.cascade_readd()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+        self._call_readd_callbacks()
+
+    def _call_readd_callbacks(self):
+        """Calls readd callbacks and removes obsolete ones."""
         obsolete = set()
         for callback in self.readd_callbacks:
             if not callback(self):
@@ -236,8 +287,15 @@ class CacheItem(dict):
         self.readd_callbacks -= obsolete
 
     def cascade_remove(self):
+        """Sets item and its referrers as removed.
+
+        Calls necessary callbacks on weak referrers too.
+
+        Returns:
+            list of CacheItem: removed items
+        """
         if self._removed:
-            return
+            return []
         self._removed = True
         self._to_remove = False
         self._valid = None
@@ -246,10 +304,12 @@ class CacheItem(dict):
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
+        removed_items = [self]
         for referrer in self._referrers.values():
-            referrer.cascade_remove()
+            removed_items += referrer.cascade_remove()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+        return removed_items
 
     def cascade_update(self):
         self.call_update_callbacks()
