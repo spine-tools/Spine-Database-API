@@ -205,6 +205,32 @@ class CacheItem(dict):
     def copy(self):
         return type(self)(self._db_cache, self._item_type, **self)
 
+    def deepcopy(self):
+        """Makes a deep copy of the item.
+
+        Returns:
+            CacheItem: copied item
+        """
+        copy = self.copy()
+        self._copy_internal_state(copy)
+        return copy
+
+    def _copy_internal_state(self, other):
+        """Copies item's internal state to other cache item.
+
+        Args:
+            other (CacheItem): target item
+        """
+        other._referrers = {key: item.deepcopy() for key, item in self._referrers.items()}
+        other._weak_referrers = {key: item.deepcopy() for key, item in self._weak_referrers.items()}
+        other.readd_callbacks = set(self.readd_callbacks)
+        other.update_callbacks = set(self.update_callbacks)
+        other.remove_callbacks = set(self.remove_callbacks)
+        other._to_remove = self._to_remove
+        other._removed = self._removed
+        other._corrupted = self._corrupted
+        other._valid = self._valid
+
     def is_valid(self):
         if self._valid is not None:
             return self._valid
@@ -233,6 +259,14 @@ class CacheItem(dict):
         if referrer.key not in self._referrers:
             self._weak_referrers[referrer.key] = referrer
 
+    def readd(self):
+        """Adds item back to cache without adding its referrers."""
+        if not self._removed:
+            return
+        self._removed = False
+        self._to_remove = False
+        self._call_readd_callbacks()
+
     def cascade_readd(self):
         if not self._removed:
             return
@@ -242,6 +276,10 @@ class CacheItem(dict):
             referrer.cascade_readd()
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+        self._call_readd_callbacks()
+
+    def _call_readd_callbacks(self):
+        """Calls readd callbacks and removes obsolete ones."""
         obsolete = set()
         for callback in self.readd_callbacks:
             if not callback(self):
