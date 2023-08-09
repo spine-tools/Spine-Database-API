@@ -26,6 +26,7 @@ from spinedb_api.import_mapping.import_mapping import (
     IndexNameMapping,
     ParameterValueIndexMapping,
     ExpandedParameterValueMapping,
+    ParameterValueMapping,
     ParameterValueTypeMapping,
     ParameterDefaultValueTypeMapping,
     DefaultValueIndexNameMapping,
@@ -2094,6 +2095,24 @@ class TestHasFilter(unittest.TestCase):
         mapping = ObjectClassMapping(0)
         mapping.child = ObjectMapping(1)
         self.assertFalse(mapping.has_filter())
+
+
+class TestIsPivoted(unittest.TestCase):
+    def test_pivoted_position_returns_true(self):
+        mapping = AlternativeMapping(-1)
+        self.assertTrue(mapping.is_pivoted())
+
+    def test_recursively_returns_false_when_all_mappings_are_non_pivoted(self):
+        mapping = unflatten([AlternativeMapping(0), ParameterValueMapping(1)])
+        self.assertFalse(mapping.is_pivoted())
+
+    def test_returns_true_when_position_is_header_and_has_child(self):
+        mapping = unflatten([AlternativeMapping(Position.header), ParameterValueMapping(0)])
+        self.assertTrue(mapping.is_pivoted())
+
+    def test_returns_false_when_position_is_header_and_is_leaf(self):
+        mapping = unflatten([AlternativeMapping(0), ParameterValueMapping(Position.header)])
+        self.assertFalse(mapping.is_pivoted())
 
 
 if __name__ == "__main__":

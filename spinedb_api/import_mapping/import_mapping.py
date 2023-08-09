@@ -280,7 +280,7 @@ class ImportMapping(Mapping):
     def is_pivoted(self):
         if is_pivoted(self.position):
             return True
-        if self.position == Position.header and self.value is None:
+        if self.position == Position.header and self.value is None and self.child is not None:
             return True
         if self.child is None:
             return False
