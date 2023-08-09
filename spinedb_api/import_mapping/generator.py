@@ -199,7 +199,7 @@ def _split_mapping(mapping):
     non_pivoted = []
     pivoted_from_header = []
     for m in flattened:
-        if pivoted and m is flattened[-1]:
+        if (pivoted or pivoted_from_header) and m is flattened[-1]:
             # If any other mapping is pivoted, ignore last mapping's position
             break
         if m.position == Position.header and m.value is None:

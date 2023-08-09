@@ -48,6 +48,7 @@ class ImportKey(Enum):
 
     def __str__(self):
         name = {
+            self.ALTERNATIVE_NAME.value: "Alternative names",
             self.CLASS_NAME.value: "Class names",
             self.OBJECT_CLASS_NAME.value: "Object class names",
             self.OBJECT_NAME.value: "Object names",
