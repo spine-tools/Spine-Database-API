@@ -77,13 +77,16 @@ class DatabaseMappingRemoveMixin:
             cascading_ids (dict): cascading ids keyed by table name
         """
         if cache is None:
-            cache = self.make_cache(
-                set(kwargs),
-                include_descendants=True,
-                force_tablenames={"entity_metadata", "parameter_value_metadata"}
-                if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
-                else None,
-            )
+            try:
+                cache = self.make_cache(
+                    set(kwargs),
+                    include_descendants=True,
+                    force_tablenames={"entity_metadata", "parameter_value_metadata"}
+                    if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
+                    else None,
+                )
+            except DBAPIError as e:
+                raise SpineDBAPIError(f"Fail to get cascading ids: {e.orig.args}")
         ids = {}
         self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))
         self._merge(ids, self._object_cascading_ids(kwargs.get("object", set()), cache))
