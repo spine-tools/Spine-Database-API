@@ -83,6 +83,7 @@ class DatabaseMappingRemoveMixin:
                 force_tablenames={"entity_metadata", "parameter_value_metadata"}
                 if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
                 else None,
+                keep_existing=True,
             )
         ids = {}
         self._merge(ids, self._object_class_cascading_ids(kwargs.get("object_class", set()), cache))

@@ -2019,7 +2019,9 @@ class DatabaseMappingBase:
             self.connection.execute(table.delete())
         self.connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def make_cache(self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None):
+    def make_cache(
+        self, tablenames, include_descendants=False, include_ancestors=False, force_tablenames=None, keep_existing=False
+    ):
         if include_descendants:
             tablenames |= {
                 descendant for tablename in tablenames for descendant in self.descendant_tablenames.get(tablename, ())
@@ -2031,7 +2033,7 @@ class DatabaseMappingBase:
         if force_tablenames:
             tablenames |= force_tablenames
         for tablename in tablenames & self.cache_sqs.keys():
-            self._do_advance_cache_query(tablename)
+            self._do_advance_cache_query(tablename, keep_existing)
         return self.cache
 
     def _advance_cache_query(self, tablename, callback=None):
@@ -2043,10 +2045,10 @@ class DatabaseMappingBase:
             callback()
         return advanced
 
-    def _do_advance_cache_query(self, tablename):
+    def _do_advance_cache_query(self, tablename, keep_existing=False):
         table_cache = self.cache.table_cache(tablename)
         for x in self.query(getattr(self, self.cache_sqs[tablename])).yield_per(1000).enable_eagerloads(False):
-            table_cache.add_item(x._asdict())
+            table_cache.add_item(x._asdict(), keep_existing)
 
     def _items_with_type_id(self, tablename, *items):
         type_id = {
