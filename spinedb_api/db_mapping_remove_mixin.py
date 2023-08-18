@@ -84,6 +84,7 @@ class DatabaseMappingRemoveMixin:
                     force_tablenames={"entity_metadata", "parameter_value_metadata"}
                     if any(x in kwargs for x in ("entity_metadata", "parameter_value_metadata", "metadata"))
                     else None,
+                    keep_existing=True,
                 )
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to get cascading ids: {e.orig.args}")
