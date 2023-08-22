@@ -15,6 +15,7 @@ Provides :class:`.QuickDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
+import sqlalchemy.exc
 from .exception import SpineDBAPIError
 
 
@@ -42,7 +43,10 @@ class DatabaseMappingCommitMixin:
     def _make_commit_id(self):
         if self._commit_id is None:
             if self.committing:
-                self._get_sqlite_lock()
+                try:
+                    self._get_sqlite_lock()
+                except:
+                    raise SpineDBAPIError("Committing failed due to the database being locked")
                 self._commit_id = self._do_make_commit_id(self.connection)
             else:
                 with self.engine.begin() as connection:
@@ -66,7 +70,10 @@ class DatabaseMappingCommitMixin:
         user = self.username
         date = datetime.now(timezone.utc)
         upd = commit.update().where(commit.c.id == self._make_commit_id())
-        self._checked_execute(upd, dict(user=user, date=date, comment=comment))
+        try:
+            self._checked_execute(upd, dict(user=user, date=date, comment=comment))
+        except sqlalchemy.exc.DBAPIError as e:
+            raise SpineDBAPIError(f"Fail to commit: {e}")
         self.session.commit()
         self._commit_id = None
         if self._memory:

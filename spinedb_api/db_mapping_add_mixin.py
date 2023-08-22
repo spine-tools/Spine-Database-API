@@ -17,7 +17,7 @@
 from datetime import datetime
 from sqlalchemy import func, Table, Column, Integer, String, null, select
 from sqlalchemy.exc import DBAPIError
-from .exception import SpineDBAPIError
+from .exception import SpineDBAPIError, SpineIntegrityError
 from .helpers import get_relationship_entity_class_items, get_relationship_entity_items
 
 
@@ -149,15 +149,23 @@ class DatabaseMappingAddMixin:
             list(SpineIntegrityError): found violations
         """
         if readd:
-            self._readd_items(tablename, *items)
-            return items if return_items else {x["id"] for x in items}, []
+            try:
+                self._readd_items(tablename, *items)
+                return items if return_items else {x["id"] for x in items}, []
+            except SpineDBAPIError as e:
+                return set(), [e]
+
         if check:
             checked_items, intgr_error_log = self.check_items(
                 tablename, *items, for_update=False, strict=strict, cache=cache
             )
         else:
             checked_items, intgr_error_log = list(items), []
-        ids = self._add_items(tablename, *checked_items)
+        try:
+            ids = self._add_items(tablename, *checked_items)
+        except DBAPIError as e:
+            intgr_error_log.append(SpineIntegrityError(f"Fail to add items: {e.orig.args}"))
+            return set(), intgr_error_log
         if return_items:
             return checked_items, intgr_error_log
         if return_dups:

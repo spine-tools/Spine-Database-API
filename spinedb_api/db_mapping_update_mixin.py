@@ -15,7 +15,7 @@
 from collections import Counter
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
-from .exception import SpineDBAPIError
+from .exception import SpineDBAPIError, SpineIntegrityError
 
 
 class DatabaseMappingUpdateMixin:
@@ -78,7 +78,10 @@ class DatabaseMappingUpdateMixin:
             )
         else:
             checked_items, intgr_error_log = list(items), []
-        updated_ids = self._update_items(tablename, *checked_items)
+        try:
+            updated_ids = self._update_items(tablename, *checked_items)
+        except SpineDBAPIError as e:
+            intgr_error_log.append(f"Fail to update items: {e}")
         if return_items:
             return checked_items, intgr_error_log
         return updated_ids, intgr_error_log
