@@ -15,6 +15,7 @@ Provides :class:`.QuickDatabaseMappingBase`.
 """
 
 from datetime import datetime, timezone
+import sqlalchemy.exc
 from .exception import SpineDBAPIError
 
 

@@ -404,6 +404,43 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_header_position_is_ignored_in_last_mapping_if_other_mappings_are_in_header(self):
+        header = ["Dimension", "parameter1", "parameter2"]
+        data_source = iter([["d1", 1.1, -2.3], ["d2", -1.1, 2.3]])
+        mappings = [
+            [
+                {"map_type": "ObjectClass", "position": "table_name"},
+                {"map_type": "Object", "position": 0},
+                {"map_type": "ObjectMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "header"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": "header"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "float", 2: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+
+        mapped_data, errors = get_mapped_data(
+            data_source, mappings, header, table_name="Data", column_convert_fns=convert_functions
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "object_classes": {"Data"},
+                "object_parameter_values": [
+                    ["Data", "d1", "parameter1", 1.1, "Base"],
+                    ["Data", "d1", "parameter2", -2.3, "Base"],
+                    ["Data", "d2", "parameter1", -1.1, "Base"],
+                    ["Data", "d2", "parameter2", 2.3, "Base"],
+                ],
+                "object_parameters": [("Data", "parameter1"), ("Data", "parameter2")],
+                "objects": {("Data", "d1"), ("Data", "d2")},
+            },
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

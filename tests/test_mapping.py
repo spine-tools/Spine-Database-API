@@ -38,6 +38,15 @@ class TestMapping(unittest.TestCase):
         root_mapping = unflatten([Mapping(5), Mapping(Position.hidden), Mapping(-1), Mapping(13), Mapping(23)])
         self.assertEqual(root_mapping.non_pivoted_columns(), [5, 13])
 
+    def test_is_pivoted_returns_true_when_position_is_pivoted(self):
+        mapping = Mapping(-1)
+        self.assertTrue(mapping.is_pivoted())
+
+    def test_is_pivoted_returns_false_when_all_mappings_are_non_pivoted(self):
+        mappings = [Mapping(0), Mapping(1)]
+        root = unflatten(mappings)
+        self.assertFalse(root.is_pivoted())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,7 @@ class ImportKey(Enum):
 
     def __str__(self):
         name = {
+            self.ALTERNATIVE_NAME.value: "Alternative names",
             self.ENTITY_CLASS_NAME.value: "Entity class names",
             self.ENTITY_NAME.value: "Entity names",
             self.GROUP_NAME.value: "Group names",
@@ -267,7 +268,7 @@ class ImportMapping(Mapping):
     def is_pivoted(self):
         if is_pivoted(self.position):
             return True
-        if self.position == Position.header and self.value is None:
+        if self.position == Position.header and self.value is None and self.child is not None:
             return True
         if self.child is None:
             return False
