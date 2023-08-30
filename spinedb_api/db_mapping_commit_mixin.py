@@ -37,7 +37,10 @@ class DatabaseMappingCommitMixin:
         date = datetime.now(timezone.utc)
         ins = self._metadata.tables["commit"].insert()
         with self.engine.begin() as connection:
-            commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
+            try:
+                commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
+            except sqlalchemy.exc.DBAPIError as e:
+                raise SpineDBAPIError(f"Fail to commit: {e.orig.args}")
             for tablename, (to_add, to_update, to_remove) in dirty_items:
                 for item in to_add + to_update + to_remove:
                     item.commit(commit_id)
