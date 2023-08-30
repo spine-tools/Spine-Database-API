@@ -460,9 +460,11 @@ class HandleDBMixin:
         return _db_manager.call_method(self.server_address, method_name, *args, **kwargs)
 
     def apply_filters(self, filters):
+        obsolete = ("tool",)
         configs = [
             {"scenario": scenario_filter_config, "alternatives": alternative_filter_config}[key](value)
             for key, value in filters.items()
+            if key not in obsolete
         ]
         return _db_manager.apply_filters(self.server_address, configs)
 
