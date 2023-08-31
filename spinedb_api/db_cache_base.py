@@ -12,6 +12,7 @@
 DB cache base.
 
 """
+import threading
 from contextlib import suppress
 from enum import Enum, unique, auto
 from functools import cmp_to_key
@@ -39,6 +40,7 @@ class DBCacheBase(dict):
         self._updated_items = {}
         self._removed_items = {}
         self._offsets = {}
+        self._offset_lock = threading.Lock()
         self._fetched_item_types = set()
         self._chunk_size = chunk_size
 
@@ -99,7 +101,7 @@ class DBCacheBase(dict):
                     # Fetch descendants, so that they are validated in next iterations of the loop.
                     # This ensures cascade removal.
                     # FIXME: We should also fetch the current item type because of multi-dimensional entities and
-                    # classes which also depend on no-dimensional ones
+                    # classes which also depend on zero-dimensional ones
                     for x in self:
                         if self._cmp_item_type(item_type, x) < 0:
                             self.fetch_all(x)
@@ -173,9 +175,10 @@ class DBCacheBase(dict):
         if not self._chunk_size:
             self._fetched_item_types.add(item_type)
             return [dict(x) for x in qry]
-        offset = self._offsets.setdefault(item_type, 0)
-        chunk = [dict(x) for x in qry.limit(self._chunk_size).offset(offset)]
-        self._offsets[item_type] += len(chunk)
+        with self._offset_lock:
+            offset = self._offsets.setdefault(item_type, 0)
+            chunk = [dict(x) for x in qry.limit(self._chunk_size).offset(offset)]
+            self._offsets[item_type] += len(chunk)
         return chunk
 
     def advance_query(self, item_type):
