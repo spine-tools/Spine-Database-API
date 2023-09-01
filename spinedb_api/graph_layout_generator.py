@@ -36,7 +36,6 @@ class GraphLayoutGenerator:
         preview_available=lambda x, y: None,
         layout_available=lambda x, y: None,
         layout_progressed=lambda iter: None,
-        message_available=lambda msg: None,
     ):
         super().__init__()
         if vertex_count == 0:
@@ -55,7 +54,6 @@ class GraphLayoutGenerator:
         self._preview_available = preview_available
         self._layout_available = layout_available
         self._layout_progressed = layout_progressed
-        self._message_available = message_available
 
     def shortest_path_matrix(self):
         """Returns the shortest-path matrix."""
@@ -73,17 +71,13 @@ class GraphLayoutGenerator:
             pass
         start = 0
         slices = []
-        iteration = 0
-        self._message_available("Step 1 of 2: Computing shortest-path matrix...")
         while start < self.vertex_count:
             if self._is_stopped():
                 return None
-            self._layout_progressed(iteration)
             stop = min(self.vertex_count, start + math.ceil(self.vertex_count / 10))
             slice_ = dijkstra(dist, directed=False, indices=range(start, stop))
             slices.append(slice_)
             start = stop
-            iteration += 1
         matrix = np.vstack(slices)
         # Remove infinites and zeros
         matrix[matrix == np.inf] = self.spread * self.vertex_count ** (0.5)
@@ -113,6 +107,7 @@ class GraphLayoutGenerator:
             self._layout_available(x, y)
             return x, y
         matrix = self.shortest_path_matrix()
+        self._layout_progressed(1)
         if matrix is None:
             return [], []
         mask = np.ones((self.vertex_count, self.vertex_count)) == 1 - np.tril(
@@ -134,13 +129,13 @@ class GraphLayoutGenerator:
         minstep = 1 / np.max(weights[mask])
         lambda_ = np.log(minstep / maxstep) / (self.max_iters - 1)  # exponential decay of allowed adjustment
         sets = self.sets()  # construct sets of bus pairs
-        self._message_available("Step 2 of 2: Generating layout...")
+        self._layout_progressed(2)
         for iteration in range(self.max_iters):
             if self._is_stopped():
                 break
             x, y = layout[:, 0], layout[:, 1]
             self._preview_available(x, y)
-            self._layout_progressed(iteration)
+            self._layout_progressed(3 + iteration)
             # FIXME
             step = maxstep * np.exp(lambda_ * iteration)  # how big adjustments are allowed?
             rand_order = np.random.permutation(
