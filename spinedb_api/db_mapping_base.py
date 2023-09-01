@@ -1599,7 +1599,6 @@ class DatabaseMappingBase:
                 par_def_sq.c.commit_id.label("commit_id"),
                 par_def_sq.c.parameter_value_list_id.label("parameter_value_list_id"),
             )
-            .join(self.wide_entity_class_sq, self.wide_entity_class_sq.c.id == par_def_sq.c.entity_class_id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
             .subquery("clean_parameter_definition_sq")
         )
@@ -1627,8 +1626,6 @@ class DatabaseMappingBase:
                 par_val_sq.c.commit_id.label("commit_id"),
                 par_val_sq.c.alternative_id,
             )
-            .join(self.wide_entity_sq, self.wide_entity_sq.c.id == par_val_sq.c.entity_id)
-            .join(self.wide_entity_class_sq, self.wide_entity_class_sq.c.id == par_val_sq.c.entity_class_id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
             .subquery("clean_parameter_value_sq")
         )
