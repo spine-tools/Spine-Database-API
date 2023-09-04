@@ -96,6 +96,16 @@ class Query:
     def first(self):
         return self._result().first()
 
+    def one(self):
+        result = self._result()
+        first = result.fetchone()
+        if first is None:
+            return SpineDBAPIError("no results found for one()")
+        second = result.fetchone()
+        if second is not None:
+            raise SpineDBAPIError("multiple results found for one()")
+        return first
+
     def one_or_none(self):
         result = self._result()
         first = result.fetchone()
