@@ -13,10 +13,9 @@ DB cache base.
 
 """
 import threading
-from contextlib import suppress
 from enum import Enum, unique, auto
 from functools import cmp_to_key
-from .temp_id import TempIdDict, TempId
+from .temp_id import TempId, resolve
 
 # TODO: Implement CacheItem.pop() to do lookup?
 
@@ -165,8 +164,8 @@ class DBCacheBase(dict):
                 table_cache.add_item(item, new=True)
             # Store updated and removed so we can take the proper action
             # when we see their equivalents comming from the DB
-            self._updated_items.setdefault(item_type, {}).update({x["id"]: x for x in to_update})
-            self._removed_items.setdefault(item_type, {}).update({x["id"]: x for x in to_remove})
+            self._updated_items.setdefault(item_type, {}).update({resolve(x["id"]): x for x in to_update})
+            self._removed_items.setdefault(item_type, {}).update({resolve(x["id"]): x for x in to_remove})
 
     def _get_next_chunk(self, item_type):
         qry = self._query(item_type)
@@ -238,17 +237,18 @@ class DBCacheBase(dict):
 
     def fetch_ref(self, item_type, id_):
         while self.fetch_more(item_type):
-            with suppress(KeyError):
-                return self[item_type][id_]
+            ref = self.get_item(item_type, id_)
+            if ref:
+                return ref
         # It is possible that fetching was completed between deciding to call this function
         # and starting the while loop above resulting in self.fetch_more() to return False immediately.
         # Therefore, we should try one last time if the ref is available.
-        with suppress(KeyError):
-            return self[item_type][id_]
-        return None
+        ref = self.get_item(item_type, id_)
+        if ref:
+            return ref
 
 
-class _TableCache(TempIdDict):
+class _TableCache(dict):
     def __init__(self, db_cache, item_type, *args, **kwargs):
         """
         Args:
@@ -259,9 +259,20 @@ class _TableCache(TempIdDict):
         self._db_cache = db_cache
         self._item_type = item_type
         self._id_by_unique_key_value = {}
+        self._temp_id_by_db_id = {}
+
+    def get(self, id_, default=None):
+        id_ = self._temp_id_by_db_id.get(id_, id_)
+        return super().get(id_, default)
 
     def _new_id(self):
-        return TempId(self._item_type)
+        temp_id = TempId(self._item_type)
+
+        def _callback(db_id):
+            self._temp_id_by_db_id[db_id] = temp_id
+
+        temp_id.add_resolve_callback(_callback)
+        return temp_id
 
     def unique_key_value_to_id(self, key, value, strict=False):
         """Returns the id that has the given value for the given unique key, or None.
@@ -371,7 +382,7 @@ class _TableCache(TempIdDict):
 
     def _add_unique(self, item):
         for key, value in item.unique_values():
-            self._id_by_unique_key_value.setdefault(key, TempIdDict())[value] = item["id"]
+            self._id_by_unique_key_value.setdefault(key, {})[value] = item["id"]
 
     def _remove_unique(self, item):
         for key, value in item.unique_values():
@@ -419,7 +430,7 @@ class _TableCache(TempIdDict):
         return current_item
 
 
-class CacheItemBase(TempIdDict):
+class CacheItemBase(dict):
     """A dictionary that represents an db item."""
 
     _defaults = {}
@@ -456,8 +467,8 @@ class CacheItemBase(TempIdDict):
         super().__init__(**kwargs)
         self._db_cache = db_cache
         self._item_type = item_type
-        self._referrers = TempIdDict()
-        self._weak_referrers = TempIdDict()
+        self._referrers = {}
+        self._weak_referrers = {}
         self.restore_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
@@ -569,7 +580,8 @@ class CacheItemBase(TempIdDict):
         if all(self.get(key) == value for key, value in other.items()):
             return None, ""
         merged = {**self._extended(), **other}
-        merged["id"] = self["id"]
+        if not isinstance(merged["id"], int):
+            merged["id"] = self["id"]
         return merged, ""
 
     def first_invalid_key(self):

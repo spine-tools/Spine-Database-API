@@ -17,6 +17,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .helpers import Asterisk, group_consecutive
+from .temp_id import resolve
 
 # TODO: improve docstrings
 
@@ -54,7 +55,7 @@ class DatabaseMappingRemoveMixin:
             *ids: ids to remove
         """
         tablename = self._real_tablename(tablename)
-        ids = set(ids)
+        ids = {resolve(id_) for id_ in ids}
         if tablename == "alternative":
             # Do not remove the Base alternative
             ids.discard(1)
