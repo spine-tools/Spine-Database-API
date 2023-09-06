@@ -38,8 +38,9 @@ class Query:
         self._select = select(self._entities)
         return self
 
-    def filter(self, clause):
-        self._select = self._select.where(clause)
+    def filter(self, *clauses):
+        for clause in clauses:
+            self._select = self._select.where(clause)
         return self
 
     def filter_by(self, **kwargs):

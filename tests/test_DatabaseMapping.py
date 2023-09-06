@@ -597,6 +597,28 @@ class TestDatabaseMappingBaseQueries(unittest.TestCase):
         self.assertEqual(value_lists[0].name, "list1")
         self.assertEqual(value_lists[1].name, "list2")
 
+    def test_filter_query_accepts_multiple_criteria(self):
+        classes, errors = self._db_map.add_entity_classes({"name": "Real"}, {"name": "Fake"})
+        self.assertEqual(errors, [])
+        self.assertEqual(len(classes), 2)
+        self.assertEqual(classes[0]["name"], "Real")
+        self.assertEqual(classes[1]["name"], "Fake")
+        real_class_id = classes[0]["id"]
+        fake_class_id = classes[1]["id"]
+        _, errors = self._db_map.add_entities(
+            {"name": "entity 1", "class_id": real_class_id},
+            {"name": "entity_2", "class_id": real_class_id},
+            {"name": "entity_1", "class_id": fake_class_id},
+        )
+        self.assertEqual(errors, [])
+        self._db_map.commit_session("Add test data")
+        sq = self._db_map.wide_entity_class_sq
+        real_class_id = self._db_map.query(sq).filter(sq.c.name == "Real").one().id
+        sq = self._db_map.wide_entity_sq
+        entity = self._db_map.query(sq).filter(sq.c.name == "entity 1", sq.c.class_id == 1).one()
+        self.assertEqual(entity.name, "entity 1")
+        self.assertEqual(entity.class_id, real_class_id)
+
 
 class TestDatabaseMappingAdd(unittest.TestCase):
     def setUp(self):
