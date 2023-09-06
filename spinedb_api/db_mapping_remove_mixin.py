@@ -31,6 +31,7 @@ class DatabaseMappingRemoveMixin:
         tablename = self._real_tablename(tablename)
         table_cache = self.cache.table_cache(tablename)
         if Asterisk in ids:
+            self.cache.fetch_all(tablename)
             ids = table_cache
         ids = set(ids)
         if tablename == "alternative":
@@ -46,6 +47,14 @@ class DatabaseMappingRemoveMixin:
         return [table_cache.restore_item(id_) for id_ in ids]
 
     def purge_items(self, tablename):
+        """Removes all items from given table.
+
+        Args:
+            tablename (str): name of table
+
+        Returns:
+            bool: True if operation was successful, False otherwise
+        """
         return self.remove_items(tablename, Asterisk)
 
     def _do_remove_items(self, connection, tablename, *ids):
