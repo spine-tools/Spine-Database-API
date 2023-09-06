@@ -47,13 +47,34 @@ class DBCacheBase(dict):
 
     @property
     def _item_types(self):
+        """Returns a list of supported item type strings.
+
+        Returns:
+            list
+        """
         raise NotImplementedError()
 
     @staticmethod
     def _item_factory(item_type):
+        """Returns a subclass of CacheItemBase to build items of given type.
+
+        Args:
+            item_type (str)
+
+        Returns:
+            CacheItemBase
+        """
         raise NotImplementedError()
 
     def _query(self, item_type):
+        """Returns a Query object to fecth items of given type.
+
+        Args:
+            item_type (str)
+
+        Returns:
+            Query
+        """
         raise NotImplementedError()
 
     def make_item(self, item_type, **item):
