@@ -35,6 +35,16 @@ def _ids_for_item_type(db_map, item_type):
 
 
 def purge_url(url, purge_settings, logger=None):
+    """Removes all given types of items from database.
+
+    Args:
+        url (str): database URL
+        purge_settings (dict): mapping from item type to boolean
+        logger (LoggerInterface, optional): logger
+
+    Returns:
+        bool: True if operation was successful, False otherwise
+    """
     try:
         db_map = DatabaseMapping(url)
     except (SpineDBAPIError, SpineDBVersionError) as err:
