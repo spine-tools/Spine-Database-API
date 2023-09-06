@@ -54,23 +54,30 @@ class DatabaseMappingRemoveMixin:
         Args:
             *ids: ids to remove
         """
-        tablename = self._real_tablename(tablename)
+        tablenames = [self._real_tablename(tablename)]
         ids = {resolve(id_) for id_ in ids}
-        if tablename == "alternative":
+        if tablenames[0] == "alternative":
             # Do not remove the Base alternative
             ids.discard(1)
         if not ids:
             return
-        table = self._metadata.tables[tablename]
-        id_field = self._id_fields.get(tablename, "id")
-        id_column = getattr(table.c, id_field)
-        cond = or_(*(and_(id_column >= first, id_column <= last) for first, last in group_consecutive(ids)))
-        delete = table.delete().where(cond)
-        try:
-            connection.execute(delete)
-        except DBAPIError as e:
-            msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
-            raise SpineDBAPIError(msg) from e
+        if tablenames[0] == "entity_class":
+            # Also remove the items corresponding to the id in entity_class_dimension
+            tablenames.append("entity_class_dimension")
+        elif tablenames[0] == "entity":
+            # Also remove the items corresponding to the id in entity_element
+            tablenames.append("entity_element")
+        for tablename in tablenames:
+            table = self._metadata.tables[tablename]
+            id_field = self._id_fields.get(tablename, "id")
+            id_column = getattr(table.c, id_field)
+            cond = or_(*(and_(id_column >= first, id_column <= last) for first, last in group_consecutive(ids)))
+            delete = table.delete().where(cond)
+            try:
+                connection.execute(delete)
+            except DBAPIError as e:
+                msg = f"DBAPIError while removing {tablename} items: {e.orig.args}"
+                raise SpineDBAPIError(msg) from e
 
     def remove_unused_metadata(self):
         used_metadata_ids = set()
