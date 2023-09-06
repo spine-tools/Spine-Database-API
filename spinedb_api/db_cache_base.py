@@ -274,6 +274,7 @@ class _TableCache(dict):
         Args:
             key (tuple)
             value (tuple)
+            strict (bool): if True, raise a KeyError if id is not found
 
         Returns:
             int
