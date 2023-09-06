@@ -1661,7 +1661,7 @@ class DatabaseMappingBase:
         """Returns the name of the alternative to use as default for all import operations.
 
         Returns:
-            str
+            str: import alternative name
         """
         if self._import_alternative_name is None:
             self._create_import_alternative()

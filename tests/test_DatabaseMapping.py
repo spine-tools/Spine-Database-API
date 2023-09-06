@@ -338,6 +338,10 @@ class TestDatabaseMappingBase(unittest.TestCase):
         for column_name in columns:
             self.assertTrue(hasattr(self._db_map.wide_parameter_value_list_sq.c, column_name))
 
+    def test_get_import_alternative_returns_base_alternative_by_default(self):
+        alternative_name = self._db_map.get_import_alternative_name()
+        self.assertEqual(alternative_name, "Base")
+
 
 class TestDatabaseMappingBaseQueries(unittest.TestCase):
     def setUp(self):

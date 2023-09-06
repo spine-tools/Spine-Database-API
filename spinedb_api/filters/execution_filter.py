@@ -122,15 +122,18 @@ class _ExecutionFilterState:
         self.original_create_import_alternative = db_map._create_import_alternative
         self.execution_item, self.scenarios, self.timestamp = self._parse_execution_descriptor(execution)
 
-    def _parse_execution_descriptor(self, execution):
-        """Raises ``SpineDBAPIError`` if descriptor not good.
+    @staticmethod
+    def _parse_execution_descriptor(execution):
+        """Parses data from execution descriptor.
 
         Args:
             execution (dict): execution descriptor
 
         Returns:
-            str: the execution item
-            list: scenarios
+            tuple: execution item name, list of scenario names, timestamp string
+
+        Raises:
+            SpineDBAPIError: raised when execution descriptor is invalid
         """
         try:
             execution_item = execution["execution_item"]
@@ -156,9 +159,8 @@ def _create_import_alternative(db_map, state):
     timestamp = state.timestamp
     sep = "__" if scenarios else ""
     db_map._import_alternative_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
-    db_map.add_alternatives({"name": db_map._import_alternative_name}, _strict=False)
-    scenarios = [{"name": scen_name} for scen_name in scenarios]
-    db_map.add_scenarios(*scenarios, _strict=True)
+    db_map.add_alternatives({"name": db_map._import_alternative_name})
+    db_map.add_scenarios(*({"name": scen_name} for scen_name in scenarios))
     for scen_name in scenarios:
         scen = db_map.cache.table_cache("scenario").find_item({"name": scen_name})
         rank = len(scen.sorted_scenario_alternatives) + 1  # ranks are 1-based
