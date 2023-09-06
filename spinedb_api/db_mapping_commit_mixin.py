@@ -48,7 +48,6 @@ class DatabaseMappingCommitMixin:
                 self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
                 self._do_update_items(connection, tablename, *to_update)
                 self._do_add_items(connection, tablename, *to_add)
-        self.cache.commit()
         if self._memory:
             self._memory_dirty = True
 

@@ -36,8 +36,6 @@ class DBCacheBase(dict):
 
     def __init__(self, chunk_size=None):
         super().__init__()
-        self._updated_items = {}
-        self._removed_items = {}
         self._offsets = {}
         self._offset_lock = threading.Lock()
         self._fetched_item_types = set()
@@ -108,11 +106,6 @@ class DBCacheBase(dict):
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
 
-    def commit(self):
-        """Clears the internal storage of dirty items created by ``refresh``."""
-        self._updated_items.clear()
-        self._removed_items.clear()
-
     def rollback(self):
         """Discards uncommitted changes.
 
@@ -147,25 +140,9 @@ class DBCacheBase(dict):
         return True
 
     def refresh(self):
-        """Stores dirty items in internal dictionaries and clears the cache, so the DB can be fetched again.
-        Conflicts between new contents of the DB and dirty items are solved in favor of the latter
-        (See ``advance_query`` where we resolve those conflicts as consuming the queries).
-        """
-        dirty_items = self.dirty_items()  # Get dirty items before clearing
-        self.clear()
-        # Clear _offsets and _fetched_item_types before adding dirty items below,
-        # so those items are able to properly fetch their references from the DB
+        """Clears fetch progress, so the DB is queried again."""
         self._offsets.clear()
         self._fetched_item_types.clear()
-        for item_type, (to_add, to_update, to_remove) in dirty_items:
-            # Add new items directly
-            table_cache = self.table_cache(item_type)
-            for item in to_add:
-                table_cache.add_item(item, new=True)
-            # Store updated and removed so we can take the proper action
-            # when we see their equivalents comming from the DB
-            self._updated_items.setdefault(item_type, {}).update({resolve(x["id"]): x for x in to_update})
-            self._removed_items.setdefault(item_type, {}).update({resolve(x["id"]): x for x in to_remove})
 
     def _get_next_chunk(self, item_type):
         qry = self._query(item_type)
@@ -195,17 +172,7 @@ class DBCacheBase(dict):
             self._fetched_item_types.add(item_type)
             return []
         table_cache = self.table_cache(item_type)
-        updated_items = self._updated_items.get(item_type, {})
-        removed_items = self._removed_items.get(item_type, {})
         for item in chunk:
-            updated_item = updated_items.pop(item["id"], None)
-            if updated_item:
-                table_cache.persist_item(updated_item)
-                continue
-            removed_item = removed_items.pop(item["id"], None)
-            if removed_item:
-                table_cache.persist_item(removed_item, removed=True)
-                continue
             table_cache.add_item(item)
         return chunk
 
@@ -390,15 +357,19 @@ class _TableCache(dict):
             if id_by_value.get(value) == item["id"]:
                 del id_by_value[value]
 
-    def persist_item(self, item, removed=False):
-        self[item["id"]] = item
-        if not removed:
-            self._add_unique(item)
-
     def add_item(self, item, new=False):
         if not isinstance(item, CacheItemBase):
             item = self._make_item(item)
             item.polish()
+        if not new:
+            # Item comes from the DB
+            id_ = item["id"]
+            if id_ in self or id_ in self._temp_id_by_db_id:
+                # The item is already in the cache
+                return
+            if any(value in self._id_by_unique_key_value.get(key, {}) for key, value in item.unique_values()):
+                # An item with the same unique key is already in the cache
+                return
         if "id" not in item:
             item["id"] = self._new_id()
         self[item["id"]] = item
