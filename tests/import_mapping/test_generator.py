@@ -429,15 +429,15 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Base"},
-                "object_classes": {"Data"},
-                "object_parameter_values": [
+                "entity_classes": [("Data",)],
+                "parameter_values": [
                     ["Data", "d1", "parameter1", 1.1, "Base"],
                     ["Data", "d1", "parameter2", -2.3, "Base"],
                     ["Data", "d2", "parameter1", -1.1, "Base"],
                     ["Data", "d2", "parameter2", 2.3, "Base"],
                 ],
-                "object_parameters": [("Data", "parameter1"), ("Data", "parameter2")],
-                "objects": {("Data", "d1"), ("Data", "d2")},
+                "parameter_definitions": [("Data", "parameter1"), ("Data", "parameter2")],
+                "entities": [("Data", "d1"), ("Data", "d2")],
             },
         )
 

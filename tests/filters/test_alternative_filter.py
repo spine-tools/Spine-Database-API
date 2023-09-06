@@ -21,6 +21,7 @@ from spinedb_api import (
     apply_alternative_filter_to_parameter_value_sq,
     create_new_spine_database,
     DatabaseMapping,
+    from_database,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
@@ -136,8 +137,8 @@ class TestAlternativeFilterWithMemoryDatabase(unittest.TestCase):
         alternative_filter_from_dict(self._db_map, config)
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 2)
-        self.assertEqual(parameters[0].value, b"101.1")
-        self.assertEqual(parameters[1].value, b"23.0")
+        values = {from_database(p.value) for p in parameters}
+        self.assertEqual(values, {23.0, 101.1})
 
     def _add_value_in_alternative(self, value, alternative):
         import_alternatives(self._db_map, [alternative])
