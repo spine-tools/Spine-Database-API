@@ -15,7 +15,7 @@ DB cache base.
 import threading
 from enum import Enum, unique, auto
 from functools import cmp_to_key
-from .temp_id import TempId, resolve
+from .temp_id import TempId
 
 # TODO: Implement CacheItem.pop() to do lookup?
 
@@ -370,12 +370,12 @@ class _TableCache(dict):
             if any(value in self._id_by_unique_key_value.get(key, {}) for key, value in item.unique_values()):
                 # An item with the same unique key is already in the cache
                 return
+        else:
+            item.status = Status.to_add
         if "id" not in item:
             item["id"] = self._new_id()
         self[item["id"]] = item
         self._add_unique(item)
-        if new:
-            item.status = Status.to_add
         return item
 
     def update_item(self, item):
