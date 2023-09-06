@@ -45,6 +45,10 @@ class DBCacheBase(dict):
     def fetched_item_types(self):
         return self._fetched_item_types
 
+    @property
+    def _item_types(self):
+        raise NotImplementedError()
+
     @staticmethod
     def _item_factory(item_type):
         raise NotImplementedError()
@@ -65,9 +69,6 @@ class DBCacheBase(dict):
             return 1
         return 0
 
-    def _sorted_item_types(self):
-        sorted(self, key=cmp_to_key(self._cmp_item_type))
-
     def dirty_ids(self, item_type):
         return {
             item["id"] for item in self.get(item_type, {}).values() if item.status in (Status.to_add, Status.to_update)
@@ -81,8 +82,10 @@ class DBCacheBase(dict):
             list
         """
         dirty_items = []
-        for item_type in sorted(self, key=cmp_to_key(self._cmp_item_type)):
-            table_cache = self[item_type]
+        for item_type in sorted(self._item_types, key=cmp_to_key(self._cmp_item_type)):
+            table_cache = self.get(item_type)
+            if table_cache is None:
+                continue
             to_add = []
             to_update = []
             to_remove = []
@@ -99,9 +102,12 @@ class DBCacheBase(dict):
                     # This ensures cascade removal.
                     # FIXME: We should also fetch the current item type because of multi-dimensional entities and
                     # classes which also depend on zero-dimensional ones
-                    for x in self:
-                        if self._cmp_item_type(item_type, x) < 0:
-                            self.fetch_all(x)
+                    for other_item_type in self._item_types:
+                        if (
+                            other_item_type not in self.fetched_item_types
+                            and self._cmp_item_type(item_type, other_item_type) < 0
+                        ):
+                            self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items

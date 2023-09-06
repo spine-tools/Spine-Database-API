@@ -20,6 +20,23 @@ from .temp_id import TempId
 
 
 class DBCache(DBCacheBase):
+    _sq_name_by_item_type = {
+        "entity_class": "wide_entity_class_sq",
+        "entity": "wide_entity_sq",
+        "parameter_value_list": "parameter_value_list_sq",
+        "list_value": "list_value_sq",
+        "alternative": "alternative_sq",
+        "scenario": "scenario_sq",
+        "scenario_alternative": "scenario_alternative_sq",
+        "entity_group": "entity_group_sq",
+        "parameter_definition": "parameter_definition_sq",
+        "parameter_value": "parameter_value_sq",
+        "metadata": "metadata_sq",
+        "entity_metadata": "entity_metadata_sq",
+        "parameter_value_metadata": "parameter_value_metadata_sq",
+        "commit": "commit_sq",
+    }
+
     def __init__(self, db_map, chunk_size=None):
         """
         Args:
@@ -27,6 +44,10 @@ class DBCache(DBCacheBase):
         """
         super().__init__(chunk_size=chunk_size)
         self._db_map = db_map
+
+    @property
+    def _item_types(self):
+        return list(self._sq_name_by_item_type)
 
     @staticmethod
     def _item_factory(item_type):
@@ -49,22 +70,7 @@ class DBCache(DBCacheBase):
     def _query(self, item_type):
         if self._db_map.closed:
             return None
-        sq_name = {
-            "entity_class": "wide_entity_class_sq",
-            "entity": "wide_entity_sq",
-            "parameter_value_list": "parameter_value_list_sq",
-            "list_value": "list_value_sq",
-            "alternative": "alternative_sq",
-            "scenario": "scenario_sq",
-            "scenario_alternative": "scenario_alternative_sq",
-            "entity_group": "entity_group_sq",
-            "parameter_definition": "parameter_definition_sq",
-            "parameter_value": "parameter_value_sq",
-            "metadata": "metadata_sq",
-            "entity_metadata": "entity_metadata_sq",
-            "parameter_value_metadata": "parameter_value_metadata_sq",
-            "commit": "commit_sq",
-        }[item_type]
+        sq_name = self._sq_name_by_item_type[item_type]
         return self._db_map.query(getattr(self._db_map, sq_name))
 
 
