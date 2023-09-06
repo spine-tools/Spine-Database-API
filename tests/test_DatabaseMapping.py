@@ -2285,6 +2285,17 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").values()}
         self.assertEqual(entity_class_names, {"new_name"})
 
+    def test_cascade_remove_unfetched(self):
+        import_functions.import_object_classes(self._db_map, ("my_class",))
+        import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
+        self._db_map.commit_session("test commit")
+        self._db_map.refresh_session()
+        self._db_map.cache.clear()
+        self._db_map.remove_items("entity_class", 1)
+        self._db_map.commit_session("test commit")
+        ents = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(ents, [])
+
 
 if __name__ == "__main__":
     unittest.main()
