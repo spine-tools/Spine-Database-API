@@ -184,7 +184,6 @@ class DatabaseMappingBase:
         }
         self.composite_pks = {
             "entity_element": ("entity_id", "position"),
-            "entity_alternative": ("entity_id", "alternative_id"),
             "entity_class_dimension": ("entity_class_id", "position"),
         }
 

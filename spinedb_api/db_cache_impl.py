@@ -23,6 +23,7 @@ class DBCache(DBCacheBase):
     _sq_name_by_item_type = {
         "entity_class": "wide_entity_class_sq",
         "entity": "wide_entity_sq",
+        "entity_alternative": "entity_alternative_sq",
         "parameter_value_list": "parameter_value_list_sq",
         "list_value": "list_value_sq",
         "alternative": "alternative_sq",
@@ -54,6 +55,7 @@ class DBCache(DBCacheBase):
         return {
             "entity_class": EntityClassItem,
             "entity": EntityItem,
+            "entity_alternative": EntityAlternativeItem,
             "entity_group": EntityGroupItem,
             "parameter_definition": ParameterDefinitionItem,
             "parameter_value": ParameterValueItem,
@@ -165,6 +167,26 @@ class EntityGroupItem(CacheItemBase):
         if key == "group_id":
             return self["entity_id"]
         return super().__getitem__(key)
+
+
+class EntityAlternativeItem(CacheItemBase):
+    _defaults = {"active": True}
+    _unique_keys = (("entity_class_name", "entity_byname", "alternative_name"),)
+    _references = {
+        "entity_class_id": ("entity_id", ("entity", "class_id")),
+        "entity_class_name": ("entity_class_id", ("entity_class", "name")),
+        "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
+        "dimension_name_list": ("entity_class_id", ("entity_class", "dimension_name_list")),
+        "entity_name": ("entity_id", ("entity", "name")),
+        "entity_byname": ("entity_id", ("entity", "byname")),
+        "element_id_list": ("entity_id", ("entity", "element_id_list")),
+        "element_name_list": ("entity_id", ("entity", "element_name_list")),
+        "alternative_name": ("alternative_id", ("alternative", "name")),
+    }
+    _inverse_references = {
+        "entity_id": (("entity_class_name", "entity_byname"), ("entity", ("class_name", "byname"))),
+        "alternative_id": (("alternative_name",), ("alternative", ("name",))),
+    }
 
 
 class ParsedValueBase(CacheItemBase):
