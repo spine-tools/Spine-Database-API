@@ -40,6 +40,14 @@ class DBCacheBase(dict):
         self._offset_lock = threading.Lock()
         self._fetched_item_types = set()
         self._chunk_size = chunk_size
+        item_types = self._item_types
+        self._sorted_item_types = []
+        while item_types:
+            item_type = item_types.pop(0)
+            if self._item_factory(item_type).ref_types() & set(item_types):
+                item_types.append(item_type)
+            else:
+                self._sorted_item_types.append(item_type)
 
     @property
     def fetched_item_types(self):
@@ -81,15 +89,6 @@ class DBCacheBase(dict):
         factory = self._item_factory(item_type)
         return factory(self, item_type, **item)
 
-    def _cmp_item_type(self, a, b):
-        if a in self._item_factory(b).ref_types():
-            # a should come before b
-            return -1
-        if b in self._item_factory(a).ref_types():
-            # a should come after b
-            return 1
-        return 0
-
     def dirty_ids(self, item_type):
         return {
             item["id"] for item in self.get(item_type, {}).values() if item.status in (Status.to_add, Status.to_update)
@@ -103,7 +102,7 @@ class DBCacheBase(dict):
             list
         """
         dirty_items = []
-        for item_type in sorted(self._item_types, key=cmp_to_key(self._cmp_item_type)):
+        for item_type in self._sorted_item_types:
             table_cache = self.get(item_type)
             if table_cache is None:
                 continue
@@ -126,7 +125,7 @@ class DBCacheBase(dict):
                     for other_item_type in self._item_types:
                         if (
                             other_item_type not in self.fetched_item_types
-                            and self._cmp_item_type(item_type, other_item_type) < 0
+                            and item_type in self._item_factory(other_item_type).ref_types()
                         ):
                             self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
