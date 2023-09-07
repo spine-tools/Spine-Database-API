@@ -102,6 +102,10 @@ class GraphLayoutGenerator:
 
     def compute_layout(self):
         """Computes and returns x and y coordinates for each vertex in the graph, using VSGD-MS."""
+        if len(self.heavy_positions) == self.vertex_count:
+            x, y = zip(*[(pos["x"], pos["y"]) for pos in self.heavy_positions.values()])
+            self._layout_available(x, y)
+            return x, y
         if self.vertex_count <= 1:
             x, y = np.array([0.0]), np.array([0.0])
             self._layout_available(x, y)
