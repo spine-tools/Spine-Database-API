@@ -564,16 +564,15 @@ class DatabaseMappingBase:
                     group_concat(ext_entity_sq.c.element_name, ext_entity_sq.c.position).label("element_name_list"),
                 )
                 # element count might be lower than dimension count when element-entities have been filtered out
-                .filter(self.wide_entity_class_sq.c.id == ext_entity_sq.c.class_id)
-                .having(self.wide_entity_class_sq.c.dimension_count == func.count(ext_entity_sq.c.element_id))
+                # .filter(self.wide_entity_class_sq.c.id == ext_entity_sq.c.class_id)
+                # .having(self.wide_entity_class_sq.c.dimension_count == func.count(ext_entity_sq.c.element_id))
                 .group_by(
                     ext_entity_sq.c.id,
                     ext_entity_sq.c.class_id,
                     ext_entity_sq.c.name,
                     ext_entity_sq.c.description,
                     ext_entity_sq.c.commit_id,
-                )
-                .subquery("wide_entity_sq")
+                ).subquery("wide_entity_sq")
             )
         return self._wide_entity_sq
 
