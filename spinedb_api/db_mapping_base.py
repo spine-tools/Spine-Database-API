@@ -505,6 +505,7 @@ class DatabaseMappingBase:
                     ecd_sq.c.hidden,
                     group_concat(ecd_sq.c.dimension_id, ecd_sq.c.position).label("dimension_id_list"),
                     group_concat(ecd_sq.c.dimension_name, ecd_sq.c.position).label("dimension_name_list"),
+                    func.count(ecd_sq.c.dimension_id).label("dimension_count"),
                 )
                 .group_by(
                     ecd_sq.c.id,
@@ -562,6 +563,9 @@ class DatabaseMappingBase:
                     group_concat(ext_entity_sq.c.element_id, ext_entity_sq.c.position).label("element_id_list"),
                     group_concat(ext_entity_sq.c.element_name, ext_entity_sq.c.position).label("element_name_list"),
                 )
+                # element count might be lower than dimension count when element-entities have been filtered out
+                .filter(self.wide_entity_class_sq.c.id == ext_entity_sq.c.class_id)
+                .having(self.wide_entity_class_sq.c.dimension_count == func.count(ext_entity_sq.c.element_id))
                 .group_by(
                     ext_entity_sq.c.id,
                     ext_entity_sq.c.class_id,
@@ -1625,6 +1629,7 @@ class DatabaseMappingBase:
                 par_val_sq.c.commit_id.label("commit_id"),
                 par_val_sq.c.alternative_id,
             )
+            .filter(par_val_sq.c.entity_id == self.entity_sq.c.id)
             .outerjoin(self.list_value_sq, self.list_value_sq.c.id == list_value_id)
             .subquery("clean_parameter_value_sq")
         )

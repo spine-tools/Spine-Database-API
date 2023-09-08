@@ -15,7 +15,7 @@ Provides functions to apply filtering based on scenarios to subqueries.
 """
 
 from functools import partial
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, or_
 from ..exception import SpineDBAPIError
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
@@ -32,8 +32,8 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     """
     state = _ScenarioFilterState(db_map, scenario)
     # FIXME
-    # make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
-    # db_map.override_entity_sq_maker(make_entity_sq)
+    make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
+    db_map.override_entity_sq_maker(make_entity_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
     make_alternative_sq = partial(_make_scenario_filtered_alternative_sq, state=state)
@@ -196,7 +196,7 @@ def _make_scenario_filtered_entity_sq(db_map, state):
     Returns:
         Alias: a subquery for entity filtered by selected scenario
     """
-    wide_entity_sq = (
+    ext_entity_sq = (
         db_map.query(
             state.original_entity_sq,
             func.row_number()
@@ -204,15 +204,33 @@ def _make_scenario_filtered_entity_sq(db_map, state):
                 partition_by=[state.original_entity_sq.c.id],
                 order_by=desc(db_map.scenario_alternative_sq.c.rank),
             )
-            .label("max_rank_row_number"),
-            db_map.entity_alternative_sq.c.active.label("active"),
+            .label("desc_rank_row_number"),
+            db_map.entity_alternative_sq.c.active,
+            db_map.scenario_alternative_sq.c.scenario_id,
         )
-        .filter(state.original_entity_sq.c.id == db_map.entity_alternative_sq.c.entity_id)
-        .filter(db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
-        .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
+        .outerjoin(
+            db_map.entity_alternative_sq, state.original_entity_sq.c.id == db_map.entity_alternative_sq.c.entity_id
+        )
+        .outerjoin(
+            db_map.scenario_alternative_sq,
+            db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
+        )
+        .filter(
+            or_(
+                db_map.scenario_alternative_sq.c.scenario_id == None,
+                db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id,
+            )
+        )
     ).subquery()
     # TODO: Maybe we want to filter multi-dimensional entities involving filtered entities right here too?
-    return db_map.query(wide_entity_sq).filter_by(max_rank_row_number=1, active=True).subquery()
+    return (
+        db_map.query(ext_entity_sq)
+        .filter(
+            ext_entity_sq.c.desc_rank_row_number == 1,
+            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+        )
+        .subquery()
+    )
 
 
 def _make_scenario_filtered_parameter_value_sq(db_map, state):
@@ -239,12 +257,12 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
                 ],
                 order_by=desc(db_map.scenario_alternative_sq.c.rank),
             )  # the one with the highest rank will have row_number equal to 1, so it will 'win' in the filter below
-            .label("max_rank_row_number"),
+            .label("desc_rank_row_number"),
         )
         .filter(state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
-    return db_map.query(ext_parameter_value_sq).filter(ext_parameter_value_sq.c.max_rank_row_number == 1).subquery()
+    return db_map.query(ext_parameter_value_sq).filter(ext_parameter_value_sq.c.desc_rank_row_number == 1).subquery()
 
 
 def _make_scenario_filtered_alternative_sq(db_map, state):
