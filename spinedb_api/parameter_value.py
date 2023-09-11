@@ -846,6 +846,10 @@ class IndexedValue:
         """Sets the values."""
         self._values = values
 
+    def get_nearest(self, index):
+        pos = np.searchsorted(self.indexes, index)
+        return self.values[pos]
+
     def get_value(self, index):
         """Returns the value at the given index."""
         pos = self.indexes.position_lookup.get(index)
@@ -1147,6 +1151,8 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
     """
 
+    _memoized_indexes = {}
+
     def __init__(self, start, resolution, values, ignore_year, repeat, index_name=""):
         """
         Args:
@@ -1176,24 +1182,32 @@ class TimeSeriesFixedResolution(TimeSeries):
             and self.index_name == other.index_name
         )
 
+    def _get_memoized_indexes(self):
+        key = (self.start, tuple(self.resolution), len(self))
+        memoized_indexes = self._memoized_indexes.get(key)
+        if memoized_indexes is not None:
+            return memoized_indexes
+        step_index = 0
+        step_cycle_index = 0
+        full_cycle_duration = sum(self._resolution, relativedelta())
+        stamps = np.empty(len(self), dtype=_NUMPY_DATETIME_DTYPE)
+        stamps[0] = self._start
+        for stamp_index in range(1, len(self._values)):
+            if step_index >= len(self._resolution):
+                step_index = 0
+                step_cycle_index += 1
+            current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
+            duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
+            stamps[stamp_index] = self._start + duration_from_start
+            step_index += 1
+        memoized_indexes = self._memoized_indexes[key] = np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+        return memoized_indexes
+
     @property
     def indexes(self):
         """Returns the time stamps as a numpy.ndarray of numpy.datetime64 objects."""
         if self._indexes is None:
-            step_index = 0
-            step_cycle_index = 0
-            full_cycle_duration = sum(self._resolution, relativedelta())
-            stamps = np.empty(len(self), dtype=_NUMPY_DATETIME_DTYPE)
-            stamps[0] = self._start
-            for stamp_index in range(1, len(self._values)):
-                if step_index >= len(self._resolution):
-                    step_index = 0
-                    step_cycle_index += 1
-                current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
-                duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
-                stamps[stamp_index] = self._start + duration_from_start
-                step_index += 1
-            self.indexes = np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+            self.indexes = self._get_memoized_indexes()
         return IndexedValue.indexes.fget(self)
 
     @indexes.setter
