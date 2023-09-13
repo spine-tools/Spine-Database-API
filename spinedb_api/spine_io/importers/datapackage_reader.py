@@ -16,8 +16,10 @@ Contains DataPackageConnector class.
 import threading
 from itertools import chain
 
+import tabulator.exceptions
 from datapackage import Package
 from .reader import SourceConnection
+from ...exception import ConnectorError
 
 
 class DataPackageConnector(SourceConnection):
@@ -96,16 +98,21 @@ class DataPackageConnector(SourceConnection):
         if not self._datapackage:
             return iter([]), []
 
+        def iterator(r):
+            try:
+                yield from (item for row, item in enumerate(r.iter(cast=False)) if row != max_rows)
+            except tabulator.exceptions.TabulatorException as error:
+                raise ConnectorError(str(error)) from error
+
         has_header = options.get("has_header", True)
         for resource in self._datapackage.resources:
             with self._resource_name_lock:
                 if resource.name is None:
                     resource.infer()
             if table == resource.name:
-                iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
                 if has_header:
                     header = resource.schema.field_names
-                    return iterator, header
-                return chain([resource.headers], iterator), None
+                    return iterator(resource), header
+                return chain([resource.headers], iterator(resource)), None
         # table not found
         return iter([]), []

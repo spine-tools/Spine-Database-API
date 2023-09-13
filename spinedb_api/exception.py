@@ -103,3 +103,7 @@ class InvalidMappingComponent(InvalidMapping):
         super().__init__(msg)
         self.rank = rank
         self.key = key
+
+
+class ConnectorError(SpineDBAPIError):
+    """Failure in import connector."""

@@ -20,6 +20,8 @@ from pathlib import Path
 import pickle
 from tempfile import TemporaryDirectory
 from datapackage import Package
+
+from spinedb_api.exception import ConnectorError
 from spinedb_api.spine_io.importers.datapackage_reader import DataPackageConnector
 
 
@@ -55,6 +57,25 @@ class TestDatapackageConnector(unittest.TestCase):
             data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
             self.assertIsNone(header)
             self.assertEqual(list(data_iterator), data)
+
+    def test_wrong_datapackage_encoding_raises_connector_error(self):
+        broken_text = b"Slagn\xe4s"
+        # Fool the datapackage sniffing algorithm by hiding the broken line behind a large number of UTF-8 lines.
+        data = 1000 * [b"normal_text\n"] + [broken_text]
+        with TemporaryDirectory() as temp_dir:
+            csv_file_path = Path(temp_dir, "test_data.csv")
+            with open(csv_file_path, "wb") as csv_file:
+                for row in data:
+                    csv_file.write(row)
+            package = Package(base_path=temp_dir)
+            package.add_resource({"path": str(csv_file_path.relative_to(temp_dir))})
+            package_path = Path(temp_dir, "datapackage.json")
+            package.save(package_path)
+            reader = DataPackageConnector(None)
+            reader.connect_to_source(str(package_path))
+            data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
+            self.assertIsNone(header)
+            self.assertRaises(ConnectorError, list, data_iterator)
 
 
 @contextmanager
