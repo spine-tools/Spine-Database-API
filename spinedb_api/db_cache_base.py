@@ -8,10 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-DB cache base.
-
-"""
+"""DB cache base."""
 import threading
 from enum import Enum, unique, auto
 from functools import cmp_to_key
@@ -162,7 +159,7 @@ class DBCacheBase(dict):
             table_cache = self.table_cache(item_type)
             for item in to_add:
                 if table_cache.remove_item(item["id"]) is not None:
-                    del item["id"]
+                    item.invalidate_id()
         return True
 
     def refresh(self):
@@ -399,7 +396,7 @@ class _TableCache(dict):
                 return
         else:
             item.status = Status.to_add
-        if "id" not in item:
+        if "id" not in item or not item.is_id_valid:
             item["id"] = self._new_id()
         self[item["id"]] = item
         self._add_unique(item)
@@ -429,7 +426,7 @@ class _TableCache(dict):
 
 
 class CacheItemBase(dict):
-    """A dictionary that represents an db item."""
+    """A dictionary that represents a db item."""
 
     _defaults = {}
     """A dictionary mapping keys to their default values"""
@@ -470,6 +467,7 @@ class CacheItemBase(dict):
         self.restore_callbacks = set()
         self.update_callbacks = set()
         self.remove_callbacks = set()
+        self._is_id_valid = True
         self._to_remove = False
         self._removed = False
         self._corrupted = False
@@ -545,6 +543,14 @@ class CacheItemBase(dict):
         if id_ is None:
             return None
         return (self._item_type, id_)
+
+    @property
+    def is_id_valid(self):
+        return self._is_id_valid
+
+    def invalidate_id(self):
+        """Sets id as invalid."""
+        self._is_id_valid = False
 
     def _extended(self):
         """Returns a dict from this item's original fields plus all the references resolved statically.
@@ -851,6 +857,12 @@ class CacheItemBase(dict):
                 return tuple(self._get_ref(ref_type, x).get(ref_key) for x in ref_id)
             return self._get_ref(ref_type, ref_id).get(ref_key)
         return super().__getitem__(key)
+
+    def __setitem__(self, key, value):
+        """Sets id valid if key is 'id'."""
+        if key == "id":
+            self._is_id_valid = True
+        super().__setitem__(key, value)
 
     def get(self, key, default=None):
         """Overridden to return references."""
