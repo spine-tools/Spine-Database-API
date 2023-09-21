@@ -58,19 +58,16 @@ from .import_functions import (
     get_data_for_import,
 )
 from .export_functions import (
-    export_alternatives,
     export_data,
-    export_object_classes,
-    export_object_groups,
-    export_object_parameters,
-    export_object_parameter_values,
-    export_objects,
-    export_relationship_classes,
-    export_relationship_parameter_values,
-    export_relationship_parameters,
-    export_relationships,
-    export_scenario_alternatives,
+    export_entity_classes,
+    export_entity_groups,
+    export_entities,
+    export_parameter_value_lists,
+    export_parameter_definitions,
+    export_parameter_values,
     export_scenarios,
+    export_alternatives,
+    export_scenario_alternatives,
 )
 from .import_mapping.import_mapping_compat import import_mapping_from_dict
 from .import_mapping.generator import get_mapped_data

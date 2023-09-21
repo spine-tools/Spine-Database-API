@@ -20,8 +20,7 @@ from spinedb_api import (
     append_filter_config,
     clear_filter_configs,
     DatabaseMapping,
-    DatabaseMapping,
-    export_object_classes,
+    export_entity_classes,
     import_object_classes,
     pop_filter_configs,
 )
@@ -100,8 +99,8 @@ class TestApplyFilterStack(unittest.TestCase):
         db_map = DatabaseMapping(self._db_url)
         try:
             apply_filter_stack(db_map, [])
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("object_class", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("object_class", (), None, None)])
         finally:
             db_map.close()
 
@@ -110,8 +109,8 @@ class TestApplyFilterStack(unittest.TestCase):
         try:
             stack = [entity_class_renamer_config(object_class="renamed_once")]
             apply_filter_stack(db_map, stack)
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", (), None, None)])
         finally:
             db_map.close()
 
@@ -123,8 +122,8 @@ class TestApplyFilterStack(unittest.TestCase):
                 entity_class_renamer_config(renamed_once="renamed_twice"),
             ]
             apply_filter_stack(db_map, stack)
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_twice", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_twice", (), None, None)])
         finally:
             db_map.close()
 
@@ -146,8 +145,8 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     def test_without_filters(self):
         db_map = DatabaseMapping(self._db_url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("object_class", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("object_class", (), None, None)])
         finally:
             db_map.close()
 
@@ -158,8 +157,8 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         url = append_filter_config(str(self._db_url), path)
         db_map = DatabaseMapping(url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", (), None, None)])
         finally:
             db_map.close()
 
@@ -174,8 +173,8 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         url = append_filter_config(url, path2)
         db_map = DatabaseMapping(url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_twice", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_twice", (), None, None)])
         finally:
             db_map.close()
 
@@ -184,8 +183,8 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         url = append_filter_config(str(self._db_url), config)
         db_map = DatabaseMapping(url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", (), None, None)])
         finally:
             db_map.close()
 

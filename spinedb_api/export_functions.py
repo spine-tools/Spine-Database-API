@@ -24,19 +24,10 @@ def export_data(
     db_map,
     entity_class_ids=Asterisk,
     entity_ids=Asterisk,
+    entity_group_ids=Asterisk,
+    parameter_value_list_ids=Asterisk,
     parameter_definition_ids=Asterisk,
     parameter_value_ids=Asterisk,
-    entity_group_ids=Asterisk,
-    object_class_ids=Asterisk,
-    relationship_class_ids=Asterisk,
-    parameter_value_list_ids=Asterisk,
-    object_parameter_ids=Asterisk,
-    relationship_parameter_ids=Asterisk,
-    object_ids=Asterisk,
-    object_group_ids=Asterisk,
-    relationship_ids=Asterisk,
-    object_parameter_value_ids=Asterisk,
-    relationship_parameter_value_ids=Asterisk,
     alternative_ids=Asterisk,
     scenario_ids=Asterisk,
     scenario_alternative_ids=Asterisk,
@@ -47,15 +38,12 @@ def export_data(
 
     Args:
         db_map (DiffDatabaseMapping): The db to pull stuff from.
-        object_class_ids (Iterable, optional): A collection of ids to pick from the database table
-        relationship_class_ids (Iterable, optional): A collection of ids to pick from the database table
+        entity_class_ids (Iterable, optional): A collection of ids to pick from the database table
+        entity_ids (Iterable, optional): A collection of ids to pick from the database table
+        entity_group_ids (Iterable, optional): A collection of ids to pick from the database table
         parameter_value_list_ids (Iterable, optional): A collection of ids to pick from the database table
-        object_parameter_ids (Iterable, optional): A collection of ids to pick from the database table
-        relationship_parameter_ids (Iterable, optional): A collection of ids to pick from the database table
-        object_ids (Iterable, optional): A collection of ids to pick from the database table
-        relationship_ids (Iterable, optional): A collection of ids to pick from the database table
-        object_parameter_value_ids (Iterable, optional): A collection of ids to pick from the database table
-        relationship_parameter_value_ids (Iterable, optional): A collection of ids to pick from the database table
+        parameter_definition_ids (Iterable, optional): A collection of ids to pick from the database table
+        parameter_value_ids (Iterable, optional): A collection of ids to pick from the database table
         alternative_ids (Iterable, optional): A collection of ids to pick from the database table
         scenario_ids (Iterable, optional): A collection of ids to pick from the database table
         scenario_alternative_ids (Iterable, optional): A collection of ids to pick from the database table
@@ -67,28 +55,13 @@ def export_data(
         "entity_classes": export_entity_classes(db_map, entity_class_ids),
         "entities": export_entities(db_map, entity_ids),
         "entity_groups": export_entity_groups(db_map, entity_group_ids),
+        "parameter_value_lists": export_parameter_value_lists(
+            db_map, parameter_value_list_ids, parse_value=parse_value
+        ),
         "parameter_definitions": export_parameter_definitions(
             db_map, parameter_definition_ids, parse_value=parse_value
         ),
         "parameter_values": export_parameter_values(db_map, parameter_value_ids, parse_value=parse_value),
-        "object_classes": export_object_classes(db_map, object_class_ids),
-        "relationship_classes": export_relationship_classes(db_map, relationship_class_ids),
-        "parameter_value_lists": export_parameter_value_lists(
-            db_map, parameter_value_list_ids, parse_value=parse_value
-        ),
-        "object_parameters": export_object_parameters(db_map, object_parameter_ids, parse_value=parse_value),
-        "relationship_parameters": export_relationship_parameters(
-            db_map, relationship_parameter_ids, parse_value=parse_value
-        ),
-        "objects": export_objects(db_map, object_ids),
-        "relationships": export_relationships(db_map, relationship_ids),
-        "object_groups": export_object_groups(db_map, object_group_ids),
-        "object_parameter_values": export_object_parameter_values(
-            db_map, object_parameter_value_ids, parse_value=parse_value
-        ),
-        "relationship_parameter_values": export_relationship_parameter_values(
-            db_map, relationship_parameter_value_ids, parse_value=parse_value
-        ),
         "alternatives": export_alternatives(db_map, alternative_ids),
         "scenarios": export_scenarios(db_map, scenario_ids),
         "scenario_alternatives": export_scenario_alternatives(db_map, scenario_alternative_ids),
@@ -99,19 +72,18 @@ def export_data(
 def _get_items(db_map, tablename, ids):
     if not ids:
         return ()
-    db_map.fetch_all({tablename})
     _process_item = _make_item_processor(db_map, tablename)
     for item in _get_items_from_cache(db_map.cache, tablename, ids):
         yield from _process_item(item)
 
 
 def _get_items_from_cache(cache, tablename, ids):
-    items = cache.get(tablename, {})
     if ids is Asterisk:
-        yield from items.values()
+        cache.fetch_all(tablename)
+        yield from cache.get(tablename, {}).values()
         return
     for id_ in ids:
-        item = items[id_]
+        item = cache.get_item(tablename, id_) or cache.fetch_ref(tablename, id_)
         if item.is_valid():
             yield item
 
@@ -186,96 +158,6 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
                 x.alternative_name,
             )
             for x in _get_items(db_map, "parameter_value", ids)
-        ),
-        key=lambda x: x[:3] + (x[-1],),
-    )
-
-
-def export_object_classes(db_map, ids=Asterisk):
-    return sorted(
-        (x.name, x.description, x.display_icon)
-        for x in _get_items(db_map, "entity_class", ids)
-        if not x.dimension_id_list
-    )
-
-
-def export_relationship_classes(db_map, ids=Asterisk):
-    return sorted(
-        (x.name, x.dimension_name_list, x.description, x.display_icon)
-        for x in _get_items(db_map, "entity_class", ids)
-        if x.dimension_id_list
-    )
-
-
-def export_objects(db_map, ids=Asterisk):
-    return sorted(
-        (x.class_name, x.name, x.description) for x in _get_items(db_map, "entity", ids) if not x.element_id_list
-    )
-
-
-def export_relationships(db_map, ids=Asterisk):
-    return sorted((x.class_name, x.element_name_list) for x in _get_items(db_map, "entity", ids) if x.element_id_list)
-
-
-def export_object_groups(db_map, ids=Asterisk):
-    return sorted(
-        (x.class_name, x.group_name, x.member_name)
-        for x in _get_items(db_map, "entity_group", ids)
-        if not x.dimension_id_list
-    )
-
-
-def export_object_parameters(db_map, ids=Asterisk, parse_value=from_database):
-    return sorted(
-        (
-            x.entity_class_name,
-            x.parameter_name,
-            parse_value(x.default_value, x.default_type),
-            x.value_list_name,
-            x.description,
-        )
-        for x in _get_items(db_map, "parameter_definition", ids)
-        if not x.dimension_id_list
-    )
-
-
-def export_relationship_parameters(db_map, ids=Asterisk, parse_value=from_database):
-    return sorted(
-        (
-            x.entity_class_name,
-            x.parameter_name,
-            parse_value(x.default_value, x.default_type),
-            x.value_list_name,
-            x.description,
-        )
-        for x in _get_items(db_map, "parameter_definition", ids)
-        if x.dimension_id_list
-    )
-
-
-def export_object_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
-    return sorted(
-        (
-            (x.entity_class_name, x.entity_name, x.parameter_name, parse_value(x.value, x.type), x.alternative_name)
-            for x in _get_items(db_map, "parameter_value", ids)
-            if not x.element_id_list
-        ),
-        key=lambda x: x[:3] + (x[-1],),
-    )
-
-
-def export_relationship_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
-    return sorted(
-        (
-            (
-                x.entity_class_name,
-                x.element_name_list,
-                x.parameter_name,
-                parse_value(x.value, x.type),
-                x.alternative_name,
-            )
-            for x in _get_items(db_map, "parameter_value", ids)
-            if x.element_id_list
         ),
         key=lambda x: x[:3] + (x[-1],),
     )

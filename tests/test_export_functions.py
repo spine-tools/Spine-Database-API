@@ -88,29 +88,31 @@ class TestExportFunctions(unittest.TestCase):
         import_scenarios(self._db_map, ["scenario"])
         import_scenario_alternatives(self._db_map, [("scenario", "alternative")])
         exported = export_data(self._db_map)
-        self.assertEqual(len(exported), 16)
-        self.assertIn("object_classes", exported)
-        self.assertEqual(exported["object_classes"], [("object_class", None, None)])
-        self.assertIn("object_parameters", exported)
-        self.assertEqual(exported["object_parameters"], [("object_class", "object_parameter", None, None, None)])
-        self.assertIn("objects", exported)
-        self.assertEqual(exported["objects"], [("object_class", "object", None)])
-        self.assertIn("object_parameter_values", exported)
+        self.assertEqual(len(exported), 8)
+        self.assertIn("entity_classes", exported)
         self.assertEqual(
-            exported["object_parameter_values"], [("object_class", "object", "object_parameter", 2.3, "Base")]
+            exported["entity_classes"],
+            [("object_class", (), None, None), ("relationship_class", ("object_class",), None, None)],
         )
-        self.assertIn("relationship_classes", exported)
-        self.assertEqual(exported["relationship_classes"], [("relationship_class", ("object_class",), None, None)])
-        self.assertIn("relationship_parameters", exported)
+        self.assertIn("parameter_definitions", exported)
         self.assertEqual(
-            exported["relationship_parameters"], [("relationship_class", "relationship_parameter", None, None, None)]
+            exported["parameter_definitions"],
+            [
+                ("object_class", "object_parameter", None, None, None),
+                ("relationship_class", "relationship_parameter", None, None, None),
+            ],
         )
-        self.assertIn("relationships", exported)
-        self.assertEqual(exported["relationships"], [("relationship_class", ("object",))])
-        self.assertIn("relationship_parameter_values", exported)
+        self.assertIn("entities", exported)
         self.assertEqual(
-            exported["relationship_parameter_values"],
-            [("relationship_class", ("object",), "relationship_parameter", 3.14, "Base")],
+            exported["entities"], [("object_class", "object", None), ("relationship_class", ("object",), None)]
+        )
+        self.assertIn("parameter_values", exported)
+        self.assertEqual(
+            exported["parameter_values"],
+            [
+                ("object_class", "object", "object_parameter", 2.3, "Base"),
+                ("relationship_class", ("object",), "relationship_parameter", 3.14, "Base"),
+            ],
         )
         self.assertIn("parameter_value_lists", exported)
         self.assertEqual(exported["parameter_value_lists"], [("value_list", "5.5"), ("value_list", "6.4")])
