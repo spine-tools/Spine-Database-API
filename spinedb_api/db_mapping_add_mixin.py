@@ -42,7 +42,7 @@ class DatabaseMappingAddMixin:
         if not check:
             for item in items:
                 self._convert_legacy(tablename, item)
-                added.append(table_cache.add_item(item, new=True)._asdict())
+                added.append(table_cache.add_item(item, new=True))
         else:
             for item in items:
                 self._convert_legacy(tablename, item)
@@ -52,7 +52,7 @@ class DatabaseMappingAddMixin:
                         raise SpineIntegrityError(error)
                     errors.append(error)
                     continue
-                added.append(table_cache.add_item(checked_item, new=True)._asdict())
+                added.append(table_cache.add_item(checked_item, new=True))
         return added, errors
 
     def _do_add_items(self, connection, tablename, *items_to_add):

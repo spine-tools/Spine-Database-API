@@ -93,7 +93,7 @@ class DatabaseMappingUpdateMixin:
         if not check:
             for item in items:
                 self._convert_legacy(tablename, item)
-                updated.append(table_cache.update_item(item)._asdict())
+                updated.append(table_cache.update_item(item))
         else:
             for item in items:
                 self._convert_legacy(tablename, item)
@@ -104,7 +104,7 @@ class DatabaseMappingUpdateMixin:
                     errors.append(error)
                 if checked_item:
                     item = checked_item._asdict()
-                    updated.append(table_cache.update_item(item)._asdict())
+                    updated.append(table_cache.update_item(item))
         return updated, errors
 
     def update_alternatives(self, *items, **kwargs):
