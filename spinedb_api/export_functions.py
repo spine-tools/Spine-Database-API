@@ -140,7 +140,7 @@ def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database
             x.entity_class_name,
             x.parameter_name,
             parse_value(x.default_value, x.default_type),
-            x.value_list_name,
+            x.parameter_value_list_name,
             x.description,
         )
         for x in _get_items(db_map, "parameter_definition", ids)
