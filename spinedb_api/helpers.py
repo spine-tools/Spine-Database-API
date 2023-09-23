@@ -585,7 +585,7 @@ def create_new_spine_database(db_url):
         meta.create_all(engine)
         engine.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('6b7c994c1c61')")
+        engine.execute("INSERT INTO alembic_version VALUES ('ce9faa82ed59')")
     except DatabaseError as e:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
     return engine

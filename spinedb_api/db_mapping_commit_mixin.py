@@ -17,6 +17,7 @@ Provides :class:`.QuickDatabaseMappingBase`.
 from datetime import datetime, timezone
 import sqlalchemy.exc
 from .exception import SpineDBAPIError
+from .compatibility import convert_tool_feature_method_to_entity_alternative
 
 
 class DatabaseMappingCommitMixin:
@@ -40,7 +41,7 @@ class DatabaseMappingCommitMixin:
             try:
                 commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
             except sqlalchemy.exc.DBAPIError as e:
-                raise SpineDBAPIError(f"Fail to commit: {e.orig.args}")
+                raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
             for tablename, (to_add, to_update, to_remove) in dirty_items:
                 for item in to_add + to_update + to_remove:
                     item.commit(commit_id)
@@ -48,6 +49,7 @@ class DatabaseMappingCommitMixin:
                 self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
                 self._do_update_items(connection, tablename, *to_update)
                 self._do_add_items(connection, tablename, *to_add)
+            convert_tool_feature_method_to_entity_alternative(connection, self)
         if self._memory:
             self._memory_dirty = True
 
