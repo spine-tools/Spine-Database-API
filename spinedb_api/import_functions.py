@@ -112,12 +112,20 @@ def get_data_for_import(
     on_conflict="merge",
     entity_classes=(),
     entities=(),
+    entity_groups=(),
+    entity_alternatives=(),  # TODO
     parameter_definitions=(),
     parameter_values=(),
-    entity_groups=(),
+    parameter_value_lists=(),
+    alternatives=(),
+    scenarios=(),
+    scenario_alternatives=(),
+    metadata=(),
+    entity_metadata=(),
+    parameter_value_metadata=(),
+    # legacy
     object_classes=(),
     relationship_classes=(),
-    parameter_value_lists=(),
     object_parameters=(),
     relationship_parameters=(),
     objects=(),
@@ -125,17 +133,11 @@ def get_data_for_import(
     object_groups=(),
     object_parameter_values=(),
     relationship_parameter_values=(),
-    alternatives=(),
-    scenarios=(),
-    scenario_alternatives=(),
-    metadata=(),
-    entity_metadata=(),
-    parameter_value_metadata=(),
     object_metadata=(),
     relationship_metadata=(),
     object_parameter_value_metadata=(),
     relationship_parameter_value_metadata=(),
-    # legacy
+    # removed
     tools=(),
     features=(),
     tool_features=(),
@@ -167,8 +169,8 @@ def get_data_for_import(
             list of lists with relationship class name, list of object names, parameter name,
             parameter value
 
-    Returns:
-        dict(str, list)
+    Yields:
+        tuple(str, list)
     """
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
