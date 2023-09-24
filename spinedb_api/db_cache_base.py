@@ -11,7 +11,6 @@
 """DB cache base."""
 import threading
 from enum import Enum, unique, auto
-from functools import cmp_to_key
 from .temp_id import TempId
 
 # TODO: Implement CacheItem.pop() to do lookup?
@@ -773,14 +772,15 @@ class CacheItemBase(dict):
         else:
             raise RuntimeError("invalid status for item being restored")
         self._removed = False
-        for referrer in self._referrers.values():
-            referrer.cascade_restore(source=self)
-        self._update_weak_referrers()
+        # First restore this, then referrers
         obsolete = set()
         for callback in list(self.restore_callbacks):
             if not callback(self):
                 obsolete.add(callback)
         self.restore_callbacks -= obsolete
+        for referrer in self._referrers.values():
+            referrer.cascade_restore(source=self)
+        self._update_weak_referrers()
 
     def cascade_remove(self, source=None):
         """Removes this item and all its referrers in cascade.
@@ -799,14 +799,15 @@ class CacheItemBase(dict):
         self._removed = True
         self._to_remove = False
         self._valid = None
+        # First remove referrers, then this
+        for referrer in self._referrers.values():
+            referrer.cascade_remove(source=self)
+        self._update_weak_referrers()
         obsolete = set()
         for callback in list(self.remove_callbacks):
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
-        for referrer in self._referrers.values():
-            referrer.cascade_remove(source=self)
-        self._update_weak_referrers()
 
     def cascade_update(self):
         """Updates this item and all its referrers in cascade.
