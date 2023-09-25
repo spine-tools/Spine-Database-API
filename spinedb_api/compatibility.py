@@ -9,17 +9,22 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides dirty hacks needed to maintain compatibility in cases where migration alone doesn't do it."""
+"""Dirty hacks needed to maintain compatibility in cases where migration alone doesn't do it."""
 
 import sqlalchemy as sa
 
 
-def convert_tool_feature_method_to_entity_alternative(conn, db_map=None):
+def convert_tool_feature_method_to_entity_alternative(conn):
     """Transforms parameter_value rows into entity_alternative rows, whenever the former are used in a tool filter
     to control entity activity.
 
     Args:
         conn (Connection)
+
+    Returns:
+        list: entity_alternative items to add
+        list: entity_alternative items to update
+        list: parameter_value ids to remove
     """
     meta = sa.MetaData(conn)
     meta.reflect()
@@ -68,7 +73,7 @@ def convert_tool_feature_method_to_entity_alternative(conn, db_map=None):
     ]
     # Compute new entity_alternative items from 'is_active' parameter values,
     # where 'active' is True if the value of 'is_active' is the one from the tool_feature_method specification
-    current_ea_keys = {(x["entity_id"], x["alternative_id"]) for x in conn.execute(sa.select([ea_table]))}
+    current_ea_ids = {(x["entity_id"], x["alternative_id"]): x["id"] for x in conn.execute(sa.select([ea_table]))}
     new_ea_items = {
         (x["entity_id"], x["alternative_id"]): {
             "entity_id": x["entity_id"],
@@ -78,24 +83,41 @@ def convert_tool_feature_method_to_entity_alternative(conn, db_map=None):
         for x in is_active_pvals
     }
     # Add or update entity_alternative records
-    ea_items_to_add = [new_ea_items[key] for key in set(new_ea_items) - current_ea_keys]
-    ea_items_to_update = [new_ea_items[key] for key in set(new_ea_items) & current_ea_keys]
+    ea_items_to_add = [new_ea_items[key] for key in set(new_ea_items) - set(current_ea_ids)]
+    ea_items_to_update = [
+        {"id": current_ea_ids[key], "active": new_ea_items[key]["active"]}
+        for key in set(new_ea_items) & set(current_ea_ids)
+    ]
+    pval_ids_to_remove = [x["id"] for x in is_active_pvals]
     if ea_items_to_add:
         conn.execute(ea_table.insert(), ea_items_to_add)
     if ea_items_to_update:
-        conn.execute(
-            ea_table.update()
-            .where(ea_table.c.entity_id == sa.bindparam("b_entity_id"))
-            .where(ea_table.c.alternative_id == sa.bindparam("b_alternative_id"))
-            .values(active=sa.bindparam("b_active")),
-            [{"b_" + k: v for k, v in x.items()} for x in ea_items_to_update],
-        )
+        conn.execute(ea_table.update(), ea_items_to_update)
     # Delete pvals 499 at a time to avoid too many sql variables
-    is_active_pval_ids = [x["id"] for x in is_active_pvals]
     size = 499
-    for i in range(0, len(is_active_pval_ids), size):
-        ids = is_active_pval_ids[i : i + size]
+    for i in range(0, len(pval_ids_to_remove), size):
+        ids = pval_ids_to_remove[i : i + size]
         conn.execute(pv_table.delete().where(pv_table.c.id.in_(ids)))
-    if db_map is not None:
-        db_map.remove_items("parameter_value", *is_active_pval_ids)
-        # TODO: add and update ea items
+    return ea_items_to_add, ea_items_to_update, set(pval_ids_to_remove)
+
+
+def refit_data(connection):
+    """Refits any data having an old format and returns changes made.
+
+    Args:
+        connection (Connection)
+
+    Returns:
+        list: list of strings indicating the changes
+        list: list of tuples (tablename, (items_added, items_updated, ids_removed))
+    """
+    ea_items_added, ea_items_updated, pval_ids_removed = convert_tool_feature_method_to_entity_alternative(connection)
+    info = []
+    refits = []
+    if ea_items_added or ea_items_updated:
+        refits.append(("entity_alternative", (ea_items_added, ea_items_updated, ())))
+    if pval_ids_removed:
+        refits.append(("parameter_value", ((), (), pval_ids_removed)))
+    if ea_items_added or ea_items_updated or pval_ids_removed:
+        info.append("Convert entity activity control using tool/feature/method into entity_alternative")
+    return info, refits

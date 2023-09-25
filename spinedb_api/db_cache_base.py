@@ -417,7 +417,7 @@ class _TableCache(dict):
         return current_item
 
     def restore_item(self, id_):
-        current_item = self.get(id_)
+        current_item = self.find_item({"id": id_})
         if current_item is not None:
             self._add_unique(current_item)
             current_item.cascade_restore()
