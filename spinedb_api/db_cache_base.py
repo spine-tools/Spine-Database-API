@@ -769,6 +769,8 @@ class CacheItemBase(dict):
             return
         if self.status in (Status.added_and_removed, Status.to_remove):
             self._status = self._status_when_removed
+        elif self.status == Status.committed:
+            self._status = Status.to_add
         else:
             raise RuntimeError("invalid status for item being restored")
         self._removed = False
