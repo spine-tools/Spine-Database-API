@@ -32,7 +32,7 @@ class TempId(int):
         return super().__eq__(other) or (self._db_id is not None and other == self._db_id)
 
     def __hash__(self):
-        return int.__hash__(self)
+        return -int(self)
 
     @property
     def db_id(self):
