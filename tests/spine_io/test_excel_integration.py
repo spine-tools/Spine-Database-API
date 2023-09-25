@@ -21,7 +21,7 @@ import json
 from spinedb_api import DatabaseMapping, import_data, from_database
 from spinedb_api.spine_io.exporters.excel import export_spine_database_to_xlsx
 from spinedb_api.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
-from ..test_import_functions import assert_import_equivalent
+from tests.test_import_functions import assert_import_equivalent
 
 _TEMP_EXCEL_FILENAME = "excel.xlsx"
 
