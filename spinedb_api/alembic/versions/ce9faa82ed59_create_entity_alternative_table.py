@@ -43,7 +43,10 @@ def upgrade():
         sa.PrimaryKeyConstraint('id', name=op.f('pk_entity_alternative')),
         sa.UniqueConstraint('entity_id', 'alternative_id', name=op.f('uq_entity_alternative_entity_idalternative_id')),
     )
-    op.drop_table('next_id')
+    try:
+        op.drop_table('next_id')
+    except sa.exc.OperationalError:
+        pass
     convert_tool_feature_method_to_entity_alternative(op.get_bind())
 
 
