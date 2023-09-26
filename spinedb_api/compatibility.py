@@ -101,23 +101,23 @@ def convert_tool_feature_method_to_entity_alternative(conn):
     return ea_items_to_add, ea_items_to_update, set(pval_ids_to_remove)
 
 
-def refit_data(connection):
+def compatibility_transformations(connection):
     """Refits any data having an old format and returns changes made.
 
     Args:
         connection (Connection)
 
     Returns:
-        list: list of strings indicating the changes
         list: list of tuples (tablename, (items_added, items_updated, ids_removed))
+        list: list of strings indicating the changes
     """
     ea_items_added, ea_items_updated, pval_ids_removed = convert_tool_feature_method_to_entity_alternative(connection)
+    transformations = []
     info = []
-    refits = []
     if ea_items_added or ea_items_updated:
-        refits.append(("entity_alternative", (ea_items_added, ea_items_updated, ())))
+        transformations.append(("entity_alternative", (ea_items_added, ea_items_updated, ())))
     if pval_ids_removed:
-        refits.append(("parameter_value", ((), (), pval_ids_removed)))
+        transformations.append(("parameter_value", ((), (), pval_ids_removed)))
     if ea_items_added or ea_items_updated or pval_ids_removed:
         info.append("Convert entity activity control using tool/feature/method into entity_alternative")
-    return info, refits
+    return transformations, info

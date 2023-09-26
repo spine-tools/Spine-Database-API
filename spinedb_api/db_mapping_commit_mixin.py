@@ -17,7 +17,7 @@ Provides :class:`.QuickDatabaseMappingBase`.
 from datetime import datetime, timezone
 import sqlalchemy.exc
 from .exception import SpineDBAPIError
-from .compatibility import refit_data
+from .compatibility import compatibility_transformations
 
 
 class DatabaseMappingCommitMixin:
@@ -51,7 +51,7 @@ class DatabaseMappingCommitMixin:
                 self._do_add_items(connection, tablename, *to_add)
             if self._memory:
                 self._memory_dirty = True
-            return refit_data(connection)
+            return compatibility_transformations(connection)
 
     def rollback_session(self):
         if not self.cache.rollback():
