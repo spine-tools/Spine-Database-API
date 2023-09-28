@@ -22,6 +22,9 @@ from spinedb_api import (
     create_new_spine_database,
     DatabaseMapping,
     import_alternatives,
+    import_entity_classes,
+    import_entities,
+    import_entity_alternatives,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -106,6 +109,49 @@ class TestScenarioFilter(unittest.TestCase):
         scenarios = self._out_db_map.query(self._out_db_map.wide_scenario_sq).all()
         self.assertEqual(len(scenarios), 0)
         self._out_db_map.rollback_session()
+
+    def test_scenario_filter_works_for_entity_sq(self):
+        import_alternatives(self._out_db_map, ["alternative1", "alternative2"])
+        import_entity_classes(
+            self._out_db_map, [("class1", ()), ("class2", ()), ("class1__class2", ("class1", "class2"))]
+        )
+        import_entities(
+            self._out_db_map,
+            [
+                ("class1", "obj1"),
+                ("class2", "obj2"),
+                ("class2", "obj22"),
+                ("class1__class2", ("obj1", "obj2")),
+                ("class1__class2", ("obj1", "obj22")),
+            ],
+        )
+        import_entity_alternatives(
+            self._out_db_map,
+            [
+                ("class2", "obj2", "alternative1", True),
+                ("class2", "obj2", "alternative2", False),
+                ("class2", "obj22", "alternative1", False),
+                ("class2", "obj22", "alternative2", True),
+            ],
+        )
+        import_scenarios(self._out_db_map, [("scenario1", True)])
+        import_scenario_alternatives(
+            self._out_db_map, [("scenario1", "alternative2"), ("scenario1", "alternative1", "alternative2")]
+        )
+        self._out_db_map.commit_session("Add test data")
+        entities = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(len(entities), 5)
+        apply_scenario_filter_to_subqueries(self._db_map, "scenario1")
+        # After this, obj2 should be excluded because it is inactive in the highest-ranked alternative2
+        # The multidimensional entity 'class1__class2, (obj1, obj2)' should also be excluded because involves obj2
+        entities = self._db_map.query(self._db_map.wide_entity_sq).all()
+        self.assertEqual(len(entities), 3)
+        entity_names = {
+            name
+            for x in entities
+            for name in (x["element_name_list"].split(",") if x["element_name_list"] else (x["name"],))
+        }
+        self.assertFalse("obj2" in entity_names)
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
         _build_data_with_single_scenario(self._out_db_map)

@@ -37,6 +37,7 @@ from .import_functions import (
     import_data,
     import_entity_classes,
     import_entities,
+    import_entity_alternatives,
     import_parameter_definitions,
     import_parameter_values,
     import_object_classes,

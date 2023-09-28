@@ -188,10 +188,13 @@ def get_data_for_import(
     if entity_classes:
         yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, zero_dim=True))
         yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, zero_dim=False))
-    if object_classes:
-        yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
-    if relationship_classes:
-        yield ("relationship_class", _get_entity_classes_for_import(db_map, relationship_classes, zero_dim=False))
+    if entities:
+        yield ("entity", _get_entities_for_import(db_map, entities, zero_dim=True))
+        yield ("entity", _get_entities_for_import(db_map, entities, zero_dim=False))
+    if entity_alternatives:
+        yield ("entity_alternative", _get_entity_alternatives_for_import(db_map, entity_alternatives))
+    if entity_groups:
+        yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
@@ -200,6 +203,23 @@ def get_data_for_import(
             "parameter_definition",
             _get_parameter_definitions_for_import(db_map, parameter_definitions, unparse_value),
         )
+    if parameter_values:
+        yield (
+            "parameter_value",
+            _get_parameter_values_for_import(db_map, parameter_values, unparse_value, on_conflict),
+        )
+    if metadata:
+        yield ("metadata", _get_metadata_for_import(db_map, metadata))
+    if entity_metadata:
+        yield ("metadata", _get_metadata_for_import(db_map, (metadata for _, _, metadata in entity_metadata)))
+        yield ("entity_metadata", _get_entity_metadata_for_import(db_map, entity_metadata))
+    if parameter_value_metadata:
+        yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
+    # Legacy
+    if object_classes:
+        yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
+    if relationship_classes:
+        yield ("relationship_class", _get_entity_classes_for_import(db_map, relationship_classes, zero_dim=False))
     if object_parameters:
         yield ("parameter_definition", _get_parameter_definitions_for_import(db_map, object_parameters, unparse_value))
     if relationship_parameters:
@@ -207,22 +227,12 @@ def get_data_for_import(
             "parameter_definition",
             _get_parameter_definitions_for_import(db_map, relationship_parameters, unparse_value),
         )
-    if entities:
-        yield ("entity", _get_entities_for_import(db_map, entities, zero_dim=True))
-        yield ("entity", _get_entities_for_import(db_map, entities, zero_dim=False))
     if objects:
         yield ("object", _get_entities_for_import(db_map, objects, zero_dim=True))
     if relationships:
         yield ("relationship", _get_entities_for_import(db_map, relationships, zero_dim=False))
-    if entity_groups:
-        yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
     if object_groups:
         yield ("entity_group", _get_entity_groups_for_import(db_map, object_groups))
-    if parameter_values:
-        yield (
-            "parameter_value",
-            _get_parameter_values_for_import(db_map, parameter_values, unparse_value, on_conflict),
-        )
     if object_parameter_values:
         yield (
             "parameter_value",
@@ -233,13 +243,6 @@ def get_data_for_import(
             "parameter_value",
             _get_parameter_values_for_import(db_map, relationship_parameter_values, unparse_value, on_conflict),
         )
-    if metadata:
-        yield ("metadata", _get_metadata_for_import(db_map, metadata))
-    if entity_metadata:
-        yield ("metadata", _get_metadata_for_import(db_map, (metadata for _, _, metadata in entity_metadata)))
-        yield ("entity_metadata", _get_entity_metadata_for_import(db_map, entity_metadata))
-    if parameter_value_metadata:
-        yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:
         yield from get_data_for_import(db_map, entity_metadata=object_metadata)
     if relationship_metadata:
@@ -294,6 +297,29 @@ def import_entities(db_map, data):
         (Int, List) Number of successful inserted entities, list of errors
     """
     return import_data(db_map, entities=data)
+
+
+def import_entity_alternatives(db_map, data):
+    """Imports entity alternatives.
+
+    Example::
+
+            data = [
+                ('class_name1', 'entity_name1', 'alternative_name3', True),
+                ('class_name2', 'entity_name2', 'alternative_name4', False),
+                ('class_name3', ('entity_name1', 'entity_name2'), 'alternative_name5', False)
+            ]
+            import_entity_alternatives(db_map, data)
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): mapping for database to insert into
+        data (List[List/Tuple]): list/set/iterable of lists/tuples with entity class name,
+            entity name or list/tuple of element names, alternative name, active boolean value
+
+    Returns:
+        (Int, List) Number of successful inserted entities, list of errors
+    """
+    return import_data(db_map, entity_alternatives=data)
 
 
 def import_entity_groups(db_map, data):
@@ -812,6 +838,17 @@ def _get_entities_for_import(db_map, data, zero_dim):
             yield dict(zip(key, (class_name, name_or_element_name_list, *optionals)))
 
     return _get_items_for_import(db_map, "entity", _data_iterator())
+
+
+def _get_entity_alternatives_for_import(db_map, data):
+    def _data_iterator():
+        for class_name, entity_name_or_element_name_list, alternative, active in data:
+            is_zero_dim = isinstance(entity_name_or_element_name_list, str)
+            entity_byname = (entity_name_or_element_name_list,) if is_zero_dim else entity_name_or_element_name_list
+            key = ("entity_class_name", "entity_byname", "alternative_name", "active")
+            yield dict(zip(key, (class_name, entity_byname, alternative, active)))
+
+    return _get_items_for_import(db_map, "entity_alternative", _data_iterator())
 
 
 def _get_entity_groups_for_import(db_map, data):

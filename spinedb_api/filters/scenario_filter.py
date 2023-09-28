@@ -31,7 +31,8 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
         scenario (str or int): scenario name or id
     """
     state = _ScenarioFilterState(db_map, scenario)
-    # FIXME
+    make_entity_element_sq = partial(_make_scenario_filtered_entity_element_sq, state=state)
+    db_map.override_entity_element_sq_maker(make_entity_element_sq)
     make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(make_entity_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
@@ -131,6 +132,7 @@ class _ScenarioFilterState:
             scenario (str or int): scenario name or ids
         """
         self.original_entity_sq = db_map.entity_sq
+        self.original_entity_element_sq = db_map.entity_element_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_scenario_sq = db_map.scenario_sq
         self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
@@ -184,19 +186,8 @@ class _ScenarioFilterState:
         return scenario_alternative_ids, alternative_ids
 
 
-def _make_scenario_filtered_entity_sq(db_map, state):
-    """Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.entity_sq`.
-
-    This function can be used as replacement for entity subquery maker in :class:`DatabaseMappingBase`.
-
-    Args:
-        db_map (DatabaseMappingBase): a database map
-        state (_ScenarioFilterState): a state bound to ``db_map``
-
-    Returns:
-        Alias: a subquery for entity filtered by selected scenario
-    """
-    ext_entity_sq = (
+def _ext_entity_sq(db_map, state):
+    return (
         db_map.query(
             state.original_entity_sq,
             func.row_number()
@@ -222,12 +213,84 @@ def _make_scenario_filtered_entity_sq(db_map, state):
             )
         )
     ).subquery()
-    # TODO: Maybe we want to filter multi-dimensional entities involving filtered entities right here too?
+
+
+def _make_scenario_filtered_entity_element_sq(db_map, state):
+    """Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.entity_element_sq`.
+
+    This function can be used as replacement for entity_element subquery maker in :class:`DatabaseMappingBase`.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity_element filtered by selected scenario
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    entity_sq = ext_entity_sq.alias()
+    element_sq = ext_entity_sq.alias()
     return (
-        db_map.query(ext_entity_sq)
+        db_map.query(state.original_entity_element_sq)
+        .filter(state.original_entity_element_sq.c.entity_id == entity_sq.c.id)
+        .filter(state.original_entity_element_sq.c.element_id == element_sq.c.id)
+        .filter(
+            entity_sq.c.desc_rank_row_number == 1,
+            or_(entity_sq.c.active == True, entity_sq.c.active == None),
+        )
+        .filter(
+            element_sq.c.desc_rank_row_number == 1,
+            or_(element_sq.c.active == True, element_sq.c.active == None),
+        )
+        .subquery()
+    )
+
+
+def _make_scenario_filtered_entity_sq(db_map, state):
+    """Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.entity_sq`.
+
+    This function can be used as replacement for entity subquery maker in :class:`DatabaseMappingBase`.
+
+    Args:
+        db_map (DatabaseMappingBase): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity filtered by selected scenario
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    ext_entity_class_dimension_count_sq = (
+        db_map.query(
+            db_map.entity_class_dimension_sq.c.entity_class_id,
+            func.count(db_map.entity_class_dimension_sq.c.dimension_id).label("dimension_count"),
+        )
+        .group_by(db_map.entity_class_dimension_sq.c.entity_class_id)
+        .subquery()
+    )
+    return (
+        db_map.query(
+            ext_entity_sq.c.id,
+            ext_entity_sq.c.class_id,
+            ext_entity_sq.c.name,
+            ext_entity_sq.c.description,
+            ext_entity_sq.c.commit_id,
+        )
         .filter(
             ext_entity_sq.c.desc_rank_row_number == 1,
             or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+        )
+        .outerjoin(
+            ext_entity_class_dimension_count_sq,
+            ext_entity_class_dimension_count_sq.c.entity_class_id == ext_entity_sq.c.class_id,
+        )
+        .outerjoin(db_map.entity_element_sq, ext_entity_sq.c.id == db_map.entity_element_sq.c.entity_id)
+        .group_by(ext_entity_sq.c.id)
+        .having(
+            or_(
+                ext_entity_class_dimension_count_sq.c.dimension_count == None,
+                ext_entity_class_dimension_count_sq.c.dimension_count
+                == func.count(db_map.entity_element_sq.c.element_id),
+            )
         )
         .subquery()
     )

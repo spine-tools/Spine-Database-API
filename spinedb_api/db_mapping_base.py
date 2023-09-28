@@ -437,7 +437,7 @@ class DatabaseMappingBase:
     @property
     def entity_element_sq(self):
         if self._entity_element_sq is None:
-            self._entity_element_sq = self._subquery("entity_element")
+            self._entity_element_sq = self._make_entity_element_sq()
         return self._entity_element_sq
 
     @property
@@ -1570,6 +1570,15 @@ class DatabaseMappingBase:
         """
         return self._subquery("entity")
 
+    def _make_entity_element_sq(self):
+        """
+        Creates a subquery for entity-elements.
+
+        Returns:
+            Alias: an entity_element subquery
+        """
+        return self._subquery("entity_element")
+
     def _make_parameter_definition_sq(self):
         """
         Creates a subquery for parameter definitions.
@@ -1706,6 +1715,17 @@ class DatabaseMappingBase:
         self._make_entity_sq = MethodType(method, self)
         self._clear_subqueries("entity")
 
+    def override_entity_element_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_element_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMappingBase` as its argument and
+                returns entity_element subquery as an :class:`Alias` object
+        """
+        self._make_entity_element_sq = MethodType(method, self)
+        self._clear_subqueries("entity_element")
+
     def override_parameter_definition_sq_maker(self, method):
         """
         Overrides the function that creates the ``parameter_definition_sq`` property.
@@ -1770,6 +1790,11 @@ class DatabaseMappingBase:
         """Restores the original function that creates the ``entity_sq`` property."""
         self._make_entity_sq = MethodType(DatabaseMappingBase._make_entity_sq, self)
         self._clear_subqueries("entity")
+
+    def restore_entity_element_sq_maker(self):
+        """Restores the original function that creates the ``entity_element_sq`` property."""
+        self._make_entity_element_sq = MethodType(DatabaseMappingBase._make_entity_element_sq, self)
+        self._clear_subqueries("entity_element")
 
     def restore_parameter_definition_sq_maker(self):
         """Restores the original function that creates the ``parameter_definition_sq`` property."""
