@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Functions for exporting data from a Spine database using entity names as references.
+Functions for exporting data from a Spine database in a standard format.
 
 """
 from operator import itemgetter
@@ -31,22 +31,26 @@ def export_data(
     alternative_ids=Asterisk,
     scenario_ids=Asterisk,
     scenario_alternative_ids=Asterisk,
+    entity_alternative_ids=Asterisk,
     parse_value=from_database,
 ):
     """
-    Exports data from given database into a dictionary that can be splatted into keyword arguments for ``import_data``.
+    Exports data from a Spine DB into a standard dictionary format.
+    The result can be splatted into keyword arguments for :func:`spinedb_api.import_functions.import_data`
+    to transfer data from one DB to another.
 
     Args:
-        db_map (DiffDatabaseMapping): The db to pull stuff from.
-        entity_class_ids (Iterable, optional): A collection of ids to pick from the database table
-        entity_ids (Iterable, optional): A collection of ids to pick from the database table
-        entity_group_ids (Iterable, optional): A collection of ids to pick from the database table
-        parameter_value_list_ids (Iterable, optional): A collection of ids to pick from the database table
-        parameter_definition_ids (Iterable, optional): A collection of ids to pick from the database table
-        parameter_value_ids (Iterable, optional): A collection of ids to pick from the database table
-        alternative_ids (Iterable, optional): A collection of ids to pick from the database table
-        scenario_ids (Iterable, optional): A collection of ids to pick from the database table
-        scenario_alternative_ids (Iterable, optional): A collection of ids to pick from the database table
+        db_map (DatabaseMapping): The db to pull data from.
+        entity_class_ids (Iterable, optional): If given, only exports classes with these ids
+        entity_ids (Iterable, optional): If given, only exports entities with these ids
+        entity_group_ids (Iterable, optional): If given, only exports groups with these ids
+        parameter_value_list_ids (Iterable, optional): If given, only exports lists with these ids
+        parameter_definition_ids (Iterable, optional): If given, only exports parameter definitions with these ids
+        parameter_value_ids (Iterable, optional): If given, only exports parameter values with these ids
+        alternative_ids (Iterable, optional): If given, only exports alternatives with these ids
+        scenario_ids (Iterable, optional): If given, only exports scenarios with these ids
+        scenario_alternative_ids (Iterable, optional): If given, only exports scenario alternatives with these ids
+        entity_alternative_ids (Iterable, optional): If given, only exports entity alternatives with these ids
 
     Returns:
         dict: exported data
@@ -54,6 +58,7 @@ def export_data(
     data = {
         "entity_classes": export_entity_classes(db_map, entity_class_ids),
         "entities": export_entities(db_map, entity_ids),
+        "entity_alternatives": export_entity_alternatives(db_map, entity_alternative_ids),
         "entity_groups": export_entity_groups(db_map, entity_group_ids),
         "parameter_value_lists": export_parameter_value_lists(
             db_map, parameter_value_list_ids, parse_value=parse_value
@@ -72,7 +77,7 @@ def export_data(
 def _get_items(db_map, tablename, ids):
     if not ids:
         return ()
-    _process_item = _make_item_processor(db_map, tablename)
+    _process_item = _make_item_processor(db_map.cache, tablename)
     for item in _get_items_from_cache(db_map.cache, tablename, ids):
         yield from _process_item(item)
 
@@ -80,7 +85,7 @@ def _get_items(db_map, tablename, ids):
 def _get_items_from_cache(cache, tablename, ids):
     if ids is Asterisk:
         cache.fetch_all(tablename)
-        yield from cache.get(tablename, {}).values()
+        yield from cache.table_cache(tablename).valid_values()
         return
     for id_ in ids:
         item = cache.get_item(tablename, id_) or cache.fetch_ref(tablename, id_)
@@ -88,10 +93,10 @@ def _get_items_from_cache(cache, tablename, ids):
             yield item
 
 
-def _make_item_processor(db_map, tablename):
+def _make_item_processor(cache, tablename):
     if tablename == "parameter_value_list":
-        db_map.fetch_all({"list_value"})
-        return _ParameterValueListProcessor(db_map.cache.get("list_value", {}).values())
+        cache.fetch_all("list_value")
+        return _ParameterValueListProcessor(cache.table_cache("list_value").valid_values())
     return lambda item: (item,)
 
 
@@ -134,6 +139,13 @@ def export_entity_groups(db_map, ids=Asterisk):
     return sorted((x.class_name, x.group_name, x.member_name) for x in _get_items(db_map, "entity_group", ids))
 
 
+def export_entity_alternatives(db_map, ids=Asterisk):
+    return sorted(
+        (x.entity_class_name, x.entity_byname, x.alternative_name, x.active)
+        for x in _get_items(db_map, "entity_alternative", ids)
+    )
+
+
 def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database):
     return sorted(
         (
@@ -164,51 +176,14 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
 
 
 def export_alternatives(db_map, ids=Asterisk):
-    """
-    Exports alternatives from database.
-
-    The format is what :func:`import_alternatives` accepts as its input.
-
-    Args:
-        db_map (spinedb_api.DatabaseMapping or spinedb_api.DiffDatabaseMapping): a database map
-        ids (Iterable, optional): ids of the alternatives to export
-
-    Returns:
-        Iterable: tuples of two elements: name of alternative and description
-    """
     return sorted((x.name, x.description) for x in _get_items(db_map, "alternative", ids))
 
 
 def export_scenarios(db_map, ids=Asterisk):
-    """
-    Exports scenarios from database.
-
-    The format is what :func:`import_scenarios` accepts as its input.
-
-    Args:
-        db_map (spinedb_api.DatabaseMapping or spinedb_api.DiffDatabaseMapping): a database map
-        ids (Iterable, optional): ids of the scenarios to export
-
-    Returns:
-        Iterable: tuples of two elements: name of scenario and description
-    """
     return sorted((x.name, x.active, x.description) for x in _get_items(db_map, "scenario", ids))
 
 
 def export_scenario_alternatives(db_map, ids=Asterisk):
-    """
-    Exports scenario alternatives from database.
-
-    The format is what :func:`import_scenario_alternatives` accepts as its input.
-
-    Args:
-        db_map (spinedb_api.DatabaseMapping or spinedb_api.DiffDatabaseMapping): a database map
-        ids (Iterable, optional): ids of the scenario alternatives to export
-
-    Returns:
-        Iterable: tuples of three elements: name of scenario, tuple containing one alternative name,
-            and name of next alternative
-    """
     return sorted(
         (
             (x.scenario_name, x.alternative_name, x.before_alternative_name)

@@ -10,21 +10,19 @@
 ######################################################################################################################
 
 """
-Support utilities and classes to deal with Spine data (relationship)
-parameter values.
+Support utilities and classes to deal with Spine parameter values.
 
-The `from_database` function reads the database's value format returning
-a float, Datatime, Duration, TimePattern, TimeSeriesFixedResolution
+The :func:`from_database` function receives the parameter value and type fields from the database returning
+a float, Datetime, Duration, Array, TimePattern, TimeSeriesFixedResolution,
 TimeSeriesVariableResolution or Map objects.
 
-The above objects can be converted back to the database format by the `to_database` free function
+The above objects can be converted back to the database format by the :func:`to_database` free function
 or by their `to_database` member functions.
 
 Individual datetimes are represented as datetime objects from the standard Python library.
 Individual time steps are represented as relativedelta objects from the dateutil package.
 Datetime indexes (as returned by TimeSeries.indexes()) are represented as
 numpy.ndarray arrays holding numpy.datetime64 objects.
-
 """
 
 from collections.abc import Sequence

@@ -9,11 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Provides :class:`.QuickDatabaseMappingBase`.
-
-"""
-
 from datetime import datetime, timezone
 import sqlalchemy.exc
 from .exception import SpineDBAPIError

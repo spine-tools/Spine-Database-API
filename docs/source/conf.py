@@ -51,7 +51,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'recommonmark',
-    'autoapi.extension'
+    'autoapi.extension',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -85,6 +85,7 @@ exclude_patterns = []
 pygments_style = 'sphinx'
 
 # Settings for Sphinx AutoAPI
+autoapi_options = ['members', 'inherited-members']
 autoapi_python_class_content = "both"
 autoapi_add_toctree_entry = True
 autoapi_root = "autoapi"
@@ -92,7 +93,17 @@ autoapi_dirs = ['../../spinedb_api']  # package to be documented
 autoapi_ignore = [
     '*/spinedb_api/alembic/*',
 ]  # ignored modules
-autoapi_keep_files=True
+autoapi_keep_files = True
+
+
+def _skip_member(app, what, name, obj, skip, options):
+    if what == "class" and any(x in name for x in ("SpineDBServer", "group_concat")):
+        skip = True
+    return skip
+
+
+def setup(sphinx):
+    sphinx.connect("autoapi-skip-member", _skip_member)
 
 
 # -- Options for HTML output -------------------------------------------------

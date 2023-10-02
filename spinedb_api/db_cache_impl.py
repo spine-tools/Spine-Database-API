@@ -8,10 +8,9 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-DB cache implementation.
 
-"""
+# The Spine implementation for DBCacheBase
+
 import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
@@ -38,20 +37,20 @@ class DBCache(DBCacheBase):
         "commit": "commit_sq",
     }
 
-    def __init__(self, db_map, chunk_size=None):
+    def __init__(self, db_map):
         """
         Args:
             db_map (DatabaseMapping)
         """
-        super().__init__(chunk_size=chunk_size)
+        super().__init__()
         self._db_map = db_map
 
     @property
-    def _item_types(self):
+    def item_types(self):
         return list(self._sq_name_by_item_type)
 
     @staticmethod
-    def _item_factory(item_type):
+    def item_factory(item_type):
         return {
             "entity_class": EntityClassItem,
             "entity": EntityItem,
@@ -69,7 +68,7 @@ class DBCache(DBCacheBase):
             "parameter_value_metadata": ParameterValueMetadataItem,
         }.get(item_type, CacheItemBase)
 
-    def _query(self, item_type):
+    def query(self, item_type):
         if self._db_map.closed:
             return None
         sq_name = self._sq_name_by_item_type[item_type]
@@ -292,7 +291,7 @@ class ParameterDefinitionItem(ParsedValueBase):
             and other_parameter_value_list_id != self["parameter_value_list_id"]
             and any(
                 x["parameter_definition_id"] == self["id"]
-                for x in self._db_cache.table_cache("parameter_value").values()
+                for x in self._db_cache.table_cache("parameter_value").valid_values()
             )
         ):
             del other["parameter_value_list_id"]
@@ -409,19 +408,21 @@ class ScenarioItem(CacheItemBase):
     _defaults = {"active": False, "description": None}
     _unique_keys = (("name",),)
 
-    @property
-    def sorted_scenario_alternatives(self):
-        self._db_cache.fetch_all("scenario_alternative")
-        return sorted(
-            (x for x in self._db_cache.get("scenario_alternative", {}).values() if x["scenario_id"] == self["id"]),
-            key=itemgetter("rank"),
-        )
-
     def __getitem__(self, key):
         if key == "alternative_id_list":
             return [x["alternative_id"] for x in self.sorted_scenario_alternatives]
         if key == "alternative_name_list":
             return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
+        if key == "sorted_scenario_alternatives":
+            self._db_cache.fetch_all("scenario_alternative")
+            return sorted(
+                (
+                    x
+                    for x in self._db_cache.table_cache("scenario_alternative").valid_values()
+                    if x["scenario_id"] == self["id"]
+                ),
+                key=itemgetter("rank"),
+            )
         return super().__getitem__(key)
 
 

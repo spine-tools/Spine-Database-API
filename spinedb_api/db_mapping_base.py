@@ -9,8 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.DatabaseMappingBase`."""
-# TODO: Finish docstrings
 import hashlib
 import os
 import logging
@@ -38,11 +36,10 @@ from .helpers import (
     model_meta,
     copy_database_bind,
 )
-from .filters.tools import pop_filter_configs
+from .filters.tools import pop_filter_configs, apply_filter_stack, load_filters
 from .spine_db_client import get_db_url_from_server
 from .db_cache_impl import DBCache
 from .query import Query
-
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
@@ -50,7 +47,7 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 class DatabaseMappingBase:
     """Base class for all database mappings.
 
-    It provides the :meth:`query` method for custom db querying.
+    Provides the :meth:`query` method for performing custom ``SELECT`` queries.
     """
 
     _session_kwargs = {}
@@ -80,20 +77,18 @@ class DatabaseMappingBase:
         apply_filters=True,
         memory=False,
         sqlite_timeout=1800,
-        chunk_size=None,
     ):
         """
         Args:
             db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped, or to a DB server.
-            username (str, optional): A user name. If ``None``, it gets replaced by the string ``"anon"``.
-            upgrade (bool): Whether or not the db at the given URL should be upgraded to the most recent version.
-            codename (str, optional): A name that uniquely identifies the class instance within a client application.
-            create (bool): Whether or not to create a Spine db at the given URL if it's not already.
-            apply_filters (bool): Whether or not filters in the URL's query part are applied to the database map.
-            memory (bool): Whether or not to use a sqlite memory db as replacement for this DB map.
-            sqlite_timeout (int): How many seconds to wait before raising connection errors.
-            chunk_size (int, optional): How many rows to fetch from the DB at a time when populating the cache.
-                If not specified, then all rows are fetched at once.
+            username (str, optional): A user name. If not given, it gets replaced by the string ``"anon"``.
+            upgrade (bool, optional): Whether the db at the given URL should be upgraded to the most recent
+                version.
+            codename (str, optional): A name to associate with the DB mapping.
+            create (bool, optional): Whether to create a Spine db at the given URL if it's not one already.
+            apply_filters (bool, optional): Whether to apply filters in the URL's query part.
+            memory (bool, optional): Whether or not to use a sqlite memory db as replacement for this DB map.
+            sqlite_timeout (int, optional): How many seconds to wait before raising connection errors.
         """
         # FIXME: We should also check the server memory property and use it here
         db_url = get_db_url_from_server(db_url)
@@ -110,7 +105,7 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
-        self._original_engine = self.create_engine(
+        self._original_engine = self._create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
@@ -121,7 +116,7 @@ class DatabaseMappingBase:
         self._metadata = MetaData(self.engine)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
-        self.cache = DBCache(self, chunk_size=chunk_size)
+        self.cache = DBCache(self)
         self.closed = False
         # Subqueries that select everything from each table
         self._commit_sq = None
@@ -186,6 +181,9 @@ class DatabaseMappingBase:
             "entity_element": ("entity_id", "position"),
             "entity_class_dimension": ("entity_class_id", "position"),
         }
+        if self._filter_configs is not None:
+            stack = load_filters(self._filter_configs)
+            apply_filter_stack(self, stack)
 
     def __enter__(self):
         return self
@@ -194,12 +192,19 @@ class DatabaseMappingBase:
         self.close()
 
     def get_filter_configs(self):
+        """Returns filters applicable to this DB mapping.
+
+        Returns:
+            list(dict)
+        """
         return self._filter_configs
 
     def close(self):
+        """Closes this DB mapping."""
         self.closed = True
 
-    def _real_tablename(self, tablename):
+    @staticmethod
+    def _real_tablename(tablename):
         return {
             "object_class": "entity_class",
             "relationship_class": "entity_class",
@@ -208,6 +213,7 @@ class DatabaseMappingBase:
         }.get(tablename, tablename)
 
     def get_table(self, tablename):
+        # For tests
         return self._metadata.tables[tablename]
 
     def _make_codename(self, codename):
@@ -222,8 +228,8 @@ class DatabaseMappingBase:
         return hashing.hexdigest()
 
     @staticmethod
-    def create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
-        """Create engine.
+    def _create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
+        """Creates engine.
 
         Args
             sa_url (URL)
@@ -339,28 +345,28 @@ class DatabaseMappingBase:
             setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
-        """Return a sqlalchemy :class:`~Query` object bound to this :class:`.DatabaseMappingBase`.
+        """Returns a :class:`~spinedb_api.query.Query` object bound to this :class:`.DatabaseMappingBase`.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the class documented
-        :class:`~sqlalchemy.sql.expression.Alias` properties. For example, to select the object class with
+        :class:`~sqlalchemy.sql.expression.Alias` properties. For example, to select the entity class with
         ``id`` equal to 1::
 
             from spinedb_api import DatabaseMapping
             url = 'sqlite:///spine.db'
             ...
             db_map = DatabaseMapping(url)
-            db_map.query(db_map.object_class_sq).filter_by(id=1).one_or_none()
+            db_map.query(db_map.entity_class_sq).filter_by(id=1).one_or_none()
 
-        To perform more complex queries, just use this method in combination with the SQLAlchemy API.
-        For example, to select all object class names and the names of their objects concatenated in a string::
+        To perform more complex queries, just use the :class:`~spinedb_api.query.Query` interface.
+        For example, to select all entity class names and the names of their entities concatenated in a string::
 
             from sqlalchemy import func
 
             db_map.query(
-                db_map.object_class_sq.c.name, func.group_concat(db_map.object_sq.c.name)
+                db_map.entity_class_sq.c.name, func.group_concat(db_map.entity_sq.c.name)
             ).filter(
-                db_map.object_sq.c.class_id == db_map.object_class_sq.c.id
-            ).group_by(db_map.object_class_sq.c.name).all()
+                db_map.entity_sq.c.class_id == db_map.entity_class_sq.c.id
+            ).group_by(db_map.entity_class_sq.c.name).all()
         """
         return Query(self.engine, *args)
 
@@ -381,30 +387,12 @@ class DatabaseMappingBase:
         return self.query(table).subquery(tablename + "_sq")
 
     @property
-    def alternative_sq(self):
-        if self._alternative_sq is None:
-            self._alternative_sq = self._make_alternative_sq()
-        return self._alternative_sq
-
-    @property
-    def scenario_sq(self):
-        if self._scenario_sq is None:
-            self._scenario_sq = self._make_scenario_sq()
-        return self._scenario_sq
-
-    @property
-    def scenario_alternative_sq(self):
-        if self._scenario_alternative_sq is None:
-            self._scenario_alternative_sq = self._make_scenario_alternative_sq()
-        return self._scenario_alternative_sq
-
-    @property
     def entity_class_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
 
-            SELECT * FROM class
+            SELECT * FROM entity_class
 
         Returns:
             sqlalchemy.sql.expression.Alias
@@ -415,36 +403,18 @@ class DatabaseMappingBase:
 
     @property
     def entity_class_dimension_sq(self):
-        if self._entity_class_dimension_sq is None:
-            self._entity_class_dimension_sq = self._subquery("entity_class_dimension")
-        return self._entity_class_dimension_sq
-
-    @property
-    def entity_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
 
-            SELECT * FROM entity
+            SELECT * FROM entity_class_dimension
 
         Returns:
             sqlalchemy.sql.expression.Alias
         """
-        if self._entity_sq is None:
-            self._entity_sq = self._make_entity_sq()
-        return self._entity_sq
-
-    @property
-    def entity_element_sq(self):
-        if self._entity_element_sq is None:
-            self._entity_element_sq = self._make_entity_element_sq()
-        return self._entity_element_sq
-
-    @property
-    def entity_alternative_sq(self):
-        if self._entity_alternative_sq is None:
-            self._entity_alternative_sq = self._subquery("entity_alternative")
-        return self._entity_alternative_sq
+        if self._entity_class_dimension_sq is None:
+            self._entity_class_dimension_sq = self._subquery("entity_class_dimension")
+        return self._entity_class_dimension_sq
 
     @property
     def wide_entity_class_sq(self):
@@ -520,6 +490,36 @@ class DatabaseMappingBase:
         return self._wide_entity_class_sq
 
     @property
+    def entity_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM entity
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._entity_sq is None:
+            self._entity_sq = self._make_entity_sq()
+        return self._entity_sq
+
+    @property
+    def entity_element_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM entity_element
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._entity_element_sq is None:
+            self._entity_element_sq = self._make_entity_element_sq()
+        return self._entity_element_sq
+
+    @property
     def wide_entity_sq(self):
         """A subquery of the form:
 
@@ -563,124 +563,16 @@ class DatabaseMappingBase:
                     group_concat(ext_entity_sq.c.element_id, ext_entity_sq.c.position).label("element_id_list"),
                     group_concat(ext_entity_sq.c.element_name, ext_entity_sq.c.position).label("element_name_list"),
                 )
-                # element count might be lower than dimension count when element-entities have been filtered out
-                # .filter(self.wide_entity_class_sq.c.id == ext_entity_sq.c.class_id)
-                # .having(self.wide_entity_class_sq.c.dimension_count == func.count(ext_entity_sq.c.element_id))
                 .group_by(
                     ext_entity_sq.c.id,
                     ext_entity_sq.c.class_id,
                     ext_entity_sq.c.name,
                     ext_entity_sq.c.description,
                     ext_entity_sq.c.commit_id,
-                ).subquery("wide_entity_sq")
+                )
+                .subquery("wide_entity_sq")
             )
         return self._wide_entity_sq
-
-    @property
-    def object_class_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM object_class
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._object_class_sq is None:
-            self._object_class_sq = (
-                self.query(
-                    self.wide_entity_class_sq.c.id.label("id"),
-                    self.wide_entity_class_sq.c.name.label("name"),
-                    self.wide_entity_class_sq.c.description.label("description"),
-                    self.wide_entity_class_sq.c.display_order.label("display_order"),
-                    self.wide_entity_class_sq.c.display_icon.label("display_icon"),
-                    self.wide_entity_class_sq.c.hidden.label("hidden"),
-                )
-                .filter(self.wide_entity_class_sq.c.dimension_id_list == None)
-                .subquery("object_class_sq")
-            )
-        return self._object_class_sq
-
-    @property
-    def object_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM object
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._object_sq is None:
-            self._object_sq = (
-                self.query(
-                    self.wide_entity_sq.c.id.label("id"),
-                    self.wide_entity_sq.c.class_id.label("class_id"),
-                    self.wide_entity_sq.c.name.label("name"),
-                    self.wide_entity_sq.c.description.label("description"),
-                    self.wide_entity_sq.c.commit_id.label("commit_id"),
-                )
-                .filter(self.wide_entity_sq.c.element_id_list == None)
-                .subquery("object_sq")
-            )
-        return self._object_sq
-
-    @property
-    def relationship_class_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM relationship_class
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._relationship_class_sq is None:
-            ent_cls_dim_sq = self._subquery("entity_class_dimension")
-            self._relationship_class_sq = (
-                self.query(
-                    ent_cls_dim_sq.c.entity_class_id.label("id"),
-                    ent_cls_dim_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
-                    ent_cls_dim_sq.c.dimension_id.label("object_class_id"),
-                    self.wide_entity_class_sq.c.name.label("name"),
-                    self.wide_entity_class_sq.c.description.label("description"),
-                    self.wide_entity_class_sq.c.display_icon.label("display_icon"),
-                    self.wide_entity_class_sq.c.hidden.label("hidden"),
-                )
-                .filter(self.wide_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
-                .subquery("relationship_class_sq")
-            )
-        return self._relationship_class_sq
-
-    @property
-    def relationship_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM relationship
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
-        if self._relationship_sq is None:
-            ent_el_sq = self._subquery("entity_element")
-            self._relationship_sq = (
-                self.query(
-                    ent_el_sq.c.entity_id.label("id"),
-                    ent_el_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
-                    ent_el_sq.c.element_id.label("object_id"),
-                    ent_el_sq.c.entity_class_id.label("class_id"),
-                    self.wide_entity_sq.c.name.label("name"),
-                    self.wide_entity_sq.c.commit_id.label("commit_id"),
-                )
-                .filter(self.wide_entity_sq.c.id == ent_el_sq.c.entity_id)
-                .subquery("relationship_sq")
-            )
-        return self._relationship_sq
 
     @property
     def entity_group_sq(self):
@@ -696,6 +588,96 @@ class DatabaseMappingBase:
         if self._entity_group_sq is None:
             self._entity_group_sq = self._subquery("entity_group")
         return self._entity_group_sq
+
+    @property
+    def alternative_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM alternative
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._alternative_sq is None:
+            self._alternative_sq = self._make_alternative_sq()
+        return self._alternative_sq
+
+    @property
+    def scenario_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM scenario
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._scenario_sq is None:
+            self._scenario_sq = self._make_scenario_sq()
+        return self._scenario_sq
+
+    @property
+    def scenario_alternative_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM scenario_alternative
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._scenario_alternative_sq is None:
+            self._scenario_alternative_sq = self._make_scenario_alternative_sq()
+        return self._scenario_alternative_sq
+
+    @property
+    def entity_alternative_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM entity_alternative
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._entity_alternative_sq is None:
+            self._entity_alternative_sq = self._subquery("entity_alternative")
+        return self._entity_alternative_sq
+
+    @property
+    def parameter_value_list_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM parameter_value_list
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._parameter_value_list_sq is None:
+            self._parameter_value_list_sq = self._subquery("parameter_value_list")
+        return self._parameter_value_list_sq
+
+    @property
+    def list_value_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM list_value
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
+        if self._list_value_sq is None:
+            self._list_value_sq = self._subquery("list_value")
+        return self._list_value_sq
 
     @property
     def parameter_definition_sq(self):
@@ -729,50 +711,135 @@ class DatabaseMappingBase:
         return self._parameter_value_sq
 
     @property
-    def parameter_value_list_sq(self):
+    def metadata_sq(self):
         """A subquery of the form:
 
         .. code-block:: sql
 
-            SELECT * FROM parameter_value_list
+            SELECT * FROM list_value
 
         Returns:
             sqlalchemy.sql.expression.Alias
         """
-        if self._parameter_value_list_sq is None:
-            self._parameter_value_list_sq = self._subquery("parameter_value_list")
-        return self._parameter_value_list_sq
-
-    @property
-    def list_value_sq(self):
-        if self._list_value_sq is None:
-            self._list_value_sq = self._subquery("list_value")
-        return self._list_value_sq
-
-    @property
-    def metadata_sq(self):
         if self._metadata_sq is None:
             self._metadata_sq = self._subquery("metadata")
         return self._metadata_sq
 
     @property
     def parameter_value_metadata_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM parameter_value_metadata
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
         if self._parameter_value_metadata_sq is None:
             self._parameter_value_metadata_sq = self._subquery("parameter_value_metadata")
         return self._parameter_value_metadata_sq
 
     @property
     def entity_metadata_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM entity_metadata
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
         if self._entity_metadata_sq is None:
             self._entity_metadata_sq = self._subquery("entity_metadata")
         return self._entity_metadata_sq
 
     @property
     def commit_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM commit
+
+        Returns:
+            sqlalchemy.sql.expression.Alias
+        """
         if self._commit_sq is None:
             commit_sq = self._subquery("commit")
             self._commit_sq = self.query(commit_sq).filter(commit_sq.c.comment != "").subquery()
         return self._commit_sq
+
+    @property
+    def object_class_sq(self):
+        if self._object_class_sq is None:
+            self._object_class_sq = (
+                self.query(
+                    self.wide_entity_class_sq.c.id.label("id"),
+                    self.wide_entity_class_sq.c.name.label("name"),
+                    self.wide_entity_class_sq.c.description.label("description"),
+                    self.wide_entity_class_sq.c.display_order.label("display_order"),
+                    self.wide_entity_class_sq.c.display_icon.label("display_icon"),
+                    self.wide_entity_class_sq.c.hidden.label("hidden"),
+                )
+                .filter(self.wide_entity_class_sq.c.dimension_id_list == None)
+                .subquery("object_class_sq")
+            )
+        return self._object_class_sq
+
+    @property
+    def object_sq(self):
+        if self._object_sq is None:
+            self._object_sq = (
+                self.query(
+                    self.wide_entity_sq.c.id.label("id"),
+                    self.wide_entity_sq.c.class_id.label("class_id"),
+                    self.wide_entity_sq.c.name.label("name"),
+                    self.wide_entity_sq.c.description.label("description"),
+                    self.wide_entity_sq.c.commit_id.label("commit_id"),
+                )
+                .filter(self.wide_entity_sq.c.element_id_list == None)
+                .subquery("object_sq")
+            )
+        return self._object_sq
+
+    @property
+    def relationship_class_sq(self):
+        if self._relationship_class_sq is None:
+            ent_cls_dim_sq = self._subquery("entity_class_dimension")
+            self._relationship_class_sq = (
+                self.query(
+                    ent_cls_dim_sq.c.entity_class_id.label("id"),
+                    ent_cls_dim_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
+                    ent_cls_dim_sq.c.dimension_id.label("object_class_id"),
+                    self.wide_entity_class_sq.c.name.label("name"),
+                    self.wide_entity_class_sq.c.description.label("description"),
+                    self.wide_entity_class_sq.c.display_icon.label("display_icon"),
+                    self.wide_entity_class_sq.c.hidden.label("hidden"),
+                )
+                .filter(self.wide_entity_class_sq.c.id == ent_cls_dim_sq.c.entity_class_id)
+                .subquery("relationship_class_sq")
+            )
+        return self._relationship_class_sq
+
+    @property
+    def relationship_sq(self):
+        if self._relationship_sq is None:
+            ent_el_sq = self._subquery("entity_element")
+            self._relationship_sq = (
+                self.query(
+                    ent_el_sq.c.entity_id.label("id"),
+                    ent_el_sq.c.position.label("dimension"),  # NOTE: nothing to do with the `dimension` concept
+                    ent_el_sq.c.element_id.label("object_id"),
+                    ent_el_sq.c.entity_class_id.label("class_id"),
+                    self.wide_entity_sq.c.name.label("name"),
+                    self.wide_entity_sq.c.commit_id.label("commit_id"),
+                )
+                .filter(self.wide_entity_sq.c.id == ent_el_sq.c.entity_id)
+                .subquery("relationship_sq")
+            )
+        return self._relationship_sq
 
     @property
     def ext_parameter_value_list_sq(self):
@@ -938,22 +1005,6 @@ class DatabaseMappingBase:
 
     @property
     def ext_object_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                o.id,
-                o.class_id,
-                oc.name AS class_name,
-                o.name,
-                o.description,
-            FROM object AS o, object_class AS oc
-            WHERE o.class_id = oc.id
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._ext_object_sq is None:
             self._ext_object_sq = (
                 self.query(
@@ -974,22 +1025,6 @@ class DatabaseMappingBase:
 
     @property
     def ext_relationship_class_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                rc.id,
-                rc.name,
-                oc.id AS object_class_id,
-                oc.name AS object_class_name
-            FROM relationship_class AS rc, object_class AS oc
-            WHERE rc.object_class_id = oc.id
-            ORDER BY rc.id, rc.dimension
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._ext_relationship_class_sq is None:
             self._ext_relationship_class_sq = (
                 self.query(
@@ -1009,30 +1044,6 @@ class DatabaseMappingBase:
 
     @property
     def wide_relationship_class_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                id,
-                name,
-                GROUP_CONCAT(object_class_id) AS object_class_id_list,
-                GROUP_CONCAT(object_class_name) AS object_class_name_list
-            FROM (
-                SELECT
-                    rc.id,
-                    rc.name,
-                    oc.id AS object_class_id,
-                    oc.name AS object_class_name
-                FROM relationship_class AS rc, object_class AS oc
-                WHERE rc.object_class_id = oc.id
-                ORDER BY rc.id, rc.dimension
-            )
-            GROUP BY id, name
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._wide_relationship_class_sq is None:
             self._wide_relationship_class_sq = (
                 self.query(
@@ -1059,24 +1070,6 @@ class DatabaseMappingBase:
 
     @property
     def ext_relationship_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                r.id,
-                r.class_id,
-                r.name,
-                o.id AS object_id,
-                o.name AS object_name,
-                o.class_id AS object_class_id,
-            FROM relationship as r, object AS o
-            WHERE r.object_id = o.id
-            ORDER BY r.id, r.dimension
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._ext_relationship_sq is None:
             self._ext_relationship_sq = (
                 self.query(
@@ -1100,33 +1093,6 @@ class DatabaseMappingBase:
 
     @property
     def wide_relationship_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                id,
-                class_id,
-                class_name,
-                name,
-                GROUP_CONCAT(object_id) AS object_id_list,
-                GROUP_CONCAT(object_name) AS object_name_list
-            FROM (
-                SELECT
-                    r.id,
-                    r.class_id,
-                    r.name,
-                    o.id AS object_id,
-                    o.name AS object_name
-                FROM relationship as r, object AS o
-                WHERE r.object_id = o.id
-                ORDER BY r.id, r.dimension
-            )
-            GROUP BY id, class_id, name
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._wide_relationship_sq is None:
             self._wide_relationship_sq = (
                 self.query(
@@ -1165,11 +1131,6 @@ class DatabaseMappingBase:
 
     @property
     def ext_entity_group_sq(self):
-        """A subquery of the form:
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._ext_entity_group_sq is None:
             group_entity = aliased(self.entity_sq)
             member_entity = aliased(self.entity_sq)
@@ -1194,10 +1155,6 @@ class DatabaseMappingBase:
 
     @property
     def entity_parameter_definition_sq(self):
-        """
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._entity_parameter_definition_sq is None:
             self._entity_parameter_definition_sq = (
                 self.query(
@@ -1237,38 +1194,6 @@ class DatabaseMappingBase:
 
     @property
     def object_parameter_definition_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                pd.id,
-                oc.id AS object_class_id,
-                oc.name AS object_class_name,
-                pd.name AS parameter_name,
-                wpvl.id AS value_list_id,
-                wpvl.name AS value_list_name,
-                pd.default_value
-            FROM parameter_definition AS pd, object_class AS oc
-            ON wpdt.parameter_definition_id = pd.id
-            LEFT JOIN (
-                SELECT
-                    id,
-                    name,
-                    GROUP_CONCAT(value) AS value_list
-                FROM (
-                    SELECT id, name, value
-                    FROM parameter_value_list
-                    ORDER BY id, value_index
-                )
-                GROUP BY id, name
-            ) AS wpvl
-            ON wpvl.id = pd.parameter_value_list_id
-            WHERE pd.object_class_id = oc.id
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._object_parameter_definition_sq is None:
             self._object_parameter_definition_sq = (
                 self.query(
@@ -1295,59 +1220,6 @@ class DatabaseMappingBase:
 
     @property
     def relationship_parameter_definition_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT
-                pd.id,
-                wrc.id AS relationship_class_id,
-                wrc.name AS relationship_class_name,
-                wrc.object_class_id_list,
-                wrc.object_class_name_list,
-                pd.name AS parameter_name,
-                wpvl.id AS value_list_id,
-                wpvl.name AS value_list_name,
-                pd.default_value
-            FROM
-                parameter_definition AS pd,
-                (
-                    SELECT
-                        id,
-                        name,
-                        GROUP_CONCAT(object_class_id) AS object_class_id_list,
-                        GROUP_CONCAT(object_class_name) AS object_class_name_list
-                    FROM (
-                        SELECT
-                            rc.id,
-                            rc.name,
-                            oc.id AS object_class_id,
-                            oc.name AS object_class_name
-                        FROM relationship_class AS rc, object_class AS oc
-                        WHERE rc.object_class_id = oc.id
-                        ORDER BY rc.id, rc.dimension
-                    )
-                    GROUP BY id, name
-                ) AS wrc
-            ON wpdt.parameter_definition_id = pd.id
-            LEFT JOIN (
-                SELECT
-                    id,
-                    name,
-                    GROUP_CONCAT(value) AS value_list
-                FROM (
-                    SELECT id, name, value
-                    FROM parameter_value_list
-                    ORDER BY id, value_index
-                )
-                GROUP BY id, name
-            ) AS wpvl
-            ON wpvl.id = pd.parameter_value_list_id
-            WHERE pd.relationship_class_id = wrc.id
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._relationship_parameter_definition_sq is None:
             self._relationship_parameter_definition_sq = (
                 self.query(
@@ -1376,10 +1248,6 @@ class DatabaseMappingBase:
 
     @property
     def entity_parameter_value_sq(self):
-        """
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._entity_parameter_value_sq is None:
             self._entity_parameter_value_sq = (
                 self.query(
@@ -1436,11 +1304,6 @@ class DatabaseMappingBase:
 
     @property
     def object_parameter_value_sq(self):
-        """A subquery of the form:
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._object_parameter_value_sq is None:
             self._object_parameter_value_sq = (
                 self.query(
@@ -1468,11 +1331,6 @@ class DatabaseMappingBase:
 
     @property
     def relationship_parameter_value_sq(self):
-        """A subquery of the form:
-
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._relationship_parameter_value_sq is None:
             self._relationship_parameter_value_sq = (
                 self.query(
@@ -1503,10 +1361,6 @@ class DatabaseMappingBase:
 
     @property
     def ext_parameter_value_metadata_sq(self):
-        """
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._ext_parameter_value_metadata_sq is None:
             self._ext_parameter_value_metadata_sq = (
                 self.query(
@@ -1531,10 +1385,6 @@ class DatabaseMappingBase:
 
     @property
     def ext_entity_metadata_sq(self):
-        """
-        Returns:
-            sqlalchemy.sql.expression.Alias
-        """
         if self._ext_entity_metadata_sq is None:
             self._ext_entity_metadata_sq = (
                 self.query(
@@ -1684,12 +1534,6 @@ class DatabaseMappingBase:
         self._import_alternative_name = "Base"
 
     def override_create_import_alternative(self, method):
-        """
-        Overrides the ``_create_import_alternative`` function.
-
-        Args:
-            method (Callable)
-        """
         self._create_import_alternative = MethodType(method, self)
         self._import_alternative_name = None
 
@@ -1838,11 +1682,6 @@ class DatabaseMappingBase:
                 connection.execute(table.delete())
             connection.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', null)")
 
-    def fetch_all(self, tablenames=None):
-        tablenames = set(self.ITEM_TYPES) if tablenames is None else tablenames & set(self.ITEM_TYPES)
-        for tablename in tablenames:
-            self.cache.fetch_all(tablename)
-
     def _object_class_id(self):
         return case(
             [(self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.id)], else_=None
@@ -1903,14 +1742,6 @@ class DatabaseMappingBase:
         return case(
             [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
         )
-
-    def advance_cache_query(self, item_type):
-        """Schedules an advance of the DB query that fetches items of given type.
-
-        Args:
-            item_type (str)
-        """
-        return self.cache.advance_query(item_type)
 
     @staticmethod
     def _convert_legacy(tablename, item):

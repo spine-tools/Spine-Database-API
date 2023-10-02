@@ -10,8 +10,7 @@
 ######################################################################################################################
 
 """
-Classes to handle exceptions while using the Spine database API.
-
+Spine DB API exceptions.
 """
 
 
@@ -50,33 +49,6 @@ class SpineDBVersionError(SpineDBAPIError):
         self.upgrade_available = upgrade_available
 
 
-class SpineTableNotFoundError(SpineDBAPIError):
-    """Can't find one of the tables."""
-
-    def __init__(self, table, url=None):
-        super().__init__(msg="Table(s) '{}' couldn't be mapped from the database at '{}'.".format(table, url))
-        self.table = table
-
-
-class RecordNotFoundError(SpineDBAPIError):
-    """Can't find one record in one of the tables."""
-
-    def __init__(self, table, name=None, id=None):
-        super().__init__(msg="Unable to find item in table '{}'.".format(table))
-        self.table = table
-        self.name = name
-        self.id = id
-
-
-class ParameterValueError(SpineDBAPIError):
-    """The value given for a parameter does not fit the datatype."""
-
-    def __init__(self, value, data_type):
-        super().__init__(msg="The value {} does not fit the datatype '{}'.".format(value, data_type))
-        self.value = value
-        self.data_type = data_type
-
-
 class ParameterValueFormatError(SpineDBAPIError):
     """
     Failure in encoding/decoding a parameter value.
@@ -91,7 +63,7 @@ class ParameterValueFormatError(SpineDBAPIError):
 
 class InvalidMapping(SpineDBAPIError):
     """
-    Failure in import/export mapping
+    Failure in import/export mapping.
     """
 
     def __init__(self, msg):
@@ -106,4 +78,4 @@ class InvalidMappingComponent(InvalidMapping):
 
 
 class ConnectorError(SpineDBAPIError):
-    """Failure in import connector."""
+    """Failure in import/export connector."""

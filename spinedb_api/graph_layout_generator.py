@@ -10,8 +10,7 @@
 ######################################################################################################################
 
 """
-Contains the GraphLayoutGenerator class.
-
+This module defines the :class:`.GraphLayoutGenerator` class.
 """
 
 import math
@@ -21,7 +20,7 @@ from scipy.sparse.csgraph import dijkstra
 
 
 class GraphLayoutGenerator:
-    """Computes the layout for the Entity Graph View."""
+    """A class to build an optimised layout for an undirected graph."""
 
     def __init__(
         self,
@@ -37,6 +36,26 @@ class GraphLayoutGenerator:
         layout_available=lambda x, y: None,
         layout_progressed=lambda iter: None,
     ):
+        """
+        Args:
+            vertex_count (int): The number of vertices in the graph. Graph vertices will have indices 0, 1, 2, ...
+            src_inds (tuple,optional): The indices of the source vertices of each edge.
+            dst_inds (tuple,optional): The indices of the destination vertices of each edge.
+            spread (int,optional): the ideal edge length.
+            heavy_positions (dict,optional): a dictionary mapping vertex indices to another dictionary
+                with keys "x" and "y" specifying the position it should have in the generated layout.
+            max_iters (int,optional): the maximum numbers of iterations of the layout generation algorithm.
+            weight_exp (int,optional): The exponential decay rate of attraction between vertices. The higher this
+                number, the lesser the attraction between distant vertices.
+            is_stopped (function,optional): A function to call without arguments, that returns a boolean indicating
+                whether the layout generation process needs to be stopped.
+            preview_available (function,optional): A function to call after every iteration with two lists, x and y,
+                representing the current layout.
+            layout_available (function,optional): A function to call after the last iteration with two lists, x and y,
+                representing the final layout.
+            layout_progressed (function,optional): A function to call after each iteration with the current iteration
+                number.
+        """
         super().__init__()
         if vertex_count == 0:
             vertex_count = 1
@@ -56,7 +75,6 @@ class GraphLayoutGenerator:
         self._layout_progressed = layout_progressed
 
     def shortest_path_matrix(self):
-        """Returns the shortest-path matrix."""
         if not self.src_inds:
             # Graph with no edges, just vertices. Introduce fake pair of edges to help 'spreadness'.
             self.src_inds = [self.vertex_count, self.vertex_count]
@@ -85,7 +103,6 @@ class GraphLayoutGenerator:
         return matrix
 
     def sets(self):
-        """Returns sets of vertex pairs indices."""
         sets = []
         for n in range(1, self.vertex_count):
             pairs = np.zeros((self.vertex_count - n, 2), int)  # pairs on diagonal n
@@ -101,7 +118,11 @@ class GraphLayoutGenerator:
         return sets
 
     def compute_layout(self):
-        """Computes and returns x and y coordinates for each vertex in the graph, using VSGD-MS."""
+        """Computes the layout using VSGD-MS and returns x and y coordinates for each vertex in the graph.
+
+        Returns:
+            tuple(list,list): x and y coordinates
+        """
         if len(self.heavy_positions) == self.vertex_count:
             x, y = zip(*[(pos["x"], pos["y"]) for pos in self.heavy_positions.values()])
             self._layout_available(x, y)

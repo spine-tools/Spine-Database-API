@@ -10,7 +10,32 @@
 ######################################################################################################################
 
 """
-Contains the SpineDBServer class.
+Spine DB server
+===============
+
+The Spine DB server provides almost the same functionality as :class:`spinedb_api.db_mapping.DatabaseMapping`,
+but it does it via a socket. This removes the ``spinedb_api`` requirement (and the Python requirement altogether)
+from third-party applications that want to interact with Spine DBs.
+
+Typically this is done in the following steps:
+    #. Start a server by specifying the URL of the Spine DB that you want to interact with.
+    #. Communicate the URL of the server to your third-party application running in another process.
+    #. Send requests from your application to the server via sockets in order to interact with the DB.
+
+Available requests
+------------------
+TODO
+
+Encoding/decoding
+-----------------
+TODO
+
+This module also provides a mechanism to control the order in which multiples servers
+running in parallel should write to the same DB.
+
+The server is started using :func:`closing_spine_db_server`.
+If you want to also control order of writing from multiple servers,
+you first need to obtain an 'ordering queue' using :func:`db_server_manager`.
 
 """
 
@@ -543,10 +568,6 @@ class DBHandler(HandleDBMixin):
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
-    """
-    The request handler class for our server.
-    """
-
     @property
     def server_address(self):
         return self.server.server_address
@@ -566,15 +587,6 @@ def quick_db_checkout(server_manager_queue, ordering):
 
 
 def start_spine_db_server(server_manager_queue, db_url, upgrade=False, memory=False, ordering=None):
-    """
-    Args:
-        db_url (str): Spine db url
-        upgrade (bool): Whether to upgrade db or not
-        memory (bool): Whether to use an in-memory database together with a persistent connection to it
-
-    Returns:
-        tuple: server address (e.g. (127.0.0.1, 54321))
-    """
     handler = _ManagerRequestHandler(server_manager_queue)
     server_address = handler.start_server(db_url, upgrade, memory, ordering)
     return server_address
@@ -586,17 +598,65 @@ def shutdown_spine_db_server(server_manager_queue, server_address):
 
 
 @contextmanager
-def closing_spine_db_server(server_manager_queue, db_url, upgrade=False, memory=False, ordering=None):
+def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None, server_manager_queue=None):
+    """Creates a Spine DB server.
+
+    Example::
+
+            with closing_spine_db_server(db_url) as server_url:
+                client = SpineDBClient.from_server_url(server_url)
+                data = client.import_data({"entity_class": [("fish", ()), ("dog", ())]}, "Add two entity classes.")
+
+
+    Args:
+        db_url (str): the URL of a Spine DB.
+        upgrade (bool): Whether to upgrade the DB to the last revision.
+        memory (bool): Whether to use an in-memory database together with a persistent connection.
+        server_manager_queue (Queue,optional): A queue that can be used to control order of writing.
+            Only needed if you also specify `ordering` below.
+        ordering (dict,optional): A dictionary specifying an ordering to be followed by multiple concurrent servers
+            writing to the same DB. It must have the following keys:
+                - "id": an identifier for the ordering, shared by all the servers in the ordering.
+                - "current": an identifier for this server within the ordering.
+                - "precursors": a set of identifiers of other servers that must have written to the DB before this server can write.
+                - "part_count": the number of times this server needs to write to the DB before their successors can write.
+
+    Yields:
+        str: server url
+    """
+    if server_manager_queue is None:
+        mngr = _DBServerManager()
+        server_manager_queue = mngr.queue
+    else:
+        mngr = None
     server_address = start_spine_db_server(server_manager_queue, db_url, memory=memory, ordering=ordering)
     host, port = server_address
     try:
         yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
     finally:
         shutdown_spine_db_server(server_manager_queue, server_address)
+        if mngr is not None:
+            mngr.shutdown()
 
 
 @contextmanager
 def db_server_manager():
+    """Creates a DB server manager that can be used to control the order in which different servers
+    write to the same DB.
+
+    Example::
+
+            with db_server_manager() as mngr_queue:
+                with closing_spine_db_server(db_url, server_manager_queue=mngr_queue) as server1_url:
+                    with closing_spine_db_server(db_url, server_manager_queue=mngr_queue) as server1_url:
+                        client1 = SpineDBClient.from_server_url(server_url1)
+                        client2 = SpineDBClient.from_server_url(server_url2)
+                        # TODO: ordering
+
+    Yields:
+        :class:`~multiprocessing.queues.Queue`: a queue that can be passed to :func:`.closing_spine_db_server`
+        in order to control write order.
+    """
     mngr = _DBServerManager()
     try:
         yield mngr.queue

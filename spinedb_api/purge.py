@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Functions to purge dbs.
+Functions to purge DBs.
 
 """
 
@@ -35,11 +35,11 @@ def _ids_for_item_type(db_map, item_type):
 
 
 def purge_url(url, purge_settings, logger=None):
-    """Removes all given types of items from database.
+    """Removes all items of selected types from the database at a given URL.
 
     Args:
         url (str): database URL
-        purge_settings (dict): mapping from item type to boolean
+        purge_settings (dict): mapping from item type to a boolean indicating whether to remove them or not
         logger (LoggerInterface, optional): logger
 
     Returns:
@@ -58,11 +58,11 @@ def purge_url(url, purge_settings, logger=None):
 
 
 def purge(db_map, purge_settings, logger=None):
-    """Removes items from database.
+    """Removes all items of selected types from a database.
 
     Args:
         db_map (DatabaseMapping): target database mapping
-        purge_settings (dict, optional): mapping from item type to purge flag
+        purge_settings (dict): mapping from item type to a boolean indicating whether to remove them or not
         logger (LoggerInterface): logger
 
     Returns:

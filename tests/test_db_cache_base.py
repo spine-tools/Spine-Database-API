@@ -15,11 +15,11 @@ from spinedb_api.db_cache_base import CacheItemBase, DBCacheBase
 
 class TestCache(DBCacheBase):
     @property
-    def _item_types(self):
+    def item_types(self):
         return ["cutlery"]
 
     @staticmethod
-    def _item_factory(item_type):
+    def item_factory(item_type):
         if item_type == "cutlery":
             return CacheItemBase
         raise RuntimeError(f"unknown item_type '{item_type}'")

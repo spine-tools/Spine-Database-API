@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-General helper functions and classes.
+General helper functions.
 
 """
 
@@ -94,13 +94,13 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 @compiles(TINYINT, "sqlite")
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
-    """Handles mysql TINYINT datatype as INTEGER in sqlite."""
+    # Handles mysql TINYINT datatype as INTEGER in sqlite.
     return compiler.visit_INTEGER(element, **kw)
 
 
 @compiles(DOUBLE, "sqlite")
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
-    """Handles mysql DOUBLE datatype as REAL in sqlite."""
+    # Handles mysql DOUBLE datatype as REAL in sqlite.
     return compiler.visit_REAL(element, **kw)
 
 
@@ -154,8 +154,8 @@ def _parse_metadata(metadata):
         yield (key, str(value))
 
 
-def is_head(db_url, upgrade=False):
-    """Check whether or not db_url is head.
+def _is_head(db_url, upgrade=False):
+    """Check whether or not db_url is at the head revision.
 
     Args:
         db_url (str): database url
@@ -166,12 +166,6 @@ def is_head(db_url, upgrade=False):
 
 
 def is_head_engine(engine, upgrade=False):
-    """Check whether or not engine is head.
-
-    Args:
-        engine (Engine): database engine
-        upgrade (Bool): if True, upgrade db to head
-    """
     config = Config()
     config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
@@ -198,8 +192,17 @@ def is_head_engine(engine, upgrade=False):
 
 
 def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=(), skip_tables=()):
-    """Copy the database from source_url into dest_url."""
-    if not is_head(source_url, upgrade=upgrade):
+    """Copy the database from one url to another.
+
+    Args:
+        dest_url (str): The destination url.
+        source_url (str): The source url.
+        overwrite (bool,optional): whether to overwrite the destination.
+        upgrade (bool,optional): whether to upgrade the source to the latest Spine schema revision.
+        only_tables (tuple,optional): If given, only these tables are copied.
+        skip_tables (tuple,optional): If given, these tables are skipped.
+    """
+    if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
@@ -249,7 +252,7 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, on
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
-    """Make all relationships view only to avoid warnings."""
+    # Make all relationships view only to avoid warnings.
     kw["viewonly"] = True
     kw["cascade"] = ""
     kw["passive_deletes"] = False
@@ -257,21 +260,7 @@ def custom_generate_relationship(base, direction, return_fn, attrname, local_cls
     return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 
-def is_unlocked(db_url, timeout=0):
-    """Return True if the SQLite db_url is unlocked, after waiting at most timeout seconds.
-    Otherwise return False."""
-    if not db_url.startswith("sqlite"):
-        return False
-    try:
-        engine = create_engine(db_url, connect_args={"timeout": timeout})
-        engine.execute("BEGIN IMMEDIATE")
-        return True
-    except OperationalError:
-        return False
-
-
 def compare_schemas(left_engine, right_engine):
-    """Whether or not the left and right engine have the same schema."""
     left_insp = inspect(left_engine)
     right_insp = inspect(right_engine)
     left_dict = schema_dict(left_insp)
@@ -570,7 +559,14 @@ def create_spine_metadata():
 
 
 def create_new_spine_database(db_url):
-    """Create a new Spine database at the given url."""
+    """Create a new Spine database at the given url.
+
+    Args:
+        db_url (str): The url.
+
+    Returns:
+        Engine
+    """
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
@@ -745,8 +741,8 @@ def _create_first_spine_database(db_url):
 
 
 def forward_sweep(root, fn, *args):
-    """Recursively visit, using `get_children()`, the given sqlalchemy object.
-    Apply `fn` on every visited node."""
+    # Recursively visit, using `get_children()`, the given sqlalchemy object.
+    # Apply `fn` on every visited node."""
     current = root
     parent = {}
     children = {current: iter(current.get_children(column_collections=False))}
@@ -786,7 +782,7 @@ Asterisk = AsteriskType()
 
 
 def fix_name_ambiguity(input_list, offset=0, prefix=""):
-    """Modify repeated entries in name list by appending an increasing integer."""
+    # Modify repeated entries in name list by appending an increasing integer.
     result = []
     ocurrences = {}
     for item in input_list:

@@ -8,12 +8,14 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""DB cache base."""
+
 import threading
 from enum import Enum, unique, auto
 from .temp_id import TempId
 
 # TODO: Implement CacheItem.pop() to do lookup?
+
+_LIMIT = 10000
 
 
 @unique
@@ -30,27 +32,31 @@ class Status(Enum):
 class DBCacheBase(dict):
     """A dictionary that maps table names to ids to items. Used to store and retrieve database contents."""
 
-    def __init__(self, chunk_size=None):
+    def __init__(self):
         super().__init__()
         self._offsets = {}
         self._offset_lock = threading.Lock()
         self._fetched_item_types = set()
-        self._chunk_size = chunk_size
-        item_types = self._item_types
+        item_types = self.item_types
         self._sorted_item_types = []
         while item_types:
             item_type = item_types.pop(0)
-            if self._item_factory(item_type).ref_types() & set(item_types):
+            if self.item_factory(item_type).ref_types() & set(item_types):
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
 
     @property
     def fetched_item_types(self):
+        """Returns a set with the item types that are already fetched.
+
+        Returns:
+            set
+        """
         return self._fetched_item_types
 
     @property
-    def _item_types(self):
+    def item_types(self):
         """Returns a list of supported item type strings.
 
         Returns:
@@ -59,7 +65,7 @@ class DBCacheBase(dict):
         raise NotImplementedError()
 
     @staticmethod
-    def _item_factory(item_type):
+    def item_factory(item_type):
         """Returns a subclass of CacheItemBase to build items of given type.
 
         Args:
@@ -70,7 +76,7 @@ class DBCacheBase(dict):
         """
         raise NotImplementedError()
 
-    def _query(self, item_type):
+    def query(self, item_type):
         """Returns a Query object to fecth items of given type.
 
         Args:
@@ -82,12 +88,14 @@ class DBCacheBase(dict):
         raise NotImplementedError()
 
     def make_item(self, item_type, **item):
-        factory = self._item_factory(item_type)
+        factory = self.item_factory(item_type)
         return factory(self, item_type, **item)
 
     def dirty_ids(self, item_type):
         return {
-            item["id"] for item in self.get(item_type, {}).values() if item.status in (Status.to_add, Status.to_update)
+            item["id"]
+            for item in self.table_cache(item_type).valid_values()
+            if item.status in (Status.to_add, Status.to_update)
         }
 
     def dirty_items(self):
@@ -105,7 +113,7 @@ class DBCacheBase(dict):
             to_add = []
             to_update = []
             to_remove = []
-            for item in dict.values(table_cache):
+            for item in table_cache.values():
                 _ = item.is_valid()
                 if item.status == Status.to_add:
                     to_add.append(item)
@@ -118,10 +126,10 @@ class DBCacheBase(dict):
                     # This ensures cascade removal.
                     # FIXME: We should also fetch the current item type because of multi-dimensional entities and
                     # classes which also depend on zero-dimensional ones
-                    for other_item_type in self._item_types:
+                    for other_item_type in self.item_types:
                         if (
                             other_item_type not in self.fetched_item_types
-                            and item_type in self._item_factory(other_item_type).ref_types()
+                            and item_type in self.item_factory(other_item_type).ref_types()
                         ):
                             self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
@@ -166,20 +174,20 @@ class DBCacheBase(dict):
         self._offsets.clear()
         self._fetched_item_types.clear()
 
-    def _get_next_chunk(self, item_type):
-        qry = self._query(item_type)
+    def _get_next_chunk(self, item_type, limit):
+        qry = self.query(item_type)
         if not qry:
             return []
-        if not self._chunk_size:
+        if not limit:
             self._fetched_item_types.add(item_type)
             return [dict(x) for x in qry]
         with self._offset_lock:
             offset = self._offsets.setdefault(item_type, 0)
-            chunk = [dict(x) for x in qry.limit(self._chunk_size).offset(offset)]
+            chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
             self._offsets[item_type] += len(chunk)
         return chunk
 
-    def advance_query(self, item_type):
+    def _advance_query(self, item_type, limit):
         """Advances the DB query that fetches items of given type
         and adds the results to the corresponding table cache.
 
@@ -189,7 +197,7 @@ class DBCacheBase(dict):
         Returns:
             list: items fetched from the DB
         """
-        chunk = self._get_next_chunk(item_type)
+        chunk = self._get_next_chunk(item_type, limit)
         if not chunk:
             self._fetched_item_types.add(item_type)
             return []
@@ -208,10 +216,10 @@ class DBCacheBase(dict):
             return {}
         return item
 
-    def fetch_more(self, item_type):
+    def fetch_more(self, item_type, limit=_LIMIT):
         if item_type in self._fetched_item_types:
-            return False
-        return bool(self.advance_query(item_type))
+            return []
+        return self._advance_query(item_type, limit)
 
     def fetch_all(self, item_type):
         while self.fetch_more(item_type):
@@ -264,7 +272,8 @@ class _TableCache(dict):
         return temp_id
 
     def unique_key_value_to_id(self, key, value, strict=False):
-        """Returns the id that has the given value for the given unique key, or None.
+        """Returns the id that has the given value for the given unique key, or None if not found.
+        Fetches until being sure.
 
         Args:
             key (tuple)
@@ -287,8 +296,8 @@ class _TableCache(dict):
     def _unique_key_value_to_item(self, key, value):
         return self.get(self.unique_key_value_to_id(key, value))
 
-    def values(self):
-        return (x for x in super().values() if x.is_valid())
+    def valid_values(self):
+        return (x for x in self.values() if x.is_valid())
 
     def _make_item(self, item):
         """Returns a cache item.
@@ -311,27 +320,22 @@ class _TableCache(dict):
             CacheItemBase or None
         """
         id_ = item.get("id")
-        if isinstance(id_, int):
-            # id is an int, easy
+        if id_ is not None:
+            # id is given, easy
             return self.get(id_) or self._db_cache.fetch_ref(self._item_type, id_)
-        if isinstance(id_, dict):
-            # id is a dict specifying the values for one of the unique constraints
-            key, value = zip(*id_.items())
-            return self._unique_key_value_to_item(key, value)
-        if id_ is None:
-            # No id. Try to locate the item by the value of one of the unique keys.
-            # Used by import_data (and more...)
-            cache_item = self._make_item(item)
-            error = cache_item.resolve_inverse_references(item.keys())
-            if error:
-                return None
-            error = cache_item.polish()
-            if error:
-                return None
-            for key, value in cache_item.unique_values(skip_keys=skip_keys):
-                current_item = self._unique_key_value_to_item(key, value)
-                if current_item:
-                    return current_item
+        # No id. Try to locate the item by the value of one of the unique keys.
+        # Used by import_data (and more...)
+        cache_item = self._make_item(item)
+        error = cache_item.resolve_inverse_references(item.keys())
+        if error:
+            return None
+        error = cache_item.polish()
+        if error:
+            return None
+        for key, value in cache_item.unique_values(skip_keys=skip_keys):
+            current_item = self._unique_key_value_to_item(key, value)
+            if current_item:
+                return current_item
 
     def check_item(self, item, for_update=False, skip_keys=()):
         # FIXME: The only use-case for skip_keys at the moment is that of importing scenario alternatives,

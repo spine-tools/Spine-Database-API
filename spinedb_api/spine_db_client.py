@@ -10,8 +10,7 @@
 ######################################################################################################################
 
 """
-Contains the SpineDBClient class.
-
+The :class:`SpineDBClient` class.
 """
 
 from urllib.parse import urlparse
@@ -24,7 +23,8 @@ client_version = 6
 
 class SpineDBClient(ReceiveAllMixing):
     def __init__(self, server_address):
-        """
+        """Represents a client connection to a Spine DB server.
+
         Args:
             server_address (tuple(str,int)): hostname and port
         """
@@ -33,34 +33,62 @@ class SpineDBClient(ReceiveAllMixing):
 
     @classmethod
     def from_server_url(cls, url):
+        """Creates a client from a server's URL.
+
+        Args:
+            url (str, URL): the url of a Spine DB server.
+        """
         parsed = urlparse(url)
         if parsed.scheme != "http":
             raise ValueError(f"unable to create client, invalid server url {url}")
         return cls((parsed.hostname, parsed.port))
 
     def get_db_url(self):
-        """
+        """Returns the URL of the Spine DB associated with the server.
+
         Returns:
-            str: The underlying db url from the server
+            str
         """
         return self._send("get_db_url")
 
     def db_checkin(self):
+        """Blocks until all the servers that need to write to the same DB before this one
+        have reported all their writes."""
         return self._send("db_checkin")
 
     def db_checkout(self):
+        """Reports one write for this server."""
         return self._send("db_checkout")
 
     def cancel_db_checkout(self):
+        """Reverts the last write report for this server."""
         return self._send("cancel_db_checkout")
 
     def import_data(self, data, comment):
+        """Imports data to the DB using :func:`spinedb_api.import_functions.import_data` and commits the changes.
+
+        Args:
+            data (dict): to be splatted into keyword arguments to :func:`spinedb_api.import_functions.import_data`
+            comment (str): a commit message.
+        """
         return self._send("import_data", args=(data, comment))
 
     def export_data(self, **kwargs):
+        """Exports data from the DB using :func:`spinedb_api.export_functions.export_data`.
+
+        Args:
+            kwargs: keyword arguments passed to :func:`spinedb_api.import_functions.import_data`
+        """
         return self._send("export_data", kwargs=kwargs)
 
     def call_method(self, method_name, *args, **kwargs):
+        """Calls a method from :class:`spinedb_api.db_mapping.DatabaseMapping`.
+
+        Args:
+            method_name (str): the name of the method to call
+            args: positional arguments passed to the method call
+            kwargs: keyword arguments passed to the method call
+        """
         return self._send("call_method", args=(method_name, *args), kwargs=kwargs)
 
     def open_db_map(self, db_url, upgrade, memory):
@@ -93,16 +121,6 @@ class SpineDBClient(ReceiveAllMixing):
 
 
 def get_db_url_from_server(url):
-    """Returns the underlying db url associated with the given url, if it's a server url.
-    Otherwise, it assumes it's the url of DB and returns it unaltered.
-    Used by ``DatabaseMappingBase()``.
-
-    Args:
-        url (str, URL): a url, either from a Spine DB or from a Spine DB server.
-
-    Returns:
-        str
-    """
     if isinstance(url, URL):
         return url
     parsed = urlparse(url)

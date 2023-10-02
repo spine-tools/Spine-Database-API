@@ -9,7 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.Query`."""
+"""The :class:`Query` class."""
 
 from sqlalchemy import select, and_
 from sqlalchemy.sql.functions import count
@@ -17,7 +17,14 @@ from .exception import SpineDBAPIError
 
 
 class Query:
+    """A clone of SQL Alchemy's :class:`~sqlalchemy.orm.query.Query`."""
+
     def __init__(self, bind, *entities):
+        """
+        Args:
+            bind(Engine or Connection): An engine or connection to a DB against which the query will be executed.
+            entities(Iterable): A sequence of SQL expressions.
+        """
         self._bind = bind
         self._entities = entities
         self._select = select(entities)

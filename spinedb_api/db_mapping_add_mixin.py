@@ -9,9 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.DatabaseMappingAddMixin`.
-
-"""
 # TODO: improve docstrings
 
 from sqlalchemy.exc import DBAPIError
@@ -37,23 +34,25 @@ class DatabaseMappingAddMixin:
             list(str): found violations
         """
         added, errors = [], []
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
         if not check:
             for item in items:
-                self._convert_legacy(tablename, item)
-                added.append(table_cache.add_item(item, new=True))
+                added.append(self._add_item_unsafe(tablename, item))
         else:
             for item in items:
-                self._convert_legacy(tablename, item)
-                checked_item, error = table_cache.check_item(item)
+                item, error = self.add_item(tablename, **item)
                 if error:
                     if strict:
                         raise SpineIntegrityError(error)
                     errors.append(error)
                     continue
-                added.append(table_cache.add_item(checked_item, new=True))
+                added.append(item)
         return added, errors
+
+    def _add_item_unsafe(self, tablename, item):
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        self._convert_legacy(tablename, item)
+        return table_cache.add_item(item, new=True)
 
     def _do_add_items(self, connection, tablename, *items_to_add):
         """Add items to DB without checking integrity."""

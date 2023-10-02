@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Functions for the perfect db split.
+This module provides the :func:`perfect_split` function.
 
 """
 from .db_mapping import DatabaseMapping
@@ -19,12 +19,12 @@ from .import_functions import import_data
 
 
 def perfect_split(input_urls, intersection_url, diff_urls):
-    """Splits dbs into disjoint subsets.
+    """Splits DBs into disjoint subsets.
 
     Args:
-        input_urls (list(str)): List of urls to split
-        intersection_url (str): A url to store the data common to all input urls
-        diff_urls (list(str)): List of urls to store the differences of each input with respect to the intersection.
+        input_urls (list(str)): List of urls of DBs to split.
+        intersection_url (str): The url of a DB to store the data common to all input DBs (i.e., their intersection).
+        diff_urls (list(str)): List of urls of DBs to store the differences between each input and the intersection.
     """
     diff_url_lookup = dict(zip(input_urls, diff_urls))
     input_data_sets = {}

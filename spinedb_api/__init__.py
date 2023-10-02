@@ -9,14 +9,15 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
+"""
+A package to interact with Spine DBs.
+"""
+
 from .db_mapping import DatabaseMapping
 from .exception import (
     SpineDBAPIError,
     SpineIntegrityError,
     SpineDBVersionError,
-    SpineTableNotFoundError,
-    RecordNotFoundError,
-    ParameterValueError,
     ParameterValueFormatError,
     InvalidMapping,
 )
@@ -26,8 +27,6 @@ from .helpers import (
     SUPPORTED_DIALECTS,
     create_new_spine_database,
     copy_database,
-    is_unlocked,
-    is_head,
     is_empty,
     forward_sweep,
     Asterisk,

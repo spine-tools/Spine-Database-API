@@ -9,9 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`.DiffDatabaseMappingRemoveMixin`.
-
-"""
 
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import DBAPIError
@@ -26,6 +23,16 @@ class DatabaseMappingRemoveMixin:
     """Provides methods to perform ``REMOVE`` operations over a Spine db."""
 
     def remove_items(self, tablename, *ids):
+        """Removes items from the DB.
+
+        Args:
+            tablename (str): Target database table name
+            *ids (int): Ids of items to be removed.
+
+        Returns:
+            set: ids or items successfully updated
+            list(SpineIntegrityError): found violations
+        """
         if not ids:
             return []
         tablename = self._real_tablename(tablename)
@@ -45,6 +52,16 @@ class DatabaseMappingRemoveMixin:
         tablename = self._real_tablename(tablename)
         table_cache = self.cache.table_cache(tablename)
         return [table_cache.restore_item(id_) for id_ in ids]
+
+    def remove_item(self, tablename, id_):
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        return table_cache.remove_item(id_)
+
+    def restore_item(self, tablename, id_):
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        return table_cache.restore_item(id_)
 
     def purge_items(self, tablename):
         """Removes all items from given table.
@@ -90,9 +107,9 @@ class DatabaseMappingRemoveMixin:
 
     def remove_unused_metadata(self):
         used_metadata_ids = set()
-        for x in self.cache.get("entity_metadata", {}).values():
+        for x in self.cache.table_cache("entity_metadata").valid_values():
             used_metadata_ids.add(x["metadata_id"])
-        for x in self.cache.get("parameter_value_metadata", {}).values():
+        for x in self.cache.table_cache("parameter_value_metadata").valid_values():
             used_metadata_ids.add(x["metadata_id"])
-        unused_metadata_ids = {x["id"] for x in self.cache.get("metadata", {}).values()} - used_metadata_ids
+        unused_metadata_ids = {x["id"] for x in self.cache.table_cache("metadata").valid_values()} - used_metadata_ids
         self.remove_items("metadata", *unused_metadata_ids)

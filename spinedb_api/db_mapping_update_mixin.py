@@ -9,9 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""Provides :class:`DatabaseMappingUpdateMixin`.
-
-"""
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
 from .exception import SpineIntegrityError, SpineDBAPIError
@@ -88,24 +85,32 @@ class DatabaseMappingUpdateMixin:
             list(SpineIntegrityError): found violations
         """
         updated, errors = [], []
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
         if not check:
             for item in items:
-                self._convert_legacy(tablename, item)
-                updated.append(table_cache.update_item(item))
+                updated.append(self._update_item_unsafe(tablename, item))
         else:
             for item in items:
-                self._convert_legacy(tablename, item)
-                checked_item, error = table_cache.check_item(item, for_update=True)
+                item, error = self.update_item(tablename, **item)
                 if error:
                     if strict:
                         raise SpineIntegrityError(error)
                     errors.append(error)
-                if checked_item:
-                    item = checked_item._asdict()
-                    updated.append(table_cache.update_item(item))
+                if item:
+                    updated.append(item)
         return updated, errors
+
+    def _update_item_unsafe(self, tablename, item):
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        self._convert_legacy(tablename, item)
+        return table_cache.update_item(item)
+
+    def update_item(self, tablename, **kwargs):
+        tablename = self._real_tablename(tablename)
+        table_cache = self.cache.table_cache(tablename)
+        self._convert_legacy(tablename, kwargs)
+        checked_item, error = table_cache.check_item(kwargs, for_update=True)
+        return table_cache.update_item(checked_item._asdict()) if checked_item else None, error
 
     def update_alternatives(self, *items, **kwargs):
         return self.update_items("alternative", *items, **kwargs)

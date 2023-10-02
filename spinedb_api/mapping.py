@@ -8,10 +8,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Contains export mappings for database items such as entities, entity classes and parameter values.
 
-"""
+# Base class for import and export mappings.
 
 from enum import Enum, unique
 from itertools import takewhile

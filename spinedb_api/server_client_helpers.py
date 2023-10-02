@@ -9,13 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Helpers for server and client.
-
-"""
-
 import json
-from .import_functions import ImportErrorLogItem
 from .exception import SpineDBAPIError
 
 # Encode decode server messages
@@ -52,7 +46,7 @@ class ReceiveAllMixing:
 class _TailJSONEncoder(json.JSONEncoder):
     """
     A custom JSON encoder that accummulates bytes objects into a tail.
-    The bytes object are encoded as a string pointing to the address in the tail.
+    Each bytes object is encoded as a string pointing to the address in the tail.
     """
 
     def __init__(self):
@@ -70,7 +64,7 @@ class _TailJSONEncoder(json.JSONEncoder):
             return address
         if isinstance(o, set):
             return list(o)
-        if isinstance(o, (SpineDBAPIError, ImportErrorLogItem)):
+        if isinstance(o, SpineDBAPIError):
             return str(o)
         return super().default(o)
 
@@ -81,7 +75,7 @@ class _TailJSONEncoder(json.JSONEncoder):
 
 def encode(o):
     """
-    Encodes given object (representing a server response) into a message with the following structure:
+    Encodes given object into a message to be sent via a socket, with the following structure:
 
         body | start of tail character | tail
 
@@ -90,10 +84,10 @@ def encode(o):
     See class:`_TailJSONEncoder`.
 
     Args:
-        o (any): A Python object representing a server response.
+        o (any): A Python object to encode.
 
     Returns:
-        bytes: A message to the client.
+        bytes: Encoded message.
     """
     encoder = _TailJSONEncoder()
     s = encoder.encode(o)
@@ -102,7 +96,7 @@ def encode(o):
 
 def decode(b):
     """
-    Decodes given message (representing a client request) into a Python object.
+    Decodes given message received via a socket into a Python object.
     The message must have the following structure:
 
         body | start of tail character | tail
@@ -111,10 +105,10 @@ def decode(b):
     from the tail.
 
     Args:
-        b (bytes): A message from the client.
+        b (bytes): A message to decode.
 
     Returns:
-        any: A Python object representing a client request.
+        any: Decoded object.
     """
     body, tail = b.split(_START_OF_TAIL.encode())
     o = json.loads(body)
