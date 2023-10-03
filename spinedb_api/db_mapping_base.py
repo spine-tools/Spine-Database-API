@@ -228,7 +228,7 @@ class DatabaseMappingBase:
         return hashing.hexdigest()
 
     @staticmethod
-    def _create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
+    def create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
         """Creates engine.
 
         Args
