@@ -10,33 +10,86 @@
 ######################################################################################################################
 
 """
-Spine DB server
-===============
+This module provides a mechanism to create a socket server interface to a Spine DB.
+The server exposes most of the functionality of :class:`~spinedb_api.db_mapping.DatabaseMapping`,
+and can eventually remove the ``spinedb_api`` requirement (and the Python requirement altogether)
+from third-party applications that want to interact with Spine DBs. (Of course, they would need to have
+access to sockets instead.)
 
-The Spine DB server provides almost the same functionality as :class:`spinedb_api.db_mapping.DatabaseMapping`,
-but it does it via a socket. This removes the ``spinedb_api`` requirement (and the Python requirement altogether)
-from third-party applications that want to interact with Spine DBs.
+Typically, you would start the server in a background Python process by specifying the URL of the target Spine DB,
+getting back the URL where the server is listening.
+You can then use that URL in any number of instances of your application that would connect to the server
+- via a socket - and then send requests to retrieve or modify the data in the DB.
 
-Typically this is done in the following steps:
-    #. Start a server by specifying the URL of the Spine DB that you want to interact with.
-    #. Communicate the URL of the server to your third-party application running in another process.
-    #. Send requests from your application to the server via sockets in order to interact with the DB.
+Requests to the server must be encoded using JSON.
+Each request must be a JSON array with the following elements:
 
-Available requests
-------------------
-TODO
+#. A JSON string with one of the available request names:
+   ``"get_db_url"``, ``"import_data"``, ``"export_data"``, ``"query"``, ``"filtered_query"``,
+   ``"call_method"``, ``"db_checkin"``, ``"db_checkout"``.
+#. A JSON array with positional arguments to the request.
+#. A JSON object with keyword arguments to the request.
+#. A JSON integer indicating the version of the server you want to talk to.
 
-Encoding/decoding
------------------
-TODO
+The positional and keyword arguments to the different requests are documented
+in the :class:`~spinedb_api.spine_db_client.SpineDBClient` class
+(just look for a member function named after the request).
 
-This module also provides a mechanism to control the order in which multiples servers
-running in parallel should write to the same DB.
+The point of the server version is to allow client developers to adapt to changes in the Spine DB server API.
+Say we update ``spinedb_api`` and change the signature of one of the requests - in this case, we will
+also bump the current server version to the next integer.
+If you then upgrade your ``spinedb_api`` installation but not your client, the server will see the version mismatch
+and will respond that the client is outdated.
+The current server version can be queried by calling :func:`get_current_server_version`.
+
+The order in which multiple servers should write to the same DB can also be controlled using DB servers.
+This is particularly useful in high-concurrency scenarios.
 
 The server is started using :func:`closing_spine_db_server`.
-If you want to also control order of writing from multiple servers,
-you first need to obtain an 'ordering queue' using :func:`db_server_manager`.
+To control the order of writing you need to provide a queue, that you would obtain by calling :func:`db_server_manager`.
 
+
+The below example illustrates most of the functionality of the module.
+We create two DB servers targeting the same DB, and set the second to write before the first
+(via the ``ordering`` argument to :func:`closing_spine_db_server`).
+Then we spawn two threads that connect to those two servers and import an entity class.
+We make sure to call :meth:`~spinedb_api.spine_db_client.SpineDBClient.db_checkin` before importing,
+and :meth:`~spinedb_api.spine_db_client.SpineDBClient.db_checkout` after so the order of writing is respected.
+When the first thread attemps to write to the DB, it hangs because the second one hasn't written yet.
+Only after the second writes, the first one also writes and the program finishes::
+
+    import threading
+    from spinedb_api.spine_db_server import db_server_manager, closing_spine_db_server
+    from spinedb_api.spine_db_client import SpineDBClient
+    from spinedb_api.db_mapping import DatabaseMapping
+
+
+    def _import_entity_class(server_url, class_name):
+        client = SpineDBClient.from_server_url(server_url)
+        client.db_checkin()
+        _answer = client.import_data({"entity_classes": [(class_name, ())]}, f"Import {class_name}")
+        client.db_checkout()
+
+
+    db_url = 'sqlite:///somedb.sqlite'
+    with db_server_manager() as mngr_queue:
+        first_ordering = {"id": "second_before_first", "current": "first", "precursors": {"second"}, "part_count": 1}
+        second_ordering = {"id": "second_before_first", "current": "second", "precursors": set(), "part_count": 1}
+        with closing_spine_db_server(db_url, server_manager_queue=mngr_queue, ordering=first_ordering) as first_server_url:
+            with closing_spine_db_server(
+                db_url, server_manager_queue=mngr_queue, ordering=second_ordering
+            ) as second_server_url:
+                t1 = threading.Thread(target=_import_entity_class, args=(first_server_url, "monkey"))
+                t2 = threading.Thread(target=_import_entity_class, args=(second_server_url, "donkey"))
+                t1.start()
+                with DatabaseMapping(db_url) as db_map:
+                    assert db_map.get_items("entity_class") == []  # Nothing written yet
+                t2.start()
+                t1.join()
+                t2.join()
+
+    with DatabaseMapping(db_url) as db_map:
+        assert [x["name"] for x in db_map.get_items("entity_class")] == ["donkey", "monkey"]
 """
 
 from urllib.parse import urlunsplit
@@ -62,7 +115,16 @@ from .filters.alternative_filter import alternative_filter_config
 from .filters.tools import apply_filter_stack
 from .spine_db_client import SpineDBClient
 
-_required_client_version = 6
+_current_server_version = 6
+
+
+def get_current_server_version():
+    """Returns the current client version.
+
+    Returns:
+        int: current client version
+    """
+    return _current_server_version
 
 
 def _parse_value(v, value_type=None):
@@ -527,8 +589,8 @@ class HandleDBMixin:
             args, kwargs, client_version = extras
         except ValueError:
             client_version = 0
-        if client_version < _required_client_version:
-            return dict(error=1, result=_required_client_version)
+        if client_version < _current_server_version:
+            return dict(error=1, result=_current_server_version)
         handler = {
             "query": self.query,
             "filtered_query": self.filtered_query,
@@ -598,15 +660,24 @@ def shutdown_spine_db_server(server_manager_queue, server_address):
 
 
 @contextmanager
+def db_server_manager():
+    """Creates a DB server manager that can be used to control the order in which different servers
+    write to the same DB.
+
+    Yields:
+        :class:`~multiprocessing.queues.Queue`: a queue that can be passed to :func:`.closing_spine_db_server`
+        in order to control write order.
+    """
+    mngr = _DBServerManager()
+    try:
+        yield mngr.queue
+    finally:
+        mngr.shutdown()
+
+
+@contextmanager
 def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None, server_manager_queue=None):
     """Creates a Spine DB server.
-
-    Example::
-
-            with closing_spine_db_server(db_url) as server_url:
-                client = SpineDBClient.from_server_url(server_url)
-                data = client.import_data({"entity_class": [("fish", ()), ("dog", ())]}, "Add two entity classes.")
-
 
     Args:
         db_url (str): the URL of a Spine DB.
@@ -618,8 +689,8 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None, 
             writing to the same DB. It must have the following keys:
                 - "id": an identifier for the ordering, shared by all the servers in the ordering.
                 - "current": an identifier for this server within the ordering.
-                - "precursors": a set of identifiers of other servers that must have written to the DB before this server can write.
-                - "part_count": the number of times this server needs to write to the DB before their successors can write.
+                - "precursors": a set of identifiers of other servers that must have checked out from the DB before this one can check in.
+                - "part_count": the number of times this server needs to check out from the DB before their successors can check in.
 
     Yields:
         str: server url
@@ -637,28 +708,3 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None, 
         shutdown_spine_db_server(server_manager_queue, server_address)
         if mngr is not None:
             mngr.shutdown()
-
-
-@contextmanager
-def db_server_manager():
-    """Creates a DB server manager that can be used to control the order in which different servers
-    write to the same DB.
-
-    Example::
-
-            with db_server_manager() as mngr_queue:
-                with closing_spine_db_server(db_url, server_manager_queue=mngr_queue) as server1_url:
-                    with closing_spine_db_server(db_url, server_manager_queue=mngr_queue) as server1_url:
-                        client1 = SpineDBClient.from_server_url(server_url1)
-                        client2 = SpineDBClient.from_server_url(server_url2)
-                        # TODO: ordering
-
-    Yields:
-        :class:`~multiprocessing.queues.Queue`: a queue that can be passed to :func:`.closing_spine_db_server`
-        in order to control write order.
-    """
-    mngr = _DBServerManager()
-    try:
-        yield mngr.queue
-    finally:
-        mngr.shutdown()

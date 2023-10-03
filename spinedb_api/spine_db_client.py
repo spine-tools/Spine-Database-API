@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-The :class:`SpineDBClient` class.
+This module defines the :class:`SpineDBClient` class.
 """
 
 from urllib.parse import urlparse
@@ -23,10 +23,10 @@ client_version = 6
 
 class SpineDBClient(ReceiveAllMixing):
     def __init__(self, server_address):
-        """Represents a client connection to a Spine DB server.
+        """Enables sending requests to a Spine DB server.
 
         Args:
-            server_address (tuple(str,int)): hostname and port
+            server_address (tuple(str,int)): the hostname and port where the server is listening.
         """
         self._server_address = server_address
         self.request = None
@@ -36,7 +36,7 @@ class SpineDBClient(ReceiveAllMixing):
         """Creates a client from a server's URL.
 
         Args:
-            url (str, URL): the url of a Spine DB server.
+            url (str, URL): the URL where the server is listening.
         """
         parsed = urlparse(url)
         if parsed.scheme != "http":
@@ -44,7 +44,7 @@ class SpineDBClient(ReceiveAllMixing):
         return cls((parsed.hostname, parsed.port))
 
     def get_db_url(self):
-        """Returns the URL of the Spine DB associated with the server.
+        """Returns the URL of the target Spine DB - the one the server is set to communicate with.
 
         Returns:
             str
@@ -65,29 +65,29 @@ class SpineDBClient(ReceiveAllMixing):
         return self._send("cancel_db_checkout")
 
     def import_data(self, data, comment):
-        """Imports data to the DB using :func:`spinedb_api.import_functions.import_data` and commits the changes.
+        """Imports data to the DB using :func:`~spinedb_api.import_functions.import_data` and commits the changes.
 
         Args:
-            data (dict): to be splatted into keyword arguments to :func:`spinedb_api.import_functions.import_data`
+            data (dict): to be splatted into keyword arguments to :func:`~spinedb_api.import_functions.import_data`
             comment (str): a commit message.
         """
         return self._send("import_data", args=(data, comment))
 
     def export_data(self, **kwargs):
-        """Exports data from the DB using :func:`spinedb_api.export_functions.export_data`.
+        """Exports data from the DB using :func:`~spinedb_api.export_functions.export_data`.
 
         Args:
-            kwargs: keyword arguments passed to :func:`spinedb_api.import_functions.import_data`
+            **kwargs: keyword arguments passed to :func:`~spinedb_api.import_functions.export_data`
         """
         return self._send("export_data", kwargs=kwargs)
 
     def call_method(self, method_name, *args, **kwargs):
-        """Calls a method from :class:`spinedb_api.db_mapping.DatabaseMapping`.
+        """Calls a method from :class:`~spinedb_api.db_mapping.DatabaseMapping`.
 
         Args:
-            method_name (str): the name of the method to call
-            args: positional arguments passed to the method call
-            kwargs: keyword arguments passed to the method call
+            method_name (str): the name of the method to call.
+            *args: positional arguments passed to the method call.
+            **kwargs: keyword arguments passed to the method call.
         """
         return self._send("call_method", args=(method_name, *args), kwargs=kwargs)
 

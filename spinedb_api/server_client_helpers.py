@@ -19,8 +19,6 @@ _ADDRESS_SEP = ':'
 
 
 class ReceiveAllMixing:
-    """Provides _recvall, to read everything from a socket until the _EOT character is found."""
-
     _ENCODING = "utf-8"
     _BUFF_SIZE = 4096
     _EOT = '\u0004'  # End of transmission

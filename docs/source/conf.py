@@ -97,7 +97,9 @@ autoapi_keep_files = True
 
 
 def _skip_member(app, what, name, obj, skip, options):
-    if what == "class" and any(x in name for x in ("SpineDBServer", "group_concat")):
+    if what == "class" and any(
+        x in name for x in ("SpineDBServer", "group_concat", "DBRequestHandler", "ReceiveAllMixing")
+    ):
         skip = True
     return skip
 
