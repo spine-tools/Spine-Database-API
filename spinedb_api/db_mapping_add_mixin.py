@@ -20,39 +20,28 @@ class DatabaseMappingAddMixin:
     """Provides methods to perform ``INSERT`` operations over a Spine db."""
 
     def add_items(self, tablename, *items, check=True, strict=False):
-        """Add items to cache.
+        """Add items to the in-memory mapping.
 
         Args:
-            tablename (str)
-            items (Iterable): One or more Python :class:`dict` objects representing the items to be inserted.
-            check (bool): Whether or not to check integrity
+            tablename (str): The table where items are inserted.
+            items (Iterable): One or more :class:`dict` objects representing the items to be inserted.
+            check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
 
         Returns:
-            set: ids or items successfully added
-            list(str): found violations
+            tuple(list(dict),list(str)): items successfully added and found violations.
         """
         added, errors = [], []
-        if not check:
-            for item in items:
-                added.append(self._add_item_unsafe(tablename, item))
-        else:
-            for item in items:
-                item, error = self.add_item(tablename, **item)
-                if error:
-                    if strict:
-                        raise SpineIntegrityError(error)
-                    errors.append(error)
-                    continue
-                added.append(item)
+        for item in items:
+            item, error = self.add_item(tablename, check, **item)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+                continue
+            added.append(item)
         return added, errors
-
-    def _add_item_unsafe(self, tablename, item):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        self._convert_legacy(tablename, item)
-        return table_cache.add_item(item, new=True)
 
     def _do_add_items(self, connection, tablename, *items_to_add):
         """Add items to DB without checking integrity."""

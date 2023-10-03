@@ -80,7 +80,8 @@ class DatabaseMappingBase:
     ):
         """
         Args:
-            db_url (str or URL): A URL in RFC-1738 format pointing to the database to be mapped, or to a DB server.
+            db_url (str or :class:`~sqlalchemy.engine.url.URL`): A URL in RFC-1738 format pointing to the database
+                to be mapped, or to a DB server.
             username (str, optional): A user name. If not given, it gets replaced by the string ``"anon"``.
             upgrade (bool, optional): Whether the db at the given URL should be upgraded to the most recent
                 version.
@@ -195,7 +196,7 @@ class DatabaseMappingBase:
         """Returns filters applicable to this DB mapping.
 
         Returns:
-            list(dict)
+            list(dict):
         """
         return self._filter_configs
 
@@ -231,13 +232,13 @@ class DatabaseMappingBase:
     def create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
         """Creates engine.
 
-        Args
+        Args:
             sa_url (URL)
             upgrade (bool, optional): If True, upgrade the db to the latest version.
             create (bool, optional): If True, create a new Spine db at the given url if none found.
 
-        Returns
-            Engine
+        Returns:
+            :class:`~sqlalchemy.engine.Engine`
         """
         if sa_url.drivername == "sqlite":
             connect_args = {'timeout': sqlite_timeout}
@@ -345,11 +346,11 @@ class DatabaseMappingBase:
             setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
-        """Returns a :class:`~spinedb_api.query.Query` object bound to this :class:`.DatabaseMappingBase`.
+        """Returns a :class:`~spinedb_api.query.Query` object to execute against this DB.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the class documented
-        :class:`~sqlalchemy.sql.expression.Alias` properties. For example, to select the entity class with
-        ``id`` equal to 1::
+        subquery properties (of :class:`~sqlalchemy.sql.expression.Alias` type).
+        For example, to select the entity class with ``id`` equal to 1::
 
             from spinedb_api import DatabaseMapping
             url = 'sqlite:///spine.db'
@@ -357,8 +358,10 @@ class DatabaseMappingBase:
             db_map = DatabaseMapping(url)
             db_map.query(db_map.entity_class_sq).filter_by(id=1).one_or_none()
 
-        To perform more complex queries, just use the :class:`~spinedb_api.query.Query` interface.
-        For example, to select all entity class names and the names of their entities concatenated in a string::
+        To perform more complex queries, just use the :class:`~spinedb_api.query.Query` interface
+        (which is a close clone of SQL Alchemy's :class:`~sqlalchemy.orm.query.Query`).
+        For example, to select all entity class names and the names of their entities concatenated in a comma-separated
+        string::
 
             from sqlalchemy import func
 
@@ -381,7 +384,7 @@ class DatabaseMappingBase:
             tablename (str): the table to be queried.
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         table = self._metadata.tables[tablename]
         return self.query(table).subquery(tablename + "_sq")
@@ -395,7 +398,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity_class
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_class_sq is None:
             self._entity_class_sq = self._make_entity_class_sq()
@@ -410,7 +413,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity_class_dimension
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_class_dimension_sq is None:
             self._entity_class_dimension_sq = self._subquery("entity_class_dimension")
@@ -433,7 +436,7 @@ class DatabaseMappingBase:
                 ec.id == ecd.entity_class_id
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_entity_class_sq is None:
             entity_class_dimension_sq = (
@@ -498,7 +501,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_sq is None:
             self._entity_sq = self._make_entity_sq()
@@ -513,7 +516,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity_element
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_element_sq is None:
             self._entity_element_sq = self._make_entity_element_sq()
@@ -536,7 +539,7 @@ class DatabaseMappingBase:
                 e.id == ee.entity_id
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._wide_entity_sq is None:
             entity_element_sq = (
@@ -583,7 +586,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity_group
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_group_sq is None:
             self._entity_group_sq = self._subquery("entity_group")
@@ -598,7 +601,7 @@ class DatabaseMappingBase:
             SELECT * FROM alternative
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._alternative_sq is None:
             self._alternative_sq = self._make_alternative_sq()
@@ -613,7 +616,7 @@ class DatabaseMappingBase:
             SELECT * FROM scenario
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._scenario_sq is None:
             self._scenario_sq = self._make_scenario_sq()
@@ -628,7 +631,7 @@ class DatabaseMappingBase:
             SELECT * FROM scenario_alternative
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._scenario_alternative_sq is None:
             self._scenario_alternative_sq = self._make_scenario_alternative_sq()
@@ -643,7 +646,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity_alternative
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_alternative_sq is None:
             self._entity_alternative_sq = self._subquery("entity_alternative")
@@ -658,7 +661,7 @@ class DatabaseMappingBase:
             SELECT * FROM parameter_value_list
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_list_sq is None:
             self._parameter_value_list_sq = self._subquery("parameter_value_list")
@@ -673,7 +676,7 @@ class DatabaseMappingBase:
             SELECT * FROM list_value
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._list_value_sq is None:
             self._list_value_sq = self._subquery("list_value")
@@ -688,7 +691,7 @@ class DatabaseMappingBase:
             SELECT * FROM parameter_definition
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
 
         if self._parameter_definition_sq is None:
@@ -704,7 +707,7 @@ class DatabaseMappingBase:
             SELECT * FROM parameter_value
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_sq is None:
             self._parameter_value_sq = self._make_parameter_value_sq()
@@ -719,7 +722,7 @@ class DatabaseMappingBase:
             SELECT * FROM list_value
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._metadata_sq is None:
             self._metadata_sq = self._subquery("metadata")
@@ -734,7 +737,7 @@ class DatabaseMappingBase:
             SELECT * FROM parameter_value_metadata
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._parameter_value_metadata_sq is None:
             self._parameter_value_metadata_sq = self._subquery("parameter_value_metadata")
@@ -749,7 +752,7 @@ class DatabaseMappingBase:
             SELECT * FROM entity_metadata
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_metadata_sq is None:
             self._entity_metadata_sq = self._subquery("entity_metadata")
@@ -764,7 +767,7 @@ class DatabaseMappingBase:
             SELECT * FROM commit
 
         Returns:
-            sqlalchemy.sql.expression.Alias
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._commit_sq is None:
             commit_sq = self._subquery("commit")
@@ -1520,11 +1523,6 @@ class DatabaseMappingBase:
         return self._subquery("scenario_alternative")
 
     def get_import_alternative_name(self):
-        """Returns the name of the alternative to use as default for all import operations.
-
-        Returns:
-            str: import alternative name
-        """
         if self._import_alternative_name is None:
             self._create_import_alternative()
         return self._import_alternative_name

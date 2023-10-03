@@ -197,10 +197,10 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
     Args:
         dest_url (str): The destination url.
         source_url (str): The source url.
-        overwrite (bool,optional): whether to overwrite the destination.
-        upgrade (bool,optional): whether to upgrade the source to the latest Spine schema revision.
-        only_tables (tuple,optional): If given, only these tables are copied.
-        skip_tables (tuple,optional): If given, these tables are skipped.
+        overwrite (bool, optional): whether to overwrite the destination.
+        upgrade (bool, optional): whether to upgrade the source to the latest Spine schema revision.
+        only_tables (tuple, optional): If given, only these tables are copied.
+        skip_tables (tuple, optional): If given, these tables are skipped.
     """
     if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)

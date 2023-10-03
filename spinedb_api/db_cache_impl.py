@@ -76,6 +76,14 @@ class DBCache(DBCacheBase):
 
 
 class EntityClassItem(CacheItemBase):
+    _fields = {
+        "name": ("str", "The class name."),
+        "dimension_name_list": ("tuple, optional", "The dimension names for a multi-dimensional class."),
+        "description": ("str, optional", "The class description."),
+        "display_icon": ("int, optional", "An integer representing an icon within your application."),
+        "display_order": ("int, optional", "Not in use at the moment"),
+        "hidden": ("bool, optional", "Not in use at the moment"),
+    }
     _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
     _unique_keys = (("name",),)
     _references = {"dimension_name_list": ("dimension_id_list", ("entity_class", "name"))}
@@ -105,6 +113,12 @@ class EntityClassItem(CacheItemBase):
 
 
 class EntityItem(CacheItemBase):
+    _fields = {
+        "class_name": ("str", "The entity class name."),
+        "name": ("str, optional", "The entity name - must be given for a zero-dimensional entity."),
+        "element_name_list": ("tuple, optional", "The element names - must be given for a multi-dimensional entity."),
+        "description": ("str, optional", "The entity description."),
+    }
     _defaults = {"description": None}
     _unique_keys = (("class_name", "name"), ("class_name", "byname"))
     _references = {
@@ -147,6 +161,11 @@ class EntityItem(CacheItemBase):
 
 
 class EntityGroupItem(CacheItemBase):
+    _fields = {
+        "class_name": ("str", "The entity class name."),
+        "group_name": ("str", "The group entity name."),
+        "member_name": ("str", "The member entity name."),
+    }
     _unique_keys = (("group_name", "member_name"),)
     _references = {
         "class_name": ("entity_class_id", ("entity_class", "name")),
@@ -169,6 +188,15 @@ class EntityGroupItem(CacheItemBase):
 
 
 class EntityAlternativeItem(CacheItemBase):
+    _fields = {
+        "entity_class_name": ("str", "The entity class name."),
+        "entity_byname": (
+            "str or tuple",
+            "The entity name for a zero-dimensional entity, or the element name list for a multi-dimensional one.",
+        ),
+        "alternative_name": ("str", "The alternative name."),
+        "active": ("bool, optional", "Whether the entity is active in the alternative - defaults to True."),
+    }
     _defaults = {"active": True}
     _unique_keys = (("entity_class_name", "entity_byname", "alternative_name"),)
     _references = {
@@ -213,6 +241,14 @@ class ParsedValueBase(CacheItemBase):
 
 
 class ParameterDefinitionItem(ParsedValueBase):
+    _fields = {
+        "entity_class_name": ("str", "The entity class name."),
+        "name": ("str", "The parameter name."),
+        "default_value": ("any, optional", "The default value."),
+        "default_type": ("str, optional", "The default value type."),
+        "parameter_value_list_name": ("str, optional", "The parameter value list name if any."),
+        "description": ("str, optional", "The parameter description."),
+    }
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     _unique_keys = (("entity_class_name", "name"),)
     _references = {
@@ -303,6 +339,17 @@ class ParameterDefinitionItem(ParsedValueBase):
 
 
 class ParameterValueItem(ParsedValueBase):
+    _fields = {
+        "entity_class_name": ("str", "The entity class name."),
+        "parameter_definition_name": ("str", "The parameter name."),
+        "entity_byname": (
+            "str or tuple",
+            "The entity name for a zero-dimensional entity, or the element name list for a multi-dimensional one.",
+        ),
+        "value": ("any", "The value."),
+        "type": ("str", "The value type."),
+        "alternative_name": ("str, optional", "The alternative name - defaults to 'Base'."),
+    }
     _unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
         "entity_class_name": ("entity_class_id", ("entity_class", "name")),
@@ -353,6 +400,9 @@ class ParameterValueItem(ParsedValueBase):
         return super().__getitem__(key)
 
     def polish(self):
+        error = super().polish()
+        if error:
+            return error
         list_name = self["parameter_value_list_name"]
         if list_name is None:
             return
@@ -382,10 +432,17 @@ class ParameterValueItem(ParsedValueBase):
 
 
 class ParameterValueListItem(CacheItemBase):
+    _fields = {"name": ("str", "The parameter value list name.")}
     _unique_keys = (("name",),)
 
 
 class ListValueItem(ParsedValueBase):
+    _fields = {
+        "parameter_value_list_name": ("str", "The parameter value list name."),
+        "value": ("any", "The value."),
+        "type": ("str", "The value type."),
+        "index": ("int, optional", "The value index."),
+    }
     _unique_keys = (("parameter_value_list_name", "value", "type"), ("parameter_value_list_name", "index"))
     _references = {"parameter_value_list_name": ("parameter_value_list_id", ("parameter_value_list", "name"))}
     _inverse_references = {
@@ -400,11 +457,20 @@ class ListValueItem(ParsedValueBase):
 
 
 class AlternativeItem(CacheItemBase):
+    _fields = {
+        "name": ("str", "The alternative name."),
+        "description": ("str, optional", "The alternative description."),
+    }
     _defaults = {"description": None}
     _unique_keys = (("name",),)
 
 
 class ScenarioItem(CacheItemBase):
+    _fields = {
+        "name": ("str", "The scenario name."),
+        "description": ("str, optional", "The scenario description."),
+        "active": ("bool, optional", "Not in use at the moment."),
+    }
     _defaults = {"active": False, "description": None}
     _unique_keys = (("name",),)
 
@@ -427,6 +493,11 @@ class ScenarioItem(CacheItemBase):
 
 
 class ScenarioAlternativeItem(CacheItemBase):
+    _fields = {
+        "scenario_name": ("str", "The scenario name."),
+        "alternative_name": ("str", "The alternative name."),
+        "rank": ("int", "The rank - the higher has precedence."),
+    }
     _unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
     _references = {
         "scenario_name": ("scenario_id", ("scenario", "name")),
@@ -454,10 +525,16 @@ class ScenarioAlternativeItem(CacheItemBase):
 
 
 class MetadataItem(CacheItemBase):
+    _fields = {"name": ("str", "The metadata entry name."), "value": ("str", "The metadata entry value.")}
     _unique_keys = (("name", "value"),)
 
 
 class EntityMetadataItem(CacheItemBase):
+    _fields = {
+        "entity_name": ("str", "The entity name."),
+        "metadata_name": ("str", "The metadata entry name."),
+        "metadata_value": ("str", "The metadata entry value."),
+    }
     _unique_keys = (("entity_name", "metadata_name", "metadata_value"),)
     _references = {
         "entity_name": ("entity_id", ("entity", "name")),
@@ -471,6 +548,15 @@ class EntityMetadataItem(CacheItemBase):
 
 
 class ParameterValueMetadataItem(CacheItemBase):
+    _fields = {
+        "parameter_definition_name": ("str", "The parameter name."),
+        "entity_byname": (
+            "str or tuple",
+            "The entity name for a zero-dimensional entity, or the element name list for a multi-dimensional one.",
+        ),
+        "alternative_name": ("str", "The alternative name."),
+        "metadata_value": ("str", "The metadata entry value."),
+    }
     _unique_keys = (
         ("parameter_definition_name", "entity_byname", "alternative_name", "metadata_name", "metadata_value"),
     )

@@ -30,7 +30,12 @@ class Status(Enum):
 
 
 class DBCacheBase(dict):
-    """A dictionary that maps table names to ids to items. Used to store and retrieve database contents."""
+    """A dictionary representation of a DB, mapping item types (table names), to numeric ids, to items.
+
+    This class is not meant to be used directly. Instead, you need to subclass it for each DB schema you want to use.
+
+    When subclassing, you need to implement :attr:`item_types`, :meth:`item_factory`, and :meth:`query`.
+    """
 
     def __init__(self):
         super().__init__()
@@ -57,33 +62,33 @@ class DBCacheBase(dict):
 
     @property
     def item_types(self):
-        """Returns a list of supported item type strings.
+        """Returns a list of item types in the DB (equivalent to the table names).
 
         Returns:
-            list
+            list(str)
         """
         raise NotImplementedError()
 
     @staticmethod
     def item_factory(item_type):
-        """Returns a subclass of CacheItemBase to build items of given type.
+        """Returns a subclass of :class:`.CacheItemBase` to make items of given type.
 
         Args:
             item_type (str)
 
         Returns:
-            CacheItemBase
+            function
         """
         raise NotImplementedError()
 
     def query(self, item_type):
-        """Returns a Query object to fecth items of given type.
+        """Returns a :class:`~spinedb_api.query.Query` object to fecth items of given type.
 
         Args:
             item_type (str)
 
         Returns:
-            Query
+            :class:`~spinedb_api.query.Query`
         """
         raise NotImplementedError()
 
@@ -249,7 +254,7 @@ class _TableCache(dict):
     def __init__(self, db_cache, item_type, *args, **kwargs):
         """
         Args:
-            db_cache (DBCache): the DB cache where this table cache belongs.
+            db_cache (DBCacheBase): the DB cache where this table cache belongs.
             item_type (str): the item type, equal to a table name
         """
         super().__init__(*args, **kwargs)
@@ -271,20 +276,20 @@ class _TableCache(dict):
         temp_id.add_resolve_callback(_callback)
         return temp_id
 
-    def unique_key_value_to_id(self, key, value, strict=False):
+    def unique_key_value_to_id(self, key, value, strict=False, fetch=True):
         """Returns the id that has the given value for the given unique key, or None if not found.
-        Fetches until being sure.
 
         Args:
             key (tuple)
             value (tuple)
             strict (bool): if True, raise a KeyError if id is not found
+            fetch (bool): whether to fetch the DB until found.
 
         Returns:
             int
         """
         id_by_unique_value = self._id_by_unique_key_value.get(key, {})
-        if not id_by_unique_value:
+        if not id_by_unique_value and fetch:
             id_by_unique_value = self._db_cache.fetch_value(
                 self._item_type, lambda: self._id_by_unique_key_value.get(key, {})
             )
@@ -293,8 +298,8 @@ class _TableCache(dict):
             return id_by_unique_value[value]
         return id_by_unique_value.get(value)
 
-    def _unique_key_value_to_item(self, key, value):
-        return self.get(self.unique_key_value_to_id(key, value))
+    def _unique_key_value_to_item(self, key, value, fetch=True):
+        return self.get(self.unique_key_value_to_id(key, value, fetch=fetch))
 
     def valid_values(self):
         return (x for x in self.values() if x.is_valid())
@@ -310,7 +315,7 @@ class _TableCache(dict):
         """
         return self._db_cache.make_item(self._item_type, **item)
 
-    def find_item(self, item, skip_keys=()):
+    def find_item(self, item, skip_keys=(), fetch=True):
         """Returns a CacheItemBase that matches the given dictionary-item.
 
         Args:
@@ -322,7 +327,10 @@ class _TableCache(dict):
         id_ = item.get("id")
         if id_ is not None:
             # id is given, easy
-            return self.get(id_) or self._db_cache.fetch_ref(self._item_type, id_)
+            item = self.get(id_)
+            if item or not fetch:
+                return item
+            return self._db_cache.fetch_ref(self._item_type, id_)
         # No id. Try to locate the item by the value of one of the unique keys.
         # Used by import_data (and more...)
         cache_item = self._make_item(item)
@@ -333,7 +341,7 @@ class _TableCache(dict):
         if error:
             return None
         for key, value in cache_item.unique_values(skip_keys=skip_keys):
-            current_item = self._unique_key_value_to_item(key, value)
+            current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
             if current_item:
                 return current_item
 
@@ -431,6 +439,8 @@ class _TableCache(dict):
 class CacheItemBase(dict):
     """A dictionary that represents a db item."""
 
+    _fields = {}
+    """A dictionaty mapping fields to a tuple of (type, description)"""
     _defaults = {}
     """A dictionary mapping keys to their default values"""
     _unique_keys = ()
@@ -460,7 +470,7 @@ class CacheItemBase(dict):
     def __init__(self, db_cache, item_type, **kwargs):
         """
         Args:
-            db_cache (DBCache): the DB cache where this item belongs.
+            db_cache (DBCacheBase): the DB cache where this item belongs.
         """
         super().__init__(**kwargs)
         self._db_cache = db_cache

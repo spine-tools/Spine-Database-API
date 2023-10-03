@@ -71,46 +71,28 @@ class DatabaseMappingUpdateMixin:
             yield ("entity_element", ee_items_to_update)
 
     def update_items(self, tablename, *items, check=True, strict=False):
-        """Updates items in cache.
+        """Updates items in the in-memory mapping.
 
         Args:
-            tablename (str): Target database table name
-            *items: One or more Python :class:`dict` objects representing the items to be inserted.
-            check (bool): Whether or not to check integrity
+            tablename (str): The table where items are updated
+            *items: One or more :class:`dict` objects representing the items to be updated.
+            check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
-                if the insertion of one of the items violates an integrity constraint.
+                if the update of one of the items violates an integrity constraint.
 
         Returns:
-            set: ids or items successfully updated
-            list(SpineIntegrityError): found violations
+            tuple(list(dict),list(str)): items successfully updated and found violations.
         """
         updated, errors = [], []
-        if not check:
-            for item in items:
-                updated.append(self._update_item_unsafe(tablename, item))
-        else:
-            for item in items:
-                item, error = self.update_item(tablename, **item)
-                if error:
-                    if strict:
-                        raise SpineIntegrityError(error)
-                    errors.append(error)
-                if item:
-                    updated.append(item)
+        for item in items:
+            item, error = self.update_item(tablename, check=check, **item)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+            if item:
+                updated.append(item)
         return updated, errors
-
-    def _update_item_unsafe(self, tablename, item):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        self._convert_legacy(tablename, item)
-        return table_cache.update_item(item)
-
-    def update_item(self, tablename, **kwargs):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        self._convert_legacy(tablename, kwargs)
-        checked_item, error = table_cache.check_item(kwargs, for_update=True)
-        return table_cache.update_item(checked_item._asdict()) if checked_item else None, error
 
     def update_alternatives(self, *items, **kwargs):
         return self.update_items("alternative", *items, **kwargs)
