@@ -124,7 +124,10 @@ class DatabaseMapping(
         if not check:
             return table_cache.add_item(kwargs, new=True), None
         checked_item, error = table_cache.check_item(kwargs)
-        return table_cache.add_item(checked_item, new=True) if checked_item and not error else None, error
+        return (
+            PublicItem(self, table_cache.add_item(checked_item, new=True)) if checked_item and not error else None,
+            error,
+        )
 
     def update_item(self, item_type, check=True, **kwargs):
         """Updates an item in the in-memory mapping.
@@ -150,7 +153,7 @@ class DatabaseMapping(
         if not check:
             return table_cache.update_item(kwargs), None
         checked_item, error = table_cache.check_item(kwargs, for_update=True)
-        return table_cache.update_item(checked_item._asdict()) if checked_item and not error else None, error
+        return (PublicItem(self, table_cache.update_item(checked_item._asdict())) if checked_item else None, error)
 
     def remove_item(self, item_type, id_):
         """Removes an item from the in-memory mapping.
@@ -171,7 +174,7 @@ class DatabaseMapping(
         """
         item_type = self._real_tablename(item_type)
         table_cache = self.cache.table_cache(item_type)
-        return table_cache.remove_item(id_)
+        return PublicItem(self, table_cache.remove_item(id_))
 
     def restore_item(self, item_type, id_):
         """Restores a previously removed item into the in-memory mapping.
@@ -191,7 +194,7 @@ class DatabaseMapping(
         """
         item_type = self._real_tablename(item_type)
         table_cache = self.cache.table_cache(item_type)
-        return table_cache.restore_item(id_)
+        return PublicItem(self, table_cache.restore_item(id_))
 
     def can_fetch_more(self, item_type):
         """Whether or not more data can be fetched from the DB for the given item type.
