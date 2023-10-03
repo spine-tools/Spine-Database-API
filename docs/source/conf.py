@@ -85,7 +85,7 @@ exclude_patterns = []
 pygments_style = 'sphinx'
 
 # Settings for Sphinx AutoAPI
-autoapi_options = ['members', 'inherited-members']
+autoapi_options = ['members', 'inherited-members', 'show-module-summary']
 autoapi_python_class_content = "both"
 autoapi_add_toctree_entry = True
 autoapi_root = "autoapi"

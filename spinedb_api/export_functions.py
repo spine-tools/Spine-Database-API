@@ -36,8 +36,8 @@ def export_data(
 ):
     """
     Exports data from a Spine DB into a standard dictionary format.
-    The result can be splatted into keyword arguments for :func:`spinedb_api.import_functions.import_data`
-    to transfer data from one DB to another.
+    The result can be splatted into keyword arguments for :func:`spinedb_api.import_functions.import_data`,
+    to copy data from one DB to another.
 
     Args:
         db_map (DatabaseMapping): The db to pull data from.

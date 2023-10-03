@@ -130,7 +130,7 @@ def _new_table(writer, table_name, title_key):
     Args:
         writer (Writer): a writer
         table_name (str): table's name
-        title_key (dict,optional)
+        title_key (dict, optional)
 
     Yields:
         bool: whether or not the new table was successfully started

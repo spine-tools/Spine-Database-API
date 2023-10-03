@@ -43,21 +43,6 @@ def create_query_wrapper(db_map):
 IN_MEMORY_DB_URL = "sqlite://"
 
 
-class TestDatabaseMappingPublic(unittest.TestCase):
-    _db_map = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._db_map.close()
-
-    def test_getters(self):
-        print(dir(self._db_map.get_entity_class))
-
-
 class TestDatabaseMappingConstruction(unittest.TestCase):
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"

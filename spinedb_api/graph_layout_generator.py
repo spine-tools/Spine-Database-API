@@ -20,7 +20,9 @@ from scipy.sparse.csgraph import dijkstra
 
 
 class GraphLayoutGenerator:
-    """A class to build an optimised layout for an undirected graph."""
+    """A class to build an optimised layout for an undirected graph.
+    This can help visualizing the Spine data structure of multi-dimensional entities.
+    """
 
     def __init__(
         self,
@@ -39,21 +41,21 @@ class GraphLayoutGenerator:
         """
         Args:
             vertex_count (int): The number of vertices in the graph. Graph vertices will have indices 0, 1, 2, ...
-            src_inds (tuple,optional): The indices of the source vertices of each edge.
-            dst_inds (tuple,optional): The indices of the destination vertices of each edge.
-            spread (int,optional): the ideal edge length.
-            heavy_positions (dict,optional): a dictionary mapping vertex indices to another dictionary
+            src_inds (tuple, optional): The indices of the source vertices of each edge.
+            dst_inds (tuple, optional): The indices of the destination vertices of each edge.
+            spread (int, optional): the ideal edge length.
+            heavy_positions (dict, optional): a dictionary mapping vertex indices to another dictionary
                 with keys "x" and "y" specifying the position it should have in the generated layout.
-            max_iters (int,optional): the maximum numbers of iterations of the layout generation algorithm.
-            weight_exp (int,optional): The exponential decay rate of attraction between vertices. The higher this
+            max_iters (int, optional): the maximum numbers of iterations of the layout generation algorithm.
+            weight_exp (int, optional): The exponential decay rate of attraction between vertices. The higher this
                 number, the lesser the attraction between distant vertices.
-            is_stopped (function,optional): A function to call without arguments, that returns a boolean indicating
+            is_stopped (function, optional): A function to call without arguments, that returns a boolean indicating
                 whether the layout generation process needs to be stopped.
-            preview_available (function,optional): A function to call after every iteration with two lists, x and y,
+            preview_available (function, optional): A function to call after every iteration with two lists, x and y,
                 representing the current layout.
-            layout_available (function,optional): A function to call after the last iteration with two lists, x and y,
+            layout_available (function, optional): A function to call after the last iteration with two lists, x and y,
                 representing the final layout.
-            layout_progressed (function,optional): A function to call after each iteration with the current iteration
+            layout_progressed (function, optional): A function to call after each iteration with the current iteration
                 number.
         """
         super().__init__()

@@ -19,7 +19,7 @@ class DatabaseMappingCommitMixin:
     """Provides methods to commit or rollback pending changes onto a Spine database."""
 
     def commit_session(self, comment):
-        """Commits current session to the database.
+        """Commits the changes from the in-memory mapping to the database.
 
         Args:
             comment (str): commit message
@@ -49,10 +49,12 @@ class DatabaseMappingCommitMixin:
             return compatibility_transformations(connection)
 
     def rollback_session(self):
+        """Discards all the changes from the in-memory mapping."""
         if not self.cache.rollback():
             raise SpineDBAPIError("Nothing to rollback.")
         if self._memory:
             self._memory_dirty = False
 
     def refresh_session(self):
+        """Resets the fetch status so new items from the DB can be retrieved."""
         self.cache.refresh()

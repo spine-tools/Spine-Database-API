@@ -612,9 +612,9 @@ def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None, 
         db_url (str): the URL of a Spine DB.
         upgrade (bool): Whether to upgrade the DB to the last revision.
         memory (bool): Whether to use an in-memory database together with a persistent connection.
-        server_manager_queue (Queue,optional): A queue that can be used to control order of writing.
+        server_manager_queue (Queue, optional): A queue that can be used to control order of writing.
             Only needed if you also specify `ordering` below.
-        ordering (dict,optional): A dictionary specifying an ordering to be followed by multiple concurrent servers
+        ordering (dict, optional): A dictionary specifying an ordering to be followed by multiple concurrent servers
             writing to the same DB. It must have the following keys:
                 - "id": an identifier for the ordering, shared by all the servers in the ordering.
                 - "current": an identifier for this server within the ordering.

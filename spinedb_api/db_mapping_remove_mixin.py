@@ -53,16 +53,6 @@ class DatabaseMappingRemoveMixin:
         table_cache = self.cache.table_cache(tablename)
         return [table_cache.restore_item(id_) for id_ in ids]
 
-    def remove_item(self, tablename, id_):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        return table_cache.remove_item(id_)
-
-    def restore_item(self, tablename, id_):
-        tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        return table_cache.restore_item(id_)
-
     def purge_items(self, tablename):
         """Removes all items from given table.
 
