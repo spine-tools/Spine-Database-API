@@ -105,7 +105,7 @@ class DatabaseMappingBase:
         self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
-        self._original_engine = self._create_engine(
+        self._original_engine = self.create_engine(
             self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
