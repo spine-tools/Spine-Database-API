@@ -75,16 +75,16 @@ class DatabaseMapping(
     These methods also fetch data from the DB into the in-memory mapping to perform the necessary integrity checks
     (unique and foreign key constraints).
 
-    The :attr:`item_types` property contains the supported item types (equivalent to the table names in the DB).
-
-    To retrieve an item or to manipulate it, you typically need to specify certain fields.
-    The :meth:`describe_item_type` method is provided to help you with this.
-
     Modifications to the in-memory mapping are committed (written) to the DB via :meth:`commit_session`,
     or rolled back (discarded) via :meth:`rollback_session`.
 
     The DB fetch status is reset via :meth:`refresh_session`.
     This allows new items in the DB (added by other clients in the meantime) to be retrieved as well.
+
+    The :attr:`item_types` property contains the supported item types (equivalent to the table names in the DB).
+
+    To retrieve an item or to manipulate it, you typically need to specify certain fields.
+    The :meth:`describe_item_type` method is provided to help you with this.
 
     You can also control the fetching process via :meth:`fetch_more` and/or :meth:`fetch_all`.
     For example, a UI application might want to fetch data in the background so the UI is not blocked in the process.
