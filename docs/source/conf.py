@@ -93,7 +93,7 @@ autoapi_dirs = ['../../spinedb_api']  # package to be documented
 autoapi_ignore = [
     '*/spinedb_api/alembic/*',
 ]  # ignored modules
-autoapi_keep_files = True
+# autoapi_keep_files = True
 
 
 def _skip_member(app, what, name, obj, skip, options):
