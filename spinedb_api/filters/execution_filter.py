@@ -28,7 +28,7 @@ def apply_execution_filter(db_map, execution):
     Replaces the import alternative in ``db_map`` with a dedicated alternative for an execution.
 
     Args:
-        db_map (DatabaseMappingBase): a database map to alter
+        db_map (DatabaseMapping): a database map to alter
         execution (dict): execution descriptor
     """
     state = _ExecutionFilterState(db_map, execution)
@@ -54,7 +54,7 @@ def execution_filter_from_dict(db_map, config):
     Applies execution filter to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): execution filter configuration
     """
     apply_execution_filter(db_map, config["execution"])
@@ -116,7 +116,7 @@ class _ExecutionFilterState:
     def __init__(self, db_map, execution):
         """
         Args:
-            db_map (DatabaseMappingBase): database the state applies to
+            db_map (DatabaseMapping): database the state applies to
             execution (dict): execution descriptor
         """
         self.original_create_import_alternative = db_map._create_import_alternative
@@ -151,7 +151,7 @@ def _create_import_alternative(db_map, state):
     Creates an alternative to use as default for all import operations on the given db_map.
 
     Args:
-        db_map (DatabaseMappingBase): database the state applies to
+        db_map (DatabaseMapping): database the state applies to
         state (_ExecutionFilterState): a state bound to ``db_map``
     """
     execution_item = state.execution_item

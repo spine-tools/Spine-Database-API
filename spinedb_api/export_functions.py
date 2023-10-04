@@ -77,26 +77,26 @@ def export_data(
 def _get_items(db_map, tablename, ids):
     if not ids:
         return ()
-    _process_item = _make_item_processor(db_map.cache, tablename)
-    for item in _get_items_from_cache(db_map.cache, tablename, ids):
+    _process_item = _make_item_processor(db_map, tablename)
+    for item in _get_items_from_db_map(db_map, tablename, ids):
         yield from _process_item(item)
 
 
-def _get_items_from_cache(cache, tablename, ids):
+def _get_items_from_db_map(db_map, tablename, ids):
     if ids is Asterisk:
-        cache.fetch_all(tablename)
-        yield from cache.table_cache(tablename).valid_values()
+        db_map.fetch_all(tablename)
+        yield from db_map.mapped_table(tablename).valid_values()
         return
     for id_ in ids:
-        item = cache.get_item(tablename, id_) or cache.fetch_ref(tablename, id_)
+        item = db_map.get_item(tablename, id=id_)
         if item.is_valid():
             yield item
 
 
-def _make_item_processor(cache, tablename):
+def _make_item_processor(db_map, tablename):
     if tablename == "parameter_value_list":
-        cache.fetch_all("list_value")
-        return _ParameterValueListProcessor(cache.table_cache("list_value").valid_values())
+        db_map.fetch_all("list_value")
+        return _ParameterValueListProcessor(db_map.mapped_table("list_value").valid_values())
     return lambda item: (item,)
 
 

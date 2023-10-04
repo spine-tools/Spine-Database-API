@@ -26,7 +26,7 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     Replaces parameter value subquery properties in ``db_map`` such that they return only values of given alternatives.
 
     Args:
-        db_map (DatabaseMappingBase): a database map to alter
+        db_map (DatabaseMapping): a database map to alter
         alternatives (Iterable of str or int, optional): alternative names or ids;
     """
     state = _AlternativeFilterState(db_map, alternatives)
@@ -52,7 +52,7 @@ def alternative_filter_from_dict(db_map, config):
     Applies alternative filter to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): alternative filter configuration
     """
     apply_alternative_filter_to_parameter_value_sq(db_map, config["alternatives"])
@@ -117,7 +117,7 @@ class _AlternativeFilterState:
     def __init__(self, db_map, alternatives):
         """
         Args:
-            db_map (DatabaseMappingBase): database the state applies to
+            db_map (DatabaseMapping): database the state applies to
             alternatives (Iterable of str or int): alternative names or ids;
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
@@ -129,7 +129,7 @@ class _AlternativeFilterState:
         Finds ids for given alternatives.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             alternatives (Iterable): alternative names or ids
 
         Returns:
@@ -160,12 +160,12 @@ class _AlternativeFilterState:
 
 def _make_alternative_filtered_parameter_value_sq(db_map, state):
     """
-    Returns an alternative filtering subquery similar to :func:`DatabaseMappingBase.parameter_value_sq`.
+    Returns an alternative filtering subquery similar to :func:`DatabaseMapping.parameter_value_sq`.
 
-    This function can be used as replacement for parameter value subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for parameter value subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_AlternativeFilterState): a state bound to ``db_map``
 
     Returns:

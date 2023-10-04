@@ -455,19 +455,19 @@ def import_relationship_parameter_value_metadata(db_map, data):
 
 
 def _get_items_for_import(db_map, item_type, data, check_skip_keys=()):
-    table_cache = db_map.cache.table_cache(item_type)
+    mapped_table = db_map.mapped_table(item_type)
     errors = []
     to_add = []
     to_update = []
     seen = {}
     for item in data:
-        checked_item, add_error = table_cache.check_item(item, skip_keys=check_skip_keys)
+        checked_item, add_error = mapped_table.check_item(item, skip_keys=check_skip_keys)
         if not add_error:
             if not _check_unique(item_type, checked_item, seen, errors):
                 continue
             to_add.append(checked_item)
             continue
-        checked_item, update_error = table_cache.check_item(item, for_update=True, skip_keys=check_skip_keys)
+        checked_item, update_error = mapped_table.check_item(item, for_update=True, skip_keys=check_skip_keys)
         if not update_error:
             if checked_item:
                 if not _check_unique(item_type, checked_item, seen, errors):
@@ -567,7 +567,7 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
                 "value": None,
                 "type": None,
             }
-            pv = db_map.cache.table_cache("parameter_value").find_item(item)
+            pv = db_map.mapped_table("parameter_value").find_item(item)
             if pv is not None:
                 value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
             item.update({"value": value, "type": type_})
@@ -593,7 +593,7 @@ def _get_scenarios_for_import(db_map, data):
 def _get_scenario_alternatives_for_import(db_map, data):
     alt_name_list_by_scen_name, errors = {}, []
     for scen_name, alt_name, *optionals in data:
-        scen = db_map.cache.table_cache("scenario").find_item({"name": scen_name})
+        scen = db_map.mapped_table("scenario").find_item({"name": scen_name})
         if scen is None:
             errors.append(f"no scenario with name {scen_name} to set alternatives for")
             continue
@@ -632,11 +632,11 @@ def _get_list_values_for_import(db_map, data, unparse_value):
             value, type_ = unparse_value(value)
             index = index_by_list_name.get(list_name)
             if index is None:
-                current_list = db_map.cache.table_cache("parameter_value_list").find_item({"name": list_name})
+                current_list = db_map.mapped_table("parameter_value_list").find_item({"name": list_name})
                 index = max(
                     (
                         x["index"]
-                        for x in db_map.cache.table_cache("list_value").valid_values()
+                        for x in db_map.mapped_table("list_value").valid_values()
                         if x["parameter_value_list_id"] == current_list["id"]
                     ),
                     default=-1,

@@ -25,7 +25,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
 
     Args:
         root_mapping (Mapping): root export mapping
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         fixed_state (dict, optional): mapping state that fixes items
         empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
         group_fn (str): group function name
@@ -98,7 +98,7 @@ def titles(root_mapping, db_map, limit=None):
 
     Args:
         root_mapping (Mapping): root export mapping
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
 
     Yield:
         tuple: title and title's fixed key

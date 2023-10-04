@@ -27,7 +27,7 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     Replaces affected subqueries in ``db_map`` such that they return only values of given scenario.
 
     Args:
-        db_map (DatabaseMappingBase): a database map to alter
+        db_map (DatabaseMapping): a database map to alter
         scenario (str or int): scenario name or id
     """
     state = _ScenarioFilterState(db_map, scenario)
@@ -63,7 +63,7 @@ def scenario_filter_from_dict(db_map, config):
     Applies scenario filter to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): scenario filter configuration
     """
     apply_scenario_filter_to_subqueries(db_map, config["scenario"])
@@ -128,7 +128,7 @@ class _ScenarioFilterState:
     def __init__(self, db_map, scenario):
         """
         Args:
-            db_map (DatabaseMappingBase): database the state applies to
+            db_map (DatabaseMapping): database the state applies to
             scenario (str or int): scenario name or ids
         """
         self.original_entity_sq = db_map.entity_sq
@@ -146,7 +146,7 @@ class _ScenarioFilterState:
         Finds id for given scenario.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             scenario (str or int): scenario name or id
 
         Returns:
@@ -171,7 +171,7 @@ class _ScenarioFilterState:
         Finds scenario alternative and alternative ids of current scenario.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
 
         Returns:
             tuple: scenario alternative ids and alternative ids
@@ -216,12 +216,12 @@ def _ext_entity_sq(db_map, state):
 
 
 def _make_scenario_filtered_entity_element_sq(db_map, state):
-    """Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.entity_element_sq`.
+    """Returns a scenario filtering subquery similar to :func:`DatabaseMapping.entity_element_sq`.
 
-    This function can be used as replacement for entity_element subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for entity_element subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ScenarioFilterState): a state bound to ``db_map``
 
     Returns:
@@ -247,12 +247,12 @@ def _make_scenario_filtered_entity_element_sq(db_map, state):
 
 
 def _make_scenario_filtered_entity_sq(db_map, state):
-    """Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.entity_sq`.
+    """Returns a scenario filtering subquery similar to :func:`DatabaseMapping.entity_sq`.
 
-    This function can be used as replacement for entity subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for entity subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ScenarioFilterState): a state bound to ``db_map``
 
     Returns:
@@ -298,12 +298,12 @@ def _make_scenario_filtered_entity_sq(db_map, state):
 
 def _make_scenario_filtered_parameter_value_sq(db_map, state):
     """
-    Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.parameter_value_sq`.
+    Returns a scenario filtering subquery similar to :func:`DatabaseMapping.parameter_value_sq`.
 
-    This function can be used as replacement for parameter value subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for parameter value subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ScenarioFilterState): a state bound to ``db_map``
 
     Returns:
@@ -330,12 +330,12 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
 
 def _make_scenario_filtered_alternative_sq(db_map, state):
     """
-    Returns an alternative filtering subquery similar to :func:`DatabaseMappingBase.alternative_sq`.
+    Returns an alternative filtering subquery similar to :func:`DatabaseMapping.alternative_sq`.
 
-    This function can be used as replacement for alternative subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for alternative subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ScenarioFilterState): a state bound to ``db_map``
 
     Returns:
@@ -347,12 +347,12 @@ def _make_scenario_filtered_alternative_sq(db_map, state):
 
 def _make_scenario_filtered_scenario_sq(db_map, state):
     """
-    Returns a scenario filtering subquery similar to :func:`DatabaseMappingBase.scenario_sq`.
+    Returns a scenario filtering subquery similar to :func:`DatabaseMapping.scenario_sq`.
 
-    This function can be used as replacement for scenario subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for scenario subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ScenarioFilterState): a state bound to ``db_map``
 
     Returns:
@@ -364,12 +364,12 @@ def _make_scenario_filtered_scenario_sq(db_map, state):
 
 def _make_scenario_filtered_scenario_alternative_sq(db_map, state):
     """
-    Returns a scenario alternative filtering subquery similar to :func:`DatabaseMappingBase.scenario_alternative_sq`.
+    Returns a scenario alternative filtering subquery similar to :func:`DatabaseMapping.scenario_alternative_sq`.
 
-    This function can be used as replacement for scenario alternative subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for scenario alternative subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ScenarioFilterState): a state bound to ``db_map``
 
     Returns:

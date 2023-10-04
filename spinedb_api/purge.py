@@ -20,20 +20,6 @@ from .filters.tools import clear_filter_configs
 from .helpers import remove_credentials_from_url
 
 
-def _ids_for_item_type(db_map, item_type):
-    """Queries ids for given database item type.
-
-    Args:
-        db_map (DatabaseMapping): database map
-        item_type (str): database item type
-
-    Returns:
-        set of int: item ids
-    """
-    sq_attr = db_map.cache_sqs[item_type]
-    return {row.id for row in db_map.query(getattr(db_map, sq_attr))}
-
-
 def purge_url(url, purge_settings, logger=None):
     """Removes all items of selected types from the database at a given URL.
 

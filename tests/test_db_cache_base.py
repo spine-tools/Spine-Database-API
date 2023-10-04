@@ -10,10 +10,10 @@
 ######################################################################################################################
 import unittest
 
-from spinedb_api.db_cache_base import CacheItemBase, DBCacheBase
+from spinedb_api.db_mapping_base import MappedItemBase, DatabaseMappingBase
 
 
-class TestCache(DBCacheBase):
+class TestDBMapping(DatabaseMappingBase):
     @property
     def item_types(self):
         return ["cutlery"]
@@ -21,51 +21,51 @@ class TestCache(DBCacheBase):
     @staticmethod
     def item_factory(item_type):
         if item_type == "cutlery":
-            return CacheItemBase
+            return MappedItemBase
         raise RuntimeError(f"unknown item_type '{item_type}'")
 
 
 class TestDBCacheBase(unittest.TestCase):
     def test_rolling_back_new_item_invalidates_its_id(self):
-        cache = TestCache()
-        table_cache = cache.table_cache("cutlery")
-        item = table_cache.add_item({}, new=True)
+        db_map = TestDBMapping()
+        mapped_table = db_map.mapped_table("cutlery")
+        item = mapped_table.add_item({}, new=True)
         self.assertTrue(item.is_id_valid)
         self.assertIn("id", item)
         id_ = item["id"]
-        cache.rollback()
+        db_map.rollback()
         self.assertFalse(item.is_id_valid)
         self.assertEqual(item["id"], id_)
 
 
 class TestTableCache(unittest.TestCase):
     def test_readding_item_with_invalid_id_creates_new_id(self):
-        cache = TestCache()
-        table_cache = cache.table_cache("cutlery")
-        item = table_cache.add_item({}, new=True)
+        db_map = TestDBMapping()
+        mapped_table = db_map.mapped_table("cutlery")
+        item = mapped_table.add_item({}, new=True)
         id_ = item["id"]
-        cache.rollback()
+        db_map.rollback()
         self.assertFalse(item.is_id_valid)
-        table_cache.add_item(item, new=True)
+        mapped_table.add_item(item, new=True)
         self.assertTrue(item.is_id_valid)
         self.assertNotEqual(item["id"], id_)
 
 
-class TestCacheItemBase(unittest.TestCase):
+class TestMappedItemBase(unittest.TestCase):
     def test_id_is_valid_initially(self):
-        cache = TestCache()
-        item = CacheItemBase(cache, "cutlery")
+        db_map = TestDBMapping()
+        item = MappedItemBase(db_map, "cutlery")
         self.assertTrue(item.is_id_valid)
 
     def test_id_can_be_invalidated(self):
-        cache = TestCache()
-        item = CacheItemBase(cache, "cutlery")
+        db_map = TestDBMapping()
+        item = MappedItemBase(db_map, "cutlery")
         item.invalidate_id()
         self.assertFalse(item.is_id_valid)
 
     def test_setting_new_id_validates_it(self):
-        cache = TestCache()
-        item = CacheItemBase(cache, "cutlery")
+        db_map = TestDBMapping()
+        item = MappedItemBase(db_map, "cutlery")
         item.invalidate_id()
         self.assertFalse(item.is_id_valid)
         item["id"] = 23

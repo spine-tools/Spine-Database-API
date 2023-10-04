@@ -115,7 +115,7 @@ Finally, let's specify a parameter value for one of our entities::
 Retrieving data
 ---------------
 
-To retrieve data from the DB, we use :meth:`~.DatabaseMapping.get_item`.
+To retrieve data from the DB (and the in-memory mapping), we use :meth:`~.DatabaseMapping.get_item`.
 For example, let's find one of the entities we inserted above::
 
     felix = db_map.get_item("entity", class_name="cat", name="Felix")
@@ -127,16 +127,14 @@ Above, ``felix`` is a :class:`~.PublicItem` object, representing an item (or row
 Let's find our multi-dimensional entity::
 
     nemo_felix = db_map.get_item("entity", class_name="fish__cat", byname=("Nemo", "Felix"))
-    print(nemo_felix["dimension_name_list"])  # Prints '(fish, cat)'
+    print(nemo_felix["dimension_name_list"])  # Prints "('fish', 'cat')""
 
 To retrieve all the items of a given type, we use :meth:`~.DatabaseMapping.get_items`::
 
     print(entity["byname"] for entity in db_map.get_items("entity"))
     # Prints [("Nemo",), ("Felix",), ("Nemo", "Felix"),]
 
-.. note::
-
-  You should use the above to try and find Nemo!
+Now you should use the above to try and find Nemo.
 
 
 Updating data
@@ -155,10 +153,10 @@ To be safe, let's also change the color::
         entity_class_name="fish",
         parameter_definition_name="color",
         entity_name="NotNemo"
-    ).update(value="definitely purple")
+    ).update(value="not that orange")
 
 
-Note how we need to use then new entity name (``"NotNemo"``) to retrieve the parameter value. This makes sense.
+Note how we need to use then new entity name ``"NotNemo"`` to retrieve the parameter value. This makes sense.
 
 Removing data
 -------------

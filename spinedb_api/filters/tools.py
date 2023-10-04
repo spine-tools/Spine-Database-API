@@ -70,7 +70,7 @@ def apply_filter_stack(db_map, stack):
     Applies stack of filters and manipulator to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         stack (list): a stack of database filters and manipulators
     """
     appliers = {

@@ -14,68 +14,30 @@
 import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
-from .db_cache_base import DBCacheBase, CacheItemBase
+from .db_mapping_base import MappedItemBase
 from .temp_id import TempId
 
 
-class DBCache(DBCacheBase):
-    _sq_name_by_item_type = {
-        "entity_class": "wide_entity_class_sq",
-        "entity": "wide_entity_sq",
-        "entity_alternative": "entity_alternative_sq",
-        "parameter_value_list": "parameter_value_list_sq",
-        "list_value": "list_value_sq",
-        "alternative": "alternative_sq",
-        "scenario": "scenario_sq",
-        "scenario_alternative": "scenario_alternative_sq",
-        "entity_group": "entity_group_sq",
-        "parameter_definition": "parameter_definition_sq",
-        "parameter_value": "parameter_value_sq",
-        "metadata": "metadata_sq",
-        "entity_metadata": "entity_metadata_sq",
-        "parameter_value_metadata": "parameter_value_metadata_sq",
-        "commit": "commit_sq",
-    }
-
-    def __init__(self, db_map):
-        """
-        Args:
-            db_map (DatabaseMapping)
-        """
-        super().__init__()
-        self._db_map = db_map
-
-    @property
-    def item_types(self):
-        return list(self._sq_name_by_item_type)
-
-    @staticmethod
-    def item_factory(item_type):
-        return {
-            "entity_class": EntityClassItem,
-            "entity": EntityItem,
-            "entity_alternative": EntityAlternativeItem,
-            "entity_group": EntityGroupItem,
-            "parameter_definition": ParameterDefinitionItem,
-            "parameter_value": ParameterValueItem,
-            "parameter_value_list": ParameterValueListItem,
-            "list_value": ListValueItem,
-            "alternative": AlternativeItem,
-            "scenario": ScenarioItem,
-            "scenario_alternative": ScenarioAlternativeItem,
-            "metadata": MetadataItem,
-            "entity_metadata": EntityMetadataItem,
-            "parameter_value_metadata": ParameterValueMetadataItem,
-        }.get(item_type, CacheItemBase)
-
-    def query(self, item_type):
-        if self._db_map.closed:
-            return None
-        sq_name = self._sq_name_by_item_type[item_type]
-        return self._db_map.query(getattr(self._db_map, sq_name))
+def item_factory(item_type):
+    return {
+        "entity_class": EntityClassItem,
+        "entity": EntityItem,
+        "entity_alternative": EntityAlternativeItem,
+        "entity_group": EntityGroupItem,
+        "parameter_definition": ParameterDefinitionItem,
+        "parameter_value": ParameterValueItem,
+        "parameter_value_list": ParameterValueListItem,
+        "list_value": ListValueItem,
+        "alternative": AlternativeItem,
+        "scenario": ScenarioItem,
+        "scenario_alternative": ScenarioAlternativeItem,
+        "metadata": MetadataItem,
+        "entity_metadata": EntityMetadataItem,
+        "parameter_value_metadata": ParameterValueMetadataItem,
+    }.get(item_type, MappedItemBase)
 
 
-class EntityClassItem(CacheItemBase):
+class EntityClassItem(MappedItemBase):
     _fields = {
         "name": ("str", "The class name."),
         "dimension_name_list": ("tuple, optional", "The dimension names for a multi-dimensional class."),
@@ -112,7 +74,7 @@ class EntityClassItem(CacheItemBase):
         super().commit(None)
 
 
-class EntityItem(CacheItemBase):
+class EntityItem(MappedItemBase):
     _fields = {
         "class_name": ("str", "The entity class name."),
         "name": ("str, optional", "The entity name - must be given for a zero-dimensional entity."),
@@ -154,13 +116,13 @@ class EntityItem(CacheItemBase):
             return
         base_name = self["class_name"] + "_" + "__".join(self["element_name_list"])
         name = base_name
-        table_cache = self._db_cache.table_cache(self._item_type)
-        while table_cache.unique_key_value_to_id(("class_name", "name"), (self["class_name"], name)) is not None:
+        mapped_table = self._db_cache.mapped_table(self._item_type)
+        while mapped_table.unique_key_value_to_id(("class_name", "name"), (self["class_name"], name)) is not None:
             name = base_name + "_" + uuid.uuid4().hex
         self["name"] = name
 
 
-class EntityGroupItem(CacheItemBase):
+class EntityGroupItem(MappedItemBase):
     _fields = {
         "class_name": ("str", "The entity class name."),
         "group_name": ("str", "The group entity name."),
@@ -187,7 +149,7 @@ class EntityGroupItem(CacheItemBase):
         return super().__getitem__(key)
 
 
-class EntityAlternativeItem(CacheItemBase):
+class EntityAlternativeItem(MappedItemBase):
     _fields = {
         "entity_class_name": ("str", "The entity class name."),
         "entity_byname": (
@@ -216,7 +178,7 @@ class EntityAlternativeItem(CacheItemBase):
     }
 
 
-class ParsedValueBase(CacheItemBase):
+class ParsedValueBase(MappedItemBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._parsed_value = None
@@ -306,7 +268,7 @@ class ParameterDefinitionItem(ParsedValueBase):
         parsed_value = from_database(default_value, default_type)
         if parsed_value is None:
             return
-        list_value_id = self._db_cache.table_cache("list_value").unique_key_value_to_id(
+        list_value_id = self._db_cache.mapped_table("list_value").unique_key_value_to_id(
             ("parameter_value_list_name", "value", "type"), (list_name, default_value, default_type)
         )
         if list_value_id is None:
@@ -327,7 +289,7 @@ class ParameterDefinitionItem(ParsedValueBase):
             and other_parameter_value_list_id != self["parameter_value_list_id"]
             and any(
                 x["parameter_definition_id"] == self["id"]
-                for x in self._db_cache.table_cache("parameter_value").valid_values()
+                for x in self._db_cache.mapped_table("parameter_value").valid_values()
             )
         ):
             del other["parameter_value_list_id"]
@@ -413,7 +375,7 @@ class ParameterValueItem(ParsedValueBase):
         parsed_value = from_database(value, type_)
         if parsed_value is None:
             return
-        list_value_id = self._db_cache.table_cache("list_value").unique_key_value_to_id(
+        list_value_id = self._db_cache.mapped_table("list_value").unique_key_value_to_id(
             ("parameter_value_list_name", "value", "type"), (list_name, value, type_)
         )
         if list_value_id is None:
@@ -431,7 +393,7 @@ class ParameterValueItem(ParsedValueBase):
             list_value_id.add_resolve_callback(callback)
 
 
-class ParameterValueListItem(CacheItemBase):
+class ParameterValueListItem(MappedItemBase):
     _fields = {"name": ("str", "The parameter value list name.")}
     _unique_keys = (("name",),)
 
@@ -456,7 +418,7 @@ class ListValueItem(ParsedValueBase):
             return error
 
 
-class AlternativeItem(CacheItemBase):
+class AlternativeItem(MappedItemBase):
     _fields = {
         "name": ("str", "The alternative name."),
         "description": ("str, optional", "The alternative description."),
@@ -465,7 +427,7 @@ class AlternativeItem(CacheItemBase):
     _unique_keys = (("name",),)
 
 
-class ScenarioItem(CacheItemBase):
+class ScenarioItem(MappedItemBase):
     _fields = {
         "name": ("str", "The scenario name."),
         "description": ("str, optional", "The scenario description."),
@@ -480,11 +442,11 @@ class ScenarioItem(CacheItemBase):
         if key == "alternative_name_list":
             return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
         if key == "sorted_scenario_alternatives":
-            self._db_cache.fetch_all("scenario_alternative")
+            self._db_cache.do_fetch_all("scenario_alternative")
             return sorted(
                 (
                     x
-                    for x in self._db_cache.table_cache("scenario_alternative").valid_values()
+                    for x in self._db_cache.mapped_table("scenario_alternative").valid_values()
                     if x["scenario_id"] == self["id"]
                 ),
                 key=itemgetter("rank"),
@@ -492,7 +454,7 @@ class ScenarioItem(CacheItemBase):
         return super().__getitem__(key)
 
 
-class ScenarioAlternativeItem(CacheItemBase):
+class ScenarioAlternativeItem(MappedItemBase):
     _fields = {
         "scenario_name": ("str", "The scenario name."),
         "alternative_name": ("str", "The alternative name."),
@@ -524,12 +486,12 @@ class ScenarioAlternativeItem(CacheItemBase):
         return super().__getitem__(key)
 
 
-class MetadataItem(CacheItemBase):
+class MetadataItem(MappedItemBase):
     _fields = {"name": ("str", "The metadata entry name."), "value": ("str", "The metadata entry value.")}
     _unique_keys = (("name", "value"),)
 
 
-class EntityMetadataItem(CacheItemBase):
+class EntityMetadataItem(MappedItemBase):
     _fields = {
         "entity_name": ("str", "The entity name."),
         "metadata_name": ("str", "The metadata entry name."),
@@ -547,7 +509,7 @@ class EntityMetadataItem(CacheItemBase):
     }
 
 
-class ParameterValueMetadataItem(CacheItemBase):
+class ParameterValueMetadataItem(MappedItemBase):
     _fields = {
         "parameter_definition_name": ("str", "The parameter name."),
         "entity_byname": (

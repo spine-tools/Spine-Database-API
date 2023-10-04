@@ -19,7 +19,7 @@ access to sockets instead.)
 Typically, you would start the server in a background Python process by specifying the URL of the target Spine DB,
 getting back the URL where the server is listening.
 You can then use that URL in any number of instances of your application that would connect to the server
-- via a socket - and then send requests to retrieve or modify the data in the DB.
+via a socket and then send requests to retrieve or modify the data in the DB.
 
 Requests to the server must be encoded using JSON.
 Each request must be a JSON array with the following elements:

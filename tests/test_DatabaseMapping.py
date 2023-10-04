@@ -46,9 +46,9 @@ IN_MEMORY_DB_URL = "sqlite://"
 class TestDatabaseMappingConstruction(unittest.TestCase):
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
-        with mock.patch("spinedb_api.db_mapping_base.apply_filter_stack") as mock_apply:
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with mock.patch(
-                "spinedb_api.db_mapping_base.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(db_url, create=True)
                 db_map.close()
@@ -58,9 +58,9 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
     def test_construction_with_sqlalchemy_url_and_filters(self):
         db_url = IN_MEMORY_DB_URL + "/?spinedbfilter=fltr1&spinedbfilter=fltr2"
         sa_url = make_url(db_url)
-        with mock.patch("spinedb_api.db_mapping_base.apply_filter_stack") as mock_apply:
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with mock.patch(
-                "spinedb_api.db_mapping_base.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(sa_url, create=True)
                 db_map.close()
@@ -84,7 +84,7 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
                 db_map.close()
 
 
-class TestDatabaseMappingBase(unittest.TestCase):
+class TestDatabaseMapping(unittest.TestCase):
     _db_map = None
 
     @classmethod
@@ -97,9 +97,9 @@ class TestDatabaseMappingBase(unittest.TestCase):
 
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
-        with patch("spinedb_api.db_mapping_base.apply_filter_stack") as mock_apply:
+        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with patch(
-                "spinedb_api.db_mapping_base.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(db_url, create=True)
                 db_map.close()
@@ -109,9 +109,9 @@ class TestDatabaseMappingBase(unittest.TestCase):
     def test_construction_with_sqlalchemy_url_and_filters(self):
         sa_url = URL("sqlite")
         sa_url.query = {"spinedbfilter": ["fltr1", "fltr2"]}
-        with patch("spinedb_api.db_mapping_base.apply_filter_stack") as mock_apply:
+        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
             with patch(
-                "spinedb_api.db_mapping_base.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
+                "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(sa_url, create=True)
                 db_map.close()
@@ -343,7 +343,7 @@ class TestDatabaseMappingBase(unittest.TestCase):
         self.assertEqual(alternative_name, "Base")
 
 
-class TestDatabaseMappingBaseQueries(unittest.TestCase):
+class TestDatabaseMappingQueries(unittest.TestCase):
     def setUp(self):
         self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
@@ -2217,10 +2217,10 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         import_functions.import_object_classes(self._db_map, ("second_class",))
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"my_class", "second_class"})
         self._db_map.rollback_session()
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"my_class"})
         with self.assertRaises(SpineDBAPIError):
             # Nothing to commit
@@ -2230,10 +2230,10 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         self._db_map.remove_items("entity_class", 1)
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, set())
         self._db_map.rollback_session()
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"my_class"})
         with self.assertRaises(SpineDBAPIError):
             # Nothing to commit
@@ -2243,10 +2243,10 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         self._db_map.get_item("entity_class", name="my_class").update(name="new_name")
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"new_name"})
         self._db_map.rollback_session()
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"my_class"})
         with self.assertRaises(SpineDBAPIError):
             # Nothing to commit
@@ -2256,33 +2256,33 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         import_functions.import_object_classes(self._db_map, ("second_class",))
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"my_class", "second_class"})
         self._db_map.refresh_session()
         self._db_map.fetch_all()
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"my_class", "second_class"})
 
     def test_refresh_removal(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         self._db_map.remove_items("entity_class", 1)
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, set())
         self._db_map.refresh_session()
         self._db_map.fetch_all()
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, set())
 
     def test_refresh_update(self):
         import_functions.import_object_classes(self._db_map, ("my_class",))
         self._db_map.commit_session("test commit")
         self._db_map.get_item("entity_class", name="my_class").update(name="new_name")
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"new_name"})
         self._db_map.refresh_session()
         self._db_map.fetch_all()
-        entity_class_names = {x["name"] for x in self._db_map.cache.table_cache("entity_class").valid_values()}
+        entity_class_names = {x["name"] for x in self._db_map.mapped_table("entity_class").valid_values()}
         self.assertEqual(entity_class_names, {"new_name"})
 
     def test_cascade_remove_unfetched(self):
@@ -2290,7 +2290,7 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         import_functions.import_objects(self._db_map, (("my_class", "my_object"),))
         self._db_map.commit_session("test commit")
         self._db_map.refresh_session()
-        self._db_map.cache.clear()
+        self._db_map.clear()
         self._db_map.remove_items("entity_class", 1)
         self._db_map.commit_session("test commit")
         ents = self._db_map.query(self._db_map.entity_sq).all()

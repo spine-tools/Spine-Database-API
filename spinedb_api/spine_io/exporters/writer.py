@@ -27,7 +27,7 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
     Writes given mapping.
 
     Args:
-        db_map (DatabaseMappingBase): database map
+        db_map (DatabaseMapping): database map
         writer (Writer): target writer
         mappings (Mapping): root mappings
         empty_data_header (bool or Iterable of bool): True to write at least header rows even if there is no data,

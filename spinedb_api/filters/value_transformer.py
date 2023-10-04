@@ -31,7 +31,7 @@ def apply_value_transform_to_parameter_value_sq(db_map, instructions):
     Applies renaming to parameter definition subquery.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         instructions (dict): mapping from entity class name to mapping from parameter name to list of
             instructions
     """
@@ -59,7 +59,7 @@ def value_transformer_from_dict(db_map, config):
     Applies value transformer manipulator to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): transformer configuration
     """
     apply_value_transform_to_parameter_value_sq(db_map, config["instructions"])
@@ -120,7 +120,7 @@ class _ValueTransformerState:
     def __init__(self, db_map, instructions):
         """
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             instructions (dict): mapping from entity class name to parameter name to list of instructions
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
@@ -131,7 +131,7 @@ class _ValueTransformerState:
         """Transforms applicable parameter values for caching.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             instructions (dict): mapping from entity class name to parameter name to list of instructions
 
         Returns:
@@ -164,7 +164,7 @@ def _make_parameter_value_transforming_sq(db_map, state):
     Returns subquery which applies transformations to parameter values.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ValueTransformerState): state
 
     Returns:

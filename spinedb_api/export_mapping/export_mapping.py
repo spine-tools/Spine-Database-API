@@ -179,7 +179,7 @@ class ExportMapping(Mapping):
         The base class implementation just returns the same query without adding any new columns.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             query (Alias or dict)
 
         Returns:
@@ -193,7 +193,7 @@ class ExportMapping(Mapping):
         The base class implementation just returns the same query without applying any new filters.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             query (Alias or dict)
 
         Returns:
@@ -221,7 +221,7 @@ class ExportMapping(Mapping):
         """Builds and returns the query to run for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             title_state (dict)
 
         Returns:
@@ -251,7 +251,7 @@ class ExportMapping(Mapping):
         """Builds and returns the query to get titles for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMappingBase): database mapping
+            db_map (DatabaseMapping): database mapping
 
         Returns:
             Alias: title query
@@ -275,7 +275,7 @@ class ExportMapping(Mapping):
         """Builds the header query for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMappingBase): database mapping
+            db_map (DatabaseMapping): database mapping
             title_state (dict): title state
             buddies (list of tuple): pairs of buddy mappings
 
@@ -413,7 +413,7 @@ class ExportMapping(Mapping):
         """Yields rows issued by this mapping and its children combined.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             title_state (dict)
 
         Returns:
@@ -498,7 +498,7 @@ class ExportMapping(Mapping):
         """Yields all titles, not necessarily unique, and associated state dictionaries.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             limit (int, optional): yield only this many items
 
         Yields:
@@ -512,7 +512,7 @@ class ExportMapping(Mapping):
         """Yields unique titles and associated state dictionaries.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             limit (int, optional): yield only this many items
 
         Yields:
@@ -540,7 +540,7 @@ class ExportMapping(Mapping):
 
         Args:
             build_header_query (callable): a function that any mapping in the hierarchy can call to get the query
-            db_map (DatabaseMappingBase): database map
+            db_map (DatabaseMapping): database map
             title_state (dict): title state
             buddies (list of tuple): buddy mappings
 
@@ -567,7 +567,7 @@ class ExportMapping(Mapping):
         """Returns the header for this mapping.
 
         Args:
-            db_map (DatabaseMappingBase): database map
+            db_map (DatabaseMapping): database map
             title_state (dict): title state
             buddies (list of tuple): buddy mappings
 

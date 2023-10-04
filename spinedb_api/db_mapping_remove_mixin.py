@@ -36,22 +36,22 @@ class DatabaseMappingRemoveMixin:
         if not ids:
             return []
         tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
+        mapped_table = self.mapped_table(tablename)
         if Asterisk in ids:
-            self.cache.fetch_all(tablename)
-            ids = table_cache
+            self.fetch_all(tablename)
+            ids = mapped_table
         ids = set(ids)
         if tablename == "alternative":
             # Do not remove the Base alternative
             ids.discard(1)
-        return [table_cache.remove_item(id_) for id_ in ids]
+        return [mapped_table.remove_item(id_) for id_ in ids]
 
     def restore_items(self, tablename, *ids):
         if not ids:
             return []
         tablename = self._real_tablename(tablename)
-        table_cache = self.cache.table_cache(tablename)
-        return [table_cache.restore_item(id_) for id_ in ids]
+        mapped_table = self.mapped_table(tablename)
+        return [mapped_table.restore_item(id_) for id_ in ids]
 
     def purge_items(self, tablename):
         """Removes all items from given table.
@@ -97,9 +97,9 @@ class DatabaseMappingRemoveMixin:
 
     def remove_unused_metadata(self):
         used_metadata_ids = set()
-        for x in self.cache.table_cache("entity_metadata").valid_values():
+        for x in self.mapped_table("entity_metadata").valid_values():
             used_metadata_ids.add(x["metadata_id"])
-        for x in self.cache.table_cache("parameter_value_metadata").valid_values():
+        for x in self.mapped_table("parameter_value_metadata").valid_values():
             used_metadata_ids.add(x["metadata_id"])
-        unused_metadata_ids = {x["id"] for x in self.cache.table_cache("metadata").valid_values()} - used_metadata_ids
+        unused_metadata_ids = {x["id"] for x in self.mapped_table("metadata").valid_values()} - used_metadata_ids
         self.remove_items("metadata", *unused_metadata_ids)

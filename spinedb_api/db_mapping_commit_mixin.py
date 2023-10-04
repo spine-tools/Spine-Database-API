@@ -26,7 +26,7 @@ class DatabaseMappingCommitMixin:
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
-        dirty_items = self.cache.dirty_items()
+        dirty_items = self.dirty_items()
         if not dirty_items:
             raise SpineDBAPIError("Nothing to commit.")
         user = self.username
@@ -50,11 +50,11 @@ class DatabaseMappingCommitMixin:
 
     def rollback_session(self):
         """Discards all the changes from the in-memory mapping."""
-        if not self.cache.rollback():
+        if not self.rollback():
             raise SpineDBAPIError("Nothing to rollback.")
         if self._memory:
             self._memory_dirty = False
 
     def refresh_session(self):
         """Resets the fetch status so new items from the DB can be retrieved."""
-        self.cache.refresh()
+        self.refresh()
