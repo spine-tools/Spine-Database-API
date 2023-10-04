@@ -103,7 +103,7 @@ class DatabaseMappingBase:
             if item.status in (Status.to_add, Status.to_update)
         }
 
-    def dirty_items(self):
+    def _dirty_items(self):
         """Returns a list of tuples of the form (item_type, (to_add, to_update, to_remove)) corresponding to
         items that have been modified but not yet committed.
 
@@ -141,7 +141,7 @@ class DatabaseMappingBase:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
 
-    def rollback(self):
+    def _rollback(self):
         """Discards uncommitted changes.
 
         Namely, removes all the added items, resets all the updated items, and restores all the removed items.
@@ -149,7 +149,7 @@ class DatabaseMappingBase:
         Returns:
             bool: False if there is no uncommitted items, True if successful.
         """
-        dirty_items = self.dirty_items()
+        dirty_items = self._dirty_items()
         if not dirty_items:
             return False
         to_add_by_type = []
@@ -174,7 +174,7 @@ class DatabaseMappingBase:
                     item.invalidate_id()
         return True
 
-    def refresh(self):
+    def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
         self._offsets.clear()
         self._fetched_item_types.clear()

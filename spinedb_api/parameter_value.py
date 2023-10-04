@@ -12,12 +12,12 @@
 """
 Support utilities and classes to deal with Spine parameter values.
 
-The :func:`from_database` function receives the parameter value and type fields from the database returning
-a float, Datetime, Duration, Array, TimePattern, TimeSeriesFixedResolution,
-TimeSeriesVariableResolution or Map objects.
+The :func:`from_database` function receives a DB representation of a parameter value (value and type) and returns
+a float, str, bool, :class:`DateTime`, :class:`Duration`, :class:`Array`, :class:`TimePattern`,
+:class:`TimeSeriesFixedResolution`, :class:`TimeSeriesVariableResolution` or :class:`Map` object.
 
 The above objects can be converted back to the database format by the :func:`to_database` free function
-or by their `to_database` member functions.
+or by their :meth:`~ParameterValue.to_database` member function.
 
 Individual datetimes are represented as datetime objects from the standard Python library.
 Individual time steps are represented as relativedelta objects from the dateutil package.
@@ -53,10 +53,10 @@ def duration_to_relativedelta(duration):
     Converts a duration to a relativedelta object.
 
     Args:
-        duration (str): a duration specification
+        duration (str): a duration string.
 
     Returns:
-        a relativedelta object corresponding to the given duration
+        :class:`~dateutil.relativedelta.relativedelta`: a relativedelta object corresponding to the given duration.
     """
     try:
         count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
@@ -84,10 +84,10 @@ def relativedelta_to_duration(delta):
     Converts a relativedelta to duration.
 
     Args:
-        delta (relativedelta): the relativedelta to convert
+        delta (:class:`~dateutil.relativedelta.relativedelta`): the relativedelta to convert.
 
     Returns:
-        a duration string
+        str: a duration string
     """
     if delta.seconds > 0:
         seconds = delta.seconds
@@ -119,15 +119,15 @@ def relativedelta_to_duration(delta):
 
 def load_db_value(db_value, value_type=None):
     """
-    Loads a database parameter value into a Python object using JSON.
-    Adds the "type" property to dicts representing complex types.
+    Parses a database representation of a parameter value (value and type) into a Python object, using JSON.
+    If the result is a dict, adds the "type" property to it.
 
     Args:
-        db_value (bytes, optional): a value in the database
-        value_type (str, optional): the type in case of complex ones
+        db_value (bytes, optional): the database value.
+        value_type (str, optional): the value type.
 
     Returns:
-        Any: the parsed parameter value
+        any: the parsed parameter value
     """
     if db_value is None:
         return None
@@ -142,15 +142,14 @@ def load_db_value(db_value, value_type=None):
 
 def dump_db_value(parsed_value):
     """
-    Dumps a Python object into a database parameter value using JSON.
-    Extracts the "type" property from dicts representing complex types.
+    Unparses a Python object into a database representation of a parameter value (value and type), using JSON.
+    If the given object is a dict, extracts the "type" property from it.
 
     Args:
-        parsed_value (Any): the Python object
+        parsed_value (any): a Python object, typically obtained by calling :func:`load_db_value`.
 
     Returns:
-        str: the database parameter value
-        str: the type
+        tuple(str,str): database representation (value and type).
     """
     value_type = parsed_value.pop("type") if isinstance(parsed_value, dict) else None
     db_value = json.dumps(parsed_value).encode("UTF8")
@@ -161,14 +160,14 @@ def dump_db_value(parsed_value):
 
 def from_database(database_value, value_type=None):
     """
-    Converts a parameter value from its database representation into an encoded Python object.
+    Converts a database representation of a parameter value (value and type) into an encoded parameter value.
 
     Args:
-        database_value (bytes, optional): a value in the database
-        value_type (str, optional): the type in case of complex ones
+        database_value (bytes, optional): the database value
+        value_type (str, optional): the value type
 
     Returns:
-        Any: the encoded parameter value
+        :class:`ParameterValue`, float, str, bool or None: the encoded parameter value.
     """
     parsed = load_db_value(database_value, value_type)
     if isinstance(parsed, dict):
@@ -182,16 +181,14 @@ def from_database(database_value, value_type=None):
 
 def from_database_to_single_value(database_value, value_type):
     """
-    Converts a value from its database representation into a single value.
-
-    Indexed values get converted to their type string.
+    Same as :func:`from_database`, but in the case of indexed types it returns just the type as a string.
 
     Args:
-        database_value (bytes): a value in the database
-        value_type (str, optional): value's type
+        database_value (bytes): the database value
+        value_type (str, optional): the value type
 
     Returns:
-        Any: single-value representation
+        :class:`ParameterValue`, float, str, bool or None: the encoded parameter value or its type.
     """
     if value_type is None or value_type not in ("map", "time_series", "time_pattern", "array"):
         return from_database(database_value, value_type)
@@ -200,11 +197,11 @@ def from_database_to_single_value(database_value, value_type):
 
 def from_database_to_dimension_count(database_value, value_type):
     """
-    Counts dimensions of value's database representation
+    Counts the dimensions in a database representation of a parameter value (value and type).
 
     Args:
-        database_value (bytes): a value in the database
-        value_type (str, optional): value's type
+        database_value (bytes): the database value
+        value_type (str, optional): the value type
 
     Returns:
         int: number of dimensions
@@ -220,14 +217,13 @@ def from_database_to_dimension_count(database_value, value_type):
 
 def to_database(parsed_value):
     """
-    Converts an encoded Python object into its database representation.
+    Converts an encoded parameter value into its database representation (value and type).
 
     Args:
-        value: the value to convert. It can be the result of either ``load_db_value`` or ``from_database```.
+        value(any): a Python object, typically obtained by calling :func:`load_db_value` or :func:`from_database`.
 
     Returns:
-        bytes: value's database representation as bytes
-        str: the value type
+        tuple(bytes,str): database representation (value and type).
     """
     if hasattr(parsed_value, "to_database"):
         return parsed_value.to_database()
@@ -235,30 +231,30 @@ def to_database(parsed_value):
     return db_value, None
 
 
-def from_dict(value_dict):
+def from_dict(value):
     """
-    Converts a complex (relationship) parameter value from its dictionary representation to a Python object.
+    Converts a dictionary representation of a parameter value into an encoded parameter value.
 
     Args:
-        value_dict (dict): value's dictionary; a parsed JSON object with the "type" key
+        value (dict): the value dictionary including the "type" key.
 
     Returns:
-        the encoded (relationship) parameter value
+        :class:`ParameterValue`, float, str, bool or None: the encoded parameter value.
     """
-    value_type = value_dict["type"]
+    value_type = value["type"]
     try:
         if value_type == "date_time":
-            return _datetime_from_database(value_dict["data"])
+            return _datetime_from_database(value["data"])
         if value_type == "duration":
-            return _duration_from_database(value_dict["data"])
+            return _duration_from_database(value["data"])
         if value_type == "map":
-            return _map_from_database(value_dict)
+            return _map_from_database(value)
         if value_type == "time_pattern":
-            return _time_pattern_from_database(value_dict)
+            return _time_pattern_from_database(value)
         if value_type == "time_series":
-            return _time_series_from_database(value_dict)
+            return _time_series_from_database(value)
         if value_type == "array":
-            return _array_from_database(value_dict)
+            return _array_from_database(value)
         raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
     except KeyError as error:
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
@@ -268,15 +264,15 @@ def fix_conflict(new, old, on_conflict="merge"):
     """Resolves conflicts between parameter values:
 
     Args:
-        new (any): new parameter value to write
-        old (any): existing parameter value in the db
+        new (:class:`ParameterValue`, float, str, bool or None): new parameter value to be written.
+        old (:class:`ParameterValue`, float, str, bool or None): an existing parameter value in the db.
         on_conflict (str): conflict resolution strategy:
-            - 'merge': Merge indexes if possible, otherwise replace
-            - 'replace': Replace old with new
-            - 'keep': keep old
+            - 'merge': Merge indexes if possible, otherwise replace.
+            - 'replace': Replace old with new.
+            - 'keep': Keep old.
 
     Returns:
-        any: a parameter value with conflicts resolved
+        :class:`ParameterValue`, float, str, bool or None: a new parameter value with conflicts resolved.
     """
     funcs = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
     func = funcs.get(on_conflict)
@@ -288,13 +284,14 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 
 def merge(value, other):
-    """Merges other into value, returns the result.
+    """Merges the DB representation of two parameter values.
+
     Args:
-        value (tuple): recipient value and type
-        other (tuple): other value and type
+        value (tuple(bytes,str)): recipient value and type.
+        other (tuple(bytes,str)): other value and type.
 
     Returns:
-        tuple: value and type of merged value
+        tuple(bytes,str): the DB representation of the merged value.
     """
     parsed_value = from_database(*value)
     if not hasattr(parsed_value, "merge"):
@@ -631,7 +628,31 @@ class ListValueRef:
         return json.dumps(self._list_value_id).encode("UTF8"), self.type_()
 
 
-class DateTime:
+class ParameterValue:
+    """Base class for all encoded parameter values."""
+
+    def to_dict(self):
+        """Returns the dictionary representation of this object.
+
+        Returns:
+            dict: a dictionary including the "type" key.
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def type_():
+        raise NotImplementedError()
+
+    def to_database(self):
+        """Returns the database representation of this object as JSON bytes and type.
+
+        Returns:
+            tuple(bytes,str): the DB value and type.
+        """
+        raise NotImplementedError()
+
+
+class DateTime(ParameterValue):
     """A single datetime value."""
 
     VALUE_TYPE = "single value"
@@ -639,7 +660,7 @@ class DateTime:
     def __init__(self, value=None):
         """
         Args:
-            value (DataTime or str or datetime.datetime): a timestamp
+            value (:class:`DateTime` or str or datetime.datetime): a timestamp
         """
         if value is None:
             value = datetime(year=2000, month=1, day=1)
@@ -676,7 +697,6 @@ class DateTime:
         return self._value.isoformat()
 
     def to_dict(self):
-        """Returns the database representation of this object."""
         return {"data": self.value_to_database_data()}
 
     @staticmethod
@@ -684,7 +704,6 @@ class DateTime:
         return "date_time"
 
     def to_database(self):
-        """Returns the database representation of this object as JSON."""
         return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
@@ -693,9 +712,9 @@ class DateTime:
         return self._value
 
 
-class Duration:
+class Duration(ParameterValue):
     """
-    This class represents a duration in time.
+    A duration in time.
 
     Durations are always handled as relativedeltas.
     """
@@ -705,7 +724,7 @@ class Duration:
     def __init__(self, value=None):
         """
         Args:
-            value (str or relativedelta): the time step
+            value (str or :class:`~dateutil.dateutil.relativedelta`): the time step
         """
         if value is None:
             value = relativedelta(hours=1)
@@ -734,7 +753,6 @@ class Duration:
         return relativedelta_to_duration(self._value)
 
     def to_dict(self):
-        """Returns the database representation of the duration."""
         return {"data": self.value_to_database_data()}
 
     @staticmethod
@@ -742,7 +760,6 @@ class Duration:
         return "duration"
 
     def to_database(self):
-        """Returns the database representation of the duration as JSON."""
         return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
@@ -784,9 +801,9 @@ class _Indexes(np.ndarray):
         return np.size(self) != 0
 
 
-class IndexedValue:
+class IndexedValue(ParameterValue):
     """
-    An abstract base class for indexed values.
+    Base class for all indexed values.
 
     Attributes:
         index_name (str): index name
@@ -831,7 +848,6 @@ class IndexedValue:
         self._indexes = _Indexes(indexes)
 
     def to_database(self):
-        """Return the database representation of the value."""
         return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
@@ -862,11 +878,6 @@ class IndexedValue:
             self.values[pos] = value
 
     def to_dict(self):
-        """Converts the value to a Python dictionary.
-
-        Returns:
-            dict(): mapping from indexes to values
-        """
         raise NotImplementedError()
 
     def merge(self, other):
@@ -923,7 +934,6 @@ class Array(IndexedValue):
         return "array"
 
     def to_dict(self):
-        """See base class."""
         value_type_id = {
             float: "float",
             str: "str",  # String could also mean time_period but we don't have any way to distinguish that, yet.
@@ -949,7 +959,7 @@ class Array(IndexedValue):
 
 class IndexedNumberArray(IndexedValue):
     """
-    An abstract base class for indexed floats.
+    Abstract base class for all values mapping indexes to floats.
 
     The indexes and numbers are stored in numpy.ndarrays.
     """
@@ -975,12 +985,11 @@ class IndexedNumberArray(IndexedValue):
         raise NotImplementedError()
 
     def to_dict(self):
-        """Return the database representation of the value."""
         raise NotImplementedError()
 
 
 class TimeSeries(IndexedNumberArray):
-    """An abstract base class for time series."""
+    """Abstract base class for time-series values."""
 
     VALUE_TYPE = "time series"
     DEFAULT_INDEX_NAME = "t"
@@ -1093,7 +1102,7 @@ class _TimePatternIndexes(_Indexes):
 
 
 class TimePattern(IndexedNumberArray):
-    """Represents a time pattern (relationship) parameter value."""
+    """A time-pattern parameter value."""
 
     VALUE_TYPE = "time pattern"
     DEFAULT_INDEX_NAME = "p"
@@ -1132,7 +1141,6 @@ class TimePattern(IndexedNumberArray):
         return "time_pattern"
 
     def to_dict(self):
-        """Returns the database representation of this time pattern."""
         value_dict = {"data": dict(zip(self._indexes, self._values))}
         if self.index_name != "p":
             value_dict["index_name"] = self.index_name
@@ -1141,7 +1149,7 @@ class TimePattern(IndexedNumberArray):
 
 class TimeSeriesFixedResolution(TimeSeries):
     """
-    A time series with fixed durations between the time stamps.
+    A time-series value with fixed durations between the time stamps.
 
     When getting the indexes the durations are applied cyclically.
 
@@ -1265,7 +1273,6 @@ class TimeSeriesFixedResolution(TimeSeries):
         self._indexes = None
 
     def to_dict(self):
-        """Returns the value in its database representation."""
         if len(self._resolution) > 1:
             resolution_as_json = [relativedelta_to_duration(step) for step in self._resolution]
         else:
@@ -1285,7 +1292,7 @@ class TimeSeriesFixedResolution(TimeSeries):
 
 
 class TimeSeriesVariableResolution(TimeSeries):
-    """A class representing time series data with variable time steps."""
+    """A time-series value with variable time steps."""
 
     def __init__(self, indexes, values, ignore_year, repeat, index_name=""):
         """
@@ -1327,7 +1334,6 @@ class TimeSeriesVariableResolution(TimeSeries):
         )
 
     def to_dict(self):
-        """Returns the value in its database representation"""
         value_dict = dict()
         value_dict["data"] = {str(index): float(value) for index, value in zip(self._indexes, self._values)}
         # Add "index" entry only if its contents are not set to their default values.
@@ -1388,7 +1394,6 @@ class Map(IndexedValue):
         return "map"
 
     def to_dict(self):
-        """Returns map's database representation."""
         value_dict = {
             "index_type": _map_index_type_to_database(self._index_type),
             "data": self.value_to_database_data(),
@@ -1482,7 +1487,7 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
         map_ (Map): map to convert
         make_square (bool): if True, append None to shorter rows, otherwise leave the row as is
         row_this_far (list, optional): current row; used for recursion
-        empty (Any, optional): object to fill empty cells with
+        empty (any, optional): object to fill empty cells with
 
     Returns:
         list of list: map's rows
