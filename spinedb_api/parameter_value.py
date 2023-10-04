@@ -615,19 +615,6 @@ def _array_from_database(value_dict):
         return Array(data, value_type, index_name)
 
 
-class ListValueRef:
-    def __init__(self, list_value_id):
-        self._list_value_id = list_value_id
-
-    @staticmethod
-    def type_():
-        return "list_value_ref"
-
-    def to_database(self):
-        """Returns the database representation of this object as JSON."""
-        return json.dumps(self._list_value_id).encode("UTF8"), self.type_()
-
-
 class ParameterValue:
     """Base class for all encoded parameter values."""
 
@@ -641,19 +628,36 @@ class ParameterValue:
 
     @staticmethod
     def type_():
+        """Returns the value type for this object.
+
+        Returns:
+            str: the value type.
+        """
         raise NotImplementedError()
 
     def to_database(self):
-        """Returns the database representation of this object as JSON bytes and type.
+        """Returns the database representation of this object (value and type).
 
         Returns:
             tuple(bytes,str): the DB value and type.
         """
-        raise NotImplementedError()
+        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
+
+
+class ListValueRef:
+    def __init__(self, list_value_id):
+        self._list_value_id = list_value_id
+
+    @staticmethod
+    def type_():
+        return "list_value_ref"
+
+    def to_database(self):
+        return json.dumps(self._list_value_id).encode("UTF8"), self.type_()
 
 
 class DateTime(ParameterValue):
-    """A single datetime value."""
+    """A moment in time."""
 
     VALUE_TYPE = "single value"
 
@@ -676,7 +680,6 @@ class DateTime(ParameterValue):
         self._value = value
 
     def __eq__(self, other):
-        """Returns True if other is equal to this object."""
         if not isinstance(other, DateTime):
             return NotImplemented
         return self._value == other._value
@@ -703,12 +706,13 @@ class DateTime(ParameterValue):
     def type_():
         return "date_time"
 
-    def to_database(self):
-        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
-
     @property
     def value(self):
-        """Returns the value as a datetime object."""
+        """The value.
+
+        Returns:
+            :class:`~datetime.datetime`:
+        """
         return self._value
 
 
@@ -716,7 +720,7 @@ class Duration(ParameterValue):
     """
     A duration in time.
 
-    Durations are always handled as relativedeltas.
+    Durations are always handled as :class:`~dateutil.dateutil.relativedelta`s.
     """
 
     VALUE_TYPE = "single value"
@@ -724,7 +728,7 @@ class Duration(ParameterValue):
     def __init__(self, value=None):
         """
         Args:
-            value (str or :class:`~dateutil.dateutil.relativedelta`): the time step
+            value (str or :class:`~dateutil.dateutil.relativedelta`): the duration
         """
         if value is None:
             value = relativedelta(hours=1)
@@ -737,7 +741,6 @@ class Duration(ParameterValue):
         self._value = value
 
     def __eq__(self, other):
-        """Returns True if other is equal to this object."""
         if not isinstance(other, Duration):
             return NotImplemented
         return self._value == other._value
@@ -749,7 +752,7 @@ class Duration(ParameterValue):
         return str(relativedelta_to_duration(self._value))
 
     def value_to_database_data(self):
-        """Returns the 'data' attribute part of Duration's database representation."""
+        """Returns the 'data' property of this object's database representation."""
         return relativedelta_to_duration(self._value)
 
     def to_dict(self):
@@ -758,9 +761,6 @@ class Duration(ParameterValue):
     @staticmethod
     def type_():
         return "duration"
-
-    def to_database(self):
-        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
     @property
     def value(self):
@@ -803,7 +803,7 @@ class _Indexes(np.ndarray):
 
 class IndexedValue(ParameterValue):
     """
-    Base class for all indexed values.
+    Base class for all values that have indexes.
 
     Attributes:
         index_name (str): index name
@@ -814,7 +814,7 @@ class IndexedValue(ParameterValue):
     def __init__(self, index_name):
         """
         Args:
-            index_name (str): index name
+            index_name (str): index name.
         """
         self._indexes = None
         self._values = None
@@ -825,39 +825,46 @@ class IndexedValue(ParameterValue):
         return bool(self.indexes)
 
     def __len__(self):
-        """Returns the number of values."""
         return len(self.indexes)
 
     @staticmethod
     def type_():
-        """Returns a type identifier string.
-
-        Returns:
-            str: type identifier
-        """
         raise NotImplementedError()
 
     @property
     def indexes(self):
-        """Returns the indexes."""
+        """The indexes.
+
+        Returns:
+            :class:`~numpy.ndarray`
+        """
         return self._indexes
 
     @indexes.setter
     def indexes(self, indexes):
-        """Sets the indexes."""
-        self._indexes = _Indexes(indexes)
+        """Sets the indexes.
 
-    def to_database(self):
-        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
+        Args:
+            indexes (:class:`~numpy.ndarray`)
+        """
+        self._indexes = _Indexes(indexes)
 
     @property
     def values(self):
-        """Returns the data values."""
+        """The values.
+
+        Returns:
+            :class:`~numpy.ndarray`
+        """
         return self._values
 
     @values.setter
     def values(self, values):
-        """Sets the values."""
+        """Sets the values.
+
+        Args:
+            values (:class:`~numpy.ndarray`)
+        """
         self._values = values
 
     def get_nearest(self, index):
@@ -865,14 +872,26 @@ class IndexedValue(ParameterValue):
         return self.values[pos]
 
     def get_value(self, index):
-        """Returns the value at the given index."""
+        """Returns the value at a given index.
+
+        Args:
+            index (any): The index.
+
+        Returns:
+            any: The value.
+        """
         pos = self.indexes.position_lookup.get(index)
         if pos is None:
             return None
         return self.values[pos]
 
     def set_value(self, index, value):
-        """Sets the value at the given index."""
+        """Sets the value at a given index.
+
+        Args:
+            index (any): The index.
+            value (any): The value.
+        """
         pos = self.indexes.position_lookup.get(index)
         if pos is not None:
             self.values[pos] = value
@@ -901,10 +920,10 @@ class Array(IndexedValue):
     def __init__(self, values, value_type=None, index_name=""):
         """
         Args:
-            values (Sequence): array's values
-            value_type (Type, optional): array element type; will be deduced from the array if not given
-                and defaults to float if ``values`` is empty
-            index_name (str): index name
+            values (Sequence): the values in the array.
+            value_type (Type, optional): array element type; will be deduced from ``values`` if not given
+                and defaults to float if ``values`` is empty.
+            index_name (str): index name.
         """
         super().__init__(index_name if index_name else Array.DEFAULT_INDEX_NAME)
         if value_type is None:
@@ -953,7 +972,11 @@ class Array(IndexedValue):
 
     @property
     def value_type(self):
-        """Returns the type of array's elements."""
+        """Returns the type of the values.
+
+        Returns:
+            str:
+        """
         return self._value_type
 
 
@@ -961,21 +984,20 @@ class IndexedNumberArray(IndexedValue):
     """
     Abstract base class for all values mapping indexes to floats.
 
-    The indexes and numbers are stored in numpy.ndarrays.
+    The indexes and numbers are stored in :class:`~numpy.ndarray`s.
     """
 
     def __init__(self, index_name, values):
         """
         Args:
-            index_name (str): index name
-            values (Sequence): array's values; index handling should be implemented by subclasses
+            index_name (str): index name.
+            values (Sequence): the values in the array; index handling should be implemented by subclasses.
         """
         super().__init__(index_name)
         self.values = values
 
     @IndexedValue.values.setter
     def values(self, values):
-        """Sets the values."""
         if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
             values = np.array(values, dtype=float)
         self._values = values
@@ -989,7 +1011,7 @@ class IndexedNumberArray(IndexedValue):
 
 
 class TimeSeries(IndexedNumberArray):
-    """Abstract base class for time-series values."""
+    """Abstract base class for time-series."""
 
     VALUE_TYPE = "time series"
     DEFAULT_INDEX_NAME = "t"
@@ -997,10 +1019,10 @@ class TimeSeries(IndexedNumberArray):
     def __init__(self, values, ignore_year, repeat, index_name=""):
         """
         Args:
-            values (Sequence): an array of values
-            ignore_year (bool): True if the year should be ignored in the time stamps
-            repeat (bool): True if the series should be repeated from the beginning
-            index_name (str): index name
+            values (Sequence): the values in the time-series.
+            ignore_year (bool): True if the year should be ignored.
+            repeat (bool): True if the series is repeating.
+            index_name (str): index name.
         """
         if len(values) < 1:
             raise ParameterValueFormatError("Time series too short. Must have one or more values")
@@ -1009,25 +1031,42 @@ class TimeSeries(IndexedNumberArray):
         self._repeat = repeat
 
     def __len__(self):
-        """Returns the number of values."""
         return len(self._values)
 
     @property
     def ignore_year(self):
-        """Returns True if the year should be ignored."""
+        """Whether the year should be ignored.
+
+        Returns:
+            bool:
+        """
         return self._ignore_year
 
     @ignore_year.setter
     def ignore_year(self, ignore_year):
+        """Sets the ignore_year property.
+
+        Args:
+            bool: new value.
+        """
         self._ignore_year = bool(ignore_year)
 
     @property
     def repeat(self):
-        """Returns True if the series should be repeated."""
+        """Whether the series is repeating.
+
+        Returns:
+            bool:
+        """
         return self._repeat
 
     @repeat.setter
     def repeat(self, repeat):
+        """Sets the repeat property.
+
+        Args:
+            bool: new value.
+        """
         self._repeat = bool(repeat)
 
     @staticmethod
@@ -1035,7 +1074,6 @@ class TimeSeries(IndexedNumberArray):
         return "time_series"
 
     def to_dict(self):
-        """Return the database representation of the value."""
         raise NotImplementedError()
 
 
@@ -1111,7 +1149,7 @@ class TimePattern(IndexedNumberArray):
         """
         Args:
             indexes (list): a list of time pattern strings
-            values (Sequence): an array of values corresponding to the time patterns
+            values (Sequence): the value for each time pattern.
             index_name (str): index name
         """
         if len(indexes) != len(values):
@@ -1122,7 +1160,6 @@ class TimePattern(IndexedNumberArray):
         self.indexes = indexes
 
     def __eq__(self, other):
-        """Returns True if other is equal to this object."""
         if not isinstance(other, TimePattern):
             return NotImplemented
         return (
@@ -1133,7 +1170,6 @@ class TimePattern(IndexedNumberArray):
 
     @IndexedNumberArray.indexes.setter
     def indexes(self, indexes):
-        """Sets the indexes."""
         self._indexes = _TimePatternIndexes(indexes, dtype=np.object_)
 
     @staticmethod
@@ -1149,7 +1185,7 @@ class TimePattern(IndexedNumberArray):
 
 class TimeSeriesFixedResolution(TimeSeries):
     """
-    A time-series value with fixed durations between the time stamps.
+    A time-series with fixed durations between the time stamps.
 
     When getting the indexes the durations are applied cyclically.
 
@@ -1162,12 +1198,12 @@ class TimeSeriesFixedResolution(TimeSeries):
     def __init__(self, start, resolution, values, ignore_year, repeat, index_name=""):
         """
         Args:
-            start (str or datetime or datetime64): the first time stamp
-            resolution (str, relativedelta, list): duration(s) between the time stamps
-            values (Sequence): data values at each time stamp
-            ignore_year (bool): whether or not the time-series should apply to any year
-            repeat (bool): whether or not the time series should repeat cyclically
-            index_name (str): index name
+            start (str or :class:`~datetime.datetime` or :class:`numpy.datetime64`): the first time stamp
+            resolution (str, :class:`dateutil.relativedelta.relativedelta`, list): duration(s) between the time stamps.
+            values (Sequence): the values in the time-series.
+            ignore_year (bool): True if the year should be ignored.
+            repeat (bool): True if the series is repeating.
+            index_name (str): index name.
         """
         super().__init__(values, ignore_year, repeat, index_name)
         self._start = None
@@ -1176,7 +1212,6 @@ class TimeSeriesFixedResolution(TimeSeries):
         self.resolution = resolution
 
     def __eq__(self, other):
-        """Returns True if other is equal to this object."""
         if not isinstance(other, TimeSeriesFixedResolution):
             return NotImplemented
         return (
@@ -1211,29 +1246,31 @@ class TimeSeriesFixedResolution(TimeSeries):
 
     @property
     def indexes(self):
-        """Returns the time stamps as a numpy.ndarray of numpy.datetime64 objects."""
         if self._indexes is None:
             self.indexes = self._get_memoized_indexes()
         return IndexedValue.indexes.fget(self)
 
     @indexes.setter
     def indexes(self, indexes):
-        """Sets the indexes."""
         # Needed because we redefine the setter
         self._indexes = _Indexes(indexes)
 
     @property
     def start(self):
-        """Returns the start index."""
+        """Returns the start index.
+
+        Returns:
+            :class:`~numpy.datetime64`:
+        """
         return self._start
 
     @start.setter
     def start(self, start):
         """
-        Sets the start datetime.
+        Sets the start index.
 
         Args:
-            start (datetime or datetime64 or str): the start of the series
+            start (:class:`~datetime.datetime` or :class:`~numpy.datetime64` or str): the start of the series
         """
         if isinstance(start, str):
             try:
@@ -1248,7 +1285,11 @@ class TimeSeriesFixedResolution(TimeSeries):
 
     @property
     def resolution(self):
-        """Returns the resolution as list of durations."""
+        """Returns the resolution as list of durations.
+
+        Returns:
+            list(:class:`Duration`):
+        """
         return self._resolution
 
     @resolution.setter
@@ -1257,7 +1298,7 @@ class TimeSeriesFixedResolution(TimeSeries):
         Sets the resolution.
 
         Args:
-            resolution (str, relativedelta, list): resolution or a list thereof
+            resolution (str, :class:`~.dateutil.relativedelta.relativedelta`, list): resolution or a list thereof
         """
         if isinstance(resolution, str):
             resolution = [duration_to_relativedelta(resolution)]
@@ -1292,16 +1333,16 @@ class TimeSeriesFixedResolution(TimeSeries):
 
 
 class TimeSeriesVariableResolution(TimeSeries):
-    """A time-series value with variable time steps."""
+    """A time-series with variable time steps."""
 
     def __init__(self, indexes, values, ignore_year, repeat, index_name=""):
         """
         Args:
-            indexes (Sequence): time stamps as numpy.datetime64 objects
-            values (Sequence): the values corresponding to the time stamps
-            ignore_year (bool): True if the stamp year should be ignored
-            repeat (bool): True if the series should be repeated from the beginning
-            index_name (str): index name
+            indexes (Sequence(:class:`~numpy.datetime64`)): the time stamps.
+            values (Sequence): the value for each time stamp.
+            ignore_year (bool): True if the year should be ignored.
+            repeat (bool): True if the series is repeating.
+            index_name (str): index name.
         """
         super().__init__(values, ignore_year, repeat, index_name)
         if len(indexes) != len(values):
@@ -1322,7 +1363,6 @@ class TimeSeriesVariableResolution(TimeSeries):
         self.indexes = indexes
 
     def __eq__(self, other):
-        """Returns True if other is equal to this object."""
         if not isinstance(other, TimeSeriesVariableResolution):
             return NotImplemented
         return (
@@ -1355,10 +1395,10 @@ class Map(IndexedValue):
     def __init__(self, indexes, values, index_type=None, index_name=""):
         """
         Args:
-            indexes (Sequence): map's indexes
-            values (Sequence): map's values
-            index_type (type or NoneType): index type or None to deduce from indexes
-            index_name (str): index name
+            indexes (Sequence): the indexes in the map.
+            values (Sequence): the value for each index.
+            index_type (type or NoneType): index type or None to deduce from ``indexes``.
+            index_name (str): index name.
         """
         if not indexes and index_type is None:
             raise ParameterValueFormatError("Cannot deduce index type from empty indexes list.")
@@ -1377,7 +1417,11 @@ class Map(IndexedValue):
         return other._indexes == self._indexes and other._values == self._values and self.index_name == other.index_name
 
     def is_nested(self):
-        """Returns True if any of the values is also a map."""
+        """Whether any of the values is also a map.
+
+        Returns:
+            bool:
+        """
         return any(isinstance(value, Map) for value in self._values)
 
     def value_to_database_data(self):
@@ -1404,10 +1448,10 @@ class Map(IndexedValue):
 
 
 def map_dimensions(map_):
-    """Counts Map's dimensions.
+    """Counts the dimensions in a map.
 
     Args:
-        map_ (Map): a Map
+        map_ (:class:`Map`): the map to process.
 
     Returns:
         int: number of dimensions
@@ -1423,17 +1467,18 @@ def map_dimensions(map_):
 
 def convert_leaf_maps_to_specialized_containers(map_):
     """
-    Converts suitable leaf maps to corresponding specialized containers.
+    Converts leafs to specialized containers.
 
-    Currently supported conversions:
+    Current conversion rules:
 
-    - index_type: :class:`DateTime`, all values ``float`` -> :class"`TimeSeries`
+    - If the ``index_type`` is a :class:`DateTime` and all ``values`` are float,
+      then the leaf is converted to a :class:`TimeSeries`.
 
     Args:
-        map_ (Map): a map to process
+        map_ (:class:`Map`): a map to process.
 
     Returns:
-        IndexedValue: a map with leaves converted or specialized container if map was convertible in itself
+        :class:`IndexedValue`: a new map with leaves converted.
     """
     converted_container = _try_convert_to_container(map_)
     if converted_container is not None:
@@ -1452,13 +1497,13 @@ def convert_containers_to_maps(value):
     """
     Converts indexed values into maps.
 
-    if ``value`` is :class:`Map` converts leaf values into Maps recursively.
+    If ``value`` is a :class:`Map` then converts leaf values into maps recursively.
 
     Args:
-        value (IndexedValue): a value to convert
+        value (:class:`IndexedValue`): an indexed value to convert.
 
     Returns:
-        Map: converted Map
+        :class:`Map`: converted Map
     """
     if isinstance(value, Map):
         if not value:
@@ -1484,10 +1529,10 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
     Converts :class:`Map` into list of rows recursively.
 
     Args:
-        map_ (Map): map to convert
-        make_square (bool): if True, append None to shorter rows, otherwise leave the row as is
-        row_this_far (list, optional): current row; used for recursion
-        empty (any, optional): object to fill empty cells with
+        map_ (:class:`Map`): map to convert.
+        make_square (bool): if True, then pad rows with None so they all have the same length.
+        row_this_far (list, optional): current row; used for recursion.
+        empty (any, optional): object to fill empty cells with.
 
     Returns:
         list of list: map's rows
@@ -1514,13 +1559,13 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
 
 def convert_map_to_dict(map_):
     """
-    Converts :class:`Map` to nested dictionaries.
+    Converts a :class:`Map` to a nested dictionary.
 
     Args:
-        map_ (Map): map to convert
+        map_ (:class:`Map`): map to convert
 
     Returns:
-        dict: Map as a dict
+        dict:
     """
     d = dict()
     for index, x in zip(map_.indexes, map_.values):
@@ -1567,7 +1612,7 @@ def join_value_and_type(db_value, db_type):
         db_type (str, optional): value type
 
     Returns:
-        str: parameter value as JSON with an additional `type` field.
+        str: parameter value as JSON with an additional ``type`` field.
     """
     try:
         parsed = load_db_value(db_value, db_type)
@@ -1578,14 +1623,12 @@ def join_value_and_type(db_value, db_type):
 
 def split_value_and_type(value_and_type):
     """Splits the given string into value and type.
-    The string must be the result of calling ``join_value_and_type`` or have the same form.
 
     Args:
-        value_and_type (str)
+        value_and_type (str): a string joining value and type, as obtained by calling :func:`join_value_and_type`.
 
     Returns:
-        bytes
-        str or NoneType
+        tuple(bytes,str): database value and type.
     """
     try:
         parsed = json.loads(value_and_type)

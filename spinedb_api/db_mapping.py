@@ -51,11 +51,11 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 
 class DatabaseMapping(
-    DatabaseMappingQueryMixin,
     DatabaseMappingAddMixin,
     DatabaseMappingUpdateMixin,
     DatabaseMappingRemoveMixin,
     DatabaseMappingCommitMixin,
+    DatabaseMappingQueryMixin,
     DatabaseMappingBase,
 ):
     """Enables communication with a Spine DB.
@@ -75,8 +75,10 @@ class DatabaseMapping(
     These methods also fetch data from the DB into the in-memory mapping to perform the necessary integrity checks
     (unique and foreign key constraints).
 
+    The :attr:`item_types` property contains the supported item types (equivalent to the table names in the DB).
+
     To retrieve an item or to manipulate it, you typically need to specify certain fields.
-    The :meth:`describe_item_type` method is provided to help you identify these fields.
+    The :meth:`describe_item_type` method is provided to help you with this.
 
     Modifications to the in-memory mapping are committed (written) to the DB via :meth:`commit_session`,
     or rolled back (discarded) via :meth:`rollback_session`.
@@ -90,6 +92,11 @@ class DatabaseMapping(
 
     The :meth:`query` method is also provided as an alternative way to retrieve data from the DB
     while bypassing the in-memory mapping entirely.
+
+    The class is intended to be used as a context manager. For example::
+
+        with DatabaseMapping(db_url) as db_map:
+            print(db_map.item_types)
     """
 
     ITEM_TYPES = (
@@ -367,7 +374,7 @@ class DatabaseMapping(
         self._import_alternative_name = None
 
     def get_filter_configs(self):
-        """Returns filters applicable to this DB mapping.
+        """Returns the filters used to build this DB mapping.
 
         Returns:
             list(dict):
@@ -381,11 +388,16 @@ class DatabaseMapping(
     def get_item(self, item_type, fetch=True, skip_removed=True, **kwargs):
         """Finds and returns and item matching the arguments, or None if none found.
 
+        Example::
+                with DatabaseMapping(db_url) as db_map:
+                    bar = db_map.get_item("entity", class_name="foo", name="bar")
+                    print(bar["description"])  # Prints the description field
+
         Args:
             item_type (str): The type of the item.
             fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
             skip_removed (bool, optional): Whether to ignore removed items.
-            **kwargs: Fields of one of the item type's unique keys and their values for the requested item.
+            **kwargs: Fields and values for one of the unique keys of the item type.
 
         Returns:
             :class:`PublicItem` or None
@@ -400,6 +412,11 @@ class DatabaseMapping(
 
     def get_items(self, item_type, fetch=True, skip_removed=True):
         """Finds and returns and item matching the arguments, or None if none found.
+
+
+        Example::
+                with DatabaseMapping(db_url) as db_map:
+                    all_entities = db_map.get_items("entity")
 
         Args:
             item_type (str): The type of items to get.
