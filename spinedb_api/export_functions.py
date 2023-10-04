@@ -88,7 +88,7 @@ def _get_items_from_db_map(db_map, tablename, ids):
         yield from db_map.mapped_table(tablename).valid_values()
         return
     for id_ in ids:
-        item = db_map.get_item(tablename, id=id_)
+        item = db_map.get_mapped_item(tablename, id_)
         if item.is_valid():
             yield item
 
