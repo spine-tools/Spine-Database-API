@@ -113,7 +113,7 @@ def _process_docstring(app, what, name, obj, options, lines):
         new_lines = []
         for item_type in DatabaseMapping.item_types():
             factory = DatabaseMapping.item_factory(item_type)
-            if not factory._fields:
+            if not factory.fields:
                 continue
             new_lines.extend([item_type, len(item_type) * "-", ""])
             new_lines.extend(
@@ -126,7 +126,7 @@ def _process_docstring(app, what, name, obj, options, lines):
                     "     - value",
                 ]
             )
-            for f_name, (f_type, f_value) in factory._fields.items():
+            for f_name, (f_type, f_value) in factory.fields.items():
                 new_lines.extend([f"   * - {f_name}", f"     - {f_type}", f"     - {f_value}"])
             new_lines.append("")
             new_lines.extend(

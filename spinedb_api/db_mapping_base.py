@@ -448,8 +448,8 @@ class _MappedTable(dict):
 class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
-    _fields = {}
-    """A dictionaty mapping fields to a tuple of (type, description)"""
+    fields = {}
+    """A dictionaty mapping fields to a tuple of (type, value description)"""
     _defaults = {}
     """A dictionary mapping keys to their default values"""
     _unique_keys = ()

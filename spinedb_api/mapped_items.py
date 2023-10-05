@@ -38,7 +38,7 @@ def item_factory(item_type):
 
 
 class EntityClassItem(MappedItemBase):
-    _fields = {
+    fields = {
         "name": ("str", "The class name."),
         "dimension_name_list": ("tuple, optional", "The dimension names for a multi-dimensional class."),
         "description": ("str, optional", "The class description."),
@@ -75,7 +75,7 @@ class EntityClassItem(MappedItemBase):
 
 
 class EntityItem(MappedItemBase):
-    _fields = {
+    fields = {
         "class_name": ("str", "The entity class name."),
         "name": ("str, optional", "The entity name - must be given for a zero-dimensional entity."),
         "element_name_list": ("tuple, optional", "The element names - must be given for a multi-dimensional entity."),
@@ -123,7 +123,7 @@ class EntityItem(MappedItemBase):
 
 
 class EntityGroupItem(MappedItemBase):
-    _fields = {
+    fields = {
         "class_name": ("str", "The entity class name."),
         "group_name": ("str", "The group entity name."),
         "member_name": ("str", "The member entity name."),
@@ -150,7 +150,7 @@ class EntityGroupItem(MappedItemBase):
 
 
 class EntityAlternativeItem(MappedItemBase):
-    _fields = {
+    fields = {
         "entity_class_name": ("str", "The entity class name."),
         "entity_byname": (
             "str or tuple",
@@ -203,7 +203,7 @@ class ParsedValueBase(MappedItemBase):
 
 
 class ParameterDefinitionItem(ParsedValueBase):
-    _fields = {
+    fields = {
         "entity_class_name": ("str", "The entity class name."),
         "name": ("str", "The parameter name."),
         "default_value": ("any, optional", "The default value."),
@@ -301,7 +301,7 @@ class ParameterDefinitionItem(ParsedValueBase):
 
 
 class ParameterValueItem(ParsedValueBase):
-    _fields = {
+    fields = {
         "entity_class_name": ("str", "The entity class name."),
         "parameter_definition_name": ("str", "The parameter name."),
         "entity_byname": (
@@ -394,12 +394,12 @@ class ParameterValueItem(ParsedValueBase):
 
 
 class ParameterValueListItem(MappedItemBase):
-    _fields = {"name": ("str", "The parameter value list name.")}
+    fields = {"name": ("str", "The parameter value list name.")}
     _unique_keys = (("name",),)
 
 
 class ListValueItem(ParsedValueBase):
-    _fields = {
+    fields = {
         "parameter_value_list_name": ("str", "The parameter value list name."),
         "value": ("any", "The value."),
         "type": ("str", "The value type."),
@@ -419,7 +419,7 @@ class ListValueItem(ParsedValueBase):
 
 
 class AlternativeItem(MappedItemBase):
-    _fields = {
+    fields = {
         "name": ("str", "The alternative name."),
         "description": ("str, optional", "The alternative description."),
     }
@@ -428,7 +428,7 @@ class AlternativeItem(MappedItemBase):
 
 
 class ScenarioItem(MappedItemBase):
-    _fields = {
+    fields = {
         "name": ("str", "The scenario name."),
         "description": ("str, optional", "The scenario description."),
         "active": ("bool, optional", "Not in use at the moment."),
@@ -455,7 +455,7 @@ class ScenarioItem(MappedItemBase):
 
 
 class ScenarioAlternativeItem(MappedItemBase):
-    _fields = {
+    fields = {
         "scenario_name": ("str", "The scenario name."),
         "alternative_name": ("str", "The alternative name."),
         "rank": ("int", "The rank - the higher has precedence."),
@@ -487,12 +487,12 @@ class ScenarioAlternativeItem(MappedItemBase):
 
 
 class MetadataItem(MappedItemBase):
-    _fields = {"name": ("str", "The metadata entry name."), "value": ("str", "The metadata entry value.")}
+    fields = {"name": ("str", "The metadata entry name."), "value": ("str", "The metadata entry value.")}
     _unique_keys = (("name", "value"),)
 
 
 class EntityMetadataItem(MappedItemBase):
-    _fields = {
+    fields = {
         "entity_name": ("str", "The entity name."),
         "metadata_name": ("str", "The metadata entry name."),
         "metadata_value": ("str", "The metadata entry value."),
@@ -510,7 +510,7 @@ class EntityMetadataItem(MappedItemBase):
 
 
 class ParameterValueMetadataItem(MappedItemBase):
-    _fields = {
+    fields = {
         "parameter_definition_name": ("str", "The parameter name."),
         "entity_byname": (
             "str or tuple",
