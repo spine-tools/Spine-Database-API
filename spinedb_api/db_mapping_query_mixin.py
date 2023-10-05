@@ -14,7 +14,6 @@ from sqlalchemy import Table, Integer, case, func, cast, and_, or_
 from sqlalchemy.sql.expression import Alias, label
 from sqlalchemy.orm import aliased
 from .helpers import forward_sweep, group_concat
-from .query import Query
 
 
 class DatabaseMappingQueryMixin:
@@ -110,34 +109,6 @@ class DatabaseMappingQueryMixin:
         attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
-
-    def query(self, *args, **kwargs):
-        """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
-
-        To perform custom ``SELECT`` statements, call this method with one or more of the class documented
-        subquery properties (of :class:`~sqlalchemy.sql.expression.Alias` type).
-        For example, to select the entity class with ``id`` equal to 1::
-
-            from spinedb_api import DatabaseMapping
-            url = 'sqlite:///spine.db'
-            ...
-            db_map = DatabaseMapping(url)
-            db_map.query(db_map.entity_class_sq).filter_by(id=1).one_or_none()
-
-        To perform more complex queries, just use the :class:`~spinedb_api.query.Query` interface
-        (which is a close clone of SQL Alchemy's :class:`~sqlalchemy.orm.query.Query`).
-        For example, to select all entity class names and the names of their entities concatenated in a comma-separated
-        string::
-
-            from sqlalchemy import func
-
-            db_map.query(
-                db_map.entity_class_sq.c.name, func.group_concat(db_map.entity_sq.c.name)
-            ).filter(
-                db_map.entity_sq.c.class_id == db_map.entity_class_sq.c.id
-            ).group_by(db_map.entity_class_sq.c.name).all()
-        """
-        return Query(self.engine, *args)
 
     def _subquery(self, tablename):
         """A subquery of the form:

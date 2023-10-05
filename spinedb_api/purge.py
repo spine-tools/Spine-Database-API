@@ -56,7 +56,7 @@ def purge(db_map, purge_settings, logger=None):
     """
     if purge_settings is None:
         # Bring all the pain
-        purge_settings = {item_type: True for item_type in DatabaseMapping.ITEM_TYPES}
+        purge_settings = {item_type: True for item_type in DatabaseMapping.item_types()}
     removable_db_map_data = {item_type for item_type, checked in purge_settings.items() if checked}
     if removable_db_map_data:
         try:

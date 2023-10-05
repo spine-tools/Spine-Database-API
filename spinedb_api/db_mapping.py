@@ -11,17 +11,23 @@
 
 """
 This module defines the :class:`.DatabaseMapping` class.
+
+
+DB mapping schema
+=================
+<db_mapping_schema>
 """
 
 import hashlib
 import os
 import time
 import logging
+from datetime import datetime, timezone
 from types import MethodType
 from sqlalchemy import create_engine, MetaData, inspect
 from sqlalchemy.pool import NullPool
 from sqlalchemy.event import listen
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.exc import DatabaseError, DBAPIError
 from sqlalchemy.engine.url import make_url, URL
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
@@ -33,31 +39,24 @@ from .filters.tools import pop_filter_configs, apply_filter_stack, load_filters
 from .spine_db_client import get_db_url_from_server
 from .mapped_items import item_factory
 from .db_mapping_base import DatabaseMappingBase
-from .db_mapping_query_mixin import DatabaseMappingQueryMixin
-from .db_mapping_add_mixin import DatabaseMappingAddMixin
-from .db_mapping_update_mixin import DatabaseMappingUpdateMixin
-from .db_mapping_remove_mixin import DatabaseMappingRemoveMixin
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
-from .exception import SpineDBAPIError, SpineDBVersionError
+from .db_mapping_query_mixin import DatabaseMappingQueryMixin
+from .exception import SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
+from .query import Query
+from .compatibility import compatibility_transformations
 from .helpers import (
     _create_first_spine_database,
     create_new_spine_database,
     compare_schemas,
     model_meta,
     copy_database_bind,
+    Asterisk,
 )
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 
 
-class DatabaseMapping(
-    DatabaseMappingAddMixin,
-    DatabaseMappingUpdateMixin,
-    DatabaseMappingRemoveMixin,
-    DatabaseMappingCommitMixin,
-    DatabaseMappingQueryMixin,
-    DatabaseMappingBase,
-):
+class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, DatabaseMappingBase):
     """Enables communication with a Spine DB.
 
     The DB is incrementally mapped into memory as data is requested/modified.
@@ -81,11 +80,6 @@ class DatabaseMapping(
     The DB fetch status is reset via :meth:`refresh_session`.
     This allows new items in the DB (added by other clients in the meantime) to be retrieved as well.
 
-    The :attr:`item_types` property contains the supported item types (equivalent to the table names in the DB).
-
-    To retrieve an item or to manipulate it, you typically need to specify certain fields.
-    The :meth:`describe_item_type` method is provided to help you with this.
-
     You can also control the fetching process via :meth:`fetch_more` and/or :meth:`fetch_all`.
     For example, a UI application might want to fetch data in the background so the UI is not blocked in the process.
     In that case they can call e.g. :meth:`fetch_more` asynchronously as the user scrolls or expands the views.
@@ -93,28 +87,8 @@ class DatabaseMapping(
     The :meth:`query` method is also provided as an alternative way to retrieve data from the DB
     while bypassing the in-memory mapping entirely.
 
-    The class is intended to be used as a context manager. For example::
-
-        with DatabaseMapping(db_url) as db_map:
-            print(db_map.item_types)
     """
 
-    ITEM_TYPES = (
-        "entity_class",
-        "entity",
-        "entity_group",
-        "alternative",
-        "scenario",
-        "scenario_alternative",
-        "entity_alternative",
-        "parameter_value_list",
-        "list_value",
-        "parameter_definition",
-        "parameter_value",
-        "metadata",
-        "entity_metadata",
-        "parameter_value_metadata",
-    )
     _sq_name_by_item_type = {
         "entity_class": "wide_entity_class_sq",
         "entity": "wide_entity_sq",
@@ -148,14 +122,14 @@ class DatabaseMapping(
         Args:
             db_url (str or :class:`~sqlalchemy.engine.url.URL`): A URL in RFC-1738 format pointing to the database
                 to be mapped, or to a DB server.
-            username (str, optional): A user name. If not given, it gets replaced by the string ``"anon"``.
-            upgrade (bool, optional): Whether the db at the given URL should be upgraded to the most recent
+            username (str, optional): A user name. If not given, it gets replaced by the string `anon`.
+            upgrade (bool, optional): Whether the DB at the given `url` should be upgraded to the most recent
                 version.
-            codename (str, optional): A name to associate with the DB mapping.
-            create (bool, optional): Whether to create a Spine db at the given URL if it's not one already.
-            apply_filters (bool, optional): Whether to apply filters in the URL's query part.
-            memory (bool, optional): Whether or not to use a sqlite memory db as replacement for this DB map.
-            sqlite_timeout (int, optional): How many seconds to wait before raising connection errors.
+            codename (str, optional): A name to identify this object in your application.
+            create (bool, optional): Whether to create a new Spine DB at the given `url` if it's not already one.
+            apply_filters (bool, optional): Whether to apply filters in the `url`'s query segment.
+            memory (bool, optional): Whether to use a SQLite memory DB as replacement for the original one.
+            sqlite_timeout (int, optional): The number of seconds to wait before raising SQLite connection errors.
         """
         super().__init__()
         # FIXME: We should also check the server memory property and use it here
@@ -188,19 +162,6 @@ class DatabaseMapping(
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
-        # Table primary ids map:
-        self._id_fields = {
-            "entity_class_dimension": "entity_class_id",
-            "entity_element": "entity_id",
-            "object_class": "entity_class_id",
-            "relationship_class": "entity_class_id",
-            "object": "entity_id",
-            "relationship": "entity_id",
-        }
-        self.composite_pks = {
-            "entity_element": ("entity_id", "position"),
-            "entity_class_dimension": ("entity_class_id", "position"),
-        }
 
     def __enter__(self):
         return self
@@ -211,9 +172,9 @@ class DatabaseMapping(
     def __del__(self):
         self.close()
 
-    @property
-    def item_types(self):
-        return list(self._sq_name_by_item_type)
+    @staticmethod
+    def item_types():
+        return list(DatabaseMapping._sq_name_by_item_type)
 
     @staticmethod
     def item_factory(item_type):
@@ -319,13 +280,6 @@ class DatabaseMapping(
         if self._memory_dirty:
             copy_database_bind(self._original_engine, self.engine)
 
-    def _get_primary_key(self, tablename):
-        pk = self.composite_pks.get(tablename)
-        if pk is None:
-            id_field = self._id_fields.get(tablename, "id")
-            pk = (id_field,)
-        return pk
-
     @staticmethod
     def _real_tablename(tablename):
         return {
@@ -386,18 +340,13 @@ class DatabaseMapping(
         return self._metadata.tables[tablename]
 
     def get_item(self, item_type, fetch=True, skip_removed=True, **kwargs):
-        """Finds and returns and item matching the arguments, or None if none found.
-
-        Example::
-                with DatabaseMapping(db_url) as db_map:
-                    bar = db_map.get_item("entity", class_name="foo", name="bar")
-                    print(bar["description"])  # Prints the description field
+        """Finds and returns an item matching the arguments, or None if none found.
 
         Args:
-            item_type (str): The type of the item.
+            item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
             skip_removed (bool, optional): Whether to ignore removed items.
-            **kwargs: Fields and values for one of the unique keys of the item type.
+            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
 
         Returns:
             :class:`PublicItem` or None
@@ -411,20 +360,15 @@ class DatabaseMapping(
         return PublicItem(self, cache_item)
 
     def get_items(self, item_type, fetch=True, skip_removed=True):
-        """Finds and returns and item matching the arguments, or None if none found.
-
-
-        Example::
-                with DatabaseMapping(db_url) as db_map:
-                    all_entities = db_map.get_items("entity")
+        """Finds and returns all the items of one type.
 
         Args:
-            item_type (str): The type of items to get.
+            item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB before returning the items.
             skip_removed (bool, optional): Whether to ignore removed items.
 
         Returns:
-            :class:`PublicItem` or None
+            list(:class:`PublicItem`): The items.
         """
         item_type = self._real_tablename(item_type)
         if fetch and item_type not in self.fetched_item_types:
@@ -436,16 +380,10 @@ class DatabaseMapping(
     def add_item(self, item_type, check=True, **kwargs):
         """Adds an item to the in-memory mapping.
 
-        Example::
-
-                with DatabaseMapping(url) as db_map:
-                    db_map.add_item("entity", class_name="dog", name="Pete")
-
-
         Args:
-            item_type (str): The type of the item.
+            item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
-            **kwargs: Mandatory fields for the item type and their values.
+            **kwargs: Fields and values as specified for the item type in `DB mapping schema`_.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The added item and any errors.
@@ -461,23 +399,42 @@ class DatabaseMapping(
             error,
         )
 
+    def add_items(self, item_type, *items, check=True, strict=False):
+        """Add many items to the in-memory mapping.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values,
+                as specified for the item type in `DB mapping schema`_.
+            check (bool): Whether or not to run integrity checks.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if the insertion of one of the items violates an integrity constraint.
+
+        Returns:
+            tuple(list(:class:`PublicItem`),list(str)): items successfully added and found violations.
+        """
+        added, errors = [], []
+        for item in items:
+            item, error = self.add_item(item_type, check, **item)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+                continue
+            added.append(item)
+        return added, errors
+
     def update_item(self, item_type, check=True, **kwargs):
         """Updates an item in the in-memory mapping.
 
-        Example::
-
-                with DatabaseMapping(url) as db_map:
-                    my_dog = db_map.get_item("entity", class_name="dog", name="Pete")
-                    db_map.update_item("entity", id=my_dog["id], name="Pluto")
-
         Args:
-            item_type (str): The type of the item.
+            item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
             id (int): The id of the item to update.
-            **kwargs: Fields to update and their new values.
+            **kwargs: Fields to update and their new values as specified for the item type in `DB mapping schema`_.
 
         Returns:
-            tuple(:class:`PublicItem` or None, str): The added item and any errors.
+            tuple(:class:`PublicItem` or None, str): The updated item and any errors.
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
@@ -486,6 +443,31 @@ class DatabaseMapping(
             return mapped_table.update_item(kwargs), None
         checked_item, error = mapped_table.check_item(kwargs, for_update=True)
         return (PublicItem(self, mapped_table.update_item(checked_item._asdict())) if checked_item else None, error)
+
+    def update_items(self, item_type, *items, check=True, strict=False):
+        """Updates many items in the in-memory mapping.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values,
+                as specified for the item type in `DB mapping schema`_ and including the `id`.
+            check (bool): Whether or not to run integrity checks.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if the update of one of the items violates an integrity constraint.
+
+        Returns:
+            tuple(list(:class:`PublicItem`),list(str)): items successfully updated and found violations.
+        """
+        updated, errors = [], []
+        for item in items:
+            item, error = self.update_item(item_type, check=check, **item)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+            if item:
+                updated.append(item)
+        return updated, errors
 
     def remove_item(self, item_type, id_):
         """Removes an item from the in-memory mapping.
@@ -498,7 +480,7 @@ class DatabaseMapping(
 
 
         Args:
-            item_type (str): The type of the item.
+            item_type (str): One of <spine_item_types>.
             id (int): The id of the item to remove.
 
         Returns:
@@ -507,6 +489,29 @@ class DatabaseMapping(
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
         return PublicItem(self, mapped_table.remove_item(id_))
+
+    def remove_items(self, item_type, *ids):
+        """Removes many items from the in-memory mapping.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+            *ids (Iterable(int)): Ids of items to be removed.
+
+        Returns:
+            list(:class:`PublicItem`): the removed items.
+        """
+        if not ids:
+            return []
+        item_type = self._real_tablename(item_type)
+        mapped_table = self.mapped_table(item_type)
+        if Asterisk in ids:
+            self.fetch_all(item_type)
+            ids = mapped_table
+        ids = set(ids)
+        if item_type == "alternative":
+            # Do not remove the Base alternative
+            ids.discard(1)
+        return [self.remove_item(item_type, id_) for id_ in ids]
 
     def restore_item(self, item_type, id_):
         """Restores a previously removed item into the in-memory mapping.
@@ -518,7 +523,7 @@ class DatabaseMapping(
                     db_map.restore_item("entity", my_dog["id])
 
         Args:
-            item_type (str): The type of the item.
+            item_type (str): One of <spine_item_types>.
             id (int): The id of the item to restore.
 
         Returns:
@@ -528,11 +533,36 @@ class DatabaseMapping(
         mapped_table = self.mapped_table(item_type)
         return PublicItem(self, mapped_table.restore_item(id_))
 
+    def restore_items(self, item_type, *ids):
+        """Restores many previously removed items into the in-memory mapping.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+            *ids (Iterable(int)): Ids of items to be removed.
+
+        Returns:
+            list(:class:`PublicItem`): the restored items.
+        """
+        if not ids:
+            return []
+        return [self.restore_item(item_type, id_) for id_ in ids]
+
+    def purge_items(self, item_type):
+        """Removes all items of one type.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+
+        Returns:
+            bool: True if operation was successful, False otherwise
+        """
+        return self.remove_items(item_type, Asterisk)
+
     def can_fetch_more(self, item_type):
         """Whether or not more data can be fetched from the DB for the given item type.
 
         Args:
-            item_type (str): The item type (table) to check.
+            item_type (str): One of <spine_item_types>.
 
         Returns:
             bool
@@ -543,7 +573,7 @@ class DatabaseMapping(
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
         Args:
-            item_type (str): The item type (table) to fetch.
+            item_type (str): One of <spine_item_types>.
             limit (int): The maximum number of items to fetch. Successive calls to this function
                 will start from the point where the last one left.
                 In other words, each item is fetched from the DB exactly once.
@@ -559,41 +589,165 @@ class DatabaseMapping(
         Unlike :meth:`fetch_more`, this method fetches entire tables.
 
         Args:
-            *item_types (str): The item types (tables) to fetch. If none given, then the entire DB is fetched.
+            *item_types (Iterable(str)): One or more of <spine_item_types>.
+                If none given, then the entire DB is fetched.
         """
-        item_types = set(self.ITEM_TYPES) if not item_types else set(item_types) & set(self.ITEM_TYPES)
+        item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         for item_type in item_types:
             item_type = self._real_tablename(item_type)
             self.do_fetch_all(item_type)
 
-    def describe_item_type(self, item_type):
-        """Prints a synopsis of the given item type to the stdout.
+    def query(self, *args, **kwargs):
+        """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
+
+        To perform custom ``SELECT`` statements, call this method with one or more of the documented
+        subquery properties of :class:`~spinedb_api.DatabaseMappingQueryMixin` returning
+        :class:`~sqlalchemy.sql.expression.Alias` objetcs.
+        For example, to select the entity class with ``id`` equal to 1::
+
+            from spinedb_api import DatabaseMapping
+            url = 'sqlite:///spine.db'
+            ...
+            db_map = DatabaseMapping(url)
+            db_map.query(db_map.entity_class_sq).filter_by(id=1).one_or_none()
+
+        To perform more complex queries, just use the :class:`~spinedb_api.query.Query` interface
+        (which is a close clone of SQL Alchemy's :class:`~sqlalchemy.orm.query.Query`).
+        For example, to select all entity class names and the names of their entities concatenated in a comma-separated
+        string::
+
+            from sqlalchemy import func
+
+            db_map.query(
+                db_map.entity_class_sq.c.name, func.group_concat(db_map.entity_sq.c.name)
+            ).filter(
+                db_map.entity_sq.c.class_id == db_map.entity_class_sq.c.id
+            ).group_by(db_map.entity_class_sq.c.name).all()
+        """
+        return Query(self.engine, *args)
+
+    def commit_session(self, comment):
+        """Commits the changes from the in-memory mapping to the database.
 
         Args:
-            item_type (str): The type of item to describe.
+            comment (str): commit message
         """
-        factory = self.item_factory(item_type)
-        sections = ("Fields:", "Unique keys:")
-        width = max(len(s) for s in sections) + 4
-        print()
-        print(item_type)
-        print("-" * len(item_type))
-        section = sections[0]
-        field_iter = (f"{field} ({type_}) - {description}" for field, (type_, description) in factory._fields.items())
-        _print_section(section, width, field_iter)
-        print()
-        section = sections[1]
-        unique_key_iter = ("(" + ", ".join(key) + ")" for key in factory._unique_keys)
-        _print_section(section, width, unique_key_iter)
-        print()
+        if not comment:
+            raise SpineDBAPIError("Commit message cannot be empty.")
+        dirty_items = self._dirty_items()
+        if not dirty_items:
+            raise SpineDBAPIError("Nothing to commit.")
+        user = self.username
+        date = datetime.now(timezone.utc)
+        ins = self._metadata.tables["commit"].insert()
+        with self.engine.begin() as connection:
+            try:
+                commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
+            except DBAPIError as e:
+                raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
+            for tablename, (to_add, to_update, to_remove) in dirty_items:
+                for item in to_add + to_update + to_remove:
+                    item.commit(commit_id)
+                # Remove before add, to help with keeping integrity constraints
+                self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
+                self._do_update_items(connection, tablename, *to_update)
+                self._do_add_items(connection, tablename, *to_add)
+            if self._memory:
+                self._memory_dirty = True
+            return compatibility_transformations(connection)
 
+    def rollback_session(self):
+        """Discards all the changes from the in-memory mapping."""
+        if not self._rollback():
+            raise SpineDBAPIError("Nothing to rollback.")
+        if self._memory:
+            self._memory_dirty = False
 
-def _print_section(section, width, iterator):
-    row = next(iterator)
-    bullet = "- "
-    print(f"{section:<{width}}" + bullet + row)
-    for row in iterator:
-        print(" " * width + bullet + row)
+    def refresh_session(self):
+        """Resets the fetch status so new items from the DB can be retrieved."""
+        self._refresh()
+
+    def add_ext_entity_metadata(self, *items, **kwargs):
+        metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
+        self.add_items("metadata", *metadata_items, **kwargs)
+        return self.add_items("entity_metadata", *items, **kwargs)
+
+    def add_ext_parameter_value_metadata(self, *items, **kwargs):
+        metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
+        self.add_items("metadata", *metadata_items, **kwargs)
+        return self.add_items("parameter_value_metadata", *items, **kwargs)
+
+    def get_metadata_to_add_with_item_metadata_items(self, *items):
+        metadata_items = ({"name": item["metadata_name"], "value": item["metadata_value"]} for item in items)
+        return [x for x in metadata_items if not self.mapped_table("metadata").find_item(x)]
+
+    def _update_ext_item_metadata(self, tablename, *items, **kwargs):
+        metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
+        added, errors = self.add_items("metadata", *metadata_items, **kwargs)
+        updated, more_errors = self.update_items(tablename, *items, **kwargs)
+        return added + updated, errors + more_errors
+
+    def update_ext_entity_metadata(self, *items, **kwargs):
+        return self._update_ext_item_metadata("entity_metadata", *items, **kwargs)
+
+    def update_ext_parameter_value_metadata(self, *items, **kwargs):
+        return self._update_ext_item_metadata("parameter_value_metadata", *items, **kwargs)
+
+    def get_data_to_set_scenario_alternatives(self, *scenarios, strict=True):
+        """Returns data to add and remove, in order to set wide scenario alternatives.
+
+        Args:
+            *scenarios: One or more wide scenario :class:`dict` objects to set.
+                Each item must include the following keys:
+
+                - "id": integer scenario id
+                - "alternative_id_list": list of alternative ids for that scenario
+
+        Returns
+            list: scenario_alternative :class:`dict` objects to add.
+            set: integer scenario_alternative ids to remove
+        """
+
+        def _is_equal(to_add, to_rm):
+            return all(to_rm[k] == v for k, v in to_add.items())
+
+        scen_alts_to_add = []
+        scen_alt_ids_to_remove = {}
+        errors = []
+        for scen in scenarios:
+            current_scen = self.mapped_table("scenario").find_item(scen)
+            if current_scen is None:
+                error = f"no scenario matching {scen} to set alternatives for"
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+                continue
+            for k, alternative_id in enumerate(scen.get("alternative_id_list", ())):
+                item_to_add = {"scenario_id": current_scen["id"], "alternative_id": alternative_id, "rank": k + 1}
+                scen_alts_to_add.append(item_to_add)
+            for k, alternative_name in enumerate(scen.get("alternative_name_list", ())):
+                item_to_add = {"scenario_id": current_scen["id"], "alternative_name": alternative_name, "rank": k + 1}
+                scen_alts_to_add.append(item_to_add)
+            for alternative_id in current_scen["alternative_id_list"]:
+                scen_alt = {"scenario_id": current_scen["id"], "alternative_id": alternative_id}
+                current_scen_alt = self.mapped_table("scenario_alternative").find_item(scen_alt)
+                scen_alt_ids_to_remove[current_scen_alt["id"]] = current_scen_alt
+        # Remove items that are both to add and to remove
+        for id_, to_rm in list(scen_alt_ids_to_remove.items()):
+            i = next((i for i, to_add in enumerate(scen_alts_to_add) if _is_equal(to_add, to_rm)), None)
+            if i is not None:
+                del scen_alts_to_add[i]
+                del scen_alt_ids_to_remove[id_]
+        return scen_alts_to_add, set(scen_alt_ids_to_remove), errors
+
+    def remove_unused_metadata(self):
+        used_metadata_ids = set()
+        for x in self.mapped_table("entity_metadata").valid_values():
+            used_metadata_ids.add(x["metadata_id"])
+        for x in self.mapped_table("parameter_value_metadata").valid_values():
+            used_metadata_ids.add(x["metadata_id"])
+        unused_metadata_ids = {x["id"] for x in self.mapped_table("metadata").valid_values()} - used_metadata_ids
+        self.remove_items("metadata", *unused_metadata_ids)
 
 
 class PublicItem:

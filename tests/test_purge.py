@@ -27,7 +27,7 @@ class TestPurgeUrl(unittest.TestCase):
 
     def test_purge_entity_classes(self):
         with DatabaseMapping(self._url, create=True) as db_map:
-            db_map.add_entity_classes({"name": "Soup"})
+            db_map.add_item("entity_class", name="Soup")
             db_map.commit_session("Add test data")
         purge_url(self._url, {"alternative": False, "entity_class": True})
         with DatabaseMapping(self._url) as db_map:

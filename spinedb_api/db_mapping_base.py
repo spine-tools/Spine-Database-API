@@ -34,7 +34,7 @@ class DatabaseMappingBase:
 
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
-    When subclassing, you need to implement :attr:`item_types`, :meth:`item_factory`, and :meth:`make_query`.
+    When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, and :meth:`make_query`.
     """
 
     def __init__(self):
@@ -42,7 +42,7 @@ class DatabaseMappingBase:
         self._offsets = {}
         self._offset_lock = threading.Lock()
         self._fetched_item_types = set()
-        item_types = self.item_types
+        item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
             item_type = item_types.pop(0)
@@ -60,9 +60,9 @@ class DatabaseMappingBase:
         """
         return self._fetched_item_types
 
-    @property
-    def item_types(self):
-        """Returns a list of item types from the DB schema (equivalent to the table names).
+    @staticmethod
+    def item_types():
+        """Returns a list of item types from the DB mapping schema (equivalent to the table names).
 
         Returns:
             list(str)
@@ -131,7 +131,7 @@ class DatabaseMappingBase:
                     # This ensures cascade removal.
                     # FIXME: We should also fetch the current item type because of multi-dimensional entities and
                     # classes which also depend on zero-dimensional ones
-                    for other_item_type in self.item_types:
+                    for other_item_type in self.item_types():
                         if (
                             other_item_type not in self.fetched_item_types
                             and item_type in self.item_factory(other_item_type).ref_types()

@@ -25,8 +25,8 @@ Requests to the server must be encoded using JSON.
 Each request must be a JSON array with the following elements:
 
 #. A JSON string with one of the available request names:
-   ``"get_db_url"``, ``"import_data"``, ``"export_data"``, ``"query"``, ``"filtered_query"``,
-   ``"call_method"``, ``"db_checkin"``, ``"db_checkout"``.
+   ``get_db_url``, ``import_data``, ``export_data``, ``query``, ``filtered_query``, ``apply_filters``,
+   ``clear_filters``, ``call_method``, ``db_checkin``, ``db_checkout``.
 #. A JSON array with positional arguments to the request.
 #. A JSON object with keyword arguments to the request.
 #. A JSON integer indicating the version of the server you want to talk to.
@@ -38,8 +38,8 @@ in the :class:`~spinedb_api.spine_db_client.SpineDBClient` class
 The point of the server version is to allow client developers to adapt to changes in the Spine DB server API.
 Say we update ``spinedb_api`` and change the signature of one of the requests - in this case, we will
 also bump the current server version to the next integer.
-If you then upgrade your ``spinedb_api`` installation but not your client, the server will see the version mismatch
-and will respond that the client is outdated.
+If you then upgrade your ``spinedb_api`` installation but not your client, the server will be able to respond
+with an error message saying that you need to update your client.
 The current server version can be queried by calling :func:`get_current_server_version`.
 
 The order in which multiple servers should write to the same DB can also be controlled using DB servers.

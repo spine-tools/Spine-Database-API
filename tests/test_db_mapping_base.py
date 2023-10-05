@@ -14,8 +14,8 @@ from spinedb_api.db_mapping_base import MappedItemBase, DatabaseMappingBase
 
 
 class TestDBMapping(DatabaseMappingBase):
-    @property
-    def item_types(self):
+    @staticmethod
+    def item_types():
         return ["cutlery"]
 
     @staticmethod

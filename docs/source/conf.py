@@ -14,6 +14,7 @@
 #
 import os
 import sys
+from spinedb_api import DatabaseMapping
 
 root_path = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
 sys.path.insert(0, os.path.abspath(root_path))
@@ -46,7 +47,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.ifconfig',
-    # 'sphinx.ext.viewcode',
+    'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
@@ -85,7 +86,7 @@ exclude_patterns = []
 pygments_style = 'sphinx'
 
 # Settings for Sphinx AutoAPI
-autoapi_options = ['members', 'inherited-members', 'show-module-summary']
+autoapi_options = ['members', 'show-module-summary', 'show-inheritance']
 autoapi_python_class_content = "both"
 autoapi_add_toctree_entry = True
 autoapi_root = "autoapi"
@@ -103,8 +104,53 @@ def _skip_member(app, what, name, obj, skip, options):
     return skip
 
 
+def _process_docstring(app, what, name, obj, options, lines):
+    try:
+        i = lines.index("<db_mapping_schema>")
+    except ValueError:
+        pass
+    else:
+        new_lines = []
+        for item_type in DatabaseMapping.item_types():
+            factory = DatabaseMapping.item_factory(item_type)
+            if not factory._fields:
+                continue
+            new_lines.extend([item_type, len(item_type) * "-", ""])
+            new_lines.extend(
+                [
+                    ".. list-table:: Fields and values",
+                    "   :header-rows: 1",
+                    "",
+                    "   * - field",
+                    "     - type",
+                    "     - value",
+                ]
+            )
+            for f_name, (f_type, f_value) in factory._fields.items():
+                new_lines.extend([f"   * - {f_name}", f"     - {f_type}", f"     - {f_value}"])
+            new_lines.append("")
+            new_lines.extend(
+                [
+                    ".. list-table:: Unique keys",
+                    "   :header-rows: 0",
+                    "",
+                ]
+            )
+            for f_names in factory._unique_keys:
+                f_names = ", ".join(f_names)
+                new_lines.extend([f"   * - {f_names}"])
+        lines[i : i + 1] = new_lines
+        return
+    if what == "method":
+        spine_item_types = ", ".join([f"`{x}`" for x in DatabaseMapping.item_types()])
+        for k, line in enumerate(lines):
+            if "<spine_item_types>" in line:
+                lines[k] = line.replace("<spine_item_types>", spine_item_types)
+
+
 def setup(sphinx):
     sphinx.connect("autoapi-skip-member", _skip_member)
+    sphinx.connect("autodoc-process-docstring", _process_docstring)
 
 
 # -- Options for HTML output -------------------------------------------------

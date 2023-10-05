@@ -20,14 +20,8 @@ from unittest import mock
 from unittest.mock import patch
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
-from spinedb_api import (
-    DatabaseMapping,
-    import_functions,
-    from_database,
-    to_database,
-    SpineDBAPIError,
-    SpineIntegrityError,
-)
+from spinedb_api import import_functions, from_database, to_database, SpineDBAPIError, SpineIntegrityError
+from .custom_db_mapping import CustomDatabaseMapping
 
 
 def create_query_wrapper(db_map):
@@ -50,7 +44,7 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
             with mock.patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(db_url, create=True)
+                db_map = CustomDatabaseMapping(db_url, create=True)
                 db_map.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -62,7 +56,7 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
             with mock.patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(sa_url, create=True)
+                db_map = CustomDatabaseMapping(sa_url, create=True)
                 db_map.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -71,15 +65,15 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             url = URL("sqlite")
             url.database = os.path.join(temp_dir, "test_shorthand_filter_query_works.json")
-            out_db_map = DatabaseMapping(url, create=True)
+            out_db_map = CustomDatabaseMapping(url, create=True)
             out_db_map.add_scenarios({"name": "scen1"})
             out_db_map.add_scenario_alternatives({"scenario_name": "scen1", "alternative_name": "Base", "rank": 1})
             out_db_map.commit_session("Add scen.")
             out_db_map.close()
             try:
-                db_map = DatabaseMapping(url)
+                db_map = CustomDatabaseMapping(url)
             except:
-                self.fail("DatabaseMapping.__init__() should not raise.")
+                self.fail("CustomDatabaseMapping.__init__() should not raise.")
             else:
                 db_map.close()
 
@@ -89,7 +83,7 @@ class TestDatabaseMapping(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+        cls._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -101,7 +95,7 @@ class TestDatabaseMapping(unittest.TestCase):
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(db_url, create=True)
+                db_map = CustomDatabaseMapping(db_url, create=True)
                 db_map.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -113,7 +107,7 @@ class TestDatabaseMapping(unittest.TestCase):
             with patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
-                db_map = DatabaseMapping(sa_url, create=True)
+                db_map = CustomDatabaseMapping(sa_url, create=True)
                 db_map.close()
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
@@ -345,7 +339,7 @@ class TestDatabaseMapping(unittest.TestCase):
 
 class TestDatabaseMappingQueries(unittest.TestCase):
     def setUp(self):
-        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
         self._db_map.close()
@@ -622,7 +616,7 @@ class TestDatabaseMappingQueries(unittest.TestCase):
 
 class TestDatabaseMappingAdd(unittest.TestCase):
     def setUp(self):
-        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
         self._db_map.close()
@@ -750,10 +744,10 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
-            DatabaseMapping, "object_class_sq"
+        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
+            CustomDatabaseMapping, "object_class_sq"
         ) as mock_object_class_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_class_sq"
+            CustomDatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq:
             mock_query.side_effect = query_wrapper
             mock_object_class_sq.return_value = [
@@ -771,9 +765,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_class_with_invalid_object_class(self):
         """Test that adding a relationship class with a non existing object class raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
-            DatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq, mock.patch.object(DatabaseMapping, "wide_relationship_class_sq"):
+        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
+            CustomDatabaseMapping, "object_class_sq"
+        ) as mock_object_class_sq, mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq"):
             mock_query.side_effect = query_wrapper
             mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             with self.assertRaises(SpineIntegrityError):
@@ -824,12 +818,12 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         raises an integrity error.
         """
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
-            DatabaseMapping, "object_sq"
+        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
+            CustomDatabaseMapping, "object_sq"
         ) as mock_object_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_class_sq"
+            CustomDatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_sq"
+            CustomDatabaseMapping, "wide_relationship_sq"
         ) as mock_wide_rel_sq:
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -850,12 +844,12 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_class(self):
         """Test that adding a relationship with an invalid class raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
-            DatabaseMapping, "object_sq"
+        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
+            CustomDatabaseMapping, "object_sq"
         ) as mock_object_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_class_sq"
+            CustomDatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_sq"
+            CustomDatabaseMapping, "wide_relationship_sq"
         ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -873,12 +867,12 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_object(self):
         """Test that adding a relationship with an invalid object raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(DatabaseMapping, "query") as mock_query, mock.patch.object(
-            DatabaseMapping, "object_sq"
+        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
+            CustomDatabaseMapping, "object_sq"
         ) as mock_object_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_class_sq"
+            CustomDatabaseMapping, "wide_relationship_class_sq"
         ) as mock_wide_rel_cls_sq, mock.patch.object(
-            DatabaseMapping, "wide_relationship_sq"
+            CustomDatabaseMapping, "wide_relationship_sq"
         ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -1394,7 +1388,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
 
 class TestDatabaseMappingUpdate(unittest.TestCase):
     def setUp(self):
-        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
         self._db_map.close()
@@ -1791,7 +1785,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
 
 class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def setUp(self):
-        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
         self._db_map.close()
@@ -2194,7 +2188,7 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
 
 class TestDatabaseMappingCommitMixin(unittest.TestCase):
     def setUp(self):
-        self._db_map = DatabaseMapping(IN_MEMORY_DB_URL, create=True)
+        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
 
     def tearDown(self):
         self._db_map.close()

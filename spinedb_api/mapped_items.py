@@ -43,8 +43,8 @@ class EntityClassItem(MappedItemBase):
         "dimension_name_list": ("tuple, optional", "The dimension names for a multi-dimensional class."),
         "description": ("str, optional", "The class description."),
         "display_icon": ("int, optional", "An integer representing an icon within your application."),
-        "display_order": ("int, optional", "Not in use at the moment"),
-        "hidden": ("bool, optional", "Not in use at the moment"),
+        "display_order": ("int, optional", "Not in use at the moment."),
+        "hidden": ("bool, optional", "Not in use at the moment."),
     }
     _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
     _unique_keys = (("name",),)
