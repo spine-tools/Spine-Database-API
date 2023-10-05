@@ -135,22 +135,44 @@ class ImportMapping(Mapping):
             raise ValueError(f"row must be >= 0 ({row})")
         self._read_start_row = row
 
-    def polish(self, table_name, source_header, for_preview=False):
+    def check_for_invalid_column_refs(self, header, table_name):
+        """Checks that the mappings column refs are not out of range for the source table
+
+        Args:
+            header (list): The header of the table as a list
+            table_name (str): The name of the source table
+
+        Returns:
+            str: Error message if a column ref exceeds the column count of the source table,
+            empty string otherwise
+        """
+        if self.child is not None:
+            error = self.child.check_for_invalid_column_refs(header, table_name)
+            if error:
+                return error
+        if isinstance(self.position, int) and self.position >= len(header) > 0:
+            msg = f"Column ref {self.position + 1} is out of range for the source table \"{table_name}\""
+            return msg
+        return ""
+
+    def polish(self, table_name, source_header, column_count=0, for_preview=False):
         """Polishes the mapping before an import operation.
         'Expands' transient ``position`` and ``value`` attributes into their final value.
 
         Args:
             table_name (str)
             source_header (list(str))
+            column_count (int, optional)
+            for_preview (bool, optional)
         """
-        self._polish_for_import(table_name, source_header)
+        self._polish_for_import(table_name, source_header, column_count)
         if for_preview:
             self._polish_for_preview(source_header)
 
-    def _polish_for_import(self, table_name, source_header):
+    def _polish_for_import(self, table_name, source_header, column_count):
         # FIXME: Polish skip columns
         if self.child is not None:
-            self.child._polish_for_import(table_name, source_header)
+            self.child._polish_for_import(table_name, source_header, column_count)
         if isinstance(self.position, str):
             # Column mapping with string position, we need to find the index in the header
             try:
@@ -185,6 +207,9 @@ class ImportMapping(Mapping):
             except IndexError:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
                 raise InvalidMappingComponent(msg)
+        if isinstance(self.position, int) and self.position >= column_count > 0:
+            msg = f"Column ref {self.position + 1} is out of range for the source table \"{table_name}\""
+            raise InvalidMappingComponent(msg)
 
     def _polish_for_preview(self, source_header):
         if self.position == Position.header and self.value is not None:

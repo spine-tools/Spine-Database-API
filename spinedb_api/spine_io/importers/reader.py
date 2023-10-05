@@ -16,7 +16,7 @@ Contains a class template for a data source connector used in import ui.
 
 from itertools import islice
 
-from spinedb_api.exception import ConnectorError
+from spinedb_api.exception import ConnectorError, InvalidMappingComponent
 from spinedb_api.import_mapping.generator import get_mapped_data, identity
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
@@ -151,7 +151,7 @@ class SourceConnection:
                     row_convert_fns,
                     unparse_value,
                 )
-            except (ConnectorError, ParameterValueFormatError) as error:
+            except (ConnectorError, ParameterValueFormatError, InvalidMappingComponent) as error:
                 errors.append(str(error))
                 continue
             for key, value in data.items():
