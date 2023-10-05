@@ -10,11 +10,22 @@
 ######################################################################################################################
 
 """
-This module defines the :class:`.DatabaseMapping` class.
+This module defines the :class:`.DatabaseMapping` class, the main mean to communicate with a Spine DB.
+If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
+DB mapping schema.
 
 
 DB mapping schema
 =================
+
+The DB mapping schema is a close cousin of the Spine DB schema, with some extra flexibility such as
+(or should I say, mainly) the ability to define references by name rather than by numerical id.
+The schema defines the following item types: <spine_item_types>. As you can see, these follow the names
+of some of the tables in the Spine DB schema.
+
+The following subsections provide all the details you need to know about the different item types, namely,
+their fields, values, and unique keys.
+
 <db_mapping_schema>
 """
 
@@ -59,7 +70,7 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, DatabaseMappingBase):
     """Enables communication with a Spine DB.
 
-    The DB is incrementally mapped into memory as data is requested/modified.
+    The DB is incrementally mapped into memory as data is requested/modified, following the `DB mapping schema`_.
 
     Data is typically retrieved using :meth:`get_item` or :meth:`get_items`.
     If the requested data is already in memory, it is returned from there;
@@ -86,6 +97,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     The :meth:`query` method is also provided as an alternative way to retrieve data from the DB
     while bypassing the in-memory mapping entirely.
+
+    You can use this class as a context manager, e.g.::
+
+        with DatabaseMapping(db_url) as db_map:
+            # Do stuff with db_map
+            ...
 
     """
 
@@ -177,17 +194,35 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return [x for x in DatabaseMapping._sq_name_by_item_type if item_factory(x).fields]
 
     @staticmethod
-    def item_factory(item_type):
+    def _item_factory(item_type):
         return item_factory(item_type)
 
-    def make_query(self, item_type):
+    def _make_query(self, item_type):
         if self.closed:
             return None
         sq_name = self._sq_name_by_item_type[item_type]
         return self.query(getattr(self, sq_name))
 
     def close(self):
-        """Closes this DB mapping."""
+        """Closes this DB mapping. This is only needed if you're keeping a long-lived session.
+        For instance::
+
+            class MyDBMappingWrapper:
+                def __init__(self, url):
+                    self._db_map = DatabaseMapping(url)
+
+                # More methods that do stuff with self._db_map
+
+                def __del__(self):
+                    self._db_map.close()
+
+        Otherwise, the usage as context manager is recommended::
+
+            with DatabaseMapping(url) as db_map:
+                # Do stuff with db_map
+                ...
+                # db_map.close() is automatically called when leaving this block
+        """
         self.closed = True
 
     def _make_codename(self, codename):
@@ -203,16 +238,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
-        """Creates engine.
-
-        Args:
-            sa_url (URL)
-            upgrade (bool, optional): If True, upgrade the db to the latest version.
-            create (bool, optional): If True, create a new Spine db at the given url if none found.
-
-        Returns:
-            :class:`~sqlalchemy.engine.Engine`
-        """
         if sa_url.drivername == "sqlite":
             connect_args = {'timeout': sqlite_timeout}
         else:
@@ -327,14 +352,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._create_import_alternative = MethodType(method, self)
         self._import_alternative_name = None
 
-    def get_filter_configs(self):
-        """Returns the filters used to build this DB mapping.
-
-        Returns:
-            list(dict):
-        """
-        return self._filter_configs
-
     def get_table(self, tablename):
         # For tests
         return self._metadata.tables[tablename]
@@ -342,11 +359,16 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def get_item(self, item_type, fetch=True, skip_removed=True, **kwargs):
         """Finds and returns an item matching the arguments, or None if none found.
 
+        Example::
+
+            with DatabaseMapping(db_url) as db_map:
+                prince = db_map.get_item("entity", class_name="musician", name="Prince")
+
         Args:
             item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
             skip_removed (bool, optional): Whether to ignore removed items.
-            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields and values for one the unique keys of the item type as specified in `DB mapping schema`_.
 
         Returns:
             :class:`PublicItem` or None
@@ -380,10 +402,16 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def add_item(self, item_type, check=True, **kwargs):
         """Adds an item to the in-memory mapping.
 
+        Example::
+
+            with DatabaseMapping(db_url) as db_map:
+                db_map.add_item("entity_class", name="musician")
+                db_map.add_item("entity", class_name="musician", name="Prince")
+
         Args:
             item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
-            **kwargs: Fields and values as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields and values of the item type as specified in `DB mapping schema`_.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The added item and any errors.
@@ -404,8 +432,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values,
-                as specified for the item type in `DB mapping schema`_.
+            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
+                as specified in `DB mapping schema`_.
             check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
@@ -427,11 +455,19 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def update_item(self, item_type, check=True, **kwargs):
         """Updates an item in the in-memory mapping.
 
+        Example::
+
+            with DatabaseMapping(db_url) as db_map:
+                prince = db_map.get_item("entity", class_name="musician", name="Prince")
+                db_map.update_item(
+                    "entity", id=prince["id"], name="the Artist", description="Formerly known as Prince."
+                )
+
         Args:
             item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
             id (int): The id of the item to update.
-            **kwargs: Fields to update and their new values as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields to update and their new values as specified in `DB mapping schema`_.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The updated item and any errors.
@@ -449,8 +485,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values,
-                as specified for the item type in `DB mapping schema`_ and including the `id`.
+            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
+                as specified in `DB mapping schema`_ and including the `id`.
             check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
@@ -474,10 +510,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Example::
 
-                with DatabaseMapping(url) as db_map:
-                    my_dog = db_map.get_item("entity", class_name="dog", name="Pluto")
-                    db_map.remove_item("entity", my_dog["id])
-
+            with DatabaseMapping(db_url) as db_map:
+                prince = db_map.get_item("entity", class_name="musician", name="Prince")
+                db_map.remove_item("entity", prince["id"])
 
         Args:
             item_type (str): One of <spine_item_types>.
@@ -518,9 +553,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Example::
 
-                with DatabaseMapping(url) as db_map:
-                    my_dog = db_map.get_item("entity", skip_removed=False, class_name="dog", name="Pluto")
-                    db_map.restore_item("entity", my_dog["id])
+            with DatabaseMapping(db_url) as db_map:
+                prince = db_map.get_item("entity", skip_remove=False, class_name="musician", name="Prince")
+                db_map.restore_item("entity", prince["id"])
 
         Args:
             item_type (str): One of <spine_item_types>.
@@ -554,9 +589,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
 
         Returns:
-            bool: True if operation was successful, False otherwise
+            bool: True if any data was removed, False otherwise.
         """
-        return self.remove_items(item_type, Asterisk)
+        return bool(self.remove_items(item_type, Asterisk))
 
     def can_fetch_more(self, item_type):
         """Whether or not more data can be fetched from the DB for the given item type.
@@ -565,7 +600,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
 
         Returns:
-            bool
+            bool: True if more data can be fetched.
         """
         return item_type not in self.fetched_item_types
 
@@ -579,7 +614,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 In other words, each item is fetched from the DB exactly once.
 
         Returns:
-            list(PublicItem): The items fetched.
+            list(:class:`PublicItem`): The items fetched.
         """
         item_type = self._real_tablename(item_type)
         return [PublicItem(self, x) for x in self.do_fetch_more(item_type, limit=limit)]
@@ -601,7 +636,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the documented
-        subquery properties of :class:`~spinedb_api.DatabaseMappingQueryMixin` returning
+        subquery properties of :class:`~spinedb_api.db_mapping_query_mixin.DatabaseMappingQueryMixin` returning
         :class:`~sqlalchemy.sql.expression.Alias` objetcs.
         For example, to select the entity class with ``id`` equal to 1::
 
@@ -623,6 +658,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ).filter(
                 db_map.entity_sq.c.class_id == db_map.entity_class_sq.c.id
             ).group_by(db_map.entity_class_sq.c.name).all()
+
+        Returns:
+            :class:`~spinedb_api.query.Query`: The resulting query.
         """
         return Query(self.engine, *args)
 
@@ -748,6 +786,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             used_metadata_ids.add(x["metadata_id"])
         unused_metadata_ids = {x["id"] for x in self.mapped_table("metadata").valid_values()} - used_metadata_ids
         self.remove_items("metadata", *unused_metadata_ids)
+
+    def get_filter_configs(self):
+        """Returns the filters used to build this DB mapping.
+
+        Returns:
+            list(dict):
+        """
+        return self._filter_configs
 
 
 class PublicItem:

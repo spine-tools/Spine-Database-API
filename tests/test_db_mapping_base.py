@@ -19,7 +19,7 @@ class TestDBMapping(DatabaseMappingBase):
         return ["cutlery"]
 
     @staticmethod
-    def item_factory(item_type):
+    def _item_factory(item_type):
         if item_type == "cutlery":
             return MappedItemBase
         raise RuntimeError(f"unknown item_type '{item_type}'")

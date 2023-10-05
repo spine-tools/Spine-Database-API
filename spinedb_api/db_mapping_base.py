@@ -34,7 +34,7 @@ class DatabaseMappingBase:
 
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
-    When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, and :meth:`make_query`.
+    When subclassing, you need to implement :meth:`item_types`, :meth:`_item_factory`, and :meth:`_make_query`.
     """
 
     def __init__(self):
@@ -46,7 +46,7 @@ class DatabaseMappingBase:
         self._sorted_item_types = []
         while item_types:
             item_type = item_types.pop(0)
-            if self.item_factory(item_type).ref_types() & set(item_types):
+            if self._item_factory(item_type).ref_types() & set(item_types):
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
@@ -70,7 +70,7 @@ class DatabaseMappingBase:
         raise NotImplementedError()
 
     @staticmethod
-    def item_factory(item_type):
+    def _item_factory(item_type):
         """Returns a subclass of :class:`.MappedItemBase` to make items of given type.
 
         Args:
@@ -81,7 +81,7 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
-    def make_query(self, item_type):
+    def _make_query(self, item_type):
         """Returns a :class:`~spinedb_api.query.Query` object to fecth items of given type.
 
         Args:
@@ -93,7 +93,7 @@ class DatabaseMappingBase:
         raise NotImplementedError()
 
     def make_item(self, item_type, **item):
-        factory = self.item_factory(item_type)
+        factory = self._item_factory(item_type)
         return factory(self, item_type, **item)
 
     def dirty_ids(self, item_type):
@@ -134,7 +134,7 @@ class DatabaseMappingBase:
                     for other_item_type in self.item_types():
                         if (
                             other_item_type not in self.fetched_item_types
-                            and item_type in self.item_factory(other_item_type).ref_types()
+                            and item_type in self._item_factory(other_item_type).ref_types()
                         ):
                             self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
@@ -180,7 +180,7 @@ class DatabaseMappingBase:
         self._fetched_item_types.clear()
 
     def _get_next_chunk(self, item_type, limit):
-        qry = self.make_query(item_type)
+        qry = self._make_query(item_type)
         if not qry:
             return []
         if not limit:

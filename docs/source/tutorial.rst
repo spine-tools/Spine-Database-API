@@ -18,7 +18,7 @@ To begin, make sure Spine database API is installed as described at :ref:`instal
 Database Mapping
 ----------------
 
-The main means of communication with a Spine DB is the :class:`.DatabaseMapping`,
+The main mean of communication with a Spine DB is the :class:`.DatabaseMapping`,
 specially designed to retrieve and modify data from the DB.
 To create a :class:`.DatabaseMapping`, we just pass the URL of the DB to the class constructor::
 
