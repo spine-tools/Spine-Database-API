@@ -83,6 +83,7 @@ def get_mapped_data(
     rows = list(data_source)
     if not rows:
         return mapped_data, errors
+    column_count = len(max(rows, key=lambda x: len(x) if x else 0))
     if column_convert_fns is None:
         column_convert_fns = {}
     if row_convert_fns is None:
@@ -92,7 +93,7 @@ def get_mapped_data(
     for mapping in mappings:
         read_state = {}
         mapping = deepcopy(mapping)
-        mapping.polish(table_name, data_header)
+        mapping.polish(table_name, data_header, column_count)
         mapping_errors = check_validity(mapping)
         if mapping_errors:
             errors += mapping_errors
