@@ -953,7 +953,7 @@ class ParameterDefaultValueTypeMapping(ParameterDefaultValueMapping):
     an :class:`AlternativeMapping` as parents.
     """
 
-    MAP_TYPE = "ParameterValueType"
+    MAP_TYPE = "ParameterDefaultValueType"
 
     def _data(self, db_row):
         type_ = db_row.default_type
