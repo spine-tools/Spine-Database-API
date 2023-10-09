@@ -20,7 +20,14 @@ from unittest import mock
 from unittest.mock import patch
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
-from spinedb_api import import_functions, from_database, to_database, SpineDBAPIError, SpineIntegrityError
+from spinedb_api import (
+    DatabaseMapping,
+    import_functions,
+    from_database,
+    to_database,
+    SpineDBAPIError,
+    SpineIntegrityError,
+)
 from .custom_db_mapping import CustomDatabaseMapping
 
 
@@ -79,6 +86,93 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
 
 
 class TestDatabaseMapping(unittest.TestCase):
+    def test_commit_parameter_value(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                _, error = db_map.add_item("entity_class", name="fish", description="It swims.")
+                self.assertIsNone(error)
+                _, error = db_map.add_item(
+                    "entity", class_name="fish", name="Nemo", description="Peacefully swimming away."
+                )
+                self.assertIsNone(error)
+                _, error = db_map.add_item("parameter_definition", entity_class_name="fish", name="color")
+                self.assertIsNone(error)
+                value, type_ = to_database("mainly orange")
+                _, error = db_map.add_item(
+                    "parameter_value",
+                    entity_class_name="fish",
+                    entity_byname=("Nemo",),
+                    parameter_definition_name="color",
+                    alternative_name="Base",
+                    value=value,
+                    type=type_,
+                )
+                self.assertIsNone(error)
+                db_map.commit_session("Added data")
+            with DatabaseMapping(url) as db_map:
+                color = db_map.get_item(
+                    "parameter_value",
+                    entity_class_name="fish",
+                    entity_byname=("Nemo",),
+                    parameter_definition_name="color",
+                    alternative_name="Base",
+                )
+                value = from_database(color["value"], color["type"])
+                self.assertEqual(value, "mainly orange")
+
+    def test_commit_multidimensional_parameter_value(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                _, error = db_map.add_item("entity_class", name="fish", description="It swims.")
+                self.assertIsNone(error)
+                _, error = db_map.add_item("entity_class", name="cat", description="Eats fish.")
+                self.assertIsNone(error)
+                _, error = db_map.add_item(
+                    "entity_class",
+                    name="fish__cat",
+                    dimension_name_list=("fish", "cat"),
+                    description="A fish getting eaten by a cat?",
+                )
+                self.assertIsNone(error)
+                _, error = db_map.add_item("entity", class_name="fish", name="Nemo", description="Lost (soon).")
+                self.assertIsNone(error)
+                _, error = db_map.add_item(
+                    "entity", class_name="cat", name="Felix", description="The wonderful wonderful cat."
+                )
+                self.assertIsNone(error)
+                _, error = db_map.add_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+                self.assertIsNone(error)
+                _, error = db_map.add_item("parameter_definition", entity_class_name="fish__cat", name="rate")
+                self.assertIsNone(error)
+                value, type_ = to_database(0.23)
+                _, error = db_map.add_item(
+                    "parameter_value",
+                    entity_class_name="fish__cat",
+                    entity_byname=("Nemo", "Felix"),
+                    parameter_definition_name="rate",
+                    alternative_name="Base",
+                    value=value,
+                    type=type_,
+                )
+                self.assertIsNone(error)
+                db_map.commit_session("Added data")
+            with DatabaseMapping(url) as db_map:
+                color = db_map.get_item(
+                    "parameter_value",
+                    entity_class_name="fish__cat",
+                    entity_byname=("Nemo", "Felix"),
+                    parameter_definition_name="rate",
+                    alternative_name="Base",
+                )
+                value = from_database(color["value"], color["type"])
+                self.assertEqual(value, 0.23)
+
+
+class TestDatabaseMappingLegacy(unittest.TestCase):
+    """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
+
     _db_map = None
 
     @classmethod
