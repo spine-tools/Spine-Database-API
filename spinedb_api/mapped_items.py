@@ -9,8 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-# The Spine implementation for DBCacheBase
-
 import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
@@ -116,7 +114,7 @@ class EntityItem(MappedItemBase):
             return
         base_name = self["class_name"] + "_" + "__".join(self["element_name_list"])
         name = base_name
-        mapped_table = self._db_cache.mapped_table(self._item_type)
+        mapped_table = self._db_map.mapped_table(self._item_type)
         while mapped_table.unique_key_value_to_id(("class_name", "name"), (self["class_name"], name)) is not None:
             name = base_name + "_" + uuid.uuid4().hex
         self["name"] = name
@@ -268,7 +266,7 @@ class ParameterDefinitionItem(ParsedValueBase):
         parsed_value = from_database(default_value, default_type)
         if parsed_value is None:
             return
-        list_value_id = self._db_cache.mapped_table("list_value").unique_key_value_to_id(
+        list_value_id = self._db_map.mapped_table("list_value").unique_key_value_to_id(
             ("parameter_value_list_name", "value", "type"), (list_name, default_value, default_type)
         )
         if list_value_id is None:
@@ -289,7 +287,7 @@ class ParameterDefinitionItem(ParsedValueBase):
             and other_parameter_value_list_id != self["parameter_value_list_id"]
             and any(
                 x["parameter_definition_id"] == self["id"]
-                for x in self._db_cache.mapped_table("parameter_value").valid_values()
+                for x in self._db_map.mapped_table("parameter_value").valid_values()
             )
         ):
             del other["parameter_value_list_id"]
@@ -375,7 +373,7 @@ class ParameterValueItem(ParsedValueBase):
         parsed_value = from_database(value, type_)
         if parsed_value is None:
             return
-        list_value_id = self._db_cache.mapped_table("list_value").unique_key_value_to_id(
+        list_value_id = self._db_map.mapped_table("list_value").unique_key_value_to_id(
             ("parameter_value_list_name", "value", "type"), (list_name, value, type_)
         )
         if list_value_id is None:
@@ -442,11 +440,11 @@ class ScenarioItem(MappedItemBase):
         if key == "alternative_name_list":
             return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
         if key == "sorted_scenario_alternatives":
-            self._db_cache.do_fetch_all("scenario_alternative")
+            self._db_map.do_fetch_all("scenario_alternative")
             return sorted(
                 (
                     x
-                    for x in self._db_cache.mapped_table("scenario_alternative").valid_values()
+                    for x in self._db_map.mapped_table("scenario_alternative").valid_values()
                     if x["scenario_id"] == self["id"]
                 ),
                 key=itemgetter("rank"),

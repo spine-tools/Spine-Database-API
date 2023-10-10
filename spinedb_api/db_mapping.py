@@ -374,12 +374,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             :class:`PublicItem` or None
         """
         item_type = self._real_tablename(item_type)
-        cache_item = self.mapped_table(item_type).find_item(kwargs, fetch=fetch)
-        if not cache_item:
+        item = self.mapped_table(item_type).find_item(kwargs, fetch=fetch)
+        if not item:
             return None
-        if skip_removed and not cache_item.is_valid():
+        if skip_removed and not item.is_valid():
             return None
-        return PublicItem(self, cache_item)
+        return item.public_item
 
     def get_items(self, item_type, fetch=True, skip_removed=True):
         """Finds and returns all the items of one type.
@@ -397,7 +397,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self.fetch_all(item_type)
         mapped_table = self.mapped_table(item_type)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
-        return [PublicItem(self, x) for x in get_items()]
+        return [x.public_item for x in get_items()]
 
     def add_item(self, item_type, check=True, **kwargs):
         """Adds an item to the in-memory mapping.
@@ -423,7 +423,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return mapped_table.add_item(kwargs, new=True), None
         checked_item, error = mapped_table.check_item(kwargs)
         return (
-            PublicItem(self, mapped_table.add_item(checked_item, new=True)) if checked_item and not error else None,
+            mapped_table.add_item(checked_item, new=True).public_item if checked_item and not error else None,
             error,
         )
 
@@ -478,7 +478,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if not check:
             return mapped_table.update_item(kwargs), None
         checked_item, error = mapped_table.check_item(kwargs, for_update=True)
-        return (PublicItem(self, mapped_table.update_item(checked_item._asdict())) if checked_item else None, error)
+        return (mapped_table.update_item(checked_item._asdict()).public_item if checked_item else None, error)
 
     def update_items(self, item_type, *items, check=True, strict=False):
         """Updates many items in the in-memory mapping.
@@ -523,7 +523,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
-        return PublicItem(self, mapped_table.remove_item(id_))
+        return mapped_table.remove_item(id_).public_item
 
     def remove_items(self, item_type, *ids):
         """Removes many items from the in-memory mapping.
@@ -566,7 +566,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
-        return PublicItem(self, mapped_table.restore_item(id_))
+        return mapped_table.restore_item(id_).public_item
 
     def restore_items(self, item_type, *ids):
         """Restores many previously removed items into the in-memory mapping.
@@ -617,7 +617,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(:class:`PublicItem`): The items fetched.
         """
         item_type = self._real_tablename(item_type)
-        return [PublicItem(self, x) for x in self.do_fetch_more(item_type, limit=limit)]
+        return [x.public_item for x in self.do_fetch_more(item_type, limit=limit)]
 
     def fetch_all(self, *item_types):
         """Fetches items from the DB into the in-memory mapping.
@@ -747,57 +747,3 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(dict):
         """
         return self._filter_configs
-
-
-class PublicItem:
-    def __init__(self, db_map, cache_item):
-        self._db_map = db_map
-        self._cache_item = cache_item
-
-    @property
-    def item_type(self):
-        return self._cache_item.item_type
-
-    def __getitem__(self, key):
-        return self._cache_item[key]
-
-    def __eq__(self, other):
-        if isinstance(other, dict):
-            return self._cache_item == other
-        return super().__eq__(other)
-
-    def __repr__(self):
-        return repr(self._cache_item)
-
-    def __str__(self):
-        return str(self._cache_item)
-
-    def get(self, key, default=None):
-        return self._cache_item.get(key, default)
-
-    def is_valid(self):
-        return self._cache_item.is_valid()
-
-    def is_committed(self):
-        return self._cache_item.is_committed()
-
-    def _asdict(self):
-        return self._cache_item._asdict()
-
-    def update(self, **kwargs):
-        self._db_map.update_item(self.item_type, id=self["id"], **kwargs)
-
-    def remove(self):
-        return self._db_map.remove_item(self.item_type, self["id"])
-
-    def restore(self):
-        return self._db_map.restore_item(self.item_type, self["id"])
-
-    def add_update_callback(self, callback):
-        self._cache_item.update_callbacks.add(callback)
-
-    def add_remove_callback(self, callback):
-        self._cache_item.remove_callbacks.add(callback)
-
-    def add_restore_callback(self, callback):
-        self._cache_item.restore_callbacks.add(callback)

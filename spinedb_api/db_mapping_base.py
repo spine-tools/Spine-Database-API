@@ -20,7 +20,7 @@ _LIMIT = 10000
 
 @unique
 class Status(Enum):
-    """Cache item status."""
+    """Mapped item status."""
 
     committed = auto()
     to_add = auto()
@@ -194,7 +194,7 @@ class DatabaseMappingBase:
 
     def _advance_query(self, item_type, limit):
         """Advances the DB query that fetches items of given type
-        and adds the results to the corresponding table cache.
+        and adds the results to the corresponding mapped table.
 
         Args:
             item_type (str)
@@ -207,9 +207,7 @@ class DatabaseMappingBase:
             self._fetched_item_types.add(item_type)
             return []
         mapped_table = self.mapped_table(item_type)
-        for item in chunk:
-            mapped_table.add_item(item)
-        return chunk
+        return [mapped_table.add_item(item) for item in chunk]
 
     def mapped_table(self, item_type):
         return self._mapped_tables.setdefault(item_type, _MappedTable(self, item_type))
@@ -260,14 +258,14 @@ class DatabaseMappingBase:
 
 
 class _MappedTable(dict):
-    def __init__(self, db_cache, item_type, *args, **kwargs):
+    def __init__(self, db_map, item_type, *args, **kwargs):
         """
         Args:
-            db_cache (DBCacheBase): the DB cache where this table cache belongs.
+            db_map (DatabaseMappingBase): the DB mapping where this mapped table belongs.
             item_type (str): the item type, equal to a table name
         """
         super().__init__(*args, **kwargs)
-        self._db_cache = db_cache
+        self._db_map = db_map
         self._item_type = item_type
         self._id_by_unique_key_value = {}
         self._temp_id_by_db_id = {}
@@ -314,15 +312,15 @@ class _MappedTable(dict):
         return (x for x in self.values() if x.is_valid())
 
     def _make_item(self, item):
-        """Returns a cache item.
+        """Returns a mapped item.
 
         Args:
             item (dict): the 'db item' to use as base
 
         Returns:
-            CacheItem
+            MappedItem
         """
-        return self._db_cache.make_item(self._item_type, **item)
+        return self._db_map.make_item(self._item_type, **item)
 
     def find_item(self, item, skip_keys=(), fetch=True):
         """Returns a MappedItemBase that matches the given dictionary-item.
@@ -339,17 +337,17 @@ class _MappedTable(dict):
             item = self.get(id_)
             if item or not fetch:
                 return item
-            return self._db_cache.fetch_ref(self._item_type, id_)
+            return self._db_map.fetch_ref(self._item_type, id_)
         # No id. Try to locate the item by the value of one of the unique keys.
         # Used by import_data (and more...)
-        cache_item = self._make_item(item)
-        error = cache_item.resolve_inverse_references(item.keys())
+        mapped_item = self._make_item(item)
+        error = mapped_item.resolve_inverse_references(item.keys())
         if error:
             return None
-        error = cache_item.polish()
+        error = mapped_item.polish()
         if error:
             return None
-        for key, value in cache_item.unique_values(skip_keys=skip_keys):
+        for key, value in mapped_item.unique_values(skip_keys=skip_keys):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
             if current_item:
                 return current_item
@@ -411,10 +409,10 @@ class _MappedTable(dict):
             # Item comes from the DB
             id_ = item["id"]
             if id_ in self or id_ in self._temp_id_by_db_id:
-                # The item is already in the cache
+                # The item is already in the mapping
                 return
             if any(value in self._id_by_unique_key_value.get(key, {}) for key, value in item.unique_values()):
-                # An item with the same unique key is already in the cache
+                # An item with the same unique key is already in the mapping
                 return
         else:
             item.status = Status.to_add
@@ -478,13 +476,13 @@ class MappedItemBase(dict):
         3. return the id of that item.
     """
 
-    def __init__(self, db_cache, item_type, **kwargs):
+    def __init__(self, db_map, item_type, **kwargs):
         """
         Args:
-            db_cache (DBCacheBase): the DB cache where this item belongs.
+            db_map (DatabaseMappingBase): the DB where this item belongs.
         """
         super().__init__(**kwargs)
-        self._db_cache = db_cache
+        self._db_map = db_map
         self._item_type = item_type
         self._referrers = {}
         self._weak_referrers = {}
@@ -500,6 +498,7 @@ class MappedItemBase(dict):
         self._removal_source = None
         self._status_when_removed = None
         self._backup = None
+        self.public_item = PublicItem(self._db_map, self)
 
     @classmethod
     def ref_types(cls):
@@ -661,7 +660,7 @@ class MappedItemBase(dict):
             id_value = tuple(dict.pop(self, k, None) or self.get(k) for k in id_key)
             if None in id_value:
                 continue
-            mapped_table = self._db_cache.mapped_table(ref_type)
+            mapped_table = self._db_map.mapped_table(ref_type)
             try:
                 self[src_key] = (
                     tuple(mapped_table.unique_key_value_to_id(ref_key, v, strict=True) for v in zip(*id_value))
@@ -685,7 +684,7 @@ class MappedItemBase(dict):
         return ""
 
     def _get_ref(self, ref_type, ref_id, strong=True):
-        """Collects a reference from the cache.
+        """Collects a reference from the in-memory mapping.
         Adds this item to the reference's list of referrers if strong is True;
         or weak referrers if strong is False.
         If the reference is not found, sets some flags.
@@ -698,11 +697,11 @@ class MappedItemBase(dict):
         Returns:
             MappedItemBase or dict
         """
-        ref = self._db_cache.get_mapped_item(ref_type, ref_id)
+        ref = self._db_map.get_mapped_item(ref_type, ref_id)
         if not ref:
             if not strong:
                 return {}
-            ref = self._db_cache.fetch_ref(ref_type, ref_id)
+            ref = self._db_map.fetch_ref(ref_type, ref_id)
             if not ref:
                 self._corrupted = True
                 return {}
@@ -718,18 +717,18 @@ class MappedItemBase(dict):
         return ref
 
     def _invalidate_ref(self, ref_type, ref_id):
-        """Invalidates a reference previously collected from the cache.
+        """Invalidates a reference previously collected from the in-memory mapping.
 
         Args:
             ref_type (str): The reference's type
             ref_id (int): The reference's id
         """
-        ref = self._db_cache.get_mapped_item(ref_type, ref_id)
+        ref = self._db_map.get_mapped_item(ref_type, ref_id)
         ref.remove_referrer(self)
 
     def is_valid(self):
         """Checks if this item has all its references.
-        Removes the item from the cache if not valid by calling ``cascade_remove``.
+        Removes the item from the in-memory mapping if not valid by calling ``cascade_remove``.
 
         Returns:
             bool
@@ -932,3 +931,57 @@ class MappedItemBase(dict):
         super().update(other)
         if self._asdict() == self._backup:
             self._status = Status.committed
+
+
+class PublicItem:
+    def __init__(self, db_map, mapped_item):
+        self._db_map = db_map
+        self._mapped_item = mapped_item
+
+    @property
+    def item_type(self):
+        return self._mapped_item.item_type
+
+    def __getitem__(self, key):
+        return self._mapped_item[key]
+
+    def __eq__(self, other):
+        if isinstance(other, dict):
+            return self._mapped_item == other
+        return super().__eq__(other)
+
+    def __repr__(self):
+        return repr(self._mapped_item)
+
+    def __str__(self):
+        return str(self._mapped_item)
+
+    def get(self, key, default=None):
+        return self._mapped_item.get(key, default)
+
+    def is_valid(self):
+        return self._mapped_item.is_valid()
+
+    def is_committed(self):
+        return self._mapped_item.is_committed()
+
+    def _asdict(self):
+        return self._mapped_item._asdict()
+
+    def update(self, **kwargs):
+        self._db_map.update_item(self.item_type, id=self["id"], **kwargs)
+
+    def remove(self):
+        return self._db_map.remove_item(self.item_type, self["id"])
+
+    def restore(self):
+        return self._db_map.restore_item(self.item_type, self["id"])
+
+    def add_update_callback(self, callback):
+        self._mapped_item.update_callbacks.add(callback)
+
+    def add_remove_callback(self, callback):
+        self._mapped_item.remove_callbacks.add(callback)
+
+    def add_restore_callback(self, callback):
+        self._mapped_item.restore_callbacks.add(callback)
