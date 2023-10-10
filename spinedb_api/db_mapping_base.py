@@ -391,14 +391,16 @@ class _MappedTable(dict):
             candidate_item["id"] = self._new_id()
         return candidate_item, merge_error
 
-    def _add_unique(self, item):
+    def add_unique(self, item):
+        id_ = item["id"]
         for key, value in item.unique_values():
-            self._id_by_unique_key_value.setdefault(key, {})[value] = item["id"]
+            self._id_by_unique_key_value.setdefault(key, {})[value] = id_
 
-    def _remove_unique(self, item):
+    def remove_unique(self, item):
+        id_ = item["id"]
         for key, value in item.unique_values():
             id_by_value = self._id_by_unique_key_value.get(key, {})
-            if id_by_value.get(value) == item["id"]:
+            if id_by_value.get(value) == id_:
                 del id_by_value[value]
 
     def add_item(self, item, new=False):
@@ -419,28 +421,28 @@ class _MappedTable(dict):
         if "id" not in item or not item.is_id_valid:
             item["id"] = self._new_id()
         self[item["id"]] = item
-        self._add_unique(item)
+        self.add_unique(item)
         return item
 
     def update_item(self, item):
         current_item = self.find_item(item)
-        self._remove_unique(current_item)
+        current_item.cascade_remove_unique()
         current_item.update(item)
-        self._add_unique(current_item)
+        current_item.cascade_add_unique()
         current_item.cascade_update()
         return current_item
 
     def remove_item(self, id_):
         current_item = self.find_item({"id": id_})
         if current_item is not None:
-            self._remove_unique(current_item)
+            self.remove_unique(current_item)
             current_item.cascade_remove()
         return current_item
 
     def restore_item(self, id_):
         current_item = self.find_item({"id": id_})
         if current_item is not None:
-            self._add_unique(current_item)
+            self.add_unique(current_item)
             current_item.cascade_restore()
         return current_item
 
@@ -449,7 +451,7 @@ class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
     fields = {}
-    """A dictionaty mapping fields to a tuple of (type, value description)"""
+    """A dictionary mapping fields to a tuple of (type, value description)"""
     _defaults = {}
     """A dictionary mapping keys to their default values"""
     _unique_keys = ()
@@ -719,8 +721,8 @@ class MappedItemBase(dict):
         """Invalidates a reference previously collected from the cache.
 
         Args:
-            ref_type (str): The references's type
-            ref_id (int): The references's id
+            ref_type (str): The reference's type
+            ref_id (int): The reference's id
         """
         ref = self._db_cache.get_mapped_item(ref_type, ref_id)
         ref.remove_referrer(self)
@@ -849,6 +851,20 @@ class MappedItemBase(dict):
             if not callback(self):
                 obsolete.add(callback)
         self.update_callbacks -= obsolete
+
+    def cascade_add_unique(self):
+        """Removes item and all its referrers unique keys and ids in cascade."""
+        mapped_table = self._db_cache.mapped_table(self._item_type)
+        mapped_table.add_unique(self)
+        for referrer in self._referrers.values():
+            referrer.cascade_add_unique()
+
+    def cascade_remove_unique(self):
+        """Removes item and all its referrers unique keys and ids in cascade."""
+        mapped_table = self._db_cache.mapped_table(self._item_type)
+        mapped_table.remove_unique(self)
+        for referrer in self._referrers.values():
+            referrer.cascade_remove_unique()
 
     def is_committed(self):
         """Returns whether or not this item is committed to the DB.
