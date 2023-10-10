@@ -150,9 +150,10 @@ Then we can retrieve the ``"color"`` of ``"Nemo"`` (in the ``"Base"`` alternativ
 
     color_value = db_map.get_item(
         "parameter_value",
-        class_name="fish",
+        entity_class_name="fish",
         entity_byname=("Nemo",),
-        alternative="Base"
+        parameter_definition_name="color",
+        alternative_name="Base"
     )
     color = from_database(color_value["value"], color_value["type"])
     print(color)  # Prints 'mainly orange'
