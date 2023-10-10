@@ -297,7 +297,7 @@ class _MappedTable(dict):
         """
         id_by_unique_value = self._id_by_unique_key_value.get(key, {})
         if not id_by_unique_value and fetch:
-            id_by_unique_value = self._db_cache.fetch_value(
+            id_by_unique_value = self._db_map.fetch_value(
                 self._item_type, lambda: self._id_by_unique_key_value.get(key, {})
             )
         value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
@@ -853,14 +853,14 @@ class MappedItemBase(dict):
 
     def cascade_add_unique(self):
         """Removes item and all its referrers unique keys and ids in cascade."""
-        mapped_table = self._db_cache.mapped_table(self._item_type)
+        mapped_table = self._db_map.mapped_table(self._item_type)
         mapped_table.add_unique(self)
         for referrer in self._referrers.values():
             referrer.cascade_add_unique()
 
     def cascade_remove_unique(self):
         """Removes item and all its referrers unique keys and ids in cascade."""
-        mapped_table = self._db_cache.mapped_table(self._item_type)
+        mapped_table = self._db_map.mapped_table(self._item_type)
         mapped_table.remove_unique(self)
         for referrer in self._referrers.values():
             referrer.cascade_remove_unique()
