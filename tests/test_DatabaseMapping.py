@@ -169,6 +169,56 @@ class TestDatabaseMapping(unittest.TestCase):
                 value = from_database(color["value"], color["type"])
                 self.assertEqual(value, 0.23)
 
+    def test_updating_entity_name_updates_the_name_in_parameter_value_too(self):
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            _, error = db_map.add_item("entity_class", name="fish", description="It swims.")
+            self.assertIsNone(error)
+            _, error = db_map.add_item(
+                "entity", class_name="fish", name="Nemo", description="Peacefully swimming away."
+            )
+            self.assertIsNone(error)
+            _, error = db_map.add_item("parameter_definition", entity_class_name="fish", name="color")
+            self.assertIsNone(error)
+            value, type_ = to_database("mainly orange")
+            _, error = db_map.add_item(
+                "parameter_value",
+                entity_class_name="fish",
+                entity_byname=("Nemo",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+                value=value,
+                type=type_,
+            )
+            self.assertIsNone(error)
+            color = db_map.get_item(
+                "parameter_value",
+                entity_class_name="fish",
+                entity_byname=("Nemo",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+            )
+            self.assertIsNotNone(color)
+            fish = db_map.get_item("entity", class_name="fish", name="Nemo")
+            self.assertIsNotNone(fish)
+            fish.update(name="NotNemo")
+            self.assertEqual(fish["name"], "NotNemo")
+            not_color_anymore = db_map.get_item(
+                "parameter_value",
+                entity_class_name="fish",
+                entity_byname=("Nemo",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+            )
+            self.assertIsNone(not_color_anymore)
+            color = db_map.get_item(
+                "parameter_value",
+                entity_class_name="fish",
+                entity_byname=("NotNemo",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+            )
+            self.assertIsNotNone(color)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
