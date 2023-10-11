@@ -75,8 +75,13 @@ class EntityClassItem(MappedItemBase):
 class EntityItem(MappedItemBase):
     fields = {
         "class_name": ("str", "The entity class name."),
-        "name": ("str, optional", "The entity name - must be given for a zero-dimensional entity."),
-        "element_name_list": ("tuple, optional", "The element names - must be given for a multi-dimensional entity."),
+        "name": ("str", "The entity name."),
+        "element_name_list": ("tuple", "The element names if the entity is multi-dimensional."),
+        "byname": (
+            "tuple",
+            "A tuple with the entity name as single element if the entity is zero-dimensional, "
+            "or the element name list if it is multi-dimensional.",
+        ),
         "description": ("str, optional", "The entity description."),
     }
     _defaults = {"description": None}
@@ -126,7 +131,7 @@ class EntityGroupItem(MappedItemBase):
         "group_name": ("str", "The group entity name."),
         "member_name": ("str", "The member entity name."),
     }
-    _unique_keys = (("group_name", "member_name"),)
+    _unique_keys = (("class_name", "group_name", "member_name"),)
     _references = {
         "class_name": ("entity_class_id", ("entity_class", "name")),
         "group_name": ("entity_id", ("entity", "name")),
@@ -151,8 +156,9 @@ class EntityAlternativeItem(MappedItemBase):
     fields = {
         "entity_class_name": ("str", "The entity class name."),
         "entity_byname": (
-            "str or tuple",
-            "The entity name for a zero-dimensional entity, or the element name list for a multi-dimensional one.",
+            "tuple",
+            "A tuple with the entity name as single element if the entity is zero-dimensional, "
+            "or the element name list if it is multi-dimensional.",
         ),
         "alternative_name": ("str", "The alternative name."),
         "active": ("bool, optional", "Whether the entity is active in the alternative - defaults to True."),
@@ -303,8 +309,9 @@ class ParameterValueItem(ParsedValueBase):
         "entity_class_name": ("str", "The entity class name."),
         "parameter_definition_name": ("str", "The parameter name."),
         "entity_byname": (
-            "str or tuple",
-            "The entity name for a zero-dimensional entity, or the element name list for a multi-dimensional one.",
+            "tuple",
+            "A tuple with the entity name as single element if the entity is zero-dimensional, "
+            "or the element name list if the entity is multi-dimensional.",
         ),
         "value": ("any", "The value."),
         "type": ("str", "The value type."),
@@ -511,10 +518,12 @@ class ParameterValueMetadataItem(MappedItemBase):
     fields = {
         "parameter_definition_name": ("str", "The parameter name."),
         "entity_byname": (
-            "str or tuple",
-            "The entity name for a zero-dimensional entity, or the element name list for a multi-dimensional one.",
+            "tuple",
+            "A tuple with the entity name as single element if the entity is zero-dimensional, "
+            "or the element name list if it is multi-dimensional.",
         ),
         "alternative_name": ("str", "The alternative name."),
+        "metadata_name": ("str", "The metadata entry name."),
         "metadata_value": ("str", "The metadata entry value."),
     }
     _unique_keys = (
