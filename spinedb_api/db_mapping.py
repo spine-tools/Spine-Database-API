@@ -33,7 +33,6 @@ import hashlib
 import os
 import time
 import logging
-import astroid
 from functools import partialmethod
 from datetime import datetime, timezone
 from types import MethodType
@@ -513,7 +512,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 updated.append(item)
         return updated, errors
 
-    def remove_item(self, item_type, id_):
+    def remove_item(self, item_type, id):
         """Removes an item from the in-memory mapping.
 
         Example::
@@ -531,7 +530,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
-        return mapped_table.remove_item(id_).public_item
+        return mapped_table.remove_item(id).public_item
 
     def remove_items(self, item_type, *ids):
         """Removes many items from the in-memory mapping.
@@ -556,7 +555,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ids.discard(1)
         return [self.remove_item(item_type, id_) for id_ in ids]
 
-    def restore_item(self, item_type, id_):
+    def restore_item(self, item_type, id):
         """Restores a previously removed item into the in-memory mapping.
 
         Example::
@@ -574,7 +573,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
-        return mapped_table.restore_item(id_).public_item
+        return mapped_table.restore_item(id).public_item
 
     def restore_items(self, item_type, *ids):
         """Restores many previously removed items into the in-memory mapping.
@@ -757,19 +756,117 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._filter_configs
 
 
-for x in DatabaseMapping.item_types():
-    setattr(DatabaseMapping, "add_" + x, partialmethod(DatabaseMapping.add_item, x))
+# Define convenience methods
+for it in DatabaseMapping.item_types():
+    setattr(DatabaseMapping, "get_" + it + "_item", partialmethod(DatabaseMapping.get_item, it))
+    setattr(DatabaseMapping, "add_" + it + "_item", partialmethod(DatabaseMapping.add_item, it))
+    setattr(DatabaseMapping, "update_" + it + "_item", partialmethod(DatabaseMapping.update_item, it))
+    setattr(DatabaseMapping, "remove_" + it + "_item", partialmethod(DatabaseMapping.remove_item, it))
+    setattr(DatabaseMapping, "restore_" + it + "_item", partialmethod(DatabaseMapping.restore_item, it))
 
+# Astroid transform so DatabaseMapping looks like it has the convenience methods defined above
+def _add_convenience_methods(node):
+    import astroid
 
-def format_to_fstring_transform2(node):
-    if node.name == "DatabaseMapping":
-        f = astroid.FunctionDef("get_entity_class", lineno=node.lineno, col_offset=node.col_offset, parent=node)
-        f.postinit(doc_node=astroid.nodes.Const("Do stuff"))
-        print(f)
-        # node.postinit(body=node.body + [x])
-        # print(node.body)
+    if node.name != "DatabaseMapping":
+        return node
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping._item_factory(item_type)
+        uq_fields = {f_name: factory.fields[f_name] for f_names in factory._unique_keys for f_name in f_names}
+        a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
+        padding = 20 * " "
+        get_kwargs = f"\n{padding}".join(
+            [f"{f_name} ({f_type}): {f_value}" for f_name, (f_type, f_value) in uq_fields.items()]
+        )
+        add_kwargs = f"\n{padding}".join(
+            [f"{f_name} ({f_type}): {f_value}" for f_name, (f_type, f_value) in factory.fields.items()]
+        )
+        update_kwargs = f"id (int): The id of the item to update.\n{padding}" + add_kwargs
+        child = astroid.extract_node(
+            f'''
+            def get_{item_type}_item(self, fetch=True, skip_removed=True, **kwargs):
+                """Finds and returns {a} `{item_type}` item matching the arguments, or None if none found.
+
+                Args:
+                    fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
+                    skip_removed (bool, optional): Whether to ignore removed items.
+                    {get_kwargs}
+
+                Returns:
+                    :class:`PublicItem` or None
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
+        child = astroid.extract_node(
+            f'''
+            def add_{item_type}_item(self, check=True, **kwargs):
+                """Adds {a} `{item_type}` item to the in-memory mapping.
+
+                Args:
+                    check (bool, optional): Whether to carry out integrity checks.
+                    {add_kwargs}
+
+                Returns:
+                    tuple(:class:`PublicItem` or None, str): The added item and any errors.
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
+        child = astroid.extract_node(
+            f'''
+            def update_{item_type}_item(self, check=True, **kwargs):
+                """Updates {a} `{item_type}` item in the in-memory mapping.
+
+                Args:
+                    check (bool, optional): Whether to carry out integrity checks.
+                    {update_kwargs}
+
+                Returns:
+                    tuple(:class:`PublicItem` or None, str): The updated item and any errors.
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
+        child = astroid.extract_node(
+            f'''
+            def remove_{item_type}_item(self, id):
+                """Removes {a} `{item_type}` item from the in-memory mapping.
+
+                Args:
+                    id (int): the id of the item to remove.
+
+                Returns:
+                    tuple(:class:`PublicItem` or None, str): The removed item if any.
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
+        child = astroid.extract_node(
+            f'''
+            def restore_{item_type}_item(self, id):
+                """Restores a previously removed `{item_type}` item into the in-memory mapping.
+
+                Args:
+                    id (int): the id of the item to restore.
+
+                Returns:
+                    tuple(:class:`PublicItem` or None, str): The restored item if any.
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
     return node
 
 
-astroid.MANAGER.register_transform(astroid.ClassDef, format_to_fstring_transform2)
-# astroid.MANAGER.register_transform(astroid.FunctionDef, format_to_fstring_transform2)
+try:
+    import astroid
+
+    astroid.MANAGER.register_transform(astroid.ClassDef, _add_convenience_methods)
+except ModuleNotFoundError:
+    pass
