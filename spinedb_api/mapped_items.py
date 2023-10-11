@@ -117,7 +117,8 @@ class EntityItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key == "byname":
-            return tuple(self._byname_iter(self["id"]))
+            return self["element_name_list"] or (self["name"],)
+            # FIXME: Try to use this instead return tuple(self._byname_iter(self["id"]))
         return super().__getitem__(key)
 
     def polish(self):
