@@ -106,9 +106,18 @@ class EntityItem(MappedItemBase):
         kwargs["element_id_list"] = tuple(element_id_list)
         super().__init__(*args, **kwargs)
 
+    def _byname_iter(self, id_, strong=False):
+        entity = self._get_ref("entity", id_, strong=strong)
+        element_id_list = entity["element_id_list"]
+        if not element_id_list:
+            yield entity["name"]
+        else:
+            for el_id in element_id_list:
+                yield from self._byname_iter(el_id, strong=True)
+
     def __getitem__(self, key):
         if key == "byname":
-            return self["element_name_list"] or (self["name"],)
+            return tuple(self._byname_iter(self["id"]))
         return super().__getitem__(key)
 
     def polish(self):
