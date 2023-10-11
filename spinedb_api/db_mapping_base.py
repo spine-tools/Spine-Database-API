@@ -11,7 +11,9 @@
 
 import threading
 from enum import Enum, unique, auto
+from difflib import SequenceMatcher
 from .temp_id import TempId
+from .exception import SpineDBAPIError
 
 # TODO: Implement MappedItem.pop() to do lookup?
 
@@ -209,13 +211,21 @@ class DatabaseMappingBase:
         mapped_table = self.mapped_table(item_type)
         return [mapped_table.add_item(item) for item in chunk]
 
+    def _check_item_type(self, item_type):
+        if item_type not in self.item_types():
+            candidate = max(self.item_types(), key=lambda x: SequenceMatcher(None, item_type, x).ratio())
+            raise SpineDBAPIError(f"Invalid item type '{item_type}' - maybe you meant '{candidate}'?")
+
     def mapped_table(self, item_type):
+        self._check_item_type(item_type)
         return self._mapped_tables.setdefault(item_type, _MappedTable(self, item_type))
 
     def get(self, item_type, default=None):
+        self._check_item_type(item_type)
         return self._mapped_tables.get(item_type, default)
 
     def pop(self, item_type, default):
+        self._check_item_type(item_type)
         return self._mapped_tables.pop(item_type, default)
 
     def clear(self):
@@ -340,6 +350,10 @@ class _MappedTable(dict):
             return self._db_map.fetch_ref(self._item_type, id_)
         # No id. Try to locate the item by the value of one of the unique keys.
         # Used by import_data (and more...)
+        # FIXME: Do we really need to make the MappedItem here?
+        # Can't we just obtain the unique_values directly from item?
+        # I guess it's needed in case the user specifies stuff like 'class_id', as tests do,
+        # but that should be a corner case...
         mapped_item = self._make_item(item)
         error = mapped_item.resolve_inverse_references(item.keys())
         if error:

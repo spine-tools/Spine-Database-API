@@ -142,10 +142,59 @@ def _process_docstring(app, what, name, obj, options, lines):
                 new_lines.extend([f"   * - {f_names}"])
         lines[i : i + 1] = new_lines
     # Expand <spine_item_types>
-    spine_item_types = ", ".join([f"`{x}`" for x in DatabaseMapping.item_types()])
+    spine_item_types = ", ".join([f"``{x}``" for x in DatabaseMapping.item_types()])
     for k, line in enumerate(lines):
         if "<spine_item_types>" in line:
             lines[k] = line.replace("<spine_item_types>", spine_item_types)
+    # Expand <get_item>
+    if lines[0] == "<get_item>":
+        item_type = name.split("get_")[1].split("_item")[0]
+        a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
+        factory = DatabaseMapping._item_factory(item_type)
+        new_lines = [f"Finds and returns {a} `{item_type}` matching the arguments, or None if none found.", ""]
+        new_lines.extend(
+            [
+                f":param fetch: Whether to fetch the DB in case the `{item_type}` is not found in memory.",
+                ":type fetch: bool, optional",
+                "",
+                ":param skip_removed: Whether to ignore removed items.",
+                ":type skip_removed: bool, optional",
+                "",
+            ]
+        )
+        uq_f_names = {f_name: None for f_names in factory._unique_keys for f_name in f_names}
+        for f_name in uq_f_names:
+            f_type, f_value = factory.fields[f_name]
+            new_lines.extend([f":param {f_name}: {f_value}", f":type {f_name}: {f_type}", ""])
+        new_lines.extend([f":returns: The `{item_type}` if found.", ":rtype: :class:`PublicItem` or None", ""])
+        lines[0:1] = new_lines
+    # Expand <add_item>, <update_item>
+    if lines[0] in ("<add_item>", "<update_item>"):
+        update = lines[0] == "<update_item>"
+        head = "update_" if update else "add_"
+        item_type = name.split(head)[1].split("_item")[0]
+        a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
+        factory = DatabaseMapping._item_factory(item_type)
+        synopsis = (
+            f"Updates {a} `{item_type}` in the in-memory mapping."
+            if update
+            else f"Adds {a} `{item_type}` to the in-memory mapping."
+        )
+        new_lines = [synopsis, ""]
+        new_lines.extend([":param check: Whether to carry out integrity checks.", ":type check: bool, optional", ""])
+        if update:
+            new_lines.extend([f":param id: The id of the `{item_type}` to update.", ":type id: int", ""])
+        uq_f_names = {f_name: None for f_names in factory._unique_keys for f_name in f_names}
+        for f_name, (f_type, f_value) in factory.fields.items():
+            new_lines.extend([f":param {f_name}: {f_value}", f":type {f_name}: {f_type}", ""])
+        new_lines.extend(
+            [
+                f":returns: The {'updated' if update else 'added'} `{item_type}` and any errors.",
+                ":rtype: tuple(:class:`PublicItem` or None, str)",
+                "",
+            ]
+        )
+        lines[0:1] = new_lines
 
 
 def setup(sphinx):

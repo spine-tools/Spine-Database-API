@@ -12,14 +12,14 @@
 """
 This module defines the :class:`.DatabaseMapping` class, the main mean to communicate with a Spine DB.
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
-DB mapping schema.
+DB mapping schema below.
 
 
 DB mapping schema
 =================
 
-The DB mapping schema is a close cousin of the Spine DB schema, with some extra flexibility such as
-(or should I say, mainly) the ability to define references by name rather than by numerical id.
+The DB mapping schema is a close cousin of the Spine DB schema with some extra flexibility,
+like the ability to specify references by name rather than by numerical id.
 The schema defines the following item types: <spine_item_types>. As you can see, these follow the names
 of some of the tables in the Spine DB schema.
 
@@ -33,6 +33,8 @@ import hashlib
 import os
 import time
 import logging
+import astroid
+from functools import partialmethod
 from datetime import datetime, timezone
 from types import MethodType
 from sqlalchemy import create_engine, MetaData, inspect
@@ -77,6 +79,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     otherwise it is fetched from the DB, stored in memory, and then returned.
     In other words, the data is fetched from the DB exactly once.
 
+    For convenience, we also provide specialized 'get' methods for each item type, e.g., :meth:`get_entity_item`.
+
     Data is added via :meth:`add_item`;
     updated via :meth:`update_item`;
     removed via :meth:`remove_item`;
@@ -84,6 +88,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     All the above methods modify the in-memory mapping (not the DB itself).
     These methods also fetch data from the DB into the in-memory mapping to perform the necessary integrity checks
     (unique and foreign key constraints).
+
+    For convenience, we also provide specialized 'add', 'update', 'remove', and 'restore' methods
+    for each item type, e.g.,
+    :meth:`add_entity_item`, :meth:`update_entity_item`, :meth:`remove_entity_item`, :meth:`restore_entity_item`.
 
     Modifications to the in-memory mapping are committed (written) to the DB via :meth:`commit_session`,
     or rolled back (discarded) via :meth:`rollback_session`.
@@ -107,15 +115,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     """
 
     _sq_name_by_item_type = {
-        "entity_class": "wide_entity_class_sq",
-        "entity": "wide_entity_sq",
-        "entity_alternative": "entity_alternative_sq",
-        "parameter_value_list": "parameter_value_list_sq",
-        "list_value": "list_value_sq",
         "alternative": "alternative_sq",
         "scenario": "scenario_sq",
         "scenario_alternative": "scenario_alternative_sq",
+        "entity_class": "wide_entity_class_sq",
+        "entity": "wide_entity_sq",
         "entity_group": "entity_group_sq",
+        "entity_alternative": "entity_alternative_sq",
+        "parameter_value_list": "parameter_value_list_sq",
+        "list_value": "list_value_sq",
         "parameter_definition": "parameter_definition_sq",
         "parameter_value": "parameter_value_sq",
         "metadata": "metadata_sq",
@@ -368,7 +376,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
             skip_removed (bool, optional): Whether to ignore removed items.
-            **kwargs: Fields and values for one the unique keys of the item type as specified in `DB mapping schema`_.
+            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
 
         Returns:
             :class:`PublicItem` or None
@@ -411,7 +419,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
-            **kwargs: Fields and values of the item type as specified in `DB mapping schema`_.
+            **kwargs: Fields and values as specified for the item type in `DB mapping schema`_.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The added item and any errors.
@@ -467,7 +475,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
             id (int): The id of the item to update.
-            **kwargs: Fields to update and their new values as specified in `DB mapping schema`_.
+            **kwargs: Fields to update and their new values as specified for the item type in `DB mapping schema`_.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The updated item and any errors.
@@ -747,3 +755,21 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(dict):
         """
         return self._filter_configs
+
+
+for x in DatabaseMapping.item_types():
+    setattr(DatabaseMapping, "add_" + x, partialmethod(DatabaseMapping.add_item, x))
+
+
+def format_to_fstring_transform2(node):
+    if node.name == "DatabaseMapping":
+        f = astroid.FunctionDef("get_entity_class", lineno=node.lineno, col_offset=node.col_offset, parent=node)
+        f.postinit(doc_node=astroid.nodes.Const("Do stuff"))
+        print(f)
+        # node.postinit(body=node.body + [x])
+        # print(node.body)
+    return node
+
+
+astroid.MANAGER.register_transform(astroid.ClassDef, format_to_fstring_transform2)
+# astroid.MANAGER.register_transform(astroid.FunctionDef, format_to_fstring_transform2)
