@@ -1279,9 +1279,12 @@ class AlternativeMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        if self.parent is None:
-            return query
-        return query.filter(db_map.alternative_sq.c.id == db_map.parameter_value_sq.c.alternative_id)
+        parent = self.parent
+        while parent is not None:
+            if isinstance(parent, ParameterDefinitionMapping):
+                return query.filter(db_map.alternative_sq.c.id == db_map.parameter_value_sq.c.alternative_id)
+            parent = parent.parent
+        return query
 
     @staticmethod
     def name_field():

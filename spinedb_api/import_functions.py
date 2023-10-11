@@ -351,7 +351,7 @@ def import_scenarios(db_map, data):
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): database mapping
-        data (list(str,str)): tuples of (name, description)
+        data (list(str, bool, str)): tuples of (name, <unused_bool>, description)
 
     Returns:
         int: number of items imported

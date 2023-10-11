@@ -38,6 +38,7 @@ from spinedb_api.export_mapping import (
     entity_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
+    AlternativeDescriptionMapping,
     AlternativeMapping,
     drop_non_positioned_tail,
     FixedValueMapping,
@@ -60,6 +61,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ElementMapping,
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
+    ScenarioDescriptionMapping,
     ScenarioMapping,
 )
 from spinedb_api.mapping import unflatten
@@ -1567,6 +1569,46 @@ class TestExportMapping(unittest.TestCase):
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.close()
+
+    def test_alternative_mapping_with_header_and_description(self):
+        root_mapping = AlternativeMapping(0, header="alternative")
+        root_mapping.child = AlternativeDescriptionMapping(1, header="description")
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            expected = [["alternative", "description"], ["Base", "Base alternative"]]
+            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+
+    def test_fixed_value_and_alternative_mappings_with_header_and_description(self):
+        root_mapping = FixedValueMapping(Position.table_name, value="Alternative")
+        alternative_mapping = root_mapping.child = AlternativeMapping(0, header="alternative")
+        alternative_mapping.child = AlternativeDescriptionMapping(1, header="description")
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            expected = [["alternative", "description"], ["Base", "Base alternative"]]
+            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+
+    def test_fixed_value_and_scenario_mappings_with_header_and_description(self):
+        root_mapping = FixedValueMapping(Position.table_name, value="Scenario")
+        scenario_mapping = root_mapping.child = ScenarioMapping(0, header="scenario")
+        scenario_mapping.child = ScenarioDescriptionMapping(1, header="description")
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            import_scenarios(db_map, (("scenario1", False, "Scenario with Base alternative"),))
+            db_map.commit_session("Add test data.")
+            expected = [["scenario", "description"], ["scenario1", "Scenario with Base alternative"]]
+            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+
+    def test_rows_from_scenario_mappings_after_rows_from_alternative_mappings(self):
+        root_mapping1 = FixedValueMapping(Position.table_name, value="Alternative")
+        alternative_mapping = root_mapping1.child = AlternativeMapping(0, header="alternative")
+        alternative_mapping.child = AlternativeDescriptionMapping(1, header="description")
+        root_mapping2 = FixedValueMapping(Position.table_name, value="Scenario")
+        scenario_mapping = root_mapping2.child = ScenarioMapping(0, header="scenario")
+        scenario_mapping.child = ScenarioDescriptionMapping(1, header="description")
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            import_scenarios(db_map, (("scenario1", False, "Scenario with Base alternative"),))
+            db_map.commit_session("Add test data.")
+            expected1 = [["alternative", "description"], ["Base", "Base alternative"]]
+            self.assertEqual(list(rows(root_mapping1, db_map)), expected1)
+            expected2 = [["scenario", "description"], ["scenario1", "Scenario with Base alternative"]]
+            self.assertEqual(list(rows(root_mapping2, db_map)), expected2)
 
 
 if __name__ == "__main__":
