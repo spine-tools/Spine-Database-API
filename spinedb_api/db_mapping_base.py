@@ -982,6 +982,9 @@ class PublicItem:
     def _asdict(self):
         return self._mapped_item._asdict()
 
+    def _extended(self):
+        return self._mapped_item._extended()
+
     def update(self, **kwargs):
         self._db_map.update_item(self.item_type, id=self["id"], **kwargs)
 
