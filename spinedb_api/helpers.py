@@ -60,9 +60,13 @@ from .exception import SpineDBAPIError, SpineDBVersionError
 SUPPORTED_DIALECTS = {
     "mysql": "pymysql",
     "sqlite": "sqlite3",
-    # "mssql": "pyodbc",
-    # "postgresql": "psycopg2",
-    # "oracle": "cx_oracle",
+}
+
+UNSUPPORTED_DIALECTS = {
+    "mssql": "pyodbc",
+    "postgresql": "psycopg2",
+    "oracle": "cx_oracle",
+
 }
 
 naming_convention = {
