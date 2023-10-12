@@ -209,7 +209,7 @@ class DatabaseMappingBase:
             self._fetched_item_types.add(item_type)
             return []
         mapped_table = self.mapped_table(item_type)
-        return [mapped_table.add_item(item) for item in chunk]
+        return list(filter(lambda i: i is not None, (mapped_table.add_item(item) for item in chunk)))
 
     def _check_item_type(self, item_type):
         if item_type not in self.item_types():
@@ -704,8 +704,8 @@ class MappedItemBase(dict):
         If the reference is not found, sets some flags.
 
         Args:
-            ref_type (str): The references's type
-            ref_id (int): The references's id
+            ref_type (str): The reference's type
+            ref_id (int): The reference's id
             strong (bool): True if the reference corresponds to a foreign key, False otherwise
 
         Returns:
