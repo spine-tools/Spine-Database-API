@@ -214,18 +214,16 @@ class DatabaseMappingBase:
     def _check_item_type(self, item_type):
         if item_type not in self.item_types():
             candidate = max(self.item_types(), key=lambda x: SequenceMatcher(None, item_type, x).ratio())
-            # FIXME: raise SpineDBAPIError(f"Invalid item type '{item_type}' - maybe you meant '{candidate}'?")
+            raise SpineDBAPIError(f"Invalid item type '{item_type}' - maybe you meant '{candidate}'?")
 
     def mapped_table(self, item_type):
         self._check_item_type(item_type)
         return self._mapped_tables.setdefault(item_type, _MappedTable(self, item_type))
 
     def get(self, item_type, default=None):
-        self._check_item_type(item_type)
         return self._mapped_tables.get(item_type, default)
 
     def pop(self, item_type, default):
-        self._check_item_type(item_type)
         return self._mapped_tables.pop(item_type, default)
 
     def clear(self):
