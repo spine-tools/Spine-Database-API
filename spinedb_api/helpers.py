@@ -56,16 +56,20 @@ from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from .exception import SpineDBAPIError, SpineDBVersionError
 
-# Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
-# - sqlite works
-# - mysql is trying to work
 SUPPORTED_DIALECTS = {
     "mysql": "pymysql",
     "sqlite": "sqlite3",
-    # "mssql": "pyodbc",
-    # "postgresql": "psycopg2",
-    # "oracle": "cx_oracle",
 }
+"""Currently supported dialects and recommended dbapi."""
+
+
+UNSUPPORTED_DIALECTS = {
+    "mssql": "pyodbc",
+    "postgresql": "psycopg2",
+    "oracle": "cx_oracle",
+}
+"""Dialects and recommended dbapi that are not supported by DatabaseMapping but are supported by SqlAlchemy."""
+
 
 naming_convention = {
     "pk": "pk_%(table_name)s",
