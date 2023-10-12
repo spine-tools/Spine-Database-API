@@ -219,6 +219,21 @@ class TestDatabaseMapping(unittest.TestCase):
             )
             self.assertIsNotNone(color)
 
+    def test_fetch_more(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternatives = db_map.fetch_more("alternative")
+            expected = [{"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}]
+            self.assertEqual([a._asdict() for a in alternatives], expected)
+
+    def test_fetch_more_after_commit_and_refresh(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_item("entity_class", name="Widget")
+            db_map.add_item("entity", class_name="Widget", name="gadget")
+            db_map.commit_session("Add test data.")
+            db_map.refresh_session()
+            entities = db_map.fetch_more("entity")
+            self.assertEqual(entities, [])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
