@@ -406,7 +406,6 @@ class TestImportRelationship(unittest.TestCase):
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         _, errors = import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
         self.assertFalse(errors)
-        db_map.commit_session("test")
         self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 

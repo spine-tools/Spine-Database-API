@@ -24,12 +24,6 @@ class TempId(int):
         self._resolve_callbacks = []
         self._db_id = None
 
-    def __eq__(self, other):
-        return super().__eq__(other) or (self._db_id is not None and other == self._db_id)
-
-    def __hash__(self):
-        return int(self)
-
     @property
     def db_id(self):
         return self._db_id
