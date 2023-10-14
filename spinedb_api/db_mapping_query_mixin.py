@@ -102,10 +102,7 @@ class DatabaseMappingQueryMixin:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        tablenames = list(tablenames)
-        for tablename in tablenames:
-            if self.pop(tablename, False):
-                self.fetch_all(tablename)
+        self.reset(*tablenames)
         attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
@@ -1349,42 +1346,42 @@ class DatabaseMappingQueryMixin:
 
     def restore_entity_class_sq_maker(self):
         """Restores the original function that creates the ``entity_class_sq`` property."""
-        self._make_entity_class_sq = MethodType(DatabaseMapping._make_entity_class_sq, self)
+        self._make_entity_class_sq = MethodType(DatabaseMappingQueryMixin._make_entity_class_sq, self)
         self._clear_subqueries("entity_class")
 
     def restore_entity_sq_maker(self):
         """Restores the original function that creates the ``entity_sq`` property."""
-        self._make_entity_sq = MethodType(DatabaseMapping._make_entity_sq, self)
+        self._make_entity_sq = MethodType(DatabaseMappingQueryMixin._make_entity_sq, self)
         self._clear_subqueries("entity")
 
     def restore_entity_element_sq_maker(self):
         """Restores the original function that creates the ``entity_element_sq`` property."""
-        self._make_entity_element_sq = MethodType(DatabaseMapping._make_entity_element_sq, self)
+        self._make_entity_element_sq = MethodType(DatabaseMappingQueryMixin._make_entity_element_sq, self)
         self._clear_subqueries("entity_element")
 
     def restore_parameter_definition_sq_maker(self):
         """Restores the original function that creates the ``parameter_definition_sq`` property."""
-        self._make_parameter_definition_sq = MethodType(DatabaseMapping._make_parameter_definition_sq, self)
+        self._make_parameter_definition_sq = MethodType(DatabaseMappingQueryMixin._make_parameter_definition_sq, self)
         self._clear_subqueries("parameter_definition")
 
     def restore_parameter_value_sq_maker(self):
         """Restores the original function that creates the ``parameter_value_sq`` property."""
-        self._make_parameter_value_sq = MethodType(DatabaseMapping._make_parameter_value_sq, self)
+        self._make_parameter_value_sq = MethodType(DatabaseMappingQueryMixin._make_parameter_value_sq, self)
         self._clear_subqueries("parameter_value")
 
     def restore_alternative_sq_maker(self):
         """Restores the original function that creates the ``alternative_sq`` property."""
-        self._make_alternative_sq = MethodType(DatabaseMapping._make_alternative_sq, self)
+        self._make_alternative_sq = MethodType(DatabaseMappingQueryMixin._make_alternative_sq, self)
         self._clear_subqueries("alternative")
 
     def restore_scenario_sq_maker(self):
         """Restores the original function that creates the ``scenario_sq`` property."""
-        self._make_scenario_sq = MethodType(DatabaseMapping._make_scenario_sq, self)
+        self._make_scenario_sq = MethodType(DatabaseMappingQueryMixin._make_scenario_sq, self)
         self._clear_subqueries("scenario")
 
     def restore_scenario_alternative_sq_maker(self):
         """Restores the original function that creates the ``scenario_alternative_sq`` property."""
-        self._make_scenario_alternative_sq = MethodType(DatabaseMapping._make_scenario_alternative_sq, self)
+        self._make_scenario_alternative_sq = MethodType(DatabaseMappingQueryMixin._make_scenario_alternative_sq, self)
         self._clear_subqueries("scenario_alternative")
 
     def _object_class_id(self):

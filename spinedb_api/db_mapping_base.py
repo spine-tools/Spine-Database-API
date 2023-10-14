@@ -224,11 +224,13 @@ class DatabaseMappingBase:
     def get(self, item_type, default=None):
         return self._mapped_tables.get(item_type, default)
 
-    def pop(self, item_type, default):
-        return self._mapped_tables.pop(item_type, default)
-
-    def clear(self):
-        self._mapped_tables.clear()
+    def reset(self, *item_types):
+        """Resets the mapping for given item types as if never was fetched from the DB."""
+        item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
+        for item_type in item_types:
+            self._mapped_tables.pop(item_type, None)
+            self._offsets.pop(item_type, None)
+            self._fetched_item_types.discard(item_type)
 
     def get_mapped_item(self, item_type, id_):
         mapped_table = self.mapped_table(item_type)
