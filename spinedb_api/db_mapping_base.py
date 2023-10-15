@@ -232,7 +232,7 @@ class DatabaseMappingBase:
         # Include descendants, otherwise references are broken
         while True:
             changed = False
-            for item_type in item_types - set(self.item_types()):
+            for item_type in set(self.item_types()) - item_types:
                 if self._item_factory(item_type).ref_types() & item_types:
                     item_types.add(item_type)
                     changed = True
