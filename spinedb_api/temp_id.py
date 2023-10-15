@@ -28,6 +28,12 @@ class TempId(int):
     def db_id(self):
         return self._db_id
 
+    def __eq__(self, other):
+        return super().__eq__(other) or (self._db_id is not None and other == self._db_id)
+
+    def __hash__(self):
+        return int(self)
+
     def __repr__(self):
         return f"TempId({self._item_type}, {super().__repr__()})"
 

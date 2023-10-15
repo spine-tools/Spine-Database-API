@@ -10,7 +10,6 @@
 ######################################################################################################################
 
 import threading
-import json
 from enum import Enum, unique, auto
 from difflib import SequenceMatcher
 from .temp_id import TempId
@@ -631,29 +630,20 @@ class MappedItemBase(dict):
             dict: merged item.
             str: error description if any.
         """
-
-        def _convert(x):
-            if isinstance(x, list):
-                return tuple(x)
-            if isinstance(x, bytes):
-                try:
-                    return json.loads(x)
-                except json.decoder.JSONDecodeError:
-                    pass
-            return x
-
-        def _equals(left, right):
-            if isinstance(left, TempId):
-                return left == right or (left.db_id is not None and left.db_id == right)
-            return _convert(left) == _convert(right)
-
-        if all(_equals(self.get(key), value) for key, value in other.items()):
+        if not self._something_to_update(other):
             # Nothing to update, that's fine
             return None, ""
         merged = {**self._extended(), **other}
         if not isinstance(merged["id"], int):
             merged["id"] = self["id"]
         return merged, ""
+
+    def _something_to_update(self, other):
+        def _convert(x):
+            if isinstance(x, list):
+                return tuple(x)
+
+        return all(_convert(self.get(key)) != _convert(value) for key, value in other.items())
 
     def first_invalid_key(self):
         """Goes through the ``_references`` class attribute and returns the key of the first one

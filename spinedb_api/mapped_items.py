@@ -202,8 +202,19 @@ class ParsedValueBase(MappedItemBase):
             self._parsed_value = self._make_parsed_value()
         return self._parsed_value
 
-    def _make_parsed_value(self):
+    @property
+    def _value_key(self):
         raise NotImplementedError()
+
+    @property
+    def _type_key(self):
+        raise NotImplementedError()
+
+    def _make_parsed_value(self):
+        try:
+            return from_database(self[self._value_key], self[self._type_key])
+        except ParameterValueFormatError as error:
+            return error
 
     def update(self, other):
         self._parsed_value = None
@@ -213,6 +224,19 @@ class ParsedValueBase(MappedItemBase):
         if key == "parsed_value":
             return self.parsed_value
         return super().__getitem__(key)
+
+    def _something_to_update(self, other):
+        other = other.copy()
+        if self._value_key in other and self._type_key in other:
+            try:
+                other_parsed_value = from_database(other[self._value_key], other[self._type_key])
+                if self.parsed_value != other_parsed_value:
+                    return True
+            except ParameterValueFormatError:
+                pass
+        _ = other.pop(self._value_key, None)
+        _ = other.pop(self._type_key, None)
+        return super()._something_to_update(other)
 
 
 class ParameterDefinitionItem(ParsedValueBase):
@@ -242,11 +266,13 @@ class ParameterDefinitionItem(ParsedValueBase):
             return int(dict.__getitem__(self, "default_value"))
         return None
 
-    def _make_parsed_value(self):
-        try:
-            return from_database(self["default_value"], self["default_type"])
-        except ParameterValueFormatError as error:
-            return error
+    @property
+    def _value_key(self):
+        return "default_value"
+
+    @property
+    def _type_key(self):
+        return "default_type"
 
     def __getitem__(self, key):
         if key == "parameter_name":
@@ -356,11 +382,13 @@ class ParameterValueItem(ParsedValueBase):
             return int(dict.__getitem__(self, "value"))
         return None
 
-    def _make_parsed_value(self):
-        try:
-            return from_database(self["value"], self["type"])
-        except ParameterValueFormatError as error:
-            return error
+    @property
+    def _value_key(self):
+        return "value"
+
+    @property
+    def _type_key(self):
+        return "type"
 
     def __getitem__(self, key):
         if key == "parameter_id":
@@ -425,11 +453,13 @@ class ListValueItem(ParsedValueBase):
         "parameter_value_list_id": (("parameter_value_list_name",), ("parameter_value_list", ("name",))),
     }
 
-    def _make_parsed_value(self):
-        try:
-            return from_database(self["value"], self["type"])
-        except ParameterValueFormatError as error:
-            return error
+    @property
+    def _value_key(self):
+        return "value"
+
+    @property
+    def _type_key(self):
+        return "type"
 
 
 class AlternativeItem(MappedItemBase):
