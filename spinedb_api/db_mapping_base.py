@@ -225,8 +225,20 @@ class DatabaseMappingBase:
         return self._mapped_tables.get(item_type, default)
 
     def reset(self, *item_types):
-        """Resets the mapping for given item types as if never was fetched from the DB."""
+        """Resets the mapping for given item types as if nothing was fetched from the DB or modified in the mapping.
+        Any modifications in the mapping that aren't committed to the DB are lost after this.
+        """
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
+        # Include descendants, otherwise references are broken
+        while True:
+            changed = False
+            for item_type in item_types - set(self.item_types()):
+                if self._item_factory(item_type).ref_types() & item_types:
+                    item_types.add(item_type)
+                    changed = True
+            if not changed:
+                break
+        # Now clear things
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
             self._offsets.pop(item_type, None)
