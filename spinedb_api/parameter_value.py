@@ -946,7 +946,10 @@ class Array(IndexedValue):
     def __eq__(self, other):
         if not isinstance(other, Array):
             return NotImplemented
-        return np.array_equal(self._values, other._values, equal_nan=True) and self.index_name == other.index_name
+        try:
+            return np.array_equal(self._values, other._values, equal_nan=True) and self.index_name == other.index_name
+        except TypeError:
+            return np.array_equal(self._values, other._values) and self.index_name == other.index_name
 
     @staticmethod
     def type_():

@@ -232,10 +232,10 @@ class ParsedValueBase(MappedItemBase):
                 other_parsed_value = from_database(other[self._value_key], other[self._type_key])
                 if self.parsed_value != other_parsed_value:
                     return True
+                _ = other.pop(self._value_key, None)
+                _ = other.pop(self._type_key, None)
             except ParameterValueFormatError:
                 pass
-        _ = other.pop(self._value_key, None)
-        _ = other.pop(self._type_key, None)
         return super()._something_to_update(other)
 
 

@@ -640,10 +640,9 @@ class MappedItemBase(dict):
 
     def _something_to_update(self, other):
         def _convert(x):
-            if isinstance(x, list):
-                return tuple(x)
+            return tuple(x) if isinstance(x, list) else x
 
-        return all(_convert(self.get(key)) != _convert(value) for key, value in other.items())
+        return not all(_convert(self.get(key)) == _convert(value) for key, value in other.items())
 
     def first_invalid_key(self):
         """Goes through the ``_references`` class attribute and returns the key of the first one
