@@ -80,7 +80,7 @@ class EntityItem(MappedItemBase):
         "byname": (
             "tuple",
             "A tuple with the entity name as single element if the entity is zero-dimensional, "
-            "or the element name list if it is multi-dimensional.",
+            "or the element names if it is multi-dimensional.",
         ),
         "description": ("str, optional", "The entity description."),
     }
@@ -119,6 +119,35 @@ class EntityItem(MappedItemBase):
         if key == "byname":
             return tuple(self._byname_iter(self))
         return super().__getitem__(key)
+
+    def resolve_inverse_references(self, skip_keys=()):
+        error = super().resolve_inverse_references(skip_keys=skip_keys)
+        if error:
+            return error
+        byname = dict.pop(self, "byname", None)
+        if byname is None:
+            return
+        if not self["dimension_id_list"]:
+            self["name"] = byname[0]
+            return
+        byname_remainder = list(byname)
+        self["element_name_list"] = self._element_name_list_recursive(self["class_name"], byname_remainder)
+        return self._do_resolve_inverse_reference("element_id_list")
+
+    def _element_name_list_recursive(self, class_name, byname_remainder):
+        dimension_name_list = self._db_map.get_item("entity_class", name=class_name).get("dimension_name_list")
+        if not dimension_name_list:
+            name = byname_remainder.pop(0)
+            return (name,)
+        return tuple(
+            (
+                self._db_map.get_item(
+                    "entity", class_name=dim_name, byname=self._element_name_list_recursive(dim_name, byname_remainder)
+                )
+                or {}
+            ).get("name")
+            for dim_name in dimension_name_list
+        )
 
     def polish(self):
         error = super().polish()
@@ -167,7 +196,7 @@ class EntityAlternativeItem(MappedItemBase):
         "entity_byname": (
             "tuple",
             "A tuple with the entity name as single element if the entity is zero-dimensional, "
-            "or the element name list if it is multi-dimensional.",
+            "or the element names if it is multi-dimensional.",
         ),
         "alternative_name": ("str", "The alternative name."),
         "active": ("bool, optional", "Whether the entity is active in the alternative - defaults to True."),
@@ -346,7 +375,7 @@ class ParameterValueItem(ParsedValueBase):
         "entity_byname": (
             "tuple",
             "A tuple with the entity name as single element if the entity is zero-dimensional, "
-            "or the element name list if the entity is multi-dimensional.",
+            "or the element names if the entity is multi-dimensional.",
         ),
         "value": ("any", "The value."),
         "type": ("str", "The value type."),
@@ -559,7 +588,7 @@ class ParameterValueMetadataItem(MappedItemBase):
         "entity_byname": (
             "tuple",
             "A tuple with the entity name as single element if the entity is zero-dimensional, "
-            "or the element name list if it is multi-dimensional.",
+            "or the element names if it is multi-dimensional.",
         ),
         "alternative_name": ("str", "The alternative name."),
         "metadata_name": ("str", "The metadata entry name."),

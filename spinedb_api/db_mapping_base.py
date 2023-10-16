@@ -362,10 +362,16 @@ class _MappedTable(dict):
             return self._db_map.fetch_ref(self._item_type, id_)
         # No id. Try to locate the item by the value of one of the unique keys.
         # Used by import_data (and more...)
-        # FIXME: Do we really need to make the MappedItem here?
-        # Can't we just obtain the unique_values directly from item?
-        # I guess it's needed in case the user specifies stuff like 'class_id', as tests do,
-        # but that should be a corner case...
+        for key in self._db_map._item_factory(self._item_type)._unique_keys:
+            if key in skip_keys:
+                continue
+            value = tuple(item.get(k) for k in key)
+            if None in value:
+                continue
+            current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
+            if current_item:
+                return current_item
+        # Last hope: maybe item is missing some key stuff, so try with a resolved and polished MappedItem instead...
         mapped_item = self._make_item(item)
         error = mapped_item.resolve_inverse_references(item.keys())
         if error:
@@ -475,24 +481,24 @@ class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
     fields = {}
-    """A dictionary mapping fields to a tuple of (type, value description)"""
+    """A dictionary mapping keys to a tuple of (type, value description)"""
     _defaults = {}
     """A dictionary mapping keys to their default values"""
     _unique_keys = ()
-    """A tuple where each element is itself a tuple of keys that are unique"""
+    """A tuple where each element is itself a tuple of keys corresponding to a unique constraint"""
     _references = {}
     """A dictionary mapping keys that are not in the original dictionary,
-    to a recipe for finding the field they reference in another item.
+    to a recipe for finding the key they reference in another item.
 
-    The recipe is a tuple of the form (original_field, (ref_item_type, ref_field)),
+    The recipe is a tuple of the form (src_key, (ref_item_type, ref_key)),
     to be interpreted as follows:
-        1. take the value from the original_field of this item, which should be an id,
+        1. take the value from the src_key of this item, which should be an id,
         2. locate the item of type ref_item_type that has that id,
-        3. return the value from the ref_field of that item.
+        3. return the value from the ref_key of that item.
     """
     _inverse_references = {}
     """Another dictionary mapping keys that are not in the original dictionary,
-    to a recipe for finding the field they reference in another item.
+    to a recipe for finding the key they reference in another item.
     Used only for creating new items, when the user provides names and we want to find the ids.
 
     The recipe is a tuple of the form (src_unique_key, (ref_item_type, ref_unique_key)),
@@ -687,22 +693,28 @@ class MappedItemBase(dict):
         Returns:
             str or None: error description if any.
         """
-        for src_key, (id_key, (ref_type, ref_key)) in self._inverse_references.items():
+        for src_key in self._inverse_references:
             if src_key in skip_keys:
                 continue
-            id_value = tuple(dict.pop(self, k, None) or self.get(k) for k in id_key)
-            if None in id_value:
-                continue
-            mapped_table = self._db_map.mapped_table(ref_type)
-            try:
-                self[src_key] = (
-                    tuple(mapped_table.unique_key_value_to_id(ref_key, v, strict=True) for v in zip(*id_value))
-                    if all(isinstance(v, (tuple, list)) for v in id_value)
-                    else mapped_table.unique_key_value_to_id(ref_key, id_value, strict=True)
-                )
-            except KeyError as err:
-                # Happens at unique_key_value_to_id(..., strict=True)
-                return f"can't find {ref_type} with {dict(zip(ref_key, err.args[0]))}"
+            error = self._do_resolve_inverse_reference(src_key)
+            if error:
+                return error
+
+    def _do_resolve_inverse_reference(self, src_key):
+        id_key, (ref_type, ref_key) = self._inverse_references[src_key]
+        id_value = tuple(dict.pop(self, k, None) or self.get(k) for k in id_key)
+        if None in id_value:
+            return
+        mapped_table = self._db_map.mapped_table(ref_type)
+        try:
+            self[src_key] = (
+                tuple(mapped_table.unique_key_value_to_id(ref_key, v, strict=True) for v in zip(*id_value))
+                if all(isinstance(v, (tuple, list)) for v in id_value)
+                else mapped_table.unique_key_value_to_id(ref_key, id_value, strict=True)
+            )
+        except KeyError as err:
+            # Happens at unique_key_value_to_id(..., strict=True)
+            return f"can't find {ref_type} with {dict(zip(ref_key, err.args[0]))}"
 
     def polish(self):
         """Polishes this item once all it's references have been resolved. Returns any error.

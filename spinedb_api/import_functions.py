@@ -176,11 +176,11 @@ def get_data_for_import(
             yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
     if entity_classes:
-        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, zero_dim=True))
-        yield ("entity_class", _get_entity_classes_for_import(db_map, entity_classes, zero_dim=False))
+        for bucket in _get_entity_classes_for_import(db_map, entity_classes):
+            yield ("entity_class", bucket)
     if entities:
-        yield ("entity", _get_entities_for_import(db_map, entities, zero_dim=True))
-        yield ("entity", _get_entities_for_import(db_map, entities, zero_dim=False))
+        for bucket in _get_entities_for_import(db_map, entities):
+            yield ("entity", bucket)
     if entity_alternatives:
         yield ("entity_alternative", _get_entity_alternatives_for_import(db_map, entity_alternatives))
     if entity_groups:
@@ -207,31 +207,28 @@ def get_data_for_import(
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     # Legacy
     if object_classes:
-        yield ("object_class", _get_object_classes_for_import(db_map, object_classes))
+        yield from get_data_for_import(db_map, entity_classes=object_classes)
     if relationship_classes:
-        yield ("relationship_class", _get_entity_classes_for_import(db_map, relationship_classes, zero_dim=False))
+        yield from get_data_for_import(db_map, entity_classes=relationship_classes)
     if object_parameters:
-        yield ("parameter_definition", _get_parameter_definitions_for_import(db_map, object_parameters, unparse_value))
+        yield from get_data_for_import(db_map, unparse_value=unparse_value, parameter_definitions=object_parameters)
     if relationship_parameters:
-        yield (
-            "parameter_definition",
-            _get_parameter_definitions_for_import(db_map, relationship_parameters, unparse_value),
+        yield from get_data_for_import(
+            db_map, unparse_value=unparse_value, parameter_definitions=relationship_parameters
         )
     if objects:
-        yield ("object", _get_entities_for_import(db_map, objects, zero_dim=True))
+        yield from get_data_for_import(db_map, entities=objects)
     if relationships:
-        yield ("relationship", _get_entities_for_import(db_map, relationships, zero_dim=False))
+        yield from get_data_for_import(db_map, entities=relationships)
     if object_groups:
-        yield ("entity_group", _get_entity_groups_for_import(db_map, object_groups))
+        yield from get_data_for_import(db_map, entity_groups=object_groups)
     if object_parameter_values:
-        yield (
-            "parameter_value",
-            _get_parameter_values_for_import(db_map, object_parameter_values, unparse_value, on_conflict),
+        yield from get_data_for_import(
+            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=object_parameter_values
         )
     if relationship_parameter_values:
-        yield (
-            "parameter_value",
-            _get_parameter_values_for_import(db_map, relationship_parameter_values, unparse_value, on_conflict),
+        yield from get_data_for_import(
+            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=relationship_parameter_values
         )
     if object_metadata:
         yield from get_data_for_import(db_map, entity_metadata=object_metadata)
@@ -494,32 +491,44 @@ def _add_to_seen(checked_item, seen):
         seen.setdefault(key, set()).add(value)
 
 
-def _get_entity_classes_for_import(db_map, data, zero_dim):
-    def _data_iterator():
-        for x in data:
-            if isinstance(x, str):
-                x = x, ()
-            name, *optionals = x
-            dim_name_list = optionals.pop(0) if optionals else ()
-            if (dim_name_list and zero_dim) or (not dim_name_list and not zero_dim):
-                continue
-            yield name, dim_name_list, *optionals
-
+def _get_entity_classes_for_import(db_map, data):
+    dim_name_list_by_name = {}
+    items = []
     key = ("name", "dimension_name_list", "description", "display_icon")
-    return _get_items_for_import(db_map, "entity_class", (dict(zip(key, x)) for x in _data_iterator()))
+    for x in data:
+        if isinstance(x, str):
+            x = x, ()
+        name, *optionals = x
+        dim_name_list = optionals.pop(0) if optionals else ()
+        item = dict(zip(key, (name, dim_name_list, *optionals)))
+        items.append(item)
+        dim_name_list_by_name[name] = dim_name_list
+
+    def _ref_count(name):
+        dim_name_list = dim_name_list_by_name.get(name, ())
+        return len(dim_name_list) + sum((_ref_count(dim_name) for dim_name in dim_name_list), start=0)
+
+    items_by_ref_count = {}
+    for item in items:
+        items_by_ref_count.setdefault(_ref_count(item["name"]), []).append(item)
+    return (
+        _get_items_for_import(db_map, "entity_class", items_by_ref_count[ref_count])
+        for ref_count in sorted(items_by_ref_count)
+    )
 
 
-def _get_entities_for_import(db_map, data, zero_dim):
-    def _data_iterator():
-        for class_name, name_or_element_name_list, *optionals in data:
-            is_zero_dim = isinstance(name_or_element_name_list, str)
-            if (is_zero_dim and not zero_dim) or (not is_zero_dim and zero_dim):
-                continue
-            byname_key = "name" if is_zero_dim else "element_name_list"
-            key = ("class_name", byname_key, "description")
-            yield dict(zip(key, (class_name, name_or_element_name_list, *optionals)))
-
-    return _get_items_for_import(db_map, "entity", _data_iterator())
+def _get_entities_for_import(db_map, data):
+    items_by_el_count = {}
+    key = ("class_name", "byname", "description")
+    for class_name, name_or_element_name_list, *optionals in data:
+        is_zero_dim = isinstance(name_or_element_name_list, str)
+        byname = (name_or_element_name_list,) if is_zero_dim else tuple(name_or_element_name_list)
+        item = dict(zip(key, (class_name, byname, *optionals)))
+        el_count = 0 if is_zero_dim else len(name_or_element_name_list)
+        items_by_el_count.setdefault(el_count, []).append(item)
+    return (
+        _get_items_for_import(db_map, "entity", items_by_el_count[el_count]) for el_count in sorted(items_by_el_count)
+    )
 
 
 def _get_entity_alternatives_for_import(db_map, data):
@@ -699,4 +708,4 @@ def _get_object_classes_for_import(db_map, data):
                 name, *optionals = x
                 yield name, (), *optionals
 
-    return _get_entity_classes_for_import(db_map, _data_iterator(), zero_dim=True)
+    return _get_entity_classes_for_import(db_map, _data_iterator())

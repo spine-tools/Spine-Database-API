@@ -419,6 +419,37 @@ class TestImportRelationship(unittest.TestCase):
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
+    def test_import_relationship_of_relationships(self):
+        db_map = create_diff_db_map()
+        self.populate(db_map)
+        import_data(
+            db_map,
+            entity_classes=[
+                ["relationship_class1", ["object_class1", "object_class2"]],
+                ["relationship_class2", ["object_class2", "object_class1"]],
+                ["meta_relationship_class", ["relationship_class1", "relationship_class2"]],
+            ],
+            entities=[
+                ["relationship_class1", ["object1", "object2"]],
+                ["relationship_class2", ["object2", "object1"]],
+            ],
+        )
+        _, errors = import_data(
+            db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
+        )
+        self.assertFalse(errors)
+        db_map.commit_session("test")
+        entities = {
+            tuple(r.element_name_list.split(",")) if r.element_name_list else r.name: r.name
+            for r in db_map.query(db_map.wide_entity_sq)
+        }
+        self.assertTrue("object1" in entities)
+        self.assertTrue("object2" in entities)
+        self.assertTrue(("object1", "object2") in entities)
+        self.assertTrue(("object2", "object1") in entities)
+        self.assertTrue((entities["object1", "object2"], entities["object2", "object1"]) in entities)
+        self.assertEqual(len(entities), 5)
+
 
 class TestImportParameterDefinition(unittest.TestCase):
     def setUp(self):
