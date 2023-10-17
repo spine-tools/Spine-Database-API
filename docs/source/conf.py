@@ -114,8 +114,6 @@ def _process_docstring(app, what, name, obj, options, lines):
         new_lines = []
         for item_type in DatabaseMapping.item_types():
             factory = DatabaseMapping._item_factory(item_type)
-            if not factory.fields:
-                continue
             new_lines.extend([item_type, len(item_type) * "-", ""])
             new_lines.extend(
                 [
@@ -142,9 +140,7 @@ def _process_docstring(app, what, name, obj, options, lines):
                 new_lines.extend([f"   * - {f_names}"])
         lines[i : i + 1] = new_lines
     # Expand <spine_item_types>
-    spine_item_types = ", ".join(
-        [f"``{x}``" for x in DatabaseMapping.item_types() if DatabaseMapping._item_factory(x).fields]
-    )
+    spine_item_types = ", ".join([f"``{x}``" for x in DatabaseMapping.item_types()])
     for k, line in enumerate(lines):
         if "<spine_item_types>" in line:
             lines[k] = line.replace("<spine_item_types>", spine_item_types)

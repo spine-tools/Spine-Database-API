@@ -64,7 +64,16 @@ class DatabaseMappingBase:
 
     @staticmethod
     def item_types():
-        """Returns a list of item types from the DB mapping schema (equivalent to the table names).
+        """Returns a list of public item types from the DB mapping schema (equivalent to the table names).
+
+        Returns:
+            list(str)
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def all_item_types():
+        """Returns a list of all item types from the DB mapping schema (equivalent to the table names).
 
         Returns:
             list(str)
@@ -212,8 +221,8 @@ class DatabaseMappingBase:
         return list(filter(lambda i: i is not None, (mapped_table.add_item(item) for item in chunk)))
 
     def _check_item_type(self, item_type):
-        if item_type not in self.item_types():
-            candidate = max(self.item_types(), key=lambda x: SequenceMatcher(None, item_type, x).ratio())
+        if item_type not in self.all_item_types():
+            candidate = max(self.all_item_types(), key=lambda x: SequenceMatcher(None, item_type, x).ratio())
             raise SpineDBAPIError(f"Invalid item type '{item_type}' - maybe you meant '{candidate}'?")
 
     def mapped_table(self, item_type):
