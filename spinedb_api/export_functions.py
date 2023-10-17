@@ -150,7 +150,7 @@ def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database
     return sorted(
         (
             x.entity_class_name,
-            x.parameter_name,
+            x.name,
             parse_value(x.default_value, x.default_type),
             x.parameter_value_list_name,
             x.description,
