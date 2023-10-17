@@ -198,7 +198,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_types():
-        return [x for x in DatabaseMapping._sq_name_by_item_type if item_factory(x).fields]
+        return list(DatabaseMapping._sq_name_by_item_type)
 
     @staticmethod
     def _item_factory(item_type):
