@@ -388,7 +388,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return None
         return item.public_item
 
-    def get_items(self, item_type, fetch=True, skip_removed=True):
+    def get_items(self, item_type, fetch=True, skip_removed=True, **kwargs):
         """Finds and returns all the items of one type.
 
         Args:
@@ -404,7 +404,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self.fetch_all(item_type)
         mapped_table = self.mapped_table(item_type)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
-        return [x.public_item for x in get_items()]
+        return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
     def add_item(self, item_type, check=True, **kwargs):
         """Adds an item to the in-memory mapping.
