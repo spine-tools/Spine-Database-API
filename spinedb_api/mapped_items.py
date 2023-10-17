@@ -304,8 +304,6 @@ class ParameterDefinitionItem(ParsedValueBase):
         return "default_type"
 
     def __getitem__(self, key):
-        if key == "parameter_name":
-            return super().__getitem__("name")
         if key == "value_list_id":
             return super().__getitem__("parameter_value_list_id")
         if key == "parameter_value_list_id":
