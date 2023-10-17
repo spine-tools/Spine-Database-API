@@ -19,6 +19,10 @@ class TestDBMapping(DatabaseMappingBase):
         return ["cutlery"]
 
     @staticmethod
+    def all_item_types():
+        return ["cutlery"]
+
+    @staticmethod
     def _item_factory(item_type):
         if item_type == "cutlery":
             return MappedItemBase
