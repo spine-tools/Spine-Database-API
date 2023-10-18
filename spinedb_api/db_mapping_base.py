@@ -9,15 +9,12 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-import threading
 from enum import Enum, unique, auto
 from difflib import SequenceMatcher
 from .temp_id import TempId
 from .exception import SpineDBAPIError
 
 # TODO: Implement MappedItem.pop() to do lookup?
-
-_LIMIT = 10000
 
 
 @unique
@@ -41,9 +38,7 @@ class DatabaseMappingBase:
 
     def __init__(self):
         self._mapped_tables = {}
-        self._offsets = {}
-        self._offset_lock = threading.Lock()
-        self._fetched_item_types = set()
+        self._completed_queries = {}
         item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
@@ -52,15 +47,6 @@ class DatabaseMappingBase:
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
-
-    @property
-    def fetched_item_types(self):
-        """Returns a set with the item types that are already fetched.
-
-        Returns:
-            set
-        """
-        return self._fetched_item_types
 
     @staticmethod
     def item_types():
@@ -92,14 +78,40 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
-    def _make_query(self, item_type):
-        """Returns a :class:`~spinedb_api.query.Query` object to fecth items of given type.
+    def _make_query(self, item_type, **kwargs):
+        """Returns a :class:`~spinedb_api.query.Query` object to fetch items of given type.
+
+        Args:
+            item_type (str)
+            **kwargs: query filters
+
+        Returns:
+            :class:`~spinedb_api.query.Query` or None if the mapping is closed.
+        """
+        if self.closed:
+            return None
+        sq = self._make_sq(item_type)
+        qry = self.query(sq)
+        for key, value in kwargs.items():
+            if hasattr(sq.c, key):
+                qry = qry.filter(getattr(sq.c, key) == value)
+            elif key in self._item_factory(item_type)._references:
+                src_key, (ref_type, ref_key) = self._item_factory(item_type)._references[key]
+                ref_sq = self._make_sq(ref_type)
+                qry = qry.filter(getattr(sq.c, src_key) == ref_sq.c.id, getattr(ref_sq.c, ref_key) == value)
+            else:
+                raise SpineDBAPIError(f"invalid filter {key}={value} for {item_type}")
+        return qry
+
+    def _make_sq(self, item_type):
+        """Returns a :class:`~sqlalchemy.sql.expression.Alias` object representing a subquery
+        to collect items of given type.
 
         Args:
             item_type (str)
 
         Returns:
-            :class:`~spinedb_api.query.Query`
+            :class:`~sqlalchemy.sql.expression.Alias`
         """
         raise NotImplementedError()
 
@@ -143,10 +155,7 @@ class DatabaseMappingBase:
                     # FIXME: We should also fetch the current item type because of multi-dimensional entities and
                     # classes which also depend on zero-dimensional ones
                     for other_item_type in self.item_types():
-                        if (
-                            other_item_type not in self.fetched_item_types
-                            and item_type in self._item_factory(other_item_type).ref_types()
-                        ):
+                        if item_type in self._item_factory(other_item_type).ref_types():
                             self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
@@ -187,23 +196,28 @@ class DatabaseMappingBase:
 
     def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
-        self._offsets.clear()
-        self._fetched_item_types.clear()
+        self._completed_queries.clear()
 
-    def _get_next_chunk(self, item_type, limit):
-        qry = self._make_query(item_type)
+    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
+        completed_queries = self._completed_queries.setdefault(item_type, set())
+        qry_key = tuple(sorted(kwargs.items()))
+        if qry_key in completed_queries:
+            items = [x for x in self.mapped_table(item_type).values() if all(x.get(k) == v for k, v in kwargs.items())]
+            if limit is None:
+                return items[offset:]
+            return items[offset : offset + limit]
+        qry = self._make_query(item_type, **kwargs)
         if not qry:
             return []
         if not limit:
-            self._fetched_item_types.add(item_type)
+            completed_queries.add(qry_key)
             return [dict(x) for x in qry]
-        with self._offset_lock:
-            offset = self._offsets.setdefault(item_type, 0)
-            chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
-            self._offsets[item_type] += len(chunk)
+        chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
+        if len(chunk) < limit:
+            completed_queries.add(qry_key)
         return chunk
 
-    def _advance_query(self, item_type, limit):
+    def _advance_query(self, item_type, offset, limit, **kwargs):
         """Advances the DB query that fetches items of given type
         and adds the results to the corresponding mapped table.
 
@@ -213,12 +227,11 @@ class DatabaseMappingBase:
         Returns:
             list: items fetched from the DB
         """
-        chunk = self._get_next_chunk(item_type, limit)
+        chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
         if not chunk:
-            self._fetched_item_types.add(item_type)
             return []
         mapped_table = self.mapped_table(item_type)
-        return list(filter(lambda i: i is not None, (mapped_table.add_item(item) for item in chunk)))
+        return [mapped_table.add_item(item) for item in chunk]
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -249,8 +262,7 @@ class DatabaseMappingBase:
         # Now clear things
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
-            self._offsets.pop(item_type, None)
-            self._fetched_item_types.discard(item_type)
+            self._completed_queries.pop(item_type, None)
 
     def get_mapped_item(self, item_type, id_):
         mapped_table = self.mapped_table(item_type)
@@ -259,30 +271,14 @@ class DatabaseMappingBase:
             return {}
         return item
 
-    def do_fetch_more(self, item_type, limit=_LIMIT):
-        if item_type in self._fetched_item_types:
-            return []
-        return self._advance_query(item_type, limit)
+    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+        return self._advance_query(item_type, offset, limit, **kwargs)
 
-    def do_fetch_all(self, item_type):
-        while self.do_fetch_more(item_type):
-            pass
-
-    def fetch_value(self, item_type, return_fn):
-        while self.do_fetch_more(item_type):
-            return_value = return_fn()
-            if return_value:
-                return return_value
-        return return_fn()
+    def do_fetch_all(self, item_type, **kwargs):
+        self.do_fetch_more(item_type, **kwargs)
 
     def fetch_ref(self, item_type, id_):
-        while self.do_fetch_more(item_type):
-            ref = self.get_mapped_item(item_type, id_)
-            if ref:
-                return ref
-        # It is possible that fetching was completed between deciding to call this function
-        # and starting the while loop above resulting in self.do_fetch_more() to return False immediately.
-        # Therefore, we should try one last time if the ref is available.
+        self.do_fetch_all(item_type)
         ref = self.get_mapped_item(item_type, id_)
         if ref:
             return ref
@@ -328,9 +324,8 @@ class _MappedTable(dict):
         """
         id_by_unique_value = self._id_by_unique_key_value.get(key, {})
         if not id_by_unique_value and fetch:
-            id_by_unique_value = self._db_map.fetch_value(
-                self._item_type, lambda: self._id_by_unique_key_value.get(key, {})
-            )
+            self._db_map.do_fetch_all(self._item_type)
+            id_by_unique_value = self._id_by_unique_key_value.get(key, {})
         value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
         if strict:
             return id_by_unique_value[value]
@@ -365,11 +360,12 @@ class _MappedTable(dict):
         id_ = item.get("id")
         if id_ is not None:
             # id is given, easy
-            item = self.get(id_)
-            if item or not fetch:
-                return item
-            return self._db_map.fetch_ref(self._item_type, id_)
-        # No id. Try to locate the item by the value of one of the unique keys.
+            current_item = self.get(id_)
+            if not current_item and fetch:
+                current_item = self._db_map.fetch_ref(self._item_type, id_)
+            if current_item:
+                return current_item
+        # No id or not found by id. Try to locate the item by the value of one of the unique keys.
         # Used by import_data (and more...)
         for key in self._db_map._item_factory(self._item_type)._unique_keys:
             if key in skip_keys:
@@ -443,19 +439,15 @@ class _MappedTable(dict):
                 del id_by_value[value]
 
     def add_item(self, item, new=False):
+        if not new:
+            # Item comes from the DB; don̈́'t add it twice
+            existing = self.find_item(item, fetch=False)
+            if existing:
+                return existing
         if not isinstance(item, MappedItemBase):
             item = self._make_item(item)
             item.polish()
-        if not new:
-            # Item comes from the DB
-            id_ = item["id"]
-            if id_ in self or id_ in self._temp_id_by_db_id:
-                # The item is already in the mapping
-                return
-            if any(value in self._id_by_unique_key_value.get(key, {}) for key, value in item.unique_values()):
-                # An item with the same unique key is already in the mapping
-                return
-        else:
+        if new:
             item.status = Status.to_add
         if "id" not in item or not item.is_id_valid:
             item["id"] = self._new_id()

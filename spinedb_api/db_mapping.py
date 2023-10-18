@@ -99,8 +99,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     This allows new items in the DB (added by other clients in the meantime) to be retrieved as well.
 
     You can also control the fetching process via :meth:`fetch_more` and/or :meth:`fetch_all`.
-    For example, a UI application might want to fetch data in the background so the UI is not blocked in the process.
-    In that case they can call e.g. :meth:`fetch_more` asynchronously as the user scrolls or expands the views.
+    For example, you can call :meth:`fetch_more` in a dedicated thread while you do some work on the main thread.
+    This will nicely place items in the in-memory mapping so you can access them later, without
+    the overhead of fetching them from the DB.
 
     The :meth:`query` method is also provided as an alternative way to retrieve data from the DB
     while bypassing the in-memory mapping entirely.
@@ -208,11 +209,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def _item_factory(item_type):
         return item_factory(item_type)
 
-    def _make_query(self, item_type):
-        if self.closed:
-            return None
+    def _make_sq(self, item_type):
         sq_name = self._sq_name_by_item_type[item_type]
-        return self.query(getattr(self, sq_name))
+        return getattr(self, sq_name)
 
     def close(self):
         """Closes this DB mapping. This is only needed if you're keeping a long-lived session.
@@ -404,7 +403,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(:class:`PublicItem`): The items.
         """
         item_type = self._real_tablename(item_type)
-        if fetch and item_type not in self.fetched_item_types:
+        if fetch:
             self.fetch_all(item_type)
         mapped_table = self.mapped_table(item_type)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
@@ -604,31 +603,19 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return bool(self.remove_items(item_type, Asterisk))
 
-    def can_fetch_more(self, item_type):
-        """Whether or not more data can be fetched from the DB for the given item type.
-
-        Args:
-            item_type (str): One of <spine_item_types>.
-
-        Returns:
-            bool: True if more data can be fetched.
-        """
-        return item_type not in self.fetched_item_types
-
-    def fetch_more(self, item_type, limit=None):
+    def fetch_more(self, item_type, offset=0, limit=None):
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
         Args:
             item_type (str): One of <spine_item_types>.
-            limit (int): The maximum number of items to fetch. Successive calls to this function
-                will start from the point where the last one left.
-                In other words, each item is fetched from the DB exactly once.
+            offset (int): The initial row.
+            limit (int): The maximum number of rows to fetch.
 
         Returns:
             list(:class:`PublicItem`): The items fetched.
         """
         item_type = self._real_tablename(item_type)
-        return [x.public_item for x in self.do_fetch_more(item_type, limit=limit)]
+        return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit)]
 
     def fetch_all(self, *item_types):
         """Fetches items from the DB into the in-memory mapping.

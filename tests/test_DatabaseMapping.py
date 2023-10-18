@@ -232,7 +232,7 @@ class TestDatabaseMapping(unittest.TestCase):
             db_map.commit_session("Add test data.")
             db_map.refresh_session()
             entities = db_map.fetch_more("entity")
-            self.assertEqual(entities, [])
+            self.assertEqual([(x["class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
