@@ -207,7 +207,7 @@ def get_data_for_import(
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     # Legacy
     if object_classes:
-        yield from get_data_for_import(db_map, entity_classes=object_classes)
+        yield from get_data_for_import(db_map, entity_classes=_object_classes_from_entity_classes(object_classes))
     if relationship_classes:
         yield from get_data_for_import(db_map, entity_classes=relationship_classes)
     if object_parameters:
@@ -699,13 +699,10 @@ def _get_parameter_value_metadata_for_import(db_map, data):
 
 
 # Legacy
-def _get_object_classes_for_import(db_map, data):
-    def _data_iterator():
-        for x in data:
-            if isinstance(x, str):
-                yield x, ()
-            else:
-                name, *optionals = x
-                yield name, (), *optionals
-
-    return _get_entity_classes_for_import(db_map, _data_iterator())
+def _object_classes_from_entity_classes(data):
+    for x in data:
+        if isinstance(x, str):
+            yield x, ()
+        else:
+            name, *optionals = x
+            yield name, (), *optionals
