@@ -515,7 +515,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 updated.append(item)
         return updated, errors
 
-    def remove_item(self, item_type, id):
+    def remove_item(self, item_type, id_):
         """Removes an item from the in-memory mapping.
 
         Example::
@@ -526,14 +526,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            id (int): The id of the item to remove.
+            id_ (int): The id of the item to remove.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The removed item if any.
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
-        return mapped_table.remove_item(id).public_item
+        return mapped_table.remove_item(id_).public_item
 
     def remove_items(self, item_type, *ids):
         """Removes many items from the in-memory mapping.
@@ -548,17 +548,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if not ids:
             return []
         item_type = self._real_tablename(item_type)
-        mapped_table = self.mapped_table(item_type)
-        if Asterisk in ids:
-            self.fetch_all(item_type)
-            ids = mapped_table
         ids = set(ids)
         if item_type == "alternative":
             # Do not remove the Base alternative
             ids.discard(1)
         return [self.remove_item(item_type, id_) for id_ in ids]
 
-    def restore_item(self, item_type, id):
+    def restore_item(self, item_type, id_):
         """Restores a previously removed item into the in-memory mapping.
 
         Example::
@@ -569,14 +565,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            id (int): The id of the item to restore.
+            id_ (int): The id of the item to restore.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The restored item if any.
         """
         item_type = self._real_tablename(item_type)
         mapped_table = self.mapped_table(item_type)
-        return mapped_table.restore_item(id).public_item
+        return mapped_table.restore_item(id_).public_item
 
     def restore_items(self, item_type, *ids):
         """Restores many previously removed items into the in-memory mapping.
@@ -667,6 +663,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             comment (str): commit message
+
+        Returns:
+            tuple(list, list): compatibility transformations
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
@@ -757,8 +756,6 @@ for it in DatabaseMapping.item_types():
 
 # Astroid transform so DatabaseMapping looks like it has the convenience methods defined above
 def _add_convenience_methods(node):
-    import astroid
-
     if node.name != "DatabaseMapping":
         return node
     for item_type in DatabaseMapping.item_types():

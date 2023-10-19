@@ -108,8 +108,8 @@ def compatibility_transformations(connection):
         connection (Connection)
 
     Returns:
-        list: list of tuples (tablename, (items_added, items_updated, ids_removed))
-        list: list of strings indicating the changes
+        tuple(list, list): list of tuples (tablename, (items_added, items_updated, ids_removed)), and
+            list of strings indicating the changes
     """
     ea_items_added, ea_items_updated, pval_ids_removed = convert_tool_feature_method_to_entity_alternative(connection)
     transformations = []

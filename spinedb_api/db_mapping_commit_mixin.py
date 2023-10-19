@@ -14,7 +14,7 @@ from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
 from .temp_id import TempId, resolve
-from .helpers import group_consecutive
+from .helpers import group_consecutive, Asterisk
 
 
 class DatabaseMappingCommitMixin:
@@ -149,10 +149,12 @@ class DatabaseMappingCommitMixin:
             tablenames.append("entity_element")
         for tablename_ in tablenames:
             table = self._metadata.tables[tablename_]
-            id_field = self._id_fields.get(tablename_, "id")
-            id_column = getattr(table.c, id_field)
-            cond = or_(*(and_(id_column >= first, id_column <= last) for first, last in group_consecutive(ids)))
-            delete = table.delete().where(cond)
+            delete = table.delete()
+            if Asterisk not in ids:
+                id_field = self._id_fields.get(tablename_, "id")
+                id_column = getattr(table.c, id_field)
+                cond = or_(*(and_(id_column >= first, id_column <= last) for first, last in group_consecutive(ids)))
+                delete = delete.where(cond)
             try:
                 connection.execute(delete)
             except DBAPIError as e:

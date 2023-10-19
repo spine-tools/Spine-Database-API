@@ -13,6 +13,7 @@ from enum import Enum, unique, auto
 from difflib import SequenceMatcher
 from .temp_id import TempId
 from .exception import SpineDBAPIError
+from .helpers import Asterisk
 
 # TODO: Implement MappedItem.pop() to do lookup?
 
@@ -134,21 +135,25 @@ class DatabaseMappingBase:
             list
         """
         dirty_items = []
+        purged_item_types = {x for x in self.item_types() if self.mapped_table(x).purged}
+        self._add_descendants(purged_item_types)
         for item_type in self._sorted_item_types:
-            mapped_table = self.get(item_type)
-            if mapped_table is None:
-                continue
+            mapped_table = self.mapped_table(item_type)
             to_add = []
             to_update = []
             to_remove = []
-            for item in mapped_table.values():
-                _ = item.is_valid()
+            for item in mapped_table.valid_values():
                 if item.status == Status.to_add:
                     to_add.append(item)
                 elif item.status == Status.to_update:
                     to_update.append(item)
-                elif item.status == Status.to_remove:
-                    to_remove.append(item)
+            if item_type in purged_item_types:
+                to_remove.append(mapped_table.wildcard_item)
+            else:
+                for item in mapped_table.values():
+                    _ = item.is_valid()
+                    if item.status == Status.to_remove:
+                        to_remove.append(item)
                 if to_remove:
                     # Fetch descendants, so that they are validated in next iterations of the loop.
                     # This ensures cascade removal.
@@ -250,7 +255,12 @@ class DatabaseMappingBase:
         Any modifications in the mapping that aren't committed to the DB are lost after this.
         """
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
-        # Include descendants, otherwise references are broken
+        self._add_descendants(item_types)
+        for item_type in item_types:
+            self._mapped_tables.pop(item_type, None)
+            self._completed_queries.pop(item_type, None)
+
+    def _add_descendants(self, item_types):
         while True:
             changed = False
             for item_type in set(self.item_types()) - item_types:
@@ -259,10 +269,6 @@ class DatabaseMappingBase:
                     changed = True
             if not changed:
                 break
-        # Now clear things
-        for item_type in item_types:
-            self._mapped_tables.pop(item_type, None)
-            self._completed_queries.pop(item_type, None)
 
     def get_mapped_item(self, item_type, id_):
         mapped_table = self.mapped_table(item_type)
@@ -296,6 +302,15 @@ class _MappedTable(dict):
         self._item_type = item_type
         self._id_by_unique_key_value = {}
         self._temp_id_by_db_id = {}
+        self.wildcard_item = MappedItemBase(self._db_map, self._item_type, id=Asterisk)
+
+    @property
+    def purged(self):
+        return self.wildcard_item.status == Status.to_remove
+
+    @purged.setter
+    def purged(self, purged):
+        self.wildcard_item.status = Status.to_remove if purged else Status.committed
 
     def get(self, id_, default=None):
         id_ = self._temp_id_by_db_id.get(id_, id_)
@@ -447,12 +462,17 @@ class _MappedTable(dict):
         if not isinstance(item, MappedItemBase):
             item = self._make_item(item)
             item.polish()
-        if new:
-            item.status = Status.to_add
         if "id" not in item or not item.is_id_valid:
             item["id"] = self._new_id()
         self[item["id"]] = item
         self.add_unique(item)
+        if new:
+            item.status = Status.to_add
+        elif self.purged:
+            # Sorry, item, you're coming from the DB and I have been purged: so...
+            item.cascade_remove(source=self.wildcard_item)
+            # More seriously, this is like a lazy purge: insteaf of fetching all at purge time,
+            # we purge stuff as it comes.
         return item
 
     def update_item(self, item):
@@ -464,6 +484,11 @@ class _MappedTable(dict):
         return current_item
 
     def remove_item(self, id_):
+        if id_ is Asterisk:
+            self.purged = True
+            for item in self.valid_values():
+                item.cascade_remove(source=self.wildcard_item)
+            return self.wildcard_item
         current_item = self.find_item({"id": id_})
         if current_item is not None:
             self.remove_unique(current_item)
@@ -471,6 +496,11 @@ class _MappedTable(dict):
         return current_item
 
     def restore_item(self, id_):
+        if id_ is Asterisk:
+            self.purged = False
+            for item in self.values():
+                item.cascade_restore(source=self.wildcard_item)
+            return self.wildcard_item
         current_item = self.find_item({"id": id_})
         if current_item is not None:
             self.add_unique(current_item)
