@@ -18,6 +18,7 @@ from .temp_id import TempId
 
 def item_factory(item_type):
     return {
+        "commit": CommitItem,
         "entity_class": EntityClassItem,
         "entity": EntityItem,
         "entity_alternative": EntityAlternativeItem,
@@ -33,6 +34,18 @@ def item_factory(item_type):
         "entity_metadata": EntityMetadataItem,
         "parameter_value_metadata": ParameterValueMetadataItem,
     }.get(item_type, MappedItemBase)
+
+
+class CommitItem(MappedItemBase):
+    fields = {
+        "comment": ("str", "A comment describing the commit."),
+        "date": {"datetime", "Date and time of the commit."},
+        "user": {"str", "Username of the committer."},
+    }
+    _unique_keys = (("date",),)
+
+    def commit(self, commit_id):
+        raise RuntimeError("Commits are created automatically when session is committed.")
 
 
 class EntityClassItem(MappedItemBase):

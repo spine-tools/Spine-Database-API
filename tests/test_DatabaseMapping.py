@@ -258,6 +258,12 @@ class TestDatabaseMapping(unittest.TestCase):
                 db_map.commit_session("Added a class")
                 self.assertFalse(db_map.has_external_commits())
 
+    def test_get_items_gives_commits(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            items = db_map.get_items("commit")
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0].item_type, "commit")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
