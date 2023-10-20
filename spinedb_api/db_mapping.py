@@ -187,6 +187,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
+        self._commit_count = self.query(self.commit_sq).count()
 
     def __enter__(self):
         return self
@@ -348,6 +349,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             entity_id = item.pop("object_id", None) or item.pop("relationship_id", None)
             if entity_id:
                 item["entity_id"] = entity_id
+
+    def has_external_commits(self):
+        """Test whether the database has had commits from other sources than this mapping.
+
+        Returns:
+            bool: True if database has external commits, False otherwise
+        """
+        return self._commit_count != self.query(self.commit_sq).count()
 
     def get_import_alternative_name(self):
         if self._import_alternative_name is None:
@@ -689,7 +698,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 self._do_add_items(connection, tablename, *to_add)
             if self._memory:
                 self._memory_dirty = True
-            return compatibility_transformations(connection)
+            transformation_info = compatibility_transformations(connection)
+        self._commit_count = self.query(self.commit_sq).count()
+        return transformation_info
 
     def rollback_session(self):
         """Discards all the changes from the in-memory mapping."""

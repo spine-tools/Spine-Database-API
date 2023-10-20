@@ -234,6 +234,30 @@ class TestDatabaseMapping(unittest.TestCase):
             entities = db_map.fetch_more("entity")
             self.assertEqual([(x["class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
 
+    def test_has_external_commits_returns_false_initially(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self.assertFalse(db_map.has_external_commits())
+
+    def test_has_external_commits_returns_true_when_another_db_mapping_has_made_commits(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                with DatabaseMapping(url) as other_db_map:
+                    other_db_map.add_item("entity_class", name="cc")
+                    other_db_map.commit_session("Added a class")
+                self.assertTrue(db_map.has_external_commits())
+
+    def test_has_external_commits_returns_false_after_commit_session(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                with DatabaseMapping(url) as other_db_map:
+                    other_db_map.add_item("entity_class", name="cc")
+                    other_db_map.commit_session("Added a class")
+                db_map.add_item("entity_class", name="omega")
+                db_map.commit_session("Added a class")
+                self.assertFalse(db_map.has_external_commits())
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
