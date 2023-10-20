@@ -795,7 +795,7 @@ class _Indexes(np.ndarray):
         super().__setitem__(position, index)
 
     def __eq__(self, other):
-        return np.all(super().__eq__(other))
+        return len(self) == len(other) and np.all(super().__eq__(other))
 
     def __bool__(self):
         return np.size(self) != 0
