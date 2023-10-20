@@ -44,7 +44,7 @@ class DatabaseMappingCommitMixin:
                 else:
                     id_items.append(item)
             if id_items:
-                connection.execute(table.insert(), [resolve(x._asdict()) for x in id_items])
+                connection.execute(table.insert(), [x.resolve() for x in id_items])
             if temp_id_items:
                 current_ids = {x["id"] for x in connection.execute(table.select())}
                 next_id = max(current_ids, default=0) + 1
@@ -55,7 +55,7 @@ class DatabaseMappingCommitMixin:
                 for id_, item in zip(ids, temp_id_items):
                     temp_id = item["id"]
                     temp_id.resolve(id_)
-                connection.execute(table.insert(), [resolve(x._asdict()) for x in temp_id_items])
+                connection.execute(table.insert(), [x.resolve() for x in temp_id_items])
             for tablename_, items_to_add_ in self._extra_items_to_add_per_table(tablename, items_to_add):
                 if not items_to_add_:
                     continue
@@ -117,7 +117,7 @@ class DatabaseMappingCommitMixin:
             return
         try:
             upd = self._make_update_stmt(tablename, items_to_update[0].keys())
-            connection.execute(upd, [resolve(item._asdict()) for item in items_to_update])
+            connection.execute(upd, [x.resolve() for x in items_to_update])
             for tablename_, items_to_update_ in self._extra_items_to_update_per_table(tablename, items_to_update):
                 if not items_to_update_:
                     continue

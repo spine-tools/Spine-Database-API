@@ -13,7 +13,7 @@ import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
-from .temp_id import TempId
+from .temp_id import TempId, resolve
 
 
 def item_factory(item_type):
@@ -153,11 +153,8 @@ class EntityItem(MappedItemBase):
             name = byname_remainder.pop(0)
             return (name,)
         return tuple(
-            (
-                self._db_map.get_item(
-                    "entity", class_name=dim_name, byname=self._element_name_list_recursive(dim_name, byname_remainder)
-                )
-                or {}
+            self._db_map.get_item(
+                "entity", class_name=dim_name, byname=self._element_name_list_recursive(dim_name, byname_remainder)
             ).get("name")
             for dim_name in dimension_name_list
         )
@@ -281,7 +278,59 @@ class ParsedValueBase(MappedItemBase):
         return super()._something_to_update(other)
 
 
-class ParameterDefinitionItem(ParsedValueBase):
+class ParameterItemBase(ParsedValueBase):
+    @property
+    def _value_key(self):
+        raise NotImplementedError()
+
+    @property
+    def _type_key(self):
+        raise NotImplementedError()
+
+    def _value_not_in_list_error(self, parsed_value, list_name):
+        raise NotImplementedError()
+
+    @classmethod
+    def ref_types(cls):
+        return super().ref_types() | {"list_value"}
+
+    @property
+    def list_value_id(self):
+        return self["list_value_id"]
+
+    def resolve(self):
+        d = super().resolve()
+        list_value_id = d.get("list_value_id")
+        if list_value_id is not None:
+            d[self._value_key] = to_database(list_value_id)[0]
+        return d
+
+    def polish(self):
+        error = super().polish()
+        if error:
+            return error
+        list_name = self["parameter_value_list_name"]
+        if list_name is None:
+            self["list_value_id"] = None
+            return
+        type_ = super().__getitem__(self._type_key)
+        if type_ == "list_value_ref":
+            return
+        # value = self[self._value_key]
+        value = super().__getitem__(self._value_key)
+        parsed_value = from_database(value, type_)
+        if parsed_value is None:
+            return
+        list_value_id = self._db_map.get_item(
+            "list_value", parameter_value_list_name=list_name, value=value, type=type_
+        ).get("id")
+        if list_value_id is None:
+            return self._value_not_in_list_error(parsed_value, list_name)
+        self["list_value_id"] = list_value_id
+        self[self._type_key] = "list_value_ref"
+
+
+class ParameterDefinitionItem(ParameterItemBase):
     fields = {
         "entity_class_name": ("str", "The entity class name."),
         "name": ("str", "The parameter name."),
@@ -303,12 +352,6 @@ class ParameterDefinitionItem(ParsedValueBase):
     }
 
     @property
-    def list_value_id(self):
-        if dict.get(self, "default_type") == "list_value_ref":
-            return int(dict.__getitem__(self, "default_value"))
-        return None
-
-    @property
     def _value_key(self):
         return "default_value"
 
@@ -324,42 +367,12 @@ class ParameterDefinitionItem(ParsedValueBase):
         if key == "parameter_value_list_name":
             return self._get_ref("parameter_value_list", self["parameter_value_list_id"], strong=False).get("name")
         if key in ("default_value", "default_type"):
-            list_value_id = self.list_value_id
+            list_value_id = self["list_value_id"]
             if list_value_id is not None:
                 list_value_key = {"default_value": "value", "default_type": "type"}[key]
                 return self._get_ref("list_value", list_value_id, strong=False).get(list_value_key)
             return dict.get(self, key)
-        if key == "list_value_id":
-            return self.list_value_id
         return super().__getitem__(key)
-
-    def polish(self):
-        error = super().polish()
-        if error:
-            return error
-        default_type = self["default_type"]
-        default_value = self["default_value"]
-        list_name = self["parameter_value_list_name"]
-        if list_name is None:
-            return
-        if default_type == "list_value_ref":
-            return
-        parsed_value = from_database(default_value, default_type)
-        if parsed_value is None:
-            return
-        list_value_id = self._db_map.mapped_table("list_value").unique_key_value_to_id(
-            ("parameter_value_list_name", "value", "type"), (list_name, default_value, default_type)
-        )
-        if list_value_id is None:
-            return f"default value {parsed_value} of {self['name']} is not in {list_name}"
-        self["default_value"] = to_database(list_value_id)[0]
-        self["default_type"] = "list_value_ref"
-        if isinstance(list_value_id, TempId):
-
-            def callback(new_id):
-                self["default_value"] = to_database(new_id)[0]
-
-            list_value_id.add_resolve_callback(callback)
 
     def merge(self, other):
         other_parameter_value_list_id = other.get("parameter_value_list_id")
@@ -378,8 +391,11 @@ class ParameterDefinitionItem(ParsedValueBase):
         merged, super_error = super().merge(other)
         return merged, " and ".join([x for x in (super_error, error) if x])
 
+    def _value_not_in_list_error(self, parsed_value, list_name):
+        return f"default value {parsed_value} of {self['name']} is not in {list_name}"
 
-class ParameterValueItem(ParsedValueBase):
+
+class ParameterValueItem(ParameterItemBase):
     fields = {
         "entity_class_name": ("str", "The entity class name."),
         "parameter_definition_name": ("str", "The parameter name."),
@@ -417,12 +433,6 @@ class ParameterValueItem(ParsedValueBase):
     }
 
     @property
-    def list_value_id(self):
-        if dict.__getitem__(self, "type") == "list_value_ref":
-            return int(dict.__getitem__(self, "value"))
-        return None
-
-    @property
     def _value_key(self):
         return "value"
 
@@ -436,43 +446,16 @@ class ParameterValueItem(ParsedValueBase):
         if key == "parameter_name":
             return super().__getitem__("parameter_definition_name")
         if key in ("value", "type"):
-            list_value_id = self.list_value_id
+            list_value_id = self["list_value_id"]
             if list_value_id:
                 return self._get_ref("list_value", list_value_id, strong=False).get(key)
-        if key == "list_value_id":
-            return self.list_value_id
         return super().__getitem__(key)
 
-    def polish(self):
-        error = super().polish()
-        if error:
-            return error
-        list_name = self["parameter_value_list_name"]
-        if list_name is None:
-            return
-        type_ = self["type"]
-        if type_ == "list_value_ref":
-            return
-        value = self["value"]
-        parsed_value = from_database(value, type_)
-        if parsed_value is None:
-            return
-        list_value_id = self._db_map.mapped_table("list_value").unique_key_value_to_id(
-            ("parameter_value_list_name", "value", "type"), (list_name, value, type_)
+    def _value_not_in_list_error(self, parsed_value, list_name):
+        return (
+            f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
+            f"is not in {list_name}"
         )
-        if list_value_id is None:
-            return (
-                f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
-                f"is not in {list_name}"
-            )
-        self["value"] = to_database(list_value_id)[0]
-        self["type"] = "list_value_ref"
-        if isinstance(list_value_id, TempId):
-
-            def callback(new_id):
-                self["value"] = to_database(new_id)[0]
-
-            list_value_id.add_resolve_callback(callback)
 
 
 class ParameterValueListItem(MappedItemBase):

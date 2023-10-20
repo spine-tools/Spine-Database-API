@@ -209,7 +209,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 parameter_definition_name="color",
                 alternative_name="Base",
             )
-            self.assertIsNone(not_color_anymore)
+            self.assertEqual(not_color_anymore, {})
             color = db_map.get_item(
                 "parameter_value",
                 entity_class_name="fish",
@@ -1733,6 +1733,24 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self.assertEqual(len(pvals), 1)
         pval = pvals[0]
         self.assertEqual(pval.value, b"something else")
+
+    def test_update_parameter_value_to_an_uncommitted_list_value(self):
+        import_functions.import_object_classes(self._db_map, ("object_class1",))
+        import_functions.import_parameter_value_lists(self._db_map, (("values_1", 5.0),))
+        import_functions.import_object_parameters(self._db_map, (("object_class1", "parameter1", None, "values_1"),))
+        import_functions.import_objects(self._db_map, (("object_class1", "object1"),))
+        import_functions.import_object_parameter_values(
+            self._db_map, (("object_class1", "object1", "parameter1", 5.0),)
+        )
+        self._db_map.commit_session("Update data.")
+        import_functions.import_parameter_value_lists(self._db_map, (("values_1", 7.0),))
+        value, type_ = to_database(7.0)
+        items, errors = self._db_map.update_parameter_values({"id": 1, "value": value, "type": type_})
+        self.assertEqual(errors, [])
+        self.assertEqual(len(items), 1)
+        self._db_map.commit_session("Update data.")
+        pvals = self._db_map.query(self._db_map.parameter_value_sq).all()
+        self.assertEqual(from_database(pvals[0].value, pvals[0].type), 7.0)
 
     def test_update_parameter_definition_by_id_only(self):
         import_functions.import_object_classes(self._db_map, ("object_class1",))

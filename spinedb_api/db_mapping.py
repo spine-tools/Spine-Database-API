@@ -395,9 +395,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_type = self._real_tablename(item_type)
         item = self.mapped_table(item_type).find_item(kwargs, fetch=fetch)
         if not item:
-            return None
+            return {}
         if skip_removed and not item.is_valid():
-            return None
+            return {}
         return item.public_item
 
     def get_items(self, item_type, fetch=True, skip_removed=True, **kwargs):

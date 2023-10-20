@@ -11,7 +11,7 @@
 
 from enum import Enum, unique, auto
 from difflib import SequenceMatcher
-from .temp_id import TempId
+from .temp_id import TempId, resolve
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 
@@ -374,14 +374,17 @@ class _MappedTable(dict):
         """
         id_ = item.get("id")
         if id_ is not None:
-            # id is given, easy
-            current_item = self.get(id_)
-            if not current_item and fetch:
-                current_item = self._db_map.fetch_ref(self._item_type, id_)
-            if current_item:
-                return current_item
-        # No id or not found by id. Try to locate the item by the value of one of the unique keys.
-        # Used by import_data (and more...)
+            return self._find_item_by_id(id_, fetch=fetch)
+        return self._find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
+
+    def _find_item_by_id(self, id_, fetch=True):
+        current_item = self.get(id_)
+        if current_item is None and fetch:
+            current_item = self._db_map.fetch_ref(self._item_type, id_)
+        if current_item:
+            return current_item
+
+    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True):
         for key in self._db_map._item_factory(self._item_type)._unique_keys:
             if key in skip_keys:
                 continue
@@ -391,7 +394,7 @@ class _MappedTable(dict):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
             if current_item:
                 return current_item
-        # Last hope: maybe item is missing some key stuff, so try with a resolved and polished MappedItem instead...
+        # Maybe item is missing some key stuff, so try with a resolved and polished MappedItem too...
         mapped_item = self._make_item(item)
         error = mapped_item.resolve_inverse_references(item.keys())
         if error:
@@ -456,9 +459,9 @@ class _MappedTable(dict):
     def add_item(self, item, new=False):
         if not new:
             # Item comes from the DB; don̈́'t add it twice
-            existing = self.find_item(item, fetch=False)
-            if existing:
-                return existing
+            current = self._find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(item, fetch=False)
+            if current:
+                return current
         if not isinstance(item, MappedItemBase):
             item = self._make_item(item)
             item.polish()
@@ -486,8 +489,9 @@ class _MappedTable(dict):
     def remove_item(self, id_):
         if id_ is Asterisk:
             self.purged = True
-            for item in self.valid_values():
-                item.cascade_remove(source=self.wildcard_item)
+            for current_item in self.valid_values():
+                self.remove_unique(current_item)
+                current_item.cascade_remove(source=self.wildcard_item)
             return self.wildcard_item
         current_item = self.find_item({"id": id_})
         if current_item is not None:
@@ -498,8 +502,9 @@ class _MappedTable(dict):
     def restore_item(self, id_):
         if id_ is Asterisk:
             self.purged = False
-            for item in self.values():
-                item.cascade_restore(source=self.wildcard_item)
+            for current_item in self.values():
+                self.add_unique(current_item)
+                current_item.cascade_restore(source=self.wildcard_item)
             return self.wildcard_item
         current_item = self.find_item({"id": id_})
         if current_item is not None:
@@ -655,6 +660,9 @@ class MappedItemBase(dict):
             dict
         """
         return dict(self)
+
+    def resolve(self):
+        return {k: resolve(v) for k, v in self._asdict().items()}
 
     def merge(self, other):
         """Merges this item with another and returns the merged item together with any errors.

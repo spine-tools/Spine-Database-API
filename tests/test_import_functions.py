@@ -761,6 +761,25 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertEqual(count, 0)
         db_map.close()
 
+    def test_import_parameter_values_from_committed_value_list(self):
+        db_map = create_diff_db_map()
+        import_data(db_map, parameter_value_lists=(("values_1", 5.0),))
+        db_map.commit_session("test")
+        count, errors = import_data(
+            db_map,
+            object_classes=("object_class",),
+            object_parameters=(("object_class", "parameter", None, "values_1"),),
+            objects=(("object_class", "my_object"),),
+            object_parameter_values=(("object_class", "my_object", "parameter", 5.0),),
+        )
+        self.assertEqual(count, 4)
+        self.assertEqual(errors, [])
+        db_map.commit_session("test")
+        values = db_map.query(db_map.object_parameter_value_sq).all()
+        value = values[0]
+        self.assertEqual(from_database(value.value), 5.0)
+        db_map.close()
+
     def test_valid_object_parameter_value_from_value_list(self):
         db_map = create_diff_db_map()
         import_parameter_value_lists(db_map, (("values_1", 5.0),))

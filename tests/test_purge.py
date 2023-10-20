@@ -72,8 +72,8 @@ class TestPurgeUrl(unittest.TestCase):
             self.assertFalse(db_map.get_items("entity_class"))
 
     def test_dont_keep_purging_after_commit(self):
-        """Tests that if I purge and then commit, then add more stuff the commit again, the stuff I added
-        after the first commit is not purged. In other words, the commit resets the purge need."""
+        """Tests that if I purge and then commit, then add more stuff then commit again, the stuff I added
+        after the first commit is not purged afterwards. In other words, the commit resets the purge need."""
         with DatabaseMapping(self._url, create=True) as db_map:
             db_map.add_item("entity_class", name="Soup")
             db_map.remove_item("entity_class", Asterisk)
