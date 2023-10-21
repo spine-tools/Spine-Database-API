@@ -57,18 +57,21 @@ def purge(db_map, purge_settings, logger=None):
     if purge_settings is None:
         # Bring all the pain
         purge_settings = {item_type: True for item_type in DatabaseMapping.item_types()}
-    removable_db_map_data = {item_type for item_type, checked in purge_settings.items() if checked}
+    removable_db_map_data = {
+        DatabaseMapping.real_item_type(item_type) for item_type, checked in purge_settings.items() if checked
+    }
     if removable_db_map_data:
         try:
             if logger:
                 logger.msg.emit("Purging database...")
-            for item_type in removable_db_map_data:
+            for item_type in removable_db_map_data & set(DatabaseMapping.item_types()):
                 db_map.purge_items(item_type)
             db_map.commit_session("Purge database")
             if logger:
                 logger.msg.emit("Database purged")
-        except SpineDBAPIError:
+        except SpineDBAPIError as err:
             if logger:
-                logger.msg_error.emit("Failed to purge database.")
+                sanitized_url = clear_filter_configs(remove_credentials_from_url(db_map.db_url))
+                logger.msg_error.emit(f"Failed to purge {sanitized_url}: {err}")
             return False
     return True

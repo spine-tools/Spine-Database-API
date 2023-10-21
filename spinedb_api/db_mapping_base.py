@@ -472,10 +472,8 @@ class _MappedTable(dict):
         if new:
             item.status = Status.to_add
         elif self.purged:
-            # Sorry, item, you're coming from the DB and I have been purged: so...
+            # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             item.cascade_remove(source=self.wildcard_item)
-            # More seriously, this is like a lazy purge: insteaf of fetching all at purge time,
-            # we purge stuff as it comes.
         return item
 
     def update_item(self, item):

@@ -36,7 +36,7 @@ class DatabaseMappingCommitMixin:
         if not items_to_add:
             return
         try:
-            table = self._metadata.tables[self._real_tablename(tablename)]
+            table = self._metadata.tables[self.real_item_type(tablename)]
             id_items, temp_id_items = [], []
             for item in items_to_add:
                 if isinstance(item["id"], TempId):
@@ -59,7 +59,7 @@ class DatabaseMappingCommitMixin:
             for tablename_, items_to_add_ in self._extra_items_to_add_per_table(tablename, items_to_add):
                 if not items_to_add_:
                     continue
-                table = self._metadata.tables[self._real_tablename(tablename_)]
+                table = self._metadata.tables[self.real_item_type(tablename_)]
                 connection.execute(table.insert(), [resolve(x) for x in items_to_add_])
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
@@ -105,7 +105,7 @@ class DatabaseMappingCommitMixin:
         return pk
 
     def _make_update_stmt(self, tablename, keys):
-        table = self._metadata.tables[self._real_tablename(tablename)]
+        table = self._metadata.tables[self.real_item_type(tablename)]
         upd = table.update()
         for k in self._get_primary_key(tablename):
             upd = upd.where(getattr(table.c, k) == bindparam(k))
@@ -133,7 +133,7 @@ class DatabaseMappingCommitMixin:
         Args:
             *ids: ids to remove
         """
-        tablename = self._real_tablename(tablename)
+        tablename = self.real_item_type(tablename)
         ids = {resolve(id_) for id_ in ids}
         if tablename == "alternative":
             # Do not remove the Base alternative

@@ -13,7 +13,6 @@ import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
-from .temp_id import TempId, resolve
 
 
 def item_factory(item_type):
@@ -168,7 +167,7 @@ class EntityItem(MappedItemBase):
         base_name = self["class_name"] + "_" + "__".join(self["element_name_list"])
         name = base_name
         mapped_table = self._db_map.mapped_table(self._item_type)
-        while mapped_table.unique_key_value_to_id(("class_name", "name"), (self["class_name"], name)) is not None:
+        while mapped_table.find_item({"class_name": self["class_name"], "name": name}):
             name = base_name + "_" + uuid.uuid4().hex
         self["name"] = name
 

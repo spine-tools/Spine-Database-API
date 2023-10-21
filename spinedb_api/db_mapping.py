@@ -317,7 +317,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             copy_database_bind(self._original_engine, self.engine)
 
     @staticmethod
-    def _real_tablename(tablename):
+    def real_item_type(tablename):
         return {
             "object_class": "entity_class",
             "relationship_class": "entity_class",
@@ -392,7 +392,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             :class:`PublicItem` or None
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         item = self.mapped_table(item_type).find_item(kwargs, fetch=fetch)
         if not item:
             return {}
@@ -411,7 +411,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             list(:class:`PublicItem`): The items.
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         if fetch:
             self.fetch_all(item_type)
         mapped_table = self.mapped_table(item_type)
@@ -435,7 +435,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(:class:`PublicItem` or None, str): The added item and any errors.
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         self._convert_legacy(item_type, kwargs)
         if not check:
@@ -491,7 +491,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(:class:`PublicItem` or None, str): The updated item and any errors.
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         self._convert_legacy(item_type, kwargs)
         if not check:
@@ -540,7 +540,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(:class:`PublicItem` or None, str): The removed item if any.
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         return mapped_table.remove_item(id_).public_item
 
@@ -556,7 +556,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         if not ids:
             return []
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         ids = set(ids)
         if item_type == "alternative":
             # Do not remove the Base alternative
@@ -579,7 +579,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(:class:`PublicItem` or None, str): The restored item if any.
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         return mapped_table.restore_item(id_).public_item
 
@@ -619,7 +619,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             list(:class:`PublicItem`): The items fetched.
         """
-        item_type = self._real_tablename(item_type)
+        item_type = self.real_item_type(item_type)
         return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit)]
 
     def fetch_all(self, *item_types):
@@ -632,7 +632,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         for item_type in item_types:
-            item_type = self._real_tablename(item_type)
+            item_type = self.real_item_type(item_type)
             self.do_fetch_all(item_type)
 
     def query(self, *args, **kwargs):
