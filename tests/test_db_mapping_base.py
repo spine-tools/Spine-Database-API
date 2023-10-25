@@ -33,7 +33,7 @@ class TestDBMappingBase(unittest.TestCase):
     def test_rolling_back_new_item_invalidates_its_id(self):
         db_map = TestDBMapping()
         mapped_table = db_map.mapped_table("cutlery")
-        item = mapped_table.add_item({}, new=True)
+        item = mapped_table.add_item({})
         self.assertTrue(item.is_id_valid)
         self.assertIn("id", item)
         id_ = item["id"]
@@ -46,11 +46,11 @@ class TestMappedTable(unittest.TestCase):
     def test_readding_item_with_invalid_id_creates_new_id(self):
         db_map = TestDBMapping()
         mapped_table = db_map.mapped_table("cutlery")
-        item = mapped_table.add_item({}, new=True)
+        item = mapped_table.add_item({})
         id_ = item["id"]
         db_map._rollback()
         self.assertFalse(item.is_id_valid)
-        mapped_table.add_item(item, new=True)
+        mapped_table.add_item(item)
         self.assertTrue(item.is_id_valid)
         self.assertNotEqual(item["id"], id_)
 

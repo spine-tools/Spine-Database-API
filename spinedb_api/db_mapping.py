@@ -439,10 +439,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table = self.mapped_table(item_type)
         self._convert_legacy(item_type, kwargs)
         if not check:
-            return mapped_table.add_item(kwargs, new=True), None
+            return mapped_table.add_item(kwargs), None
         checked_item, error = mapped_table.check_item(kwargs)
         return (
-            mapped_table.add_item(checked_item, new=True).public_item if checked_item and not error else None,
+            mapped_table.add_item(checked_item).public_item if checked_item and not error else None,
             error,
         )
 

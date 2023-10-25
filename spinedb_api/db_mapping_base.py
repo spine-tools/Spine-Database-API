@@ -203,41 +203,6 @@ class DatabaseMappingBase:
         """Clears fetch progress, so the DB is queried again."""
         self._completed_queries.clear()
 
-    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
-        completed_queries = self._completed_queries.setdefault(item_type, set())
-        qry_key = tuple(sorted(kwargs.items()))
-        if qry_key in completed_queries:
-            items = [x for x in self.mapped_table(item_type).values() if all(x.get(k) == v for k, v in kwargs.items())]
-            if limit is None:
-                return items[offset:]
-            return items[offset : offset + limit]
-        qry = self._make_query(item_type, **kwargs)
-        if not qry:
-            return []
-        if not limit:
-            completed_queries.add(qry_key)
-            return [dict(x) for x in qry]
-        chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
-        if len(chunk) < limit:
-            completed_queries.add(qry_key)
-        return chunk
-
-    def _advance_query(self, item_type, offset, limit, **kwargs):
-        """Advances the DB query that fetches items of given type
-        and adds the results to the corresponding mapped table.
-
-        Args:
-            item_type (str)
-
-        Returns:
-            list: items fetched from the DB
-        """
-        chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
-        if not chunk:
-            return []
-        mapped_table = self.mapped_table(item_type)
-        return [mapped_table.add_item(item) for item in chunk]
-
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
             candidate = max(self.all_item_types(), key=lambda x: SequenceMatcher(None, item_type, x).ratio())
@@ -245,10 +210,9 @@ class DatabaseMappingBase:
 
     def mapped_table(self, item_type):
         self._check_item_type(item_type)
-        return self._mapped_tables.setdefault(item_type, _MappedTable(self, item_type))
-
-    def get(self, item_type, default=None):
-        return self._mapped_tables.get(item_type, default)
+        if item_type not in self._mapped_tables:
+            self._mapped_tables[item_type] = _MappedTable(self, item_type)
+        return self._mapped_tables[item_type]
 
     def reset(self, *item_types):
         """Resets the mapping for given item types as if nothing was fetched from the DB or modified in the mapping.
@@ -277,11 +241,54 @@ class DatabaseMappingBase:
             return {}
         return item
 
-    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
-        return self._advance_query(item_type, offset, limit, **kwargs)
+    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
+        completed_queries = self._completed_queries.setdefault(item_type, set())
+        qry_key = tuple(sorted(kwargs.items()))
+        if qry_key in completed_queries:
+            items = [x for x in self.mapped_table(item_type).values() if all(x.get(k) == v for k, v in kwargs.items())]
+            if limit is None:
+                return items[offset:]
+            return items[offset : offset + limit]
+        qry = self._make_query(item_type, **kwargs)
+        if not qry:
+            return []
+        if not limit:
+            completed_queries.add(qry_key)
+            return [dict(x) for x in qry]
+        chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
+        if len(chunk) < limit:
+            completed_queries.add(qry_key)
+        return chunk
 
-    def do_fetch_all(self, item_type, **kwargs):
-        self.do_fetch_more(item_type, **kwargs)
+    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+        """Fetches items from the DB and adds them to the mapping.
+
+        Args:
+            item_type (str)
+
+        Returns:
+            list(MappedItem): items fetched from the DB.
+        """
+        chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
+        if not chunk:
+            return []
+        mapped_table = self.mapped_table(item_type)
+        items = []
+        new_items = []
+        # Add items first
+        for x in chunk:
+            item, new = mapped_table.add_item_from_db(x)
+            if new:
+                new_items.append(item)
+            items.append(item)
+        # Once all items are added, add the unique key values
+        # This is because entity (class) items can refer other entity (class) items
+        for item in new_items:
+            mapped_table.add_unique(item)
+        return items
+
+    def do_fetch_all(self, item_type):
+        self.do_fetch_more(item_type, offset=0, limit=None)
 
     def fetch_ref(self, item_type, id_):
         self.do_fetch_all(item_type)
@@ -381,8 +388,7 @@ class _MappedTable(dict):
         current_item = self.get(id_)
         if current_item is None and fetch:
             current_item = self._db_map.fetch_ref(self._item_type, id_)
-        if current_item:
-            return current_item
+        return current_item
 
     def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True):
         for key in self._db_map._item_factory(self._item_type)._unique_keys:
@@ -456,24 +462,37 @@ class _MappedTable(dict):
             if id_by_value.get(value) == id_:
                 del id_by_value[value]
 
-    def add_item(self, item, new=False):
-        if not new:
-            # Item comes from the DB; don̈́'t add it twice
-            current = self._find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(item, fetch=False)
-            if current:
-                return current
+    def _make_and_add_item(self, item):
         if not isinstance(item, MappedItemBase):
             item = self._make_item(item)
             item.polish()
         if "id" not in item or not item.is_id_valid:
             item["id"] = self._new_id()
         self[item["id"]] = item
-        self.add_unique(item)
-        if new:
-            item.status = Status.to_add
-        elif self.purged:
+        return item
+
+    def add_item_from_db(self, item):
+        """Adds an item fetched from the DB.
+
+        Args:
+            item (dict): item from the DB.
+
+        Returns:
+            tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
+        """
+        current = self._find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(item, fetch=False)
+        if current:
+            return current, False
+        item = self._make_and_add_item(item)
+        if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             item.cascade_remove(source=self.wildcard_item)
+        return item, True
+
+    def add_item(self, item):
+        item = self._make_and_add_item(item)
+        self.add_unique(item)
+        item.status = Status.to_add
         return item
 
     def update_item(self, item):

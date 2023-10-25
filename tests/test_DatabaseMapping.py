@@ -264,6 +264,29 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(len(items), 1)
             self.assertEqual(items[0].item_type, "commit")
 
+    def test_fetch_entities_that_refer_to_unfetched_entities(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class_item(name="dog")
+                db_map.add_entity_class_item(name="cat")
+                db_map.add_entity_class_item(name="dog__cat", dimension_name_list=("dog", "cat"))
+                db_map.add_entity_item(name="Pulgoso", class_name="dog")
+                db_map.add_entity_item(name="Sylvester", class_name="cat")
+                db_map.add_entity_item(name="Tom", class_name="cat")
+                db_map.commit_session("Arf!")
+            with DatabaseMapping(url) as db_map:
+                # Remove the entity in the middle and add a multi-D one referring to the third entity.
+                # The multi-D one will go in the middle.
+                db_map.get_entity_item(name="Sylvester", class_name="cat").remove()
+                db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), class_name="dog__cat")
+                db_map.commit_session("Meow!")
+            with DatabaseMapping(url) as db_map:
+                # The ("Pulgoso", "Tom") entity will be fetched before "Tom".
+                # What happens?
+                entities = db_map.get_items("entity")
+                self.assertEqual(len(entities), 3)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
