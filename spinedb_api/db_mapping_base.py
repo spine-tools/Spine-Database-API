@@ -39,7 +39,7 @@ class DatabaseMappingBase:
 
     def __init__(self):
         self._mapped_tables = {}
-        self._completed_queries = {}
+        self._completed_tickets = {}
         item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
@@ -201,7 +201,7 @@ class DatabaseMappingBase:
 
     def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
-        self._completed_queries.clear()
+        self._completed_tickets.clear()
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -209,8 +209,8 @@ class DatabaseMappingBase:
             raise SpineDBAPIError(f"Invalid item type '{item_type}' - maybe you meant '{candidate}'?")
 
     def mapped_table(self, item_type):
-        self._check_item_type(item_type)
         if item_type not in self._mapped_tables:
+            self._check_item_type(item_type)
             self._mapped_tables[item_type] = _MappedTable(self, item_type)
         return self._mapped_tables[item_type]
 
@@ -222,7 +222,7 @@ class DatabaseMappingBase:
         self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
-            self._completed_queries.pop(item_type, None)
+            self._completed_tickets.pop(item_type, None)
 
     def _add_descendants(self, item_types):
         while True:
@@ -242,25 +242,20 @@ class DatabaseMappingBase:
         return item
 
     def _get_next_chunk(self, item_type, offset, limit, **kwargs):
-        completed_queries = self._completed_queries.setdefault(item_type, set())
-        qry_key = tuple(sorted(kwargs.items()))
-        if qry_key in completed_queries:
-            items = [x for x in self.mapped_table(item_type).values() if all(x.get(k) == v for k, v in kwargs.items())]
-            if limit is None:
-                return items[offset:]
-            return items[offset : offset + limit]
+        """Gets chunk of items from the DB.
+
+        Returns:
+            tuple(list(dict),bool): list of dictionary items and whether this is the last chunk.
+        """
         qry = self._make_query(item_type, **kwargs)
         if not qry:
-            return []
+            return [], True
         if not limit:
-            completed_queries.add(qry_key)
-            return [dict(x) for x in qry]
+            return [dict(x) for x in qry], True
         chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
-        if len(chunk) < limit:
-            completed_queries.add(qry_key)
-        return chunk
+        return chunk, len(chunk) < limit
 
-    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+    def do_fetch_more(self, item_type, offset=0, limit=None, ticket=None, **kwargs):
         """Fetches items from the DB and adds them to the mapping.
 
         Args:
@@ -269,7 +264,12 @@ class DatabaseMappingBase:
         Returns:
             list(MappedItem): items fetched from the DB.
         """
-        chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
+        completed_tickets = self._completed_tickets.setdefault(item_type, set())
+        if ticket in completed_tickets:
+            return []
+        chunk, completed = self._get_next_chunk(item_type, offset, limit, **kwargs)
+        if ticket is not None and completed:
+            completed_tickets.add(ticket)
         if not chunk:
             return []
         mapped_table = self.mapped_table(item_type)
@@ -287,8 +287,8 @@ class DatabaseMappingBase:
             mapped_table.add_unique(item)
         return items
 
-    def do_fetch_all(self, item_type):
-        self.do_fetch_more(item_type, offset=0, limit=None)
+    def do_fetch_all(self, item_type, **kwargs):
+        self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
 
     def fetch_ref(self, item_type, id_):
         self.do_fetch_all(item_type)
@@ -390,7 +390,7 @@ class _MappedTable(dict):
             current_item = self._db_map.fetch_ref(self._item_type, id_)
         return current_item
 
-    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True):
+    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
         for key in self._db_map._item_factory(self._item_type)._unique_keys:
             if key in skip_keys:
                 continue
@@ -400,18 +400,19 @@ class _MappedTable(dict):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
             if current_item:
                 return current_item
-        # Maybe item is missing some key stuff, so try with a resolved and polished MappedItem too...
-        mapped_item = self._make_item(item)
-        error = mapped_item.resolve_inverse_references(item.keys())
-        if error:
-            return None
-        error = mapped_item.polish()
-        if error:
-            return None
-        for key, value in mapped_item.unique_values(skip_keys=skip_keys):
-            current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
-            if current_item:
-                return current_item
+        if complete:
+            # Maybe item is missing some key stuff, so try with a resolved and polished MappedItem too...
+            mapped_item = self._make_item(item)
+            error = mapped_item.resolve_inverse_references(item.keys())
+            if error:
+                return None
+            error = mapped_item.polish()
+            if error:
+                return None
+            for key, value in mapped_item.unique_values(skip_keys=skip_keys):
+                current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
+                if current_item:
+                    return current_item
 
     def check_item(self, item, for_update=False, skip_keys=()):
         # FIXME: The only use-case for skip_keys at the moment is that of importing scenario alternatives,
@@ -480,7 +481,9 @@ class _MappedTable(dict):
         Returns:
             tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
         """
-        current = self._find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(item, fetch=False)
+        current = self._find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(
+            item, fetch=False, complete=False
+        )
         if current:
             return current, False
         item = self._make_and_add_item(item)
@@ -854,9 +857,10 @@ class MappedItemBase(dict):
         Args:
             referrer (MappedItemBase)
         """
-        if referrer.key is None:
+        key = referrer.key
+        if key is None:
             return
-        self._referrers[referrer.key] = self._weak_referrers.pop(referrer.key, referrer)
+        self._referrers[key] = self._weak_referrers.pop(key, referrer)
 
     def remove_referrer(self, referrer):
         """Removes a strong referrer.

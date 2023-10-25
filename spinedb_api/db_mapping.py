@@ -413,7 +413,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self.real_item_type(item_type)
         if fetch:
-            self.fetch_all(item_type)
+            self.do_fetch_all(item_type, **kwargs)
         mapped_table = self.mapped_table(item_type)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
@@ -608,7 +608,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return bool(self.remove_items(item_type, Asterisk))
 
-    def fetch_more(self, item_type, offset=0, limit=None):
+    def fetch_more(self, item_type, offset=0, limit=None, ticket=None):
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
         Args:
@@ -620,7 +620,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(:class:`PublicItem`): The items fetched.
         """
         item_type = self.real_item_type(item_type)
-        return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit)]
+        return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit, ticket=ticket)]
 
     def fetch_all(self, *item_types):
         """Fetches items from the DB into the in-memory mapping.
