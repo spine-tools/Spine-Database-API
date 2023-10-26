@@ -100,8 +100,6 @@ class DatabaseMappingBase:
                 src_key, (ref_type, ref_key) = self._item_factory(item_type)._references[key]
                 ref_sq = self._make_sq(ref_type)
                 qry = qry.filter(getattr(sq.c, src_key) == ref_sq.c.id, getattr(ref_sq.c, ref_key) == value)
-            else:
-                raise SpineDBAPIError(f"invalid filter {key}={value} for {item_type}")
         return qry
 
     def _make_sq(self, item_type):
