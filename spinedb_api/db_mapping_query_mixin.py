@@ -43,6 +43,7 @@ class DatabaseMappingQueryMixin:
         self._metadata_sq = None
         self._parameter_value_metadata_sq = None
         self._entity_metadata_sq = None
+        self._superclass_subclass_sq = None
         # Special convenience subqueries that join two or more tables
         self._wide_entity_class_sq = None
         self._wide_entity_sq = None
@@ -122,6 +123,21 @@ class DatabaseMappingQueryMixin:
         """
         table = self._metadata.tables[tablename]
         return self.query(table).subquery(tablename + "_sq")
+
+    @property
+    def superclass_subclass_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM superclass_subclass
+
+        Returns:
+            :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._superclass_subclass_sq is None:
+            self._superclass_subclass_sq = self._subquery("superclass_subclass")
+        return self._superclass_subclass_sq
 
     @property
     def entity_class_sq(self):

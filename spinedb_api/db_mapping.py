@@ -119,6 +119,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "scenario": "scenario_sq",
         "scenario_alternative": "scenario_alternative_sq",
         "entity_class": "wide_entity_class_sq",
+        "superclass_subclass": "superclass_subclass_sq",
         "entity": "wide_entity_sq",
         "entity_group": "entity_group_sq",
         "entity_alternative": "entity_alternative_sq",

@@ -648,9 +648,7 @@ class TestExportMapping(unittest.TestCase):
         tables = dict()
         for title, title_key in titles(mappings, db_map):
             tables[title] = list(rows(mappings, db_map, title_key))
-        self.assertEqual(
-            tables, {"rc_o1__O,o1": [["rc", "oc1", "oc2", "O"]], "rc_o2__O,o2": [["rc", "oc1", "oc2", "O"]]}
-        )
+        self.assertEqual(tables, {"o1__O,o1": [["rc", "oc1", "oc2", "O"]], "o2__O,o2": [["rc", "oc1", "oc2", "O"]]})
         db_map.close()
 
     def test_parameter_definitions_with_value_lists(self):
@@ -823,9 +821,9 @@ class TestExportMapping(unittest.TestCase):
         element1_mapping = relationship_mapping.child = ElementMapping(4)
         element1_mapping.child = ElementMapping(5)
         expected = [
-            ['rc1', 'oc1', '', 'rc1_o11', 'o11', ''],
-            ['rc2', 'oc2', 'oc1', 'rc2_o21__o11', 'o21', 'o11'],
-            ['rc2', 'oc2', 'oc1', 'rc2_o21__o12', 'o21', 'o12'],
+            ['rc1', 'oc1', '', 'o11', 'o11', ''],
+            ['rc2', 'oc2', 'oc1', 'o21__o11', 'o21', 'o11'],
+            ['rc2', 'oc2', 'oc1', 'o21__o12', 'o21', 'o12'],
         ]
         self.assertEqual(list(rows(relationship_class_mapping, db_map)), expected)
         db_map.close()
@@ -1072,7 +1070,7 @@ class TestExportMapping(unittest.TestCase):
                 ElementMapping(3),
             ]
         )
-        expected = [["", "", "oc1", "oc2"], ["rc", "rc_o11__o21", "o11", "o21"]]
+        expected = [["", "", "oc1", "oc2"], ["rc", "o11__o21", "o11", "o21"]]
         self.assertEqual(list(rows(root, db_map)), expected)
         db_map.close()
 
@@ -1481,8 +1479,8 @@ class TestExportMapping(unittest.TestCase):
             ]
         )
         expected = [
-            ["rc", "oc1", "oc2", "rc_o11__o21", "o11", "o21"],
-            ["rc", "oc1", "oc2", "rc_o12__o22", "o12", "o22"],
+            ["rc", "oc1", "oc2", "o11__o21", "o11", "o21"],
+            ["rc", "oc1", "oc2", "o12__o22", "o12", "o22"],
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.close()
@@ -1507,7 +1505,7 @@ class TestExportMapping(unittest.TestCase):
                 ParameterValueMapping(6),
             ]
         )
-        expected = [["rc", "oc", "rc_o", "o", "p", "Base", 23.0]]
+        expected = [["rc", "oc", "o", "o", "p", "Base", 23.0]]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.close()
 
@@ -1563,9 +1561,9 @@ class TestExportMapping(unittest.TestCase):
             ]
         )
         expected = [
-            ["rc12", "oc1", "oc2", "rc12_o11__o21", "o11", "o21", "p21", "Base", 5.5],
-            ["rc12", "oc1", "oc2", "rc12_o12__o21", "o12", "o21", "p21", "Base", 5.5],
-            ["rc23", "oc2", "oc3", "rc23_o21__o31", "o21", "o31", "p31", "Base", 7.7],
+            ["rc12", "oc1", "oc2", "o11__o21", "o11", "o21", "p21", "Base", 5.5],
+            ["rc12", "oc1", "oc2", "o12__o21", "o12", "o21", "p21", "Base", 5.5],
+            ["rc23", "oc2", "oc3", "o21__o31", "o21", "o31", "p31", "Base", 7.7],
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.close()

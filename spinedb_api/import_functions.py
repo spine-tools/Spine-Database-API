@@ -207,7 +207,7 @@ def get_data_for_import(
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     # Legacy
     if object_classes:
-        yield from get_data_for_import(db_map, entity_classes=_object_classes_from_entity_classes(object_classes))
+        yield from get_data_for_import(db_map, entity_classes=_object_classes_to_entity_classes(object_classes))
     if relationship_classes:
         yield from get_data_for_import(db_map, entity_classes=relationship_classes)
     if object_parameters:
@@ -519,12 +519,19 @@ def _get_entity_classes_for_import(db_map, data):
 
 def _get_entities_for_import(db_map, data):
     items_by_el_count = {}
-    key = ("class_name", "byname", "description")
-    for class_name, name_or_element_name_list, *optionals in data:
-        is_zero_dim = isinstance(name_or_element_name_list, str)
-        byname = (name_or_element_name_list,) if is_zero_dim else tuple(name_or_element_name_list)
-        item = dict(zip(key, (class_name, byname, *optionals)))
-        el_count = 0 if is_zero_dim else len(name_or_element_name_list)
+    key = ("class_name", "name", "element_name_list", "description")
+    for class_name, name_or_el_name_list, *optionals in data:
+        if isinstance(name_or_el_name_list, (list, tuple)):
+            name = None
+            el_name_list = name_or_el_name_list
+        else:
+            name = name_or_el_name_list
+            if optionals and isinstance(optionals[0], (list, tuple)):
+                el_name_list = tuple(optionals.pop(0))
+            else:
+                el_name_list = ()
+        item = dict(zip(key, (class_name, name, el_name_list, *optionals)))
+        el_count = len(el_name_list)
         items_by_el_count.setdefault(el_count, []).append(item)
     return (
         _get_items_for_import(db_map, "entity", items_by_el_count[el_count]) for el_count in sorted(items_by_el_count)
@@ -699,7 +706,7 @@ def _get_parameter_value_metadata_for_import(db_map, data):
 
 
 # Legacy
-def _object_classes_from_entity_classes(data):
+def _object_classes_to_entity_classes(data):
     for x in data:
         if isinstance(x, str):
             yield x, ()

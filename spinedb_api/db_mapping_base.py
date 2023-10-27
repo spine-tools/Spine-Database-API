@@ -232,12 +232,9 @@ class DatabaseMappingBase:
             if not changed:
                 break
 
-    def get_mapped_item(self, item_type, id_):
+    def get_mapped_item(self, item_type, id_, fetch=True):
         mapped_table = self.mapped_table(item_type)
-        item = mapped_table.get(id_)
-        if item is None:
-            return {}
-        return item
+        return mapped_table.find_item_by_id(id_, fetch=fetch) or {}
 
     def _get_next_chunk(self, item_type, offset, limit, **kwargs):
         """Gets chunk of items from the DB.
@@ -280,19 +277,13 @@ class DatabaseMappingBase:
                 new_items.append(item)
             items.append(item)
         # Once all items are added, add the unique key values
-        # This is because entity (class) items can refer other entity (class) items
+        # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
             mapped_table.add_unique(item)
         return items
 
     def do_fetch_all(self, item_type, **kwargs):
         self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
-
-    def fetch_ref(self, item_type, id_):
-        self.do_fetch_all(item_type)
-        ref = self.get_mapped_item(item_type, id_)
-        if ref:
-            return ref
 
 
 class _MappedTable(dict):
@@ -379,16 +370,17 @@ class _MappedTable(dict):
         """
         id_ = item.get("id")
         if id_ is not None:
-            return self._find_item_by_id(id_, fetch=fetch)
-        return self._find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
+            return self.find_item_by_id(id_, fetch=fetch)
+        return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
 
-    def _find_item_by_id(self, id_, fetch=True):
+    def find_item_by_id(self, id_, fetch=True):
         current_item = self.get(id_)
         if current_item is None and fetch:
-            current_item = self._db_map.fetch_ref(self._item_type, id_)
+            self._db_map.do_fetch_all(self._item_type)
+            current_item = self.get(id_)
         return current_item
 
-    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
+    def find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
         for key in self._db_map._item_factory(self._item_type)._unique_keys:
             if key in skip_keys:
                 continue
@@ -479,7 +471,7 @@ class _MappedTable(dict):
         Returns:
             tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
         """
-        current = self._find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(
+        current = self.find_item_by_id(item["id"], fetch=False) or self.find_item_by_unique_key(
             item, fetch=False, complete=False
         )
         if current:
@@ -708,7 +700,7 @@ class MappedItemBase(dict):
         return not all(_convert(self.get(key)) == _convert(value) for key, value in other.items())
 
     def first_invalid_key(self):
-        """Goes through the ``_references`` class attribute and returns the key of the first one
+        """Goes through the ``_references`` class attribute and returns the key of the first reference
         that cannot be resolved.
 
         Returns:
@@ -799,11 +791,11 @@ class MappedItemBase(dict):
         Returns:
             MappedItemBase or dict
         """
-        ref = self._db_map.get_mapped_item(ref_type, ref_id)
+        ref = self._db_map.get_mapped_item(ref_type, ref_id, fetch=False)
         if not ref:
             if not strong:
                 return {}
-            ref = self._db_map.fetch_ref(ref_type, ref_id)
+            ref = self._db_map.get_mapped_item(ref_type, ref_id, fetch=True)
             if not ref:
                 self._corrupted = True
                 return {}
@@ -866,9 +858,9 @@ class MappedItemBase(dict):
         Args:
             referrer (MappedItemBase)
         """
-        if referrer.key is None:
-            return
-        self._referrers.pop(referrer.key, None)
+        key = referrer.key
+        if key is not None:
+            self._referrers.pop(key, None)
 
     def add_weak_referrer(self, referrer):
         """Adds a weak referrer to this item.
@@ -877,10 +869,11 @@ class MappedItemBase(dict):
         Args:
             referrer (MappedItemBase)
         """
-        if referrer.key is None:
+        key = referrer.key
+        if key is None:
             return
-        if referrer.key not in self._referrers:
-            self._weak_referrers[referrer.key] = referrer
+        if key not in self._referrers:
+            self._weak_referrers[key] = referrer
 
     def _update_weak_referrers(self):
         for weak_referrer in self._weak_referrers.values():

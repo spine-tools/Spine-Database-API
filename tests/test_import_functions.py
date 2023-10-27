@@ -354,7 +354,7 @@ class TestImportRelationship(unittest.TestCase):
         _, errors = import_relationships(db_map, (("relationship_class", ("object",)),))
         self.assertFalse(errors)
         db_map.commit_session("test")
-        self.assertIn("relationship_class_object", [r.name for r in db_map.query(db_map.relationship_sq)])
+        self.assertIn("object", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
     def test_import_valid_relationship(self):
@@ -364,7 +364,7 @@ class TestImportRelationship(unittest.TestCase):
         _, errors = import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
         self.assertFalse(errors)
         db_map.commit_session("test")
-        self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
+        self.assertIn("object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
     def test_import_valid_relationship_with_object_name_in_multiple_classes(self):
@@ -375,7 +375,7 @@ class TestImportRelationship(unittest.TestCase):
         _, errors = import_relationships(db_map, [["relationship_class", ["duplicate", "object2"]]])
         self.assertFalse(errors)
         db_map.commit_session("test")
-        self.assertIn("relationship_class_duplicate__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
+        self.assertIn("duplicate__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
     def test_import_relationship_with_invalid_class_name(self):
@@ -403,10 +403,10 @@ class TestImportRelationship(unittest.TestCase):
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
         db_map.commit_session("test")
-        self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
+        self.assertIn("object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         _, errors = import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
         self.assertFalse(errors)
-        self.assertIn("relationship_class_object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
+        self.assertIn("object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
     def test_import_relationship_with_one_None_object(self):
@@ -430,12 +430,12 @@ class TestImportRelationship(unittest.TestCase):
                 ["meta_relationship_class", ["relationship_class1", "relationship_class2"]],
             ],
             entities=[
-                ["relationship_class1", ["object1", "object2"]],
-                ["relationship_class2", ["object2", "object1"]],
+                ["relationship_class1", "object1__object2", ["object1", "object2"]],
+                ["relationship_class2", "object2__object1", ["object2", "object1"]],
             ],
         )
         _, errors = import_data(
-            db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
+            db_map, entities=[["meta_relationship_class", ["object1__object2", "object2__object1"]]]
         )
         self.assertFalse(errors)
         db_map.commit_session("test")
@@ -1346,7 +1346,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
             dict(metadata[0]),
             {
                 "alternative_name": "Base",
-                "entity_name": "relationship_class_object",
+                "entity_name": "object",
                 "id": 1,
                 "metadata_id": 1,
                 "metadata_name": "co-author",
@@ -1360,7 +1360,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
             dict(metadata[1]),
             {
                 "alternative_name": "Base",
-                "entity_name": "relationship_class_object",
+                "entity_name": "object",
                 "id": 2,
                 "metadata_id": 2,
                 "metadata_name": "age",

@@ -353,6 +353,22 @@ def create_spine_metadata():
         Column("hidden", Integer, server_default="0"),
     )
     Table(
+        "superclass_subclass",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "superclass_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+        ),
+        Column(
+            "subclass_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            unique=True,
+        ),
+    )
+    Table(
         "entity_class_dimension",
         meta,
         Column(

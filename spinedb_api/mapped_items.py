@@ -9,7 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-import uuid
 from operator import itemgetter
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
@@ -19,6 +18,7 @@ def item_factory(item_type):
     return {
         "commit": CommitItem,
         "entity_class": EntityClassItem,
+        "superclass_subclass": SuperclassSubclassItem,
         "entity": EntityItem,
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
@@ -70,6 +70,17 @@ class EntityClassItem(MappedItemBase):
         kwargs["dimension_id_list"] = tuple(dimension_id_list)
         super().__init__(*args, **kwargs)
 
+    def __getitem__(self, key):
+        if key == "superclass_name":
+            # FIXME: create a weak reference too
+            return (
+                self._db_map.mapped_table("superclass_subclass").find_item_by_unique_key(
+                    {"subclass_name": self["name"]}
+                )
+                or {}
+            ).get("superclass_name")
+        return super().__getitem__(key)
+
     def merge(self, other):
         dimension_id_list = other.pop("dimension_id_list", None)
         error = (
@@ -118,57 +129,35 @@ class EntityItem(MappedItemBase):
         kwargs["element_id_list"] = tuple(element_id_list)
         super().__init__(*args, **kwargs)
 
-    def _byname_iter(self, entity):
+    def _element_name_list_iter(self, entity):
         element_id_list = entity["element_id_list"]
         if not element_id_list:
             yield entity["name"]
         else:
             for el_id in element_id_list:
                 element = self._get_ref("entity", el_id)
-                yield from self._byname_iter(element)
+                yield from self._element_name_list_iter(element)
 
     def __getitem__(self, key):
+        if key == "root_element_name_list":
+            return tuple(self._element_name_list_iter(self))
         if key == "byname":
-            return tuple(self._byname_iter(self))
+            return self["element_name_list"] or (self["name"],)
         return super().__getitem__(key)
-
-    def resolve_inverse_references(self, skip_keys=()):
-        error = super().resolve_inverse_references(skip_keys=skip_keys)
-        if error:
-            return error
-        byname = dict.pop(self, "byname", None)
-        if byname is None:
-            return
-        if not self["dimension_id_list"]:
-            self["name"] = byname[0]
-            return
-        byname_remainder = list(byname)
-        self["element_name_list"] = self._element_name_list_recursive(self["class_name"], byname_remainder)
-        return self._do_resolve_inverse_reference("element_id_list")
-
-    def _element_name_list_recursive(self, class_name, byname_remainder):
-        dimension_name_list = self._db_map.get_item("entity_class", name=class_name).get("dimension_name_list")
-        if not dimension_name_list:
-            name = byname_remainder.pop(0)
-            return (name,)
-        return tuple(
-            self._db_map.get_item(
-                "entity", class_name=dim_name, byname=self._element_name_list_recursive(dim_name, byname_remainder)
-            ).get("name")
-            for dim_name in dimension_name_list
-        )
 
     def polish(self):
         error = super().polish()
         if error:
             return error
-        if "name" in self:
+        if self.get("name") is not None:
             return
-        base_name = self["class_name"] + "_" + "__".join(self["element_name_list"])
+        base_name = "__".join(self["element_name_list"])
         name = base_name
         mapped_table = self._db_map.mapped_table(self._item_type)
+        index = 1
         while mapped_table.find_item({"class_name": self["class_name"], "name": name}):
-            name = base_name + "_" + uuid.uuid4().hex
+            name = base_name + f"_{index}"
+            index += 1
         self["name"] = name
 
 
@@ -606,4 +595,17 @@ class ParameterValueMetadataItem(MappedItemBase):
             ),
         ),
         "metadata_id": (("metadata_name", "metadata_value"), ("metadata", ("name", "value"))),
+    }
+
+
+class SuperclassSubclassItem(MappedItemBase):
+    fields = {"superclass_name": ("str", "The superclass name."), "subclass_name": ("str", "The subclass name.")}
+    _unique_keys = (("subclass_name",),)
+    _references = {
+        "superclass_name": ("superclass_id", ("entity_class", "name")),
+        "subclass_name": ("subclass_id", ("entity_class", "name")),
+    }
+    _inverse_references = {
+        "superclass_id": (("superclass_name",), ("entity_class", ("name",))),
+        "subclass_id": (("subclass_name",), ("entity_class", ("name",))),
     }
