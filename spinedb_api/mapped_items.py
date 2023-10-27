@@ -113,6 +113,7 @@ class EntityItem(MappedItemBase):
         "class_name": ("class_id", ("entity_class", "name")),
         "dimension_id_list": ("class_id", ("entity_class", "dimension_id_list")),
         "dimension_name_list": ("class_id", ("entity_class", "dimension_name_list")),
+        "superclass_name": ("class_id", ("entity_class", "superclass_name")),
         "element_name_list": ("element_id_list", ("entity", "name")),
     }
     _inverse_references = {
