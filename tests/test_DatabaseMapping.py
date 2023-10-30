@@ -1597,6 +1597,18 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             },
         )
 
+    def test_add_entity_to_a_class_with_abstract_dimensions(self):
+        import_functions.import_entity_classes(
+            self._db_map, (("fish", ()), ("dog", ()), ("animal", ()), ("two_animals", ("animal", "animal")))
+        )
+        import_functions.import_superclass_subclasses(self._db_map, (("animal", "fish"), ("animal", "dog")))
+        import_functions.import_entities(self._db_map, (("fish", "Nemo"), ("dog", "Pulgoso")))
+        self._db_map.commit_session("Add test data.")
+        items, errors = self._db_map.add_item(
+            "entity", {"class_name": "two_animals", "entity_name_list": ("Nemo", "Pulgoso")}, strict=False
+        )
+        self.fail()
+
 
 class TestDatabaseMappingUpdate(unittest.TestCase):
     def setUp(self):

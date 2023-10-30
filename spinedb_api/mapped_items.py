@@ -58,8 +58,10 @@ class EntityClassItem(MappedItemBase):
     }
     _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
     _unique_keys = (("name",),)
-    _references = {"dimension_name_list": ("dimension_id_list", ("entity_class", "name"))}
-    _inverse_references = {"dimension_id_list": (("dimension_name_list",), ("entity_class", ("name",)))}
+    _references = {"dimension_id_list": ("entity_class", "id")}
+    _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
+    _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
+    _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
 
     def __init__(self, *args, **kwargs):
         dimension_id_list = kwargs.get("dimension_id_list")
@@ -71,14 +73,12 @@ class EntityClassItem(MappedItemBase):
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        if key == "superclass_name":
+        if key in ("superclass_id", "superclass_name"):
+            superclass_subclass = self._db_map.mapped_table("superclass_subclass").find_item_by_unique_key(
+                {"subclass_name": self["name"]}
+            )
             # FIXME: create a weak reference too
-            return (
-                self._db_map.mapped_table("superclass_subclass").find_item_by_unique_key(
-                    {"subclass_name": self["name"]}
-                )
-                or {}
-            ).get("superclass_name")
+            return superclass_subclass.get(key)
         return super().__getitem__(key)
 
     def merge(self, other):
@@ -108,17 +108,23 @@ class EntityItem(MappedItemBase):
         "description": ("str, optional", "The entity description."),
     }
     _defaults = {"description": None}
-    _unique_keys = (("class_name", "name"), ("class_name", "byname"))
-    _references = {
-        "class_name": ("class_id", ("entity_class", "name")),
-        "dimension_id_list": ("class_id", ("entity_class", "dimension_id_list")),
-        "dimension_name_list": ("class_id", ("entity_class", "dimension_name_list")),
-        "superclass_name": ("class_id", ("entity_class", "superclass_name")),
-        "element_name_list": ("element_id_list", ("entity", "name")),
+    _unique_keys = (("class_name", "name"), ("class_name", "byname"), ("superclass_name", "name"))
+    _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
+    _external_fields = {
+        "class_name": ("class_id", "name"),
+        "dimension_id_list": ("class_id", "dimension_id_list"),
+        "dimension_name_list": ("class_id", "dimension_name_list"),
+        "superclass_id": ("class_id", "superclass_id"),
+        "superclass_name": ("class_id", "superclass_name"),
+        "element_name_list": ("element_id_list", "name"),
     }
-    _inverse_references = {
-        "class_id": (("class_name",), ("entity_class", ("name",))),
-        "element_id_list": (("dimension_name_list", "element_name_list"), ("entity", ("class_name", "name"))),
+    _alt_references = {
+        ("class_name",): ("entity_class", ("name",)),
+        ("dimension_name_list", "element_name_list"): ("entity", ("class_name", "name")),
+    }
+    _internal_fields = {
+        "class_id": (("class_name",), "id"),
+        "element_id_list": (("dimension_name_list", "element_name_list"), "id"),
     }
 
     def __init__(self, *args, **kwargs):
@@ -136,7 +142,7 @@ class EntityItem(MappedItemBase):
             yield entity["name"]
         else:
             for el_id in element_id_list:
-                element = self._get_ref("entity", el_id)
+                element = self._get_ref("entity", {"id", el_id})
                 yield from self._element_name_list_iter(element)
 
     def __getitem__(self, key):
@@ -150,13 +156,22 @@ class EntityItem(MappedItemBase):
         error = super().polish()
         if error:
             return error
+        dim_name_lst, el_name_lst = dict.get(self, "dimension_name_list"), dict.get(self, "element_name_list")
+        if dim_name_lst and el_name_lst:
+            for dim_name, el_name in zip(dim_name_lst, el_name_lst):
+                if not (
+                    self._db_map.get_item("entity", class_name=dim_name, name=el_name, fetch=False)
+                    or self._db_map.get_item("entity", superclass_name=dim_name, name=el_name, fetch=False)
+                ):
+                    return f"element '{el_name}' is not an instance of class '{dim_name}'"
         if self.get("name") is not None:
             return
         base_name = "__".join(self["element_name_list"])
         name = base_name
-        mapped_table = self._db_map.mapped_table(self._item_type)
         index = 1
-        while mapped_table.find_item({"class_name": self["class_name"], "name": name}):
+        while self._db_map.get_item("entity", class_name=self["class_name"], name=name) or self._db_map.get_item(
+            "entity", superclass_name=self["superclass_name"], name=name
+        ):
             name = base_name + f"_{index}"
             index += 1
         self["name"] = name
@@ -170,15 +185,25 @@ class EntityGroupItem(MappedItemBase):
     }
     _unique_keys = (("class_name", "group_name", "member_name"),)
     _references = {
-        "class_name": ("entity_class_id", ("entity_class", "name")),
-        "group_name": ("entity_id", ("entity", "name")),
-        "member_name": ("member_id", ("entity", "name")),
-        "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
+        "entity_class_id": ("entity_class", "id"),
+        "entity_id": ("entity", "id"),
+        "member_id": ("entity", "id"),
     }
-    _inverse_references = {
-        "entity_class_id": (("class_name",), ("entity_class", ("name",))),
-        "entity_id": (("class_name", "group_name"), ("entity", ("class_name", "name"))),
-        "member_id": (("class_name", "member_name"), ("entity", ("class_name", "name"))),
+    _external_fields = {
+        "class_name": ("entity_class_id", "name"),
+        "dimension_id_list": ("entity_class_id", "dimension_id_list"),
+        "group_name": ("entity_id", "name"),
+        "member_name": ("member_id", "name"),
+    }
+    _alt_references = {
+        ("class_name",): ("entity_class", ("name",)),
+        ("class_name", "group_name"): ("entity", ("class_name", "name")),
+        ("class_name", "member_name"): ("entity", ("class_name", "name")),
+    }
+    _internal_fields = {
+        "entity_class_id": (("class_name",), "id"),
+        "entity_id": (("class_name", "group_name"), "id"),
+        "member_id": (("class_name", "member_name"), "id"),
     }
 
     def __getitem__(self, key):
@@ -203,19 +228,28 @@ class EntityAlternativeItem(MappedItemBase):
     _defaults = {"active": True}
     _unique_keys = (("entity_class_name", "entity_byname", "alternative_name"),)
     _references = {
-        "entity_class_id": ("entity_id", ("entity", "class_id")),
-        "entity_class_name": ("entity_class_id", ("entity_class", "name")),
-        "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
-        "dimension_name_list": ("entity_class_id", ("entity_class", "dimension_name_list")),
-        "entity_name": ("entity_id", ("entity", "name")),
-        "entity_byname": ("entity_id", ("entity", "byname")),
-        "element_id_list": ("entity_id", ("entity", "element_id_list")),
-        "element_name_list": ("entity_id", ("entity", "element_name_list")),
-        "alternative_name": ("alternative_id", ("alternative", "name")),
+        "entity_id": ("entity", "id"),
+        "entity_class_id": ("entity_class", "id"),
+        "alternative_id": ("alternative", "id"),
     }
-    _inverse_references = {
-        "entity_id": (("entity_class_name", "entity_byname"), ("entity", ("class_name", "byname"))),
-        "alternative_id": (("alternative_name",), ("alternative", ("name",))),
+    _external_fields = {
+        "entity_class_id": ("entity_id", "class_id"),
+        "entity_class_name": ("entity_class_id", "name"),
+        "dimension_id_list": ("entity_class_id", "dimension_id_list"),
+        "dimension_name_list": ("entity_class_id", "dimension_name_list"),
+        "entity_name": ("entity_id", "name"),
+        "entity_byname": ("entity_id", "byname"),
+        "element_id_list": ("entity_id", "element_id_list"),
+        "element_name_list": ("entity_id", "element_name_list"),
+        "alternative_name": ("alternative_id", "name"),
+    }
+    _alt_references = {
+        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("alternative_name",): ("alternative", ("name",)),
+    }
+    _internal_fields = {
+        "entity_id": (("entity_class_name", "entity_byname"), "id"),
+        "alternative_id": (("alternative_name",), "id"),
     }
 
 
@@ -305,7 +339,6 @@ class ParameterItemBase(ParsedValueBase):
         type_ = super().__getitem__(self._type_key)
         if type_ == "list_value_ref":
             return
-        # value = self[self._value_key]
         value = super().__getitem__(self._value_key)
         parsed_value = from_database(value, type_)
         if parsed_value is None:
@@ -330,14 +363,19 @@ class ParameterDefinitionItem(ParameterItemBase):
     }
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     _unique_keys = (("entity_class_name", "name"),)
-    _references = {
-        "entity_class_name": ("entity_class_id", ("entity_class", "name")),
-        "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
-        "dimension_name_list": ("entity_class_id", ("entity_class", "dimension_name_list")),
+    _references = {"entity_class_id": ("entity_class", "id")}
+    _external_fields = {
+        "entity_class_name": ("entity_class_id", "name"),
+        "dimension_id_list": ("entity_class_id", "dimension_id_list"),
+        "dimension_name_list": ("entity_class_id", "dimension_name_list"),
     }
-    _inverse_references = {
-        "entity_class_id": (("entity_class_name",), ("entity_class", ("name",))),
-        "parameter_value_list_id": (("parameter_value_list_name",), ("parameter_value_list", ("name",))),
+    _alt_references = {
+        ("entity_class_name",): ("entity_class", ("name",)),
+        ("parameter_value_list_name",): ("parameter_value_list", ("name",)),
+    }
+    _internal_fields = {
+        "entity_class_id": (("entity_class_name",), "id"),
+        "parameter_value_list_id": (("parameter_value_list_name",), "id"),
     }
 
     @property
@@ -354,12 +392,14 @@ class ParameterDefinitionItem(ParameterItemBase):
         if key == "parameter_value_list_id":
             return dict.get(self, key)
         if key == "parameter_value_list_name":
-            return self._get_ref("parameter_value_list", self["parameter_value_list_id"], strong=False).get("name")
+            return self._get_ref("parameter_value_list", {"id": self["parameter_value_list_id"]}, strong=False).get(
+                "name"
+            )
         if key in ("default_value", "default_type"):
             list_value_id = self["list_value_id"]
             if list_value_id is not None:
                 list_value_key = {"default_value": "value", "default_type": "type"}[key]
-                return self._get_ref("list_value", list_value_id, strong=False).get(list_value_key)
+                return self._get_ref("list_value", {"id": list_value_id}, strong=False).get(list_value_key)
             return dict.get(self, key)
         return super().__getitem__(key)
 
@@ -399,26 +439,35 @@ class ParameterValueItem(ParameterItemBase):
     }
     _unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
-        "entity_class_name": ("entity_class_id", ("entity_class", "name")),
-        "dimension_id_list": ("entity_class_id", ("entity_class", "dimension_id_list")),
-        "dimension_name_list": ("entity_class_id", ("entity_class", "dimension_name_list")),
-        "parameter_definition_name": ("parameter_definition_id", ("parameter_definition", "name")),
-        "parameter_value_list_id": ("parameter_definition_id", ("parameter_definition", "parameter_value_list_id")),
-        "parameter_value_list_name": ("parameter_definition_id", ("parameter_definition", "parameter_value_list_name")),
-        "entity_name": ("entity_id", ("entity", "name")),
-        "entity_byname": ("entity_id", ("entity", "byname")),
-        "element_id_list": ("entity_id", ("entity", "element_id_list")),
-        "element_name_list": ("entity_id", ("entity", "element_name_list")),
-        "alternative_name": ("alternative_id", ("alternative", "name")),
+        "entity_class_id": ("entity_class", "id"),
+        "parameter_definition_id": ("parameter_definition", "id"),
+        "entity_id": ("entity", "id"),
+        "alternative_id": ("alternative", "id"),
     }
-    _inverse_references = {
-        "entity_class_id": (("entity_class_name",), ("entity_class", ("name",))),
-        "parameter_definition_id": (
-            ("entity_class_name", "parameter_definition_name"),
-            ("parameter_definition", ("entity_class_name", "name")),
-        ),
-        "entity_id": (("entity_class_name", "entity_byname"), ("entity", ("class_name", "byname"))),
-        "alternative_id": (("alternative_name",), ("alternative", ("name",))),
+    _external_fields = {
+        "entity_class_name": ("entity_class_id", "name"),
+        "dimension_id_list": ("entity_class_id", "dimension_id_list"),
+        "dimension_name_list": ("entity_class_id", "dimension_name_list"),
+        "parameter_definition_name": ("parameter_definition_id", "name"),
+        "parameter_value_list_id": ("parameter_definition_id", "parameter_value_list_id"),
+        "parameter_value_list_name": ("parameter_definition_id", "parameter_value_list_name"),
+        "entity_name": ("entity_id", "name"),
+        "entity_byname": ("entity_id", "byname"),
+        "element_id_list": ("entity_id", "element_id_list"),
+        "element_name_list": ("entity_id", "element_name_list"),
+        "alternative_name": ("alternative_id", "name"),
+    }
+    _alt_references = {
+        ("entity_class_name",): ("entity_class", ("name",)),
+        ("entity_class_name", "parameter_definition_name"): ("parameter_definition", ("entity_class_name", "name")),
+        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("alternative_name",): ("alternative", ("name",)),
+    }
+    _internal_fields = {
+        "entity_class_id": (("entity_class_name",), "id"),
+        "parameter_definition_id": (("entity_class_name", "parameter_definition_name"), "id"),
+        "entity_id": (("entity_class_name", "entity_byname"), "id"),
+        "alternative_id": (("alternative_name",), "id"),
     }
 
     @property
@@ -437,7 +486,7 @@ class ParameterValueItem(ParameterItemBase):
         if key in ("value", "type"):
             list_value_id = self["list_value_id"]
             if list_value_id:
-                return self._get_ref("list_value", list_value_id, strong=False).get(key)
+                return self._get_ref("list_value", {"id": list_value_id}, strong=False).get(key)
         return super().__getitem__(key)
 
     def _value_not_in_list_error(self, parsed_value, list_name):
@@ -459,11 +508,11 @@ class ListValueItem(ParsedValueBase):
         "type": ("str", "The value type."),
         "index": ("int, optional", "The value index."),
     }
-    _unique_keys = (("parameter_value_list_name", "value", "type"), ("parameter_value_list_name", "index"))
-    _references = {"parameter_value_list_name": ("parameter_value_list_id", ("parameter_value_list", "name"))}
-    _inverse_references = {
-        "parameter_value_list_id": (("parameter_value_list_name",), ("parameter_value_list", ("name",))),
-    }
+    _unique_keys = (("parameter_value_list_name", "parsed_value"), ("parameter_value_list_name", "index"))
+    _references = {"parameter_value_list_id": ("parameter_value_list", "id")}
+    _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
+    _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
+    _internal_fields = {"parameter_value_list_id": (("parameter_value_list_name",), "id")}
 
     @property
     def _value_key(self):
@@ -517,14 +566,10 @@ class ScenarioAlternativeItem(MappedItemBase):
         "rank": ("int", "The rank - the higher has precedence."),
     }
     _unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
-    _references = {
-        "scenario_name": ("scenario_id", ("scenario", "name")),
-        "alternative_name": ("alternative_id", ("alternative", "name")),
-    }
-    _inverse_references = {
-        "scenario_id": (("scenario_name",), ("scenario", ("name",))),
-        "alternative_id": (("alternative_name",), ("alternative", ("name",))),
-    }
+    _references = {"scenario_id": ("scenario", "id"), "alternative_id": ("alternative", "id")}
+    _external_fields = {"scenario_name": ("scenario_id", "name"), "alternative_name": ("alternative_id", "name")}
+    _alt_references = {("scenario_name",): ("scenario", ("name",)), ("alternative_name",): ("alternative", ("name",))}
+    _internal_fields = {"scenario_id": (("scenario_name",), "id"), "alternative_id": (("alternative_name",), "id")}
 
     def __getitem__(self, key):
         # The 'before' is to be interpreted as, this scenario alternative goes *before* the before_alternative.
@@ -532,9 +577,9 @@ class ScenarioAlternativeItem(MappedItemBase):
         # the second will have the third, etc, and the last will have None.
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
-            return self._get_ref("alternative", self["before_alternative_id"], strong=False).get("name")
+            return self._get_ref("alternative", {"id": self["before_alternative_id"]}, strong=False).get("name")
         if key == "before_alternative_id":
-            scenario = self._get_ref("scenario", self["scenario_id"], strong=False)
+            scenario = self._get_ref("scenario", {"id": self["scenario_id"]}, strong=False)
             try:
                 return scenario["alternative_id_list"][self["rank"]]
             except IndexError:
@@ -554,14 +599,19 @@ class EntityMetadataItem(MappedItemBase):
         "metadata_value": ("str", "The metadata entry value."),
     }
     _unique_keys = (("entity_name", "metadata_name", "metadata_value"),)
-    _references = {
-        "entity_name": ("entity_id", ("entity", "name")),
-        "metadata_name": ("metadata_id", ("metadata", "name")),
-        "metadata_value": ("metadata_id", ("metadata", "value")),
+    _references = {"entity_id": ("entity", "id"), "metadata_id": ("metadata", "id")}
+    _external_fields = {
+        "entity_name": ("entity_id", "name"),
+        "metadata_name": ("metadata_id", "name"),
+        "metadata_value": ("metadata_id", "value"),
     }
-    _inverse_references = {
-        "entity_id": (("entity_class_name", "entity_byname"), ("entity", ("class_name", "byname"))),
-        "metadata_id": (("metadata_name", "metadata_value"), ("metadata", ("name", "value"))),
+    _alt_references = {
+        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("metadata_name", "metadata_value"): ("metadata", ("name", "value")),
+    }
+    _internal_fields = {
+        "entity_id": (("entity_class_name", "entity_byname"), "id"),
+        "metadata_id": (("metadata_name", "metadata_value"), "id"),
     }
 
 
@@ -580,33 +630,40 @@ class ParameterValueMetadataItem(MappedItemBase):
     _unique_keys = (
         ("parameter_definition_name", "entity_byname", "alternative_name", "metadata_name", "metadata_value"),
     )
-    _references = {
-        "parameter_definition_name": ("parameter_value_id", ("parameter_value", "parameter_definition_name")),
-        "entity_byname": ("parameter_value_id", ("parameter_value", "entity_byname")),
-        "alternative_name": ("parameter_value_id", ("parameter_value", "alternative_name")),
-        "metadata_name": ("metadata_id", ("metadata", "name")),
-        "metadata_value": ("metadata_id", ("metadata", "value")),
+    _references = {"parameter_value_id": ("parameter_value", "id"), "metadata_id": ("metadata", "id")}
+    _external_fields = {
+        "parameter_definition_name": ("parameter_value_id", "parameter_definition_name"),
+        "entity_byname": ("parameter_value_id", "entity_byname"),
+        "alternative_name": ("parameter_value_id", "alternative_name"),
+        "metadata_name": ("metadata_id", "name"),
+        "metadata_value": ("metadata_id", "value"),
     }
-    _inverse_references = {
+    _alt_references = {
+        ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"): (
+            "parameter_value",
+            ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
+        ),
+        ("metadata_name", "metadata_value"): ("metadata", ("name", "value")),
+    }
+    _internal_fields = {
         "parameter_value_id": (
             ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
-            (
-                "parameter_value",
-                ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
-            ),
+            "id",
         ),
-        "metadata_id": (("metadata_name", "metadata_value"), ("metadata", ("name", "value"))),
+        "metadata_id": (("metadata_name", "metadata_value"), "id"),
     }
 
 
 class SuperclassSubclassItem(MappedItemBase):
     fields = {"superclass_name": ("str", "The superclass name."), "subclass_name": ("str", "The subclass name.")}
     _unique_keys = (("subclass_name",),)
-    _references = {
-        "superclass_name": ("superclass_id", ("entity_class", "name")),
-        "subclass_name": ("subclass_id", ("entity_class", "name")),
+    _references = {"superclass_id": ("entity_class", "id")}
+    _external_fields = {
+        "superclass_name": ("superclass_id", "name"),
+        "subclass_name": ("subclass_id", "name"),
     }
-    _inverse_references = {
-        "superclass_id": (("superclass_name",), ("entity_class", ("name",))),
-        "subclass_id": (("subclass_name",), ("entity_class", ("name",))),
+    _alt_references = {
+        ("superclass_name",): ("entity_class", ("name",)),
+        ("subclass_name",): ("entity_class", ("name",)),
     }
+    _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}

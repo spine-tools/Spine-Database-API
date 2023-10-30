@@ -584,7 +584,7 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
                 "type": None,
             }
             pv = db_map.mapped_table("parameter_value").find_item(item)
-            if pv is not None:
+            if pv:
                 value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
             item.update({"value": value, "type": type_})
             yield item
@@ -610,7 +610,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
     alt_name_list_by_scen_name, errors = {}, []
     for scen_name, alt_name, *optionals in data:
         scen = db_map.mapped_table("scenario").find_item({"name": scen_name})
-        if scen is None:
+        if not scen:
             errors.append(f"no scenario with name {scen_name} to set alternatives for")
             continue
         alternative_name_list = alt_name_list_by_scen_name.setdefault(scen_name, scen["alternative_name_list"])

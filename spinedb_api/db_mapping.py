@@ -208,7 +208,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return list(DatabaseMapping._sq_name_by_item_type)
 
     @staticmethod
-    def _item_factory(item_type):
+    def item_factory(item_type):
         return item_factory(item_type)
 
     def _make_sq(self, item_type):
@@ -771,7 +771,7 @@ def _add_convenience_methods(node):
     if node.name != "DatabaseMapping":
         return node
     for item_type in DatabaseMapping.item_types():
-        factory = DatabaseMapping._item_factory(item_type)
+        factory = DatabaseMapping.item_factory(item_type)
         uq_fields = {f_name: factory.fields[f_name] for f_names in factory._unique_keys for f_name in f_names}
         a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
         padding = 20 * " "
