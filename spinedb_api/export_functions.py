@@ -23,6 +23,7 @@ from .helpers import Asterisk
 def export_data(
     db_map,
     entity_class_ids=Asterisk,
+    superclass_subclass_ids=Asterisk,
     entity_ids=Asterisk,
     entity_group_ids=Asterisk,
     parameter_value_list_ids=Asterisk,
@@ -57,6 +58,7 @@ def export_data(
     """
     data = {
         "entity_classes": export_entity_classes(db_map, entity_class_ids),
+        "superclass_subclasses": export_superclass_subclasses(db_map, superclass_subclass_ids),
         "entities": export_entities(db_map, entity_ids),
         "entity_alternatives": export_entity_alternatives(db_map, entity_alternative_ids),
         "entity_groups": export_entity_groups(db_map, entity_group_ids),
@@ -126,6 +128,10 @@ def export_entity_classes(db_map, ids=Asterisk):
         ),
         key=lambda x: (len(x[1]), x[0]),
     )
+
+
+def export_superclass_subclasses(db_map, ids=Asterisk):
+    return sorted(((x.superclass_name, x.subclass_name) for x in _get_items(db_map, "superclass_subclasses", ids)))
 
 
 def export_entities(db_map, ids=Asterisk):
