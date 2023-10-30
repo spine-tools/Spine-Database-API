@@ -47,7 +47,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
+from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
 from alembic.config import Config
@@ -601,7 +601,7 @@ def create_new_spine_database(db_url):
         meta.create_all(engine)
         engine.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('ce9faa82ed59')")
+        engine.execute("INSERT INTO alembic_version VALUES ('5385f063bef2')")
     except DatabaseError as e:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
     return engine
