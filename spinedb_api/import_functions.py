@@ -117,6 +117,7 @@ def get_data_for_import(
     metadata=(),
     entity_metadata=(),
     parameter_value_metadata=(),
+    superclass_subclasses=(),
     # legacy
     object_classes=(),
     relationship_classes=(),
@@ -175,6 +176,8 @@ def get_data_for_import(
             alternatives = list({item[1]: None for item in scenario_alternatives})
             yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
+    if superclass_subclasses:
+        yield ("superclass_subclass", _get_parameter_superclass_subclasses_for_import(db_map, superclass_subclasses))
     if entity_classes:
         for bucket in _get_entity_classes_for_import(db_map, entity_classes):
             yield ("entity_class", bucket)
@@ -238,6 +241,20 @@ def get_data_for_import(
         yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
     if relationship_parameter_value_metadata:
         yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
+
+
+def import_superclass_subclasses(db_map, data):
+    """Imports superclass_subclasses into a Spine database using a standard format.
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        data (list(tuple(str,tuple,str,int)): tuples of (superclass name, subclass name)
+
+    Returns:
+        int: number of items imported
+        list: errors
+    """
+    return import_data(db_map, superclass_subclasses=data)
 
 
 def import_entity_classes(db_map, data):
@@ -489,6 +506,11 @@ def _add_to_seen(checked_item, seen):
         if value in seen.get(key, set()):
             return dict(zip(key, value))
         seen.setdefault(key, set()).add(value)
+
+
+def _get_parameter_superclass_subclasses_for_import(db_map, data):
+    key = ("superclass_name", "subclass_name")
+    return _get_items_for_import(db_map, "superclass_subclass", (dict(zip(key, x)) for x in data))
 
 
 def _get_entity_classes_for_import(db_map, data):

@@ -756,19 +756,24 @@ class MappedItemBase(dict):
                 return error
 
     def _do_resolve_internal_field(self, key, src_key, target_key):
-        ref_type, ref_key = self._alt_references[src_key]
         src_val = tuple(dict.pop(self, k, None) or self.get(k) for k in src_key)
         if None in src_val:
             return
+        ref_type, ref_key = self._alt_references[src_key]
         mapped_table = self._db_map.mapped_table(ref_type)
-        try:
-            self[key] = (
-                tuple(mapped_table.find_item(dict(zip(ref_key, v)))[target_key] for v in zip(*src_val))
-                if all(isinstance(v, (tuple, list)) for v in src_val)
-                else mapped_table.find_item(dict(zip(ref_key, src_val)))[target_key]
-            )
-        except KeyError as err:
-            return f"can't find {ref_type} with {dict(zip(ref_key, err.args[0]))}"
+        if all(isinstance(v, (tuple, list)) for v in src_val):
+            refs = []
+            for v in zip(*src_val):
+                ref = mapped_table.find_item(dict(zip(ref_key, v)))
+                if not ref:
+                    return f"can't find {ref_type} with {dict(zip(ref_key, v))}"
+                refs.append(ref)
+            self[key] = tuple(ref[target_key] for ref in refs)
+        else:
+            ref = mapped_table.find_item(dict(zip(ref_key, src_val)))
+            if not ref:
+                return f"can't find {ref_type} with {dict(zip(ref_key, src_val))}"
+            self[key] = ref[target_key]
 
     def polish(self):
         """Polishes this item once all it's references have been resolved. Returns any error.

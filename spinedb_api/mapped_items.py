@@ -108,7 +108,7 @@ class EntityItem(MappedItemBase):
         "description": ("str, optional", "The entity description."),
     }
     _defaults = {"description": None}
-    _unique_keys = (("class_name", "name"), ("class_name", "byname"), ("superclass_name", "name"))
+    _unique_keys = (("class_name", "name"), ("class_name", "byname"))
     _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
     _external_fields = {
         "class_name": ("class_id", "name"),
@@ -136,6 +136,15 @@ class EntityItem(MappedItemBase):
         kwargs["element_id_list"] = tuple(element_id_list)
         super().__init__(*args, **kwargs)
 
+    @classmethod
+    def unique_values_for_item(cls, item, skip_keys=()):
+        yield from super().unique_values_for_item(item, skip_keys=skip_keys)
+        key = ("class_name", "name")
+        if key not in skip_keys:
+            value = tuple(item.get(k) for k in ("superclass_name", "name"))
+            if None not in value:
+                yield key, value
+
     def _element_name_list_iter(self, entity):
         element_id_list = entity["element_id_list"]
         if not element_id_list:
@@ -159,20 +168,17 @@ class EntityItem(MappedItemBase):
         dim_name_lst, el_name_lst = dict.get(self, "dimension_name_list"), dict.get(self, "element_name_list")
         if dim_name_lst and el_name_lst:
             for dim_name, el_name in zip(dim_name_lst, el_name_lst):
-                if not (
-                    self._db_map.get_item("entity", class_name=dim_name, name=el_name, fetch=False)
-                    or self._db_map.get_item("entity", superclass_name=dim_name, name=el_name, fetch=False)
-                ):
+                if not self._db_map.get_item("entity", class_name=dim_name, name=el_name, fetch=False):
                     return f"element '{el_name}' is not an instance of class '{dim_name}'"
         if self.get("name") is not None:
             return
         base_name = "__".join(self["element_name_list"])
         name = base_name
         index = 1
-        while self._db_map.get_item("entity", class_name=self["class_name"], name=name) or self._db_map.get_item(
-            "entity", superclass_name=self["superclass_name"], name=name
+        while any(
+            self._db_map.get_item("entity", class_name=self[k], name=name) for k in ("class_name", "superclass_name")
         ):
-            name = base_name + f"_{index}"
+            name = f"{base_name}_{index}"
             index += 1
         self["name"] = name
 
@@ -657,7 +663,7 @@ class ParameterValueMetadataItem(MappedItemBase):
 class SuperclassSubclassItem(MappedItemBase):
     fields = {"superclass_name": ("str", "The superclass name."), "subclass_name": ("str", "The subclass name.")}
     _unique_keys = (("subclass_name",),)
-    _references = {"superclass_id": ("entity_class", "id")}
+    _references = {"superclass_id": ("entity_class", "id"), "subclass_id": ("entity_class", "id")}
     _external_fields = {
         "superclass_name": ("superclass_id", "name"),
         "subclass_name": ("subclass_id", "name"),

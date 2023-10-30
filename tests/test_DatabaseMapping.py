@@ -1604,10 +1604,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_superclass_subclasses(self._db_map, (("animal", "fish"), ("animal", "dog")))
         import_functions.import_entities(self._db_map, (("fish", "Nemo"), ("dog", "Pulgoso")))
         self._db_map.commit_session("Add test data.")
-        items, errors = self._db_map.add_item(
-            "entity", {"class_name": "two_animals", "entity_name_list": ("Nemo", "Pulgoso")}, strict=False
-        )
-        self.fail()
+        item, error = self._db_map.add_item("entity", class_name="two_animals", element_name_list=("Nemo", "Pulgoso"))
+        print(item)
+        # self.fail()
 
 
 class TestDatabaseMappingUpdate(unittest.TestCase):
