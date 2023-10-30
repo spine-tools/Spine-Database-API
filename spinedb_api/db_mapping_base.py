@@ -96,7 +96,7 @@ class DatabaseMappingBase:
         for key, value in kwargs.items():
             if hasattr(sq.c, key):
                 qry = qry.filter(getattr(sq.c, key) == value)
-            elif key in self._external_fields:
+            elif key in self.item_factory(item_type)._external_fields:
                 src_key, key = self.item_factory(item_type)._external_fields[key]
                 ref_type, ref_key = self.item_factory(item_type)._references[src_key]
                 ref_sq = self._make_sq(ref_type)
