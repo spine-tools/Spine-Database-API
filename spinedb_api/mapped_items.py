@@ -514,7 +514,7 @@ class ListValueItem(ParsedValueBase):
         "type": ("str", "The value type."),
         "index": ("int, optional", "The value index."),
     }
-    _unique_keys = (("parameter_value_list_name", "parsed_value"), ("parameter_value_list_name", "index"))
+    _unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
     _references = {"parameter_value_list_id": ("parameter_value_list", "id")}
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
@@ -527,6 +527,11 @@ class ListValueItem(ParsedValueBase):
     @property
     def _type_key(self):
         return "type"
+
+    def __getitem__(self, key):
+        if key == "value_and_type":
+            return (self["value"], self["type"])
+        return super().__getitem__(key)
 
 
 class AlternativeItem(MappedItemBase):
