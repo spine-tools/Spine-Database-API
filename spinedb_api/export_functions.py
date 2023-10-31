@@ -131,7 +131,7 @@ def export_entity_classes(db_map, ids=Asterisk):
 
 
 def export_superclass_subclasses(db_map, ids=Asterisk):
-    return sorted(((x.superclass_name, x.subclass_name) for x in _get_items(db_map, "superclass_subclasses", ids)))
+    return sorted(((x.superclass_name, x.subclass_name) for x in _get_items(db_map, "superclass_subclass", ids)))
 
 
 def export_entities(db_map, ids=Asterisk):

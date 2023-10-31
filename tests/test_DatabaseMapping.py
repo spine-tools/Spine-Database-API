@@ -1605,8 +1605,12 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_entities(self._db_map, (("fish", "Nemo"), ("dog", "Pulgoso")))
         self._db_map.commit_session("Add test data.")
         item, error = self._db_map.add_item("entity", class_name="two_animals", element_name_list=("Nemo", "Pulgoso"))
-        print(item)
-        # self.fail()
+        self.assertTrue(item)
+        self.assertFalse(error)
+        self._db_map.commit_session("Add test data.")
+        entities = self._db_map.query(self._db_map.wide_entity_sq).all()
+        self.assertEqual(len(entities), 3)
+        self.assertIn("Nemo,Pulgoso", {x.element_name_list for x in entities})
 
 
 class TestDatabaseMappingUpdate(unittest.TestCase):
