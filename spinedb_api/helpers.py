@@ -360,11 +360,13 @@ def create_spine_metadata():
             "superclass_id",
             Integer,
             ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
         ),
         Column(
             "subclass_id",
             Integer,
             ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
             unique=True,
         ),
     )

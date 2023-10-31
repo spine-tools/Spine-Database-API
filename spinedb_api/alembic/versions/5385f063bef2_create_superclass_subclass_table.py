@@ -20,8 +20,8 @@ def upgrade():
     op.create_table(
         'superclass_subclass',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('superclass_id', sa.Integer(), nullable=True),
-        sa.Column('subclass_id', sa.Integer(), nullable=True),
+        sa.Column('superclass_id', sa.Integer(), nullable=False),
+        sa.Column('subclass_id', sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
             ['subclass_id'],
             ['entity_class.id'],
