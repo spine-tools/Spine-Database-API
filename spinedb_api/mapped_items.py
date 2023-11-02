@@ -74,11 +74,7 @@ class EntityClassItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key in ("superclass_id", "superclass_name"):
-            superclass_subclass = self._db_map.mapped_table("superclass_subclass").find_item_by_unique_key(
-                {"subclass_name": self["name"]}
-            )
-            # FIXME: create a weak reference too
-            return superclass_subclass.get(key)
+            return self._get_ref("superclass_subclass", {"subclass_id": self["id"]}, strong=False).get(key)
         return super().__getitem__(key)
 
     def merge(self, other):

@@ -837,11 +837,10 @@ class MappedItemBase(dict):
         mapped_table = self._db_map.mapped_table(ref_type)
         ref = mapped_table.find_item(key_val, fetch=False)
         if not ref:
-            if not strong:
-                return {}
             ref = mapped_table.find_item(key_val, fetch=True)
             if not ref:
-                self._corrupted = True
+                if strong:
+                    self._corrupted = True
                 return {}
         # Here we have a ref
         if strong:
