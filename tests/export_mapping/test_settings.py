@@ -164,9 +164,9 @@ class TestEntityElementParameterExport(unittest.TestCase):
         )
         set_entity_dimensions(root_mapping, 2)
         expected = [
-            ["rc", "p11", "rc_o11__o21", "oc1", "oc2", "o11", "o21", "Base", "single_value", 2.3],
-            ["rc", "p11", "rc_o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -2.3],
-            ["rc", "p12", "rc_o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -5.0],
+            ["rc", "p11", "o11__o21", "oc1", "oc2", "o11", "o21", "Base", "single_value", 2.3],
+            ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -2.3],
+            ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -5.0],
         ]
         self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
 

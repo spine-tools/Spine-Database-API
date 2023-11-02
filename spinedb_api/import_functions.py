@@ -117,6 +117,7 @@ def get_data_for_import(
     metadata=(),
     entity_metadata=(),
     parameter_value_metadata=(),
+    superclass_subclasses=(),
     # legacy
     object_classes=(),
     relationship_classes=(),
@@ -175,6 +176,8 @@ def get_data_for_import(
             alternatives = list({item[1]: None for item in scenario_alternatives})
             yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
+    if superclass_subclasses:
+        yield ("superclass_subclass", _get_parameter_superclass_subclasses_for_import(db_map, superclass_subclasses))
     if entity_classes:
         for bucket in _get_entity_classes_for_import(db_map, entity_classes):
             yield ("entity_class", bucket)
@@ -207,7 +210,7 @@ def get_data_for_import(
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     # Legacy
     if object_classes:
-        yield from get_data_for_import(db_map, entity_classes=_object_classes_from_entity_classes(object_classes))
+        yield from get_data_for_import(db_map, entity_classes=_object_classes_to_entity_classes(object_classes))
     if relationship_classes:
         yield from get_data_for_import(db_map, entity_classes=relationship_classes)
     if object_parameters:
@@ -238,6 +241,20 @@ def get_data_for_import(
         yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
     if relationship_parameter_value_metadata:
         yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
+
+
+def import_superclass_subclasses(db_map, data):
+    """Imports superclass_subclasses into a Spine database using a standard format.
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        data (list(tuple(str,tuple,str,int)): tuples of (superclass name, subclass name)
+
+    Returns:
+        int: number of items imported
+        list: errors
+    """
+    return import_data(db_map, superclass_subclasses=data)
 
 
 def import_entity_classes(db_map, data):
@@ -458,13 +475,15 @@ def _get_items_for_import(db_map, item_type, data, check_skip_keys=()):
     to_update = []
     seen = {}
     for item in data:
-        checked_item, add_error = mapped_table.check_item(item, skip_keys=check_skip_keys)
+        checked_item, add_error = mapped_table.checked_item_and_error(item, skip_keys=check_skip_keys)
         if not add_error:
             if not _check_unique(item_type, checked_item, seen, errors):
                 continue
             to_add.append(checked_item)
             continue
-        checked_item, update_error = mapped_table.check_item(item, for_update=True, skip_keys=check_skip_keys)
+        checked_item, update_error = mapped_table.checked_item_and_error(
+            item, for_update=True, skip_keys=check_skip_keys
+        )
         if not update_error:
             if checked_item:
                 if not _check_unique(item_type, checked_item, seen, errors):
@@ -485,10 +504,15 @@ def _check_unique(item_type, checked_item, seen, errors):
 
 
 def _add_to_seen(checked_item, seen):
-    for key, value in checked_item.unique_values():
+    for key, value in checked_item.unique_key_values():
         if value in seen.get(key, set()):
             return dict(zip(key, value))
         seen.setdefault(key, set()).add(value)
+
+
+def _get_parameter_superclass_subclasses_for_import(db_map, data):
+    key = ("superclass_name", "subclass_name")
+    return _get_items_for_import(db_map, "superclass_subclass", (dict(zip(key, x)) for x in data))
 
 
 def _get_entity_classes_for_import(db_map, data):
@@ -519,12 +543,19 @@ def _get_entity_classes_for_import(db_map, data):
 
 def _get_entities_for_import(db_map, data):
     items_by_el_count = {}
-    key = ("class_name", "byname", "description")
-    for class_name, name_or_element_name_list, *optionals in data:
-        is_zero_dim = isinstance(name_or_element_name_list, str)
-        byname = (name_or_element_name_list,) if is_zero_dim else tuple(name_or_element_name_list)
-        item = dict(zip(key, (class_name, byname, *optionals)))
-        el_count = 0 if is_zero_dim else len(name_or_element_name_list)
+    key = ("class_name", "name", "element_name_list", "description")
+    for class_name, name_or_el_name_list, *optionals in data:
+        if isinstance(name_or_el_name_list, (list, tuple)):
+            name = None
+            el_name_list = name_or_el_name_list
+        else:
+            name = name_or_el_name_list
+            if optionals and isinstance(optionals[0], (list, tuple)):
+                el_name_list = tuple(optionals.pop(0))
+            else:
+                el_name_list = ()
+        item = dict(zip(key, (class_name, name, el_name_list, *optionals)))
+        el_count = len(el_name_list)
         items_by_el_count.setdefault(el_count, []).append(item)
     return (
         _get_items_for_import(db_map, "entity", items_by_el_count[el_count]) for el_count in sorted(items_by_el_count)
@@ -577,7 +608,7 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
                 "type": None,
             }
             pv = db_map.mapped_table("parameter_value").find_item(item)
-            if pv is not None:
+            if pv:
                 value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
             item.update({"value": value, "type": type_})
             yield item
@@ -603,7 +634,7 @@ def _get_scenario_alternatives_for_import(db_map, data):
     alt_name_list_by_scen_name, errors = {}, []
     for scen_name, alt_name, *optionals in data:
         scen = db_map.mapped_table("scenario").find_item({"name": scen_name})
-        if scen is None:
+        if not scen:
             errors.append(f"no scenario with name {scen_name} to set alternatives for")
             continue
         alternative_name_list = alt_name_list_by_scen_name.setdefault(scen_name, scen["alternative_name_list"])
@@ -699,7 +730,7 @@ def _get_parameter_value_metadata_for_import(db_map, data):
 
 
 # Legacy
-def _object_classes_from_entity_classes(data):
+def _object_classes_to_entity_classes(data):
     for x in data:
         if isinstance(x, str):
             yield x, ()

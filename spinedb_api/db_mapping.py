@@ -119,6 +119,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "scenario": "scenario_sq",
         "scenario_alternative": "scenario_alternative_sq",
         "entity_class": "wide_entity_class_sq",
+        "superclass_subclass": "superclass_subclass_sq",
         "entity": "wide_entity_sq",
         "entity_group": "entity_group_sq",
         "entity_alternative": "entity_alternative_sq",
@@ -207,7 +208,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return list(DatabaseMapping._sq_name_by_item_type)
 
     @staticmethod
-    def _item_factory(item_type):
+    def item_factory(item_type):
         return item_factory(item_type)
 
     def _make_sq(self, item_type):
@@ -440,11 +441,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._convert_legacy(item_type, kwargs)
         if not check:
             return mapped_table.add_item(kwargs), None
-        checked_item, error = mapped_table.check_item(kwargs)
-        return (
-            mapped_table.add_item(checked_item).public_item if checked_item and not error else None,
-            error,
-        )
+        checked_item, error = mapped_table.checked_item_and_error(kwargs)
+        return (mapped_table.add_item(checked_item).public_item if checked_item else None, error)
 
     def add_items(self, item_type, *items, check=True, strict=False):
         """Add many items to the in-memory mapping.
@@ -496,7 +494,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._convert_legacy(item_type, kwargs)
         if not check:
             return mapped_table.update_item(kwargs), None
-        checked_item, error = mapped_table.check_item(kwargs, for_update=True)
+        checked_item, error = mapped_table.checked_item_and_error(kwargs, for_update=True)
         return (mapped_table.update_item(checked_item._asdict()).public_item if checked_item else None, error)
 
     def update_items(self, item_type, *items, check=True, strict=False):
@@ -524,7 +522,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 updated.append(item)
         return updated, errors
 
-    def remove_item(self, item_type, id_):
+    def remove_item(self, item_type, id_, check=True):
         """Removes an item from the in-memory mapping.
 
         Example::
@@ -536,32 +534,48 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             id_ (int): The id of the item to remove.
+            check (bool, optional): Whether to carry out integrity checks.
 
         Returns:
-            tuple(:class:`PublicItem` or None, str): The removed item if any.
+            tuple(:class:`PublicItem` or None, str): The removed item and any errors.
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
-        return mapped_table.remove_item(id_).public_item
+        item, error = mapped_table.item_to_remove_and_error(id_)
+        if check and error:
+            return None, error
+        return mapped_table.remove_item(item).public_item, None
 
-    def remove_items(self, item_type, *ids):
+    def remove_items(self, item_type, *ids, check=True, strict=False):
         """Removes many items from the in-memory mapping.
 
         Args:
             item_type (str): One of <spine_item_types>.
             *ids (Iterable(int)): Ids of items to be removed.
+            check (bool): Whether or not to run integrity checks.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if the update of one of the items violates an integrity constraint.
 
         Returns:
-            list(:class:`PublicItem`): the removed items.
+            tuple(list(:class:`PublicItem`),list(str)): items successfully removed and found violations.
         """
-        if not ids:
-            return []
         item_type = self.real_item_type(item_type)
         ids = set(ids)
         if item_type == "alternative":
             # Do not remove the Base alternative
             ids.discard(1)
-        return [self.remove_item(item_type, id_) for id_ in ids]
+        if not ids:
+            return [], []
+        removed, errors = [], []
+        for id_ in ids:
+            item, error = self.remove_item(item_type, id_, check=check)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+            if item:
+                removed.append(item)
+        return removed, errors
 
     def restore_item(self, item_type, id_):
         """Restores a previously removed item into the in-memory mapping.
@@ -770,7 +784,7 @@ def _add_convenience_methods(node):
     if node.name != "DatabaseMapping":
         return node
     for item_type in DatabaseMapping.item_types():
-        factory = DatabaseMapping._item_factory(item_type)
+        factory = DatabaseMapping.item_factory(item_type)
         uq_fields = {f_name: factory.fields[f_name] for f_names in factory._unique_keys for f_name in f_names}
         a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
         padding = 20 * " "

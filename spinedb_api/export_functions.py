@@ -23,6 +23,7 @@ from .helpers import Asterisk
 def export_data(
     db_map,
     entity_class_ids=Asterisk,
+    superclass_subclass_ids=Asterisk,
     entity_ids=Asterisk,
     entity_group_ids=Asterisk,
     parameter_value_list_ids=Asterisk,
@@ -57,6 +58,7 @@ def export_data(
     """
     data = {
         "entity_classes": export_entity_classes(db_map, entity_class_ids),
+        "superclass_subclasses": export_superclass_subclasses(db_map, superclass_subclass_ids),
         "entities": export_entities(db_map, entity_ids),
         "entity_alternatives": export_entity_alternatives(db_map, entity_alternative_ids),
         "entity_groups": export_entity_groups(db_map, entity_group_ids),
@@ -128,10 +130,14 @@ def export_entity_classes(db_map, ids=Asterisk):
     )
 
 
+def export_superclass_subclasses(db_map, ids=Asterisk):
+    return sorted(((x.superclass_name, x.subclass_name) for x in _get_items(db_map, "superclass_subclass", ids)))
+
+
 def export_entities(db_map, ids=Asterisk):
     return sorted(
-        ((x.class_name, x.element_name_list or x.name, x.description) for x in _get_items(db_map, "entity", ids)),
-        key=lambda x: (0 if isinstance(x[1], str) else len(x[1]), x[0], (x[1],) if isinstance(x[1], str) else x[1]),
+        ((x.class_name, x.name, x.element_name_list, x.description) for x in _get_items(db_map, "entity", ids)),
+        key=lambda x: (len(x[2]), x[0], x[2], x[1]),
     )
 
 

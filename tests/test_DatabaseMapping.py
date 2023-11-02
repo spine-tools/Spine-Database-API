@@ -646,7 +646,7 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         entity_rows = self._db_map.query(self._db_map.entity_sq).all()
         self.assertEqual(len(entity_rows), len(objects) + len(relationships))
         object_names = [o[1] for o in objects]
-        relationship_names = [r[0] + "_" + "__".join(r[1]) for r in relationships]
+        relationship_names = ["__".join(r[1]) for r in relationships]
         for row, expected_name in zip(entity_rows, object_names + relationship_names):
             self.assertEqual(row.name, expected_name)
 
@@ -690,7 +690,7 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         relationship_rows = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationship_rows), 2)
         for row, relationship in zip(relationship_rows, relationships):
-            self.assertEqual(row.name, relationship[0] + "_" + "__".join(relationship[1]))
+            self.assertEqual(row.name, "__".join(relationship[1]))
             self.assertEqual(row.class_name, relationship[0])
             self.assertEqual(row.object_class_name_list, ",".join(object_classes[relationship[0]]))
             self.assertEqual(row.object_name_list, ",".join(relationship[1]))
@@ -886,7 +886,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         """Test that adding object classes with empty name raises error"""
         self._db_map.add_object_classes({"name": "fish"})
         with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_objects({"name": "", "class_id": 1}, strict=True)
+            self._db_map.add_objects({"name": "", "class_name": "fish"}, strict=True)
 
     def test_add_objects_with_same_name(self):
         """Test that adding two objects with the same name only adds one of them."""
@@ -1423,7 +1423,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             dict(entity_metadata[0]),
             {
                 "entity_id": 2,
-                "entity_name": "my_relationship_class_my_object",
+                "entity_name": "my_object",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,
@@ -1596,6 +1596,21 @@ class TestDatabaseMappingAdd(unittest.TestCase):
                 "commit_id": 3,
             },
         )
+
+    def test_add_entity_to_a_class_with_abstract_dimensions(self):
+        import_functions.import_entity_classes(
+            self._db_map, (("fish", ()), ("dog", ()), ("animal", ()), ("two_animals", ("animal", "animal")))
+        )
+        import_functions.import_superclass_subclasses(self._db_map, (("animal", "fish"), ("animal", "dog")))
+        import_functions.import_entities(self._db_map, (("fish", "Nemo"), ("dog", "Pulgoso")))
+        self._db_map.commit_session("Add test data.")
+        item, error = self._db_map.add_item("entity", class_name="two_animals", element_name_list=("Nemo", "Pulgoso"))
+        self.assertTrue(item)
+        self.assertFalse(error)
+        self._db_map.commit_session("Add test data.")
+        entities = self._db_map.query(self._db_map.wide_entity_sq).all()
+        self.assertEqual(len(entities), 3)
+        self.assertIn("Nemo,Pulgoso", {x.element_name_list for x in entities})
 
 
 class TestDatabaseMappingUpdate(unittest.TestCase):
