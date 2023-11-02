@@ -475,13 +475,15 @@ def _get_items_for_import(db_map, item_type, data, check_skip_keys=()):
     to_update = []
     seen = {}
     for item in data:
-        checked_item, add_error = mapped_table.check_item(item, skip_keys=check_skip_keys)
+        checked_item, add_error = mapped_table.checked_item_and_error(item, skip_keys=check_skip_keys)
         if not add_error:
             if not _check_unique(item_type, checked_item, seen, errors):
                 continue
             to_add.append(checked_item)
             continue
-        checked_item, update_error = mapped_table.check_item(item, for_update=True, skip_keys=check_skip_keys)
+        checked_item, update_error = mapped_table.checked_item_and_error(
+            item, for_update=True, skip_keys=check_skip_keys
+        )
         if not update_error:
             if checked_item:
                 if not _check_unique(item_type, checked_item, seen, errors):
@@ -502,7 +504,7 @@ def _check_unique(item_type, checked_item, seen, errors):
 
 
 def _add_to_seen(checked_item, seen):
-    for key, value in checked_item.unique_values():
+    for key, value in checked_item.unique_key_values():
         if value in seen.get(key, set()):
             return dict(zip(key, value))
         seen.setdefault(key, set()).add(value)

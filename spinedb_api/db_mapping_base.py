@@ -194,7 +194,7 @@ class DatabaseMappingBase:
         for item_type, to_add in to_add_by_type:
             mapped_table = self.mapped_table(item_type)
             for item in to_add:
-                if mapped_table.remove_item(item["id"]) is not None:
+                if mapped_table.remove_item(item) is not None:
                     item.invalidate_id()
         return True
 
@@ -392,13 +392,13 @@ class _MappedTable(dict):
             error = mapped_item.polish()
             if error:
                 return {}
-            for key, value in mapped_item.unique_values(skip_keys=skip_keys):
+            for key, value in mapped_item.unique_key_values(skip_keys=skip_keys):
                 current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
                 if current_item:
                     return current_item
         return {}
 
-    def check_item(self, item, for_update=False, skip_keys=()):
+    def checked_item_and_error(self, item, for_update=False, skip_keys=()):
         # FIXME: The only use-case for skip_keys at the moment is that of importing scenario alternatives,
         # where we only want to match by (scen_name, alt_name) and not by (scen_name, rank)
         if for_update:
@@ -408,41 +408,66 @@ class _MappedTable(dict):
             full_item, merge_error = current_item.merge(item)
             if full_item is None:
                 return None, merge_error
+            mutability_error = current_item.check_mutability()
+            if mutability_error:
+                return None, mutability_error
         else:
             current_item = None
             full_item, merge_error = item, None
         candidate_item = self._make_item(full_item)
-        error = candidate_item.resolve_internal_fields(skip_keys=item.keys())
+        error = self._prepare_item(candidate_item, current_item, item, skip_keys)
         if error:
             return None, error
+        return candidate_item, merge_error
+
+    def _prepare_item(self, candidate_item, current_item, original_item, skip_keys):
+        """Prepares item for insertion or update, returns any errors.
+
+        Args:
+            candidate_item (MappedItem)
+            current_item (MappedItem)
+            original_item (dict)
+            skip_keys (optional, tuple)
+
+        Returns:
+            str or None: errors if any.
+        """
+        error = candidate_item.resolve_internal_fields(skip_keys=original_item.keys())
+        if error:
+            return error
         error = candidate_item.polish()
         if error:
-            return None, error
+            return error
         first_invalid_key = candidate_item.first_invalid_key()
         if first_invalid_key:
-            return None, f"invalid {first_invalid_key} for {self._item_type}"
+            return f"invalid {first_invalid_key} for {self._item_type}"
         try:
-            for key, value in candidate_item.unique_values(skip_keys=skip_keys):
+            for key, value in candidate_item.unique_key_values(skip_keys=skip_keys):
                 empty = {k for k, v in zip(key, value) if v == ""}
                 if empty:
-                    return None, f"invalid empty keys {empty} for {self._item_type}"
+                    return f"invalid empty keys {empty} for {self._item_type}"
                 unique_item = self._unique_key_value_to_item(key, value)
                 if unique_item not in (None, current_item) and unique_item.is_valid():
-                    return None, f"there's already a {self._item_type} with {dict(zip(key, value))}"
+                    return f"there's already a {self._item_type} with {dict(zip(key, value))}"
         except KeyError as e:
-            return None, f"missing {e} for {self._item_type}"
-        if "id" not in candidate_item:
-            candidate_item["id"] = self._new_id()
-        return candidate_item, merge_error
+            return f"missing {e} for {self._item_type}"
+
+    def item_to_remove_and_error(self, id_):
+        if id_ is Asterisk:
+            return self.wildcard_item, None
+        current_item = self.find_item({"id": id_})
+        if not current_item:
+            return None, None
+        return current_item, current_item.check_mutability()
 
     def add_unique(self, item):
         id_ = item["id"]
-        for key, value in item.unique_values():
+        for key, value in item.unique_key_values():
             self._id_by_unique_key_value.setdefault(key, {})[value] = id_
 
     def remove_unique(self, item):
         id_ = item["id"]
-        for key, value in item.unique_values():
+        for key, value in item.unique_key_values():
             id_by_value = self._id_by_unique_key_value.get(key, {})
             if id_by_value.get(value) == id_:
                 del id_by_value[value]
@@ -490,18 +515,18 @@ class _MappedTable(dict):
         current_item.cascade_update()
         return current_item
 
-    def remove_item(self, id_):
-        if id_ is Asterisk:
+    def remove_item(self, item):
+        if not item:
+            return None
+        if item is self.wildcard_item:
             self.purged = True
             for current_item in self.valid_values():
                 self.remove_unique(current_item)
                 current_item.cascade_remove(source=self.wildcard_item)
             return self.wildcard_item
-        current_item = self.find_item({"id": id_})
-        if current_item:
-            self.remove_unique(current_item)
-            current_item.cascade_remove()
-        return current_item
+        self.remove_unique(item)
+        item.cascade_remove()
+        return item
 
     def restore_item(self, id_):
         if id_ is Asterisk:
@@ -726,7 +751,7 @@ class MappedItemBase(dict):
                 if None not in value:
                     yield key, value
 
-    def unique_values(self, skip_keys=()):
+    def unique_key_values(self, skip_keys=()):
         """Yields tuples of unique keys and their values.
 
         Args:
@@ -785,6 +810,14 @@ class MappedItemBase(dict):
         """
         for key, default_value in self._defaults.items():
             self.setdefault(key, default_value)
+        return ""
+
+    def check_mutability(self):
+        """Checks if this item can be mutated (updated or removed). Returns any errors.
+
+        Returns:
+            str or None: error description if any.
+        """
         return ""
 
     def _get_ref(self, ref_type, key_val, strong=True):

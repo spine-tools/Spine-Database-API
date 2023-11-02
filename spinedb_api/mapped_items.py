@@ -678,3 +678,18 @@ class SuperclassSubclassItem(MappedItemBase):
         ("subclass_name",): ("entity_class", ("name",)),
     }
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
+
+    def _subclass_entities(self):
+        return self._db_map.get_items("entity", class_id=self["subclass_id"])
+
+    def polish(self):
+        error = super().polish()
+        if error:
+            return error
+        for ent in self._subclass_entities():
+            pass
+
+    def check_mutability(self):
+        if self._subclass_entities():
+            return "can't modify the superclass of a class that already has entities"
+        return super().check_mutability()
