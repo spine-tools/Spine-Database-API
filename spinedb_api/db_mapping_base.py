@@ -408,9 +408,6 @@ class _MappedTable(dict):
             full_item, merge_error = current_item.merge(item)
             if full_item is None:
                 return None, merge_error
-            mutability_error = current_item.check_mutability()
-            if mutability_error:
-                return None, mutability_error
         else:
             current_item = None
             full_item, merge_error = item, None
@@ -433,6 +430,9 @@ class _MappedTable(dict):
             str or None: errors if any.
         """
         error = candidate_item.resolve_internal_fields(skip_keys=original_item.keys())
+        if error:
+            return error
+        error = candidate_item.check_mutability()
         if error:
             return error
         error = candidate_item.polish()
@@ -813,7 +813,7 @@ class MappedItemBase(dict):
         return ""
 
     def check_mutability(self):
-        """Checks if this item can be mutated (updated or removed). Returns any errors.
+        """Called before adding, updating, or removing this item. Returns any errors that prevent that.
 
         Returns:
             str or None: error description if any.
